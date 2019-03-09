@@ -1,0 +1,52 @@
+name:                hinja
+version:             0.1.0.0
+github:              "mp/hinja"
+license:             BSD3
+author:              "Matt Parker"
+maintainer:          "mp@kududyn.com"
+copyright:           "2018 Matt Parker"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the readme
+
+dependencies:
+  - attoparsec
+  - base >= 4.7 && < 5
+  - language-c
+  - lens
+  - mtl
+  - protolude
+  - stm
+  - text
+
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -j
+  - +RTS
+  - -s
+  - -A256m
+  - -n16m
+  - -RTS
+  - -lbinaryninjacore
+  source-dirs: src
+
+build-tools:
+  - c2hs
+
+include-dirs:
+  - "/tmp/kudu/binaryninja-api"

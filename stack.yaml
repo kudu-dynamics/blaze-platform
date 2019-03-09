@@ -1,0 +1,12 @@
+resolver: lts-7.19
+compiler: ghc-8.0.1
+
+packages:
+  - location: .
+
+extra-deps:
+  - c2hs-0.28.6
+  - cpython-3.4.0
+  - language-c-0.8.2@sha256:5559b4e3744e84ac99fc491d861bd9448f8cbee7c55412a8a9ed4dbf884ce4f5
+  - protolude-0.2.1
+

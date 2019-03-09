@@ -1,0 +1,55 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 37eb4095658a0a42d5d9015bffda501b78533056e0e2cea658a83319c08bbacd
+
+name:           hinja
+version:        0.1.0.0
+description:    Please see the readme
+homepage:       https://github.com/mp/hinja#readme
+bug-reports:    https://github.com/mp/hinja/issues
+author:         Matt Parker
+maintainer:     mp@kududyn.com
+copyright:      2018 Matt Parker
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/mp/hinja
+
+library
+  exposed-modules:
+      Hinja
+      Hinja.ParseEnums
+      Hinja.ParseHeader
+      Hinja.Prelude
+      Hinja.Types.LLIL
+      Hinja.Types.LLIL.Reg
+      HinjaC
+  other-modules:
+      Paths_hinja
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS -lbinaryninjacore
+  include-dirs:
+      /tmp/kudu/binaryninja-api
+  build-tools:
+      c2hs
+  build-depends:
+      attoparsec
+    , base >=4.7 && <5
+    , language-c
+    , lens
+    , mtl
+    , protolude
+    , stm
+    , text
+  default-language: Haskell2010
