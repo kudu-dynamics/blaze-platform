@@ -103,7 +103,7 @@ enumVals = SpecificEnumVals <$> specificEnumVals
   
 parseEnumType :: Parser EnumType
 parseEnumType = do
-  void $ string "enum"
+  void $ string "enum" >> space
   skipSpace
   name <- EnumName <$> variableName
   padded_ $ char '{'

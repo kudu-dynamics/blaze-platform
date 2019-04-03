@@ -12,22 +12,34 @@ import Foreign.ForeignPtr ( ForeignPtr
                           , FinalizerPtr
                           , newForeignPtr)
 
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <math.h>
-#include "/tmp/binaryninjacore.h"
+#include "/tmp/beauty/binaryninjacore.h"
 
-
-sin :: Double -> Double
-sin = realToFrac . {#call pure sin as _sin#} . realToFrac
-
+{#context lib="binaryninjacore" #}
 
 {#pointer *BNFileMetadata foreign finalizer BNFreeFileMetadata as ^ newtype #}
 
-{#fun BNCreateFileMetadata as ^ {} -> `BNFileMetadata' #}
+{#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' #}
 
+{#fun BNSetBundledPluginDirectory as setBundledPluginDirectory {`String'} -> `()' #}
 
+{#fun BNInitCorePlugins as initCorePlugins {} -> `()' #}
 
--- {#fun unsafe BNFreeFileMetadata as ^
---   { `BNFileMetadata' } -> `()' id#}
+{#fun BNInitUserPlugins as initUserPlugins {} -> `()' #}
+
+{#fun BNInitRepoPlugins as initRepoPlugins {} -> `()' #}
+
+toBool :: CInt -> Bool
+toBool 0 = False
+toBool _ = True
+
+{#fun BNIsLicenseValidated as isLicenseValidated {} -> `Bool' toBool #}
+
+-- {#fun BNIsUIEnabled as ^ {} -> `Bool' #}
 
 
 

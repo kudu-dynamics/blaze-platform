@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.1.
+-- This file has been generated from package.yaml by hpack version 0.30.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 37eb4095658a0a42d5d9015bffda501b78533056e0e2cea658a83319c08bbacd
+-- hash: ba63acf98de7a623596e7320792c37994e8715d23273d728fc6e0948863065bb
 
 name:           hinja
 version:        0.1.0.0
@@ -28,11 +28,15 @@ source-repository head
 library
   exposed-modules:
       Hinja
+      Hinja.ParseComment
       Hinja.ParseEnums
+      Hinja.ParseFunction
       Hinja.ParseHeader
+      Hinja.ParseStruct
       Hinja.Prelude
       Hinja.Types.LLIL
       Hinja.Types.LLIL.Reg
+      Hinja.Types.Printer
       HinjaC
   other-modules:
       Paths_hinja
@@ -41,15 +45,18 @@ library
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS -lbinaryninjacore
   include-dirs:
       /tmp/kudu/binaryninja-api
-  build-tools:
-      c2hs
+      src
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , envy
     , language-c
     , lens
     , mtl
     , protolude
+    , raw-strings-qq
     , stm
     , text
+  build-tools:
+      c2hs
   default-language: Haskell2010

@@ -44,13 +44,13 @@ data Comment = Single Text
 
 parseSingleComment :: Parser Text
 parseSingleComment = do
-  string "//"
-  Text.pack <$> takeTill (char '\n')
+  void $ string "//"
+  takeTill (== '\n')
 
 parseMultiComment :: Parser Text
 parseMultiComment = do
-  string "/*"
-  Text.pack <$> takeTill (string "*/")
+  void $ string "/*"
+  Text.pack <$> manyTill anyChar (string "*/")
 
 parseComment :: Parser Comment
 parseComment = (Single <$> parseSingleComment)

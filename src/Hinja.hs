@@ -4,25 +4,79 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Hinja where
 
 import Hinja.Prelude hiding (onException)
 import qualified Prelude as P
+import Prelude (String)
 import Data.Text as Text
-import Foreign
+import Foreign hiding (void)
 import Foreign.C.Types
+import Foreign.ForeignPtr
 import qualified Control.Exception as E
-import qualified HinjaC as HC
+import qualified HinjaC as BN
+import System.Envy
+import GHC.Generics
 
 a1 :: Text
 a1 = "/tmp/kudu/assembly/a1"
 
-main :: IO ()
-main = return ()
+data HinjaConfig = HinjaConfig {
+  binjaPluginsDir :: String
+} deriving (Generic, Show)
+
+instance FromEnv HinjaConfig where
+  fromEnv = HinjaConfig
+            <$> env "BINJA_PLUGINS"
+
+initBinja :: HinjaConfig -> IO Bool
+initBinja ctx = do
+  BN.setBundledPluginDirectory $ binjaPluginsDir ctx
+  BN.initCorePlugins
+  BN.initUserPlugins
+  void $ BN.initRepoPlugins
+  BN.isLicenseValidated
+
+getBinaryView :: FilePath -> IO ()
+getBinaryView fp = (first Text.pack <$> decodeEnv :: IO (Either Text HinjaConfig)) >>= \case
+  Left s -> putText $ "Failed to load Env vars: " <> s
+  Right ctx -> do
+    validated <- initBinja ctx
+    case validated of
+      False -> putText "You don't have a Binja license. Sorry."
+      True -> do
+        case Text.isSuffixOf ".bndb" fpt of
+          True -> do
+            md <- BN.createFileMetadata
+            undefined
+          False -> undefined
+  where
+    fpt = Text.pack fp
+
 
 foreign import ccall "math.h sin"
      c_sin :: CDouble -> CDouble
 
+data Section = Section
+
+data FileMetadata = FileMetadata
+  deriving (Show)
+
+foreign import ccall "res/kosher/binaryninjacore.h &BNFreeFileMetadata"
+  freeFileMetadata :: FunPtr (Ptr FileMetadata -> IO ())
+
+foreign import ccall "res/kosher/binaryninjacore.h BNCreateFileMetadata"
+  createFileMetadata_ :: IO (Ptr FileMetadata)
+
+createFileMetadata :: IO (ForeignPtr FileMetadata)
+createFileMetadata = createFileMetadata_ >>= newForeignPtr freeFileMetadata
+
+foreign import ccall "res/kosher/binaryninjacore.h BNFreeSection"
+  freeSection :: Ptr Section -> IO ()
+
 fastsin :: Double -> Double
 fastsin x = realToFrac (c_sin (realToFrac x))
+

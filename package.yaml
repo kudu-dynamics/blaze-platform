@@ -22,10 +22,12 @@ description:         Please see the readme
 dependencies:
   - attoparsec
   - base >= 4.7 && < 5
+  - envy
   - language-c
   - lens
   - mtl
   - protolude
+  - raw-strings-qq
   - stm
   - text
 
@@ -50,3 +52,4 @@ build-tools:
 
 include-dirs:
   - "/tmp/kudu/binaryninja-api"
+  - "src"
