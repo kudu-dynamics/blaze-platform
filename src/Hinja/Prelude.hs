@@ -6,6 +6,8 @@ module Hinja.Prelude
 
 
 import qualified Prelude as P
+import Prelude as Exports (String)
+import Data.Maybe as Exports (fromJust)
 import Protolude as Exports
 
 import Control.Lens.TH as Exports (makeLenses)
