@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ba63acf98de7a623596e7320792c37994e8715d23273d728fc6e0948863065bb
+-- hash: 99e333398cf050cc1c0b5b661a1a551ae35ee8577661288562d6fe49267ad8d7
 
 name:           hinja
 version:        0.1.0.0
@@ -27,6 +27,8 @@ source-repository head
 
 library
   exposed-modules:
+      Binja
+      Gen.Binja
       Hinja
       Hinja.ParseComment
       Hinja.ParseEnums

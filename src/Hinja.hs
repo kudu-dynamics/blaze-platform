@@ -44,8 +44,10 @@ initBinja ctx = do
   void $ BN.initRepoPlugins
   BN.isLicenseValidated
 
--- getAvailableViewTypes :: BNBinaryView -> [BNBinaryViewType]
--- getAvailableViewTypes
+
+-- getBestViewType :: BNBinaryView -> Maybe BinaryViewType
+-- getBestViewType bv = 
+
 
 getBinaryView :: FilePath -> IO BNBinaryView
 getBinaryView fp = (decodeEnv :: IO (Either String HinjaConfig)) >>= \case
