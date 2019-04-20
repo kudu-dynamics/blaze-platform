@@ -7,7 +7,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Hinja where
+module Hinja.Main where
 
 import Hinja.Prelude hiding (onException)
 import qualified Prelude as P
@@ -18,7 +18,10 @@ import Foreign.C.Types
 import Foreign.ForeignPtr
 import qualified Control.Exception as E
 import qualified Hinja.C.Main as BN
-import Hinja.C.Main (BNBinaryView)
+import Hinja.C.Main ( BNBinaryView
+                    , BNBinaryViewType
+                    , BNFileMetadata
+                    )
 import System.Envy
 import GHC.Generics
 
@@ -44,11 +47,25 @@ initBinja ctx = do
   void $ BN.initRepoPlugins
   BN.isLicenseValidated
 
+getBestViewType :: BNBinaryView -> IO (Maybe BNBinaryViewType)
+getBestViewType bv = do
+  vtypes <- BN.getBinaryViewTypesForData bv
+  vnames <- mapM BN.getBinaryViewTypeName vtypes
+  let vs = zip vtypes vnames
+  case headMay (mapMaybe isNotRaw vs) of
+    Just t -> return $ Just t
+    Nothing -> return . headMay . mapMaybe isRaw $ vs
+  where
+    isRaw (t, "Raw") = Just t
+    isRaw _ = Nothing
+    isNotRaw (_, "Raw") = Nothing
+    isNotRaw (t, _) = Just t
 
--- getBestViewType :: BNBinaryView -> Maybe BinaryViewType
--- getBestViewType bv = 
+-- getViewOfType :: BNFileMetadata -> String -> IO (Maybe BNBinaryView)
+-- getViewOfType meta stype = do
+--   view <- 
 
-
+-- TODO: should return IO (Either err BV)
 getBinaryView :: FilePath -> IO BNBinaryView
 getBinaryView fp = (decodeEnv :: IO (Either String HinjaConfig)) >>= \case
   Left s -> P.error $ "Failed to load Env vars: " <> s
@@ -60,9 +77,34 @@ getBinaryView fp = (decodeEnv :: IO (Either String HinjaConfig)) >>= \case
         case Text.isSuffixOf ".bndb" fpt of
           True -> do
             md <- BN.createFileMetadata
-            BN.openExistingDatabase md fp
-          False -> undefined
+            bv <- BN.openExistingDatabase md fp
+            getBvOfBestType md bv
+          False -> do
+            md <- BN.createFileMetadata
+            void $ BN.setFilename md fp
+            mbv <- BN.createBinaryDataViewFromFilename md fp
+            print mbv
+            case mbv of
+              Nothing -> P.error "Couldn't open file"
+              Just bv -> getBvOfBestType md bv
   where
+    getBvOfBestType md bv = do
+      mvt <- getBestViewType bv
+      print mvt
+      case mvt of
+        Nothing -> P.error "No view types"
+        Just vt -> do
+          --- why so redudant?
+          vtname <- BN.getBinaryViewTypeName vt
+          print vtname
+          -- why another bv?
+          mbv' <- BN.getFileViewOfType md vtname
+          case mbv' of
+            Nothing -> do
+              BN.getFileViewOfType md "Raw" >>= \case
+                Nothing -> P.error "Can't even get raw view type."
+                Just bv' -> BN.createBinaryViewOfType vt bv'
+            Just bv' -> return bv'
     fpt = Text.pack fp
 
 

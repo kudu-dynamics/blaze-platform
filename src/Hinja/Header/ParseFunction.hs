@@ -6,7 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module Hinja.ParseFunction where
+module Hinja.Header.ParseFunction where
 
 import qualified Prelude              as P
 import           Hinja.Prelude                  hiding ( takeWhile )

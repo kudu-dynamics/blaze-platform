@@ -7,7 +7,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Hinja.ParseStruct where
+module Hinja.Header.ParseStruct where
 
 -- import qualified Prelude              as P
 import           Hinja.Prelude                  hiding ( takeWhile )

@@ -7,44 +7,62 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Hinja.ParseHeader where
+module Hinja.Header.ParseHeader where
 
-import Hinja.Prelude hiding (try)
-import Text.RawString.QQ
-import Hinja.Types.Printer ( Printer, pr, indent )
-import qualified Hinja.Types.Printer as Pr
-import Language.C.System.GCC (newGCC)
-import Language.C (parseCFile)
-import Language.C.Syntax.AST (CTranslUnit)
-import Language.C.Parser (ParseError)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as TextIO
-import System.IO (openTempFile, hClose)
-import Hinja.ParseStruct (parseStruct, Struct, printStruct)
-import Hinja.ParseFunction (parseFunction, Function, printFunction)
-import Hinja.ParseEnums (parseEnumType, EnumType, findAll, printEnumType)
-import Hinja.ParseComment (parseComment, Comment)
-import           Data.Attoparsec.Text                  ( Parser
-                                                       , anyChar
-                                                       , char
-                                                       , decimal
-                                                       , endOfInput
-                                                       , letter
-                                                       , manyTill
-                                                       , many1
-                                                       , parseOnly
-                                                       , satisfy
-                                                       , sepBy1
-                                                       , skipSpace
-                                                       , space
-                                                       , string
-                                                       , takeTill
-                                                       , takeWhile
-                                                       , try
-                                                       , endOfInput
-                                                       )
-import Data.Text.Lazy.Builder (Builder)
-import qualified Data.Text.Lazy.Builder as Builder
+import           Hinja.Prelude                         hiding ( try )
+
+import           Data.Attoparsec.Text                         ( Parser
+                                                              , anyChar
+                                                              , char
+                                                              , decimal
+                                                              , endOfInput
+                                                              , endOfInput
+                                                              , letter
+                                                              , many1
+                                                              , manyTill
+                                                              , parseOnly
+                                                              , satisfy
+                                                              , sepBy1
+                                                              , skipSpace
+                                                              , space
+                                                              , string
+                                                              , takeTill
+                                                              , takeWhile
+                                                              , try
+                                                              )
+import qualified Data.Text                  as Text
+import qualified Data.Text.IO               as TextIO
+import           Data.Text.Lazy.Builder                       ( Builder )
+import qualified Data.Text.Lazy.Builder     as Builder
+import           Hinja.Header.ParseComment                    ( Comment
+                                                              , parseComment
+                                                              )
+import           Hinja.Header.ParseEnums                      ( EnumType
+                                                              , findAll
+                                                              , parseEnumType
+                                                              , printEnumType
+                                                              )
+import           Hinja.Header.ParseFunction                   ( Function
+                                                              , parseFunction
+                                                              , printFunction
+                                                              )
+import           Hinja.Header.ParseStruct                     ( Struct
+                                                              , parseStruct
+                                                              , printStruct
+                                                              )
+import           Hinja.Types.Printer                          ( Printer
+                                                              , indent
+                                                              , pr
+                                                              )
+import qualified Hinja.Types.Printer        as Pr
+import           Language.C                                   ( parseCFile )
+import           Language.C.Parser                            ( ParseError )
+import           Language.C.Syntax.AST                        ( CTranslUnit )
+import           Language.C.System.GCC                        ( newGCC )
+import           System.IO                                    ( hClose
+                                                              , openTempFile
+                                                              )
+import           Text.RawString.QQ
 
 data StructOrEnum = SStruct Struct
                   | SEnum EnumType

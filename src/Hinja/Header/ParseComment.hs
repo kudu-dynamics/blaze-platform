@@ -6,7 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module Hinja.ParseComment where
+module Hinja.Header.ParseComment where
 
 -- import qualified Prelude              as P
 import           Hinja.Prelude                  hiding ( takeWhile )

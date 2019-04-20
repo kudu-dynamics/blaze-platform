@@ -6,7 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module Hinja.ParseEnums where
+module Hinja.Header.ParseEnums where
 
 import Hinja.Prelude 
 import qualified Prelude as P
