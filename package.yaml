@@ -26,9 +26,11 @@ dependencies:
   - language-c
   - lens
   - mtl
+  - newtype
   - protolude
   - raw-strings-qq
   - stm
+  - template-haskell
   - text
 
 library:

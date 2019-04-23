@@ -35,26 +35,29 @@ import System.IO.Unsafe (unsafePerformIO)
 {#context lib="binaryninjacore" #}
 
 {#pointer *BNBinaryView foreign finalizer BNFreeBinaryView as ^ newtype #}
-instance PointerWrap BNBinaryView where
+instance Pointer BNBinaryView where
   pointerWrap = BNBinaryView
-instance HasFinalizer BNBinaryView where
-  finalizer = bNFreeBinaryView
+  pointerUnwrap (BNBinaryView x) = x
+  pointerFinalizer = Just bNFreeBinaryView
 deriving instance Show BNBinaryView
 deriving instance Eq BNBinaryView
 
 {#pointer *BNBinaryViewType foreign newtype #}
-instance PointerWrap BNBinaryViewType where
+instance Pointer BNBinaryViewType where
   pointerWrap = BNBinaryViewType
+  pointerUnwrap (BNBinaryViewType x) = x
+  pointerFinalizer = Nothing
 deriving instance Show BNBinaryViewType
 deriving instance Eq BNBinaryViewType
 
 {#pointer *BNFileMetadata foreign finalizer BNFreeFileMetadata as ^ newtype #}
-instance PointerWrap BNFileMetadata where
+instance Pointer BNFileMetadata where
   pointerWrap = BNFileMetadata
-instance HasFinalizer BNFileMetadata where
-  finalizer = bNFreeFileMetadata
+  pointerUnwrap (BNFileMetadata x) = x
+  pointerFinalizer = Just bNFreeFileMetadata
 deriving instance Show BNFileMetadata
 deriving instance Eq BNFileMetadata
+
 
 --   getBinaryViewTypesForData' :: Ptr BNBinaryView -> Ptr CSize -> IO (Ptr BinaryViewType)
 
@@ -67,17 +70,17 @@ deriving instance Eq BNFileMetadata
 -- foreign import ccall unsafe "/tmp/beauty/binaryninjacore.h BNGetBinaryViewTypeName"
 --   getBinaryViewTypeName' :: Ptr BNBinaryViewType -> IO CString
 
-{#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {`BNBinaryViewType'} -> `String' #}
+{#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
-{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {`BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' id #}
+{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' id #}
 
 {#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {id `List (Ptr BNBinaryViewType)'} -> `()' #}
 
 {#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' #}
 
-{#fun BNGetFileViewOfType as getFileViewOfType {`BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
+{#fun BNGetFileViewOfType as getFileViewOfType {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-{#fun BNCreateBinaryViewOfType as createBinaryViewOfType {`BNBinaryViewType', `BNBinaryView'} -> `BNBinaryView' #}
+{#fun BNCreateBinaryViewOfType as createBinaryViewOfType {withPtr* `BNBinaryViewType', withPtr* `BNBinaryView'} -> `BNBinaryView' safePtr* #}
 
 
 
@@ -97,10 +100,7 @@ deriving instance Eq BNFileMetadata
 
 {#fun BNIsLicenseValidated as isLicenseValidated {} -> `Bool' toBool #}
 
-{#fun BNOpenExistingDatabase as openExistingDatabase {`BNFileMetadata', `String'} -> `BNBinaryView' #}
-
-
-
+{#fun BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
 
 

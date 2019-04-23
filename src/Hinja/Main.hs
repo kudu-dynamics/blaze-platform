@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -39,16 +40,16 @@ instance FromEnv HinjaConfig where
   fromEnv = HinjaConfig
             <$> env "BINJA_PLUGINS"
 
-initBinja :: HinjaConfig -> IO Bool
-initBinja ctx = do
+initBinja :: MonadIO m => HinjaConfig -> m Bool
+initBinja ctx = liftIO $ do
   BN.setBundledPluginDirectory $ binjaPluginsDir ctx
   BN.initCorePlugins
   BN.initUserPlugins
   void $ BN.initRepoPlugins
   BN.isLicenseValidated
 
-getBestViewType :: BNBinaryView -> IO (Maybe BNBinaryViewType)
-getBestViewType bv = do
+getBestViewType :: MonadIO m => BNBinaryView -> m (Maybe BNBinaryViewType)
+getBestViewType bv = liftIO $ do
   vtypes <- BN.getBinaryViewTypesForData bv
   vnames <- mapM BN.getBinaryViewTypeName vtypes
   let vs = zip vtypes vnames
@@ -61,73 +62,34 @@ getBestViewType bv = do
     isNotRaw (_, "Raw") = Nothing
     isNotRaw (t, _) = Just t
 
--- getViewOfType :: BNFileMetadata -> String -> IO (Maybe BNBinaryView)
--- getViewOfType meta stype = do
---   view <- 
-
--- TODO: should return IO (Either err BV)
-getBinaryView :: FilePath -> IO BNBinaryView
-getBinaryView fp = (decodeEnv :: IO (Either String HinjaConfig)) >>= \case
-  Left s -> P.error $ "Failed to load Env vars: " <> s
-  Right ctx -> do
-    validated <- initBinja ctx
-    case validated of
-      False -> P.error "You don't have a Binja license. Sorry."
-      True -> do
-        case Text.isSuffixOf ".bndb" fpt of
-          True -> do
-            md <- BN.createFileMetadata
-            bv <- BN.openExistingDatabase md fp
-            getBvOfBestType md bv
-          False -> do
-            md <- BN.createFileMetadata
-            void $ BN.setFilename md fp
-            mbv <- BN.createBinaryDataViewFromFilename md fp
-            print mbv
-            case mbv of
-              Nothing -> P.error "Couldn't open file"
-              Just bv -> getBvOfBestType md bv
+getBinaryView :: MonadIO m => FilePath -> m (Either Text BNBinaryView)
+getBinaryView fp = runExceptT $ do
+  ctx <- liftEitherIO (first Text.pack <$> decodeEnv :: IO (Either Text HinjaConfig))
+  validated <- initBinja ctx
+  case validated of
+    False -> throwError "You don't have a Binja license. Sorry."
+    True -> do
+      case Text.isSuffixOf ".bndb" (Text.pack fp) of
+        True -> do
+          md <- liftIO BN.createFileMetadata
+          bv <- liftMaybeIO "Couldn't open existing db" $
+            BN.openExistingDatabase md fp
+          getBvOfBestType md bv
+        False -> do
+          md <- liftIO BN.createFileMetadata
+          void . liftIO $ BN.setFilename md fp
+          bv <- liftMaybeIO "Couldn't open file." $
+            BN.createBinaryDataViewFromFilename md fp
+          getBvOfBestType md bv
   where
     getBvOfBestType md bv = do
-      mvt <- getBestViewType bv
-      print mvt
-      case mvt of
-        Nothing -> P.error "No view types"
-        Just vt -> do
-          --- why so redudant?
-          vtname <- BN.getBinaryViewTypeName vt
-          print vtname
-          -- why another bv?
-          mbv' <- BN.getFileViewOfType md vtname
-          case mbv' of
-            Nothing -> do
-              BN.getFileViewOfType md "Raw" >>= \case
-                Nothing -> P.error "Can't even get raw view type."
-                Just bv' -> BN.createBinaryViewOfType vt bv'
-            Just bv' -> return bv'
-    fpt = Text.pack fp
-
-
-foreign import ccall "math.h sin"
-     c_sin :: CDouble -> CDouble
-
-data Section = Section
-
-data FileMetadata = FileMetadata
-  deriving (Show)
-
-foreign import ccall "res/kosher/binaryninjacore.h &BNFreeFileMetadata"
-  freeFileMetadata :: FunPtr (Ptr FileMetadata -> IO ())
-
-foreign import ccall "res/kosher/binaryninjacore.h BNCreateFileMetadata"
-  createFileMetadata_ :: IO (Ptr FileMetadata)
-
-createFileMetadata :: IO (ForeignPtr FileMetadata)
-createFileMetadata = createFileMetadata_ >>= newForeignPtr freeFileMetadata
-
-foreign import ccall "res/kosher/binaryninjacore.h BNFreeSection"
-  freeSection :: Ptr Section -> IO ()
-
-fastsin :: Double -> Double
-fastsin x = realToFrac (c_sin (realToFrac x))
-
+      vt <- liftMaybeM "No view types" $ getBestViewType bv
+      --- why so redudant?
+      vtname <- liftIO $ BN.getBinaryViewTypeName vt
+      -- why another bv?
+      mbv' <- liftIO $ BN.getFileViewOfType md vtname
+      case mbv' of
+        Nothing -> do
+          bv' <- liftMaybeIO "Can't even get raw view type." $ BN.getFileViewOfType md "Raw"
+          liftIO $ BN.createBinaryViewOfType vt bv'
+        Just bv' -> return bv'

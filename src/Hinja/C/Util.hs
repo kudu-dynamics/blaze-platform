@@ -3,15 +3,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Hinja.C.Util where
 
 import Hinja.Prelude
+
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Array
+import Hinja.C.TH
 
 type List = Ptr
 
@@ -30,35 +33,57 @@ toBool :: CInt -> Bool
 toBool 0 = False
 toBool _ = True
 
-class MaybeNull a where
-  maybeNull :: a -> IO (Maybe a)
 
--- instance MaybeNull (ForeignPtr a) where
---   maybeNull fptr = withForeignPtr fptr $ \ptr ->
---     return $ if nullPtr == ptr then Nothing else Just fptr
-
-nilable :: (PointerWrap a, HasFinalizer a) => Ptr a -> IO (Maybe a)
+nilable :: (Pointer a) => Ptr a -> IO (Maybe a)
 nilable ptr
   | ptr == nullPtr = return Nothing
-  | otherwise = Just . pointerWrap <$> newForeignPtr finalizer ptr
+  | otherwise = Just <$> safePtr ptr
+
+
+-- nilable :: (Pointer a, HasFinalizer a) => Ptr a -> IO (Maybe a)
+-- nilable ptr
+--   | ptr == nullPtr = return Nothing
+--   | otherwise = Just . pointerWrap <$> newForeignPtr finalizer ptr
 
 --without finalizer
-nilable_ :: (PointerWrap a) => Ptr a -> IO (Maybe a)
-nilable_ ptr
-  | ptr == nullPtr = return Nothing
-  | otherwise = Just . pointerWrap <$> newForeignPtr_ ptr
+-- nilable_ :: (Pointer a) => Ptr a -> IO (Maybe a)
+-- nilable_ ptr
+--   | ptr == nullPtr = return Nothing
+--   | otherwise = Just . pointerWrap <$> newForeignPtr_ ptr
 
 -- only adds finalizer if not null
-safePtr :: (PointerWrap a, HasFinalizer a) => Ptr a -> IO a
-safePtr ptr = pointerWrap <$> fPtr ptr
-  where
-    fPtr = if ptr == nullPtr
-      then newForeignPtr_
-      else newForeignPtr finalizer
+-- safePtr :: (Pointer a, HasFinalizer a) => Ptr a -> IO a
+-- safePtr ptr = pointerWrap <$> fPtr ptr
+--   where
+--     fPtr = if ptr == nullPtr
+--       then newForeignPtr_
+--       else newForeignPtr finalizer
 
 class HasFinalizer a where
   finalizer :: FinalizerPtr a
   
-class PointerWrap a where
+class Pointer a where
   pointerWrap :: ForeignPtr a -> a
+  pointerUnwrap :: a -> ForeignPtr a
+  pointerFinalizer :: Maybe (FinalizerPtr a)
 
+withPtr :: Pointer a => a -> (Ptr a -> IO b) -> IO b
+withPtr = withForeignPtr . pointerUnwrap
+
+-- use this for pointers you're sure won't be null
+safePtr :: (Pointer a) => Ptr a -> IO a
+safePtr ptr = pointerWrap <$> fPtr pointerFinalizer ptr
+  where
+    fPtr Nothing = newForeignPtr_
+    fPtr (Just fin) = if ptr == nullPtr
+      then newForeignPtr_
+      else newForeignPtr fin
+
+
+add3 :: Int -> Int
+add3 = $(mkAdder 3)
+
+data Jim = Jim
+$(derivePointer ''Jim)
+
+$(mkPointer "Billy")
