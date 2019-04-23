@@ -21,7 +21,8 @@ import Foreign.ForeignPtr ( ForeignPtr
                           , newForeignPtr
                           , withForeignPtr
                           , newForeignPtr_)
---import Hinja.C.Struct
+import Hinja.C.Pointers
+import Hinja.C.Types
 import Hinja.C.Util
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -34,61 +35,21 @@ import System.IO.Unsafe (unsafePerformIO)
 
 {#context lib="binaryninjacore" #}
 
-{#pointer *BNBinaryView foreign finalizer BNFreeBinaryView as ^ newtype #}
-instance Pointer BNBinaryView where
-  pointerWrap = BNBinaryView
-  pointerUnwrap (BNBinaryView x) = x
-  pointerFinalizer = Just bNFreeBinaryView
-deriving instance Show BNBinaryView
-deriving instance Eq BNBinaryView
-
-{#pointer *BNBinaryViewType foreign newtype #}
-instance Pointer BNBinaryViewType where
-  pointerWrap = BNBinaryViewType
-  pointerUnwrap (BNBinaryViewType x) = x
-  pointerFinalizer = Nothing
-deriving instance Show BNBinaryViewType
-deriving instance Eq BNBinaryViewType
-
-{#pointer *BNFileMetadata foreign finalizer BNFreeFileMetadata as ^ newtype #}
-instance Pointer BNFileMetadata where
-  pointerWrap = BNFileMetadata
-  pointerUnwrap (BNFileMetadata x) = x
-  pointerFinalizer = Just bNFreeFileMetadata
-deriving instance Show BNFileMetadata
-deriving instance Eq BNFileMetadata
-
-
---   getBinaryViewTypesForData' :: Ptr BNBinaryView -> Ptr CSize -> IO (Ptr BinaryViewType)
-
--- foreign import ccall unsafe "/tmp/beauty/binaryninjacore.h BNGetBinaryViewTypeByName"
---   getBinaryViewTypeByName' :: CString -> IO BinaryViewType
-
--- getBinaryViewTypeByName :: String -> IO BinaryViewType
--- getBinaryViewTypeByName s = withCString getBinaryViewTypeByName'
-
--- foreign import ccall unsafe "/tmp/beauty/binaryninjacore.h BNGetBinaryViewTypeName"
---   getBinaryViewTypeName' :: Ptr BNBinaryViewType -> IO CString
-
 {#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
-{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' id #}
+{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' castPtr #}
 
-{#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {id `List (Ptr BNBinaryViewType)'} -> `()' #}
+{#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {castPtr `List (Ptr BNBinaryViewType)'} -> `()' #}
 
-{#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' #}
+{#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' safePtr* #}
 
 {#fun BNGetFileViewOfType as getFileViewOfType {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
 {#fun BNCreateBinaryViewOfType as createBinaryViewOfType {withPtr* `BNBinaryViewType', withPtr* `BNBinaryView'} -> `BNBinaryView' safePtr* #}
 
+{#fun BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
 
-
-
-{#fun BNSetFilename as setFilename {`BNFileMetadata', `String'} -> `()' #}
-
-{#fun BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {`BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
-
+{#fun BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
 {#fun BNSetBundledPluginDirectory as setBundledPluginDirectory {`String'} -> `()' #}
 

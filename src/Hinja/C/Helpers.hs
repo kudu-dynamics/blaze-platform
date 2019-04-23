@@ -23,6 +23,7 @@ import Foreign.ForeignPtr ( ForeignPtr
                           , newForeignPtr_)
 import Hinja.C.Bindings
 import Hinja.C.Util
+import Hinja.C.Pointers
 import System.IO.Unsafe (unsafePerformIO)
 
 

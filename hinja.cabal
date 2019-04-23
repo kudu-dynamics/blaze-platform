@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b767c04bcf9fa23d3f21c82564ec67861a7a942118697a0d0fe698fc7e27499b
+-- hash: fff6dd66b32f7aaa5bbca5d50c15b17c5d973f71b44f391de90f001670dd32d2
 
 name:           hinja
 version:        0.1.0.0
@@ -31,7 +31,9 @@ library
       Hinja.C.Bindings
       Hinja.C.Helpers
       Hinja.C.Main
+      Hinja.C.Pointers
       Hinja.C.TH
+      Hinja.C.Types
       Hinja.C.Util
       Hinja.Header.ParseComment
       Hinja.Header.ParseEnums

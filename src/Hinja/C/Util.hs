@@ -14,9 +14,8 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Array
-import Hinja.C.TH
+import Hinja.C.Types
 
-type List = Ptr
 
 manifestArray :: (ForeignPtr a -> a) -> (Ptr (Ptr a) -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
 manifestArray newtypeConstr freeArray (arr, len) = do
@@ -34,56 +33,26 @@ toBool 0 = False
 toBool _ = True
 
 
-nilable :: (Pointer a) => Ptr a -> IO (Maybe a)
+nilable :: (Pointer a) => Ptr () -> IO (Maybe a)
 nilable ptr
   | ptr == nullPtr = return Nothing
   | otherwise = Just <$> safePtr ptr
 
-
--- nilable :: (Pointer a, HasFinalizer a) => Ptr a -> IO (Maybe a)
--- nilable ptr
---   | ptr == nullPtr = return Nothing
---   | otherwise = Just . pointerWrap <$> newForeignPtr finalizer ptr
-
---without finalizer
--- nilable_ :: (Pointer a) => Ptr a -> IO (Maybe a)
--- nilable_ ptr
---   | ptr == nullPtr = return Nothing
---   | otherwise = Just . pointerWrap <$> newForeignPtr_ ptr
-
--- only adds finalizer if not null
--- safePtr :: (Pointer a, HasFinalizer a) => Ptr a -> IO a
--- safePtr ptr = pointerWrap <$> fPtr ptr
---   where
---     fPtr = if ptr == nullPtr
---       then newForeignPtr_
---       else newForeignPtr finalizer
-
-class HasFinalizer a where
-  finalizer :: FinalizerPtr a
-  
-class Pointer a where
-  pointerWrap :: ForeignPtr a -> a
-  pointerUnwrap :: a -> ForeignPtr a
-  pointerFinalizer :: Maybe (FinalizerPtr a)
-
-withPtr :: Pointer a => a -> (Ptr a -> IO b) -> IO b
-withPtr = withForeignPtr . pointerUnwrap
+withPtr :: Pointer a => a -> (Ptr () -> IO b) -> IO b
+withPtr = withForeignPtr . castForeignPtr . pointerUnwrap
 
 -- use this for pointers you're sure won't be null
-safePtr :: (Pointer a) => Ptr a -> IO a
-safePtr ptr = pointerWrap <$> fPtr pointerFinalizer ptr
+safePtr :: (Pointer a) => Ptr () -> IO a
+safePtr ptr' = pointerWrap <$> fPtr pointerFinalizer ptr
   where
+    ptr = castPtr ptr'
     fPtr Nothing = newForeignPtr_
     fPtr (Just fin) = if ptr == nullPtr
       then newForeignPtr_
       else newForeignPtr fin
 
+ptrListOut :: List (Ptr ()) -> List (Ptr a)
+ptrListOut = castPtr
 
-add3 :: Int -> Int
-add3 = $(mkAdder 3)
-
-data Jim = Jim
-$(derivePointer ''Jim)
-
-$(mkPointer "Billy")
+ptrListIn :: List (Ptr a) -> List (Ptr ())
+ptrListIn = castPtr
