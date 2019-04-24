@@ -29,4 +29,9 @@ import System.IO.Unsafe (unsafePerformIO)
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
-  getBinaryViewTypesForData' bv >>= manifestArray BNBinaryViewType freeBinaryViewTypeList
+  getBinaryViewTypesForData' bv >>= manifestArray standardPtrConv freeBinaryViewTypeList
+
+getAnalysisFunctionList :: BNBinaryView -> IO [BNFunction]
+getAnalysisFunctionList bv = 
+  getAnalysisFunctionList' bv
+  >>= manifestArrayWithFreeSize (newFunctionReference <=< noFinPtrConv) freeFunctionList

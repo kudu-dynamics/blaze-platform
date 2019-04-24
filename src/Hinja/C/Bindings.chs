@@ -37,9 +37,15 @@ import System.IO.Unsafe (unsafePerformIO)
 
 {#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
-{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' castPtr #}
+{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' ptrListOut #}
 
-{#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {castPtr `List (Ptr BNBinaryViewType)'} -> `()' #}
+{#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {ptrListIn `List (Ptr BNBinaryViewType)'} -> `()' #}
+
+{#fun BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
+
+{#fun BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `CULong'} -> `()' #}
+
+{#fun BNNewFunctionReference as newFunctionReference {withPtr* `BNFunction'} -> `BNFunction' safePtr* #}
 
 {#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' safePtr* #}
 
@@ -62,6 +68,3 @@ import System.IO.Unsafe (unsafePerformIO)
 {#fun BNIsLicenseValidated as isLicenseValidated {} -> `Bool' toBool #}
 
 {#fun BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
-
-
-

@@ -17,3 +17,4 @@ import Hinja.C.TH
 $(mkPointer "BNBinaryView" "BNFreeBinaryView")
 $(mkPointer_ "BNBinaryViewType")
 $(mkPointer "BNFileMetadata" "BNFreeFileMetadata")
+$(mkPointer "BNFunction" "BNFreeFunction")

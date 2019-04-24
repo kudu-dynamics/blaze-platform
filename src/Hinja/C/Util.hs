@@ -17,12 +17,30 @@ import Foreign.Marshal.Array
 import Hinja.C.Types
 
 
-manifestArray :: (ForeignPtr a -> a) -> (Ptr (Ptr a) -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
-manifestArray newtypeConstr freeArray (arr, len) = do
+manifestArray :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
+manifestArray f freeArray (arr, len) = do
   xs <- peekArray (fromIntegral len) arr
-  xs' <- mapM newForeignPtr_ xs
+  xs' <- mapM f xs
   freeArray arr
-  return (newtypeConstr <$> xs')
+  return xs'
+
+noFinPtrConv :: Pointer a => Ptr a -> IO a
+noFinPtrConv = fmap pointerWrap . newForeignPtr_
+
+standardPtrConv :: Pointer a => Ptr a -> IO a
+standardPtrConv = fmap pointerWrap . newFPtr
+  where
+    newFPtr = case pointerFinalizer of
+      Nothing -> newForeignPtr_
+      Just fin -> newForeignPtr fin
+
+manifestArrayWithFreeSize :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> CULong -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
+manifestArrayWithFreeSize f freeArray (arr, len) = do
+  xs <- peekArray (fromIntegral len) arr
+  xs' <- mapM f xs
+  freeArray arr (fromIntegral len)
+  return xs'
+
 
 peekIntConv   :: (Storable a, Integral a, Integral b) 
               => Ptr a -> IO b
