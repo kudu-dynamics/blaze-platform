@@ -9,5 +9,7 @@ extra-deps:
   - cpython-3.4.0
   - envy-1.5.1.0@sha256:a00910ebf461ec36ff6b7b01711bffe09cee062b7515c4580c466002590283a2
   - language-c-0.8.2@sha256:5559b4e3744e84ac99fc491d861bd9448f8cbee7c55412a8a9ed4dbf884ce4f5
+  - lens-4.17
+  - profunctors-5.3@sha256:ce641b72fd014b1f7b42a438f8c0360cb93fd277c7b843b7ef94a7c083c31ded,2017
   - protolude-0.2.1
-
+  - th-abstraction-0.2.11.0@sha256:5c286870277705796887d0cbfa48a6aa5e0f206152592a54fbc550d8ce0c5ab5,1827

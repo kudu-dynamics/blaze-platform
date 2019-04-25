@@ -16,8 +16,7 @@ import Foreign.Storable
 import Foreign.Marshal.Array
 import Hinja.C.Types
 
-
-manifestArray :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
+manifestArray :: (Storable a) => (a -> IO b) -> (List a -> IO ()) -> (List a, CSize) -> IO [b]
 manifestArray f freeArray (arr, len) = do
   xs <- peekArray (fromIntegral len) arr
   xs' <- mapM f xs
@@ -74,3 +73,5 @@ ptrListOut = castPtr
 
 ptrListIn :: List (Ptr a) -> List (Ptr ())
 ptrListIn = castPtr
+
+

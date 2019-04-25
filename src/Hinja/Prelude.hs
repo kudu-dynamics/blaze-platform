@@ -11,12 +11,32 @@ module Hinja.Prelude
   , liftMaybeM
   ) where
 
+import           Prelude         as Exports        ( String
+                                                   , head
+                                                   , id
+                                                   )
+import qualified Prelude         as P
 
-import qualified Prelude as P
-import Prelude as Exports (String, id)
-import Data.Maybe as Exports (fromJust)
-import Protolude as Exports
-import Control.Lens.TH as Exports (makeLenses)
+import           Control.Lens    as Exports        ( (%~)
+                                                   , (.~)
+                                                   , (?~)
+                                                   , (^.)
+                                                   , (^?)
+                                                   , Iso'
+                                                   , Lens'
+                                                   , iso
+                                                   , lens
+                                                   , makeClassy
+                                                   , makeClassyPrisms
+                                                   , makeFields
+                                                   , makeFieldsNoPrefix
+                                                   , makeLenses
+                                                   , makePrisms
+                                                   , use
+                                                   , view
+                                                   )
+import           Data.Maybe      as Exports        ( fromJust )
+import           Protolude       as Exports hiding ( head )
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

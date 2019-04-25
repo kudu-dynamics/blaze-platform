@@ -38,4 +38,14 @@ getFunctions bv =
 
 getFunctionName :: BNFunction -> IO String
 getFunctionName = getFunctionSymbol >=> getSymbolShortName 
-  
+
+getAllArchitectureSemanticFlagClasses :: BNArchitecture -> IO [Word32]
+getAllArchitectureSemanticFlagClasses arch =
+  getAllArchitectureSemanticFlagClasses' arch >>=
+  manifestArray (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
+
+getAllArchitectureSemanticFlagGroups :: BNArchitecture -> IO [Word32]
+getAllArchitectureSemanticFlagGroups arch =
+  getAllArchitectureSemanticFlagGroups' arch >>=
+  manifestArray (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
+
