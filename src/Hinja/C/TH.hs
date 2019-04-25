@@ -86,6 +86,7 @@ mkPointer' pointerString mFinalizerString = do
       (NormalC pointerName [(Bang NoSourceUnpackedness NoSourceStrictness
                      , AppT (ConT ''ForeignPtr) (ConT pointerName))])
       [ ConT ''Eq
+      , ConT ''Ord
       , ConT ''Show]
     pointerName = mkName pointerString
 

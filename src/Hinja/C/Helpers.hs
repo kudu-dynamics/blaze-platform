@@ -31,7 +31,11 @@ getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
   getBinaryViewTypesForData' bv >>= manifestArray standardPtrConv freeBinaryViewTypeList
 
-getAnalysisFunctionList :: BNBinaryView -> IO [BNFunction]
-getAnalysisFunctionList bv = 
+getFunctions :: BNBinaryView -> IO [BNFunction]
+getFunctions bv = 
   getAnalysisFunctionList' bv
   >>= manifestArrayWithFreeSize (newFunctionReference <=< noFinPtrConv) freeFunctionList
+
+getFunctionName :: BNFunction -> IO String
+getFunctionName = getFunctionSymbol >=> getSymbolShortName 
+  

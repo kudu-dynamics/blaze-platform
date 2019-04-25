@@ -23,6 +23,7 @@ import Hinja.C.Main ( BNBinaryView
                     , BNBinaryViewType
                     , BNFileMetadata
                     )
+import qualified Hinja.Function as Func
 import System.Envy
 import GHC.Generics
 
@@ -93,3 +94,4 @@ getBinaryView fp = runExceptT $ do
           bv' <- liftMaybeIO "Can't even get raw view type." $ BN.getFileViewOfType md "Raw"
           liftIO $ BN.createBinaryViewOfType vt bv'
         Just bv' -> return bv'
+

@@ -37,6 +37,10 @@ import System.IO.Unsafe (unsafePerformIO)
 
 {#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
+{#fun BNUpdateAnalysisAndWait as updateAnalysisAndWait {withPtr* `BNBinaryView'} -> `()' #}
+
+{#fun BNUpdateAnalysis as updateAnalysis {withPtr* `BNBinaryView'} -> `()' #}
+
 {#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' ptrListOut #}
 
 {#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {ptrListIn `List (Ptr BNBinaryViewType)'} -> `()' #}
@@ -68,3 +72,18 @@ import System.IO.Unsafe (unsafePerformIO)
 {#fun BNIsLicenseValidated as isLicenseValidated {} -> `Bool' toBool #}
 
 {#fun BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
+
+
+--------- functions
+
+{#fun BNGetFunctionStart as getFunctionStart {withPtr* `BNFunction'} -> `Word64' #}
+
+{#fun BNGetFunctionSymbol as getFunctionSymbol {withPtr* `BNFunction'} -> `BNSymbol' safePtr* #}
+
+--------- symbols
+
+{#fun BNGetSymbolRawName as getSymbolRawName {withPtr* `BNSymbol'} -> `String' #}
+
+{#fun BNGetSymbolFullName as getSymbolFullName {withPtr* `BNSymbol'} -> `String' #}
+
+{#fun BNGetSymbolShortName as getSymbolShortName {withPtr* `BNSymbol'} -> `String' #}
