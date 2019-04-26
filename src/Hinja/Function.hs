@@ -12,44 +12,30 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
-module Hinja.Function where
+module Hinja.Function
+  ( module Exports
+  , createFunction
+  , getFunctions
+  , getLLILFunction
+  , getLLILSSAFunction
+  , getMLILFunction
+  , getMLILSSAFunction
+  ) where
 
 import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
-import Hinja.C.Types (Address)
+import Hinja.Types as Exports ( Function(..)
+                              , LLILFunction(..)
+                              , LLILSSAFunction(..)
+                              , MLILFunction(..)
+                              , MLILSSAFunction(..)
+                              , handle
+                              , name
+                              , start
+                              , func )
 
-data Function = Function
-  { _handle :: BNFunction
-  , _name :: Text
-  , _start :: Address
-  } deriving (Eq, Ord, Show)
-
-data LLILFunction = LLILFunction
-  { _handle :: BNLowLevelILFunction
-  , _func :: Function
-  } deriving (Eq, Ord, Show)
-
-data LLILSSAFunction = LLILSSAFunction
-  { _handle :: BNLowLevelILFunction
-  , _func :: Function
-  } deriving (Eq, Ord, Show)
-
-data MLILFunction = MLILFunction
-  { _handle :: BNMediumLevelILFunction
-  , _func :: Function
-  } deriving (Eq, Ord, Show)
-
-data MLILSSAFunction = MLILSSAFunction
-  { _handle :: BNMediumLevelILFunction
-  , _func :: Function
-  } deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''Function)
-$(makeFieldsNoPrefix ''LLILFunction)
-$(makeFieldsNoPrefix ''MLILFunction)
-$(makeFieldsNoPrefix ''MLILSSAFunction)
 
 createFunction :: BNFunction -> IO Function
 createFunction ptr = Function ptr

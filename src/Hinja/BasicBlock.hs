@@ -29,105 +29,114 @@ import Hinja.Function ( Function
 import qualified Hinja.Function as Func
 import Hinja.C.Types
 
-data BasicBlock = BasicBlock
+data BasicBlock fun = BasicBlock
   { _handle :: BNBasicBlock
-  , _func :: Function
-  , _start :: InstructionIndex IL
-  , _end :: InstructionIndex IL
+  , _func :: fun
+  , _start :: InstructionIndex fun
+  , _end :: InstructionIndex fun
   } deriving (Eq, Ord, Show)
 
-data LLILBasicBlock = LLILBasicBlock
-  { _handle :: BNBasicBlock
-  , _func :: Function
-  , _start :: InstructionIndex LLIL
-  , _end :: InstructionIndex LLIL
-  , _llilFunc :: LLILFunction
-  } deriving (Eq, Ord, Show)
+-- data LLILBasicBlock = LLILBasicBlock
+--   { _handle :: BNBasicBlock
+--   , _func :: Function
+--   , _start :: InstructionIndex LLILFunction
+--   , _end :: InstructionIndex LLILFunction
+--   , _llilFunc :: LLILFunction
+--   } deriving (Eq, Ord, Show)
 
-data MLILBasicBlock = MLILBasicBlock
-  { _handle :: BNBasicBlock
-  , _func :: Function
-  , _start :: InstructionIndex MLIL
-  , _end :: InstructionIndex MLIL
-  , _mlilFunc :: MLILFunction
-  } deriving (Eq, Ord, Show)
+-- data MLILBasicBlock = MLILBasicBlock
+--   { _handle :: BNBasicBlock
+--   , _func :: Function
+--   , _start :: InstructionIndex MLILFunction
+--   , _end :: InstructionIndex MLILFunction
+--   , _mlilFunc :: MLILFunction
+--   } deriving (Eq, Ord, Show)
 
-data MLILSSABasicBlock = MLILSSABasicBlock
-  { _handle :: BNBasicBlock
-  , _func :: Function
-  , _start :: InstructionIndex MLILSSA
-  , _end :: InstructionIndex MLILSSA
-  , _mlilSSAFunc :: MLILSSAFunction
-  } deriving (Eq, Ord, Show)
+-- data MLILSSABasicBlock = MLILSSABasicBlock
+--   { _handle :: BNBasicBlock
+--   , _func :: Function
+--   , _start :: InstructionIndex MLILSSAFunction
+--   , _end :: InstructionIndex MLILSSAFunction
+--   , _mlilSSAFunc :: MLILSSAFunction
+--   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''BasicBlock)
-$(makeFieldsNoPrefix ''LLILBasicBlock)
-$(makeFieldsNoPrefix ''MLILBasicBlock)
-$(makeFieldsNoPrefix ''MLILSSABasicBlock)
+-- $(makeFieldsNoPrefix ''LLILBasicBlock)
+-- $(makeFieldsNoPrefix ''MLILBasicBlock)
+-- $(makeFieldsNoPrefix ''MLILSSABasicBlock)
 
 
 
 getBasicBlockRange :: BNBasicBlock -> IO (InstructionIndex (), InstructionIndex ())
 getBasicBlockRange ptr = (,) <$> BN.getBasicBlockStart ptr <*> BN.getBasicBlockEnd ptr
 
-createBasicBlock :: BNBasicBlock -> IO BasicBlock
+class ConvertBasicBlockFunction a where
+  convertBasicBlockFunction :: Function -> IO a
+
+instance ConvertBasicBlockFunction Function where
+  convertBasicBlockFunction = return
+
+instance ConvertBasicBlockFunction LLILFunction where
+  convertBasicBlockFunction = Func.getLLILFunction
+
+instance ConvertBasicBlockFunction MLILFunction where
+  convertBasicBlockFunction = Func.getMLILFunction
+
+instance ConvertBasicBlockFunction MLILSSAFunction where
+  convertBasicBlockFunction = Func.getMLILSSAFunction
+
+class GetBlockList a where
+  getBlockList :: a -> IO [BNBasicBlock]
+
+instance GetBlockList Function where
+  getBlockList = BN.getFunctionBasicBlockList . view Func.handle
+
+instance GetBlockList LLILFunction where
+  getBlockList = BN.getLowLevelILBasicBlockList . view Func.handle
+
+instance GetBlockList MLILFunction where
+  getBlockList = BN.getMediumLevelILBasicBlockList . view Func.handle
+
+instance GetBlockList MLILSSAFunction where
+  getBlockList = BN.getMediumLevelILBasicBlockList . view Func.handle
+
+
+createBasicBlock :: ConvertBasicBlockFunction t => BNBasicBlock -> IO (BasicBlock t)
 createBasicBlock ptr = BasicBlock ptr
-  <$> (BN.getBasicBlockFunction ptr >>= createFunction)
+  <$> (BN.getBasicBlockFunction ptr >>= createFunction >>= convertBasicBlockFunction)
   <*> (coerceInstructionIndex <$> BN.getBasicBlockStart ptr)
   <*> (coerceInstructionIndex <$> BN.getBasicBlockEnd ptr)
 
-createLLILBasicBlock :: BNBasicBlock -> IO LLILBasicBlock
-createLLILBasicBlock ptr = BN.getBasicBlockFunction ptr >>= createFunction >>= \fn ->
-  LLILBasicBlock ptr fn
-  <$> (coerceInstructionIndex <$> BN.getBasicBlockStart ptr)
-  <*> (coerceInstructionIndex <$> BN.getBasicBlockEnd ptr)
-  <*> Func.getLLILFunction fn
 
-createMLILBasicBlock :: BNBasicBlock -> IO MLILBasicBlock
-createMLILBasicBlock ptr = BN.getBasicBlockFunction ptr >>= createFunction >>= \fn ->
-  MLILBasicBlock ptr fn
-  <$> (coerceInstructionIndex <$> BN.getBasicBlockStart ptr)
-  <*> (coerceInstructionIndex <$> BN.getBasicBlockEnd ptr)
-  <*> Func.getMLILFunction fn
+getBasicBlocks :: ( ConvertBasicBlockFunction t
+                  , GetBlockList t )
+                  => t -> IO [BasicBlock t]
+getBasicBlocks fn = getBlockList fn >>= traverse createBasicBlock
 
-createMLILSSABasicBlock :: BNBasicBlock -> IO MLILSSABasicBlock
-createMLILSSABasicBlock ptr = BN.getBasicBlockFunction ptr >>= createFunction >>= \fn ->
-  MLILSSABasicBlock ptr fn
-  <$> (coerceInstructionIndex <$> BN.getBasicBlockStart ptr)
-  <*> (coerceInstructionIndex <$> BN.getBasicBlockEnd ptr)
-  <*> Func.getMLILSSAFunction fn
 
-getBasicBlocks :: Function -> IO [BasicBlock]
-getBasicBlocks fn = BN.getFunctionBasicBlockList (fn ^. Func.handle)  >>= traverse createBasicBlock
-
-getLLILBasicBlocks :: LLILFunction -> IO [LLILBasicBlock]
-getLLILBasicBlocks fn = BN.getLowLevelILBasicBlockList (fn ^. Func.handle)  >>= traverse createLLILBasicBlock
-
-getMLILBasicBlocks :: MLILFunction -> IO [MLILBasicBlock]
-getMLILBasicBlocks fn = BN.getMediumLevelILBasicBlockList (fn ^. Func.handle)  >>= traverse createMLILBasicBlock
-
-getMLILSSABasicBlocks :: MLILSSAFunction -> IO [MLILSSABasicBlock]
-getMLILSSABasicBlocks fn = BN.getMediumLevelILBasicBlockList (fn ^. Func.handle)  >>= traverse createMLILSSABasicBlock
-
-getBasicBlocksAt :: BNBinaryView -> Address -> IO [BasicBlock]
+getBasicBlocksAt :: BNBinaryView -> Address -> IO [BasicBlock Function]
 getBasicBlocksAt bv addr = BN.getBasicBlocksForAddress bv addr
                            >>= traverse createBasicBlock
 
-getLLILBasicBlockForInstruction :: LLILFunction -> InstructionIndex LLIL -> IO (Maybe LLILBasicBlock)
+getLLILBasicBlockForInstruction :: LLILFunction -> InstructionIndex LLILFunction -> IO (Maybe (BasicBlock LLILFunction))
 getLLILBasicBlockForInstruction lfn index = 
   BN.getLowLevelILBasicBlockForInstruction (lfn ^. Func.handle) index >>=
-  maybe (return Nothing) (fmap Just . createLLILBasicBlock)
+  maybe (return Nothing) (fmap Just . createBasicBlock)
 
-getMLILBasicBlockForInstruction :: MLILFunction -> InstructionIndex MLIL -> IO (Maybe MLILBasicBlock)
+getMLILBasicBlockForInstruction :: MLILFunction -> InstructionIndex MLILFunction -> IO (Maybe (BasicBlock MLILFunction))
 getMLILBasicBlockForInstruction lfn index = 
   BN.getMediumLevelILBasicBlockForInstruction (lfn ^. Func.handle) index >>=
-  maybe (return Nothing) (fmap Just . createMLILBasicBlock)
+  maybe (return Nothing) (fmap Just . createBasicBlock)
 
-
-getMLILSSABasicBlockForInstruction :: MLILSSAFunction -> InstructionIndex MLILSSA -> IO (Maybe MLILSSABasicBlock)
+getMLILSSABasicBlockForInstruction :: MLILSSAFunction -> InstructionIndex MLILSSAFunction -> IO (Maybe (BasicBlock MLILSSAFunction))
 getMLILSSABasicBlockForInstruction lfn index = 
   BN.getMediumLevelILBasicBlockForInstruction (lfn ^. Func.handle) (coerceInstructionIndex index) >>=
-  maybe (return Nothing) (fmap Just . createMLILSSABasicBlock)
+  maybe (return Nothing) (fmap Just . createBasicBlock)
+
+
+
+
+
 
 
 
