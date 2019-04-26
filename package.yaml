@@ -33,6 +33,7 @@ dependencies:
   - stm
   - template-haskell
   - text
+  - transformers
 
 library:
   ghc-options:

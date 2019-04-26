@@ -9,6 +9,7 @@ module Hinja.Prelude
   , liftEitherM
   , liftMaybe
   , liftMaybeM
+  , liftMaybeTIO
   ) where
 
 import           Prelude         as Exports        ( String
@@ -37,6 +38,7 @@ import           Control.Lens    as Exports        ( (%~)
                                                    )
 import           Data.Maybe      as Exports        ( fromJust )
 import           Protolude       as Exports hiding ( head )
+import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e
@@ -58,6 +60,10 @@ liftEitherIO m = liftIO m >>= liftEither
 
 liftMaybeIO :: (MonadError e m, MonadIO m) => e -> IO (Maybe a) -> m a
 liftMaybeIO e m = liftIO m >>= liftEither . maybe (Left e) Right
+
+liftMaybeTIO :: MonadIO m => IO (Maybe a) -> MaybeT m a
+liftMaybeTIO m = liftIO m >>= maybe mzero return
+
 
 fromRight :: Either e a -> a
 fromRight (Right x) = x

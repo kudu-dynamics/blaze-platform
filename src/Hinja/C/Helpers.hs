@@ -23,6 +23,7 @@ import Foreign.ForeignPtr ( ForeignPtr
                           , newForeignPtr_)
 import Hinja.C.Bindings
 import Hinja.C.Util
+import Hinja.C.Types
 import Hinja.C.Pointers
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -48,4 +49,24 @@ getAllArchitectureSemanticFlagGroups :: BNArchitecture -> IO [Word32]
 getAllArchitectureSemanticFlagGroups arch =
   getAllArchitectureSemanticFlagGroups' arch >>=
   manifestArray (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
+
+getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
+getFunctionBasicBlockList fn = 
+  getFunctionBasicBlockList' fn
+  >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
+
+getMediumLevelILBasicBlockList :: BNMediumLevelILFunction -> IO [BNBasicBlock]
+getMediumLevelILBasicBlockList fn = 
+  getMediumLevelILBasicBlockList' fn
+  >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
+
+getLowLevelILBasicBlockList :: BNLowLevelILFunction -> IO [BNBasicBlock]
+getLowLevelILBasicBlockList fn = 
+  getLowLevelILBasicBlockList' fn
+  >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
+
+getBasicBlocksForAddress :: BNBinaryView -> Address -> IO [BNBasicBlock]
+getBasicBlocksForAddress bv addr = 
+  getBasicBlocksForAddress' bv addr
+  >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 

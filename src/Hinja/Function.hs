@@ -17,14 +17,23 @@ module Hinja.Function where
 import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
-import Hinja.C.Pointers ( BNFunction
-                        , BNMediumLevelILFunction
-                        , BNBinaryView)
+import Hinja.C.Pointers
+import Hinja.C.Types (Address)
 
 data Function = Function
   { _handle :: BNFunction
   , _name :: Text
-  , _start :: Word64
+  , _start :: Address
+  } deriving (Eq, Ord, Show)
+
+data LLILFunction = LLILFunction
+  { _handle :: BNLowLevelILFunction
+  , _func :: Function
+  } deriving (Eq, Ord, Show)
+
+data LLILSSAFunction = LLILSSAFunction
+  { _handle :: BNLowLevelILFunction
+  , _func :: Function
   } deriving (Eq, Ord, Show)
 
 data MLILFunction = MLILFunction
@@ -38,6 +47,7 @@ data MLILSSAFunction = MLILSSAFunction
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''Function)
+$(makeFieldsNoPrefix ''LLILFunction)
 $(makeFieldsNoPrefix ''MLILFunction)
 $(makeFieldsNoPrefix ''MLILSSAFunction)
 
@@ -48,6 +58,16 @@ createFunction ptr = Function ptr
 
 getFunctions :: BNBinaryView -> IO [Function]
 getFunctions bv = BN.getFunctions bv >>= traverse createFunction
+
+getLLILFunction :: Function -> IO LLILFunction
+getLLILFunction fn = LLILFunction
+  <$> BN.getFunctionLowLevelIL (fn ^. handle)
+  <*> pure fn
+
+getLLILSSAFunction :: Function -> IO LLILSSAFunction
+getLLILSSAFunction fn = LLILSSAFunction
+  <$> (BN.getFunctionLowLevelIL (fn ^. handle)  >>= BN.getLowLevelILSSAForm)
+  <*> pure fn
 
 getMLILFunction :: Function -> IO MLILFunction
 getMLILFunction fn = MLILFunction

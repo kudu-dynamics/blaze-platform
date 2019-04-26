@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 202b840a62b66c6a8b814008de1053c9d417f1a4cb8c799f7f4f1f6878968846
+-- hash: bda7be1a2e0020bfd21faa046ad4fa0f01c149b97cbd427742fe1fdbb9c85fc4
 
 name:           hinja
 version:        0.1.0.0
@@ -29,6 +29,7 @@ library
   exposed-modules:
       Hinja
       Hinja.Architecture
+      Hinja.BasicBlock
       Hinja.C.Bindings
       Hinja.C.Helpers
       Hinja.C.Main
@@ -44,6 +45,7 @@ library
       Hinja.Header.ParseStruct
       Hinja.Main
       Hinja.Prelude
+      Hinja.Types
       Hinja.Types.LLIL
       Hinja.Types.LLIL.Reg
       Hinja.Types.Printer
@@ -69,6 +71,7 @@ library
     , stm
     , template-haskell
     , text
+    , transformers
   build-tools:
       c2hs
   default-language: Haskell2010
