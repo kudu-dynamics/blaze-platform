@@ -49,3 +49,7 @@ $(makeFieldsNoPrefix ''Function)
 $(makeFieldsNoPrefix ''LLILFunction)
 $(makeFieldsNoPrefix ''MLILFunction)
 $(makeFieldsNoPrefix ''MLILSSAFunction)
+
+
+data Variable = Variable
+  deriving (Eq, Ord, Show)

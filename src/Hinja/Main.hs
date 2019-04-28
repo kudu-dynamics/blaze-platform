@@ -18,11 +18,14 @@ import Foreign hiding (void)
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import qualified Control.Exception as E
+import qualified Hinja.BasicBlock as BB
+import qualified Hinja.MLIL as MLIL
 import qualified Hinja.C.Main as BN
 import Hinja.C.Main ( BNBinaryView
                     , BNBinaryViewType
                     , BNFileMetadata
                     )
+import Hinja.Types
 import qualified Hinja.Function as Func
 import System.Envy
 import GHC.Generics
@@ -95,3 +98,11 @@ getBinaryView fp = runExceptT $ do
           liftIO $ BN.createBinaryViewOfType vt bv'
         Just bv' -> return bv'
 
+demog :: IO MLILFunction
+demog = do
+  (Right bv) <- getBinaryView a1
+  BN.updateAnalysis bv
+  fs <- Func.getFunctions bv
+  let g = head $ filter (\x -> x ^. Func.name == "g") fs
+  Func.getMLILFunction g
+  

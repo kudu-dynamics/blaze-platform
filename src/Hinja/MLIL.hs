@@ -29,17 +29,32 @@ import Hinja.Function ( Function
                       )
 import qualified Hinja.Function as Func
 import Hinja.C.Types
+import Hinja.MLIL.Types
 
-getMLILExprIndex :: MLILFunction -> InstructionIndex MLILFunction
-                    -> IO (ExpressionIndex MLILFunction)
-getMLILExprIndex fn iindex =
-  BN.getMediumLevelILIndexForInstruction (fn ^. Func.handle) (coerceInstructionIndex iindex)
 
-getMLILSSAExprIndex :: MLILSSAFunction -> InstructionIndex MLILSSAFunction
-                    -> IO (ExpressionIndex MLILSSAFunction)
-getMLILSSAExprIndex fn iindex = 
-  BN.getMediumLevelILIndexForInstruction fnPtr (coerceInstructionIndex iindex)
-  >>= BN.getMediumLevelILSSAExprIndex fnPtr
-  where
-    fnPtr = fn ^. Func.handle
+class HasHandle fun BNMediumLevelILFunction => StatementFunction fun where
+  getExprIndex :: fun -> InstructionIndex fun -> IO (ExpressionIndex fun)
+  
 
+instance StatementFunction MLILFunction where
+  getExprIndex fn iindex = BN.getMediumLevelILIndexForInstruction
+    (fn ^. Func.handle) (coerceInstructionIndex iindex)
+
+instance StatementFunction MLILSSAFunction where
+  getExprIndex fn iindex =
+    BN.getMediumLevelILIndexForInstruction fnPtr (coerceInstructionIndex iindex)
+    >>= BN.getMediumLevelILSSAExprIndex fnPtr
+    where
+      fnPtr = fn ^. Func.handle
+
+
+getMLILByExpressionIndex :: StatementFunction fun
+                         => fun -> ExpressionIndex fun
+                         -> IO (Ptr BNMediumLevelILInstruction)
+getMLILByExpressionIndex fn eindex =
+  BN.getMediumLevelILByIndex' (fn ^. Func.handle) (coerceExpressionIndex eindex)
+
+getMLILByInstructionIndex :: StatementFunction fun
+                          => fun -> InstructionIndex fun
+                          -> IO (Ptr BNMediumLevelILInstruction) 
+getMLILByInstructionIndex fn iindex = getExprIndex fn iindex >>= getMLILByExpressionIndex fn

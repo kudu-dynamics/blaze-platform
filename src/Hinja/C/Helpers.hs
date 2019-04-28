@@ -25,6 +25,7 @@ import Hinja.C.Bindings
 import Hinja.C.Util
 import Hinja.C.Types
 import Hinja.C.Pointers
+import Hinja.Types
 import System.IO.Unsafe (unsafePerformIO)
 
 

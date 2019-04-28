@@ -145,5 +145,21 @@ import System.IO.Unsafe (unsafePerformIO)
 
 {#fun BNGetMediumLevelILSSAExprIndex as getMediumLevelILSSAExprIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex MLILFunction'} -> `ExpressionIndex MLILSSAFunction' fromIntegral #}
 
+sizeOfBNMediumLevelILInstruction :: Int
+sizeOfBNMediumLevelILInstruction = {#sizeof BNMediumLevelILInstruction#}
 
+sizeOfBNMediumLevelILOperation :: Int
+sizeOfBNMediumLevelILOperation = {#sizeof BNMediumLevelILOperation#}
+
+-- allocaMediumLevelILInstruction :: 
+
+#c
+void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMediumLevelILInstruction* instr) {
+  *instr = BNGetMediumLevelILByIndex(func, i);
+}
+#endc
+
+-- {#fun wrapBNGetMediumLevelILByIndex as getMediumLevelILByIndex'' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', alloca* `Ptr BNMediumLevelILInstruction' peek*} -> `()' #}
+
+{#fun BNGetMediumLevelILByIndex as getMediumLevelILByIndex' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()'} -> `Ptr BNMediumLevelILInstruction' castPtr #}
 

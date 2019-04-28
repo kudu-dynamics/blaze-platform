@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: af47626248b82552f27ea31db2ec11831228de13944765b97f830bdeee0a716a
+-- hash: d3b76435e1f121ad3e65ea4185e2cd90692194f9072013fbe7e4a3da3ac4dbe6
 
 name:           hinja
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       Hinja.C.Helpers
       Hinja.C.Main
       Hinja.C.Pointers
+      Hinja.C.Structs
       Hinja.C.TH
       Hinja.C.Types
       Hinja.C.Util
@@ -46,6 +47,7 @@ library
       Hinja.Main
       Hinja.MLIL
       Hinja.MLIL.Gen
+      Hinja.MLIL.Types
       Hinja.Prelude
       Hinja.Types
       Hinja.Types.LLIL
@@ -64,6 +66,7 @@ library
     , base >=4.7 && <5
     , containers
     , envy
+    , fixed-vector
     , language-c
     , lens
     , mtl
