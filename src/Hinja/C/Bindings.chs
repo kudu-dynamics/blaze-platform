@@ -21,10 +21,13 @@ import Foreign.ForeignPtr ( ForeignPtr
                           , newForeignPtr
                           , withForeignPtr
                           , newForeignPtr_)
+import Hinja.C.Enums
 import Hinja.C.Pointers
+import Hinja.C.Structs
 import Hinja.C.Types
 import Hinja.C.Util
 import Hinja.Types
+import Hinja.MLIL.Types
 import System.IO.Unsafe (unsafePerformIO)
 
 #include <stdlib.h>
@@ -159,7 +162,18 @@ void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMe
 }
 #endc
 
--- {#fun wrapBNGetMediumLevelILByIndex as getMediumLevelILByIndex'' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', alloca* `Ptr BNMediumLevelILInstruction' peek*} -> `()' #}
+{#fun wrapBNGetMediumLevelILByIndex as wrapBNGetMediumLevelILByIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', castPtr `Ptr MediumLevelILInstruction'} -> `()' #}
 
-{#fun BNGetMediumLevelILByIndex as getMediumLevelILByIndex' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()'} -> `Ptr BNMediumLevelILInstruction' castPtr #}
 
+
+---- variables
+
+#c
+void wrapBNFromVariableIdentifier(uint64_t id, BNVariable* var) {
+  *var = BNFromVariableIdentifier(id);
+}
+#endc
+
+{#fun wrapBNFromVariableIdentifier as wrapBNFromVariableIdentifier {fromIntegral `VariableIdentifier', castPtr `Ptr BNVariable'} -> `()' #}
+
+{#fun BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* ` BNVariable'} -> `String' #}

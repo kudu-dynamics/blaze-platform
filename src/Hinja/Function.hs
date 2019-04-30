@@ -26,15 +26,30 @@ import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
+import Hinja.Types
 import Hinja.Types as Exports ( Function(..)
                               , LLILFunction(..)
                               , LLILSSAFunction(..)
                               , MLILFunction(..)
                               , MLILSSAFunction(..)
+                              , Variable(..)
+                              , VarType(..)
+                              , index
+                              , storage
+                              , sourceType
+                              , varType
                               , handle
                               , name
                               , start
-                              , func )
+                              , func
+                              , confidence
+                              , typeClass
+                              , width
+                              , alignment
+                              , signed
+                              , signedConfidence
+                              , isConst
+                              , constConfidence )
 
 
 createFunction :: BNFunction -> IO Function
@@ -68,3 +83,9 @@ getMLILSSAFunction fn = MLILSSAFunction
 
 ---------- Variables
 
+getVariableFromIdentifier :: Function -> VariableIdentifier -> IO Variable
+getVariableFromIdentifier fn vid = do
+  bnvar <- BN.fromVariableIdentifier vid
+  return undefined
+  where
+    fptr = fn ^. handle

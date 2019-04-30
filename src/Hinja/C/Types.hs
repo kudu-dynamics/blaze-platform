@@ -1,26 +1,28 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Hinja.C.Types where
 
 import Hinja.Prelude
 
+import Foreign.C.Types
 import Foreign.ForeignPtr
+import Hinja.C.Enums (BNMediumLevelILOperation(..))
 
 type List = Ptr
 
 newtype Address = Address Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
-
-data IL
-data LLIL
-data MLIL
-data MLILSSA
+newtype BNPointer = BNPointer (ForeignPtr BNPointer)
 
 newtype InstructionIndex x = InstructionIndex Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
@@ -42,3 +44,4 @@ class Pointer a where
   pointerWrap :: ForeignPtr a -> a
   pointerUnwrap :: a -> ForeignPtr a
   pointerFinalizer :: Maybe (FinalizerPtr a)
+

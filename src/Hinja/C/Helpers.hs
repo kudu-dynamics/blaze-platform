@@ -26,6 +26,7 @@ import Hinja.C.Util
 import Hinja.C.Types
 import Hinja.C.Pointers
 import Hinja.Types
+import Hinja.MLIL.Types
 import System.IO.Unsafe (unsafePerformIO)
 
 
@@ -70,4 +71,12 @@ getBasicBlocksForAddress :: BNBinaryView -> Address -> IO [BNBasicBlock]
 getBasicBlocksForAddress bv addr = 
   getBasicBlocksForAddress' bv addr
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
+
+getMediumLevelILByIndex :: BNMediumLevelILFunction -> ExpressionIndex () -> IO MediumLevelILInstruction
+getMediumLevelILByIndex fn eindex =
+  allocAndPeek $ wrapBNGetMediumLevelILByIndex fn eindex
+
+fromVariableIdentifier :: VariableIdentifier -> IO BNVariable
+fromVariableIdentifier vid =
+  allocAndPeek $ wrapBNFromVariableIdentifier vid
 

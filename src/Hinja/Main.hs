@@ -98,11 +98,18 @@ getBinaryView fp = runExceptT $ do
           liftIO $ BN.createBinaryViewOfType vt bv'
         Just bv' -> return bv'
 
-demog :: IO MLILFunction
+demog :: IO MLILSSAFunction
 demog = do
   (Right bv) <- getBinaryView a1
   BN.updateAnalysis bv
   fs <- Func.getFunctions bv
   let g = head $ filter (\x -> x ^. Func.name == "g") fs
-  Func.getMLILFunction g
-  
+  Func.getMLILSSAFunction g
+
+demovar :: IO (MLILSSAFunction, BNVariable)
+demovar = do
+  g <- demog
+  expr <- MLIL.getMediumLevelILInstructionByExpressionIndex g 0
+  (g,) <$> BN.fromVariableIdentifier (vid $ expr ^. MLIL.operands)
+  where
+    vid (MLIL.OperandsData xs) = fromIntegral $ head xs

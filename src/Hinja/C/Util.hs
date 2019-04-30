@@ -14,6 +14,7 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Array
+import Foreign.Marshal.Alloc
 import Hinja.C.Types
 
 manifestArray :: (Storable a) => (a -> IO b) -> (List a -> IO ()) -> (List a, CSize) -> IO [b]
@@ -57,6 +58,20 @@ nilable ptr
 
 withPtr :: Pointer a => a -> (Ptr () -> IO b) -> IO b
 withPtr = withForeignPtr . castForeignPtr . pointerUnwrap
+
+withStruct :: (Storable a) => a -> (Ptr x -> IO b) -> IO b
+withStruct s f = alloca $ \ptr -> do
+  poke ptr s
+  f $ castPtr ptr
+
+allocAndPeek :: Storable b => (Ptr b -> IO ()) -> IO b
+allocAndPeek f = alloca $ \ptr -> f ptr >> peek ptr
+
+-- allocAndPeek :: Storable b => (Ptr () -> IO b) -> IO b
+-- allocAndPeek = \ptr -> alloca peek
+
+
+
 
 -- use this for pointers you're sure won't be null
 safePtr :: (Pointer a) => Ptr () -> IO a
