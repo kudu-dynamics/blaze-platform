@@ -67,11 +67,6 @@ withStruct s f = alloca $ \ptr -> do
 allocAndPeek :: Storable b => (Ptr b -> IO ()) -> IO b
 allocAndPeek f = alloca $ \ptr -> f ptr >> peek ptr
 
--- allocAndPeek :: Storable b => (Ptr () -> IO b) -> IO b
--- allocAndPeek = \ptr -> alloca peek
-
-
-
 
 -- use this for pointers you're sure won't be null
 safePtr :: (Pointer a) => Ptr () -> IO a

@@ -80,3 +80,15 @@ fromVariableIdentifier :: VariableIdentifier -> IO BNVariable
 fromVariableIdentifier vid =
   allocAndPeek $ wrapBNFromVariableIdentifier vid
 
+getVariableType :: BNFunction -> BNVariable -> IO BNTypeWithConfidence
+getVariableType fn var =
+  allocAndPeek $ wrapBNGetVariableType fn var
+
+isTypeSigned :: BNType -> IO BNBoolWithConfidence
+isTypeSigned t =
+  allocAndPeek $ wrapBNIsTypeSigned t
+
+isTypeConst :: BNType -> IO BNBoolWithConfidence
+isTypeConst t =
+  allocAndPeek $ wrapBNIsTypeConst t
+

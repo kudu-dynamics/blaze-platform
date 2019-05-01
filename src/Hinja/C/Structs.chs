@@ -17,6 +17,7 @@ import Foreign.Storable
 import Foreign.Marshal.Array
 import Hinja.C.Types
 import Hinja.C.Enums
+import Hinja.C.Util
 import Hinja.Types
 import Hinja.MLIL.Types
 import Data.Vector.Fixed.Storable (Vec5)
@@ -67,3 +68,19 @@ instance Storable BNVariable where
      {#set BNVariable->type #} p (fromIntegral . fromEnum $ x ^. sourceType)
      {#set BNVariable->index #} p (fromIntegral $ x ^. index)
      {#set BNVariable->storage #} p (fromIntegral $ x ^. storage)
+
+instance Storable BNTypeWithConfidence where
+  sizeOf _ = {#sizeof BNTypeWithConfidence#}
+  alignment _ = {#alignof BNTypeWithConfidence#}
+  peek p = BNTypeWithConfidence
+    <$> ({#get BNTypeWithConfidence->type #} p >>= nilable . castPtr)
+    <*> liftM fromIntegral ({#get BNTypeWithConfidence->confidence #} p)
+  poke _ _ = P.error "BNTypeWithConfidence 'poke' not implemented"
+
+instance Storable BNBoolWithConfidence where
+  sizeOf _ = {#sizeof BNBoolWithConfidence#}
+  alignment _ = {#alignof BNBoolWithConfidence#}
+  peek p = BNBoolWithConfidence
+    <$> ({#get BNBoolWithConfidence->value #} p)
+    <*> liftM fromIntegral ({#get BNBoolWithConfidence->confidence #} p)
+  poke _ _ = P.error "BNBoolWithConfidence 'poke' not implemented"

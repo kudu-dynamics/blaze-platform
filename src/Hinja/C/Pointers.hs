@@ -23,4 +23,4 @@ $(mkPointer "BNLowLevelILFunction" "BNFreeLowLevelILFunction")
 $(mkPointer "BNSymbol" "BNFreeSymbol")
 $(mkPointer_ "BNArchitecture")
 $(mkPointer "BNBasicBlock" "BNFreeBasicBlock")
-
+$(mkPointer "BNType" "BNFreeType")

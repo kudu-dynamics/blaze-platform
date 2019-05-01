@@ -176,4 +176,26 @@ void wrapBNFromVariableIdentifier(uint64_t id, BNVariable* var) {
 
 {#fun wrapBNFromVariableIdentifier as wrapBNFromVariableIdentifier {fromIntegral `VariableIdentifier', castPtr `Ptr BNVariable'} -> `()' #}
 
-{#fun BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* ` BNVariable'} -> `String' #}
+{#fun BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* `BNVariable'} -> `String' #}
+
+#c
+void wrapBNGetVariableType(BNFunction* func, const BNVariable* var, BNTypeWithConfidence* t) { *t = BNGetVariableType(func, var); }
+#endc
+
+{#fun wrapBNGetVariableType as wrapBNGetVariableType {withPtr* `BNFunction', withStruct* `BNVariable', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
+
+#c
+void wrapBNIsTypeSigned(BNType* ty, BNBoolWithConfidence* bc) {
+ *bc = BNIsTypeSigned(ty);
+}
+#endc
+
+{#fun wrapBNIsTypeSigned as wrapBNIsTypeSigned {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
+
+#c
+void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
+ *bc = BNIsTypeConst(ty);
+}
+#endc
+
+{#fun wrapBNIsTypeConst as wrapBNIsTypeConst {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}

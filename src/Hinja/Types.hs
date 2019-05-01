@@ -11,12 +11,13 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Hinja.Types where
 
 import Hinja.Prelude hiding (onException, handle)
 
-import Hinja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
+import Hinja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction, BNType)
 import Hinja.C.Types (Address)
 import Hinja.C.Enums (BNTypeClass, BNVariableSourceType)
 
@@ -54,14 +55,14 @@ newtype VarAlignment = VarAlignment Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
 data VarType = VarType
-  { _confidence :: Double
+  { _confidence :: Confidence
   , _typeClass :: BNTypeClass
   , _width :: VarWidth
   , _alignment :: VarAlignment
   , _signed :: Bool
-  , _signedConfidence :: Double
+  , _signedConfidence :: Confidence
   , _isConst :: Bool
-  , _constConfidence :: Double
+  , _constConfidence :: Confidence
   } deriving (Eq, Ord, Show)
 
 newtype VariableIdentifier = VariableIdentifier Word64
@@ -72,6 +73,10 @@ newtype VariableIndex = VariableIndex Word32
 
 newtype VariableStorage = VariableStorage Int64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+
+newtype Confidence = Confidence Word8
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+
 
 data BNVariable = BNVariable
   { _sourceType :: BNVariableSourceType
@@ -87,6 +92,16 @@ data Variable = Variable
   , _varType :: VarType
   } deriving (Eq, Ord, Show)
 
+data BNTypeWithConfidence = BNTypeWithConfidence
+  { _bnType :: Maybe BNType
+  , _confidence :: Confidence
+  } deriving (Eq, Ord, Show)
+
+data BNBoolWithConfidence = BNBoolWithConfidence
+  { _bnBool :: Bool
+  , _confidence :: Confidence
+  } deriving (Eq, Ord, Show)
+
 $(makeFieldsNoPrefix ''Function)
 $(makeFieldsNoPrefix ''LLILFunction)
 $(makeFieldsNoPrefix ''MLILFunction)
@@ -94,3 +109,5 @@ $(makeFieldsNoPrefix ''MLILSSAFunction)
 $(makeFieldsNoPrefix ''VarType)
 $(makeFieldsNoPrefix ''Variable)
 $(makeFieldsNoPrefix ''BNVariable)
+$(makeFieldsNoPrefix ''BNTypeWithConfidence)
+$(makeFieldsNoPrefix ''BNBoolWithConfidence)
