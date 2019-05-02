@@ -48,17 +48,17 @@ data MLILSSAFunction = MLILSSAFunction
   } deriving (Eq, Ord, Show)
 
 
-newtype VarWidth = VarWidth Word64
+newtype TypeWidth = TypeWidth Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
-newtype VarAlignment = VarAlignment Word64
+newtype TypeAlignment = TypeAlignment Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
 data VarType = VarType
   { _confidence :: Confidence
   , _typeClass :: BNTypeClass
-  , _width :: VarWidth
-  , _alignment :: VarAlignment
+  , _width :: TypeWidth
+  , _alignment :: TypeAlignment
   , _signed :: Bool
   , _signedConfidence :: Confidence
   , _isConst :: Bool
@@ -89,7 +89,7 @@ data Variable = Variable
   , _name :: Text
   , _storage :: VariableStorage
   , _sourceType :: BNVariableSourceType
-  , _varType :: VarType
+  , _varType :: Maybe VarType
   } deriving (Eq, Ord, Show)
 
 data BNTypeWithConfidence = BNTypeWithConfidence
@@ -98,7 +98,7 @@ data BNTypeWithConfidence = BNTypeWithConfidence
   } deriving (Eq, Ord, Show)
 
 data BNBoolWithConfidence = BNBoolWithConfidence
-  { _bnBool :: Bool
+  { _value :: Bool
   , _confidence :: Confidence
   } deriving (Eq, Ord, Show)
 

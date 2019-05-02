@@ -165,6 +165,10 @@ void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMe
 {#fun wrapBNGetMediumLevelILByIndex as wrapBNGetMediumLevelILByIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', castPtr `Ptr MediumLevelILInstruction'} -> `()' #}
 
 
+{#fun BNMediumLevelILGetOperandList as mediumLevelILGetOperandList' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', fromIntegral `OpIndex', alloca- `CSize' peekIntConv*} -> `List CULong' id #}
+
+{#fun BNMediumLevelILFreeOperandList as mediumLevelILFreeOperandList {id `List CULong'} -> `()' #}
+
 
 ---- variables
 
@@ -199,3 +203,10 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 #endc
 
 {#fun wrapBNIsTypeConst as wrapBNIsTypeConst {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
+
+{#fun BNGetTypeAlignment as getTypeAlignment {withPtr* `BNType'} -> `TypeAlignment' fromIntegral #}
+
+{#fun BNGetTypeWidth as getTypeWidth {withPtr* `BNType'} -> `TypeWidth' fromIntegral #}
+
+{#fun BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
+

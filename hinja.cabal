@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7ca18e7545e6cb29a4a121cf409d4c664f1f52b2c2ab057b3b58e4e98a2c8d0b
+-- hash: 9d61420c1f0fc0b96960a8e6d6cc35d132e47abb64eb9fc2cb6cad2d77596ca5
 
 name:           hinja
 version:        0.1.0.0
@@ -54,6 +54,7 @@ library
       Hinja.Types.LLIL
       Hinja.Types.LLIL.Reg
       Hinja.Types.Printer
+      Hinja.Variable
   other-modules:
       Paths_hinja
   hs-source-dirs:

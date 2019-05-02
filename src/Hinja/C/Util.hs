@@ -67,7 +67,6 @@ withStruct s f = alloca $ \ptr -> do
 allocAndPeek :: Storable b => (Ptr b -> IO ()) -> IO b
 allocAndPeek f = alloca $ \ptr -> f ptr >> peek ptr
 
-
 -- use this for pointers you're sure won't be null
 safePtr :: (Pointer a) => Ptr () -> IO a
 safePtr ptr' = pointerWrap <$> fPtr pointerFinalizer ptr
@@ -84,4 +83,6 @@ ptrListOut = castPtr
 ptrListIn :: List (Ptr a) -> List (Ptr ())
 ptrListIn = castPtr
 
+integralToEnum :: (Enum b, Integral a) => a -> b
+integralToEnum = toEnum . fromIntegral
 

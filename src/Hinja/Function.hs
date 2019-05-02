@@ -80,12 +80,3 @@ getMLILSSAFunction fn = MLILSSAFunction
   <$> (BN.getFunctionMediumLevelIL (fn ^. handle)  >>= BN.getMediumLevelILSSAForm)
   <*> pure fn
 
-
----------- Variables
-
-getVariableFromIdentifier :: Function -> VariableIdentifier -> IO Variable
-getVariableFromIdentifier fn vid = do
-  bnvar <- BN.fromVariableIdentifier vid
-  return undefined
-  where
-    fptr = fn ^. handle

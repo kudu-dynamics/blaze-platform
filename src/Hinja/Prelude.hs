@@ -15,6 +15,7 @@ module Hinja.Prelude
 import           Prelude         as Exports        ( String
                                                    , head
                                                    , id
+                                                   , (!!)
                                                    )
 import qualified Prelude         as P
 

@@ -92,3 +92,8 @@ isTypeConst :: BNType -> IO BNBoolWithConfidence
 isTypeConst t =
   allocAndPeek $ wrapBNIsTypeConst t
 
+mediumLevelILGetOperandList :: BNMediumLevelILFunction -> ExpressionIndex () -> OpIndex -> IO [Int64]
+mediumLevelILGetOperandList fn eindex oindex =
+  mediumLevelILGetOperandList' fn eindex oindex
+  >>= manifestArray (return . fromIntegral) mediumLevelILFreeOperandList
+
