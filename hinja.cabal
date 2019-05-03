@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9d61420c1f0fc0b96960a8e6d6cc35d132e47abb64eb9fc2cb6cad2d77596ca5
+-- hash: c95f7d3ba91ca4d965a72c26c9f39e98c63f7ccfb80c161d3918af0f4de3a2a5
 
 name:           hinja
 version:        0.1.0.0
@@ -66,7 +66,9 @@ library
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , casing
     , containers
+    , data-binary-ieee754
     , envy
     , fixed-vector
     , language-c

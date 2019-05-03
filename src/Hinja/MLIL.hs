@@ -25,6 +25,8 @@ module Hinja.MLIL
 import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Data.Map as Map
+import Data.Binary.IEEE754 (wordToFloat, wordToDouble)
+import GHC.Float (float2Double)
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
 import Hinja.Types
@@ -64,11 +66,22 @@ getMediumLevelILInstructionByInstructionIndex :: StatementFunction fun
                           -> IO (MediumLevelILInstruction) 
 getMediumLevelILInstructionByInstructionIndex fn iindex = getExprIndex fn iindex >>= getMediumLevelILInstructionByExpressionIndex fn
 
+buildInt :: OpBuilder t Int64
+buildInt = fromIntegral <$> takeOpDataWord
+
+buildFloat :: OpBuilder t Double
+buildFloat = do
+  sz <- view size <$> ask
+  w <- takeOpDataWord
+  case sz of
+    4 -> return . float2Double . wordToFloat . fromIntegral $ w
+    8 -> return . wordToDouble $ w
+    _ -> putText "buildFloat: Invalid size. Defaulting to 0.0" >> return 0.0
+
 buildVariable :: StatementFunction t => OpBuilder t Variable
 buildVariable = do
   vid <- fromIntegral <$> takeOpDataWord
-  ctx <- ask
-  let fn = ctx ^. func . Func.func
+  fn <- view (func . Func.func) <$> ask
   liftIO $ Var.getVariableFromIdentifier fn vid
 
 buildSSAVariable :: StatementFunction t => OpBuilder t SSAVariable
@@ -93,6 +106,39 @@ buildIntList = do
     (ctx ^. func . Func.handle)
     (coerceExpressionIndex $ ctx ^. exprIndex)
     oindex
+
+buildVarList :: StatementFunction t => OpBuilder t [Variable]
+buildVarList = do
+  xs <- buildIntList
+  fn <- view (func . Func.func) <$> ask
+  _ <- getAndAdvanceOpIndex  -- I don't know why...
+  liftIO $ traverse (Var.getVariableFromIdentifier fn . fromIntegral) xs
+
+asPairs :: [a] -> [(a, a)]
+asPairs [] = []
+asPairs [x] = []
+asPairs (x:y:xs) = (x, y) : asPairs xs
+
+buildSSAVarList :: StatementFunction t => OpBuilder t [SSAVariable]
+buildSSAVarList = do
+  xs <- buildIntList
+  fn <- view (func . Func.func) <$> ask
+  _ <- getAndAdvanceOpIndex  -- I don't know why...
+  liftIO . traverse (f fn) $ asPairs xs
+  where
+    f fn (vid, vversion) = do
+      v <- Var.getVariableFromIdentifier fn (fromIntegral vid)
+      return $ SSAVariable v (fromIntegral vversion)
+
+buildExprList :: StatementFunction t => OpBuilder t [Expression t]
+buildExprList = do
+  xs <- buildIntList
+  fn <- view func <$> ask
+  _ <- getAndAdvanceOpIndex  -- I don't know why...
+  liftIO $ traverse (expression fn . fromIntegral) xs
+
+buildIntrinsinc :: OpBuilder t Intrinsic
+buildIntrinsinc = fromIntegral <$> takeOpDataWord
 
 buildExpr :: StatementFunction t => OpBuilder t (Expression t)
 buildExpr = do

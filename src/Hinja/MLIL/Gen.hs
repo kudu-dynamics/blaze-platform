@@ -19,7 +19,12 @@ import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Data.Map as Map
 import qualified Hinja.C.Main as BN
+import qualified Text.Casing as Casing
+import qualified Data.Char as Char
+import qualified Hinja.Types.Printer as Printer
+import Hinja.Types.Printer (Printer, pr, indent)
 import Hinja.C.Pointers
+import qualified Data.Text.IO as TextIO
 import Hinja.Types
 import Hinja.Function ( Function
                       , LLILFunction
@@ -30,8 +35,104 @@ import Hinja.Function ( Function
 import qualified Hinja.Function as Func
 import Hinja.C.Types
 
-statementsData :: Map Text [(Text, Text)]
-statementsData = Map.fromList
+opTypeType :: Text -> Text
+opTypeType ot = case ot of
+  "int" -> "Int64"
+  "float" -> "Double"
+  "expr" -> "Expression t"
+  "intrinsic" -> "Intrinsic"
+  "var" -> "Variable"
+  "var_ssa" -> "SSAVariable"
+  "var_ssa_dest_and_src" -> "SSAVariableDestAndSrc"
+  "int_list" -> "[Int64]"
+  "var_list" -> "[Variable]"
+  "var_ssa_list" -> "[SSAVariable]"
+  "expr_list" -> "[Expression t]"
+
+opTypeBuilder :: Text -> Text
+opTypeBuilder ot = case ot of
+  "int" -> "buildInt"
+  "float" -> "buildFloat"
+  "expr" -> "buildExpr"
+  "intrinsic" -> "buildIntrinsinc"
+  "var" -> "buildVariable"
+  "var_ssa" -> "buildSSAVariable"
+  "var_ssa_dest_and_src" -> "buildSSAVariableDestAndSrc"
+  "int_list" -> "buildIntList"
+  "var_list" -> "buildVarList"
+  "var_ssa_list" -> "buildSSAVarList"
+  "expr_list" -> "buildExprList"
+
+capFirst :: String -> String
+capFirst "" = ""
+capFirst (x:xs) = Char.toUpper x : xs
+
+operatorNameToConstructorName :: Text -> Text
+operatorNameToConstructorName =
+  Text.pack . Casing.toScreamingSnake . Casing.dropPrefix . Casing.fromSnake . Text.unpack
+
+operatorNameToRecordName :: Text -> Text
+operatorNameToRecordName = Text.replace "Ssa" "SSA"
+  . (<>"Op") . Text.pack
+  . capFirst . Casing.toCamel . Casing.dropPrefix . Casing.fromSnake
+  . Text.unpack
+
+printOperationUnionType :: [(Text, [(Text, Text)])] -> Printer ()
+printOperationUnionType (firstOp:moreOps) = do
+  pr "data Operation t"
+  indent $ do
+    pr $ "= " <> strOp firstOp
+    printRest moreOps
+  where
+    printRest [] = pr "deriving (Eq, Ord, Show)"
+    printRest (op:ops) = do
+      pr $ "| " <> strOp op
+      printRest ops
+    strOp (opName, args) = operatorNameToConstructorName opName
+      <> bool (" (" <> operatorNameToRecordName opName <> " t)") "" (null args)
+    
+printOpRecordDerive :: Text -> Printer ()
+printOpRecordDerive nm = pr $ "$(makeFieldsNoPrefix ''"
+  <> operatorNameToRecordName nm <> ")"
+
+printOpRecord :: (Text, [(Text, Text)]) -> Printer ()
+printOpRecord (mlilName, xs) = do
+  pr $ "data " <> rname <> " t = " <> rname
+  indent $ case xs of
+    [] -> pr derivingClause
+    ((argName, argType):args) -> do
+      pr $ "{ _" <> argName <> " :: " <> opTypeType argType
+      printRestArgs args
+  where
+    printRestArgs [] = pr $ "} " <> derivingClause
+    printRestArgs ((argName, argType):args) = do
+      pr $ ", _" <> argName <> " :: " <> opTypeType argType
+      printRestArgs args
+    derivingClause = "deriving (Eq, Ord, Show)"
+    rname = operatorNameToRecordName mlilName
+
+---
+printOpUnion :: Printer ()
+printOpUnion = printOperationUnionType statementsData
+
+printOpRecords :: Printer ()
+printOpRecords = mapM_ (\x -> printOpRecord x >> pr "") statementsData
+
+printDerives :: Printer ()
+printDerives = mapM_ printOpRecordDerive (fst <$> statementsData)
+
+printToFile :: FilePath -> IO ()
+printToFile fp = TextIO.writeFile fp . Printer.toText $ do
+  printOpUnion
+  divide
+  printOpRecords
+  divide
+  printDerives
+  where
+    divide = pr "" >> pr "" >> pr ""
+
+statementsData :: [(Text, [(Text, Text)])]
+statementsData = 
   [ ("MLIL_NOP", [])
   , ("MLIL_SET_VAR", [("dest", "var"), ("src", "expr")])
   , ("MLIL_SET_VAR_FIELD", [("dest", "var"), ("offset", "int"), ("src", "expr")])
