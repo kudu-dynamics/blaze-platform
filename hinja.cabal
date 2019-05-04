@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c95f7d3ba91ca4d965a72c26c9f39e98c63f7ccfb80c161d3918af0f4de3a2a5
+-- hash: 289e425d4ad338e22053ccac5524dc6fce41df05f416f8c46c09239482d41cea
 
 name:           hinja
 version:        0.1.0.0
@@ -75,8 +75,10 @@ library
     , lens
     , mtl
     , newtype
+    , pretty-simple
     , protolude
     , raw-strings-qq
+    , show-prettyprint
     , stm
     , template-haskell
     , text

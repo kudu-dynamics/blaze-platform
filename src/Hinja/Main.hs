@@ -113,3 +113,4 @@ demovar = do
   (g,) <$> BN.fromVariableIdentifier (vid $ expr ^. MLIL.operands)
   where
     vid (MLIL.OperandsData xs) = fromIntegral $ head xs
+

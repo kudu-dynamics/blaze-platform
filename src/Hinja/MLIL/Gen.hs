@@ -128,8 +128,22 @@ printToFile fp = TextIO.writeFile fp . Printer.toText $ do
   printOpRecords
   divide
   printDerives
+  divide
+  printBuilderCases
   where
     divide = pr "" >> pr "" >> pr ""
+
+printBuilderCase :: (Text, [(Text, Text)]) -> Printer ()
+printBuilderCase (opName, []) = pr $
+  "BN." <> opName <> " -> return " <> operatorNameToConstructorName opName
+printBuilderCase (opName, args) = do
+  pr $ "BN." <> opName <> " ->"
+  indent . pr $ "fmap " <> operatorNameToConstructorName opName <> " $ "
+    <> operatorNameToRecordName opName
+    <> " <$> " <> Text.intercalate " <*> " (opTypeBuilder . snd <$> args)
+
+printBuilderCases :: Printer ()
+printBuilderCases = indent $ mapM_ printBuilderCase statementsData
 
 statementsData :: [(Text, [(Text, Text)])]
 statementsData = 
@@ -265,4 +279,8 @@ statementsData =
   , ("MLIL_VAR_PHI", [("dest", "var_ssa"), ("src", "var_ssa_list")])
   , ("MLIL_MEM_PHI", [("dest_memory", "int"), ("src_memory", "int_list")])
   ]
+
+
+
+
 

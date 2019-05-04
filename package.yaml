@@ -31,6 +31,7 @@ dependencies:
   - lens
   - mtl
   - newtype
+  - pretty-simple
   - protolude
   - raw-strings-qq
   - stm

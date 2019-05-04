@@ -10,6 +10,8 @@ module Hinja.Prelude
   , liftMaybe
   , liftMaybeM
   , liftMaybeTIO
+  , pshow
+  , pprint
   ) where
 
 import           Prelude         as Exports        ( String
@@ -19,6 +21,9 @@ import           Prelude         as Exports        ( String
                                                    )
 import qualified Prelude         as P
 
+import qualified Data.Text.Lazy as L (Text)
+
+import Text.Pretty.Simple as PP
 import           Control.Lens    as Exports        ( (%~)
                                                    , (.~)
                                                    , (?~)
@@ -65,6 +70,14 @@ liftMaybeIO e m = liftIO m >>= liftEither . maybe (Left e) Right
 liftMaybeTIO :: MonadIO m => IO (Maybe a) -> MaybeT m a
 liftMaybeTIO m = liftIO m >>= maybe mzero return
 
+ppOptions :: PP.OutputOptions
+ppOptions = PP.defaultOutputOptionsNoColor {PP.outputOptionsIndentAmount = 2}
+
+pshow :: Show a => a -> L.Text
+pshow = PP.pShowOpt ppOptions
+
+pprint :: Show a => a -> IO ()
+pprint = PP.pPrintOpt ppOptions
 
 fromRight :: Either e a -> a
 fromRight (Right x) = x
