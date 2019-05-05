@@ -13,9 +13,7 @@ module Hinja.C.Types where
 
 import Hinja.Prelude
 
-import Foreign.C.Types
 import Foreign.ForeignPtr
-import Hinja.C.Enums (BNMediumLevelILOperation(..))
 
 type List = Ptr
 

@@ -14,10 +14,6 @@ import Foreign.ForeignPtr ( ForeignPtr
                           )
 import Hinja.C.Types
 import Language.Haskell.TH
-import Language.Haskell.TH.Syntax
-
-mkAdder :: Int -> Q Exp
-mkAdder n = [| \x -> x + n |]
 
 derivePointer :: Name -> Q [Dec]
 derivePointer name  = do
@@ -27,25 +23,20 @@ derivePointer name  = do
   where
    x = conT name
 
-dd :: Name -> Q [Dec]
-dd pname = do
-  x <- newName "x"
-  return [InstanceD Nothing [] (AppT (ConT ''Pointer) (ConT pname))
-          [ ValD (VarP 'pointerWrap) (NormalB (ConE pname)) []
-          , FunD 'pointerUnwrap [Clause [ConP pname [VarP x]] (NormalB (VarE x)) []]
-          , ValD (VarP 'pointerFinalizer) (NormalB (ConE 'Nothing)) []]]
+-- dd :: Name -> Q [Dec]
+-- dd pname = do
+--   x <- newName "x"
+--   return [InstanceD Nothing [] (AppT (ConT ''Pointer) (ConT pname))
+--           [ ValD (VarP 'pointerWrap) (NormalB (ConE pname)) []
+--           , FunD 'pointerUnwrap [Clause [ConP pname [VarP x]] (NormalB (VarE x)) []]
+--           , ValD (VarP 'pointerFinalizer) (NormalB (ConE 'Nothing)) []]]
 
-newtype Bill = Bill (ForeignPtr Bill)
-
-billdog :: FinalizerPtr Bill
-billdog = undefined
-
-dd' :: Q [Dec]
-dd' = [d| instance Pointer Bill where
-           pointerWrap = Bill 
-           pointerUnwrap (Bill x) = x
-           pointerFinalizer = Just billdog
-       |]
+-- dd' :: Q [Dec]
+-- dd' = [d| instance Pointer Bill where
+--            pointerWrap = Bill 
+--            pointerUnwrap (Bill x) = x
+--            pointerFinalizer = Just billdog
+--        |]
 
 mkFinalizerName :: String -> Name
 mkFinalizerName finalizerString = mkName $ "fin" <> finalizerString
