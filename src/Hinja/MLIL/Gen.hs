@@ -17,23 +17,11 @@ module Hinja.MLIL.Gen where
 
 import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
-import qualified Data.Map as Map
-import qualified Hinja.C.Main as BN
 import qualified Text.Casing as Casing
 import qualified Data.Char as Char
 import qualified Hinja.Types.Printer as Printer
 import Hinja.Types.Printer (Printer, pr, indent)
-import Hinja.C.Pointers
 import qualified Data.Text.IO as TextIO
-import Hinja.Types
-import Hinja.Function ( Function
-                      , LLILFunction
-                      , MLILFunction
-                      , MLILSSAFunction
-                      , createFunction
-                      )
-import qualified Hinja.Function as Func
-import Hinja.C.Types
 
 opTypeType :: Text -> Text
 opTypeType ot = case ot of

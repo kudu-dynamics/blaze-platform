@@ -1,26 +1,20 @@
-module Hinja.Architecture where
+module Hinja.Architecture
+  ( module Exports
+  , getSemClasses
+  , getSemGroups
+  , create
+  ) where
 
-import Hinja.Prelude hiding (onException)
 
+import Hinja.Prelude
+
+import Hinja.Types.Architecture
+import Hinja.Types.Architecture as Exports
 import qualified Data.Text as Text
 import qualified Data.Map as Map
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
 
-newtype SemClasses = SemClasses (Map Word32 Text)
-  deriving (Eq, Ord, Show)
-
-newtype SemGroups = SemGroups (Map Word32 Text)
-  deriving (Eq, Ord, Show)
-
-data Architecture = Architecture
-  { _handle :: BNArchitecture
-  , _name :: Text
-  , _semClasses :: SemClasses
-  , _semGroups :: SemGroups
-  } deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''Architecture)
 
 getSemClasses :: BNArchitecture -> IO SemClasses
 getSemClasses archPtr = fmap (SemClasses . Map.fromList) $

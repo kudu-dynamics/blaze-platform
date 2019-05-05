@@ -10,16 +10,16 @@
 
 module Hinja.Main where
 
-import Hinja.Prelude hiding (onException)
+import Hinja.Prelude
 import Prelude (String)
 import qualified Data.Text as Text
-import qualified Hinja.MLIL as MLIL
+--import qualified Hinja.MLIL as MLIL
 import qualified Hinja.C.Main as BN
 import Hinja.C.Main ( BNBinaryView
                     , BNBinaryViewType
-                    , BNFileMetadata
                     )
-import Hinja.Types
+import Hinja.Function ( MLILSSAFunction
+                      )
 import qualified Hinja.Function as Func
 import System.Envy
 
@@ -99,11 +99,4 @@ demog = do
   let g = head $ filter (\x -> x ^. Func.name == "g") fs
   Func.getMLILSSAFunction g
 
-demovar :: IO (MLILSSAFunction, BNVariable)
-demovar = do
-  g <- demog
-  expr <- MLIL.getMediumLevelILInstructionByExpressionIndex g 0
-  (g,) <$> BN.fromVariableIdentifier (vid $ expr ^. MLIL.operands)
-  where
-    vid (MLIL.OperandsData xs) = fromIntegral $ head xs
 

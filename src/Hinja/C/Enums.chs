@@ -7,9 +7,8 @@
 
 module Hinja.C.Enums where
 
-import Hinja.Prelude
+import Hinja.Prelude hiding (from, to)
 
-import qualified Prelude as P
 import Prelude (error)
 
 #include <binaryninjacore.h>

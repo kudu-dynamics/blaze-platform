@@ -26,7 +26,6 @@ dependencies:
   - containers
   - data-binary-ieee754
   - envy
-  - fixed-vector
   - language-c
   - lens
   - mtl

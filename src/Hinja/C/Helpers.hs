@@ -1,33 +1,14 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-
 module Hinja.C.Helpers where
 
 import Hinja.Prelude
 
-import Foreign.C.Types
 import Foreign.Ptr
-import Foreign.Storable
-import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
-import Foreign.C.String ( peekCString
-                        , CString
-                        , withCString)
-import Foreign.ForeignPtr ( ForeignPtr
-                          , FinalizerPtr
-                          , newForeignPtr
-                          , withForeignPtr
-                          , newForeignPtr_)
 import Hinja.C.Bindings
 import Hinja.C.Util
 import Hinja.C.Types
 import Hinja.C.Pointers
-import Hinja.Types
-import Hinja.MLIL.Types
-import System.IO.Unsafe (unsafePerformIO)
+import Hinja.Types.MLIL
+import Hinja.Types.Variable
 
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
@@ -81,8 +62,8 @@ fromVariableIdentifier vid =
   allocAndPeek $ wrapBNFromVariableIdentifier vid
 
 getVariableType :: BNFunction -> BNVariable -> IO BNTypeWithConfidence
-getVariableType fn var =
-  allocAndPeek $ wrapBNGetVariableType fn var
+getVariableType fn var' =
+  allocAndPeek $ wrapBNGetVariableType fn var'
 
 isTypeSigned :: BNType -> IO BNBoolWithConfidence
 isTypeSigned t =

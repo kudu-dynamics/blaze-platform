@@ -1,26 +1,15 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Hinja.C.Structs where
 
 import Hinja.Prelude
 
 import qualified Prelude as P
-import Foreign.C.Types
-import Foreign.ForeignPtr
 import Foreign.Ptr
-import Foreign.Storable
 import Foreign.Marshal.Array
-import Hinja.C.Types
-import Hinja.C.Enums
 import Hinja.C.Util
-import Hinja.Types
-import Hinja.MLIL.Types
-import Data.Vector.Fixed.Storable (Vec5)
+import Hinja.Types.MLIL
+import Hinja.Types.Variable
 
 #include <binaryninjacore.h>
   
@@ -39,7 +28,7 @@ instance Storable MediumLevelILInstruction where
       mkBool 1 = True
       mkBool _ = False
   -- only returned, never passed into binja api, so poke not needed
-  poke p x = P.error "MediumLevelILInstruction 'poke' not implemented"
+  poke _ _ = P.error "MediumLevelILInstruction 'poke' not implemented"
 
 
 instance Storable BNVariable where

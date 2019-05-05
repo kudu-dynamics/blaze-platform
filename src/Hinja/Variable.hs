@@ -17,32 +17,13 @@ module Hinja.Variable
   , getVariableFromIdentifier
   ) where
 
-import Hinja.Prelude hiding (onException, handle)
-import qualified Data.Text as Text
-import qualified Hinja.C.Main as BN
-import Hinja.C.Pointers
-import Hinja.Types
-import Hinja.C.Structs
-import Hinja.C.Enums
-import qualified Hinja.Function as Func
-import Hinja.Types as Exports ( Variable(..)
-                              , VarType(..)
-                              , index
-                              , storage
-                              , sourceType
-                              , varType
-                              , name
-                              , confidence
-                              , typeClass
-                              , width
-                              , alignment
-                              , signed
-                              , signedConfidence
-                              , isConst
-                              , constConfidence )
+import           Hinja.Prelude                   hiding ( handle )
 
-
----------- Variables
+import qualified Data.Text            as Text
+import qualified Hinja.C.Main         as BN
+import qualified Hinja.Function       as Func
+import           Hinja.Types.Function
+import           Hinja.Types.Variable as Exports
 
 getVariableFromIdentifier :: Function -> VariableIdentifier -> IO Variable
 getVariableFromIdentifier fn vid = do

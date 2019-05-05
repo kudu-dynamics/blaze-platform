@@ -12,29 +12,31 @@ import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
-import Hinja.Types as Exports ( Function(..)
-                              , LLILFunction(..)
-                              , LLILSSAFunction(..)
-                              , MLILFunction(..)
-                              , MLILSSAFunction(..)
-                              , Variable(..)
-                              , VarType(..)
-                              , index
-                              , storage
-                              , sourceType
-                              , varType
-                              , handle
-                              , name
-                              , start
-                              , func
-                              , confidence
-                              , typeClass
-                              , width
-                              , alignment
-                              , signed
-                              , signedConfidence
-                              , isConst
-                              , constConfidence )
+import Hinja.Types.Function as Exports
+
+-- ( Function(..)
+--                               , LLILFunction(..)
+--                               , LLILSSAFunction(..)
+--                               , MLILFunction(..)
+--                               , MLILSSAFunction(..)
+--                               , Variable(..)
+--                               , VarType(..)
+--                               , index
+--                               , storage
+--                               , sourceType
+--                               , varType
+--                               , handle
+--                               , name
+--                               , start
+--                               , func
+--                               , confidence
+--                               , typeClass
+--                               , width
+--                               , alignment
+--                               , signed
+--                               , signedConfidence
+--                               , isConst
+--                               , constConfidence )
 
 
 createFunction :: BNFunction -> IO Function

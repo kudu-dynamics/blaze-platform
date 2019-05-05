@@ -1,10 +1,6 @@
 module Hinja.BasicBlock
-  ( BasicBlock(..)
+  ( module Exports
   , BasicBlockFunction
-  , handle
-  , func
-  , start
-  , end
   , getBasicBlocks
   , getBasicBlocksAtAddress
   , getBasicBlockForInstruction
@@ -13,24 +9,16 @@ module Hinja.BasicBlock
 import Hinja.Prelude hiding (onException, handle)
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
-import Hinja.Types
 import Hinja.Function ( Function
                       , LLILFunction
                       , MLILFunction
                       , MLILSSAFunction
                       , createFunction
                       )
+import Hinja.Types.BasicBlock
+import Hinja.Types.BasicBlock as Exports
 import qualified Hinja.Function as Func
 import Hinja.C.Types
-
-data BasicBlock fun = BasicBlock
-  { _handle :: BNBasicBlock
-  , _func :: fun
-  , _start :: InstructionIndex fun
-  , _end :: InstructionIndex fun
-  } deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''BasicBlock)
 
 class BasicBlockFunction fun where
   convertToBasicBlockFunction :: Function -> IO fun

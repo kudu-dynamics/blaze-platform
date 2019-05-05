@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a6a36558faaa51d772ae7980c3c82b8470c4dd0c84cbd6a9761618154b737465
+-- hash: 88f08813fc34b17f4ab0a70744c1fcc5babc812f5c8367cfe321decaa30e30dc
 
 name:           hinja
 version:        0.1.0.0
@@ -48,12 +48,13 @@ library
       Hinja.Main
       Hinja.MLIL
       Hinja.MLIL.Gen
-      Hinja.MLIL.Types
       Hinja.Prelude
-      Hinja.Types
-      Hinja.Types.LLIL
-      Hinja.Types.LLIL.Reg
+      Hinja.Types.Architecture
+      Hinja.Types.BasicBlock
+      Hinja.Types.Function
+      Hinja.Types.MLIL
       Hinja.Types.Printer
+      Hinja.Types.Variable
       Hinja.Variable
   other-modules:
       Paths_hinja
@@ -70,7 +71,6 @@ library
     , containers
     , data-binary-ieee754
     , envy
-    , fixed-vector
     , language-c
     , lens
     , mtl

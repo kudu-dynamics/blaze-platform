@@ -9,22 +9,30 @@ module Hinja.MLIL
   , getMediumLevelILInstructionByExpressionIndex
   ) where
 
-import Hinja.Prelude hiding (onException, handle)
-import Data.Binary.IEEE754 (wordToFloat, wordToDouble)
-import GHC.Float (float2Double)
-import qualified Hinja.C.Main as BN
-import Hinja.Types
-import Hinja.BasicBlock (BasicBlock)
-import qualified Hinja.BasicBlock as BB
-import Hinja.Function ( MLILFunction
-                      , MLILSSAFunction
-                      )
-import qualified Hinja.Function as Func
-import qualified Hinja.Variable as Var
-import Hinja.MLIL.Types as Exports
-import Hinja.C.Types
-import Hinja.MLIL.Types
-import qualified Hinja.C.Enums as BN
+import           Hinja.Prelude
+
+import           Data.Binary.IEEE754             ( wordToDouble
+                                                 , wordToFloat
+                                                 )
+import           GHC.Float                       ( float2Double )
+import           Hinja.BasicBlock                ( BasicBlock )
+import qualified Hinja.BasicBlock     as BB
+import qualified Hinja.C.Enums        as BN
+import qualified Hinja.C.Main         as BN
+import           Hinja.C.Pointers
+import           Hinja.C.Types
+import           Hinja.Function                  ( Function
+                                                 , MLILFunction
+                                                 , MLILSSAFunction
+                                                 )
+import qualified Hinja.Function       as Func
+import           Hinja.Types.MLIL     as Exports
+import           Hinja.Types.Variable            ( Variable )
+import qualified Hinja.Variable       as Var
+
+class ( Func.HasHandle fun BNMediumLevelILFunction
+      , Func.HasFunc fun Function ) => StatementFunction fun where
+  getExprIndex :: fun -> InstructionIndex fun -> IO (ExpressionIndex fun)
 
 instance StatementFunction MLILFunction where
   getExprIndex fn iindex = BN.getMediumLevelILIndexForInstruction
@@ -38,7 +46,7 @@ instance StatementFunction MLILSSAFunction where
       fnPtr = fn ^. Func.handle
 
 getInstructionCount :: StatementFunction fun => fun -> IO Word64
-getInstructionCount = BN.getMediumLevelILInstructionCount . view handle
+getInstructionCount = BN.getMediumLevelILInstructionCount . view Func.handle
 
 getMediumLevelILInstructionByExpressionIndex :: StatementFunction fun
                          => fun -> ExpressionIndex fun

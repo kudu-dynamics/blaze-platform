@@ -1,34 +1,18 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-
 module Hinja.C.Bindings where
 
 import Hinja.Prelude
 
 import Foreign.C.Types
 import Foreign.Ptr
-import Foreign.Storable
 import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
-import Foreign.C.String ( peekCString
-                        , CString
-                        , withCString)
-import Foreign.ForeignPtr ( ForeignPtr
-                          , FinalizerPtr
-                          , newForeignPtr
-                          , withForeignPtr
-                          , newForeignPtr_)
 import Hinja.C.Enums
 import Hinja.C.Pointers
-import Hinja.C.Structs
+import Hinja.C.Structs ()
 import Hinja.C.Types
 import Hinja.C.Util
-import Hinja.Types
-import Hinja.MLIL.Types
-import System.IO.Unsafe (unsafePerformIO)
+import Hinja.Types.MLIL
+import Hinja.Types.Function
+import Hinja.Types.Variable
 
 #include <binaryninjacore.h>
 
