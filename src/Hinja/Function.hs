@@ -1,17 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
 module Hinja.Function
   ( module Exports
   , createFunction
@@ -26,7 +12,6 @@ import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
-import Hinja.Types
 import Hinja.Types as Exports ( Function(..)
                               , LLILFunction(..)
                               , LLILSSAFunction(..)

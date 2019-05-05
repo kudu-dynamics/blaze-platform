@@ -1,18 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
 module Hinja.MLIL.Types where
 
 import Hinja.Prelude hiding (onException, handle)
@@ -53,6 +38,18 @@ data OpBuilderCtx fun = OpBuilderCtx
 class ( HasHandle fun BNMediumLevelILFunction
       , HasFunc fun Function ) => StatementFunction fun where
   getExprIndex :: fun -> InstructionIndex fun -> IO (ExpressionIndex fun)
+
+-- instance StatementFunction MLILFunction where
+--   getExprIndex fn iindex = BN.getMediumLevelILIndexForInstruction
+--     (fn ^. Func.handle) (coerceInstructionIndex iindex)
+
+-- instance StatementFunction MLILSSAFunction where
+--   getExprIndex fn iindex =
+--     BN.getMediumLevelILIndexForInstruction fnPtr (coerceInstructionIndex iindex)
+--     >>= BN.getMediumLevelILSSAExprIndex fnPtr
+--     where
+--       fnPtr = fn ^. Func.handle
+
 
 newtype OpBuilder fun a = OpBuilder
   { runOpBuilder_ :: ReaderT (OpBuilderCtx fun) (StateT OpIndex IO) a }

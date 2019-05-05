@@ -11,14 +11,8 @@
 module Hinja.Main where
 
 import Hinja.Prelude hiding (onException)
-import qualified Prelude as P
 import Prelude (String)
 import qualified Data.Text as Text
-import Foreign hiding (void)
-import Foreign.C.Types
-import Foreign.ForeignPtr
-import qualified Control.Exception as E
-import qualified Hinja.BasicBlock as BB
 import qualified Hinja.MLIL as MLIL
 import qualified Hinja.C.Main as BN
 import Hinja.C.Main ( BNBinaryView
@@ -28,7 +22,6 @@ import Hinja.C.Main ( BNBinaryView
 import Hinja.Types
 import qualified Hinja.Function as Func
 import System.Envy
-import GHC.Generics
 
 a1 :: FilePath
 a1 = "/tmp/kudu/assembly/a1"
@@ -44,16 +37,16 @@ instance FromEnv HinjaConfig where
   fromEnv = HinjaConfig
             <$> env "BINJA_PLUGINS"
 
-initBinja :: MonadIO m => HinjaConfig -> m Bool
-initBinja ctx = liftIO $ do
+initBinja :: HinjaConfig -> IO Bool
+initBinja ctx = do
   BN.setBundledPluginDirectory $ binjaPluginsDir ctx
   BN.initCorePlugins
   BN.initUserPlugins
   void $ BN.initRepoPlugins
   BN.isLicenseValidated
 
-getBestViewType :: MonadIO m => BNBinaryView -> m (Maybe BNBinaryViewType)
-getBestViewType bv = liftIO $ do
+getBestViewType :: BNBinaryView -> IO (Maybe BNBinaryViewType)
+getBestViewType bv = do
   vtypes <- BN.getBinaryViewTypesForData bv
   vnames <- mapM BN.getBinaryViewTypeName vtypes
   let vs = zip vtypes vnames
@@ -66,10 +59,10 @@ getBestViewType bv = liftIO $ do
     isNotRaw (_, "Raw") = Nothing
     isNotRaw (t, _) = Just t
 
-getBinaryView :: MonadIO m => FilePath -> m (Either Text BNBinaryView)
+getBinaryView :: FilePath -> IO (Either Text BNBinaryView)
 getBinaryView fp = runExceptT $ do
   ctx <- liftEitherIO (first Text.pack <$> decodeEnv :: IO (Either Text HinjaConfig))
-  validated <- initBinja ctx
+  validated <- liftIO $ initBinja ctx
   case validated of
     False -> throwError "You don't have a Binja license. Sorry."
     True -> do

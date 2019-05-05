@@ -30,12 +30,7 @@ import Hinja.Types
 import Hinja.MLIL.Types
 import System.IO.Unsafe (unsafePerformIO)
 
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <math.h>
-#include "/tmp/beauty/binaryninjacore.h"
+#include <binaryninjacore.h>
 
 {#context lib="binaryninjacore" #}
 
@@ -168,7 +163,6 @@ void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMe
 {#fun BNMediumLevelILGetOperandList as mediumLevelILGetOperandList' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', fromIntegral `OpIndex', alloca- `CSize' peekIntConv*} -> `List CULong' id #}
 
 {#fun BNMediumLevelILFreeOperandList as mediumLevelILFreeOperandList {id `List CULong'} -> `()' #}
-
 
 ---- variables
 

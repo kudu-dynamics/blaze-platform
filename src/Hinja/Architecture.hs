@@ -1,27 +1,11 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
 module Hinja.Architecture where
 
 import Hinja.Prelude hiding (onException)
-import qualified Prelude as P
+
 import qualified Data.Text as Text
 import qualified Data.Map as Map
-import qualified Control.Exception as E
 import qualified Hinja.C.Main as BN
 import Hinja.C.Pointers
-import Control.Lens.TH
 
 newtype SemClasses = SemClasses (Map Word32 Text)
   deriving (Eq, Ord, Show)

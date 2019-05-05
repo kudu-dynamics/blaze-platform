@@ -1,19 +1,14 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
-module Hinja.BasicBlock where
+module Hinja.BasicBlock
+  ( BasicBlock(..)
+  , BasicBlockFunction
+  , handle
+  , func
+  , start
+  , end
+  , getBasicBlocks
+  , getBasicBlocksAtAddress
+  , getBasicBlockForInstruction
+  ) where
 
 import Hinja.Prelude hiding (onException, handle)
 import qualified Hinja.C.Main as BN
@@ -36,12 +31,6 @@ data BasicBlock fun = BasicBlock
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''BasicBlock)
--- $(makeFieldsNoPrefix ''LLILBasicBlock)
--- $(makeFieldsNoPrefix ''MLILBasicBlock)
--- $(makeFieldsNoPrefix ''MLILSSABasicBlock)
-
-getBasicBlockRange :: BNBasicBlock -> IO (InstructionIndex (), InstructionIndex ())
-getBasicBlockRange ptr = (,) <$> BN.getBasicBlockStart ptr <*> BN.getBasicBlockEnd ptr
 
 class BasicBlockFunction fun where
   convertToBasicBlockFunction :: Function -> IO fun
@@ -67,16 +56,16 @@ class BasicBlockInstructionFunction fun where
   getBasicBlockPtrForInstruction :: fun -> InstructionIndex fun -> IO (Maybe BNBasicBlock)
 
 instance BasicBlockInstructionFunction LLILFunction where
-  getBasicBlockPtrForInstruction fn index =
-    BN.getLowLevelILBasicBlockForInstruction (fn ^. Func.handle) index
+  getBasicBlockPtrForInstruction fn idx =
+    BN.getLowLevelILBasicBlockForInstruction (fn ^. Func.handle) idx
 
 instance BasicBlockInstructionFunction MLILFunction where
-  getBasicBlockPtrForInstruction fn index =
-    BN.getMediumLevelILBasicBlockForInstruction (fn ^. Func.handle) index
+  getBasicBlockPtrForInstruction fn idx =
+    BN.getMediumLevelILBasicBlockForInstruction (fn ^. Func.handle) idx
 
 instance BasicBlockInstructionFunction MLILSSAFunction where
-  getBasicBlockPtrForInstruction fn index =
-    BN.getMediumLevelILBasicBlockForInstruction (fn ^. Func.handle) (coerceInstructionIndex index)
+  getBasicBlockPtrForInstruction fn idx =
+    BN.getMediumLevelILBasicBlockForInstruction (fn ^. Func.handle) (coerceInstructionIndex idx)
 
 
 createBasicBlock :: BasicBlockFunction t => BNBasicBlock -> IO (BasicBlock t)
@@ -94,5 +83,5 @@ getBasicBlocksAtAddress bv addr = BN.getBasicBlocksForAddress bv addr
 
 getBasicBlockForInstruction :: (BasicBlockFunction fun, BasicBlockInstructionFunction fun)
                             => fun -> InstructionIndex fun -> IO (Maybe (BasicBlock fun))
-getBasicBlockForInstruction fn index = getBasicBlockPtrForInstruction fn index >>=
+getBasicBlockForInstruction fn idx = getBasicBlockPtrForInstruction fn idx >>=
   maybe (return Nothing) (fmap Just . createBasicBlock)

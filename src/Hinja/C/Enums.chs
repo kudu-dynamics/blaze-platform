@@ -12,12 +12,7 @@ import Hinja.Prelude
 import qualified Prelude as P
 import Prelude (error)
 
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <math.h>
-#include "/tmp/beauty/binaryninjacore.h"
+#include <binaryninjacore.h>
 
 {#context lib="binaryninjacore" #}
 

@@ -22,23 +22,9 @@ import Hinja.Types
 import Hinja.MLIL.Types
 import Data.Vector.Fixed.Storable (Vec5)
 
-#include <stdlib.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <math.h>
-#include "/tmp/beauty/binaryninjacore.h"
-
+#include <binaryninjacore.h>
+  
 {#context lib="binaryninjacore" #}
-
--- billy :: Ptr () -> IO CUInt
--- billy = {#get BNMediumLevelILInstruction->sourceOperand #}
-
--- billy2 :: Ptr () -> IO [CULong]
--- billy2 ptr = ({#get BNMediumLevelILInstruction->operands #} ptr) >>= peekArray 5
-
--- billy3 :: Ptr CULong -> Ptr CULong -> IO ()
--- billy3 = {#set BNMediumLevelILInstruction->operands #}
 
 instance Storable MediumLevelILInstruction where
   sizeOf _ = {#sizeof BNMediumLevelILInstruction#}
@@ -63,7 +49,6 @@ instance Storable BNVariable where
     <$> liftM (toEnum . fromIntegral) ({#get BNVariable->type #} p)
     <*> liftM fromIntegral ({#get BNVariable->index #} p)
     <*> liftM fromIntegral ({#get BNVariable->storage #} p)
-  -- only returned, never passed into binja api, so poke not needed
   poke p x = do
      {#set BNVariable->type #} p (fromIntegral . fromEnum $ x ^. sourceType)
      {#set BNVariable->index #} p (fromIntegral $ x ^. index)

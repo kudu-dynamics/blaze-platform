@@ -1,40 +1,23 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
 module Hinja.MLIL
   ( module Exports
-  , getExprIndex
-  , getMediumLevelILInstructionByExpressionIndex
-  , getMediumLevelILInstructionByInstructionIndex
+  , getInstructionCount
   , expression
   , instruction
+  , fromBasicBlock
+  , fromFunction
+  , getMediumLevelILInstructionByInstructionIndex
+  , getMediumLevelILInstructionByExpressionIndex
   ) where
 
 import Hinja.Prelude hiding (onException, handle)
-import qualified Data.Text as Text
-import qualified Data.Map as Map
 import Data.Binary.IEEE754 (wordToFloat, wordToDouble)
 import GHC.Float (float2Double)
 import qualified Hinja.C.Main as BN
-import Hinja.C.Pointers
 import Hinja.Types
-import Hinja.Function ( Function
-                      , LLILFunction
-                      , MLILFunction
+import Hinja.BasicBlock (BasicBlock)
+import qualified Hinja.BasicBlock as BB
+import Hinja.Function ( MLILFunction
                       , MLILSSAFunction
-                      , createFunction
                       )
 import qualified Hinja.Function as Func
 import qualified Hinja.Variable as Var
@@ -42,7 +25,7 @@ import Hinja.MLIL.Types as Exports
 import Hinja.C.Types
 import Hinja.MLIL.Types
 import qualified Hinja.C.Enums as BN
-  
+
 instance StatementFunction MLILFunction where
   getExprIndex fn iindex = BN.getMediumLevelILIndexForInstruction
     (fn ^. Func.handle) (coerceInstructionIndex iindex)
@@ -54,6 +37,8 @@ instance StatementFunction MLILSSAFunction where
     where
       fnPtr = fn ^. Func.handle
 
+getInstructionCount :: StatementFunction fun => fun -> IO Word64
+getInstructionCount = BN.getMediumLevelILInstructionCount . view handle
 
 getMediumLevelILInstructionByExpressionIndex :: StatementFunction fun
                          => fun -> ExpressionIndex fun
@@ -116,7 +101,7 @@ buildVarList = do
 
 asPairs :: [a] -> [(a, a)]
 asPairs [] = []
-asPairs [x] = []
+asPairs [_] = []
 asPairs (x:y:xs) = (x, y) : asPairs xs
 
 buildSSAVarList :: StatementFunction t => OpBuilder t [SSAVariable]
@@ -162,6 +147,14 @@ instruction fn iindex = do
                        , _index = iindex
                        , _size = mlil ^. size
                        , _op = op' }
+
+fromBasicBlock :: StatementFunction t => BasicBlock t -> IO [Instruction t]
+fromBasicBlock bb = mapM (instruction $ bb ^. BB.func) [(bb ^. BB.start) .. (bb ^. BB.end)]
+
+fromFunction :: StatementFunction fun => fun -> IO [Instruction fun]
+fromFunction fn = do
+  len <- getInstructionCount fn
+  mapM (instruction fn) [0 .. (fromIntegral len)]
 
 getOperation :: StatementFunction t
             => t -> ExpressionIndex t -> IO (MediumLevelILInstruction, Operation t)

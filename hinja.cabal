@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 289e425d4ad338e22053ccac5524dc6fce41df05f416f8c46c09239482d41cea
+-- hash: a6a36558faaa51d772ae7980c3c82b8470c4dd0c84cbd6a9761618154b737465
 
 name:           hinja
 version:        0.1.0.0
@@ -59,9 +59,9 @@ library
       Paths_hinja
   hs-source-dirs:
       src
+  default-extensions: OverloadedStrings FlexibleInstances TemplateHaskell FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables OverloadedStrings GeneralizedNewtypeDeriving ForeignFunctionInterface DeriveGeneric LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS -lbinaryninjacore
   include-dirs:
-      /tmp/kudu/binaryninja-api
       src
   build-depends:
       attoparsec
@@ -78,7 +78,6 @@ library
     , pretty-simple
     , protolude
     , raw-strings-qq
-    , show-prettyprint
     , stm
     , template-haskell
     , text
