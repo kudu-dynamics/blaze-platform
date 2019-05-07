@@ -41,20 +41,17 @@ dependencies:
 default-extensions:
   - OverloadedStrings
   - FlexibleInstances
-  - TemplateHaskell
   - FlexibleContexts
   - TupleSections
   - NoImplicitPrelude   
   - ScopedTypeVariables
-  - OverloadedStrings
   - GeneralizedNewtypeDeriving
-  - ForeignFunctionInterface
   - DeriveGeneric
   - LambdaCase
   - DuplicateRecordFields
   - MultiParamTypeClasses
   - FunctionalDependencies
-
+  - StandaloneDeriving
   
 library:
   ghc-options:

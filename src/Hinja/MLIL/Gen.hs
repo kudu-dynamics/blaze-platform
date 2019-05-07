@@ -1,21 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
-
 module Hinja.MLIL.Gen where
 
 import Hinja.Prelude hiding (onException, handle)
+import qualified Prelude as P
+
 import qualified Data.Text as Text
 import qualified Text.Casing as Casing
 import qualified Data.Char as Char
@@ -36,6 +23,7 @@ opTypeType ot = case ot of
   "var_list" -> "[Variable]"
   "var_ssa_list" -> "[SSAVariable]"
   "expr_list" -> "[Expression t]"
+  _ -> P.error "opTypeType: no case match"
 
 opTypeBuilder :: Text -> Text
 opTypeBuilder ot = case ot of
@@ -50,6 +38,7 @@ opTypeBuilder ot = case ot of
   "var_list" -> "buildVarList"
   "var_ssa_list" -> "buildSSAVarList"
   "expr_list" -> "buildExprList"
+  _ -> P.error "opTypeBuilder: no case match"
 
 capFirst :: String -> String
 capFirst "" = ""
@@ -78,6 +67,7 @@ printOperationUnionType (firstOp:moreOps) = do
       printRest ops
     strOp (opName, args) = operatorNameToConstructorName opName
       <> bool (" (" <> operatorNameToRecordName opName <> " t)") "" (null args)
+printOperationUnionType _ = P.error "printOperationUnionType: expecting non-empty list"
     
 printOpRecordDerive :: Text -> Printer ()
 printOpRecordDerive nm = pr $ "$(makeFieldsNoPrefix ''"

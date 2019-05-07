@@ -15,30 +15,18 @@ import           Hinja.Prelude                  hiding ( takeWhile )
 import Text.RawString.QQ
 import Hinja.Types.Printer ( Printer, pr, indent )
 import           Data.Attoparsec.Text                  ( Parser
-                                                       , anyChar
                                                        , char
-                                                       , decimal
-                                                       , endOfInput
-                                                       , letter
                                                        , manyTill
-                                                       , many1
-                                                       , parseOnly
                                                        , satisfy
-                                                       , sepBy1
                                                        , skipSpace
-                                                       , space
                                                        , string
                                                        , takeTill
                                                        , takeWhile
                                                        )
 import           Data.Char                             ( isAlpha
                                                        , isAlphaNum
-                                                       , isSpace
-                                                       , isUpper
                                                        )
-import qualified Data.Char            as Char
 import qualified Data.Text            as Text
-import qualified Data.Text.IO         as TextIO
 
 type StructField = Text
 
@@ -76,7 +64,7 @@ validCName = do
 
 parseStruct :: Parser Struct
 parseStruct = do
-  string "struct "
+  void $ string "struct "
   n <- validCName
   skipSpace
   mf <- (Just <$> parseFields) <|> return Nothing

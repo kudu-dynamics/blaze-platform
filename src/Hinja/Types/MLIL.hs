@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Hinja.Types.MLIL where
 
 import Hinja.Prelude

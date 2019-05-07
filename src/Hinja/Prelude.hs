@@ -1,6 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE LambdaCase    #-}
-
 module Hinja.Prelude
   ( module Exports
   , fromRight
@@ -24,6 +21,7 @@ import qualified Prelude         as P
 import qualified Data.Text.Lazy as L (Text)
 
 import Text.Pretty.Simple as PP
+import Hinja.Types.ClassyFields as Exports ()
 import           Control.Lens    as Exports        ( (%~)
                                                    , (.~)
                                                    , (?~)

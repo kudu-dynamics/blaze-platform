@@ -11,29 +11,18 @@ module Hinja.Header.ParseHeader where
 
 import           Hinja.Prelude                         hiding ( try )
 
+import qualified Prelude as P
+
 import           Data.Attoparsec.Text                         ( Parser
                                                               , anyChar
-                                                              , char
-                                                              , decimal
                                                               , endOfInput
                                                               , endOfInput
-                                                              , letter
-                                                              , many1
                                                               , manyTill
                                                               , parseOnly
-                                                              , satisfy
-                                                              , sepBy1
-                                                              , skipSpace
-                                                              , space
-                                                              , string
-                                                              , takeTill
-                                                              , takeWhile
                                                               , try
                                                               )
 import qualified Data.Text                  as Text
 import qualified Data.Text.IO               as TextIO
-import           Data.Text.Lazy.Builder                       ( Builder )
-import qualified Data.Text.Lazy.Builder     as Builder
 import           Hinja.Header.ParseComment                    ( Comment
                                                               , parseComment
                                                               )
@@ -51,7 +40,6 @@ import           Hinja.Header.ParseStruct                     ( Struct
                                                               , printStruct
                                                               )
 import           Hinja.Types.Printer                          ( Printer
-                                                              , indent
                                                               , pr
                                                               )
 import qualified Hinja.Types.Printer        as Pr
@@ -212,7 +200,7 @@ parseRemoveComments = (IsComment <$> parseComment)
   <|> (IsText . Text.pack <$> manyTill anyChar (void parseComment <|> endOfInput))
 
 removeComments_ :: Text -> Text
-removeComments_ txt = let (Right t) = removeComments txt in t
+removeComments_ txt = either (P.error . Text.unpack) id $ removeComments txt
 
 removeComments :: Text -> Either Text Text
 removeComments t = case parseOnly (manyTill parseRemoveComments endOfInput) t of

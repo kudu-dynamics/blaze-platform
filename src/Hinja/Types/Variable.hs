@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Hinja.Types.Variable where
 
 import Hinja.Prelude

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Hinja.Types.BasicBlock where
 
 import Hinja.Prelude

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Hinja.Types.Function where
 
 import Hinja.Prelude hiding (handle)

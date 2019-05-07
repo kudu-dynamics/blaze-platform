@@ -9,7 +9,6 @@
 module Hinja.Header.ParseEnums where
 
 import Hinja.Prelude 
-import qualified Prelude as P
 import Hinja.Types.Printer ( Printer, pr, indent )
 import qualified Hinja.Types.Printer as Pr
 import Data.Attoparsec.Text ( Parser
@@ -21,14 +20,13 @@ import Data.Attoparsec.Text ( Parser
                             , satisfy
                             , letter
                             , skipSpace
-                            , takeWhile
                             , decimal
                             , sepBy1
                             , space
                             )
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Char (isUpper, isAlphaNum)
+import Data.Char (isAlphaNum)
 import qualified Data.Char as Char
 
 h :: FilePath
@@ -112,20 +110,20 @@ parseEnumType = do
   void $ char ';'
   return $ EnumType name vals
 
-demo1 :: Text
-demo1 = "enum Higgins { Jack = 4, Binji = 32, HHHUGS = 0 };"
+-- demo1 :: Text
+-- demo1 = "enum Higgins { Jack = 4, Binji = 32, HHHUGS = 0 };"
 
-enum1 :: EnumType
-enum1 = let (Right r) = parseOnly parseEnumType demo1 in r
+-- enum1 :: EnumType
+-- enum1 = let (Right r) = parseOnly parseEnumType demo1 in r
 
-demo2 :: Text
-demo2 = "enum Higgins { Jack, Binji, HHHUGS };"
+-- demo2 :: Text
+-- demo2 = "enum Higgins { Jack, Binji, HHHUGS };"
 
-enum2 :: EnumType
-enum2 = let (Right r) = parseOnly parseEnumType demo2 in r
+-- enum2 :: EnumType
+-- enum2 = let (Right r) = parseOnly parseEnumType demo2 in r
 
-demo3 :: Text
-demo3 = "enum Higgins { Jack, //this has a comment\n Binji,\n //comment on its own line\n HHHUGS };"
+-- demo3 :: Text
+-- demo3 = "enum Higgins { Jack, //this has a comment\n Binji,\n //comment on its own line\n HHHUGS };"
 
 
 findAll :: Parser a -> Parser [a]
@@ -155,11 +153,11 @@ enumToModule modulePrefix (EnumType (EnumName name) vals) = header <> enum vals
 
     dataLine = "data " <> name <> " = "
 
-    indent = Text.replicate (Text.length dataLine - 2) " " <> "| "
+    indent' = Text.replicate (Text.length dataLine - 2) " " <> "| "
 
     printFields :: [EnumField] -> Text
     printFields [] = ""
-    printFields (x:xs) = Text.intercalate "\n" $ x':((indent <>) <$> xs') where
+    printFields (x:xs) = Text.intercalate "\n" $ x':((indent' <>) <$> xs') where
       xs' = enumFieldToText <$> xs
       x' = enumFieldToText x
 

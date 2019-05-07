@@ -8,7 +8,7 @@
 
 module Hinja.Types.Printer where
 
-import Hinja.Prelude hiding (printLn)
+import Hinja.Prelude
 import qualified Data.Text as Text
 
 indentSize :: Int
