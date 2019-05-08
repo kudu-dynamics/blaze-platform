@@ -4,7 +4,9 @@ module Hinja.BasicBlock
   , getBasicBlocks
   , getBasicBlocksAtAddress
   , getBasicBlockForInstruction
+  , getDominators
   , getOutgoingEdges
+  , getPostDominators
   ) where
 
 import Hinja.Prelude hiding (onException, handle)
@@ -91,3 +93,11 @@ getOutgoingEdges bb = do
         , _isBackEdge = bbe ^. isBackEdge
         , _isFallThrough = bbe ^. isFallThrough
         }
+
+getDominators :: BasicBlockFunction fun => BasicBlock fun -> IO [BasicBlock fun]
+getDominators bb = BN.getBasicBlockDominators (bb ^. handle) False
+  >>= traverse createBasicBlock
+
+getPostDominators :: BasicBlockFunction fun => BasicBlock fun -> IO [BasicBlock fun]
+getPostDominators bb = BN.getBasicBlockDominators (bb ^. handle) True
+  >>= traverse createBasicBlock

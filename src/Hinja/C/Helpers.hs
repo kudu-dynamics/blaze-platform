@@ -83,3 +83,8 @@ getBasicBlockOutgoingEdges bb =
   getBasicBlockOutgoingEdges' bb
   >>= manifestArrayWithFreeSize return freeBasicBlockEdgeList
 
+getBasicBlockDominators :: BNBasicBlock -> Bool -> IO [BNBasicBlock]
+getBasicBlockDominators bb isPost = 
+  getBasicBlockDominators' bb isPost
+  >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
+
