@@ -101,3 +101,4 @@ tests:
     - containers
     - hinja
     - hspec
+    - text
