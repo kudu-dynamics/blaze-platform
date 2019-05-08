@@ -13,6 +13,7 @@ import Hinja.C.Util
 import Hinja.Types.MLIL
 import Hinja.Types.Function
 import Hinja.Types.Variable
+import Hinja.Types.BasicBlock (BNBasicBlockEdge)
 
 #include <binaryninjacore.h>
 
@@ -118,6 +119,10 @@ import Hinja.Types.Variable
 
 {#fun BNGetMediumLevelILBasicBlockForInstruction as getMediumLevelILBasicBlockForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `Maybe BNBasicBlock' nilable* #}
 
+
+{#fun BNGetBasicBlockOutgoingEdges as getBasicBlockOutgoingEdges' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*} -> `List BNBasicBlockEdge' castPtr #}
+
+{#fun BNFreeBasicBlockEdgeList as freeBasicBlockEdgeList {castPtr `List BNBasicBlockEdge', `CULong'} -> `()' #}
 
 ----- MLIL
 

@@ -60,6 +60,10 @@ data DummyRecordThatIsNeverUsed = DummyRecordThatIsNeverUsed
   , _prev :: ()
   , _src_memory :: ()
   , _dest_memory :: ()
+  , _tgt :: ()
+  , _branchType :: ()
+  , _isBackEdge :: ()
+  , _isFallThrough :: ()
   }
 
 $(makeFieldsNoPrefix ''DummyRecordThatIsNeverUsed)

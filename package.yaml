@@ -4,7 +4,7 @@ github:              "mp/hinja"
 license:             BSD3
 author:              "Matt Parker"
 maintainer:          "mp@kududyn.com"
-copyright:           "2018 Matt Parker"
+copyright:           "2019 Kudu Dynamics"
 
 extra-source-files:
 - README.md
@@ -66,11 +66,38 @@ library:
   - -A256m
   - -n16m
   - -RTS
-  - -lbinaryninjacore
+  extra-libraries: binaryninjacore binaryninjacore
   source-dirs: src
+  exposed-modules:
+  - Hinja.Core
+  - Hinja.Function
+  - Hinja.BasicBlock
+  - Hinja.Architecture
+  - Hinja.MLIL
+  - Hinja.Variable
+  - Hinja.Prelude
+  - Hinja.Types.Printer
+
 
 build-tools:
   - c2hs
 
 include-dirs:
   - "src"
+
+
+tests:
+  hinja-test:
+    main: Spec.hs
+    source-dirs:
+    - test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    extra-libraries: binaryninjacore binaryninjacore
+    dependencies:
+    - containers
+    - hinja
+    - hspec

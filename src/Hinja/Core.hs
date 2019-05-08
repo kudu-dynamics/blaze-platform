@@ -1,23 +1,24 @@
-module Hinja.Core where
+module Hinja.Core
+  ( module Exports
+  , getBestViewType
+  , getBinaryView
+  ) where
 
 import Hinja.Prelude
 import Prelude (String)
 import qualified Data.Text as Text
+-- import qualified Hinja.BasicBlock as BB
+-- import Hinja.BasicBlock (BasicBlock)
 --import qualified Hinja.MLIL as MLIL
 import qualified Hinja.C.Main as BN
+import Hinja.C.Main as Exports
 import Hinja.C.Main ( BNBinaryView
                     , BNBinaryViewType
                     )
-import Hinja.Function ( MLILSSAFunction
-                      )
-import qualified Hinja.Function as Func
+-- import Hinja.Function ( MLILSSAFunction
+--                       )
+-- import qualified Hinja.Function as Func
 import System.Envy
-
-a1 :: FilePath
-a1 = "/tmp/kudu/assembly/a1"
-
-dive :: FilePath
-dive = "/tmp/kudu/blaze/binja-clojure/resources/test_bins/Dive_Logger/Dive_Logger.bndb"
 
 data HinjaConfig = HinjaConfig {
   binjaPluginsDir :: String
@@ -81,12 +82,22 @@ getBinaryView fp = runExceptT $ do
           liftIO $ BN.createBinaryViewOfType vt bv'
         Just bv' -> return bv'
 
-demog :: IO MLILSSAFunction
-demog = do
-  (Right bv) <- getBinaryView a1
-  BN.updateAnalysis bv
-  fs <- Func.getFunctions bv
-  let g = head $ filter (\x -> x ^. Func.name == "g") fs
-  Func.getMLILSSAFunction g
+-- a1 :: FilePath
+-- a1 = "/tmp/kudu/assembly/a1"
 
+-- dive :: FilePath
+-- dive = "/tmp/kudu/blaze/binja-clojure/resources/test_bins/Dive_Logger/Dive_Logger.bndb"
+
+-- demog :: IO MLILSSAFunction
+-- demog = do
+--   (Right bv) <- getBinaryView a1
+--   BN.updateAnalysis bv
+--   fs <- Func.getFunctions bv
+--   let g = head $ filter (\x -> x ^. Func.name == "g") fs
+--   Func.getMLILSSAFunction g
+
+-- demobb :: IO (BasicBlock MLILSSAFunction)
+-- demobb = do
+--   g <- demog
+--   head <$> BB.getBasicBlocks g
 

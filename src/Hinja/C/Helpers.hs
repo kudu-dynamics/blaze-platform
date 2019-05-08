@@ -9,7 +9,7 @@ import Hinja.C.Types
 import Hinja.C.Pointers
 import Hinja.Types.MLIL
 import Hinja.Types.Variable
-
+import Hinja.Types.BasicBlock (BNBasicBlockEdge)
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
@@ -77,4 +77,9 @@ mediumLevelILGetOperandList :: BNMediumLevelILFunction -> ExpressionIndex () -> 
 mediumLevelILGetOperandList fn eindex oindex =
   mediumLevelILGetOperandList' fn eindex oindex
   >>= manifestArray (return . fromIntegral) mediumLevelILFreeOperandList
+
+getBasicBlockOutgoingEdges :: BNBasicBlock -> IO [BNBasicBlockEdge]
+getBasicBlockOutgoingEdges bb = 
+  getBasicBlockOutgoingEdges' bb
+  >>= manifestArrayWithFreeSize return freeBasicBlockEdgeList
 

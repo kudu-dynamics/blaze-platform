@@ -4,6 +4,7 @@ module Hinja.BasicBlock
   , getBasicBlocks
   , getBasicBlocksAtAddress
   , getBasicBlockForInstruction
+  , getOutgoingEdges
   ) where
 
 import Hinja.Prelude hiding (onException, handle)
@@ -73,3 +74,20 @@ getBasicBlockForInstruction :: (BasicBlockFunction fun, BasicBlockInstructionFun
                             => fun -> InstructionIndex fun -> IO (Maybe (BasicBlock fun))
 getBasicBlockForInstruction fn idx = getBasicBlockPtrForInstruction fn idx >>=
   maybe (return Nothing) (fmap Just . createBasicBlock)
+
+getOutgoingEdges :: BasicBlockFunction fun => BasicBlock fun -> IO [BlockEdge fun]
+getOutgoingEdges bb = do
+  BN.getBasicBlockOutgoingEdges (bb ^. handle) >>= traverse toBlockEdge
+  where
+    toBlockEdge bbe = do
+      mTargetBlock <- maybe
+                      (return Nothing)
+                      (fmap Just . (createBasicBlock <=< BN.newBasicBlockReference))
+                      $ bbe ^. target
+      return $ BlockEdge
+        { _src = bb
+        , _target = mTargetBlock
+        , _branchType = bbe ^. branchType
+        , _isBackEdge = bbe ^. isBackEdge
+        , _isFallThrough = bbe ^. isFallThrough
+        }

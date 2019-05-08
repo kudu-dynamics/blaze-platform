@@ -34,7 +34,12 @@ standardPtrConv = fmap pointerWrap . newFPtr
       Nothing -> newForeignPtr_
       Just fin -> newForeignPtr fin
 
-manifestArrayWithFreeSize :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> CULong -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
+--manifestArrayWithFreeSize :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> CULong -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
+manifestArrayWithFreeSize :: (Storable a)
+                          => (a -> IO b)
+                          -> (List a -> CULong -> IO ())
+                          -> (List a, CSize)
+                          -> IO [b]
 manifestArrayWithFreeSize f freeArray (arr, len) = do
   xs <- peekArray (fromIntegral len) arr
   xs' <- mapM f xs
@@ -55,6 +60,13 @@ nilable :: (Pointer a) => Ptr () -> IO (Maybe a)
 nilable ptr
   | ptr == nullPtr = return Nothing
   | otherwise = Just <$> safePtr ptr
+
+
+-- no finalizer, but null pointer is Nothing
+nilable_ :: (Pointer a) => Ptr () -> IO (Maybe a)
+nilable_ ptr
+  | ptr == nullPtr = return Nothing
+  | otherwise = Just <$> noFinPtrConv (castPtr ptr)
 
 withPtr :: Pointer a => a -> (Ptr () -> IO b) -> IO b
 withPtr = withForeignPtr . castForeignPtr . pointerUnwrap

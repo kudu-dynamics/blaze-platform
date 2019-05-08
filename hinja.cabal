@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f934505777172dc137c5a575fde5467debf485732a7a371371147975710cfb9b
+-- hash: 187980dabdba10cc39779d887d18cb11b09b42c612dffbabcbf6ee450eeefdf8
 
 name:           hinja
 version:        0.1.0.0
@@ -13,7 +13,7 @@ homepage:       https://github.com/mp/hinja#readme
 bug-reports:    https://github.com/mp/hinja/issues
 author:         Matt Parker
 maintainer:     mp@kududyn.com
-copyright:      2018 Matt Parker
+copyright:      2019 Kudu Dynamics
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -27,9 +27,16 @@ source-repository head
 
 library
   exposed-modules:
-      Hinja
-      Hinja.Architecture
+      Hinja.Core
+      Hinja.Function
       Hinja.BasicBlock
+      Hinja.Architecture
+      Hinja.MLIL
+      Hinja.Variable
+      Hinja.Prelude
+      Hinja.Types.Printer
+  other-modules:
+      Hinja
       Hinja.C.Bindings
       Hinja.C.Enums
       Hinja.C.Helpers
@@ -39,32 +46,27 @@ library
       Hinja.C.TH
       Hinja.C.Types
       Hinja.C.Util
-      Hinja.Core
-      Hinja.Function
       Hinja.Header.ParseComment
       Hinja.Header.ParseEnums
       Hinja.Header.ParseFunction
       Hinja.Header.ParseHeader
       Hinja.Header.ParseStruct
-      Hinja.MLIL
       Hinja.MLIL.Gen
-      Hinja.Prelude
       Hinja.Types.Architecture
       Hinja.Types.BasicBlock
       Hinja.Types.ClassyFields
       Hinja.Types.Function
       Hinja.Types.MLIL
-      Hinja.Types.Printer
       Hinja.Types.Variable
-      Hinja.Variable
-  other-modules:
       Paths_hinja
   hs-source-dirs:
       src
   default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
-  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS -lbinaryninjacore
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
+  extra-libraries:
+      binaryninjacore binaryninjacore
   build-depends:
       attoparsec
     , base >=4.7 && <5
@@ -72,6 +74,44 @@ library
     , containers
     , data-binary-ieee754
     , envy
+    , language-c
+    , lens
+    , mtl
+    , newtype
+    , pretty-simple
+    , protolude
+    , raw-strings-qq
+    , stm
+    , template-haskell
+    , text
+    , transformers
+  build-tools:
+      c2hs
+  default-language: Haskell2010
+
+test-suite hinja-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Hinja.CoreSpec
+      Paths_hinja
+  hs-source-dirs:
+      test
+  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+  extra-libraries:
+      binaryninjacore binaryninjacore
+  build-depends:
+      attoparsec
+    , base >=4.7 && <5
+    , casing
+    , containers
+    , data-binary-ieee754
+    , envy
+    , hinja
+    , hspec
     , language-c
     , lens
     , mtl

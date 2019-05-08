@@ -10,6 +10,7 @@ import Foreign.Marshal.Array
 import Hinja.C.Util
 import Hinja.Types.MLIL
 import Hinja.Types.Variable
+import Hinja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
 
 #include <binaryninjacore.h>
   
@@ -58,3 +59,13 @@ instance Storable BNBoolWithConfidence where
     <$> ({#get BNBoolWithConfidence->value #} p)
     <*> liftM fromIntegral ({#get BNBoolWithConfidence->confidence #} p)
   poke _ _ = P.error "BNBoolWithConfidence 'poke' not implemented"
+
+instance Storable BNBasicBlockEdge where
+  sizeOf _ = {#sizeof BNBasicBlockEdge#}
+  alignment _ = {#alignof BNBasicBlockEdge#}
+  peek p = BNBasicBlockEdge
+    <$> liftM (toEnum . fromIntegral) ({#get BNBasicBlockEdge->type #} p)
+    <*> ({#get BNBasicBlockEdge->target #} p >>= nilable_ . castPtr)
+    <*> ({#get BNBasicBlockEdge->backEdge #} p)
+    <*> ({#get BNBasicBlockEdge->fallThrough #} p)
+  poke _ _ = P.error "BNBasicBlockEdge 'poke' not implemented"
