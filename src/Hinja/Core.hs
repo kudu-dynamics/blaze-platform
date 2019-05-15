@@ -12,6 +12,7 @@ import qualified Data.Text as Text
 --import qualified Hinja.MLIL as MLIL
 import qualified Hinja.C.Main as BN
 import Hinja.C.Main as Exports
+import Hinja.C.Types as Exports
 import Hinja.C.Main ( BNBinaryView
                     , BNBinaryViewType
                     )

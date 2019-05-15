@@ -22,6 +22,8 @@ import qualified Data.Text.Lazy as L (Text)
 
 import Text.Pretty.Simple as PP
 import Hinja.Types.ClassyFields as Exports ()
+import Data.Data as Exports
+--import Data.Typeable as Exports
 import           Control.Lens    as Exports        ( (%~)
                                                    , (.~)
                                                    , (?~)
@@ -41,7 +43,7 @@ import           Control.Lens    as Exports        ( (%~)
                                                    , view
                                                    )
 import           Data.Maybe      as Exports        ( fromJust )
-import           Protolude       as Exports hiding ( head )
+import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
