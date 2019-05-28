@@ -53,6 +53,7 @@ default-extensions:
   - MultiParamTypeClasses
   - FunctionalDependencies
   - StandaloneDeriving
+  - GADTs
   
 library:
   ghc-options:

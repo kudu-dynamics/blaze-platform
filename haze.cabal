@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 89fd2b4cdf0e056ca588766ef8255e5d1bf0a78e215c02bd2746969ebc59dd60
+-- hash: 907b2f576329f93b3bc992c090013f7de69f9efea2388a58aee4a7cd4b726f73
 
 name:           haze
 version:        0.1.0.0
@@ -30,12 +30,15 @@ library
       Haze.Prelude
   other-modules:
       Haze.Path
+      Haze.Types.Bare
       Haze.Types.Function
+      Haze.Types.Mut
       Haze.Types.Path
+      Haze.Types.Spice
       Paths_haze
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
+  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving GADTs
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
