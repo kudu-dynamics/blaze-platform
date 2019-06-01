@@ -14,7 +14,7 @@ opTypeType :: Text -> Text
 opTypeType ot = case ot of
   "int" -> "Int64"
   "float" -> "Double"
-  "expr" -> "Expression t"
+  "expr" -> "expr"
   "intrinsic" -> "Intrinsic"
   "var" -> "Variable"
   "var_ssa" -> "SSAVariable"
@@ -22,7 +22,7 @@ opTypeType ot = case ot of
   "int_list" -> "[Int64]"
   "var_list" -> "[Variable]"
   "var_ssa_list" -> "[SSAVariable]"
-  "expr_list" -> "[Expression t]"
+  "expr_list" -> "[expr]"
   _ -> P.error "opTypeType: no case match"
 
 opTypeBuilder :: Text -> Text
@@ -56,17 +56,17 @@ operatorNameToRecordName = Text.replace "Ssa" "SSA"
 
 printOperationUnionType :: [(Text, [(Text, Text)])] -> Printer ()
 printOperationUnionType (firstOp:moreOps) = do
-  pr "data Operation t"
+  pr "data Operation expr"
   indent $ do
     pr $ "= " <> strOp firstOp
     printRest moreOps
   where
-    printRest [] = pr "deriving (Eq, Ord, Show)"
+    printRest [] = pr "deriving (Eq, Ord, Show, Functor, Foldable, Traversable)"
     printRest (op:ops) = do
       pr $ "| " <> strOp op
       printRest ops
     strOp (opName, args) = operatorNameToConstructorName opName
-      <> bool (" (" <> operatorNameToRecordName opName <> " t)") "" (null args)
+      <> bool (" (" <> operatorNameToRecordName opName <> " expr)") "" (null args)
 printOperationUnionType _ = P.error "printOperationUnionType: expecting non-empty list"
     
 printOpRecordDerive :: Text -> Printer ()
@@ -75,7 +75,7 @@ printOpRecordDerive nm = pr $ "$(makeFieldsNoPrefix ''"
 
 printOpRecord :: (Text, [(Text, Text)]) -> Printer ()
 printOpRecord (mlilName, xs) = do
-  pr $ "data " <> rname <> " t = " <> rname
+  pr $ "data " <> rname <> " expr = " <> rname
   indent $ case xs of
     [] -> pr derivingClause
     ((argName, argType):args) -> do
@@ -86,7 +86,7 @@ printOpRecord (mlilName, xs) = do
     printRestArgs ((argName, argType):args) = do
       pr $ ", _" <> argName <> " :: " <> opTypeType argType
       printRestArgs args
-    derivingClause = "deriving (Eq, Ord, Show)"
+    derivingClause = "deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)"
     rname = operatorNameToRecordName mlilName
 
 ---

@@ -47,14 +47,14 @@ data Instruction t = Instruction
   { _address :: Address
   , _index :: InstructionIndex t
   , _size :: OperationSize
-  , _op :: Operation t
+  , _op :: Operation (Expression t)
   } deriving (Eq, Ord, Show)
 
 data Expression t = Expression
   { _address :: Address
   , _index :: ExpressionIndex t
   , _size :: OperationSize
-  , _op :: Operation t
+  , _op :: Operation (Expression t)
   } deriving (Eq, Ord, Show)
 
 data SSAVariable = SSAVariable { _var :: Variable
@@ -66,787 +66,790 @@ data SSAVariableDestAndSrc = SSAVariableDestAndSrc
   , _src :: SSAVariable
   } deriving (Eq, Ord, Show)
 
-data Operation t
+
+data Operation expr
     = NOP
-    | SET_VAR (SetVarOp t)
-    | SET_VAR_FIELD (SetVarFieldOp t)
-    | SET_VAR_SPLIT (SetVarSplitOp t)
-    | LOAD (LoadOp t)
-    | LOAD_STRUCT (LoadStructOp t)
-    | STORE (StoreOp t)
-    | STORE_STRUCT (StoreStructOp t)
-    | VAR (VarOp t)
-    | VAR_FIELD (VarFieldOp t)
-    | VAR_SPLIT (VarSplitOp t)
-    | ADDRESS_OF (AddressOfOp t)
-    | ADDRESS_OF_FIELD (AddressOfFieldOp t)
-    | CONST (ConstOp t)
-    | CONST_PTR (ConstPtrOp t)
-    | EXTERN_PTR (ExternPtrOp t)
-    | FLOAT_CONST (FloatConstOp t)
-    | IMPORT (ImportOp t)
-    | ADD (AddOp t)
-    | ADC (AdcOp t)
-    | SUB (SubOp t)
-    | SBB (SbbOp t)
-    | AND (AndOp t)
-    | OR (OrOp t)
-    | XOR (XorOp t)
-    | LSL (LslOp t)
-    | LSR (LsrOp t)
-    | ASR (AsrOp t)
-    | ROL (RolOp t)
-    | RLC (RlcOp t)
-    | ROR (RorOp t)
-    | RRC (RrcOp t)
-    | MUL (MulOp t)
-    | MULU_DP (MuluDpOp t)
-    | MULS_DP (MulsDpOp t)
-    | DIVU (DivuOp t)
-    | DIVU_DP (DivuDpOp t)
-    | DIVS (DivsOp t)
-    | DIVS_DP (DivsDpOp t)
-    | MODU (ModuOp t)
-    | MODU_DP (ModuDpOp t)
-    | MODS (ModsOp t)
-    | MODS_DP (ModsDpOp t)
-    | NEG (NegOp t)
-    | NOT (NotOp t)
-    | SX (SxOp t)
-    | ZX (ZxOp t)
-    | LOW_PART (LowPartOp t)
-    | JUMP (JumpOp t)
-    | JUMP_TO (JumpToOp t)
-    | RET_HINT (RetHintOp t)
-    | CALL (CallOp t)
-    | CALL_UNTYPED (CallUntypedOp t)
-    | CALL_OUTPUT (CallOutputOp t)
-    | CALL_PARAM (CallParamOp t)
-    | RET (RetOp t)
+    | SET_VAR (SetVarOp expr)
+    | SET_VAR_FIELD (SetVarFieldOp expr)
+    | SET_VAR_SPLIT (SetVarSplitOp expr)
+    | LOAD (LoadOp expr)
+    | LOAD_STRUCT (LoadStructOp expr)
+    | STORE (StoreOp expr)
+    | STORE_STRUCT (StoreStructOp expr)
+    | VAR (VarOp expr)
+    | VAR_FIELD (VarFieldOp expr)
+    | VAR_SPLIT (VarSplitOp expr)
+    | ADDRESS_OF (AddressOfOp expr)
+    | ADDRESS_OF_FIELD (AddressOfFieldOp expr)
+    | CONST (ConstOp expr)
+    | CONST_PTR (ConstPtrOp expr)
+    | EXTERN_PTR (ExternPtrOp expr)
+    | FLOAT_CONST (FloatConstOp expr)
+    | IMPORT (ImportOp expr)
+    | ADD (AddOp expr)
+    | ADC (AdcOp expr)
+    | SUB (SubOp expr)
+    | SBB (SbbOp expr)
+    | AND (AndOp expr)
+    | OR (OrOp expr)
+    | XOR (XorOp expr)
+    | LSL (LslOp expr)
+    | LSR (LsrOp expr)
+    | ASR (AsrOp expr)
+    | ROL (RolOp expr)
+    | RLC (RlcOp expr)
+    | ROR (RorOp expr)
+    | RRC (RrcOp expr)
+    | MUL (MulOp expr)
+    | MULU_DP (MuluDpOp expr)
+    | MULS_DP (MulsDpOp expr)
+    | DIVU (DivuOp expr)
+    | DIVU_DP (DivuDpOp expr)
+    | DIVS (DivsOp expr)
+    | DIVS_DP (DivsDpOp expr)
+    | MODU (ModuOp expr)
+    | MODU_DP (ModuDpOp expr)
+    | MODS (ModsOp expr)
+    | MODS_DP (ModsDpOp expr)
+    | NEG (NegOp expr)
+    | NOT (NotOp expr)
+    | SX (SxOp expr)
+    | ZX (ZxOp expr)
+    | LOW_PART (LowPartOp expr)
+    | JUMP (JumpOp expr)
+    | JUMP_TO (JumpToOp expr)
+    | RET_HINT (RetHintOp expr)
+    | CALL (CallOp expr)
+    | CALL_UNTYPED (CallUntypedOp expr)
+    | CALL_OUTPUT (CallOutputOp expr)
+    | CALL_PARAM (CallParamOp expr)
+    | RET (RetOp expr)
     | NORET
-    | IF (IfOp t)
-    | GOTO (GotoOp t)
-    | CMP_E (CmpEOp t)
-    | CMP_NE (CmpNeOp t)
-    | CMP_SLT (CmpSltOp t)
-    | CMP_ULT (CmpUltOp t)
-    | CMP_SLE (CmpSleOp t)
-    | CMP_ULE (CmpUleOp t)
-    | CMP_SGE (CmpSgeOp t)
-    | CMP_UGE (CmpUgeOp t)
-    | CMP_SGT (CmpSgtOp t)
-    | CMP_UGT (CmpUgtOp t)
-    | TEST_BIT (TestBitOp t)
-    | BOOL_TO_INT (BoolToIntOp t)
-    | ADD_OVERFLOW (AddOverflowOp t)
-    | SYSCALL (SyscallOp t)
-    | SYSCALL_UNTYPED (SyscallUntypedOp t)
-    | TAILCALL (TailcallOp t)
-    | TAILCALL_UNTYPED (TailcallUntypedOp t)
+    | IF (IfOp expr)
+    | GOTO (GotoOp expr)
+    | CMP_E (CmpEOp expr)
+    | CMP_NE (CmpNeOp expr)
+    | CMP_SLT (CmpSltOp expr)
+    | CMP_ULT (CmpUltOp expr)
+    | CMP_SLE (CmpSleOp expr)
+    | CMP_ULE (CmpUleOp expr)
+    | CMP_SGE (CmpSgeOp expr)
+    | CMP_UGE (CmpUgeOp expr)
+    | CMP_SGT (CmpSgtOp expr)
+    | CMP_UGT (CmpUgtOp expr)
+    | TEST_BIT (TestBitOp expr)
+    | BOOL_TO_INT (BoolToIntOp expr)
+    | ADD_OVERFLOW (AddOverflowOp expr)
+    | SYSCALL (SyscallOp expr)
+    | SYSCALL_UNTYPED (SyscallUntypedOp expr)
+    | TAILCALL (TailcallOp expr)
+    | TAILCALL_UNTYPED (TailcallUntypedOp expr)
     | BP
-    | TRAP (TrapOp t)
-    | INTRINSIC (IntrinsicOp t)
-    | INTRINSIC_SSA (IntrinsicSSAOp t)
-    | FREE_VAR_SLOT (FreeVarSlotOp t)
-    | FREE_VAR_SLOT_SSA (FreeVarSlotSSAOp t)
+    | TRAP (TrapOp expr)
+    | INTRINSIC (IntrinsicOp expr)
+    | INTRINSIC_SSA (IntrinsicSSAOp expr)
+    | FREE_VAR_SLOT (FreeVarSlotOp expr)
+    | FREE_VAR_SLOT_SSA (FreeVarSlotSSAOp expr)
     | UNDEF
     | UNIMPL
-    | UNIMPL_MEM (UnimplMemOp t)
-    | FADD (FaddOp t)
-    | FSUB (FsubOp t)
-    | FMUL (FmulOp t)
-    | FDIV (FdivOp t)
-    | FSQRT (FsqrtOp t)
-    | FNEG (FnegOp t)
-    | FABS (FabsOp t)
-    | FLOAT_TO_INT (FloatToIntOp t)
-    | INT_TO_FLOAT (IntToFloatOp t)
-    | FLOAT_CONV (FloatConvOp t)
-    | ROUND_TO_INT (RoundToIntOp t)
-    | FLOOR (FloorOp t)
-    | CEIL (CeilOp t)
-    | FTRUNC (FtruncOp t)
-    | FCMP_E (FcmpEOp t)
-    | FCMP_NE (FcmpNeOp t)
-    | FCMP_LT (FcmpLtOp t)
-    | FCMP_LE (FcmpLeOp t)
-    | FCMP_GE (FcmpGeOp t)
-    | FCMP_GT (FcmpGtOp t)
-    | FCMP_O (FcmpOOp t)
-    | FCMP_UO (FcmpUoOp t)
-    | SET_VAR_SSA (SetVarSSAOp t)
-    | SET_VAR_SSA_FIELD (SetVarSSAFieldOp t)
-    | SET_VAR_SPLIT_SSA (SetVarSplitSSAOp t)
-    | SET_VAR_ALIASED (SetVarAliasedOp t)
-    | SET_VAR_ALIASED_FIELD (SetVarAliasedFieldOp t)
-    | VAR_SSA (VarSSAOp t)
-    | VAR_SSA_FIELD (VarSSAFieldOp t)
-    | VAR_ALIASED (VarAliasedOp t)
-    | VAR_ALIASED_FIELD (VarAliasedFieldOp t)
-    | VAR_SPLIT_SSA (VarSplitSSAOp t)
-    | CALL_SSA (CallSSAOp t)
-    | CALL_UNTYPED_SSA (CallUntypedSSAOp t)
-    | SYSCALL_SSA (SyscallSSAOp t)
-    | SYSCALL_UNTYPED_SSA (SyscallUntypedSSAOp t)
-    | TAILCALL_SSA (TailcallSSAOp t)
-    | TAILCALL_UNTYPED_SSA (TailcallUntypedSSAOp t)
-    | CALL_OUTPUT_SSA (CallOutputSSAOp t)
-    | CALL_PARAM_SSA (CallParamSSAOp t)
-    | LOAD_SSA (LoadSSAOp t)
-    | LOAD_STRUCT_SSA (LoadStructSSAOp t)
-    | STORE_SSA (StoreSSAOp t)
-    | STORE_STRUCT_SSA (StoreStructSSAOp t)
-    | VAR_PHI (VarPhiOp t)
-    | MEM_PHI (MemPhiOp t)
-    deriving (Eq, Ord, Show)
+    | UNIMPL_MEM (UnimplMemOp expr)
+    | FADD (FaddOp expr)
+    | FSUB (FsubOp expr)
+    | FMUL (FmulOp expr)
+    | FDIV (FdivOp expr)
+    | FSQRT (FsqrtOp expr)
+    | FNEG (FnegOp expr)
+    | FABS (FabsOp expr)
+    | FLOAT_TO_INT (FloatToIntOp expr)
+    | INT_TO_FLOAT (IntToFloatOp expr)
+    | FLOAT_CONV (FloatConvOp expr)
+    | ROUND_TO_INT (RoundToIntOp expr)
+    | FLOOR (FloorOp expr)
+    | CEIL (CeilOp expr)
+    | FTRUNC (FtruncOp expr)
+    | FCMP_E (FcmpEOp expr)
+    | FCMP_NE (FcmpNeOp expr)
+    | FCMP_LT (FcmpLtOp expr)
+    | FCMP_LE (FcmpLeOp expr)
+    | FCMP_GE (FcmpGeOp expr)
+    | FCMP_GT (FcmpGtOp expr)
+    | FCMP_O (FcmpOOp expr)
+    | FCMP_UO (FcmpUoOp expr)
+    | SET_VAR_SSA (SetVarSSAOp expr)
+    | SET_VAR_SSA_FIELD (SetVarSSAFieldOp expr)
+    | SET_VAR_SPLIT_SSA (SetVarSplitSSAOp expr)
+    | SET_VAR_ALIASED (SetVarAliasedOp expr)
+    | SET_VAR_ALIASED_FIELD (SetVarAliasedFieldOp expr)
+    | VAR_SSA (VarSSAOp expr)
+    | VAR_SSA_FIELD (VarSSAFieldOp expr)
+    | VAR_ALIASED (VarAliasedOp expr)
+    | VAR_ALIASED_FIELD (VarAliasedFieldOp expr)
+    | VAR_SPLIT_SSA (VarSplitSSAOp expr)
+    | CALL_SSA (CallSSAOp expr)
+    | CALL_UNTYPED_SSA (CallUntypedSSAOp expr)
+    | SYSCALL_SSA (SyscallSSAOp expr)
+    | SYSCALL_UNTYPED_SSA (SyscallUntypedSSAOp expr)
+    | TAILCALL_SSA (TailcallSSAOp expr)
+    | TAILCALL_UNTYPED_SSA (TailcallUntypedSSAOp expr)
+    | CALL_OUTPUT_SSA (CallOutputSSAOp expr)
+    | CALL_PARAM_SSA (CallParamSSAOp expr)
+    | LOAD_SSA (LoadSSAOp expr)
+    | LOAD_STRUCT_SSA (LoadStructSSAOp expr)
+    | STORE_SSA (StoreSSAOp expr)
+    | STORE_STRUCT_SSA (StoreStructSSAOp expr)
+    | VAR_PHI (VarPhiOp expr)
+    | MEM_PHI (MemPhiOp expr)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-----------------------
 
-data NopOp t = NopOp
-    deriving (Eq, Ord, Show)
 
-data SetVarOp t = SetVarOp
+data NopOp expr = NopOp
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data SetVarOp expr = SetVarOp
     { _dest :: Variable
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarFieldOp t = SetVarFieldOp
+data SetVarFieldOp expr = SetVarFieldOp
     { _dest :: Variable
     , _offset :: Int64
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarSplitOp t = SetVarSplitOp
+data SetVarSplitOp expr = SetVarSplitOp
     { _high :: Variable
     , _low :: Variable
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LoadOp t = LoadOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data LoadOp expr = LoadOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LoadStructOp t = LoadStructOp
-    { _src :: Expression t
+data LoadStructOp expr = LoadStructOp
+    { _src :: expr
     , _offset :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data StoreOp t = StoreOp
-    { _dest :: Expression t
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data StoreOp expr = StoreOp
+    { _dest :: expr
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data StoreStructOp t = StoreStructOp
-    { _dest :: Expression t
+data StoreStructOp expr = StoreStructOp
+    { _dest :: expr
     , _offset :: Int64
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarOp t = VarOp
+data VarOp expr = VarOp
     { _src :: Variable
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarFieldOp t = VarFieldOp
+data VarFieldOp expr = VarFieldOp
     { _src :: Variable
     , _offset :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarSplitOp t = VarSplitOp
+data VarSplitOp expr = VarSplitOp
     { _high :: Variable
     , _low :: Variable
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AddressOfOp t = AddressOfOp
+data AddressOfOp expr = AddressOfOp
     { _src :: Variable
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AddressOfFieldOp t = AddressOfFieldOp
+data AddressOfFieldOp expr = AddressOfFieldOp
     { _src :: Variable
     , _offset :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ConstOp t = ConstOp
+data ConstOp expr = ConstOp
     { _constant :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ConstPtrOp t = ConstPtrOp
+data ConstPtrOp expr = ConstPtrOp
     { _constant :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ExternPtrOp t = ExternPtrOp
+data ExternPtrOp expr = ExternPtrOp
     { _constant :: Int64
     , _offset :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FloatConstOp t = FloatConstOp
+data FloatConstOp expr = FloatConstOp
     { _constant :: Double
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ImportOp t = ImportOp
+data ImportOp expr = ImportOp
     { _constant :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AddOp t = AddOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data AddOp expr = AddOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AdcOp t = AdcOp
-    { _left :: Expression t
-    , _right :: Expression t
-    , _carry :: Expression t
-    } deriving (Eq, Ord, Show)
+data AdcOp expr = AdcOp
+    { _left :: expr
+    , _right :: expr
+    , _carry :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SubOp t = SubOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data SubOp expr = SubOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SbbOp t = SbbOp
-    { _left :: Expression t
-    , _right :: Expression t
-    , _carry :: Expression t
-    } deriving (Eq, Ord, Show)
+data SbbOp expr = SbbOp
+    { _left :: expr
+    , _right :: expr
+    , _carry :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AndOp t = AndOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data AndOp expr = AndOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data OrOp t = OrOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data OrOp expr = OrOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data XorOp t = XorOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data XorOp expr = XorOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LslOp t = LslOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data LslOp expr = LslOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LsrOp t = LsrOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data LsrOp expr = LsrOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AsrOp t = AsrOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data AsrOp expr = AsrOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RolOp t = RolOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data RolOp expr = RolOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RlcOp t = RlcOp
-    { _left :: Expression t
-    , _right :: Expression t
-    , _carry :: Expression t
-    } deriving (Eq, Ord, Show)
+data RlcOp expr = RlcOp
+    { _left :: expr
+    , _right :: expr
+    , _carry :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RorOp t = RorOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data RorOp expr = RorOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RrcOp t = RrcOp
-    { _left :: Expression t
-    , _right :: Expression t
-    , _carry :: Expression t
-    } deriving (Eq, Ord, Show)
+data RrcOp expr = RrcOp
+    { _left :: expr
+    , _right :: expr
+    , _carry :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data MulOp t = MulOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data MulOp expr = MulOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data MuluDpOp t = MuluDpOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data MuluDpOp expr = MuluDpOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data MulsDpOp t = MulsDpOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data MulsDpOp expr = MulsDpOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data DivuOp t = DivuOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data DivuOp expr = DivuOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data DivuDpOp t = DivuDpOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data DivuDpOp expr = DivuDpOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data DivsOp t = DivsOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data DivsOp expr = DivsOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data DivsDpOp t = DivsDpOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data DivsDpOp expr = DivsDpOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ModuOp t = ModuOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data ModuOp expr = ModuOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ModuDpOp t = ModuDpOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data ModuDpOp expr = ModuDpOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ModsOp t = ModsOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data ModsOp expr = ModsOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ModsDpOp t = ModsDpOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data ModsDpOp expr = ModsDpOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data NegOp t = NegOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data NegOp expr = NegOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data NotOp t = NotOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data NotOp expr = NotOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SxOp t = SxOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data SxOp expr = SxOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data ZxOp t = ZxOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data ZxOp expr = ZxOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LowPartOp t = LowPartOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data LowPartOp expr = LowPartOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data JumpOp t = JumpOp
-    { _dest :: Expression t
-    } deriving (Eq, Ord, Show)
+data JumpOp expr = JumpOp
+    { _dest :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data JumpToOp t = JumpToOp
-    { _dest :: Expression t
+data JumpToOp expr = JumpToOp
+    { _dest :: expr
     , _targets :: [Int64]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RetHintOp t = RetHintOp
-    { _dest :: Expression t
-    } deriving (Eq, Ord, Show)
+data RetHintOp expr = RetHintOp
+    { _dest :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallOp t = CallOp
+data CallOp expr = CallOp
     { _output :: [Variable]
-    , _dest :: Expression t
-    , _params :: [Expression t]
-    } deriving (Eq, Ord, Show)
+    , _dest :: expr
+    , _params :: [expr]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallUntypedOp t = CallUntypedOp
-    { _output :: Expression t
-    , _dest :: Expression t
-    , _params :: Expression t
-    , _stack :: Expression t
-    } deriving (Eq, Ord, Show)
+data CallUntypedOp expr = CallUntypedOp
+    { _output :: expr
+    , _dest :: expr
+    , _params :: expr
+    , _stack :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallOutputOp t = CallOutputOp
+data CallOutputOp expr = CallOutputOp
     { _dest :: [Variable]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallParamOp t = CallParamOp
+data CallParamOp expr = CallParamOp
     { _src :: [Variable]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RetOp t = RetOp
-    { _src :: [Expression t]
-    } deriving (Eq, Ord, Show)
+data RetOp expr = RetOp
+    { _src :: [expr]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data NoretOp t = NoretOp
-    deriving (Eq, Ord, Show)
+data NoretOp expr = NoretOp
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data IfOp t = IfOp
-    { _condition :: Expression t
+data IfOp expr = IfOp
+    { _condition :: expr
     , _true :: Int64
     , _false :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data GotoOp t = GotoOp
+data GotoOp expr = GotoOp
     { _dest :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpEOp t = CmpEOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpEOp expr = CmpEOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpNeOp t = CmpNeOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpNeOp expr = CmpNeOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpSltOp t = CmpSltOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpSltOp expr = CmpSltOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpUltOp t = CmpUltOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpUltOp expr = CmpUltOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpSleOp t = CmpSleOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpSleOp expr = CmpSleOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpUleOp t = CmpUleOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpUleOp expr = CmpUleOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpSgeOp t = CmpSgeOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpSgeOp expr = CmpSgeOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpUgeOp t = CmpUgeOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpUgeOp expr = CmpUgeOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpSgtOp t = CmpSgtOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpSgtOp expr = CmpSgtOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CmpUgtOp t = CmpUgtOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data CmpUgtOp expr = CmpUgtOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data TestBitOp t = TestBitOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data TestBitOp expr = TestBitOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data BoolToIntOp t = BoolToIntOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data BoolToIntOp expr = BoolToIntOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data AddOverflowOp t = AddOverflowOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data AddOverflowOp expr = AddOverflowOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SyscallOp t = SyscallOp
+data SyscallOp expr = SyscallOp
     { _output :: [Variable]
-    , _params :: [Expression t]
-    } deriving (Eq, Ord, Show)
+    , _params :: [expr]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SyscallUntypedOp t = SyscallUntypedOp
-    { _output :: Expression t
-    , _params :: Expression t
-    , _stack :: Expression t
-    } deriving (Eq, Ord, Show)
+data SyscallUntypedOp expr = SyscallUntypedOp
+    { _output :: expr
+    , _params :: expr
+    , _stack :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data TailcallOp t = TailcallOp
+data TailcallOp expr = TailcallOp
     { _output :: [Variable]
-    , _dest :: Expression t
-    , _params :: [Expression t]
-    } deriving (Eq, Ord, Show)
+    , _dest :: expr
+    , _params :: [expr]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data TailcallUntypedOp t = TailcallUntypedOp
-    { _output :: Expression t
-    , _dest :: Expression t
-    , _params :: Expression t
-    , _stack :: Expression t
-    } deriving (Eq, Ord, Show)
+data TailcallUntypedOp expr = TailcallUntypedOp
+    { _output :: expr
+    , _dest :: expr
+    , _params :: expr
+    , _stack :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data BpOp t = BpOp
-    deriving (Eq, Ord, Show)
+data BpOp expr = BpOp
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data TrapOp t = TrapOp
+data TrapOp expr = TrapOp
     { _vector :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data IntrinsicOp t = IntrinsicOp
+data IntrinsicOp expr = IntrinsicOp
     { _output :: [Variable]
     , _intrinsic :: Intrinsic
-    , _params :: [Expression t]
-    } deriving (Eq, Ord, Show)
+    , _params :: [expr]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data IntrinsicSSAOp t = IntrinsicSSAOp
+data IntrinsicSSAOp expr = IntrinsicSSAOp
     { _output :: [SSAVariable]
     , _intrinsic :: Intrinsic
-    , _params :: [Expression t]
-    } deriving (Eq, Ord, Show)
+    , _params :: [expr]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FreeVarSlotOp t = FreeVarSlotOp
+data FreeVarSlotOp expr = FreeVarSlotOp
     { _dest :: Variable
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FreeVarSlotSSAOp t = FreeVarSlotSSAOp
+data FreeVarSlotSSAOp expr = FreeVarSlotSSAOp
     { _prev :: SSAVariableDestAndSrc
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data UndefOp t = UndefOp
-    deriving (Eq, Ord, Show)
+data UndefOp expr = UndefOp
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data UnimplOp t = UnimplOp
-    deriving (Eq, Ord, Show)
+data UnimplOp expr = UnimplOp
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data UnimplMemOp t = UnimplMemOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data UnimplMemOp expr = UnimplMemOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FaddOp t = FaddOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FaddOp expr = FaddOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FsubOp t = FsubOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FsubOp expr = FsubOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FmulOp t = FmulOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FmulOp expr = FmulOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FdivOp t = FdivOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FdivOp expr = FdivOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FsqrtOp t = FsqrtOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FsqrtOp expr = FsqrtOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FnegOp t = FnegOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FnegOp expr = FnegOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FabsOp t = FabsOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FabsOp expr = FabsOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FloatToIntOp t = FloatToIntOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FloatToIntOp expr = FloatToIntOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data IntToFloatOp t = IntToFloatOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data IntToFloatOp expr = IntToFloatOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FloatConvOp t = FloatConvOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FloatConvOp expr = FloatConvOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data RoundToIntOp t = RoundToIntOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data RoundToIntOp expr = RoundToIntOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FloorOp t = FloorOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FloorOp expr = FloorOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CeilOp t = CeilOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data CeilOp expr = CeilOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FtruncOp t = FtruncOp
-    { _src :: Expression t
-    } deriving (Eq, Ord, Show)
+data FtruncOp expr = FtruncOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpEOp t = FcmpEOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpEOp expr = FcmpEOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpNeOp t = FcmpNeOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpNeOp expr = FcmpNeOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpLtOp t = FcmpLtOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpLtOp expr = FcmpLtOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpLeOp t = FcmpLeOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpLeOp expr = FcmpLeOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpGeOp t = FcmpGeOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpGeOp expr = FcmpGeOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpGtOp t = FcmpGtOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpGtOp expr = FcmpGtOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpOOp t = FcmpOOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpOOp expr = FcmpOOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data FcmpUoOp t = FcmpUoOp
-    { _left :: Expression t
-    , _right :: Expression t
-    } deriving (Eq, Ord, Show)
+data FcmpUoOp expr = FcmpUoOp
+    { _left :: expr
+    , _right :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarSSAOp t = SetVarSSAOp
+data SetVarSSAOp expr = SetVarSSAOp
     { _dest :: SSAVariable
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarSSAFieldOp t = SetVarSSAFieldOp
+data SetVarSSAFieldOp expr = SetVarSSAFieldOp
     { _prev :: SSAVariableDestAndSrc
     , _offset :: Int64
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarSplitSSAOp t = SetVarSplitSSAOp
+data SetVarSplitSSAOp expr = SetVarSplitSSAOp
     { _high :: SSAVariable
     , _low :: SSAVariable
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarAliasedOp t = SetVarAliasedOp
+data SetVarAliasedOp expr = SetVarAliasedOp
     { _prev :: SSAVariableDestAndSrc
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SetVarAliasedFieldOp t = SetVarAliasedFieldOp
+data SetVarAliasedFieldOp expr = SetVarAliasedFieldOp
     { _prev :: SSAVariableDestAndSrc
     , _offset :: Int64
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarSSAOp t = VarSSAOp
+data VarSSAOp expr = VarSSAOp
     { _src :: SSAVariable
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarSSAFieldOp t = VarSSAFieldOp
-    { _src :: SSAVariable
-    , _offset :: Int64
-    } deriving (Eq, Ord, Show)
-
-data VarAliasedOp t = VarAliasedOp
-    { _src :: SSAVariable
-    } deriving (Eq, Ord, Show)
-
-data VarAliasedFieldOp t = VarAliasedFieldOp
+data VarSSAFieldOp expr = VarSSAFieldOp
     { _src :: SSAVariable
     , _offset :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarSplitSSAOp t = VarSplitSSAOp
+data VarAliasedOp expr = VarAliasedOp
+    { _src :: SSAVariable
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarAliasedFieldOp expr = VarAliasedFieldOp
+    { _src :: SSAVariable
+    , _offset :: Int64
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarSplitSSAOp expr = VarSplitSSAOp
     { _high :: SSAVariable
     , _low :: SSAVariable
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallSSAOp t = CallSSAOp
-    { _output :: Expression t
-    , _dest :: Expression t
-    , _params :: [Expression t]
+data CallSSAOp expr = CallSSAOp
+    { _output :: expr
+    , _dest :: expr
+    , _params :: [expr]
     , _src_memory :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallUntypedSSAOp t = CallUntypedSSAOp
-    { _output :: Expression t
-    , _dest :: Expression t
-    , _params :: Expression t
-    , _stack :: Expression t
-    } deriving (Eq, Ord, Show)
+data CallUntypedSSAOp expr = CallUntypedSSAOp
+    { _output :: expr
+    , _dest :: expr
+    , _params :: expr
+    , _stack :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SyscallSSAOp t = SyscallSSAOp
-    { _output :: Expression t
-    , _params :: [Expression t]
+data SyscallSSAOp expr = SyscallSSAOp
+    { _output :: expr
+    , _params :: [expr]
     , _src_memory :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data SyscallUntypedSSAOp t = SyscallUntypedSSAOp
-    { _output :: Expression t
-    , _params :: Expression t
-    , _stack :: Expression t
-    } deriving (Eq, Ord, Show)
+data SyscallUntypedSSAOp expr = SyscallUntypedSSAOp
+    { _output :: expr
+    , _params :: expr
+    , _stack :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data TailcallSSAOp t = TailcallSSAOp
-    { _output :: Expression t
-    , _dest :: Expression t
-    , _params :: [Expression t]
+data TailcallSSAOp expr = TailcallSSAOp
+    { _output :: expr
+    , _dest :: expr
+    , _params :: [expr]
     , _src_memory :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data TailcallUntypedSSAOp t = TailcallUntypedSSAOp
-    { _output :: Expression t
-    , _dest :: Expression t
-    , _params :: Expression t
-    , _stack :: Expression t
-    } deriving (Eq, Ord, Show)
+data TailcallUntypedSSAOp expr = TailcallUntypedSSAOp
+    { _output :: expr
+    , _dest :: expr
+    , _params :: expr
+    , _stack :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallOutputSSAOp t = CallOutputSSAOp
+data CallOutputSSAOp expr = CallOutputSSAOp
     { _dest_memory :: Int64
     , _dest :: [SSAVariable]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data CallParamSSAOp t = CallParamSSAOp
+data CallParamSSAOp expr = CallParamSSAOp
     { _src_memory :: Int64
     , _src :: [SSAVariable]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LoadSSAOp t = LoadSSAOp
-    { _src :: Expression t
+data LoadSSAOp expr = LoadSSAOp
+    { _src :: expr
     , _src_memory :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data LoadStructSSAOp t = LoadStructSSAOp
-    { _src :: Expression t
+data LoadStructSSAOp expr = LoadStructSSAOp
+    { _src :: expr
     , _offset :: Int64
     , _src_memory :: Int64
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data StoreSSAOp t = StoreSSAOp
-    { _dest :: Expression t
+data StoreSSAOp expr = StoreSSAOp
+    { _dest :: expr
     , _dest_memory :: Int64
     , _src_memory :: Int64
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data StoreStructSSAOp t = StoreStructSSAOp
-    { _dest :: Expression t
+data StoreStructSSAOp expr = StoreStructSSAOp
+    { _dest :: expr
     , _offset :: Int64
     , _dest_memory :: Int64
     , _src_memory :: Int64
-    , _src :: Expression t
-    } deriving (Eq, Ord, Show)
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data VarPhiOp t = VarPhiOp
+data VarPhiOp expr = VarPhiOp
     { _dest :: SSAVariable
     , _src :: [SSAVariable]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data MemPhiOp t = MemPhiOp
+data MemPhiOp expr = MemPhiOp
     { _dest_memory :: Int64
     , _src_memory :: [Int64]
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+
 
 
 $(makeFieldsNoPrefix ''NopOp)

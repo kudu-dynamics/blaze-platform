@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 286c8bd2cfbf39972ab99b218e2052b6ca2097e4e312eef92d2fb98df1838b5d
+-- hash: 7b11ee156ed5615ed18dbd21cb6e1011f305e2d3c9898cd725a77d39200ff542
 
 name:           hinja
 version:        0.1.0.0
@@ -64,7 +64,7 @@ library
       Paths_hinja
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
+  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
@@ -100,7 +100,7 @@ test-suite hinja-test
       Paths_hinja
   hs-source-dirs:
       test
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
+  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src

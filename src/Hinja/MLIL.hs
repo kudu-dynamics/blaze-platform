@@ -166,7 +166,7 @@ fromFunction fn = do
   mapM (instruction fn) [0 .. (fromIntegral len)]
 
 getOperation :: StatementFunction t
-            => t -> ExpressionIndex t -> IO (MediumLevelILInstruction, Operation t)
+            => t -> ExpressionIndex t -> IO (MediumLevelILInstruction, Operation (Expression t))
 getOperation fn eindex = do
   mlil <- getMediumLevelILInstructionByExpressionIndex fn eindex
   let ctx = OpBuilderCtx { _func = fn
