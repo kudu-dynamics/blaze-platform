@@ -7,6 +7,7 @@ module Haze.Types.Bare where
 -- import Hinja.MLIL (Expression, OperationSize)
 -- import qualified Hinja.MLIL as MLIL
 import Haze.Prelude hiding (Ptr)
+-- import Data.Set as Set
 
 data Ptr = Ptr Expr
   deriving (Eq, Ord, Show)
@@ -18,6 +19,7 @@ data Expr
   = SInt Int
   | UInt Int
   | String String
+
   | Add Expr Expr
   | Sub Expr Expr
   | Mul Expr Expr
@@ -47,6 +49,124 @@ data Stmt
 --  | IfThenElse Expr [Stmt] [Stmt]
   deriving (Eq, Ord, Show)
 
+newtype TypeVar = TypeVar Text
+  deriving (Eq, Ord, Show, IsString)
+
+newtype Pointer = Pointer Expr
+  deriving (Eq, Ord, Show)
+
+data Type = TUInt
+          | TInt
+          | TString
+          | TPtr Pointer
+          | TStruct (Map Word64 Type)
+          | TVar TypeVar
+          | TProc [Type] Type
+          deriving (Eq, Ord, Show)
+
+data Scheme = Scheme [TypeVar] Type
+type Context = Map Variable Scheme
+type MemContext = Map Pointer Scheme
+type Substitution = Map TypeVar Type
+
+type TT a = State Int a
+
+
+-- infer :: Expr -> Scheme
+
+
+folderGetExprVars :: Expr -> FolderAction [Variable]
+folderGetExprVars (AddressOf v) = StopWith [v]
+folderGetExprVars (VarField v _) = StopWith [v]
+folderGetExprVars (Var v) = StopWith [v]
+folderGetExprVars _ = RecurWithout
+
+folderGetStmtVars :: Stmt -> FolderAction [Variable]
+folderGetStmtVars (Def v _) = RecurWith [v]
+folderGetStmtVars _ = RecurWithout
+
+foldMapStmt :: Monoid m => (Stmt -> FolderAction m) -> (Expr -> FolderAction m) -> Stmt -> m
+foldMapStmt g f stmt = case g stmt of
+  RecurWith x -> x <> recur
+  RecurWithout -> recur
+  StopWith x -> x
+  StopWithout -> mempty
+  where
+    recur = case stmt of
+      (Return a) -> foldMapExpr f a
+      (Store a b) -> foldMapExpr f a <> foldMapExpr f b
+      (Def _ a) -> foldMapExpr f a
+      (Cond a) -> foldMapExpr f a
+
+foldMapExpr :: Monoid m => (Expr -> FolderAction m) -> Expr -> m
+foldMapExpr f expr = case f expr of
+  RecurWith x -> x <> recur
+  RecurWithout -> recur
+  StopWith x -> x
+  StopWithout -> mempty
+  where
+    recur = case expr of
+      (Add a b) -> foldMapExpr f a <> foldMapExpr f b
+      (Mul a b) -> foldMapExpr f a <> foldMapExpr f b
+      (UAdd a b) -> foldMapExpr f a <> foldMapExpr f b
+      (Equal a b) -> foldMapExpr f a <> foldMapExpr f b
+      (NotEqual a b) -> foldMapExpr f a <> foldMapExpr f b
+      (LessThan a b) -> foldMapExpr f a <> foldMapExpr f b
+      (SLTE a b) -> foldMapExpr f a <> foldMapExpr f b
+      (Not a) -> foldMapExpr f a
+      (ZX a) -> foldMapExpr f a
+      (Load a) -> foldMapExpr f a
+      (Call _ xs) -> foldMap (foldMapExpr f) xs
+      _ -> mempty
+
+data Bill
+  = Time Bill Int
+  | BadBoy
+  | Liver Text Bill Bill
+  deriving (Eq, Ord, Show)
+
+bcakes :: Bill
+bcakes = Time (Liver "Jimmy" (Time BadBoy 18) (Liver "Tanks" BadBoy BadBoy)) 3
+
+data FolderAction a = RecurWith a
+                    | RecurWithout
+                    | StopWith a
+                    | StopWithout
+                    deriving (Eq, Ord, Show)
+
+billTimes :: Bill -> FolderAction [Int]
+billTimes (Time _ n) = RecurWith [n]
+billTimes _ = RecurWithout
+
+-- billTimes' :: Bill -> [Int] -> FolderAction [Int]
+-- billTimes' (Time _ n) xs = RecurWith (n:xs)
+-- billTimes' _ _ = RecurWithout
+
+-- folderBill :: (Bill -> a -> FolderAction a) -> a -> Bill -> a
+-- folderBill f acc bill = case f bill acc of
+--   RecurWith x -> recur x
+--   RecurWithout -> recur acc
+--   StopWith x -> x
+--   StopWithout -> acc
+--   where
+--     recur acc' = case bill of
+--       (Time a _) -> folderBill f acc' a
+--       BadBoy -> acc'
+--       Liver _ a b -> folderBill f (folderBill f acc' b) a 
+
+
+foldMapBill :: Monoid m => (Bill -> FolderAction m) -> Bill -> m
+foldMapBill f bill = case f bill of
+  RecurWith x -> x <> recur
+  RecurWithout -> recur
+  StopWith x -> x
+  StopWithout -> mempty
+  where
+    recur = case bill of
+      (Time a _) -> foldMapBill f a
+      BadBoy -> mempty
+      Liver _ a b -> foldMapBill f a <> foldMapBill f b
+
 prog :: [Stmt]
 prog =
   [ Def "x" (SInt 35)
@@ -56,6 +176,7 @@ prog =
   , Def "z" (Mul (SInt 4) (Load (Var "bb")))
   , Return (Var "z")
   ]
+
 
 
 prog2 :: [Stmt]
@@ -104,6 +225,7 @@ prog2 =
   , Store (UAdd (AddressOf "rax#1_@_create_account.1") (UInt 4)) (VarField "rax_1#2_@_withdraw.4" 0)
   ]
 
+--getVars :: 
 
 -- progr :: [Stmt]
 -- progr =

@@ -47,6 +47,9 @@ default-extensions:
   - ScopedTypeVariables
   - GeneralizedNewtypeDeriving
   - DeriveGeneric
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveTraversable
   - DeriveDataTypeable
   - LambdaCase
   - DuplicateRecordFields
