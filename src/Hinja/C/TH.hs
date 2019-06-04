@@ -71,9 +71,10 @@ mkPointer' pointerString mFinalizerString = do
     ntDec = NewtypeD [] pointerName [] Nothing
       (NormalC pointerName [(Bang NoSourceUnpackedness NoSourceStrictness
                      , AppT (ConT ''ForeignPtr) (ConT pointerName))])
-      [ ConT ''Eq
-      , ConT ''Ord
-      , ConT ''Show]
+      [ DerivClause Nothing [ConT ''Eq, ConT ''Ord, ConT ''Show]
+      -- , DerivClause Nothing [ConT ''Ord]
+      -- , DerivClause Nothing [ConT ''Show]
+      ]
     pointerName = mkName pointerString
 
 mkPointer :: String -> String -> Q [Dec]

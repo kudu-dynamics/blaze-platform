@@ -1,6 +1,5 @@
 module Hinja.Prelude
   ( module Exports
-  , fromRight
   , liftEitherIO
   , liftMaybeIO
   , liftEitherM
@@ -16,7 +15,6 @@ import           Prelude         as Exports        ( String
                                                    , id
                                                    , (!!)
                                                    )
-import qualified Prelude         as P
 
 import qualified Data.Text.Lazy as L (Text)
 
@@ -79,6 +77,6 @@ pshow = PP.pShowOpt ppOptions
 pprint :: Show a => a -> IO ()
 pprint = PP.pPrintOpt ppOptions
 
-fromRight :: Either e a -> a
-fromRight (Right x) = x
-fromRight (Left _) = P.error "You called fromRight on a Left"
+-- fromRight :: Either e a -> a
+-- fromRight (Right x) = x
+-- fromRight (Left _) = P.error "You called fromRight on a Left"

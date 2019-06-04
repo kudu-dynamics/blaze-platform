@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7b11ee156ed5615ed18dbd21cb6e1011f305e2d3c9898cd725a77d39200ff542
+-- hash: 28a367d2da0ff10d021745e40658d447448ac6e64e924aa023be5fe0bd686d0f
 
 name:           hinja
 version:        0.1.0.0
@@ -51,12 +51,10 @@ library
       Hinja.Header.ParseFunction
       Hinja.Header.ParseHeader
       Hinja.Header.ParseStruct
-      Hinja.MLIL.CleanGen
       Hinja.MLIL.Gen
       Hinja.Types.Architecture
       Hinja.Types.BasicBlock
       Hinja.Types.ClassyFields
-      Hinja.Types.CleanMLIL
       Hinja.Types.Function
       Hinja.Types.MLIL
       Hinja.Types.MLILOps
@@ -72,7 +70,7 @@ library
       binaryninjacore binaryninjacore
   build-depends:
       attoparsec
-    , base >=4.7 && <5
+    , base
     , casing
     , containers
     , data-binary-ieee754
@@ -108,7 +106,7 @@ test-suite hinja-test
       binaryninjacore binaryninjacore
   build-depends:
       attoparsec
-    , base >=4.7 && <5
+    , base
     , casing
     , containers
     , data-binary-ieee754
