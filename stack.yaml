@@ -1,15 +1,15 @@
-resolver: lts-7.19
-compiler: ghc-8.0.1
+resolver: lts-13.24
+compiler: ghc-8.6.5
 
 packages:
   - .
   - ../hinja
 
-extra-deps:
-  - envy-1.5.1.0@sha256:a00910ebf461ec36ff6b7b01711bffe09cee062b7515c4580c466002590283a2
-  - lens-4.17
-  - profunctors-5.3@sha256:ce641b72fd014b1f7b42a438f8c0360cb93fd277c7b843b7ef94a7c083c31ded,2017
-  - protolude-0.2.1
-  - th-abstraction-0.2.11.0@sha256:5c286870277705796887d0cbfa48a6aa5e0f206152592a54fbc550d8ce0c5ab5,1827
-  - casing-0.1.4.0@sha256:a1ea21789906302930300b68ffd40373bc731e9254b43d1f35e8ba7368b2acce,1029
-  - pretty-simple-2.2.0.1@sha256:bc56d0b124fa076b9c4c12954ea69d3e706656bddaa98f4a5e79dd127f9e5926,3898
+# extra-deps:
+#   - envy-1.5.1.0@sha256:a00910ebf461ec36ff6b7b01711bffe09cee062b7515c4580c466002590283a2
+#   - lens-4.17
+#   - profunctors-5.3@sha256:ce641b72fd014b1f7b42a438f8c0360cb93fd277c7b843b7ef94a7c083c31ded,2017
+#   - protolude-0.2.1
+#   - th-abstraction-0.2.11.0@sha256:5c286870277705796887d0cbfa48a6aa5e0f206152592a54fbc550d8ce0c5ab5,1827
+#   - casing-0.1.4.0@sha256:a1ea21789906302930300b68ffd40373bc731e9254b43d1f35e8ba7368b2acce,1029
+#   - pretty-simple-2.2.0.1@sha256:bc56d0b124fa076b9c4c12954ea69d3e706656bddaa98f4a5e79dd127f9e5926,3898

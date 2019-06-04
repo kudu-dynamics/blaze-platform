@@ -82,6 +82,3 @@ pshow = PP.pShowOpt ppOptions
 pprint :: Show a => a -> IO ()
 pprint = PP.pPrintOpt ppOptions
 
-fromRight :: Either e a -> a
-fromRight (Right x) = x
-fromRight (Left _) = P.error "You called fromRight on a Left"
