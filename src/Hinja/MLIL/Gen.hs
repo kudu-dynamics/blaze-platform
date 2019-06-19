@@ -6,6 +6,7 @@ import qualified Prelude as P
 import qualified Data.Text as Text
 import qualified Text.Casing as Casing
 import qualified Data.Char as Char
+import qualified Data.Map as Map
 import qualified Hinja.Types.Printer as Printer
 import Hinja.Types.Printer (Printer, pr, indent)
 import qualified Data.Text.IO as TextIO
@@ -63,6 +64,9 @@ operatorNameToRecordName = Text.replace "Ssa" "SSA"
   . (<>"Op") . Text.pack
   . capFirst . Casing.toCamel . Casing.dropPrefix . Casing.fromSnake
   . Text.unpack
+
+operatorRecordList :: [Text]
+operatorRecordList = operatorNameToRecordName . fst <$> statementsData
 
 printOperationUnionType :: [(Text, [(Text, Text)])] -> Printer ()
 printOperationUnionType (firstOp:moreOps) = do
