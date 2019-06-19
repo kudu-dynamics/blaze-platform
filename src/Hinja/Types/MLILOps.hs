@@ -201,8 +201,6 @@ data Operation expr
     | MEM_PHI (MemPhiOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-
-
 data NopOp expr = NopOp
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 

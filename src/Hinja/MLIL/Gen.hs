@@ -44,9 +44,19 @@ capFirst :: String -> String
 capFirst "" = ""
 capFirst (x:xs) = Char.toUpper x : xs
 
+capFirstText :: Text -> Text
+capFirstText = Text.pack . capFirst . Text.unpack
+
+
 operatorNameToConstructorName :: Text -> Text
 operatorNameToConstructorName =
   Text.pack . Casing.toScreamingSnake . Casing.dropPrefix . Casing.fromSnake . Text.unpack
+
+operatorNameToPrefixName :: Text -> Text
+operatorNameToPrefixName = Text.replace "Ssa" "SSA"
+  . (<>"Op") . Text.pack
+  . Casing.toCamel . Casing.dropPrefix . Casing.fromSnake
+  . Text.unpack
 
 operatorNameToRecordName :: Text -> Text
 operatorNameToRecordName = Text.replace "Ssa" "SSA"
@@ -70,7 +80,7 @@ printOperationUnionType (firstOp:moreOps) = do
 printOperationUnionType _ = P.error "printOperationUnionType: expecting non-empty list"
     
 printOpRecordDerive :: Text -> Printer ()
-printOpRecordDerive nm = pr $ "$(makeFieldsNoPrefix ''"
+printOpRecordDerive nm = pr $ "$(makeFields ''"
   <> operatorNameToRecordName nm <> ")"
 
 printOpRecord :: (Text, [(Text, Text)]) -> Printer ()
@@ -79,15 +89,16 @@ printOpRecord (mlilName, xs) = do
   indent $ case xs of
     [] -> pr derivingClause
     ((argName, argType):args) -> do
-      pr $ "{ _" <> argName <> " :: " <> opTypeType argType
+      pr $ "{ _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
       printRestArgs args
   where
     printRestArgs [] = pr $ "} " <> derivingClause
     printRestArgs ((argName, argType):args) = do
-      pr $ ", _" <> argName <> " :: " <> opTypeType argType
+      pr $ ", _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
       printRestArgs args
     derivingClause = "deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)"
     rname = operatorNameToRecordName mlilName
+    pname = operatorNameToPrefixName mlilName
 
 ---
 printOpUnion :: Printer ()
