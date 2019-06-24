@@ -6,10 +6,180 @@ module Haze.Types.Pil
 
 import Haze.Prelude hiding (Symbol, Type)
 
-import Hinja.MLIL as Exports hiding ( Operation(..)
-                                    , Expression(Expression)
-                                    , CallOp(CallOp)
-                                    )
+import Hinja.MLIL as Exports ( AdcOp
+                             , AddOp
+                             , AddOverflowOp
+                             , AddressOfFieldOp
+                             , AddressOfOp
+                             , AndOp
+                             , AsrOp
+                             , BoolToIntOp
+                             , BpOp
+                             , CallOutputOp
+                             , CallOutputSSAOp
+                             , CallParamOp
+                             , CallParamSSAOp
+                             , CallSSAOp
+                             , CallUntypedOp
+                             , CallUntypedSSAOp
+                             , CeilOp
+                             , CmpEOp
+                             , CmpNeOp
+                             , CmpSgeOp
+                             , CmpSgtOp
+                             , CmpSleOp
+                             , CmpSltOp
+                             , CmpUgeOp
+                             , CmpUgtOp
+                             , CmpUleOp
+                             , CmpUltOp
+                             , ConstOp
+                             , ConstPtrOp
+                             , DivsDpOp
+                             , DivsOp
+                             , DivuDpOp
+                             , DivuOp
+                             , ExternPtrOp
+                             , FabsOp
+                             , FaddOp
+                             , FcmpEOp
+                             , FcmpGeOp
+                             , FcmpGtOp
+                             , FcmpLeOp
+                             , FcmpLtOp
+                             , FcmpNeOp
+                             , FcmpOOp
+                             , FcmpUoOp
+                             , FdivOp
+                             , FloatConstOp
+                             , FloatConvOp
+                             , FloatToIntOp
+                             , FloorOp
+                             , FmulOp
+                             , FnegOp
+                             , FreeVarSlotOp
+                             , FreeVarSlotSSAOp
+                             , FsqrtOp
+                             , FsubOp
+                             , FtruncOp
+                             , GotoOp
+                             , IfOp
+                             , ImportOp
+                             , IntToFloatOp
+                             , IntrinsicOp
+                             , IntrinsicSSAOp
+                             , JumpOp
+                             , JumpToOp
+                             , LoadOp
+                             , LoadSSAOp
+                             , LoadStructOp
+                             , LoadStructSSAOp
+                             , LowPartOp
+                             , LslOp
+                             , LsrOp
+                             , MemPhiOp
+                             , ModsDpOp
+                             , ModsOp
+                             , ModuDpOp
+                             , ModuOp
+                             , MulOp
+                             , MulsDpOp
+                             , MuluDpOp
+                             , NegOp
+                             , NoretOp
+                             , NotOp
+                             , OrOp
+                             , RetHintOp
+                             , RetOp
+                             , RlcOp
+                             , RolOp
+                             , RorOp
+                             , RoundToIntOp
+                             , RrcOp
+                             , SbbOp
+                             , SetVarAliasedFieldOp
+                             , SetVarAliasedOp
+                             , SetVarFieldOp
+                             , SetVarOp
+                             , SetVarSSAFieldOp
+                             , SetVarSSAOp
+                             , SetVarSplitOp
+                             , SetVarSplitSSAOp
+                             , StoreStructOp
+                             , StoreStructSSAOp
+                             , SubOp
+                             , SxOp
+                             , SyscallOp
+                             , SyscallSSAOp
+                             , SyscallUntypedOp
+                             , SyscallUntypedSSAOp
+                             , TailcallOp
+                             , TailcallSSAOp
+                             , TailcallUntypedOp
+                             , TailcallUntypedSSAOp
+                             , TestBitOp
+                             , TrapOp
+                             , UndefOp
+                             , UnimplOp
+                             , VarAliasedFieldOp
+                             , VarAliasedOp
+                             , VarFieldOp
+                             , VarOp
+                             , VarPhiOp
+                             , VarSSAFieldOp
+                             , VarSSAOp
+                             , VarSplitOp
+                             , VarSplitSSAOp
+                             , XorOp
+                             , ZxOp
+                             , OperationSize
+                             , SSAVariable
+                             , HasSize
+                             , HasOp
+                             , HasCondition
+                             , HasDest
+                             , HasFunc
+                             , HasLeft
+                             , HasOffset
+                             , HasParams
+                             , HasRight
+                             , HasVar
+                             , HasSrc
+                             , index
+                             , func
+                             , operation
+                             , sourceOperand
+                             , size
+                             , operands
+                             , address
+                             , exprIndex
+                             , opData
+                             , op
+                             , var
+                             , version
+                             , dest
+                             , src
+                             , offset
+                             , high
+                             , low
+                             , constant
+                             , left
+                             , right
+                             , carry
+                             , targets
+                             , params
+                             , output
+                             , stack
+                             , condition
+                             , true
+                             , false
+                             , vector
+                             , intrinsic
+                             , prev
+                             , src_memory
+                             , dest_memory
+                             )
+
 import Hinja.Function (Function)
 
 newtype CtxIndex = CtxIndex Int
@@ -28,6 +198,12 @@ data SSAVariableRef = SSAVariableRef
   { _var :: SSAVariable
   , _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
+  } deriving (Eq, Ord, Show, Generic)
+
+--- maybe should use higher kinded types for this
+data MExpression = MExpression
+  { _size :: OperationSize
+  , _op :: Maybe (ExprOp MExpression)
   } deriving (Eq, Ord, Show, Generic)
 
 data Expression = Expression
@@ -123,7 +299,7 @@ data ExprOp expr
     | ZX (ZxOp expr)
 
     | StrCmp (StrCmpOp expr)
-    | StrNCmp (StrNCmpOp expr)    
+    | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
@@ -154,6 +330,41 @@ data MemCmpOp expr = MemCmpOp
 data ConstStrOp expr = ConstStrOp
     { _value :: Text
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+-- -----------------------
+-- --- stmts
+
+-- data StmtOp expr
+--     = Def (DefOp expr)
+--     | Store (StoreOp expr)
+--     | Constraint (ConstraintOp expr)
+--     | Annotation Text
+--     | UnimplInstr
+--     | UnimplMem (UnimplMemOp expr)
+--     | Undef
+--     | Nop
+
+-- data DefOp expr = DefOp
+--     { _var :: PilVar
+--     , _value :: expr
+--     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+-- data StoreOp expr = StoreOp
+--     { _addr :: PilVar
+--     , _value :: expr
+--     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+-- data ConstraintOp expr = ConstraintOp
+--     { _condition :: expr
+--     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+-- data UnimplMemOp expr = UnimplMemOp
+--     { _src :: expr
+--     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+
+-- convertInstr :: MLIL.Instruction expr -> 
+
 
 -----------------------
 --- types
@@ -241,30 +452,37 @@ newtype Storage = Storage
 ---- Statements
 
 data DefOp expr = DefOp
-  { _var :: PilVar
-  , _value :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    { _var :: PilVar
+    , _value :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-newtype ConstraintOp expr = ConstraintOp
-  { _condition :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+data StoreOp expr = StoreOp
+    { _addr :: PilVar
+    , _value :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-newtype AnnotationOp expr = AnnotationOp
-  { _comment :: Text
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+data ConstraintOp expr = ConstraintOp
+    { _condition :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-data Stmt expr = Def (DefOp expr)
-               | Constraint (ConstraintOp expr)
-               | Store (StoreOp expr)
-               | UnimplInstr
-               | Undef
-               | Nop
-               | Annotation (AnnotationOp expr)
-               deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+data UnimplMemOp expr = UnimplMemOp
+    { _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-$(makeFieldsNoPrefix ''PilVar)
+data Statement expr = Def (DefOp expr)
+                    | Constraint (ConstraintOp expr)
+                    | Store (StoreOp expr)
+                    | UnimplInstr
+                    | UnimplMem
+                    | Undef
+                    | Nop
+                    | Annotation Text
+                    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
 $(makeFieldsNoPrefix ''SSAVariableRef)
+$(makeFieldsNoPrefix ''PilVar)
 $(makeFieldsNoPrefix ''Expression)
+$(makeFieldsNoPrefix ''MExpression)
 $(makeFieldsNoPrefix ''CallOp)
 $(makeFieldsNoPrefix ''StrCmpOp)
 $(makeFieldsNoPrefix ''StrNCmpOp)
@@ -281,8 +499,10 @@ $(makeFieldsNoPrefix ''StructType)
 $(makeFieldsNoPrefix ''Ctx)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
+
 $(makeFieldsNoPrefix ''DefOp)
+$(makeFieldsNoPrefix ''StoreOp)
+$(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
-$(makeFieldsNoPrefix ''AnnotationOp)
 
 

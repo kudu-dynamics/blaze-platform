@@ -1,7 +1,6 @@
 module Haze.Prelude
   ( module Exports
   , F
-  , fromRight
   , liftEitherIO
   , liftMaybeIO
   , liftEitherM
@@ -17,7 +16,6 @@ import           Prelude         as Exports        ( String
                                                    , id
                                                    , (!!)
                                                    )
-import qualified Prelude         as P
 
 import qualified Data.Text.Lazy as L (Text)
 

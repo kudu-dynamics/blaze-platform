@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2ad01b85cad07a16eb0c9508dae4fb5525662cdbc348d298da0bba2318feff03
+-- hash: 651c9e59c6d83deffde51430ebf67d949780a87a705c5466b9de06f4997b400f
 
 name:           haze
 version:        0.1.0.0
@@ -30,12 +30,15 @@ library
       Haze.Prelude
   other-modules:
       Haze.Path
+      Haze.Pil
+      Haze.Reduction
       Haze.Types.Bare
       Haze.Types.Function
       Haze.Types.Jelly
       Haze.Types.Mut
       Haze.Types.Path
       Haze.Types.Pil
+      Haze.Types.Pil.Types
       Haze.Types.Spice
       Paths_haze
   hs-source-dirs:
@@ -58,6 +61,7 @@ library
     , pretty-simple
     , protolude
     , raw-strings-qq
+    , recursion-schemes
     , stm
     , template-haskell
     , text

@@ -14,6 +14,17 @@ data Expression = Expression
   , op :: ExprOp (Expression)
   } deriving (Eq, Ord, Show)
 
+data SExpression expr = SExpression
+  { lozo :: Int
+  , pop :: ExprOp expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+
+
+data BiffExpression = BiffExpression
+  { biffgeist :: Text
+  , bop :: ExprOp BiffExpression
+  } deriving (Eq, Ord, Show)
+
 data Op expr = Op
   { masterOfPain :: expr
   , hisName :: Text }
@@ -30,6 +41,13 @@ data ExprOp expr
   | BADZONE
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
+ex1 :: ExprOp Expression
+ex1 = PHIL (PhilOp (Expression 4 jack) 84)
+  where
+    jack =  (Op (Expression 5 BADZONE) "Billy")
+
 countSizes :: ExprOp Expression -> Int
 countSizes = foldr (\ x acc -> size x + countSizes (op x) + acc) 0
 
+changeToBiff :: Expression -> BiffExpression
+changeToBiff e = BiffExpression (show $ size e) (changeToBiff <$> op e)
