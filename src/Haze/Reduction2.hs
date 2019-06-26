@@ -24,7 +24,8 @@ data Expr
 
 makeBaseFunctor ''Expr
 
-emap :: (Expr -> Expr) -> Expr -> Expr
+--emap :: (Expr -> Expr) -> Expr -> Expr
+emap :: (Corecursive a, Recursive a) => (a -> a) -> a -> a
 emap f expr = embed $ fmap (emap f) (project (f expr))
 
 expr0 :: Expr
