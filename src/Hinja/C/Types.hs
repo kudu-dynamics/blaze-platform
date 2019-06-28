@@ -23,10 +23,10 @@ newtype Address = Address Word64
 newtype BNPointer = BNPointer (ForeignPtr BNPointer)
 
 newtype InstructionIndex x = InstructionIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable)
 
 newtype ExpressionIndex x = ExpressionIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable)
 
 coerceInstructionIndex :: InstructionIndex a -> InstructionIndex b
 coerceInstructionIndex (InstructionIndex x) = InstructionIndex x
