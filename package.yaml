@@ -21,6 +21,7 @@ description:         Please see the readme
 
 dependencies:
   - attoparsec
+  - algebraic-graphs
   - base >= 4.7 && < 5
   - casing
   - containers

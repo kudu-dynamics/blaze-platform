@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 651c9e59c6d83deffde51430ebf67d949780a87a705c5466b9de06f4997b400f
+-- hash: 2181a014163381ab173c65d7507140a0b86d85d30682c8ed1673e68b7b7f668a
 
 name:           haze
 version:        0.1.0.0
@@ -32,6 +32,7 @@ library
       Haze.Path
       Haze.Pil
       Haze.Reduction
+      Haze.Reduction2
       Haze.Types.Bare
       Haze.Types.Function
       Haze.Types.Jelly
@@ -40,6 +41,7 @@ library
       Haze.Types.Pil
       Haze.Types.Pil.Types
       Haze.Types.Spice
+      Haze.Util.Graph
       Paths_haze
   hs-source-dirs:
       src
@@ -48,7 +50,8 @@ library
   include-dirs:
       src
   build-depends:
-      attoparsec
+      algebraic-graphs
+    , attoparsec
     , base >=4.7 && <5
     , casing
     , containers
