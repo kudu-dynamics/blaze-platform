@@ -41,6 +41,8 @@ import Hinja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNCreateBinaryViewOfType as createBinaryViewOfType {withPtr* `BNBinaryViewType', withPtr* `BNBinaryView'} -> `BNBinaryView' safePtr* #}
 
+{#fun BNGetDefaultPlatform as getDefaultPlatform {withPtr* `BNBinaryView'} -> `BNPlatform' safePtr* #}
+
 {#fun BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
 
 {#fun BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
@@ -71,6 +73,10 @@ import Hinja.Types.BasicBlock (BNBasicBlockEdge)
 {#fun BNGetFunctionMediumLevelIL as getFunctionMediumLevelIL {withPtr* `BNFunction'} -> `BNMediumLevelILFunction' safePtr* #}
 
 {#fun BNGetMediumLevelILSSAForm as getMediumLevelILSSAForm {withPtr* `BNMediumLevelILFunction'} -> `BNMediumLevelILFunction' safePtr* #}
+
+{#fun BNGetAnalysisFunction as getGetAnalysisFunction {withPtr* `BNBinaryView', withPtr* `BNPlatform', fromIntegral `Address'} -> `Maybe BNFunction' nilable* #}
+
+
 --------- symbols
 
 {#fun BNGetSymbolRawName as getSymbolRawName {withPtr* `BNSymbol'} -> `String' #}

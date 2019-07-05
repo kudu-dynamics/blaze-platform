@@ -6,11 +6,13 @@ module Hinja.Function
   , getLLILSSAFunction
   , getMLILFunction
   , getMLILSSAFunction
+  , getFunctionStartingAt
   ) where
 
 import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
+import Hinja.C.Types (Address)
 import Hinja.C.Pointers
 import Hinja.Types.Function as Exports
 
@@ -67,3 +69,8 @@ getMLILSSAFunction fn = MLILSSAFunction
   <$> (BN.getFunctionMediumLevelIL (fn ^. handle)  >>= BN.getMediumLevelILSSAForm)
   <*> pure fn
 
+getFunctionStartingAt :: BNBinaryView -> Maybe BNPlatform -> Address -> IO (Maybe Function)
+getFunctionStartingAt bv mplat addr = do
+  plat <- maybe (BN.getDefaultPlatform bv) return $ mplat
+  mfn <- BN.getGetAnalysisFunction bv plat addr
+  maybe (return Nothing) (fmap Just . createFunction) mfn
