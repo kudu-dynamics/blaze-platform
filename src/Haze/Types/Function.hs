@@ -27,29 +27,32 @@ data CallInstruction = CallInstruction
   { _address :: Address
   , _index :: InstructionIndex F
   , _size :: OperationSize
+  , _dest :: Maybe (MLIL.Expression F)
   , _op :: CallOperation
   } deriving (Eq, Ord, Show)
 
 toCallInstruction :: MLIL.Instruction F -> Maybe CallInstruction
 toCallInstruction instr = toCallInstr <$> case instr ^. MLIL.op of
-  MLIL.CALL                 op -> Just $ CALL op
-  MLIL.CALL_SSA             op -> Just $ CALL_SSA op
-  MLIL.CALL_UNTYPED         op -> Just $ CALL_UNTYPED op
-  MLIL.CALL_UNTYPED_SSA     op -> Just $ CALL_UNTYPED_SSA op
-  MLIL.TAILCALL             op -> Just $ TAILCALL op
-  MLIL.TAILCALL_SSA         op -> Just $ TAILCALL_SSA op
-  MLIL.TAILCALL_UNTYPED     op -> Just $ TAILCALL_UNTYPED op
-  MLIL.TAILCALL_UNTYPED_SSA op -> Just $ TAILCALL_UNTYPED_SSA op
-  MLIL.SYSCALL              op -> Just $ SYSCALL op
-  MLIL.SYSCALL_SSA          op -> Just $ SYSCALL_SSA op
-  MLIL.SYSCALL_UNTYPED      op -> Just $ SYSCALL_UNTYPED op
-  MLIL.SYSCALL_UNTYPED_SSA  op -> Just $ SYSCALL_UNTYPED_SSA op
+  MLIL.CALL                 op -> Just $ (Just $ op ^. MLIL.dest, CALL op)
+  MLIL.CALL_SSA             op -> Just $ (Just $ op ^. MLIL.dest, CALL_SSA op)
+  MLIL.CALL_UNTYPED         op -> Just $ (Just $ op ^. MLIL.dest, CALL_UNTYPED op)
+  MLIL.CALL_UNTYPED_SSA     op -> Just $ (Just $ op ^. MLIL.dest, CALL_UNTYPED_SSA op)
+  MLIL.TAILCALL             op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL op)
+  MLIL.TAILCALL_SSA         op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL_SSA op)
+  MLIL.TAILCALL_UNTYPED     op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL_UNTYPED op)
+  MLIL.TAILCALL_UNTYPED_SSA op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL_UNTYPED_SSA op)
+  MLIL.SYSCALL              op -> Just $ (Nothing, SYSCALL op)
+  MLIL.SYSCALL_SSA          op -> Just $ (Nothing, SYSCALL_SSA op)
+  MLIL.SYSCALL_UNTYPED      op -> Just $ (Nothing, SYSCALL_UNTYPED op)
+  MLIL.SYSCALL_UNTYPED_SSA  op -> Just $ (Nothing, SYSCALL_UNTYPED_SSA op)
   _                            -> Nothing
   where
-    toCallInstr = CallInstruction
+    toCallInstr (mdest', op') = CallInstruction
       (instr ^. MLIL.address)
       (instr ^. MLIL.index)
       (instr ^. MLIL.size)
+      mdest'
+      op'
   
 
 data DestCollOpt = DestCollAddr Address

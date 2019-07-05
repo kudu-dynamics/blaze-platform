@@ -21,22 +21,26 @@ data SubBlockNode = SubBlockNode
   , _blockStart :: InstructionIndex F
   , _start :: InstructionIndex F
   , _end :: InstructionIndex F
+  , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
 data CallNode = CallNode
   { _func :: Function
   , _callSite :: CallSite
+  , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
 data RetNode = RetNode
   { _func :: Function
   , _callSite :: CallSite
+  , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
 data AbstractPathNode = AbstractPathNode
   { _func :: Function
   , _startNode :: Node
   , _endNode :: Node
+  , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
 

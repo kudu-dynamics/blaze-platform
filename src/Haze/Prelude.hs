@@ -19,8 +19,10 @@ import           Prelude         as Exports        ( String
 
 import qualified Data.Text.Lazy as L (Text)
 
+import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
 import Data.Data as Exports
+import Data.UUID as Exports (UUID)
 --import Data.Typeable as Exports
 import           Control.Lens    as Exports        ( (%~)
                                                    , (.~)
@@ -43,9 +45,9 @@ import           Control.Lens    as Exports        ( (%~)
 import           Data.Maybe      as Exports        ( fromJust )
 import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
-import Hinja.Function (MLILFunction)
+import Hinja.Function (MLILSSAFunction)
 
-type F = MLILFunction
+type F = MLILSSAFunction
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

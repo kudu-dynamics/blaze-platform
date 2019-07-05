@@ -23,6 +23,7 @@ dependencies:
   - attoparsec
   - algebraic-graphs
   - base >= 4.7 && < 5
+  - bimap
   - casing
   - containers
   - data-binary-ieee754
@@ -33,12 +34,15 @@ dependencies:
   - newtype
   - pretty-simple
   - protolude
+  - random
   - raw-strings-qq
   - recursion-schemes
+  - sbv >= 8.0
   - stm
   - template-haskell
   - text
   - transformers
+  - uuid
 
 default-extensions:
   - OverloadedStrings
@@ -58,6 +62,7 @@ default-extensions:
   - MultiParamTypeClasses
   - FunctionalDependencies
   - StandaloneDeriving
+  - TypeFamilies
   - GADTs
   
 library:

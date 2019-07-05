@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2181a014163381ab173c65d7507140a0b86d85d30682c8ed1673e68b7b7f668a
+-- hash: fbb329b4496ef999b6291cb599313efe7fa4e76bf477d0431ae34ccc28b284ed
 
 name:           haze
 version:        0.1.0.0
@@ -29,12 +29,17 @@ library
   exposed-modules:
       Haze.Prelude
   other-modules:
+      Haze.Cfg
+      Haze.Function
+      Haze.Graph.Alga
       Haze.Path
       Haze.Pil
       Haze.Reduction
       Haze.Reduction2
+      Haze.Solver
       Haze.Types.Bare
       Haze.Types.Function
+      Haze.Types.Graph
       Haze.Types.Jelly
       Haze.Types.Mut
       Haze.Types.Path
@@ -45,7 +50,7 @@ library
       Paths_haze
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving GADTs
+  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving TypeFamilies GADTs
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
@@ -53,6 +58,7 @@ library
       algebraic-graphs
     , attoparsec
     , base >=4.7 && <5
+    , bimap
     , casing
     , containers
     , data-binary-ieee754
@@ -63,10 +69,13 @@ library
     , newtype
     , pretty-simple
     , protolude
+    , random
     , raw-strings-qq
     , recursion-schemes
+    , sbv >=8.0
     , stm
     , template-haskell
     , text
     , transformers
+    , uuid
   default-language: Haskell2010
