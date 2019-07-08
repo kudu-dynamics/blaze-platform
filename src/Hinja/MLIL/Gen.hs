@@ -7,7 +7,8 @@ import qualified Data.Text as Text
 import qualified Text.Casing as Casing
 import qualified Data.Char as Char
 import qualified Hinja.Types.Printer as Printer
-import Hinja.Types.Printer (Printer, pr, indent)
+import qualified Data.Set as Set
+import Hinja.Types.Printer (Printer, pr, indent, br)
 import qualified Data.Text.IO as TextIO
 
 opTypeType :: Text -> Text
@@ -115,15 +116,17 @@ printDerives = mapM_ printOpRecordDerive (fst <$> statementsData)
 
 printToFile :: FilePath -> IO ()
 printToFile fp = TextIO.writeFile fp . Printer.toText $ do
+  printRecordImports
+  divide
   printOpUnion
   divide
-  printOpRecords
-  divide
+  -- printOpRecords
+  -- divide
   printDerives
   divide
   printBuilderCases
   where
-    divide = pr "" >> pr "" >> pr ""
+    divide = br >> br >> br
 
 printBuilderCase :: (Text, [(Text, Text)]) -> Printer ()
 printBuilderCase (opName, []) = pr $
@@ -273,6 +276,69 @@ statementsData =
   ]
 
 
+---------------
 
+printRecordImport :: Text -> Printer ()
+printRecordImport rname = do
+  pr $ "import Hinja.Types.MLIL.Op." <> rname <> " as Exports ( " <> rname <> "(" <> rname <> ") )"
 
+printRecordImports :: Printer ()
+printRecordImports = mapM_ (printRecordImport . operatorNameToRecordName . fst) statementsData
 
+printModuleHeader :: Text -> Printer ()
+printModuleHeader name = do
+  pr $ "module Hinja.Types.MLIL.Op." <> name <> " where"
+  br
+  pr "import Hinja.Prelude"
+
+printModuleImports :: Set Text
+                   -> Printer ()
+printModuleImports = mapM_ (maybe (return ()) pr . g . f) . Set.toList
+  where
+    f :: Text -> Text
+    f "var" = "Variable"
+    f "var_list" = "Variable"
+    f "var_ssa" = "SSAVariable"
+    f "var_ssa_list" = "SSAVariable"
+    f "var_ssa_dest_and_src" = "SSAVariableDestAndSrc"
+    f "intrinsic" = "Intrinsic"
+    f _ = ""
+
+    g :: Text -> Maybe Text
+    g "Variable" = Just "import Hinja.Types.Variable (Variable)"
+    g "SSAVariable" = Just "import Hinja.Types.MLIL.Common (SSAVariable)"
+    g "SSAVariableDestAndSrc" = Just "import Hinja.Types.MLIL.Common (SSAVariableDestAndSrc)"
+    g "Intrinsic" = Just "import Hinja.Types.MLIL.Common (Intrinsic)"
+    g _ = Nothing
+
+printRecordModule :: (Text, [(Text, Text)]) -> Printer ()
+printRecordModule (mlilName, xs) = do
+  printModuleHeader rname
+  br
+  printModuleImports . Set.fromList . fmap snd $ xs
+  br
+  pr $ "data " <> rname <> " expr = " <> rname
+  indent $ case xs of
+    [] -> pr derivingClause
+    ((argName, argType):args) -> do
+      pr $ "{ _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
+      printRestArgs args
+  br
+  where
+    printRestArgs [] = pr $ "} " <> derivingClause
+    printRestArgs ((argName, argType):args) = do
+      pr $ ", _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
+      printRestArgs args
+    derivingClause = "deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)"
+    rname = operatorNameToRecordName mlilName
+    pname = operatorNameToPrefixName mlilName
+
+writeRecordModule :: Text -> (Text, [(Text, Text)]) -> IO ()
+writeRecordModule prefix v@(mlilName, _) = do
+  TextIO.writeFile (Text.unpack $ prefix <> "/" <> rname <> ".hs")
+  $ Printer.toText $ printRecordModule v
+  where
+    rname = operatorNameToRecordName mlilName
+
+writeRecords :: Text -> IO ()
+writeRecords prefix = mapM_ (writeRecordModule prefix) statementsData

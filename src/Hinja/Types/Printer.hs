@@ -29,6 +29,9 @@ toText (Printer m) = let s = execState m (PrinterState 0 []) in
 pr :: Text -> Printer ()
 pr = printLn
 
+br :: Printer ()
+br = pr ""
+
 printLn :: Text -> Printer ()
 printLn t = do
   i <- indentLevel <$> get

@@ -27,7 +27,6 @@ import           Hinja.Function                  ( Function
                                                  )
 import qualified Hinja.Function       as Func
 import           Hinja.Types.MLIL     as Exports
-import           Hinja.Types.MLILOps  as Exports
 import           Hinja.Types.Variable            ( Variable )
 import qualified Hinja.Variable       as Var
 

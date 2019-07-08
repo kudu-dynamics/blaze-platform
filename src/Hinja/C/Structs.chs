@@ -10,6 +10,7 @@ import Foreign.Marshal.Array
 import Hinja.C.Util
 import Hinja.Types.MLIL
 import Hinja.Types.Variable
+import qualified Hinja.Types.Variable as Variable
 import Hinja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
 
 #include <binaryninjacore.h>
@@ -41,7 +42,7 @@ instance Storable BNVariable where
     <*> liftM fromIntegral ({#get BNVariable->storage #} p)
   poke p x = do
      {#set BNVariable->type #} p (fromIntegral . fromEnum $ x ^. sourceType)
-     {#set BNVariable->index #} p (fromIntegral $ x ^. index)
+     {#set BNVariable->index #} p (fromIntegral $ x ^. Variable.index)
      {#set BNVariable->storage #} p (fromIntegral $ x ^. storage)
 
 instance Storable BNTypeWithConfidence where
