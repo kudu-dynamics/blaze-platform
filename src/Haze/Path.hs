@@ -4,7 +4,6 @@ module Haze.Path where
 
 import           Haze.Prelude
 
-import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Data.Set                   as Set
 import           Haze.Function                      ( createCallSite )
 import qualified Haze.Function as Function
@@ -13,9 +12,7 @@ import           Haze.Types.Function                ( CallInstruction
                                                     , CallSite
                                                     , toCallInstruction
                                                     )
-import           Haze.Types.Graph                   ( BasicGraph
-                                                    , EdgeGraph
-                                                    , Graph
+import           Haze.Types.Graph                   ( Graph
                                                     )
 import qualified Haze.Types.Graph           as G
 import           Haze.Types.Path
@@ -36,6 +33,10 @@ import qualified Hinja.Function as HFunction
 import qualified Hinja.MLIL                 as MLIL
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
+
+newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
+  deriving (Graph () Node, Path)
+
 
 -- constructBasicBlockGraph :: (Ord t, BasicBlockFunction t)
 --                          => t -> IO (BasicBlockGraph t)
@@ -144,6 +145,17 @@ createFuncGraph bv func = undefined
 -- create edges for nodes in each bb
 -- create edges of last Node -> first Node for each bb (don't forget about conditionals!)
 
+--- OOOOr, make an `expandNode` function
+-- insertSubgraph :: Graph e n -> n -> Graph e n -> Graph e n
+-- actually, you can only insert a path into a graph,
+-- because a path has one input and one output
+
+
+-- should represent paths as list-like structures with these features:
+-- succ node, pred node, expand node, fromList, toList
+-- need fast lookup
+-- could use Graph underneath, but restrict access functions
+-- should specify order in type somehow, ie. make sure Call->Ret->APN doesn't happen
 
 
 

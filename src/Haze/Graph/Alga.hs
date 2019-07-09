@@ -3,7 +3,7 @@ module Haze.Graph.Alga where
 import Haze.Prelude
 
 import qualified Algebra.Graph.AdjacencyMap as G
---import qualified Data.Set as Set
+import qualified Data.Set as Set
 import qualified Data.Bimap as Bimap
 import Data.Bimap (Bimap)
 import Haze.Types.Graph
@@ -13,6 +13,28 @@ data AlgaGraph e a = AlgaGraph
   , edgeMap :: Bimap e (a, a)
   }
 
+instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
+  empty = AlgaGraph G.empty Bimap.empty
+  fromNode = flip AlgaGraph Bimap.empty . G.vertex
+  fromEdges ledges = AlgaGraph
+    { adjacencyMap = G.edges . map snd $ ledges
+    , edgeMap = Bimap.fromList ledges
+    }
+  succs n g = G.postSet n . adjacencyMap $ g
+  preds n g = G.preSet n . adjacencyMap $ g
+  nodes = Set.fromList . G.vertexList . adjacencyMap
+  getEdgeLabel edge = Bimap.lookupR edge . edgeMap
+  setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
+  removeEdge e@(n1, n2) g = AlgaGraph
+    { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
+    , edgeMap = Bimap.deleteR e $ edgeMap g
+    }
+  removeNode n g = AlgaGraph
+    { adjacencyMap = G.removeVertex n $ adjacencyMap g
+    , edgeMap = Bimap.filter (\_ (n1, n2) -> n1 == n || n2 == n) $ edgeMap g
+    }
+
+    
 -- instance (Ord a, Ord e) => Graph (AlgaGraph e a) e a where
 --   fromEdges ledges = AlgaGraph
 --     { adjacencyMap = G.edges . map snd $ ledges
@@ -28,6 +50,9 @@ data AlgaGraph e a = AlgaGraph
 --   setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
 
 
+
+
+  
 -- instance (Ord a, Ord e) => Graph (AlgaGraph e a) where
 --   type EdgeLabel (AlgaGraph e a) = e
 --   type Node (AlgaGraph e a) = a
@@ -44,20 +69,24 @@ data AlgaGraph e a = AlgaGraph
 --   getEdgeLabel edge = Bimap.lookupR edge . edgeMap
 
 --   setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
+
+-- instance EmptyGraph (AlgaGraph e n) where
+--   empty = AlgaGraph G.empty Bimap.empty
   
-instance Ord n => BasicGraph n (AlgaGraph e n) where
-  succs n g = G.postSet n . adjacencyMap $ g
+-- instance Ord n => BasicGraph n (AlgaGraph e n) where
+--   fromNode = flip AlgaGraph Bimap.empty . G.vertex
+--   succs n g = G.postSet n . adjacencyMap $ g
 
-  preds n g = G.preSet n . adjacencyMap $ g
+--   preds n g = G.preSet n . adjacencyMap $ g
 
   
-instance (Ord e, Ord n) => EdgeGraph e n (AlgaGraph e n) where
-  fromEdges ledges = AlgaGraph
-    { adjacencyMap = G.edges . map snd $ ledges
-    , edgeMap = Bimap.fromList ledges
-    }
+-- instance (Ord e, Ord n) => EdgeGraph e n (AlgaGraph e n) where
+--   fromEdges ledges = AlgaGraph
+--     { adjacencyMap = G.edges . map snd $ ledges
+--     , edgeMap = Bimap.fromList ledges
+--     }
 
-  getEdgeLabel edge = Bimap.lookupR edge . edgeMap
+--   getEdgeLabel edge = Bimap.lookupR edge . edgeMap
 
-  setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
+--   setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
   
