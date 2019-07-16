@@ -11,7 +11,7 @@ import qualified Haze.Types.Graph as G
 import qualified Data.Set as Set
 import qualified Prelude as P
 
-import Haze.Prelude
+import Haze.Prelude hiding (succ, pred, toList)
 
 class Path p where
   fromList :: [Node] -> p
@@ -26,16 +26,16 @@ newtype PathGraph g = PathGraph g
 
 deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
 
-repeatOnLastUntilEmpty :: (a -> [a]) -> a -> [a]
-repeatOnLastUntilEmpty f a = case f a of
+repeatOnPreviousUntilEmpty :: (a -> [a]) -> a -> [a]
+repeatOnPreviousUntilEmpty f a = case f a of
   [] -> []
-  [x] -> x : repeatOnLastUntilEmpty f x
-  (x:_) -> x : repeatOnLastUntilEmpty f x -- sad! shouldn't happen
+  [x] -> x : repeatOnPreviousUntilEmpty f x
+  (x:_) -> x : repeatOnPreviousUntilEmpty f x -- sad! shouldn't happen
 
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case Set.toList $ G.sources g of
     [] -> []
-    [x] -> repeatOnLastUntilEmpty (Set.toList . flip G.succs g) x
+    [x] -> repeatOnPreviousUntilEmpty (Set.toList . flip G.succs g) x
     _ -> P.error "Path node has multiple sources. Bad!"
 
   fromList [] = G.empty
@@ -62,15 +62,19 @@ instance (Graph () Node g) => Path (PathGraph g) where
     [x] -> Just x
     _ -> P.error "Path has multiple sink nodes. Bad!"
 
-  expandNode apn gpart g = undefined -- maybe g id $ do
-    -- firstN <- firstNode gpart
-    -- lastN <- lastNode gpart
-    -- npred <- pred n g
-    -- nsucc <- succ n g
-    -- let gpart = fromEdges . fmap ((),) $ [(
-    -- G.removeEdge (npred, nsucc) g
-    -- where
-    --   n = AbstractPath apn
+  expandNode apn gpart g = maybe g id $ do
+    firstN <- firstNode gpart
+    lastN <- lastNode gpart
+    npred <- pred n g
+    nsucc <- succ n g
+    let g' = G.removeEdges [(npred, n), (n, nsucc)] g
+        g'' = flip G.addEdges g'
+              . fmap ((),) $ [(npred, firstN), (lastN, nsucc)] <> gpartEdges
+    return g''
+    where
+      gpartList = toList gpart
+      gpartEdges = zip gpartList (drop 1 gpartList)
+      n = AbstractPath apn
 
 -- instance Graph edge node g => Path (PathGraph g) where
 --   fromList :: (Graph () Node g) => [Node] -> PathGraph g

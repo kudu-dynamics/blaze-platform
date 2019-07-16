@@ -2,7 +2,6 @@ module Haze.Types.Graph where
 
 import Haze.Prelude
 
-import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Data.Set as Set
 
 type LEdge label node = (label, (node, node))
@@ -45,6 +44,7 @@ class Graph e n g | g -> e n where
   setEdgeLabel :: e -> (n, n) -> g -> g
   removeEdge :: (n, n) -> g -> g
   removeNode :: n -> g -> g
+  addEdge :: (e, (n, n)) -> g -> g
   -- add node/edges.. maybe overlay
 
 class GraphFunctor g where
@@ -105,3 +105,17 @@ sources g = Set.filter ((== 0) . Set.size . flip preds g) . nodes $ g
 
 sinks :: Graph e n g => g -> Set n
 sinks g = Set.filter ((== 0) . Set.size . flip succs g) . nodes $ g
+
+removeEdges :: Graph e n g => [(n, n)] -> g -> g
+removeEdges = flip $ foldr removeEdge
+
+addEdges :: Graph e n g => [(e, (n, n))] -> g -> g
+addEdges = flip $ foldr addEdge
+
+reverseSpan :: Graph e n g => g -> Int -> n -> [[n]]
+reverseSpan _ 0 node = [[node]]
+reverseSpan g depth node = case Set.toList $ preds node g of
+  [] -> [[node]]
+  xs -> fmap (node:) . concatMap (reverseSpan g (depth - 1)) $ xs
+  
+

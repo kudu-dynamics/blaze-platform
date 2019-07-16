@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Reduction2 where
+module Haze.Reduction2 where
 
 import Haze.Prelude hiding ((:*:))
 import Data.Functor.Foldable

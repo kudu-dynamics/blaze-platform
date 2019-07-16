@@ -33,8 +33,11 @@ instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
     { adjacencyMap = G.removeVertex n $ adjacencyMap g
     , edgeMap = Bimap.filter (\_ (n1, n2) -> n1 == n || n2 == n) $ edgeMap g
     }
+  addEdge (e, (n1, n2)) g = AlgaGraph
+    { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
+    , edgeMap = Bimap.insert e (n1, n2) $ edgeMap g
+    }
 
-    
 -- instance (Ord a, Ord e) => Graph (AlgaGraph e a) e a where
 --   fromEdges ledges = AlgaGraph
 --     { adjacencyMap = G.edges . map snd $ ledges
@@ -89,4 +92,14 @@ instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
 --   getEdgeLabel edge = Bimap.lookupR edge . edgeMap
 
 --   setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
+
+demograph :: AlgaGraph () Char
+demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
+                                     , ('a', 'b')
+                                     , ('a', 'c')
+                                     , ('d', 'c')
+                                     , ('b', 'g')
+                                     , ('b', 'f')
+                                     , ('c', 'e')
+                                     ]
   

@@ -8,34 +8,41 @@ module Haze.Types.Mut where
 -- import qualified Hinja.MLIL as MLIL
 import Haze.Prelude hiding (Ptr)
 
-data Ptr a = Ptr (Expr Int)
-  deriving (Eq, Ord, Show)
+-- data Ptr a = Ptr (Expr Int)
+--   deriving (Eq, Ord, Show)
 
-data Var a = Var Text
-  deriving (Eq, Ord, Show)
+-- data Var a = Var Text
+--   deriving (Eq, Ord, Show)
 
-data Expr a where
-  Int :: Int -> Expr Int
-  String :: String -> Expr String
+-- data Expr a where
+--   Int :: Int -> Expr Int
+--   String :: String -> Expr String
 
-  Add :: Expr Int -> Expr Int -> Expr Int
-  Sub :: Expr Int -> Expr Int -> Expr Int
-  Mul :: Expr Int -> Expr Int -> Expr Int
+--   Add :: Expr Int -> Expr Int -> Expr Int
+--   Sub :: Expr Int -> Expr Int -> Expr Int
+--   Mul :: Expr Int -> Expr Int -> Expr Int
 
-  Equals :: (Eq a) => Expr a -> Expr a -> Expr Bool
-  LessThan :: (Eq a, Ord a) => Expr a -> Expr a -> Expr Bool
+--   Equals :: (Eq a) => Expr a -> Expr a -> Expr Bool
+--   LessThan :: (Eq a, Ord a) => Expr a -> Expr a -> Expr Bool
 
-  Load :: Ptr a -> Expr a
-  VarField :: Var a -> Int -> Expr b
+--   Load :: Ptr a -> Expr a
+--   VarField :: Var a -> Int -> Expr b
 
-deriving instance Eq a => Eq (Expr a)
-deriving instance (Eq a, Ord a) => Ord (Expr a)
-deriving instance (Show a) => Show (Expr a)
+-- deriving instance Eq a => Eq (Expr a)
+-- deriving instance (Eq a, Ord a) => Ord (Expr a)
+-- deriving instance (Show a) => Show (Expr a)
 
-data Stmt where
-  Return :: Expr a -> Stmt
-  Store :: Ptr a -> Expr a -> Stmt
-  Def :: Var a -> Expr a -> Stmt
+-- data Stmt where
+--   Return :: Expr a -> Stmt
+--   Store :: Ptr a -> Expr a -> Stmt
+--   Def :: Var a -> Expr a -> Stmt
+
+
+
+
+
+
+
 --  IfThenElse :: Expr Bool -> [Stmt] -> [Stmt] -> Stmt
 
 -- progr :: [Stmt]
