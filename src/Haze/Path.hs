@@ -26,11 +26,13 @@ import           Hinja.Core                         ( BNBinaryView
                                                     , InstructionIndex
                                                     )
 import qualified Hinja.Core                 as H
+import Hinja.C.Enums (BNBranchType(TrueBranch, FalseBranch))
 import           Hinja.Function                     ( Function
                                                     , MLILFunction
                                                     )
 import qualified Hinja.Function as HFunction
 import qualified Hinja.MLIL                 as MLIL
+import qualified Data.Map as Map
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
@@ -73,21 +75,22 @@ newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
 --       return (x, y)
 
 
-constructBasicBlockGraph :: (Graph () (BasicBlock t) g, Ord t, BasicBlockFunction t)
+--- todo: shouldn't the edges be (Maybe Condition)? Yes, they should.
+constructBasicBlockGraph :: (Graph (BlockEdge t) (BasicBlock t) g, BasicBlockFunction t)
                          => t -> IO g
 constructBasicBlockGraph fn = do
   bbs <- BB.getBasicBlocks fn
   succs' <- traverse cleanSuccs bbs
-  return . G.fromEdges . fmap ((),) $ succsToEdges succs'
+  return . G.fromEdges . succsToEdges $ succs'
   where
-    cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [BasicBlock t])
-    cleanSuccs bb = (bb,) . catMaybes . fmap (view BB.target)
+    cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
+    cleanSuccs bb = (bb,) . catMaybes . fmap (\e -> (e,) <$>  (e ^. BB.target))
                     <$> BB.getOutgoingEdges bb
-    succsToEdges :: [(a, [a])] -> [(a, a)]
+    succsToEdges :: [(a, [(e, a)])] -> [(e, (a, a))]
     succsToEdges xs = do
       (x, ys) <- xs
-      y <- ys
-      return (x, y)
+      (e, y) <- ys
+      return (e, (x, y))
 
 
 type Condition = Pil.Expression
@@ -133,11 +136,61 @@ convertBasicBlockToNodeList bv bb = do
              , AbstractPath $ abstractPathNode cc
              , Ret $ retNode cc
              ]
+
+pairs :: [a] -> [(a, a)]
+pairs xs = zip xs $ drop 1 xs
+
+mpairs :: [a] -> [(a, Maybe a)]
+mpairs [] = []
+mpairs [x] = [(x, Nothing)]
+mpairs (x:y:xs) = (x, Just y) : mpairs (y:xs)
+
+
+getConditionNode :: BlockEdge F -> IO (Maybe ConditionNode)
+getConditionNode edge = case edge ^. BB.branchType of
+  TrueBranch -> f True
+  FalseBranch -> f False
+  _ -> return Nothing
+  where
+    bb = edge ^. BB.src
+    f isTrueBranch = do
+      endInstr <- MLIL.instruction (bb ^. BB.func) (bb ^. BB.end)
+      case endInstr ^. MLIL.op of
+        MLIL.IF op -> return . Just . ConditionNode $ if isTrueBranch
+          then condExpr ^. MLIL.op
+          else MLIL.NOT . MLIL.NotOp $ condExpr
+          where
+            condExpr = op ^. MLIL.condition
+        _ -> return Nothing
+
+
+pathFromBasicBlockList :: (Graph (BlockEdge F) (BasicBlock F) g, Path p)
+                       => BNBinaryView -> g -> [BasicBlock F] -> IO p
+pathFromBasicBlockList bv g = fmap (fromList . concat) . traverse f . mpairs
+  where
+    f :: (BasicBlock F, Maybe (BasicBlock F)) -> IO [Node]
+    f (bb, Nothing) = convertBasicBlockToNodeList bv bb
+    f (bb, (Just bbnext)) = do
+      nodes <- convertBasicBlockToNodeList bv bb
+      mcond <- case G.getEdgeLabel (bb, bbnext) g of
+        Nothing -> return Nothing
+        Just edge -> getConditionNode edge
+      return . maybe nodes ((nodes <>) . (:[]) . Condition) $ mcond
       
 
-createFuncGraph :: (Graph (Maybe Condition) Node g)
-                => BNBinaryView -> Function -> IO g
-createFuncGraph bv func = undefined
+simplePathsFromBasicBlockGraph :: (Graph (BlockEdge F) (BasicBlock F) g, Path p)
+                               => BNBinaryView -> g -> IO [p]
+simplePathsFromBasicBlockGraph bv g =
+  traverse (pathFromBasicBlockList bv g) . G.findAllSimplePaths $ g
+
+
+allFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
+allFunctionPaths bv fn = do
+  mlilFn <- HFunction.getMLILSSAFunction fn
+  bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  simplePathsFromBasicBlockGraph bv bbg
+
+  
 -- create map of bb -> [Node]
 -- create map of bb -> first Node
 -- create map of bb -> last Node

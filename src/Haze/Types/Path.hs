@@ -7,6 +7,7 @@ import Hinja.Core (InstructionIndex)
 import Hinja.Function (Function)
 import Haze.Types.Function (CallSite)
 import Haze.Types.Graph (Graph)
+import qualified Hinja.MLIL as MLIL
 import qualified Haze.Types.Graph as G
 import qualified Data.Set as Set
 import qualified Prelude as P
@@ -87,8 +88,13 @@ data Node = SubBlock SubBlockNode
           | Call CallNode
           | Ret RetNode
           | AbstractPath AbstractPathNode
+          | Condition ConditionNode
           | Bdup
           deriving (Eq, Ord, Show)
+
+newtype ConditionNode = ConditionNode
+  { _condition :: MLIL.Operation (MLIL.Expression F)
+  } deriving (Eq, Ord, Show)
 
 data SubBlockNode = SubBlockNode
   { _func :: Function
