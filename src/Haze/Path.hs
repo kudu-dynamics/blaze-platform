@@ -1,6 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Path where
+module Haze.Path
+  ( module Exports
+  , module Haze.Path
+  ) where
 
 import           Haze.Prelude
 
@@ -15,7 +18,7 @@ import           Haze.Types.Function                ( CallInstruction
 import           Haze.Types.Graph                   ( Graph
                                                     )
 import qualified Haze.Types.Graph           as G
-import           Haze.Types.Path
+import           Haze.Types.Path as Exports
 import qualified Haze.Types.Pil             as Pil
 import           Hinja.BasicBlock                   ( BasicBlock
                                                     , BasicBlockFunction
@@ -176,7 +179,7 @@ pathFromBasicBlockList bv g = fmap (fromList . concat) . traverse f . mpairs
         Nothing -> return Nothing
         Just edge -> getConditionNode edge
       return . maybe nodes ((nodes <>) . (:[]) . Condition) $ mcond
-      
+
 
 simplePathsFromBasicBlockGraph :: (Graph (BlockEdge F) (BasicBlock F) g, Path p)
                                => BNBinaryView -> g -> IO [p]
@@ -184,8 +187,8 @@ simplePathsFromBasicBlockGraph bv g =
   traverse (pathFromBasicBlockList bv g) . G.findAllSimplePaths $ g
 
 
-allFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
-allFunctionPaths bv fn = do
+allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
+allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
   bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
   simplePathsFromBasicBlockGraph bv bbg

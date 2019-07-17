@@ -6,7 +6,10 @@ import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Data.Set as Set
 import qualified Data.Bimap as Bimap
 import Data.Bimap (Bimap)
+import Haze.Types.Path (Node, PathGraph)
 import Haze.Types.Graph
+
+type AlgaPath = PathGraph (AlgaGraph () Node)
 
 data AlgaGraph e a = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap a

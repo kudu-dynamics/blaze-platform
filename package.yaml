@@ -85,18 +85,19 @@ library:
 include-dirs:
   - "src"
 
-# tests:
-#   haze-test:
-#     main: Spec.hs
-#     source-dirs:
-#     - test
-#     ghc-options:
-#     - -Wall
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     dependencies:
-#     - containers
-#     - haze
-#     - hspec
-#     - text
+tests:
+  haze-test:
+    main: Spec.hs
+    source-dirs:
+    - test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - containers
+    - haze
+    - hinja
+    - hspec
+    - text

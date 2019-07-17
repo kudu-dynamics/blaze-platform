@@ -27,17 +27,13 @@ newtype PathGraph g = PathGraph g
 
 deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
 
-repeatOnPreviousUntilEmpty :: (a -> [a]) -> a -> [a]
-repeatOnPreviousUntilEmpty f a = case f a of
-  [] -> []
-  [x] -> x : repeatOnPreviousUntilEmpty f x
-  (x:_) -> x : repeatOnPreviousUntilEmpty f x -- sad! shouldn't happen
-
 instance (Graph () Node g) => Path (PathGraph g) where
-  toList g = case Set.toList $ G.sources g of
-    [] -> []
-    [x] -> repeatOnPreviousUntilEmpty (Set.toList . flip G.succs g) x
-    _ -> P.error "Path node has multiple sources. Bad!"
+  toList g = case firstNode g of
+    Nothing -> []
+    Just x -> x:(getRest $ succ x g)
+      where
+        getRest Nothing = []
+        getRest (Just y) = y : getRest (succ y g)
 
   fromList [] = G.empty
   fromList [a] = G.fromNode a
