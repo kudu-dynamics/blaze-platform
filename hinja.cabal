@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 092a8ece028e73ccba8f117ed5875396cb958f245297286dba64629863d246da
+-- hash: 5b8b9b71d1a58e00fe361d659499761d76ec38d3ad5d30b73e9b2a23acf6ca0c
 
 name:           hinja
 version:        0.1.0.0
@@ -35,10 +35,10 @@ library
       Hinja.Variable
       Hinja.Prelude
       Hinja.Types.Printer
+      Hinja.C.Enums
   other-modules:
       Hinja
       Hinja.C.Bindings
-      Hinja.C.Enums
       Hinja.C.Helpers
       Hinja.C.Main
       Hinja.C.Pointers
@@ -194,7 +194,7 @@ library
       Paths_hinja
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
+  default-extensions: DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveTraversable DuplicateRecordFields FlexibleContexts FlexibleInstances FunctionalDependencies GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses NoImplicitPrelude OverloadedStrings ScopedTypeVariables StandaloneDeriving TupleSections
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
@@ -230,7 +230,7 @@ test-suite hinja-test
       Paths_hinja
   hs-source-dirs:
       test
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving
+  default-extensions: DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveTraversable DuplicateRecordFields FlexibleContexts FlexibleInstances FunctionalDependencies GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses NoImplicitPrelude OverloadedStrings ScopedTypeVariables StandaloneDeriving TupleSections
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src

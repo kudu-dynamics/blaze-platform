@@ -39,24 +39,25 @@ dependencies:
   - transformers
 
 default-extensions:
-  - OverloadedStrings
-  - FlexibleInstances
-  - FlexibleContexts
-  - TupleSections
-  - NoImplicitPrelude   
-  - ScopedTypeVariables
-  - GeneralizedNewtypeDeriving
-  - DeriveGeneric
-  - DeriveFunctor
-  - DeriveFoldable
-  - DeriveTraversable
   - DeriveDataTypeable
-  - LambdaCase
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DuplicateRecordFields
-  - MultiParamTypeClasses
+  - FlexibleContexts
+  - FlexibleInstances
   - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NoImplicitPrelude   
+  - OverloadedStrings
+  - ScopedTypeVariables
   - StandaloneDeriving
-  
+  - StrictData
+  - TupleSections
+
 library:
   ghc-options:
   - -Wall
@@ -81,7 +82,7 @@ library:
   - Hinja.Variable
   - Hinja.Prelude
   - Hinja.Types.Printer
-
+  - Hinja.C.Enums
 
 build-tools:
   - c2hs
