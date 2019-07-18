@@ -157,7 +157,7 @@ getConditionNode edge = case edge ^. BB.branchType of
   where
     bb = edge ^. BB.src
     f isTrueBranch = do
-      endInstr <- MLIL.instruction (bb ^. BB.func) (bb ^. BB.end)
+      endInstr <- MLIL.instruction (bb ^. BB.func) (bb ^. BB.end - 1)
       case endInstr ^. MLIL.op of
         MLIL.IF op -> return . Just . ConditionNode $ if isTrueBranch
           then condExpr ^. MLIL.op

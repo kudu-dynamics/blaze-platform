@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fbb329b4496ef999b6291cb599313efe7fa4e76bf477d0431ae34ccc28b284ed
+-- hash: 47b9eaad96d032c2f27d445ea849870177f34e437c0898ac8407b23dda6aaee9
 
 name:           haze
 version:        0.1.0.0
@@ -28,11 +28,11 @@ source-repository head
 library
   exposed-modules:
       Haze.Prelude
+      Haze.Path
+      Haze.Graph.Alga
   other-modules:
       Haze.Cfg
       Haze.Function
-      Haze.Graph.Alga
-      Haze.Path
       Haze.Pil
       Haze.Reduction
       Haze.Reduction2
@@ -50,7 +50,7 @@ library
       Paths_haze
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings FlexibleInstances FlexibleContexts TupleSections NoImplicitPrelude ScopedTypeVariables GeneralizedNewtypeDeriving DeriveGeneric DeriveFunctor DeriveFoldable DeriveTraversable DeriveDataTypeable LambdaCase DuplicateRecordFields MultiParamTypeClasses FunctionalDependencies StandaloneDeriving TypeFamilies GADTs
+  default-extensions: DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveTraversable DuplicateRecordFields FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses NoImplicitPrelude OverloadedStrings ScopedTypeVariables StandaloneDeriving TupleSections TypeFamilies
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
@@ -64,6 +64,46 @@ library
     , data-binary-ieee754
     , envy
     , hinja
+    , lens
+    , mtl
+    , newtype
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.0
+    , stm
+    , template-haskell
+    , text
+    , transformers
+    , uuid
+  default-language: Haskell2010
+
+test-suite haze-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Haze.PathSpec
+      Paths_haze
+  hs-source-dirs:
+      test
+  default-extensions: DeriveDataTypeable DeriveFoldable DeriveFunctor DeriveGeneric DeriveTraversable DuplicateRecordFields FlexibleContexts FlexibleInstances FunctionalDependencies GADTs GeneralizedNewtypeDeriving LambdaCase MultiParamTypeClasses NoImplicitPrelude OverloadedStrings ScopedTypeVariables StandaloneDeriving TupleSections TypeFamilies
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+  build-depends:
+      algebraic-graphs
+    , attoparsec
+    , base >=4.7 && <5
+    , bimap
+    , casing
+    , containers
+    , data-binary-ieee754
+    , envy
+    , haze
+    , hinja
+    , hspec
     , lens
     , mtl
     , newtype

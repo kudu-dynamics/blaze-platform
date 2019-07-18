@@ -45,25 +45,26 @@ dependencies:
   - uuid
 
 default-extensions:
-  - OverloadedStrings
-  - FlexibleInstances
-  - FlexibleContexts
-  - TupleSections
-  - NoImplicitPrelude   
-  - ScopedTypeVariables
-  - GeneralizedNewtypeDeriving
-  - DeriveGeneric
-  - DeriveFunctor
-  - DeriveFoldable
-  - DeriveTraversable
   - DeriveDataTypeable
-  - LambdaCase
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
   - DuplicateRecordFields
-  - MultiParamTypeClasses
+  - FlexibleContexts
+  - FlexibleInstances
   - FunctionalDependencies
-  - StandaloneDeriving
-  - TypeFamilies
   - GADTs
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NoImplicitPrelude   
+  - OverloadedStrings
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - StrictData
+  - TupleSections
+  - TypeFamilies
   
 library:
   ghc-options:
@@ -81,7 +82,9 @@ library:
   source-dirs: src
   exposed-modules:
   - Haze.Prelude
-
+  - Haze.Path
+  - Haze.Graph.Alga
+  
 include-dirs:
   - "src"
 
