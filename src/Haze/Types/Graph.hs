@@ -90,6 +90,15 @@ class GraphFunctor g where
 --   getEdgeLabel :: Edge n -> g -> Maybe e
 --   setEdgeLabel :: e -> Edge a -> g -> g
 
+findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
+findNonRepeatPaths' seen start' g = do
+  succ' <- Set.toList $ succs start' g `Set.difference` seen
+  path <- findNonRepeatPaths' (Set.insert succ' seen) succ' g
+  return $ succ':path
+
+findNonRepeatPaths :: (Graph e n g, Ord n) => n -> g -> [[n]]
+findNonRepeatPaths = findNonRepeatPaths' Set.empty
+
 findSimplePaths' :: (Graph e n g, Ord n) => Set n -> n -> n -> g -> [[n]]
 findSimplePaths' seen start' end' g = fmap (start':) $ do
   succ' <- Set.toList $ succs start' g `Set.difference` seen

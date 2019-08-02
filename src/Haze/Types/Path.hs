@@ -79,7 +79,6 @@ instance (Graph () Node g) => Path (PathGraph g) where
 --   fromList [a] = G.fromNode a
 --   fromList (x:xs) = G.fromEdges . fmap ((),) $ zip (x:xs) xs
 
-
 data Node = SubBlock SubBlockNode
           | Call CallNode
           | Ret RetNode
@@ -125,3 +124,13 @@ $(makeFieldsNoPrefix ''CallNode)
 $(makeFieldsNoPrefix ''RetNode)
 $(makeFieldsNoPrefix ''AbstractPathNode)
 
+
+startFunction :: Path p => p -> Maybe Function
+startFunction p = do
+  n <- firstNode p
+  case n of
+    SubBlock sb -> return $ sb ^. func
+    Call c -> return $ c ^. func
+    Ret r -> return $ r ^. func
+    AbstractPath apn -> return $ apn ^. func
+    _ -> Nothing

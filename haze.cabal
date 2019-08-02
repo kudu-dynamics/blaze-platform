@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 47b9eaad96d032c2f27d445ea849870177f34e437c0898ac8407b23dda6aaee9
+-- hash: 5a09af8e5d714306cbc8730410e082918edd834970298beec9985d0b9914c3a2
 
 name:           haze
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       Haze.Cfg
       Haze.Function
       Haze.Pil
+      Haze.Pil.Path
       Haze.Reduction
       Haze.Reduction2
       Haze.Solver

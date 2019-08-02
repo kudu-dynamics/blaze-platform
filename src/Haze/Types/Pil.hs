@@ -121,15 +121,6 @@ import Hinja.MLIL as Exports ( AdcOp
                              , TrapOp
                              , UndefOp
                              , UnimplOp
-                             , VarAliasedFieldOp
-                             , VarAliasedOp
-                             , VarFieldOp
-                             , VarOp
-                             , VarPhiOp
-                             , VarSSAFieldOp
-                             , VarSSAOp
-                             , VarSplitOp
-                             , VarSplitSSAOp
                              , XorOp
                              , ZxOp
                              , OperationSize
@@ -189,10 +180,16 @@ type Symbol = Text
 
 data PilVar = PilVar
   { _symbol :: Symbol
-  , _func :: Function
-  , _ctxIndex :: CtxIndex
+  , _func :: Maybe Function
+  , _ctxIndex :: Maybe CtxIndex
   , _mapsTo :: Set SSAVariableRef
   } deriving (Eq, Ord, Show, Generic)
+
+newtype Converter a = Converter { _runConverter :: StateT Ctx IO a}
+  deriving (Functor, Applicative, Monad, MonadState Ctx)
+
+runConverter :: Converter a -> Ctx -> IO (a, Ctx)
+runConverter m s = flip runStateT s $ _runConverter m
 
 data SSAVariableRef = SSAVariableRef
   { _var :: SSAVariable
@@ -210,7 +207,7 @@ data Expression = Expression
   { _size :: OperationSize
   , _op :: ExprOp Expression
   } deriving (Eq, Ord, Show, Generic)
-                        
+
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
@@ -292,9 +289,9 @@ data ExprOp expr
 --    | VAR_FIELD (VarFieldOp expr)
     | VAR_PHI (VarPhiOp expr)
 --    | VAR_SPLIT (VarSplitOp expr)
-    | VAR_SPLIT_SSA (VarSplitSSAOp expr)
-    | VAR_SSA (VarSSAOp expr)
-    | VAR_SSA_FIELD (VarSSAFieldOp expr)
+    | VAR_SPLIT (VarSplitOp expr)
+    | VAR (VarOp expr)
+    | VAR_FIELD (VarFieldOp expr)
     | XOR (XorOp expr)
     | ZX (ZxOp expr)
 
@@ -304,6 +301,42 @@ data ExprOp expr
     | ConstStr (ConstStrOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
+-------- Ops that use MLIL SSA Vars must be changed to use PilVars
+
+data VarOp expr = VarOp
+    { _varOpSrc :: PilVar
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarFieldOp expr = VarFieldOp
+    { _varFieldOpSrc :: PilVar
+    , _varFieldOpOffset :: Int64
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarAliasedOp expr = VarAliasedOp
+    { _varAliasedOpSrc :: PilVar
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarAliasedFieldOp expr = VarAliasedFieldOp
+    { _varAliasedFieldOpSrc :: PilVar
+    , _varAliasedFieldOpOffset :: Int64
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarPhiOp expr = VarPhiOp
+    { _varPhiOpDest :: PilVar
+    , _varPhiOpSrc :: [PilVar]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data VarSplitOp expr = VarSplitOp
+    { _varSplitSSAOpHigh :: PilVar
+    , _varSplitSSAOpLow :: PilVar
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+--TODO: address_of and address_of_field
+---------------
+
+data CallDest expr = CallConstPtr (ConstPtrOp expr)
+                   | CallExpr expr
+                   | CallExprs (Set expr)
 
 data CallOp expr = CallOp
   { _dest :: ConstPtrOp expr
@@ -428,10 +461,10 @@ type TypeEnv = Map PilVar Type
 
 data Ctx = Ctx
   { _func :: Maybe Function
-  , _ctxIndex :: CtxIndex
+  , _ctxIndex :: Maybe CtxIndex
   , _definedVars :: Set PilVar
   , _typeEnv :: TypeEnv
-  }
+  } deriving (Eq, Ord, Show)
 
 data StackOffset = StackOffset
   { _func :: Function
@@ -457,7 +490,7 @@ data DefOp expr = DefOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 data StoreOp expr = StoreOp
-    { _addr :: PilVar
+    { _addr :: expr
     , _value :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
@@ -469,15 +502,24 @@ data UnimplMemOp expr = UnimplMemOp
     { _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+type Stmt = Statement Expression
+
 data Statement expr = Def (DefOp expr)
                     | Constraint (ConstraintOp expr)
                     | Store (StoreOp expr)
                     | UnimplInstr
-                    | UnimplMem
+                    | UnimplMem (UnimplMemOp expr)
                     | Undef
                     | Nop
                     | Annotation Text
                     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+$(makeFields ''VarOp)
+$(makeFields ''VarFieldOp)
+$(makeFields ''VarAliasedOp)
+$(makeFields ''VarAliasedFieldOp)
+$(makeFields ''VarPhiOp)
+$(makeFields ''VarSplitOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)

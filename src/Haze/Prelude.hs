@@ -26,6 +26,8 @@ import Data.UUID as Exports (UUID)
 --import Data.Typeable as Exports
 import           Control.Lens    as Exports        ( (%~)
                                                    , (.~)
+                                                   , (.=)
+                                                   , (%=)
                                                    , (?~)
                                                    , (^.)
                                                    , (^?)

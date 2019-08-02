@@ -62,9 +62,10 @@ default-extensions:
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
-  - StrictData
+#  - StrictData
   - TupleSections
   - TypeFamilies
+
   
 library:
   ghc-options:
