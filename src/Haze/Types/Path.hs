@@ -87,8 +87,10 @@ data Node = SubBlock SubBlockNode
           | Bdup
           deriving (Eq, Ord, Show)
 
-newtype ConditionNode = ConditionNode
-  { _condition :: MLIL.Operation (MLIL.Expression F)
+data ConditionNode = ConditionNode
+  { _func :: Function
+  , _trueOrFalseBranch :: Bool
+  , _condition :: MLIL.Expression F
   } deriving (Eq, Ord, Show)
 
 data SubBlockNode = SubBlockNode
@@ -120,6 +122,7 @@ data AbstractPathNode = AbstractPathNode
 
 
 $(makeFieldsNoPrefix ''SubBlockNode)
+$(makeFieldsNoPrefix ''ConditionNode)
 $(makeFieldsNoPrefix ''CallNode)
 $(makeFieldsNoPrefix ''RetNode)
 $(makeFieldsNoPrefix ''AbstractPathNode)

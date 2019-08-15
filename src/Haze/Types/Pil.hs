@@ -186,7 +186,7 @@ data PilVar = PilVar
   } deriving (Eq, Ord, Show, Generic)
 
 newtype Converter a = Converter { _runConverter :: StateT Ctx IO a}
-  deriving (Functor, Applicative, Monad, MonadState Ctx)
+  deriving (Functor, Applicative, Monad, MonadState Ctx, MonadIO)
 
 runConverter :: Converter a -> Ctx -> IO (a, Ctx)
 runConverter m s = flip runStateT s $ _runConverter m
@@ -363,41 +363,6 @@ data MemCmpOp expr = MemCmpOp
 data ConstStrOp expr = ConstStrOp
     { _value :: Text
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
--- -----------------------
--- --- stmts
-
--- data StmtOp expr
---     = Def (DefOp expr)
---     | Store (StoreOp expr)
---     | Constraint (ConstraintOp expr)
---     | Annotation Text
---     | UnimplInstr
---     | UnimplMem (UnimplMemOp expr)
---     | Undef
---     | Nop
-
--- data DefOp expr = DefOp
---     { _var :: PilVar
---     , _value :: expr
---     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
--- data StoreOp expr = StoreOp
---     { _addr :: PilVar
---     , _value :: expr
---     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
--- data ConstraintOp expr = ConstraintOp
---     { _condition :: expr
---     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
--- data UnimplMemOp expr = UnimplMemOp
---     { _src :: expr
---     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-
--- convertInstr :: MLIL.Instruction expr -> 
-
 
 -----------------------
 --- types
