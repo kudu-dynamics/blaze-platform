@@ -82,9 +82,13 @@ library:
   - -RTS
   source-dirs: src
   exposed-modules:
+  - Haze.Graph.Alga
   - Haze.Prelude
   - Haze.Path
-  - Haze.Graph.Alga
+  - Haze.Pil
+  - Haze.Pil.Path
+  - Haze.Types.Pil
+  
   
 include-dirs:
   - "src"

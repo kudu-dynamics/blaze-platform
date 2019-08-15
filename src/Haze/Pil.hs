@@ -6,7 +6,7 @@ import qualified Hinja.MLIL as MLIL
 import qualified Data.Set as Set
 import qualified Hinja.Variable as Variable
 import qualified Haze.Types.Pil as Pil
-import qualified Hinja.Types.Function as Function
+import qualified Hinja.Function as Function
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n

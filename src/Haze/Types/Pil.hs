@@ -87,7 +87,7 @@ import Hinja.MLIL as Exports ( AdcOp
                              , MuluDpOp
                              , NegOp
                              , NoretOp
-                             , NotOp
+                             , NotOp(NotOp) --TODO: do this for every xOp...
                              , OrOp
                              , RetHintOp
                              , RetOp

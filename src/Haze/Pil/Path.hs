@@ -45,23 +45,20 @@ convertSubBlockNode sb = do
     mapM (MLIL.instruction mlilFunc) [(sb ^. Path.start) .. (sb ^. Path.end - 1)]
   flip Pil.convertInstrs instrs <$> get
 
--- convertConditionNode :: ConditionNode -> Converter [Stmt]
--- convertConditionNode n = do
---   ctx <- get
---   case Pil.convertExpr ctx $ n ^. Path.condition of
---     Nothing -> return []
---     Just expr -> return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
---       case n ^. Path.trueOrFalseBranch of
---         True -> expr
---         False -> Pil.Expression (expr ^. Pil.size) $ Pil.NOT expr
-      
---   putText "Looks like a condition node."
---   return []
+convertConditionNode :: ConditionNode -> Converter [Stmt]
+convertConditionNode n = do
+  ctx <- get
+  case Pil.convertExpr ctx $ n ^. Path.condition of
+    Nothing -> return []
+    Just expr -> return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
+      case n ^. Path.trueOrFalseBranch of
+        True -> expr
+        False -> Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
 
 
 convertNode :: Node -> Converter [Stmt]
 convertNode (SubBlock x) = convertSubBlockNode x
---convertNode (Condition x) = convertConditionNode x
+convertNode (Condition x) = convertConditionNode x
 convertNode _ = return [] -- TODO
 
 startCtx :: Ctx
