@@ -90,7 +90,7 @@ build-tools:
 
 include-dirs:
   - "src"
-
+  - "res"
 
 tests:
   hinja-test:
