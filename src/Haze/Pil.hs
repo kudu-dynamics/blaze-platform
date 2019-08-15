@@ -145,13 +145,14 @@ convertMExpression mexpr = bool Nothing (Just $ convertCompleteMExpression mexpr
       , _op = fmap convertCompleteMExpression . fromJust $ mexpr' ^. op
       }
 
-convertInstrOp :: Ctx -> MLIL.Operation (MLIL.Expression t) -> Maybe [Statement Expression]
-convertInstrOp ctx op' = case op' of
+convertInstrOp :: Ctx -> MLIL.Operation (MLIL.Expression t) -> [Statement Expression]
+convertInstrOp ctx op' = maybe [] identity $ case op' of
   (MLIL.CALL_OUTPUT_SSA _) -> Nothing
 
   (MLIL.CALL_PARAM_SSA _) -> Nothing
 
   -- TODO
+  -- output field points to CallOutputSSA
   (MLIL.CALL_SSA _) -> Nothing
 
   (MLIL.CALL_UNTYPED_SSA _) -> Nothing
@@ -212,3 +213,10 @@ convertInstrOp ctx op' = case op' of
   MLIL.NOP -> Just [Nop]
 
   _ -> Nothing
+
+
+convertInstr :: Ctx -> MLIL.Instruction t -> [Stmt]
+convertInstr ctx = convertInstrOp ctx . view MLIL.op
+
+convertInstrs :: Ctx -> [MLIL.Instruction t] -> [Stmt]
+convertInstrs ctx = concatMap $ convertInstr ctx

@@ -156,14 +156,11 @@ getConditionNode edge = case edge ^. BB.branchType of
   _ -> return Nothing
   where
     bb = edge ^. BB.src
+    fn = bb ^. BB.func . HFunction.func
     f isTrueBranch = do
       endInstr <- MLIL.instruction (bb ^. BB.func) (bb ^. BB.end - 1)
       case endInstr ^. MLIL.op of
-        MLIL.IF op -> return . Just . ConditionNode $ if isTrueBranch
-          then condExpr ^. MLIL.op
-          else MLIL.NOT . MLIL.NotOp $ condExpr
-          where
-            condExpr = op ^. MLIL.condition
+        MLIL.IF op -> return . Just . ConditionNode fn isTrueBranch $ op ^. MLIL.condition
         _ -> return Nothing
 
 

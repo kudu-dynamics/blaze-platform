@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.30.0.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5a09af8e5d714306cbc8730410e082918edd834970298beec9985d0b9914c3a2
+-- hash: 3446b9e7a43bd442e2de94e9df9d58681b6a47d887f27a7328bea082eceaea30
 
 name:           haze
 version:        0.1.0.0
@@ -27,14 +27,15 @@ source-repository head
 
 library
   exposed-modules:
+      Haze.Graph.Alga
       Haze.Prelude
       Haze.Path
-      Haze.Graph.Alga
+      Haze.Pil
+      Haze.Pil.Path
+      Haze.Types.Pil
   other-modules:
       Haze.Cfg
       Haze.Function
-      Haze.Pil
-      Haze.Pil.Path
       Haze.Reduction
       Haze.Reduction2
       Haze.Solver
@@ -44,7 +45,6 @@ library
       Haze.Types.Jelly
       Haze.Types.Mut
       Haze.Types.Path
-      Haze.Types.Pil
       Haze.Types.Pil.Types
       Haze.Types.Spice
       Haze.Util.Graph
