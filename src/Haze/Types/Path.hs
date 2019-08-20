@@ -82,9 +82,9 @@ instance (Graph () Node g) => Path (PathGraph g) where
 data Node = SubBlock SubBlockNode
           | Call CallNode
           | Ret RetNode
+          | AbstractCall AbstractCallNode
           | AbstractPath AbstractPathNode
           | Condition ConditionNode
-          | Bdup
           deriving (Eq, Ord, Show)
 
 data ConditionNode = ConditionNode
@@ -120,12 +120,19 @@ data AbstractPathNode = AbstractPathNode
   , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
+data AbstractCallNode = AbstractCallNode
+  { _func :: Function
+  , _callSite :: CallSite
+  , _uuid :: UUID
+  } deriving (Eq, Ord, Show)
+
 
 $(makeFieldsNoPrefix ''SubBlockNode)
 $(makeFieldsNoPrefix ''ConditionNode)
 $(makeFieldsNoPrefix ''CallNode)
 $(makeFieldsNoPrefix ''RetNode)
 $(makeFieldsNoPrefix ''AbstractPathNode)
+$(makeFieldsNoPrefix ''AbstractCallNode)
 
 
 startFunction :: Path p => p -> Maybe Function

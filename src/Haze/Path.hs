@@ -134,11 +134,8 @@ convertBasicBlockToNodeList bv bb = do
     f :: SpanItem (InstructionIndex F) (CallInstruction) -> IO [Node]
     f (SpanSpan (lo, hi)) = (:[]) . SubBlock . SubBlockNode fn (bb ^. BB.start) lo hi <$> randomIO
     f (SpanBreak ci) = do
-      cc <- createCallSite bv fn ci >>= callCombo fn
-      return [ Call $ callNode cc
-             , AbstractPath $ abstractPathNode cc
-             , Ret $ retNode cc
-             ]
+      n <- AbstractCallNode fn <$> (createCallSite bv fn ci) <*> randomIO
+      return [AbstractCall n]
 
 pairs :: [a] -> [(a, a)]
 pairs xs = zip xs $ drop 1 xs

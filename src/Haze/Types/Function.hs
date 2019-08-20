@@ -4,7 +4,7 @@ module Haze.Types.Function where
 
 import Hinja.Core (Address, InstructionIndex)
 import Hinja.Function (Function)
-import Hinja.MLIL (Expression, OperationSize)
+import Hinja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Hinja.MLIL as MLIL
 import Haze.Prelude
 
@@ -22,36 +22,79 @@ data CallOperation = CALL (MLIL.CallOp (MLIL.Expression F))
                    | SYSCALL_UNTYPED_SSA (MLIL.SyscallUntypedSSAOp (MLIL.Expression F))
                    deriving (Eq, Ord, Show)
 
-                   
+
 data CallInstruction = CallInstruction
   { _address :: Address
   , _index :: InstructionIndex F
   , _size :: OperationSize
+  , _params :: [MLIL.Expression F]
   , _dest :: Maybe (MLIL.Expression F)
+  , _outputDest :: Maybe [SSAVariable]
   , _op :: CallOperation
   } deriving (Eq, Ord, Show)
 
+-- TODO: the params returning single expr can probably be expanded
+getParams :: MLIL.Operation (MLIL.Expression F) -> [MLIL.Expression F]
+getParams (MLIL.CALL op) = op ^. MLIL.params
+getParams (MLIL.CALL_SSA op) = op ^. MLIL.params
+getParams (MLIL.CALL_UNTYPED op) = [op ^. MLIL.params]
+getParams (MLIL.CALL_UNTYPED_SSA op) = [op ^. MLIL.params]
+getParams (MLIL.TAILCALL op) = op ^. MLIL.params
+getParams (MLIL.TAILCALL_SSA op) = op ^. MLIL.params
+getParams (MLIL.TAILCALL_UNTYPED op) = [op ^. MLIL.params]
+getParams (MLIL.TAILCALL_UNTYPED_SSA op) = [op ^. MLIL.params]
+getParams (MLIL.SYSCALL op) = op ^. MLIL.params
+getParams (MLIL.SYSCALL_SSA op) = op ^. MLIL.params
+getParams (MLIL.SYSCALL_UNTYPED op) = [op ^. MLIL.params]
+getParams (MLIL.SYSCALL_UNTYPED_SSA op) = [op ^. MLIL.params]
+getParams _ = []
+
+getOutputDest :: MLIL.Expression F -> Maybe [SSAVariable]
+getOutputDest expr = case expr ^. MLIL.op of
+  (MLIL.CALL_OUTPUT_SSA x) -> Just $ x ^. MLIL.dest
+  _ -> Nothing
+
 toCallInstruction :: MLIL.Instruction F -> Maybe CallInstruction
 toCallInstruction instr = toCallInstr <$> case instr ^. MLIL.op of
-  MLIL.CALL                 op -> Just $ (Just $ op ^. MLIL.dest, CALL op)
-  MLIL.CALL_SSA             op -> Just $ (Just $ op ^. MLIL.dest, CALL_SSA op)
-  MLIL.CALL_UNTYPED         op -> Just $ (Just $ op ^. MLIL.dest, CALL_UNTYPED op)
-  MLIL.CALL_UNTYPED_SSA     op -> Just $ (Just $ op ^. MLIL.dest, CALL_UNTYPED_SSA op)
-  MLIL.TAILCALL             op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL op)
-  MLIL.TAILCALL_SSA         op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL_SSA op)
-  MLIL.TAILCALL_UNTYPED     op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL_UNTYPED op)
-  MLIL.TAILCALL_UNTYPED_SSA op -> Just $ (Just $ op ^. MLIL.dest, TAILCALL_UNTYPED_SSA op)
-  MLIL.SYSCALL              op -> Just $ (Nothing, SYSCALL op)
-  MLIL.SYSCALL_SSA          op -> Just $ (Nothing, SYSCALL_SSA op)
-  MLIL.SYSCALL_UNTYPED      op -> Just $ (Nothing, SYSCALL_UNTYPED op)
-  MLIL.SYSCALL_UNTYPED_SSA  op -> Just $ (Nothing, SYSCALL_UNTYPED_SSA op)
+  MLIL.CALL                 op -> Just $ (Just $ op ^. MLIL.dest, Nothing, CALL op)
+  MLIL.CALL_SSA             op -> Just $ ( Just $ op ^. MLIL.dest
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , CALL_SSA op )
+  MLIL.CALL_UNTYPED         op -> Just $ ( Just $ op ^. MLIL.dest
+                                          , getOutputDest $ op ^. MLIL.output
+                                          , CALL_UNTYPED op )
+  MLIL.CALL_UNTYPED_SSA     op -> Just $ ( Just $ op ^. MLIL.dest
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , CALL_UNTYPED_SSA op )
+  MLIL.TAILCALL             op -> Just $ (Just $ op ^. MLIL.dest, Nothing, TAILCALL op)
+  MLIL.TAILCALL_SSA         op -> Just $ ( Just $ op ^. MLIL.dest
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , TAILCALL_SSA op )
+  MLIL.TAILCALL_UNTYPED     op -> Just $ ( Just $ op ^. MLIL.dest
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , TAILCALL_UNTYPED op )
+  MLIL.TAILCALL_UNTYPED_SSA op -> Just $ ( Just $ op ^. MLIL.dest
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , TAILCALL_UNTYPED_SSA op )
+  MLIL.SYSCALL              op -> Just $ (Nothing, Nothing, SYSCALL op)
+  MLIL.SYSCALL_SSA          op -> Just $ ( Nothing
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , SYSCALL_SSA op )
+  MLIL.SYSCALL_UNTYPED      op -> Just $ ( Nothing
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , SYSCALL_UNTYPED op )
+  MLIL.SYSCALL_UNTYPED_SSA  op -> Just $ ( Nothing
+                                         , getOutputDest $ op ^. MLIL.output
+                                         , SYSCALL_UNTYPED_SSA op )
   _                            -> Nothing
   where
-    toCallInstr (mdest', op') = CallInstruction
+    toCallInstr (mdest', mOutputDest, op') = CallInstruction
       (instr ^. MLIL.address)
       (instr ^. MLIL.index)
       (instr ^. MLIL.size)
+      (getParams $ instr ^. MLIL.op)
       mdest'
+      mOutputDest
       op'
   
 

@@ -185,10 +185,15 @@ data PilVar = PilVar
   , _mapsTo :: Set SSAVariableRef
   } deriving (Eq, Ord, Show, Generic)
 
-newtype Converter a = Converter { _runConverter :: StateT Ctx IO a}
-  deriving (Functor, Applicative, Monad, MonadState Ctx, MonadIO)
+data ConverterCtx = ConverterCtx
+  { _ctxIndexCounter :: Maybe CtxIndex
+  , _ctx :: Ctx
+  } deriving (Eq, Ord, Show, Generic)
 
-runConverter :: Converter a -> Ctx -> IO (a, Ctx)
+newtype Converter a = Converter { _runConverter :: StateT ConverterCtx IO a}
+  deriving (Functor, Applicative, Monad, MonadState ConverterCtx, MonadIO)
+
+runConverter :: Converter a -> ConverterCtx -> IO (a, ConverterCtx)
 runConverter m s = flip runStateT s $ _runConverter m
 
 data SSAVariableRef = SSAVariableRef
@@ -295,6 +300,8 @@ data ExprOp expr
     | XOR (XorOp expr)
     | ZX (ZxOp expr)
 
+    | CALL (CallOp expr)
+
     | StrCmp (StrCmpOp expr)
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
@@ -334,12 +341,19 @@ data VarSplitOp expr = VarSplitOp
 --TODO: address_of and address_of_field
 ---------------
 
+getCallDest :: ExprOp expr -> Maybe (CallDest expr)
+getCallDest (CONST_PTR c) = Just $ CallConstPtr c
+  --TODO: handle other cases...
+getCallDest _ = Nothing
+
+
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExpr expr
-                   | CallExprs (Set expr)
+                   | CallExprs [expr]
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 data CallOp expr = CallOp
-  { _dest :: ConstPtrOp expr
+  { _dest :: CallDest expr
   , _name :: Maybe Text
   , _params :: [expr]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -352,7 +366,7 @@ data StrCmpOp expr = StrCmpOp
 data StrNCmpOp expr = StrNCmpOp
     { _left :: expr
     , _right :: expr
-    , _n :: Int
+    , _len :: Int
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 data MemCmpOp expr = MemCmpOp
@@ -431,6 +445,11 @@ data Ctx = Ctx
   , _typeEnv :: TypeEnv
   } deriving (Eq, Ord, Show)
 
+data SimpleCtx = SimpleCtx
+  { _func :: Maybe Function
+  , _ctxIndex :: Maybe CtxIndex
+  } deriving (Eq, Ord, Show)
+
 data StackOffset = StackOffset
   { _func :: Function
   , _ctxIndex :: CtxIndex
@@ -467,6 +486,15 @@ data UnimplMemOp expr = UnimplMemOp
     { _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+data EnterContextOp expr = EnterContextOp
+    { _ctx :: SimpleCtx
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+data ExitContextOp expr = ExitContextOp
+    { _leavingCtx :: SimpleCtx
+    , _returningToCtx :: SimpleCtx
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
 type Stmt = Statement Expression
 
 data Statement expr = Def (DefOp expr)
@@ -477,6 +505,8 @@ data Statement expr = Def (DefOp expr)
                     | Undef
                     | Nop
                     | Annotation Text
+                    | EnterContext (EnterContextOp expr)
+                    | ExitContext (ExitContextOp expr)
                     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 $(makeFields ''VarOp)
@@ -504,6 +534,7 @@ $(makeFieldsNoPrefix ''PtrType)
 $(makeFieldsNoPrefix ''FieldType)
 $(makeFieldsNoPrefix ''StructType)
 $(makeFieldsNoPrefix ''Ctx)
+$(makeFieldsNoPrefix ''ConverterCtx)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
 
