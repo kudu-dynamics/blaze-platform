@@ -246,7 +246,8 @@ convertCallInstruction ctx c = case cond of
   Nothing -> return []
   Just ([], _) -> return []
   Just ((dest:_), target) -> do
-    mname <- return Nothing -- TODO: fetch func name...
+    mname <- maybe (return Nothing) (flip getCallDestFunctionName target)
+             $ (ctx ^. Pil.func)
     let callExpr = Expression (c ^. Function.size)
           . Pil.CALL . Pil.CallOp target mname . mapMaybe (convertExpr ctx)
           $ c ^. Function.params

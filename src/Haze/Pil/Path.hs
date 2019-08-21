@@ -8,12 +8,15 @@ import Haze.Types.Path ( Path
                        , ConditionNode
                        , CallNode
                        , AbstractPathNode
+                       , AbstractCallNode
                        , RetNode
                        )
 import Hinja.Function (Function)
 import qualified Hinja.MLIL as MLIL
 import qualified Haze.Types.Path as Path
-import qualified Hinja.Function as Function
+import qualified Hinja.Function as HFunction
+import qualified Haze.Types.Function as Function
+
 import Haze.Types.Pil ( Statement
                       , Expression
                       , Ctx(Ctx)
@@ -50,7 +53,7 @@ convertSubBlockNode :: SubBlockNode -> Converter [Stmt]
 convertSubBlockNode sb = do
   maybeUpdateCtx $ sb ^. Path.func
   instrs <- liftIO $ do
-    mlilFunc <- Function.getMLILSSAFunction $ sb ^. Path.func
+    mlilFunc <- HFunction.getMLILSSAFunction $ sb ^. Path.func
     mapM (MLIL.instruction mlilFunc) [(sb ^. Path.start) .. (sb ^. Path.end - 1)]
   flip Pil.convertInstrs instrs <$> use Pil.ctx
 
@@ -65,7 +68,10 @@ convertConditionNode n = do
         False -> Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
 
 convertAbstractCallNode :: AbstractCallNode -> Converter [Stmt]
-convertAbstractCallNode n = return []
+convertAbstractCallNode n = do
+  ctx <- use Pil.ctx
+  liftIO $ Pil.convertCallInstruction ctx (n ^. Path.callSite . Function.callInstr)
+  
 
 -- convertCallNode :: CallNode -> Converter [Stmt]
 -- convertCallNode n = do
@@ -76,15 +82,12 @@ convertAbstractCallNode n = return []
 convertNode :: Node -> Converter [Stmt]
 convertNode (SubBlock x) = convertSubBlockNode x
 convertNode (Condition x) = convertConditionNode x
-convertNode (AbstractCall x) convertAbstractCallNode x
+convertNode (AbstractCall x) = convertAbstractCallNode x
 --convertNode (CallNode x) = convertCallNode x
 convertNode _ = return [] -- TODO
 
 
 convertNodes :: [Node] -> Converter [Stmt]
-convertNodes ((Call cn) : (AbstractPath apn) : (Ret rn) : xs) = do
-  stmts <- convertAbstractCallTrio cn apn rn
-  (stmts <>) <$> convertNodes xs
 convertNodes xs = fmap concat . traverse convertNode $ xs
 
 startCtx :: Ctx
