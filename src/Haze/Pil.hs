@@ -12,7 +12,8 @@ import Haze.Types.Pil ( Stmt
                       , ExprOp
                       , DefOp(DefOp)
                       , StoreOp(StoreOp)
-                      , UnimplMemOp(UnimplMemOp))
+                      , UnimplMemOp(UnimplMemOp)
+                      , CallDest)
 
 import Haze.Types.Function (CallInstruction)
 import qualified Haze.Types.Function as Function
@@ -21,6 +22,7 @@ import qualified Data.Set as Set
 import qualified Hinja.Variable as Variable
 import qualified Haze.Types.Pil as Pil
 import qualified Hinja.Function as Function
+import Hinja.Function (Function)
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
@@ -231,6 +233,14 @@ convertInstr ctx = convertInstrOp ctx . view MLIL.op
 convertInstrs :: Ctx -> [MLIL.Instruction t] -> [Stmt]
 convertInstrs ctx = concatMap $ convertInstr ctx
 
+getCallDestFunctionName :: Function -> CallDest expr -> IO (Maybe Text)
+getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
+  bv <- Function.getFunctionDataBinaryView ctxfn
+  mfn <- Function.getFunctionStartingAt bv Nothing
+    . Function.Address . fromIntegral $ op ^. Pil.constant
+  return $ view Function.name <$> mfn
+getCallDestFunctionName _ _ = return Nothing
+
 convertCallInstruction :: Ctx -> CallInstruction -> IO [Stmt]
 convertCallInstruction ctx c = case cond of
   Nothing -> return []
@@ -243,9 +253,8 @@ convertCallInstruction ctx c = case cond of
     return [Def $ DefOp (convertToPilVar ctx dest) callExpr]
   where
     cond = (,) <$> (c ^. Function.outputDest)
-               <*> (c ^. Function.dest
-                    >>= convertExpr ctx
-                    >>= Pil.getCallDest . view Pil.op)
+               <*> (Pil.getCallDest <$>
+                    (c ^. Function.dest >>= convertExpr ctx))
 
 
       -- do

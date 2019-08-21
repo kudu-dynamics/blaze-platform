@@ -341,11 +341,10 @@ data VarSplitOp expr = VarSplitOp
 --TODO: address_of and address_of_field
 ---------------
 
-getCallDest :: ExprOp expr -> Maybe (CallDest expr)
-getCallDest (CONST_PTR c) = Just $ CallConstPtr c
-  --TODO: handle other cases...
-getCallDest _ = Nothing
-
+getCallDest :: Expression -> CallDest Expression
+getCallDest expr = case expr ^. op of
+  (CONST_PTR c) -> CallConstPtr c
+  _ -> CallExpr expr
 
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExpr expr
