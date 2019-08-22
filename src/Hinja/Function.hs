@@ -7,12 +7,13 @@ module Hinja.Function
   , getMLILFunction
   , getMLILSSAFunction
   , getFunctionStartingAt
+  , getFunctionDataBinaryView
   ) where
 
 import Hinja.Prelude hiding (onException, handle)
 import qualified Data.Text as Text
 import qualified Hinja.C.Main as BN
-import Hinja.C.Types (Address)
+import Hinja.C.Types as Exports (Address(Address))
 import Hinja.C.Pointers
 import Hinja.Types.Function as Exports
 
@@ -74,3 +75,7 @@ getFunctionStartingAt bv mplat addr = do
   plat <- maybe (BN.getDefaultPlatform bv) return $ mplat
   mfn <- BN.getGetAnalysisFunction bv plat addr
   maybe (return Nothing) (fmap Just . createFunction) mfn
+
+
+getFunctionDataBinaryView :: Function -> IO BNBinaryView
+getFunctionDataBinaryView = BN.getFunctionData . view handle

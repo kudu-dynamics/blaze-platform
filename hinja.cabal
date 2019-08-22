@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.30.0.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5b8b9b71d1a58e00fe361d659499761d76ec38d3ad5d30b73e9b2a23acf6ca0c
+-- hash: f8fbc42830f796565267c511df550a07f011557280e544ba0a5c5e2589900774
 
 name:           hinja
 version:        0.1.0.0
@@ -198,8 +198,11 @@ library
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j +RTS -s -A256m -n16m -RTS
   include-dirs:
       src
+      res
   extra-libraries:
-      binaryninjacore binaryninjacore
+      binaryninjacore
+  build-tools:
+      c2hs
   build-depends:
       attoparsec
     , base
@@ -218,8 +221,6 @@ library
     , template-haskell
     , text
     , transformers
-  build-tools:
-      c2hs
   default-language: Haskell2010
 
 test-suite hinja-test
@@ -234,8 +235,11 @@ test-suite hinja-test
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
+      res
   extra-libraries:
       binaryninjacore binaryninjacore
+  build-tools:
+      c2hs
   build-depends:
       attoparsec
     , base
@@ -256,6 +260,4 @@ test-suite hinja-test
     , template-haskell
     , text
     , transformers
-  build-tools:
-      c2hs
   default-language: Haskell2010

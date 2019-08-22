@@ -72,7 +72,7 @@ library:
   - -A256m
   - -n16m
   - -RTS
-  extra-libraries: binaryninjacore binaryninjacore
+  extra-libraries: binaryninjacore
   source-dirs: src
   exposed-modules:
   - Hinja.Core
