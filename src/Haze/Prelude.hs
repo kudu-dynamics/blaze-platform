@@ -1,6 +1,5 @@
 module Haze.Prelude
   ( module Exports
-  , F
   , liftEitherIO
   , liftMaybeIO
   , liftEitherM
@@ -47,9 +46,6 @@ import           Control.Lens    as Exports        ( (%~)
 import           Data.Maybe      as Exports        ( fromJust )
 import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
-import Hinja.Function (MLILSSAFunction)
-
-type F = MLILSSAFunction
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e
