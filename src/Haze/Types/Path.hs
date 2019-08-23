@@ -11,8 +11,10 @@ import qualified Hinja.MLIL as MLIL
 import qualified Haze.Types.Graph as G
 import qualified Data.Set as Set
 import qualified Prelude as P
-
 import Haze.Prelude hiding (succ, pred, toList)
+import Hinja.Function (MLILSSAFunction)
+
+type F = MLILSSAFunction
 
 class Path p where
   fromList :: [Node] -> p

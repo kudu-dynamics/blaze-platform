@@ -7,6 +7,9 @@ import Hinja.Function (Function)
 import Hinja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Hinja.MLIL as MLIL
 import Haze.Prelude
+import Hinja.Function (MLILSSAFunction)
+
+type F = MLILSSAFunction
 
 data CallOperation = CALL (MLIL.CallOp (MLIL.Expression F))
                    | CALL_SSA (MLIL.CallSSAOp (MLIL.Expression F))
