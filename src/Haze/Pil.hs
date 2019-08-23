@@ -256,15 +256,3 @@ convertCallInstruction ctx c = case cond of
     cond = (,) <$> (c ^. Function.outputDest)
                <*> (Pil.getCallDest <$>
                     (c ^. Function.dest >>= convertExpr ctx))
-
-
-      -- do
-      -- dests <- c ^. Function.outputDest
-      -- targetExpr <- c ^. Function.dest >>= convertExpr ctx
-      -- target <- case targetExpr of
-      --   (Pil.CONST_PTR op) -> return . Pil.CallConstPtr $ op ^. Pil.constant
-      --   _ -> 
-      -- return (dests, target)
-    
-
-
