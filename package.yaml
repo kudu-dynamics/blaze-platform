@@ -1,6 +1,6 @@
-name:                hinja
+name:                binja
 version:             0.1.0.0
-github:              "mp/hinja"
+github:              "mp/binja"
 license:             BSD3
 author:              "Matt Parker"
 maintainer:          "mp@kududyn.com"
@@ -75,15 +75,15 @@ library:
   extra-libraries: binaryninjacore
   source-dirs: src
   exposed-modules:
-  - Hinja.Core
-  - Hinja.Function
-  - Hinja.BasicBlock
-  - Hinja.Architecture
-  - Hinja.MLIL
-  - Hinja.Variable
-  - Hinja.Prelude
-  - Hinja.Types.Printer
-  - Hinja.C.Enums
+  - Binja.Core
+  - Binja.Function
+  - Binja.BasicBlock
+  - Binja.Architecture
+  - Binja.MLIL
+  - Binja.Variable
+  - Binja.Prelude
+  - Binja.Types.Printer
+  - Binja.C.Enums
 
 build-tools:
   - c2hs
@@ -105,6 +105,6 @@ tests:
     extra-libraries: binaryninjacore binaryninjacore
     dependencies:
     - containers
-    - hinja
+    - binja
     - hspec
     - text
