@@ -1,9 +1,9 @@
-name:                haze
+name:                blaze
 version:             0.1.0.0
-github:              "mp/haze"
+github:              "haskell-blaze"
 license:             BSD3
-author:              "Matt Parker"
-maintainer:          "mp@kududyn.com"
+author:              ""
+maintainer:          ""
 copyright:           "2019 Kudu Dynamics"
 
 extra-source-files:
@@ -28,7 +28,7 @@ dependencies:
   - containers
   - data-binary-ieee754
   - envy
-  - hinja
+  - binja
   - lens
   - mtl
   - newtype
@@ -82,12 +82,12 @@ library:
   - -RTS
   source-dirs: src
   exposed-modules:
-  - Haze.Graph.Alga
-  - Haze.Prelude
-  - Haze.Path
-  - Haze.Pil
-  - Haze.Pil.Path
-  - Haze.Types.Pil
+  - Blaze.Graph.Alga
+  - Blaze.Prelude
+  - Blaze.Path
+  - Blaze.Pil
+  - Blaze.Pil.Path
+  - Blaze.Types.Pil
   
   
 include-dirs:
@@ -105,7 +105,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - containers
-    - haze
-    - hinja
+    - blaze
+    - binja
     - hspec
     - text

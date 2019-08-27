@@ -1,4 +1,4 @@
-module Haze.Prelude
+module Blaze.Prelude
   ( module Exports
   , liftEitherIO
   , liftMaybeIO

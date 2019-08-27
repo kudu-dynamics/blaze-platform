@@ -1,13 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Types.Function where
+module Blaze.Types.Function where
 
-import Hinja.Core (Address, InstructionIndex)
-import Hinja.Function (Function)
-import Hinja.MLIL (Expression, OperationSize, SSAVariable)
-import qualified Hinja.MLIL as MLIL
-import Haze.Prelude
-import Hinja.Function (MLILSSAFunction)
+import Binja.Core (Address, InstructionIndex)
+import Binja.Function (Function)
+import Binja.MLIL (Expression, OperationSize, SSAVariable)
+import qualified Binja.MLIL as MLIL
+import Blaze.Prelude
+import Binja.Function (MLILSSAFunction)
 
 type F = MLILSSAFunction
 

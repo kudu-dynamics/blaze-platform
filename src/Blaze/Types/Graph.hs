@@ -1,6 +1,6 @@
-module Haze.Types.Graph where
+module Blaze.Types.Graph where
 
-import Haze.Prelude
+import Blaze.Prelude
 
 import qualified Data.Set as Set
 

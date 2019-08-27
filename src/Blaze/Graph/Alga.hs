@@ -1,13 +1,13 @@
-module Haze.Graph.Alga where
+module Blaze.Graph.Alga where
 
-import Haze.Prelude
+import Blaze.Prelude
 
 import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Data.Set as Set
 import qualified Data.Bimap as Bimap
 import Data.Bimap (Bimap)
-import Haze.Types.Path (Node, PathGraph)
-import Haze.Types.Graph
+import Blaze.Types.Path (Node, PathGraph)
+import Blaze.Types.Graph
 
 type AlgaPath = PathGraph (AlgaGraph () Node)
 

@@ -1,6 +1,6 @@
-module Haze.Solver where
+module Blaze.Solver where
 
-import Haze.Prelude
+import Blaze.Prelude
 
 import Data.SBV
 import qualified Data.SBV.String as S

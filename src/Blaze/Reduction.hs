@@ -1,6 +1,6 @@
-module Haze.Reduction where
+module Blaze.Reduction where
 
-import Haze.Prelude hiding ((:*:))
+import Blaze.Prelude hiding ((:*:))
 import Data.Functor.Foldable (Fix(..), Base)
 
 -- data Lit = LInt Int

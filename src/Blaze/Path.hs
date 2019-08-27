@@ -1,40 +1,40 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Path
+module Blaze.Path
   ( module Exports
-  , module Haze.Path
+  , module Blaze.Path
   ) where
 
-import           Haze.Prelude
+import           Blaze.Prelude
 
 import qualified Data.Set                   as Set
-import           Haze.Function                      ( createCallSite )
-import qualified Haze.Function as Function
-import           Haze.Graph.Alga                    ( AlgaGraph )
-import           Haze.Types.Function                ( CallInstruction
+import           Blaze.Function                      ( createCallSite )
+import qualified Blaze.Function as Function
+import           Blaze.Graph.Alga                    ( AlgaGraph )
+import           Blaze.Types.Function                ( CallInstruction
                                                     , CallSite
                                                     , toCallInstruction
                                                     )
-import           Haze.Types.Graph                   ( Graph
+import           Blaze.Types.Graph                   ( Graph
                                                     )
-import qualified Haze.Types.Graph           as G
-import           Haze.Types.Path as Exports
-import qualified Haze.Types.Pil             as Pil
-import           Hinja.BasicBlock                   ( BasicBlock
+import qualified Blaze.Types.Graph           as G
+import           Blaze.Types.Path as Exports
+import qualified Blaze.Types.Pil             as Pil
+import           Binja.BasicBlock                   ( BasicBlock
                                                     , BasicBlockFunction
                                                     , BlockEdge
                                                     )
-import qualified Hinja.BasicBlock           as BB
-import           Hinja.Core                         ( BNBinaryView
+import qualified Binja.BasicBlock           as BB
+import           Binja.Core                         ( BNBinaryView
                                                     , InstructionIndex
                                                     )
-import qualified Hinja.Core                 as H
-import Hinja.C.Enums (BNBranchType(TrueBranch, FalseBranch))
-import           Hinja.Function                     ( Function
+import qualified Binja.Core                 as H
+import Binja.C.Enums (BNBranchType(TrueBranch, FalseBranch))
+import           Binja.Function                     ( Function
                                                     , MLILFunction
                                                     )
-import qualified Hinja.Function as HFunction
-import qualified Hinja.MLIL                 as MLIL
+import qualified Binja.Function as HFunction
+import qualified Binja.MLIL                 as MLIL
 import qualified Data.Map as Map
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)

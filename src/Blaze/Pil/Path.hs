@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Haze.Pil.Path where
+module Blaze.Pil.Path where
 
-import Haze.Prelude
-import Haze.Types.Path ( Path
+import Blaze.Prelude
+import Blaze.Types.Path ( Path
                        , Node(SubBlock, Condition, Call, Ret, AbstractPath, AbstractCall)
                        , SubBlockNode
                        , ConditionNode
@@ -11,22 +11,22 @@ import Haze.Types.Path ( Path
                        , AbstractCallNode
                        , RetNode
                        )
-import Hinja.Function (Function)
-import qualified Hinja.MLIL as MLIL
-import qualified Haze.Types.Path as Path
-import qualified Hinja.Function as HFunction
-import qualified Haze.Types.Function as Function
+import Binja.Function (Function)
+import qualified Binja.MLIL as MLIL
+import qualified Blaze.Types.Path as Path
+import qualified Binja.Function as HFunction
+import qualified Blaze.Types.Function as Function
 
-import Haze.Types.Pil ( Statement
+import Blaze.Types.Pil ( Statement
                       , Expression
                       , Ctx(Ctx)
                       , ConverterCtx(ConverterCtx)
                       , Stmt
                       , CtxIndex
                       )
-import qualified Haze.Types.Pil as Pil
-import qualified Haze.Pil as Pil
-import Haze.Types.Pil (Converter, runConverter)
+import qualified Blaze.Types.Pil as Pil
+import qualified Blaze.Pil as Pil
+import Blaze.Types.Pil (Converter, runConverter)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 -- convert path to [Pil]

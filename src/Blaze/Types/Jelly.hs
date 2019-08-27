@@ -1,12 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Types.Jelly where
+module Blaze.Types.Jelly where
 
--- import Hinja.Core (Address, InstructionIndex)
--- import Hinja.Function (Function)
--- import Hinja.MLIL (Expression, OperationSize)
--- import qualified Hinja.MLIL as MLIL
-import Haze.Prelude
+-- import Binja.Core (Address, InstructionIndex)
+-- import Binja.Function (Function)
+-- import Binja.MLIL (Expression, OperationSize)
+-- import qualified Binja.MLIL as MLIL
+import Blaze.Prelude
 -- import Data.Set as Set
 
 data Expression = Expression

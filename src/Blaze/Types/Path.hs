@@ -1,18 +1,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Types.Path where
+module Blaze.Types.Path where
 
-import Hinja.Core (InstructionIndex)
-import Hinja.Function (Function)
-import Haze.Types.Function (CallSite)
-import Haze.Types.Graph (Graph)
-import qualified Hinja.MLIL as MLIL
-import qualified Haze.Types.Graph as G
+import Binja.Core (InstructionIndex)
+import Binja.Function (Function)
+import Blaze.Types.Function (CallSite)
+import Blaze.Types.Graph (Graph)
+import qualified Binja.MLIL as MLIL
+import qualified Blaze.Types.Graph as G
 import qualified Data.Set as Set
 import qualified Prelude as P
-import Haze.Prelude hiding (succ, pred, toList)
-import Hinja.Function (MLILSSAFunction)
+import Blaze.Prelude hiding (succ, pred, toList)
+import Binja.Function (MLILSSAFunction)
 
 type F = MLILSSAFunction
 

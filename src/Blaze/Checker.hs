@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Checker where
+module Blaze.Checker where
 
 import qualified Prelude as P
-import Haze.Prelude hiding (Constraint, sym)
+import Blaze.Prelude hiding (Constraint, sym)
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as Bimap
 import qualified Data.Map as Map

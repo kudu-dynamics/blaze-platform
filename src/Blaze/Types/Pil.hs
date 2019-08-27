@@ -1,12 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Haze.Types.Pil
+module Blaze.Types.Pil
   ( module Exports
-  , module Haze.Types.Pil
+  , module Blaze.Types.Pil
   ) where
 
-import Haze.Prelude hiding (Symbol, Type)
+import Blaze.Prelude hiding (Symbol, Type)
 
-import Hinja.MLIL as Exports ( AdcOp
+import Binja.MLIL as Exports ( AdcOp
                              , AddOp
                              , AddOverflowOp
                              , AddressOfFieldOp
@@ -171,7 +171,7 @@ import Hinja.MLIL as Exports ( AdcOp
                              , dest_memory
                              )
 
-import Hinja.Function (Function)
+import Binja.Function (Function)
 
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Num)

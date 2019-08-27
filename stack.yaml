@@ -3,7 +3,7 @@ compiler: ghc-8.6.5
 
 packages:
   - .
-  - ../hinja
+  - ../haskell-binja
 
 extra-deps:
   - sbv-8.2@sha256:bb17f85a58fbf67cc3fd9e897f7c4a625be80da342f8903ef17e97de7c9ac2ae,18313

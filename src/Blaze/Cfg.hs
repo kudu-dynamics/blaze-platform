@@ -1,6 +1,6 @@
-module Haze.Cfg where
+module Blaze.Cfg where
 
-import Hinja.Prelude
+import Binja.Prelude
 
 data SpanItem a b = SpanSpan (a, a)
                   | SpanBreak b

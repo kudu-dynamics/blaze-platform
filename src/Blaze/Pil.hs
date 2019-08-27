@@ -1,7 +1,7 @@
-module Haze.Pil where
+module Blaze.Pil where
 
-import Haze.Prelude hiding (Symbol, Type)
-import Haze.Types.Pil ( Stmt
+import Blaze.Prelude hiding (Symbol, Type)
+import Blaze.Types.Pil ( Stmt
                       , Ctx
                       , Expression(Expression)
                       , Statement(Def, Store, UnimplInstr, UnimplMem, Undef, Nop)
@@ -15,14 +15,14 @@ import Haze.Types.Pil ( Stmt
                       , UnimplMemOp(UnimplMemOp)
                       , CallDest)
 
-import Haze.Types.Function (CallInstruction)
-import qualified Haze.Types.Function as Function
-import qualified Hinja.MLIL as MLIL
+import Blaze.Types.Function (CallInstruction)
+import qualified Blaze.Types.Function as Function
+import qualified Binja.MLIL as MLIL
 import qualified Data.Set as Set
-import qualified Hinja.Variable as Variable
-import qualified Haze.Types.Pil as Pil
-import qualified Hinja.Function as Function
-import Hinja.Function (Function)
+import qualified Binja.Variable as Variable
+import qualified Blaze.Types.Pil as Pil
+import qualified Binja.Function as Function
+import Binja.Function (Function)
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n

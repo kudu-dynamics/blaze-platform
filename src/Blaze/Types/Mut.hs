@@ -1,12 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Types.Mut where
+module Blaze.Types.Mut where
 
--- import Hinja.Core (Address, InstructionIndex)
--- import Hinja.Function (Function)
--- import Hinja.MLIL (Expression, OperationSize)
--- import qualified Hinja.MLIL as MLIL
-import Haze.Prelude hiding (Ptr)
+-- import Binja.Core (Address, InstructionIndex)
+-- import Binja.Function (Function)
+-- import Binja.MLIL (Expression, OperationSize)
+-- import qualified Binja.MLIL as MLIL
+import Blaze.Prelude hiding (Ptr)
 
 -- data Ptr a = Ptr (Expr Int)
 --   deriving (Eq, Ord, Show)

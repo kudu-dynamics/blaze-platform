@@ -1,19 +1,19 @@
-module Haze.Function
+module Blaze.Function
   ( module Exports
   , createCallSite
   , isDirectCall
   ) where
 
-import           Haze.Prelude
+import           Blaze.Prelude
 
-import Haze.Types.Function as Exports
-import           Hinja.Core                  ( Address
+import Blaze.Types.Function as Exports
+import           Binja.Core                  ( Address
                                              , BNBinaryView
                                              )
-import           Hinja.Function              ( Function
+import           Binja.Function              ( Function
                                              , getFunctionStartingAt
                                              )
-import qualified Hinja.MLIL          as MLIL
+import qualified Binja.MLIL          as MLIL
 import qualified Data.Set as Set
 
 

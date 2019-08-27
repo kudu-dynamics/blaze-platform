@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Util.Graph where
+module Blaze.Util.Graph where
 
-import Haze.Prelude
+import Blaze.Prelude
 
 import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Data.Set as Set

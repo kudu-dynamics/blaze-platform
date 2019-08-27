@@ -1,9 +1,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Haze.Reduction2 where
+module Blaze.Reduction2 where
 
-import Haze.Prelude hiding ((:*:))
+import Blaze.Prelude hiding ((:*:))
 import Data.Functor.Foldable
 import Data.Functor.Foldable.TH (makeBaseFunctor)
 
