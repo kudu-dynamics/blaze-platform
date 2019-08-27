@@ -52,8 +52,9 @@ data LExpr = LInt Int
 
 demo :: [LStmt]
 demo = [ LAnn "+" $ TFunc [TInt, TInt] TInt
-       , LAnn "==" $ TFunc [TInt, TInt] TBool
-       , LDef "x" $ LInt 35
+--       , LAnn "==" $ TFunc [TInt, TInt] TBool
+--       , LDef "x" $ LInt 35
+--       , LDef "x" $ LBool True
        , LDef "y" $ (LApply "+" [LVar "x", LInt 4])
        , LReturn $ LApply "==" [LVar "x", LVar "y"]
        ]
@@ -191,6 +192,6 @@ unifyConstraints_ :: [Constraint] -> [Constraint] -> [Constraint]
 unifyConstraints_ [] rs = rs
 unifyConstraints_ ((c@(TVar sym, b)):xs) rs =
                    unifyConstraints_ (subLeft sym b <$> xs) (c:(subRight sym b <$> rs))
-unifyConstraints_ ((c@(b, TVar sym)):xs) rs =
-                   unifyConstraints_ (subLeft sym b <$> xs) (c:(subRight sym b <$> rs))
+unifyConstraints_ (((b, TVar sym)):xs) rs =
+                   unifyConstraints_ (subLeft sym b <$> xs) ((TVar sym, b):(subRight sym b <$> rs))
 unifyConstraints_ (c:cs) rs = unifyConstraints_ cs (c:rs)
