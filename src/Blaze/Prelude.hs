@@ -12,7 +12,6 @@ module Blaze.Prelude
 
 import           Prelude         as Exports        ( String
                                                    , head
-                                                   , id
                                                    , (!!)
                                                    )
 

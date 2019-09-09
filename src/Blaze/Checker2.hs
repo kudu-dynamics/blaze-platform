@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Blaze.Checker where
+module Blaze.Checker2 where
 
 import qualified Prelude as P
 import Blaze.Prelude hiding (Constraint, sym)
@@ -11,32 +11,47 @@ import qualified Data.Map as Map
 newtype Sym = Sym Text
   deriving (Eq, Ord, Show, IsString)
 
-data T = TInt
-       | TBool
-       | TAnyInt
-       | TInt16
-       | TInt32
-       -- | TSInt64
-       -- | TUInt16
-       -- | TUInt32
-       -- | TUInt64
---       | TVar Text
---       | TPtr PtrLib
-       | TVar TSym
-       | TFunc [T] T  -- name [args] ret
-       deriving (Eq, Ord, Show)
+int32 :: T
+int32 = TCon "Int32"
 
-data VarT t = VarT Text
+uInt32 :: T
+uInt32 = TCon "UInt32"
+
+tUnit :: Type
+tUnit = TCon $ Tycon "()" Star
+
+tChar :: Type
+tChar = TCon $ Tycon "Char" Star
+
+tInt :: Type
+tInt = TCon $ Tycon "Int" Star
+
+tInteger :: Type
+tInteger = TCon $ Tycon "Integer" Star
+
+tFloat :: Type
+tFloat = TCon $ Tycon "Float" Star
+
+tDouble :: Type
+tDouble = TCon $ Tycon "Double" Star
+
+
+type Id = Text
+
+newtype Tycon = Tycon Id Kind
   deriving (Eq, Ord, Show)
 
-data PtrIndex = PtrIndexConst Integer
-              | PtrIndexVar (VarT Integer)
-              deriving (Eq, Ord, Show)
+newtype Tyvar = Tyvar Id Kind
+  deriving (Eq, Ord, Show)
 
-data PtrLib = PtrLib
-  { ptrMap :: Map PtrIndex T
-  , baseIndex :: Maybe PtrIndex
-  } deriving (Eq, Ord, Show)
+data Kind = KStar | Kfun Kind Kind
+
+data Type = TCon Tycon
+          | TArray Type (Maybe Int)
+          
+          | TVar Tyvar
+          | TFunc [Type] Type  -- name [args] ret
+       deriving (Eq, Ord, Show)
 
 data LStmt = LDef Sym LExpr
            | LAnn Sym T

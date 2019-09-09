@@ -43,6 +43,7 @@ dependencies:
   - text
   - transformers
   - uuid
+  - vector
 
 default-extensions:
   - DeriveDataTypeable
