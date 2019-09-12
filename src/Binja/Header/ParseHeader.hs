@@ -102,8 +102,10 @@ printStructOrEnumTarget (Target t) = printStructOrEnum t
 printStructOrEnumTarget (Other t) = pr t
 
 beautifyHeader :: Text -> Text
-beautifyHeader t = Pr.toText . mapM_ printStructOrEnumTarget $ targets
+beautifyHeader t = addStdBool . Pr.toText . mapM_ printStructOrEnumTarget $ targets
   where
+    addStdBool :: Text -> Text
+    addStdBool = ("#include <stdbool.h>\n" <>)
     targets :: [Target StructOrEnum]
     targets = either (const []) identity . parseOnly parseStructAndEnums $ t
 
@@ -162,7 +164,6 @@ writeBeautyHeader fpin fpout = do
   case removeComments hin of
     (Left err) -> putText $ "Big Error: " <> err
     (Right t) -> TextIO.writeFile fpout $ beautifyHeader t
-
 
 kosherHeader :: Text -> Text
 kosherHeader = Pr.toText . printAllDecls . either (const []) identity . getDecls

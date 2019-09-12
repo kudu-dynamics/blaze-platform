@@ -5,10 +5,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Binja.Header.ParseEnums where
 
 import Binja.Prelude 
+import Text.RawString.QQ
 import Binja.Types.Printer ( Printer, pr, indent )
 import qualified Binja.Types.Printer as Pr
 import Data.Attoparsec.Text ( Parser
@@ -16,6 +18,7 @@ import Data.Attoparsec.Text ( Parser
                             , char
                             , string
                             , endOfInput
+                            , hexadecimal
                             , anyChar
                             , satisfy
                             , letter
@@ -44,6 +47,9 @@ data EnumVals = SimpleEnumVals [EnumField]
 
 data EnumType = EnumType EnumName EnumVals
   deriving (Eq, Read, Ord, Show)
+
+hex :: (Integral a, Bits a) => Parser a
+hex = string "0x" >> hexadecimal
 
 printEnumType :: EnumType -> Printer ()
 printEnumType (EnumType (EnumName name) vals) = do
@@ -80,7 +86,7 @@ specificEnumVal = do
   skipSpace
   void $ char '='
   skipSpace
-  n <- decimal
+  n <- hex <|> decimal
   return (ef, n)
 
 padded_ :: Parser a -> Parser ()
@@ -110,8 +116,8 @@ parseEnumType = do
   void $ char ';'
   return $ EnumType name vals
 
--- demo1 :: Text
--- demo1 = "enum Higgins { Jack = 4, Binji = 32, HHHUGS = 0 };"
+demo1 :: Text
+demo1 = "enum Higgins { Jack = 4, Binji = 0x32, HHHUGS = 0 };"
 
 -- enum1 :: EnumType
 -- enum1 = let (Right r) = parseOnly parseEnumType demo1 in r
@@ -198,4 +204,17 @@ writeEnumModules modulePrefix enumDir = mapM_ $ writeEnumModule modulePrefix enu
 --   where
 --     enumDir' = maybe "" (bool (enumDir `Text.snoc` '/') enumDir $ Text.last == "/")
 --       $ lastMay enumDir
+
+demo2 :: Text
+demo2 = [r|enum BNSegmentFlag
+	{
+		SegmentExecutable = 1,
+		SegmentWritable = 2,
+		SegmentReadable = 4,
+		SegmentContainsData = 8,
+		SegmentContainsCode = 10,
+		SegmentDenyWrite = 20,
+		SegmentDenyExecute = 11
+	};
+|]
 

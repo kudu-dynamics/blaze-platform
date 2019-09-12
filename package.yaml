@@ -84,6 +84,27 @@ library:
   - Binja.Prelude
   - Binja.Types.Printer
   - Binja.C.Enums
+  - Binja.Header.ParseHeader
+
+executables:
+  gen-clean-binja-header:
+    main: Main.hs
+    source-dirs: app/clean
+    ghc-options:
+      - -Wall
+      - -Wcompat
+      - -Wincomplete-record-updates
+      - -Wincomplete-uni-patterns
+      - -Wredundant-constraints
+      - -j
+      - +RTS
+      - -s
+      - -A256m
+      - -n16m
+      - -RTS
+    dependencies:
+      - base
+      - binja
 
 build-tools:
   - c2hs
