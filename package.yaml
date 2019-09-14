@@ -24,6 +24,7 @@ dependencies:
   - algebraic-graphs
   - base >= 4.7 && < 5
   - bimap
+  - bv
   - casing
   - containers
   - data-binary-ieee754
