@@ -7,7 +7,7 @@ module Blaze.Types.Pil
 import Blaze.Prelude hiding (Symbol, Type)
 
 import Binja.MLIL as Exports ( AdcOp
-                             , AddOp
+                             , AddOp(AddOp)
                              , AddOverflowOp
                              , AddressOfFieldOp
                              , AddressOfOp
