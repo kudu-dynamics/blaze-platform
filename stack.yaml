@@ -4,10 +4,13 @@ compiler: ghc-8.6.5
 packages:
   - .
   - ../haskell-binja
+  - ../bv-sized
 
 extra-deps:
   - sbv-8.2@sha256:bb17f85a58fbf67cc3fd9e897f7c4a625be80da342f8903ef17e97de7c9ac2ae,18313
-# extra-deps:
+  - parameterized-utils-2.0@sha256:00e4ca34f1f99c957ba1b62365c058adde6413e0298b107dd4ee9ea796044800,3639
+  
+  # extra-deps:
 #   - envy-1.5.1.0@sha256:a00910ebf461ec36ff6b7b01711bffe09cee062b7515c4580c466002590283a2
 #   - lens-4.17
 #   - profunctors-5.3@sha256:ce641b72fd014b1f7b42a438f8c0360cb93fd277c7b843b7ef94a7c083c31ded,2017

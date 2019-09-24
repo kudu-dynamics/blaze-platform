@@ -1,4 +1,4 @@
-module HChecker where
+module Blaze.HChecker where
 
 
 import Blaze.Prelude hiding (Type, list, modify)

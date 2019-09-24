@@ -1,4 +1,4 @@
-module CheckerTest where
+module Blaze.CheckerTest where
 
 import Blaze.Prelude
 import qualified Prelude as P

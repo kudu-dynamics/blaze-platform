@@ -20,19 +20,21 @@ extra-source-files:
 description:         Please see the readme
 
 dependencies:
-  - attoparsec
   - algebraic-graphs
+  - attoparsec
   - base >= 4.7 && < 5
   - bimap
+  - binja
   - bv
+  - bv-sized
   - casing
   - containers
   - data-binary-ieee754
   - envy
-  - binja
   - lens
   - mtl
   - newtype
+  - parameterized-utils
   - pretty-simple
   - protolude
   - random
@@ -40,6 +42,7 @@ dependencies:
   - recursion-schemes
   - sbv >= 8.0
   - stm
+  - string-conversions
   - template-haskell
   - text
   - transformers
@@ -96,7 +99,7 @@ include-dirs:
   - "src"
 
 tests:
-  haze-test:
+  blaze-test:
     main: Spec.hs
     source-dirs:
     - test
