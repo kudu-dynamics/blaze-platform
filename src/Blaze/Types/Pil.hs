@@ -9,7 +9,7 @@ import Blaze.Prelude hiding (Symbol, Type)
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
                              , AddOverflowOp
-                             , AddressOfFieldOp
+                             , AddressOfFieldOp(AddressOfFieldOp)
                              , AddressOfOp(AddressOfOp)
                              , AndOp(AndOp)
                              , AsrOp(AsrOp)
@@ -136,6 +136,8 @@ import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , HasRight
                              , HasVar
                              , HasSrc
+                             , HasHigh
+                             , HasLow
                              , index
                              , func
                              , operation
@@ -334,8 +336,8 @@ data VarPhiOp expr = VarPhiOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 data VarSplitOp expr = VarSplitOp
-    { _varSplitSSAOpHigh :: PilVar
-    , _varSplitSSAOpLow :: PilVar
+    { _varSplitOpHigh :: PilVar
+    , _varSplitOpLow :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 --TODO: address_of and address_of_field

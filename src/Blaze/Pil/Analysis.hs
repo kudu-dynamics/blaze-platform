@@ -22,6 +22,11 @@ getDefinedVars = concatMap getDefinedVars_
 getVarsFromExpr :: Expression -> [PilVar]
 getVarsFromExpr e = case e ^. Pil.op of
   (Pil.VAR vop) -> [vop ^. Pil.src]
+  (Pil.VAR_FIELD x) -> [x ^. Pil.src]
+  (Pil.VAR_ALIASED x) -> [x ^. Pil.src]
+  (Pil.VAR_ALIASED_FIELD x) -> [x ^. Pil.src]
+  (Pil.VAR_PHI x) -> x ^. Pil.dest : x ^. Pil.src
+  (Pil.VAR_SPLIT x) -> [x ^. Pil.high, x ^. Pil.low]
   x -> concatMap getVarsFromExpr x
 
 getVars_ :: Stmt -> [PilVar]
@@ -36,6 +41,34 @@ getFreeVars xs = Set.difference allVars defined
     defined = Set.fromList $ getDefinedVars xs
     allVars = Set.fromList $ getVars xs
 
+substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
+substVarsInExpr f e = case e ^. Pil.op of
+  (Pil.VAR x) -> e & Pil.op .~ (Pil.VAR $ x & Pil.src %~ f)
+  (Pil.VAR_FIELD x) -> e & Pil.op .~ (Pil.VAR_FIELD $ x & Pil.src %~ f)
+  (Pil.VAR_ALIASED x) -> e & Pil.op .~ (Pil.VAR_ALIASED $ x & Pil.src %~ f)
+  (Pil.VAR_ALIASED_FIELD x) -> e & Pil.op .~ (Pil.VAR_ALIASED_FIELD $ x & Pil.src %~ f)
+  (Pil.VAR_PHI x) -> e & Pil.op .~ (Pil.VAR_PHI $ x & Pil.src %~ fmap f
+                                                    & Pil.dest %~ f)
+  (Pil.VAR_SPLIT x) -> e & Pil.op .~ (Pil.VAR_SPLIT $ x & Pil.high %~ f
+                                                        & Pil.low %~ f)
+  _ -> e
+
+substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
+substVars_ f = fmap $ substVarsInExpr f
+
+substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
+substVars f = fmap $ substVars_ f
+
+substVarExprInExpr :: (PilVar -> Maybe Expression) -> Expression -> Expression
+substVarExprInExpr f x = case x ^. Pil.op of
+  (Pil.VAR (Pil.VarOp v)) -> maybe x identity $ f v
+  _ -> x
+
+substVarExpr_ :: (PilVar -> Maybe Expression) -> Stmt -> Stmt
+substVarExpr_ f = fmap $ substVarExprInExpr f
+
+substVarExpr :: (PilVar -> Maybe Expression) -> [Stmt] -> [Stmt]
+substVarExpr f = fmap $ substVarExpr_ f
 
 -----------------
 
