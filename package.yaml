@@ -75,10 +75,10 @@ library:
   extra-libraries: binaryninjacore
   source-dirs: src
   exposed-modules:
+  - Binja.Architecture
   - Binja.Core
   - Binja.Function
   - Binja.BasicBlock
-  - Binja.Architecture
   - Binja.MLIL
   - Binja.Variable
   - Binja.Prelude

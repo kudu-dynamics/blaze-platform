@@ -31,6 +31,10 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {ptrListIn `List (Ptr BNBinaryViewType)'} -> `()' #}
 
+{#fun BNSaveToFilename as saveToFilename {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
+
+{#fun BNCreateDatabase as createDatabase {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
+
 {#fun BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
 
 {#fun BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `CULong'} -> `()' #}
