@@ -41,6 +41,8 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNNewFunctionReference as newFunctionReference {withPtr* `BNFunction'} -> `BNFunction' safePtr* #}
 
+{#fun BNGetFileForView as getFileForView {withPtr* `BNBinaryView'} -> `BNFileMetadata' safePtr* #}
+
 {#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' safePtr* #}
 
 {#fun BNGetFileViewOfType as getFileViewOfType {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}

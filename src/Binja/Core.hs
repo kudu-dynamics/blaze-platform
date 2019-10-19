@@ -2,6 +2,7 @@ module Binja.Core
   ( module Exports
   , getBestViewType
   , getBinaryView
+  , saveBndb
   ) where
 
 import Binja.Prelude
@@ -50,6 +51,12 @@ getBestViewType bv = do
     isRaw _ = Nothing
     isNotRaw (_, "Raw") = Nothing
     isNotRaw (t, _) = Just t
+
+-- TODO: check to see if the bndb already esists
+saveBndb :: BNBinaryView -> FilePath -> IO Bool
+saveBndb bv fp = getFileForView bv
+  >>= flip getFileViewOfType "Raw"
+  >>= maybe (return False) (flip createDatabase fp)
 
 getBinaryView :: FilePath -> IO (Either Text BNBinaryView)
 getBinaryView fp = runExceptT $ do
