@@ -6,9 +6,9 @@ import qualified Prelude as P
 import qualified Data.Text as Text
 import qualified Text.Casing as Casing
 import qualified Data.Char as Char
-import qualified Binja.Types.Printer as Printer
+import qualified Binja.Header.Types.Printer as Printer
 import qualified Data.Set as Set
-import Binja.Types.Printer (Printer, pr, indent, br)
+import Binja.Header.Types.Printer (Printer, pr, indent, br)
 import qualified Data.Text.IO as TextIO
 
 opTypeType :: Text -> Text

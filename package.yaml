@@ -22,6 +22,7 @@ description:         Please see the readme
 dependencies:
   - attoparsec
   - base
+  - binja-header-cleaner
   - casing
   - containers
   - data-binary-ieee754
@@ -82,9 +83,7 @@ library:
   - Binja.MLIL
   - Binja.Variable
   - Binja.Prelude
-  - Binja.Types.Printer
   - Binja.C.Enums
-  - Binja.Header.ParseHeader
 
 executables:
   gen-clean-binja-header:

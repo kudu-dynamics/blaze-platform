@@ -6,3 +6,4 @@ packages:
 
 extra-deps:
   - c2hs-0.28.6
+  - lib/binja-header-cleaner
