@@ -37,7 +37,7 @@ standardPtrConv = fmap pointerWrap . newFPtr
 --manifestArrayWithFreeSize :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> CULong -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
 manifestArrayWithFreeSize :: (Storable a)
                           => (a -> IO b)
-                          -> (List a -> CULong -> IO ())
+                          -> (List a -> Word64 -> IO ())
                           -> (List a, CSize)
                           -> IO [b]
 manifestArrayWithFreeSize f freeArray (arr, len) = do

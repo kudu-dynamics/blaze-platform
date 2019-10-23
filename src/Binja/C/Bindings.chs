@@ -16,7 +16,7 @@ import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 #include <binaryninjacore.h>
-
+  
 {#context lib="binaryninjacore" #}
 
 {#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
@@ -37,7 +37,7 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
 
-{#fun BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `CULong'} -> `()' #}
+{#fun BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `Word64'} -> `()' #}
 
 {#fun BNNewFunctionReference as newFunctionReference {withPtr* `BNFunction'} -> `BNFunction' safePtr* #}
 
@@ -105,7 +105,7 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNGetArchitectureName as getArchitectureName {withPtr* `BNArchitecture'} -> `String' #}
 
-{#fun BNLowLevelILFreeOperandList as lowLevelILFreeOperandList {id `List CULong'} -> `()' #}
+{#fun BNLowLevelILFreeOperandList as lowLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
 
 
 ---------- basic blocks
@@ -123,7 +123,7 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 {#fun BNGetLowLevelILBasicBlockList as getLowLevelILBasicBlockList' {withPtr* `BNLowLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
 
-{#fun BNFreeBasicBlockList as freeBasicBlockList {ptrListIn `List (Ptr BNBasicBlock)', `CULong'} -> `()' #}
+{#fun BNFreeBasicBlockList as freeBasicBlockList {ptrListIn `List (Ptr BNBasicBlock)', `Word64'} -> `()' #}
 
 {#fun BNNewBasicBlockReference as newBasicBlockReference {withPtr* `BNBasicBlock'} -> `BNBasicBlock' safePtr* #}
 
@@ -136,7 +136,7 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNGetBasicBlockOutgoingEdges as getBasicBlockOutgoingEdges' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*} -> `List BNBasicBlockEdge' castPtr #}
 
-{#fun BNFreeBasicBlockEdgeList as freeBasicBlockEdgeList {castPtr `List BNBasicBlockEdge', `CULong'} -> `()' #}
+{#fun BNFreeBasicBlockEdgeList as freeBasicBlockEdgeList {castPtr `List BNBasicBlockEdge', `Word64'} -> `()' #}
 
 {#fun BNGetBasicBlockDominators as getBasicBlockDominators' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*, `Bool'} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
@@ -165,9 +165,9 @@ void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMe
 {#fun wrapBNGetMediumLevelILByIndex as wrapBNGetMediumLevelILByIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', castPtr `Ptr MediumLevelILInstruction'} -> `()' #}
 
 
-{#fun BNMediumLevelILGetOperandList as mediumLevelILGetOperandList' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', fromIntegral `OpIndex', alloca- `CSize' peekIntConv*} -> `List CULong' id #}
+{#fun BNMediumLevelILGetOperandList as mediumLevelILGetOperandList' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', fromIntegral `OpIndex', alloca- `CSize' peekIntConv*} -> `List Word64' castPtr #}
 
-{#fun BNMediumLevelILFreeOperandList as mediumLevelILFreeOperandList {id `List CULong'} -> `()' #}
+{#fun BNMediumLevelILFreeOperandList as mediumLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
 
 ---- variables
 
