@@ -421,6 +421,11 @@ data StructType = StructType
   , _fields :: [Type]
   } deriving (Eq, Ord, Show, Generic)
 
+data FuncType = FuncType
+  { _args :: [Type]
+  , _ret :: Maybe Type
+  } deriving (Eq, Ord, Show, Generic)
+
 type ObsType = [Type]
 
 data Type = TBool
@@ -433,6 +438,7 @@ data Type = TBool
           | TString
           | TStruct StructType
           | TObs ObsType
+          | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
            
 type TypeEnv = Map PilVar Type
