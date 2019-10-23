@@ -111,4 +111,3 @@ mergePilVars originVar s = originVar & Pil.mapsTo .~ x where
   x = foldr Set.union Set.empty y
   y = fmap (view Pil.mapsTo) . Set.toList $ Set.insert originVar s
 
-
