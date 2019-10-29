@@ -3,7 +3,7 @@ module Blaze.Solver where
 import Blaze.Prelude
 
 import Data.SBV
-import qualified Data.SBV.String as S
+-- import qualified Data.SBV.String as S
 
 
 add5 :: SWord16 -> SWord16

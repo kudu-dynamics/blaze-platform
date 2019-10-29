@@ -7,35 +7,33 @@ module Blaze.Path
 
 import           Blaze.Prelude
 
-import qualified Data.Set                   as Set
-import           Blaze.Function                      ( createCallSite )
-import qualified Blaze.Function as Function
-import           Blaze.Graph.Alga                    ( AlgaGraph )
-import           Blaze.Types.Function                ( CallInstruction
-                                                    , CallSite
-                                                    , toCallInstruction
-                                                    )
-import           Blaze.Types.Graph                   ( Graph
-                                                    )
-import qualified Blaze.Types.Graph           as G
-import           Blaze.Types.Path as Exports
-import qualified Blaze.Types.Pil             as Pil
-import           Binja.BasicBlock                   ( BasicBlock
-                                                    , BasicBlockFunction
-                                                    , BlockEdge
-                                                    )
-import qualified Binja.BasicBlock           as BB
-import           Binja.Core                         ( BNBinaryView
-                                                    , InstructionIndex
-                                                    )
-import qualified Binja.Core                 as H
-import Binja.C.Enums (BNBranchType(TrueBranch, FalseBranch))
-import           Binja.Function                     ( Function
-                                                    , MLILFunction
-                                                    )
-import qualified Binja.Function as HFunction
-import qualified Binja.MLIL                 as MLIL
-import qualified Data.Map as Map
+import           Binja.BasicBlock                  ( BasicBlock
+                                                   , BasicBlockFunction
+                                                   , BlockEdge
+                                                   )
+import qualified Binja.BasicBlock     as BB
+import           Binja.C.Enums                     ( BNBranchType( FalseBranch
+                                                                 , TrueBranch
+                                                                 )
+                                                   )
+import           Binja.Core                        ( BNBinaryView
+                                                   , InstructionIndex
+                                                   )
+import           Binja.Function                    ( Function
+                                                   )
+import qualified Binja.Function       as HFunction
+import qualified Binja.MLIL           as MLIL
+import           Blaze.Function                    ( createCallSite )
+import qualified Blaze.Function       as Function
+import           Blaze.Graph.Alga                  ( AlgaGraph )
+import           Blaze.Types.Function              ( CallInstruction
+                                                   , CallSite
+                                                   , toCallInstruction
+                                                   )
+import           Blaze.Types.Graph                 ( Graph )
+import qualified Blaze.Types.Graph    as G
+import           Blaze.Types.Path     as Exports
+import qualified Blaze.Types.Pil      as Pil
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
@@ -104,9 +102,9 @@ data CallCombo = CallCombo { callNode :: CallNode
                deriving (Eq, Ord, Show)
 
 callCombo :: Function -> CallSite -> IO CallCombo
-callCombo fn cs = do
-  call <- CallNode fn cs <$> randomIO
-  ret <- RetNode fn cs <$> randomIO
+callCombo fn cs' = do
+  call <- CallNode fn cs' <$> randomIO
+  ret <- RetNode fn cs' <$> randomIO
   apn <- AbstractPathNode fn (Call call) (Ret ret) <$> randomIO
   return $ CallCombo call apn ret
 

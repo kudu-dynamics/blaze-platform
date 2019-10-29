@@ -1,34 +1,35 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Blaze.Pil.Path where
 
-import Blaze.Prelude
-import Blaze.Types.Path ( Path
-                       , Node(SubBlock, Condition, Call, Ret, AbstractPath, AbstractCall)
-                       , SubBlockNode
-                       , ConditionNode
-                       , CallNode
-                       , AbstractPathNode
-                       , AbstractCallNode
-                       , RetNode
-                       )
-import Binja.Function (Function)
-import qualified Binja.MLIL as MLIL
-import qualified Blaze.Types.Path as Path
-import qualified Binja.Function as HFunction
-import qualified Blaze.Types.Function as Function
+import           Blaze.Prelude
 
-import Blaze.Types.Pil ( Statement
-                      , Expression
-                      , Ctx(Ctx)
-                      , ConverterCtx(ConverterCtx)
-                      , Stmt
-                      , CtxIndex
-                      )
-import qualified Blaze.Types.Pil as Pil
-import qualified Blaze.Pil as Pil
-import Blaze.Types.Pil (Converter, runConverter)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import           Binja.Function                    ( Function )
+import qualified Binja.Function       as HFunction
+import qualified Binja.MLIL           as MLIL
+import qualified Blaze.Pil            as Pil
+import qualified Blaze.Types.Function as Function
+import           Blaze.Types.Path                  ( AbstractCallNode
+                                                   , ConditionNode
+                                                   , Node( AbstractCall
+                                                         , Condition
+                                                         , SubBlock
+                                                         )
+                                                   , Path
+                                                   , SubBlockNode
+                                                   )
+import qualified Blaze.Types.Path     as Path
+import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx )
+                                                   , Ctx( Ctx )
+                                                   , CtxIndex
+                                                   , Stmt
+                                                   )
+import           Blaze.Types.Pil                   ( Converter
+                                                   , runConverter
+                                                   )
+import qualified Blaze.Types.Pil      as Pil
+import qualified Data.Map             as Map
+import qualified Data.Set             as Set
+
 -- convert path to [Pil]
 
 -- updates ctx if Function is new
@@ -101,5 +102,3 @@ startConverterCtx = ConverterCtx Nothing startCtx
 convertPath :: Path p => p -> IO [Stmt]
 convertPath =
   fmap (concat . fst) . flip runConverter startConverterCtx . traverse convertNode . Path.toList
-
-

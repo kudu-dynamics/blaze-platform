@@ -61,7 +61,7 @@ instance (Graph () Node g) => Path (PathGraph g) where
     [x] -> Just x
     _ -> P.error "Path has multiple sink nodes. Bad!"
 
-  expandNode apn gpart g = maybe g id $ do
+  expandNode apn gpart g = maybe g identity $ do
     firstN <- firstNode gpart
     lastN <- lastNode gpart
     npred <- pred n g

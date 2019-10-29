@@ -20,18 +20,21 @@ extra-source-files:
 description:         Please see the readme
 
 dependencies:
-  - attoparsec
   - algebraic-graphs
+  - attoparsec
   - base >= 4.7 && < 5
   - bimap
+  - binja
+  - bv
+#  - bv-sized
   - casing
   - containers
   - data-binary-ieee754
   - envy
-  - binja
   - lens
   - mtl
   - newtype
+  - parameterized-utils
   - pretty-simple
   - protolude
   - random
@@ -39,10 +42,12 @@ dependencies:
   - recursion-schemes
   - sbv >= 8.0
   - stm
+  - string-conversions
   - template-haskell
   - text
   - transformers
   - uuid
+  - vector
 
 default-extensions:
   - DeriveDataTypeable
@@ -87,14 +92,16 @@ library:
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Path
+  - Blaze.Pil.Analysis
   - Blaze.Types.Pil
+#  - Blaze.Liquid.Checker
   
   
 include-dirs:
   - "src"
 
 tests:
-  haze-test:
+  blaze-test:
     main: Spec.hs
     source-dirs:
     - test

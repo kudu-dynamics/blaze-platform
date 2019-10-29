@@ -6,123 +6,123 @@ module Blaze.Types.Pil
 
 import Blaze.Prelude hiding (Symbol, Type)
 
-import Binja.MLIL as Exports ( AdcOp
-                             , AddOp
+import Binja.MLIL as Exports ( AdcOp(AdcOp)
+                             , AddOp(AddOp)
                              , AddOverflowOp
-                             , AddressOfFieldOp
-                             , AddressOfOp
-                             , AndOp
-                             , AsrOp
-                             , BoolToIntOp
-                             , BpOp
-                             , CallOutputOp
-                             , CallOutputSSAOp
-                             , CallParamOp
-                             , CallParamSSAOp
-                             , CallSSAOp
-                             , CallUntypedOp
-                             , CallUntypedSSAOp
-                             , CeilOp
-                             , CmpEOp
-                             , CmpNeOp
-                             , CmpSgeOp
-                             , CmpSgtOp
-                             , CmpSleOp
-                             , CmpSltOp
-                             , CmpUgeOp
-                             , CmpUgtOp
-                             , CmpUleOp
-                             , CmpUltOp
-                             , ConstOp
-                             , ConstPtrOp
-                             , DivsDpOp
-                             , DivsOp
-                             , DivuDpOp
-                             , DivuOp
-                             , ExternPtrOp
-                             , FabsOp
-                             , FaddOp
-                             , FcmpEOp
-                             , FcmpGeOp
-                             , FcmpGtOp
-                             , FcmpLeOp
-                             , FcmpLtOp
-                             , FcmpNeOp
-                             , FcmpOOp
-                             , FcmpUoOp
-                             , FdivOp
-                             , FloatConstOp
-                             , FloatConvOp
-                             , FloatToIntOp
-                             , FloorOp
-                             , FmulOp
-                             , FnegOp
-                             , FreeVarSlotOp
-                             , FreeVarSlotSSAOp
-                             , FsqrtOp
-                             , FsubOp
-                             , FtruncOp
-                             , GotoOp
-                             , IfOp
-                             , ImportOp
-                             , IntToFloatOp
-                             , IntrinsicOp
-                             , IntrinsicSSAOp
-                             , JumpOp
-                             , JumpToOp
-                             , LoadOp
-                             , LoadSSAOp
-                             , LoadStructOp
-                             , LoadStructSSAOp
-                             , LowPartOp
-                             , LslOp
-                             , LsrOp
-                             , MemPhiOp
-                             , ModsDpOp
-                             , ModsOp
-                             , ModuDpOp
-                             , ModuOp
-                             , MulOp
-                             , MulsDpOp
-                             , MuluDpOp
-                             , NegOp
-                             , NoretOp
+                             , AddressOfFieldOp(AddressOfFieldOp)
+                             , AddressOfOp(AddressOfOp)
+                             , AndOp(AndOp)
+                             , AsrOp(AsrOp)
+                             , BoolToIntOp(BoolToIntOp)
+                             , BpOp(BpOp)
+                             , CallOutputOp(CallOutputOp)
+                             , CallOutputSSAOp(CallOutputSSAOp)
+                             , CallParamOp(CallParamOp)
+                             , CallParamSSAOp(CallParamSSAOp)
+                             , CallSSAOp(CallSSAOp)
+                             , CallUntypedOp(CallUntypedOp)
+                             , CallUntypedSSAOp(CallUntypedSSAOp)
+                             , CeilOp(CeilOp)
+                             , CmpEOp(CmpEOp)
+                             , CmpNeOp(CmpNeOp)
+                             , CmpSgeOp(CmpSgeOp)
+                             , CmpSgtOp(CmpSgtOp)
+                             , CmpSleOp(CmpSleOp)
+                             , CmpSltOp(CmpSltOp)
+                             , CmpUgeOp(CmpUgeOp)
+                             , CmpUgtOp(CmpUgtOp)
+                             , CmpUleOp(CmpUleOp)
+                             , CmpUltOp(CmpUltOp)
+                             , ConstOp(ConstOp)
+                             , ConstPtrOp(ConstPtrOp)
+                             , DivsDpOp(DivsDpOp)
+                             , DivsOp(DivsOp)
+                             , DivuDpOp(DivuDpOp)
+                             , DivuOp(DivuOp)
+                             , ExternPtrOp(ExternPtrOp)
+                             , FabsOp(FabsOp)
+                             , FaddOp(FaddOp)
+                             , FcmpEOp(FcmpEOp)
+                             , FcmpGeOp(FcmpGeOp)
+                             , FcmpGtOp(FcmpGtOp)
+                             , FcmpLeOp(FcmpLeOp)
+                             , FcmpLtOp(FcmpLtOp)
+                             , FcmpNeOp(FcmpNeOp)
+                             , FcmpOOp(FcmpOOp)
+                             , FcmpUoOp(FcmpUoOp)
+                             , FdivOp(FdivOp)
+                             , FloatConstOp(FloatConstOp)
+                             , FloatConvOp(FloatConvOp)
+                             , FloatToIntOp(FloatToIntOp)
+                             , FloorOp(FloorOp)
+                             , FmulOp(FmulOp)
+                             , FnegOp(FnegOp)
+                             , FreeVarSlotOp(FreeVarSlotOp)
+                             , FreeVarSlotSSAOp(FreeVarSlotSSAOp)
+                             , FsqrtOp(FsqrtOp)
+                             , FsubOp(FsubOp)
+                             , FtruncOp(FtruncOp)
+                             , GotoOp(GotoOp)
+                             , IfOp(IfOp)
+                             , ImportOp(ImportOp)
+                             , IntToFloatOp(IntToFloatOp)
+                             , IntrinsicOp(IntrinsicOp)
+                             , IntrinsicSSAOp(IntrinsicSSAOp)
+                             , JumpOp(JumpOp)
+                             , JumpToOp(JumpToOp)
+                             , LoadOp(LoadOp)
+                             , LoadSSAOp(LoadSSAOp)
+                             , LoadStructOp(LoadStructOp)
+                             , LoadStructSSAOp(LoadStructSSAOp)
+                             , LowPartOp(LowPartOp)
+                             , LslOp(LslOp)
+                             , LsrOp(LsrOp)
+                             , MemPhiOp(MemPhiOp)
+                             , ModsDpOp(ModsDpOp)
+                             , ModsOp(ModsOp)
+                             , ModuDpOp(ModuDpOp)
+                             , ModuOp(ModuOp)
+                             , MulOp(MulOp)
+                             , MulsDpOp(MulsDpOp)
+                             , MuluDpOp(MuluDpOp)
+                             , NegOp(NegOp)
+                             , NoretOp(NoretOp)
                              , NotOp(NotOp) --TODO: do this for every xOp...
-                             , OrOp
-                             , RetHintOp
-                             , RetOp
-                             , RlcOp
-                             , RolOp
-                             , RorOp
-                             , RoundToIntOp
-                             , RrcOp
-                             , SbbOp
-                             , SetVarAliasedFieldOp
-                             , SetVarAliasedOp
-                             , SetVarFieldOp
-                             , SetVarOp
-                             , SetVarSSAFieldOp
-                             , SetVarSSAOp
-                             , SetVarSplitOp
-                             , SetVarSplitSSAOp
-                             , StoreStructOp
-                             , StoreStructSSAOp
-                             , SubOp
-                             , SxOp
-                             , SyscallOp
-                             , SyscallSSAOp
-                             , SyscallUntypedOp
-                             , SyscallUntypedSSAOp
-                             , TailcallOp
-                             , TailcallSSAOp
-                             , TailcallUntypedOp
-                             , TailcallUntypedSSAOp
-                             , TestBitOp
-                             , TrapOp
-                             , UndefOp
-                             , UnimplOp
-                             , XorOp
-                             , ZxOp
+                             , OrOp(OrOp)
+                             , RetHintOp(RetHintOp)
+                             , RetOp(RetOp)
+                             , RlcOp(RlcOp)
+                             , RolOp(RolOp)
+                             , RorOp(RorOp)
+                             , RoundToIntOp(RoundToIntOp)
+                             , RrcOp(RrcOp)
+                             , SbbOp(SbbOp)
+                             , SetVarAliasedFieldOp(SetVarAliasedFieldOp)
+                             , SetVarAliasedOp(SetVarAliasedOp)
+                             , SetVarFieldOp(SetVarFieldOp)
+                             , SetVarOp(SetVarOp)
+                             , SetVarSSAFieldOp(SetVarSSAFieldOp)
+                             , SetVarSSAOp(SetVarSSAOp)
+                             , SetVarSplitOp(SetVarSplitOp)
+                             , SetVarSplitSSAOp(SetVarSplitSSAOp)
+                             , StoreStructOp(StoreStructOp)
+                             , StoreStructSSAOp(StoreStructSSAOp)
+                             , SubOp(SubOp)
+                             , SxOp(SxOp)
+                             , SyscallOp(SyscallOp)
+                             , SyscallSSAOp(SyscallSSAOp)
+                             , SyscallUntypedOp(SyscallUntypedOp)
+                             , SyscallUntypedSSAOp(SyscallUntypedSSAOp)
+                             , TailcallOp(TailcallOp)
+                             , TailcallSSAOp(TailcallSSAOp)
+                             , TailcallUntypedOp(TailcallUntypedOp)
+                             , TailcallUntypedSSAOp(TailcallUntypedSSAOp)
+                             , TestBitOp(TestBitOp)
+                             , TrapOp(TrapOp)
+                             , UndefOp(UndefOp)
+                             , UnimplOp(UnimplOp)
+                             , XorOp(XorOp)
+                             , ZxOp(ZxOp)
                              , OperationSize
                              , SSAVariable
                              , HasSize
@@ -136,6 +136,8 @@ import Binja.MLIL as Exports ( AdcOp
                              , HasRight
                              , HasVar
                              , HasSrc
+                             , HasHigh
+                             , HasLow
                              , index
                              , func
                              , operation
@@ -334,8 +336,8 @@ data VarPhiOp expr = VarPhiOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 data VarSplitOp expr = VarSplitOp
-    { _varSplitSSAOpHigh :: PilVar
-    , _varSplitSSAOpLow :: PilVar
+    { _varSplitOpHigh :: PilVar
+    , _varSplitOpLow :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 --TODO: address_of and address_of_field
@@ -419,6 +421,11 @@ data StructType = StructType
   , _fields :: [Type]
   } deriving (Eq, Ord, Show, Generic)
 
+data FuncType = FuncType
+  { _args :: [Type]
+  , _ret :: Maybe Type
+  } deriving (Eq, Ord, Show, Generic)
+
 type ObsType = [Type]
 
 data Type = TBool
@@ -431,6 +438,7 @@ data Type = TBool
           | TString
           | TStruct StructType
           | TObs ObsType
+          | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
            
 type TypeEnv = Map PilVar Type

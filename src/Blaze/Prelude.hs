@@ -12,7 +12,6 @@ module Blaze.Prelude
 
 import           Prelude         as Exports        ( String
                                                    , head
-                                                   , id
                                                    , (!!)
                                                    )
 
@@ -43,6 +42,7 @@ import           Control.Lens    as Exports        ( (%~)
                                                    , use
                                                    , view
                                                    )
+import Data.String.Conversions as Exports ( cs )
 import           Data.Maybe      as Exports        ( fromJust )
 import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
