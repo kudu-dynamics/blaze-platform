@@ -3,7 +3,6 @@ compiler: ghc-8.6.5
 
 packages:
   - .
-  - ../bv-sized
 
 extra-deps:
   - ../haskell-binja
