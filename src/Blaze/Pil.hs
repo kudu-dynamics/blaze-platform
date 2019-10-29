@@ -1,28 +1,37 @@
 module Blaze.Pil where
 
-import Blaze.Prelude hiding (Symbol, Type)
-import Blaze.Types.Pil ( Stmt
-                      , Ctx
-                      , Expression(Expression)
-                      , Statement(Def, Store, UnimplInstr, UnimplMem, Undef, Nop)
-                      , MExpression(MExpression)
-                      , PilVar(PilVar)
-                      , SSAVariableRef(SSAVariableRef)
-                      , Symbol
-                      , ExprOp
-                      , DefOp(DefOp)
-                      , StoreOp(StoreOp)
-                      , UnimplMemOp(UnimplMemOp)
-                      , CallDest)
+import           Blaze.Prelude                    hiding ( Symbol
+                                                         , Type
+                                                         )
 
-import Blaze.Types.Function (CallInstruction)
+import           Binja.Function                          ( Function )
+import qualified Binja.Function       as Function
+import qualified Binja.MLIL           as MLIL
+import qualified Binja.Variable       as Variable
+import           Blaze.Types.Function                    ( CallInstruction )
 import qualified Blaze.Types.Function as Function
-import qualified Binja.MLIL as MLIL
-import qualified Data.Set as Set
-import qualified Binja.Variable as Variable
-import qualified Blaze.Types.Pil as Pil
-import qualified Binja.Function as Function
-import Binja.Function (Function)
+import           Blaze.Types.Pil                         ( CallDest
+                                                         , Ctx
+                                                         , DefOp( DefOp )
+                                                         , ExprOp
+                                                         , Expression( Expression )
+                                                         , MExpression( MExpression )
+                                                         , PilVar( PilVar )
+                                                         , SSAVariableRef( SSAVariableRef )
+                                                         , Statement( Def
+                                                                    , Nop
+                                                                    , Store
+                                                                    , Undef
+                                                                    , UnimplInstr
+                                                                    , UnimplMem
+                                                                    )
+                                                         , Stmt
+                                                         , StoreOp( StoreOp )
+                                                         , Symbol
+                                                         , UnimplMemOp( UnimplMemOp )
+                                                         )
+import qualified Blaze.Types.Pil      as Pil
+import qualified Data.Set             as Set
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n

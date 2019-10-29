@@ -2,8 +2,7 @@ module Blaze.Pil.Analysis where
 
 import           Blaze.Prelude
 
-import           Blaze.Types.Pil        ( ExprOp
-                                        , Expression( Expression )
+import           Blaze.Types.Pil        ( Expression( Expression )
                                         , PilVar
                                         , Statement( Def )
                                         , Stmt

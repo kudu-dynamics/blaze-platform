@@ -94,7 +94,7 @@ library:
   - Blaze.Pil.Path
   - Blaze.Pil.Analysis
   - Blaze.Types.Pil
-  - Blaze.Liquid.Checker
+#  - Blaze.Liquid.Checker
   
   
 include-dirs:
