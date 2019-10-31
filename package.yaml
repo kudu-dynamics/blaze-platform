@@ -31,7 +31,6 @@ dependencies:
   - containers
   - data-binary-ieee754
   - envy
-  - hash-graph
   - lens
   - mtl
   - newtype
