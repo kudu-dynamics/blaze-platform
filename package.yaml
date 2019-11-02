@@ -99,7 +99,26 @@ library:
   
 include-dirs:
   - "src"
+  - "../haskell-binja/res"
 
+executables:
+  blaze-profile:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - blaze
+    - binja
+    - hspec
+    - text
+
+  
 tests:
   blaze-test:
     main: Spec.hs
@@ -107,6 +126,7 @@ tests:
     - test
     ghc-options:
     - -Wall
+    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
@@ -116,3 +136,4 @@ tests:
     - binja
     - hspec
     - text
+

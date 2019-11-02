@@ -5,8 +5,10 @@ module Blaze.Path
   , module Blaze.Path
   ) where
 
+import qualified Prelude as P
 import           Blaze.Prelude
 
+import qualified Data.Map.Lazy as LMap
 import           Binja.BasicBlock                  ( BasicBlock
                                                    , BasicBlockFunction
                                                    , BlockEdge
@@ -17,7 +19,8 @@ import           Binja.C.Enums                     ( BNBranchType( FalseBranch
                                                                  )
                                                    )
 import           Binja.Core                        ( BNBinaryView
-                                                   , InstructionIndex
+                                                   , InstructionIndex(InstructionIndex)
+                                                   
                                                    )
 import           Binja.Function                    ( Function
                                                    )
@@ -34,12 +37,19 @@ import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
 import qualified Blaze.Types.Pil      as Pil
+import qualified Data.Set as Set
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
   deriving (Graph () Node, Path)
 
+naiveLCS :: String -> String -> Int
+naiveLCS [] _ = 0
+naiveLCS _ [] = 0
+naiveLCS (x:xs) (y:ys)
+  | x == y    = 1 + naiveLCS xs ys
+  | otherwise = max (naiveLCS (x:xs) ys) (naiveLCS xs (y:ys))
 
 -- constructBasicBlockGraph :: (Ord t, BasicBlockFunction t)
 --                          => t -> IO (BasicBlockGraph t)
@@ -83,6 +93,44 @@ constructBasicBlockGraph fn = do
   bbs <- BB.getBasicBlocks fn
   succs' <- traverse cleanSuccs bbs
   return . G.fromEdges . succsToEdges $ succs'
+  where
+    cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
+    cleanSuccs bb = (bb,) . catMaybes . fmap (\e -> (e,) <$>  (e ^. BB.target))
+                    <$> BB.getOutgoingEdges bb
+    succsToEdges :: [(a, [(e, a)])] -> [(e, (a, a))]
+    succsToEdges xs = do
+      (x, ys) <- xs
+      (e, y) <- ys
+      return (e, (x, y))
+
+
+isBackEdge :: (Eq t, BasicBlockFunction t) => BlockEdge t -> IO Bool
+isBackEdge be = case be ^. BB.target of
+  Nothing -> return False
+  Just dst -> if src == dst then return False else do
+    b <- BB.getDominators src >>= return . (dst `elem`)
+    case b of
+      True -> putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
+      False -> return ()
+    return b
+  where
+    src = be ^. BB.src
+
+constructBasicBlockGraphWithoutBackEdges ::
+  (Graph (BlockEdge t) (BasicBlock t) g, BasicBlockFunction t, Eq t)
+  => t -> IO g
+constructBasicBlockGraphWithoutBackEdges fn = do
+  bbs <- BB.getBasicBlocks fn
+  succs' <- traverse cleanSuccs bbs
+  putText "Filtering out back edges"
+  edges <- filterM (fmap not . isBackEdge . fst) . succsToEdges $ succs'
+  putText $ "Filtered! " <> show (length edges) <> " edges."
+  return $ G.fromEdges edges
+--   return
+--     . G.fromEdges
+-- --    . filter (not . view BB.isBackEdge . fst)
+--     . filter (not . isBackEdge . fst)
+--     . succsToEdges $ succs'
   where
     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
     cleanSuccs bb = (bb,) . catMaybes . fmap (\e -> (e,) <$>  (e ^. BB.target))
@@ -182,8 +230,21 @@ simplePathsFromBasicBlockGraph bv g =
 allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
 allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
-  bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
-  simplePathsFromBasicBlockGraph bv bbg
+  putText "Constructing Basic Block Graph"
+  bbg <- constructBasicBlockGraphWithoutBackEdges mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  putText $ "Nodes: " <> (show . Set.size $ G.nodes bbg)
+  case Set.toList $ G.sources bbg of
+    [s] -> do
+      let c = LMap.lookup s $ G.countAllSimplePaths bbg
+      putText $ "Simple paths count: " <> show c
+      putText "Finding all simple paths2"
+      let ps = G.findAllSimplePaths2 bbg s
+      putText $ "Simple paths: " <> (show . length $ ps)
+      traverse (pathFromBasicBlockList bv bbg) ps      
+    xs -> P.error $ "Bad " <> show (fmap (\bb -> let (InstructionIndex n) = (bb ^. BB.start) in n) xs)
+  -- putText "CONSTRUCTED"
+  -- simplePathsFromBasicBlockGraph bv bbg
+
 
   
 -- create map of bb -> [Node]

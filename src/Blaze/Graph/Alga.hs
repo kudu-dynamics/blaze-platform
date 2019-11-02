@@ -41,6 +41,15 @@ instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
     , edgeMap = Bimap.insert e (n1, n2) $ edgeMap g
     }
 
+
+bill :: AlgaGraph () Int
+bill = fromEdges . fmap ((),) $
+  [ (1, 2)
+  , (2, 3)
+--  , (3, 1)
+  , (2, 4)
+  , (4, 5)]
+
 -- instance (Ord a, Ord e) => Graph (AlgaGraph e a) e a where
 --   fromEdges ledges = AlgaGraph
 --     { adjacencyMap = G.edges . map snd $ ledges

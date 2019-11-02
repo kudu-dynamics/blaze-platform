@@ -7,6 +7,8 @@ packages:
 extra-deps:
   - ../haskell-binja
   - ../binja-header-cleaner
+  - git: https://github.com/patrickdoc/hash-graph.git
+    commit: 785c20dc608774b133d89c942bc33d7f56ef6ced
   - sbv-8.2@sha256:bb17f85a58fbf67cc3fd9e897f7c4a625be80da342f8903ef17e97de7c9ac2ae,18313
   - parameterized-utils-2.0@sha256:00e4ca34f1f99c957ba1b62365c058adde6413e0298b107dd4ee9ea796044800,3639
   
