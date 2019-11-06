@@ -8,6 +8,7 @@ import qualified Data.Bimap as Bimap
 import Data.Bimap (Bimap)
 import Blaze.Types.Path (Node, PathGraph)
 import Blaze.Types.Graph
+import Data.Map.Lazy ((!))
 
 type AlgaPath = PathGraph (AlgaGraph () Node)
 
@@ -41,12 +42,13 @@ instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
     , edgeMap = Bimap.insert e (n1, n2) $ edgeMap g
     }
 
-
 bill :: AlgaGraph () Int
 bill = fromEdges . fmap ((),) $
   [ (1, 2)
   , (2, 3)
 --  , (3, 1)
+  , (3, 8)
+  , (3, 4)
   , (2, 4)
   , (4, 5)]
 

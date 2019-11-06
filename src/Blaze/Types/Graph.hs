@@ -184,11 +184,14 @@ countAllSimplePaths g =
 --             xs -> foldr (+) 0 . fmap (m !) $ xs
 --       return (n, x)
 
-descendents :: forall e node g. (Graph e node g, Ord node)
-                    => g -> Map node (Set node)
-descendents g =
+newtype DescendentsMap node = DescendentsMap (Map node (Set node))
+  deriving (Eq, Ord, Show)
+
+calcDescendentsMap :: forall e node g. (Graph e node g, Ord node)
+            => g -> DescendentsMap node
+calcDescendentsMap g =
   let m = mkNonLoopingNodeMap m (Set.toList $ nodes g) in
-    m
+    DescendentsMap m
   where
     mkNonLoopingNodeMap :: Map node (Set node) -> [node] -> Map node (Set node)
     mkNonLoopingNodeMap m ns = Map.fromList $ do
@@ -198,3 +201,19 @@ descendents g =
             [] -> Set.empty
             xs -> foldr Set.union Set.empty . fmap (\s -> Set.insert s $ m ! s) $ xs
       return (n, x)
+
+-- assumes DescendentMap contains start node and is derived from g...
+searchBetween_ :: forall e node g. (Graph e node g, Ord node)
+              => g -> DescendentsMap node -> node -> node -> [[node]]
+searchBetween_ g (DescendentsMap dm) start end
+  | start == end = return [end]
+  | Set.member end (dm ! start) = do
+      kid <- Set.toList $ succs start g
+      kidPath <- searchBetween_ g (DescendentsMap dm) kid end
+      return $ start : kidPath      
+  | otherwise = []
+
+searchBetween :: forall e node g. (Graph e node g, Ord node)
+              => g -> node -> node -> [[node]]
+searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
+
