@@ -27,8 +27,8 @@ data BinjaConfig = BinjaConfig {
 } deriving (Generic, Show)
 
 instance FromEnv BinjaConfig where
-  fromEnv = BinjaConfig
-            <$> env "BINJA_PLUGINS"
+  fromEnv _ = BinjaConfig
+              <$> env "BINJA_PLUGINS"
 
 initBinja :: BinjaConfig -> IO Bool
 initBinja ctx = do
