@@ -12,6 +12,7 @@ import Binja.Types.MLIL
 import Binja.Types.Variable
 import qualified Binja.Types.Variable as Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
+import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 #include <binaryninjacore.h>
   
@@ -70,3 +71,12 @@ instance Storable BNBasicBlockEdge where
     <*> ({#get BNBasicBlockEdge->backEdge #} p)
     <*> ({#get BNBasicBlockEdge->fallThrough #} p)
   poke _ _ = P.error "BNBasicBlockEdge 'poke' not implemented"
+
+instance Storable BNReferenceSource where
+  sizeOf _ = {#sizeof BNReferenceSource#}
+  alignment _ = {#alignof BNReferenceSource#}
+  peek p = BNReferenceSource
+    <$> ({#get BNReferenceSource->func #} p >>= safePtr)
+    <*> ({#get BNReferenceSource->arch #} p >>= safePtr)
+    <*> liftM fromIntegral ({#get BNReferenceSource->addr #} p)
+  poke _ _ = P.error "BNReferenceSource 'poke' not implemented"

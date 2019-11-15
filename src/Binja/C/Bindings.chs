@@ -14,6 +14,7 @@ import Binja.Types.MLIL
 import Binja.Types.Function
 import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
+import Binja.Types.Reference (BNReferenceSource)
 
 #include <binaryninjacore.h>
   
@@ -133,12 +134,15 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 
 {#fun BNGetMediumLevelILBasicBlockForInstruction as getMediumLevelILBasicBlockForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `Maybe BNBasicBlock' nilable* #}
 
-
 {#fun BNGetBasicBlockOutgoingEdges as getBasicBlockOutgoingEdges' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*} -> `List BNBasicBlockEdge' castPtr #}
 
 {#fun BNFreeBasicBlockEdgeList as freeBasicBlockEdgeList {castPtr `List BNBasicBlockEdge', `Word64'} -> `()' #}
 
 {#fun BNGetBasicBlockDominators as getBasicBlockDominators' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*, `Bool'} -> `List (Ptr BNBasicBlock)' ptrListOut #}
+
+----- LLIL
+
+{#fun BNGetLowLevelILForInstruction as getLowLevelILForInstruction {withPtr* `BNFunction', withPtr* `BNArchitecture', fromIntegral `Address'} -> `InstructionIndex LLILFunction' fromIntegral #}
 
 ----- MLIL
 
@@ -209,3 +213,9 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 
 {#fun BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
 
+--------------------------
+---------Code References
+
+{#fun BNGetCodeReferences as getCodeReferences'' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List BNReferenceSource' castPtr #}
+
+{#fun BNFreeCodeReferences as freeCodeReferences {castPtr `List BNReferenceSource', `Word64'} -> `()' #}

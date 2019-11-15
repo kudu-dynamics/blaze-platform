@@ -10,6 +10,7 @@ import Binja.C.Pointers
 import Binja.Types.MLIL
 import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
+import Binja.Types.Reference (BNReferenceSource)
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
@@ -77,6 +78,11 @@ mediumLevelILGetOperandList :: BNMediumLevelILFunction -> ExpressionIndex () -> 
 mediumLevelILGetOperandList fn eindex oindex =
   mediumLevelILGetOperandList' fn eindex oindex
   >>= manifestArray (return . fromIntegral) mediumLevelILFreeOperandList
+
+getCodeReferences' :: BNBinaryView -> Address -> IO [BNReferenceSource]
+getCodeReferences' bv addr =
+  getCodeReferences'' bv addr
+  >>= manifestArrayWithFreeSize return freeCodeReferences
 
 getBasicBlockOutgoingEdges :: BNBasicBlock -> IO [BNBasicBlockEdge]
 getBasicBlockOutgoingEdges bb = 

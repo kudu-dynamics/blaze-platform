@@ -2,13 +2,14 @@ module Binja.Core
   ( module Exports
   , getBestViewType
   , getBinaryView
+  , getFunctionsContaining
   , saveBndb
   ) where
 
 import Binja.Prelude
 import Prelude (String)
 import qualified Data.Text as Text
--- import qualified Binja.BasicBlock as BB
+import qualified Binja.BasicBlock as BB
 -- import Binja.BasicBlock (BasicBlock)
 --import qualified Binja.MLIL as MLIL
 import qualified Binja.C.Main as BN
@@ -17,10 +18,10 @@ import Binja.C.Types as Exports
 import Binja.C.Main ( BNBinaryView
                     , BNBinaryViewType
                     )
--- import Binja.Function ( MLILSSAFunction
---                       )
+import Binja.Function ( Function )
 -- import qualified Binja.Function as Func
 import System.Envy
+import qualified Data.Set as Set
 
 data BinjaConfig = BinjaConfig {
   binjaPluginsDir :: String
@@ -90,22 +91,10 @@ getBinaryView fp = runExceptT $ do
           liftIO $ BN.createBinaryViewOfType vt bv'
         Just bv' -> return bv'
 
--- a1 :: FilePath
--- a1 = "/tmp/kudu/assembly/a1"
 
--- dive :: FilePath
--- dive = "/tmp/kudu/blaze/binja-clojure/resources/test_bins/Dive_Logger/Dive_Logger.bndb"
+getFunctionsContaining :: BNBinaryView -> Address -> IO (Set Function)
+getFunctionsContaining bv addr = do
+  blocks <- BB.getBasicBlocksAtAddress bv addr
+  return . Set.fromList $ fmap (view BB.func) blocks
 
--- demog :: IO MLILSSAFunction
--- demog = do
---   (Right bv) <- getBinaryView a1
---   BN.updateAnalysis bv
---   fs <- Func.getFunctions bv
---   let g = head $ filter (\x -> x ^. Func.name == "g") fs
---   Func.getMLILSSAFunction g
-
--- demobb :: IO (BasicBlock MLILSSAFunction)
--- demobb = do
---   g <- demog
---   head <$> BB.getBasicBlocks g
 
