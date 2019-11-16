@@ -3,6 +3,7 @@ module Binja.Core
   , getBestViewType
   , getBinaryView
   , getFunctionsContaining
+  , getLLILInstructionIndexAtAddress
   , saveBndb
   ) where
 
@@ -10,6 +11,8 @@ import Binja.Prelude
 import Prelude (String)
 import qualified Data.Text as Text
 import qualified Binja.BasicBlock as BB
+import Binja.Architecture (Architecture)
+import qualified Binja.Architecture as Arch
 -- import Binja.BasicBlock (BasicBlock)
 --import qualified Binja.MLIL as MLIL
 import qualified Binja.C.Main as BN
@@ -18,8 +21,8 @@ import Binja.C.Types as Exports
 import Binja.C.Main ( BNBinaryView
                     , BNBinaryViewType
                     )
-import Binja.Function ( Function )
--- import qualified Binja.Function as Func
+import Binja.Function ( Function, LLILFunction )
+import qualified Binja.Function as Func
 import System.Envy
 import qualified Data.Set as Set
 
@@ -97,4 +100,6 @@ getFunctionsContaining bv addr = do
   blocks <- BB.getBasicBlocksAtAddress bv addr
   return . Set.fromList $ fmap (view BB.func) blocks
 
-
+getLLILInstructionIndexAtAddress :: Function -> Architecture -> Address -> IO (InstructionIndex LLILFunction)
+getLLILInstructionIndexAtAddress func arch addr =
+  getLowLevelILForInstruction (func ^. Func.handle) (arch ^. Arch.handle) addr

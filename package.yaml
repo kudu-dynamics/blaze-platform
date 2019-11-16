@@ -81,6 +81,7 @@ library:
   - Binja.Function
   - Binja.BasicBlock
   - Binja.MLIL
+  - Binja.Reference
   - Binja.Variable
   - Binja.Prelude
   - Binja.C.Enums

@@ -146,6 +146,8 @@ import Binja.Types.Reference (BNReferenceSource)
 
 ----- MLIL
 
+{#fun BNGetMediumLevelILInstructionIndex as getMediumLevelILInstructionIndex {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `InstructionIndex MLILFunction' fromIntegral #}
+
 {#fun BNGetMediumLevelILInstructionCount as getMediumLevelILInstructionCount {withPtr* `BNMediumLevelILFunction'} -> `Word64' #}
 
 {#fun BNGetMediumLevelILIndexForInstruction as getMediumLevelILIndexForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex ()'} -> `ExpressionIndex MLILFunction' fromIntegral #}
