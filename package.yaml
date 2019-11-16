@@ -32,6 +32,7 @@ dependencies:
   - data-binary-ieee754
   - envy
   - lens
+  - list-t
   - mtl
   - newtype
   - parameterized-utils
