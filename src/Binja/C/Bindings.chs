@@ -1,7 +1,10 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Binja.C.Bindings where
 
 import Binja.Prelude
 
+import qualified Prelude as P
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
@@ -14,7 +17,7 @@ import Binja.Types.MLIL
 import Binja.Types.Function
 import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
-import Binja.Types.Reference (BNReferenceSource)
+import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 #include <binaryninjacore.h>
   
@@ -146,7 +149,10 @@ import Binja.Types.Reference (BNReferenceSource)
 
 ----- MLIL
 
-{#fun BNGetMediumLevelILInstructionIndex as getMediumLevelILInstructionIndex {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `InstructionIndex MLILFunction' fromIntegral #}
+{#fun BNGetMediumLevelILInstructionIndex as getMediumLevelILInstructionIndexFromLLIL {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `InstructionIndex MLILFunction' fromIntegral #}
+
+{#fun BNGetMediumLevelILSSAInstructionIndex as getMediumLevelILSSAInstructionIndexFromMLIL {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `InstructionIndex MLILSSAFunction' fromIntegral #}
+
 
 {#fun BNGetMediumLevelILInstructionCount as getMediumLevelILInstructionCount {withPtr* `BNMediumLevelILFunction'} -> `Word64' #}
 
@@ -217,6 +223,18 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 
 --------------------------
 ---------Code References
+
+instance Storable BNReferenceSource where
+  sizeOf _ = {#sizeof BNReferenceSource#}
+  alignment _ = {#alignof BNReferenceSource#}
+  peek p = BNReferenceSource
+    -- TODO: can func be null?
+    <$> ({#get BNReferenceSource->func #} p >>= noFinPtrConv . castPtr >>= newFunctionReference)
+    --- TODO: the arch doesn't need to be free? can it be null?
+    <*> ({#get BNReferenceSource->arch #} p >>= noFinPtrConv . castPtr) -- safePtr)
+    <*> liftM fromIntegral ({#get BNReferenceSource->addr #} p)
+  poke _ _ = P.error "BNReferenceSource 'poke' not implemented"
+
 
 {#fun BNGetCodeReferences as getCodeReferences'' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List BNReferenceSource' castPtr #}
 

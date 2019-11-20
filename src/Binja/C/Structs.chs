@@ -72,11 +72,13 @@ instance Storable BNBasicBlockEdge where
     <*> ({#get BNBasicBlockEdge->fallThrough #} p)
   poke _ _ = P.error "BNBasicBlockEdge 'poke' not implemented"
 
-instance Storable BNReferenceSource where
-  sizeOf _ = {#sizeof BNReferenceSource#}
-  alignment _ = {#alignof BNReferenceSource#}
-  peek p = BNReferenceSource
-    <$> ({#get BNReferenceSource->func #} p >>= safePtr)
-    <*> ({#get BNReferenceSource->arch #} p >>= safePtr)
-    <*> liftM fromIntegral ({#get BNReferenceSource->addr #} p)
-  poke _ _ = P.error "BNReferenceSource 'poke' not implemented"
+-- instance Storable BNReferenceSource where
+--   sizeOf _ = {#sizeof BNReferenceSource#}
+--   alignment _ = {#alignof BNReferenceSource#}
+--   peek p = BNReferenceSource
+--     -- TODO: can func be null?
+--     <$> ({#get BNReferenceSource->func #} p >>= noFinPtrConv . castPtr) -- safePtr)
+--     --- TODO: the arch doesn't need to be free? can it be null?
+--     <*> ({#get BNReferenceSource->arch #} p >>= noFinPtrConv . castPtr) -- safePtr)
+--     <*> liftM fromIntegral ({#get BNReferenceSource->addr #} p)
+--   poke _ _ = P.error "BNReferenceSource 'poke' not implemented"

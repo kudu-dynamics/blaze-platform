@@ -8,6 +8,7 @@ module Binja.MLIL
   , getMediumLevelILInstructionByInstructionIndex
   , getMediumLevelILInstructionByExpressionIndex
   , getMLILFromLLIL
+  , getMLILSSSAFromMLIL
   ) where
 
 import           Binja.Prelude
@@ -48,7 +49,10 @@ instance StatementFunction MLILSSAFunction where
       fnPtr = fn ^. Func.handle
 
 getMLILFromLLIL :: LLILFunction -> InstructionIndex LLILFunction -> IO (InstructionIndex MLILFunction)
-getMLILFromLLIL fn i = BN.getMediumLevelILInstructionIndex (fn ^. Func.handle) i
+getMLILFromLLIL fn i = BN.getMediumLevelILInstructionIndexFromLLIL (fn ^. Func.handle) i
+
+getMLILSSSAFromMLIL :: MLILFunction -> InstructionIndex MLILFunction -> IO (InstructionIndex MLILSSAFunction)
+getMLILSSSAFromMLIL fn i = BN.getMediumLevelILSSAInstructionIndexFromMLIL (fn ^. Func.handle) i
 
 getInstructionCount :: StatementFunction fun => fun -> IO Word64
 getInstructionCount = BN.getMediumLevelILInstructionCount . view Func.handle
