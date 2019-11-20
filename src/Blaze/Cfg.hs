@@ -11,7 +11,7 @@ import qualified Blaze.Types.Graph as G
 import qualified ListT 
 import ListT ( ListT )
 import qualified Data.Set as Set
-import Blaze.Function (createCallSite) 
+import Blaze.Function (createCallSite, toCallInstruction) 
 import qualified Binja.MLIL as MLIL
 
 data SpanItem a b = SpanSpan (a, a)
@@ -37,21 +37,23 @@ tbo = ListT.toReverseList $ do
   return (n, x)
   
 
-
--- getCallGraph :: Graph () Function g => BNBinaryView -> IO g
--- getCallGraph bv = do
---   edges <- ListT.toReverseList $ do
---     func <- liftListM $ getFunctions bv
---     ref <- liftListM $ getCodeReferences bv (func ^. Func.start)
---     caller <- liftListM . fmap Set.toList
---               $ getFunctionsContaining bv (ref ^. Ref.addr)
---     mcall <- liftIO $ do
---       llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
---       llilFunc <- Func.getLLILFunction caller
---       mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
---       mlilSSAFunc <- MLIL.getMLILSSAFunction caller
---       mlilInstr <- MLIL.instruction mlilSSAFunc mlilIndex
---       undefined
---     undefined
---   return . G.fromEdges . fmap ((),) $ edges
+getCallGraph :: Graph () Function g => BNBinaryView -> IO g
+getCallGraph bv = do
+  edges <- ListT.toReverseList $ do
+    func <- liftListM $ getFunctions bv
+    ref <- liftListM $ getCodeReferences bv (func ^. Func.start)
+    caller <- liftListM . fmap Set.toList
+              $ getFunctionsContaining bv (ref ^. Ref.addr)
+    mcall <- liftIO $ do
+      llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
+      llilFunc <- Func.getLLILFunction caller
+      mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
+      mlilFunc <- Func.getMLILFunction caller
+      mlilSSAFunc <- Func.getMLILSSAFunction caller
+      mlilSSAIndex <- MLIL.getMLILSSSAFromMLIL mlilFunc mlilIndex
+      toCallInstruction <$> MLIL.instruction mlilSSAFunc mlilSSAIndex
+    case mcall of
+      Nothing -> mzero
+      Just _ -> ListT.fromFoldable [(caller, func)]
+  return . G.fromEdges . fmap ((),) $ edges
 

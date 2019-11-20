@@ -4,41 +4,42 @@ import Blaze.Prelude
 
 import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Data.Set as Set
-import qualified Data.Bimap as Bimap
-import Data.Bimap (Bimap)
+import qualified Data.Map as Map
 import Blaze.Types.Path (Node, PathGraph)
 import Blaze.Types.Graph
+import qualified Algebra.Graph.Export.Dot as Dot
 
 type AlgaPath = PathGraph (AlgaGraph () Node)
 
 data AlgaGraph e a = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap a
-  , edgeMap :: Bimap e (a, a)
+  , edgeMap :: Map (a, a) e
   }
 
 instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
-  empty = AlgaGraph G.empty Bimap.empty
-  fromNode = flip AlgaGraph Bimap.empty . G.vertex
+  empty = AlgaGraph G.empty Map.empty
+  fromNode = flip AlgaGraph Map.empty . G.vertex
   fromEdges ledges = AlgaGraph
     { adjacencyMap = G.edges . map snd $ ledges
-    , edgeMap = Bimap.fromList ledges
+    , edgeMap = Map.fromList . fmap swap $ ledges
     }
   succs n g = G.postSet n . adjacencyMap $ g
   preds n g = G.preSet n . adjacencyMap $ g
   nodes = Set.fromList . G.vertexList . adjacencyMap
-  getEdgeLabel edge = Bimap.lookupR edge . edgeMap
-  setEdgeLabel label edge g = g { edgeMap = Bimap.insert label edge $ edgeMap g }
+  edges g = catMaybes . fmap (\p -> (,p) <$> Map.lookup p (edgeMap g)) . G.edgeList . adjacencyMap $ g
+  getEdgeLabel edge = Map.lookup edge . edgeMap
+  setEdgeLabel label edge g = g { edgeMap = Map.insert edge label $ edgeMap g }
   removeEdge e@(n1, n2) g = AlgaGraph
     { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
-    , edgeMap = Bimap.deleteR e $ edgeMap g
+    , edgeMap = Map.delete e $ edgeMap g
     }
   removeNode n g = AlgaGraph
     { adjacencyMap = G.removeVertex n $ adjacencyMap g
-    , edgeMap = Bimap.filter (\_ (n1, n2) -> n1 == n || n2 == n) $ edgeMap g
+    , edgeMap = Map.filterWithKey (\(n1, n2) _ -> n1 == n || n2 == n) $ edgeMap g
     }
   addEdge (e, (n1, n2)) g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
-    , edgeMap = Bimap.insert e (n1, n2) $ edgeMap g
+    , edgeMap = Map.insert (n1, n2) e $ edgeMap g
     }
 
 -- instance (Ord a, Ord e) => Graph (AlgaGraph e a) e a where
@@ -105,4 +106,7 @@ demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
                                      , ('b', 'f')
                                      , ('c', 'e')
                                      ]
-  
+
+
+toDot :: Ord n => (n -> Text) -> AlgaGraph e n -> Text
+toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
