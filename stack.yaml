@@ -1,4 +1,4 @@
-resolver: lts-13.24
+resolver: lts-14.14
 compiler: ghc-8.6.5
 
 packages:
@@ -7,16 +7,4 @@ packages:
 extra-deps:
   - ../haskell-binja
   - ../binja-header-cleaner
-  - git: https://github.com/patrickdoc/hash-graph.git
-    commit: 785c20dc608774b133d89c942bc33d7f56ef6ced
-  - sbv-8.2@sha256:bb17f85a58fbf67cc3fd9e897f7c4a625be80da342f8903ef17e97de7c9ac2ae,18313
-  - parameterized-utils-2.0@sha256:00e4ca34f1f99c957ba1b62365c058adde6413e0298b107dd4ee9ea796044800,3639
-  
-  # extra-deps:
-#   - envy-1.5.1.0@sha256:a00910ebf461ec36ff6b7b01711bffe09cee062b7515c4580c466002590283a2
-#   - lens-4.17
-#   - profunctors-5.3@sha256:ce641b72fd014b1f7b42a438f8c0360cb93fd277c7b843b7ef94a7c083c31ded,2017
-#   - protolude-0.2.1
-#   - th-abstraction-0.2.11.0@sha256:5c286870277705796887d0cbfa48a6aa5e0f206152592a54fbc550d8ce0c5ab5,1827
-#   - casing-0.1.4.0@sha256:a1ea21789906302930300b68ffd40373bc731e9254b43d1f35e8ba7368b2acce,1029
-#   - pretty-simple-2.2.0.1@sha256:bc56d0b124fa076b9c4c12954ea69d3e706656bddaa98f4a5e79dd127f9e5926,3898
+  - parameterized-utils-2.0.1.0@sha256:ad6950440361b97222fe83932760311f88a0288e60f5d90ecbc67a68b86252fd,3673

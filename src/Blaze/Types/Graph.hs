@@ -43,6 +43,7 @@ class Graph e n g | g -> e n where
   succs :: n -> g -> Set n
   preds :: n -> g -> Set n
   nodes :: g -> Set n
+  edges :: g -> [(e, (n, n))]
   getEdgeLabel :: (n, n) -> g -> Maybe e
   setEdgeLabel :: e -> (n, n) -> g -> g
   removeEdge :: (n, n) -> g -> g

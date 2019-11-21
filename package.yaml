@@ -32,6 +32,7 @@ dependencies:
   - data-binary-ieee754
   - envy
   - lens
+  - list-t
   - mtl
   - newtype
   - parameterized-utils
@@ -87,6 +88,7 @@ library:
   - -RTS
   source-dirs: src
   exposed-modules:
+  - Blaze.Cfg
   - Blaze.Graph.Alga
   - Blaze.Prelude
   - Blaze.Path
@@ -94,6 +96,7 @@ library:
   - Blaze.Pil.Path
   - Blaze.Pil.Analysis
   - Blaze.Types.Pil
+  - Blaze.Types.Graph
 #  - Blaze.Liquid.Checker
   
   
@@ -131,6 +134,7 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - algebraic-graphs
     - containers
     - blaze
     - binja
