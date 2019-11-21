@@ -231,7 +231,8 @@ allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
 allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
   putText "Constructing Basic Block Graph"
-  bbg <- constructBasicBlockGraphWithoutBackEdges mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  -- bbg <- constructBasicBlockGraphWithoutBackEdges mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
   putText $ "Nodes: " <> (show . Set.size $ G.nodes bbg)
   case Set.toList $ G.sources bbg of
     [s] -> do
