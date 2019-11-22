@@ -3,6 +3,7 @@ module Blaze.Graph.Alga where
 import Blaze.Prelude
 
 import qualified Algebra.Graph.AdjacencyMap as G
+import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Blaze.Types.Path (Node, PathGraph)
@@ -120,3 +121,9 @@ demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
 
 toDot :: Ord n => (n -> Text) -> AlgaGraph e n -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
+
+isAcyclic :: Ord n => AlgaGraph e n -> Bool
+isAcyclic = GA.isAcyclic . adjacencyMap
+
+reachable :: Ord n => n -> AlgaGraph e n -> [n]
+reachable x = GA.reachable x . adjacencyMap

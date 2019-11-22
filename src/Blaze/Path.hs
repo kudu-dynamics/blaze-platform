@@ -226,13 +226,19 @@ simplePathsFromBasicBlockGraph :: (Graph (BlockEdge F) (BasicBlock F) g, Path p)
 simplePathsFromBasicBlockGraph bv g =
   traverse (pathFromBasicBlockList bv g) . G.findAllSimplePaths $ g
 
-
 allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
 allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
-  putText "Constructing Basic Block Graph"
-  -- bbg <- constructBasicBlockGraphWithoutBackEdges mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
   bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  simplePathsFromBasicBlockGraph bv bbg
+
+
+allSimpleFunctionPaths' :: Path p => BNBinaryView -> Function -> IO [p]
+allSimpleFunctionPaths' bv fn = do
+  mlilFn <- HFunction.getMLILSSAFunction fn
+  putText "Constructing Basic Block Graph"
+  bbg <- constructBasicBlockGraphWithoutBackEdges mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  --bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
   putText $ "Nodes: " <> (show . Set.size $ G.nodes bbg)
   case Set.toList $ G.sources bbg of
     [s] -> do
