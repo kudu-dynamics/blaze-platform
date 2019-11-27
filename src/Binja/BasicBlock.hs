@@ -18,7 +18,6 @@ import Binja.Function ( Function
                       , MLILSSAFunction
                       , createFunction
                       )
-import Binja.Types.BasicBlock
 import Binja.Types.BasicBlock as Exports
 import qualified Binja.Function as Func
 import Binja.C.Types
@@ -78,8 +77,7 @@ getBasicBlockForInstruction fn idx = getBasicBlockPtrForInstruction fn idx >>=
   maybe (return Nothing) (fmap Just . createBasicBlock)
 
 getOutgoingEdges :: BasicBlockFunction fun => BasicBlock fun -> IO [BlockEdge fun]
-getOutgoingEdges bb = do
-  BN.getBasicBlockOutgoingEdges (bb ^. handle) >>= traverse toBlockEdge
+getOutgoingEdges bb = BN.getBasicBlockOutgoingEdges (bb ^. handle) >>= traverse toBlockEdge
   where
     toBlockEdge bbe = do
       mTargetBlock <- maybe

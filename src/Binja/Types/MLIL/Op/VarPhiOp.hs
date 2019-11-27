@@ -3,7 +3,6 @@ module Binja.Types.MLIL.Op.VarPhiOp where
 import Binja.Prelude
 
 import Binja.Types.MLIL.Common (SSAVariable)
-import Binja.Types.MLIL.Common (SSAVariable)
 
 data VarPhiOp expr = VarPhiOp
     { _varPhiOpDest :: SSAVariable
