@@ -68,10 +68,10 @@ library:
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
   - -j
+  - -O2
   - +RTS
-  - -s
   - -A256m
-  - -n16m
+  - -n32m
   - -RTS
   extra-libraries: binaryninjacore
   source-dirs: src
