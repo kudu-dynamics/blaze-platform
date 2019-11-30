@@ -64,7 +64,7 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
-  - NoImplicitPrelude   
+  - NoImplicitPrelude
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
@@ -72,7 +72,7 @@ default-extensions:
   - TupleSections
   - TypeFamilies
 
-  
+
 library:
   ghc-options:
   - -Wall
@@ -81,11 +81,6 @@ library:
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
   - -j
-  - +RTS
-  - -s
-  - -A256m
-  - -n16m
-  - -RTS
   source-dirs: src
   exposed-modules:
   - Blaze.Cfg
@@ -98,8 +93,8 @@ library:
   - Blaze.Types.Pil
   - Blaze.Types.Graph
 #  - Blaze.Liquid.Checker
-  
-  
+
+
 include-dirs:
   - "src"
 
