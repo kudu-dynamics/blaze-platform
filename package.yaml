@@ -68,6 +68,7 @@ library:
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
   - -j
+  - -O2
   extra-libraries: binaryninjacore
   source-dirs: src
   exposed-modules:
