@@ -84,11 +84,6 @@ library:
   - -Wredundant-constraints
   - -j
   - -O2
-  - +RTS
-  - -s
-  - -A256m
-  - -n32m
-  - -RTS
   source-dirs:
   - src
   - scratch
@@ -114,15 +109,7 @@ executables:
   scratch:
     main:                Main.hs
     source-dirs:         scratch
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -O2
-    - -rtsopts
-    - -feager-blackholing
-    #- -fobject-code
-    # - -fexternal-interpreter
-    # - -with-rtsopts=-N
+    ghc-options: -Wall -threaded -O2 -rtsopts -feager-blackholing "-with-rtsopts=-A512m -n32m -s -N"
     dependencies:
     - blaze
 
