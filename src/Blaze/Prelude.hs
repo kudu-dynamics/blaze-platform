@@ -46,6 +46,8 @@ import Data.String.Conversions as Exports ( cs )
 import           Data.Maybe      as Exports        ( fromJust )
 import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
+import Control.Monad.Trans.Class as Exports (MonadTrans)
+import Control.Concurrent.Async as Exports (mapConcurrently)
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

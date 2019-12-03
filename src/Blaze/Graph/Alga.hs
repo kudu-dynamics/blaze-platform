@@ -127,3 +127,4 @@ isAcyclic = GA.isAcyclic . adjacencyMap
 
 reachable :: Ord n => n -> AlgaGraph e n -> [n]
 reachable x = GA.reachable x . adjacencyMap
+
