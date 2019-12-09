@@ -239,3 +239,4 @@ instance Storable BNReferenceSource where
 {#fun unsafe BNGetCodeReferences as getCodeReferences'' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List BNReferenceSource' castPtr #}
 
 {#fun unsafe BNFreeCodeReferences as freeCodeReferences {castPtr `List BNReferenceSource', `Word64'} -> `()' #}
+
