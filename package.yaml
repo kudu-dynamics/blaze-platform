@@ -1,7 +1,7 @@
 name:                binja
 version:             0.1.0.0
 github:              "mp/binja"
-license:             BSD3
+license:             LicenseRef-AllRightsReserved
 author:              "Matt Parker"
 maintainer:          "mp@kududyn.com"
 copyright:           "2019 Kudu Dynamics"
@@ -52,14 +52,14 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
-  - NoImplicitPrelude   
+  - NoImplicitPrelude
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
 #  - StrictData
   - TupleSections
 
-  
+
 library:
   ghc-options:
   - -Wall
@@ -69,10 +69,6 @@ library:
   - -Wredundant-constraints
   - -j
   - -O2
-  - +RTS
-  - -A256m
-  - -n32m
-  - -RTS
   extra-libraries: binaryninjacore
   source-dirs: src
   exposed-modules:
@@ -97,11 +93,8 @@ executables:
       - -Wincomplete-uni-patterns
       - -Wredundant-constraints
       - -j
-      - +RTS
-      - -s
-      - -A256m
-      - -n16m
-      - -RTS
+      - -rtsopts
+      - '"-with-rtsopts=-A256m -n16m"'
     dependencies:
       - base
       - binja
