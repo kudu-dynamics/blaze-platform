@@ -11,9 +11,9 @@ import qualified Blaze.Types.Graph as G
 import qualified ListT 
 import ListT ( ListT )
 import qualified Data.Set as Set
-import Blaze.Function (createCallSite, toCallInstruction) 
+import Blaze.Function (toCallInstruction) 
 import qualified Binja.MLIL as MLIL
-import Streamly (IsStream, asyncly)
+import Streamly (asyncly)
 import qualified Streamly.Prelude as S
 
 data SpanItem a b = SpanSpan (a, a)
@@ -29,53 +29,24 @@ getSpanList f lo hi (x:xs)
   where
     n = f x
 
--- liftListM :: Monad m => m [a] -> ListT m a
--- liftListM = ListT.fromFoldable <=< lift
+liftListM' :: Monad m => m [a] -> ListT m a
+liftListM' = ListT.fromFoldable <=< lift
   
--- getFunctionsThatCallIntoFunction :: BNBinaryView -> Function -> IO [Function]
--- getFunctionsThatCallIntoFunction bv func = ListT.toReverseList $ do
---   --putText $ func ^. Func.name <> " " <> (show $ func ^. Func.start)
---   ref <- liftListM $ getCodeReferences bv (func ^. Func.start)
---   caller <- liftListM . fmap Set.toList
---             $ getFunctionsContaining bv (ref ^. Ref.addr)
---   mcall <- liftIO $ do
---     llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
---     llilFunc <- Func.getLLILFunction caller
---     mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
---     mlilFunc <- Func.getMLILFunction caller
---     mlilSSAFunc <- Func.getMLILSSAFunction caller
---     mlilSSAIndex <- MLIL.getMLILSSSAFromMLIL mlilFunc mlilIndex
---     toCallInstruction <$> MLIL.instruction mlilSSAFunc mlilSSAIndex
---   case mcall of
---     Nothing -> mzero
---     Just _ -> ListT.fromFoldable [caller]
-
--- getCallGraph :: Graph () Function g => BNBinaryView -> IO g
--- getCallGraph bv = do
---   funcs <- getFunctions bv
---   callers <- mapConcurrently (getFunctionsThatCallIntoFunction bv) funcs
---   let edges = do
---         (func, callers') <- zip funcs callers
---         caller <- callers'
---         return (func, caller)
---   return . G.fromEdges . fmap ((),) $ edges
-
-liftListM :: (Monad m, Monad (t m), MonadTrans t, IsStream t) => m [a] -> t m a
+liftListM :: Streaming t m => m [a] -> t m a
 liftListM = S.fromList <=< lift
 
-liftListIO :: (Monad m, Monad (t m), MonadTrans t, IsStream t, MonadIO m) => IO [a] -> t m a
+liftListIO :: (StreamingIO t m) => IO [a] -> t m a
 liftListIO = liftListM . liftIO
 
-getCallGraphEdges :: (MonadTrans t, MonadIO m, MonadIO (t m), Monad (t m), IsStream t)
-                  => BNBinaryView -> t m (Function, Function)
+getCallGraphEdges :: StreamingIO t m => BNBinaryView -> t m (Function, Function)
 getCallGraphEdges bv = do
   func <- liftListIO $ getFunctions bv
   ref <- liftListIO $ getCodeReferences bv (func ^. Func.start)
   caller <- liftListIO . fmap Set.toList
-            $ getFunctionsContaining bv (ref ^. Ref.addr)
+             $ getFunctionsContaining bv (ref ^. Ref.addr)
   mcall <- liftIO $ do
-    llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
     llilFunc <- Func.getLLILFunction caller
+    llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
     mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
     mlilFunc <- Func.getMLILFunction caller
     mlilSSAFunc <- Func.getMLILSSAFunction caller
@@ -83,30 +54,61 @@ getCallGraphEdges bv = do
     toCallInstruction <$> MLIL.instruction mlilSSAFunc mlilSSAIndex
   case mcall of
     Nothing -> S.nil
-    Just _ -> S.fromFoldable [(caller, func)]
+    Just _ -> S.yield (caller, func)
 
 getCallGraph :: Graph () Function g => BNBinaryView -> IO g
-getCallGraph bv = do
+getCallGraph = getCallGraphStreaming
+
+getCallGraphStreaming :: Graph () Function g => BNBinaryView -> IO g
+getCallGraphStreaming bv = do
   edges <- S.toList . asyncly $ getCallGraphEdges bv
   return . G.fromEdges . fmap ((),) $ edges
 
--- getCallGraph' :: Graph () Function g => BNBinaryView -> IO g
--- getCallGraph' bv = do
---   edges <- ListT.toReverseList $ do
---     func <- liftListM $ getFunctions bv
---     ref <- liftListM $ getCodeReferences bv (func ^. Func.start)
---     caller <- liftListM . fmap Set.toList
---               $ getFunctionsContaining bv (ref ^. Ref.addr)
---     mcall <- liftIO $ do
---       llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
---       llilFunc <- Func.getLLILFunction caller
---       mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
---       mlilFunc <- Func.getMLILFunction caller
---       mlilSSAFunc <- Func.getMLILSSAFunction caller
---       mlilSSAIndex <- MLIL.getMLILSSSAFromMLIL mlilFunc mlilIndex
---       toCallInstruction <$> MLIL.instruction mlilSSAFunc mlilSSAIndex
---     case mcall of
---       Nothing -> mzero
---       Just _ -> ListT.fromFoldable [(caller, func)]
---   return . G.fromEdges . fmap ((),) $ edges
+getCallGraphListT :: Graph () Function g => BNBinaryView -> IO g
+getCallGraphListT bv = do
+  edges <- ListT.toReverseList $ do
+    func <- liftListM' $ getFunctions bv
+    ref <- liftListM' $ getCodeReferences bv (func ^. Func.start)
+    caller <- liftListM' . fmap Set.toList
+              $ getFunctionsContaining bv (ref ^. Ref.addr)
+    mcall <- liftIO $ do
+      llilFunc <- Func.getLLILFunction caller
+      llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
+      mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
+      mlilFunc <- Func.getMLILFunction caller
+      mlilSSAFunc <- Func.getMLILSSAFunction caller
+      mlilSSAIndex <- MLIL.getMLILSSSAFromMLIL mlilFunc mlilIndex
+      toCallInstruction <$> MLIL.instruction mlilSSAFunc mlilSSAIndex
+    case mcall of
+      Nothing -> mzero
+      Just _ -> ListT.fromFoldable [(caller, func)]
+  return . G.fromEdges . fmap ((),) $ edges
+
+getCallGraphUgly :: Graph () Function g => BNBinaryView -> IO g
+getCallGraphUgly bv = do
+  funcs <- getFunctions bv
+  frefs <- traverse (\fn -> (fn,) <$> getCodeReferences bv (fn ^. Func.start)) funcs :: IO [(Function, [ReferenceSource])]
+  let frefs' = concatMap (\(fn, refs) -> (fn,) <$> refs) frefs :: [(Function, ReferenceSource)]
+  fcallers <- traverse (\(fn, ref) -> do
+                           callers <- fmap Set.toList . getFunctionsContaining bv $ ref ^. Ref.addr
+                           return $ (fn, ref, callers))
+              frefs' :: IO [(Function, ReferenceSource, [Function])]
+  let fcallers' = concatMap (\(fn, ref, callers) -> (fn, ref,) <$> callers) fcallers
+  mcalls <- mapM (liftIO . getMCall) fcallers'
+  let mcalls' = catMaybes mcalls
+  return . G.fromEdges . fmap ((),) $ mcalls'
+  where
+    getMCall :: (Function, ReferenceSource, Function) -> IO (Maybe (Function, Function))
+    getMCall (!fn, !ref, !caller) = do
+      llilFunc <- Func.getLLILFunction caller
+      llilIndex <- getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
+      mlilIndex <- MLIL.getMLILFromLLIL llilFunc llilIndex
+      mlilFunc <- Func.getMLILFunction caller
+      mlilSSAFunc <- Func.getMLILSSAFunction caller
+      mlilSSAIndex <- MLIL.getMLILSSSAFromMLIL mlilFunc mlilIndex
+      mcall <- toCallInstruction <$> MLIL.instruction mlilSSAFunc mlilSSAIndex
+      case mcall of
+        Nothing -> return Nothing
+        Just _ -> return $ Just (caller, fn)
+                          
 
