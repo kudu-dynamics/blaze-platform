@@ -59,6 +59,8 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 {#fun unsafe BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
+{#fun unsafe BNGetStartOffset as getStartOffset {withPtr* `BNBinaryView'} -> `Address' fromIntegral #}
+
 {#fun unsafe BNSetBundledPluginDirectory as setBundledPluginDirectory {`String'} -> `()' #}
 
 {#fun unsafe BNInitCorePlugins as initCorePlugins {} -> `()' #}
