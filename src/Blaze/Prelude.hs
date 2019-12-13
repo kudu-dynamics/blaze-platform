@@ -1,5 +1,9 @@
+{-# LANGUAGE ConstraintKinds #-}
+
 module Blaze.Prelude
   ( module Exports
+  , Streaming
+  , StreamingIO
   , liftEitherIO
   , liftMaybeIO
   , liftEitherM
@@ -46,6 +50,13 @@ import Data.String.Conversions as Exports ( cs )
 import           Data.Maybe      as Exports        ( fromJust )
 import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
+import Control.Monad.Trans.Class as Exports (MonadTrans)
+import Control.Concurrent.Async as Exports (mapConcurrently)
+import Streamly (IsStream)
+
+type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
+
+type StreamingIO t m = (Monad m, Monad (t m), MonadTrans t, IsStream t, MonadIO m, MonadIO (t m))
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e
