@@ -11,7 +11,7 @@ data Function = Function
   { _handle :: BNFunction
   , _name :: Text
   , _start :: Address
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
 
 data LLILFunction = LLILFunction
   { _handle :: BNLowLevelILFunction
