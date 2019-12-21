@@ -15,7 +15,6 @@ import qualified Data.Map as Map
 import qualified Binja.C.Main as BN
 import Binja.C.Pointers
 
-
 getSemClasses :: BNArchitecture -> IO SemClasses
 getSemClasses archPtr = fmap (SemClasses . Map.fromList) $
   BN.getAllArchitectureSemanticFlagClasses archPtr >>= traverse f
