@@ -53,6 +53,7 @@ dependencies:
   - vector
 
 default-extensions:
+  - BangPatterns
   - DeriveDataTypeable
   - DeriveFoldable
   - DeriveFunctor
@@ -108,7 +109,7 @@ executables:
   scratch:
     main:                Main.hs
     source-dirs:         scratch
-    ghc-options: -Wall -threaded -O2 -rtsopts -feager-blackholing "-with-rtsopts=-H6g -A512m -n32m -N -s"
+    ghc-options: -Wall -threaded -O2 -rtsopts -feager-blackholing "-with-rtsopts=-A512m -n64m -N -s"
     dependencies:
     - blaze
     - timeit
