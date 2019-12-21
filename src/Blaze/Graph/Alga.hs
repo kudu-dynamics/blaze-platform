@@ -15,7 +15,9 @@ type AlgaPath = PathGraph (AlgaGraph () Node)
 data AlgaGraph e a = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap a
   , edgeMap :: Map (a, a) e
-  }
+  } deriving (Generic)
+
+instance (NFData e, NFData a) => NFData (AlgaGraph e a)
 
 instance (Ord e, Ord n) => Graph e n (AlgaGraph e n) where
   empty = AlgaGraph G.empty Map.empty
