@@ -1,16 +1,19 @@
 module Blaze.Types.Graph where
 
 import Blaze.Prelude
+import Binja.Function (Function)
 
 import qualified Data.Set as Set
 import qualified Data.Map.Lazy as Map
 import Data.Map.Lazy ((!))
-import System.IO.Unsafe (unsafePerformIO)
 
 type LEdge label node = (label, (node, node))
 
 type Edge node = (node, node)
 
+-- TODO: Ask mattp about this.
+-- newtype CallGraph g = CallGraph g
+-- deriving instance (Graph (Function, Function) Function g) => Graph (Function, Function) Function (CallGraph g)
 
 -- class Graph g where
 --   type EdgeLabel g :: *
@@ -166,7 +169,7 @@ countAllSimplePaths g =
       let ss = Set.toList $ succs n g
       let x = case ss of
             [] -> 1
-            xs -> foldr (+) 0 . fmap (m !) $ xs
+            xs -> sum . fmap (m !) $ xs
       return (n, x)
 
 -- -- The total number of 
