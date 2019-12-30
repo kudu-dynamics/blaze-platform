@@ -64,3 +64,10 @@ isAcyclic = GA.isAcyclic . adjacencyMap
 reachable :: Ord n => n -> AlgaGraph e n -> [n]
 reachable x = GA.reachable x . adjacencyMap
 
+
+type FastSearchMap n = Map n (Set n)
+
+getFastSearchMap :: Ord n => AlgaGraph e n -> FastSearchMap n
+getFastSearchMap g = Map.fromList . fmap f . Set.toList . nodes $ g
+  where
+    f n = (n, reachable n g)

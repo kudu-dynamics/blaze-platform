@@ -115,6 +115,7 @@ data RetNode = RetNode
   , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
+-- we are unsure if this will be useful
 data AbstractPathNode = AbstractPathNode
   { _func :: Function
   , _startNode :: Node
@@ -122,6 +123,7 @@ data AbstractPathNode = AbstractPathNode
   , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
+-- use this instead of the old CallNode / AbstractPathNode / RetNode combo
 data AbstractCallNode = AbstractCallNode
   { _func :: Function
   , _callSite :: CallSite
@@ -146,3 +148,5 @@ startFunction p = do
     Ret r -> return $ r ^. func
     AbstractPath apn -> return $ apn ^. func
     _ -> Nothing
+
+
