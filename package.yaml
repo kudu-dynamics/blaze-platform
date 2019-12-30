@@ -87,7 +87,6 @@ library:
   - -O2
   source-dirs:
   - src
-  - scratch
   exposed-modules:
   - Blaze.Cfg
   - Blaze.Graph.Alga
@@ -100,19 +99,20 @@ library:
   - Blaze.Types.Graph
 #  - Blaze.Liquid.Checker
   # scratch
-  - Blaze.PathScratch
-  
+  # - Blaze.PathScratch
+
 include-dirs:
   - "src"
   - "../haskell-binja/res"
-  
+
 executables:
   scratch:
     main:                Main.hs
     source-dirs:         scratch
-    ghc-options: -Wall -threaded -O2 -rtsopts -feager-blackholing "-with-rtsopts=-A2512m -n64m -s -N"
+    ghc-options: -Wall -threaded -O2 -rtsopts -feager-blackholing "-with-rtsopts=-A512m -n64m -N -s"
     dependencies:
     - blaze
+    - timeit
 
   blaze-profile:
     main:                Spec.hs
@@ -125,12 +125,26 @@ executables:
     dependencies:
     - blaze
     - containers
-    - blaze
     - binja
     - hspec
     - text
 
-  
+benchmarks:
+  call-graph-benchmark:
+    main:                CallGraph.hs
+    source-dirs:         benchmarks
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - binja
+    - text
+    - criterion
+
+
 tests:
   blaze-test:
     main: Spec.hs
@@ -149,4 +163,3 @@ tests:
     - binja
     - hspec
     - text
-

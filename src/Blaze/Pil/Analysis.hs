@@ -15,40 +15,46 @@ getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
 getDefinedVars_ _ = []
 
-getDefinedVars :: [Stmt] -> [PilVar]
-getDefinedVars = concatMap getDefinedVars_
+getDefinedVars :: [Stmt] -> Set PilVar
+getDefinedVars = Set.fromList . concatMap getDefinedVars_
 
-getVarsFromExpr :: Expression -> [PilVar]
-getVarsFromExpr e = case e ^. Pil.op of
+getVarsFromExpr_ :: Expression -> [PilVar]
+getVarsFromExpr_ e = case e ^. Pil.op of
   (Pil.VAR vop) -> [vop ^. Pil.src]
   (Pil.VAR_FIELD x) -> [x ^. Pil.src]
   (Pil.VAR_ALIASED x) -> [x ^. Pil.src]
   (Pil.VAR_ALIASED_FIELD x) -> [x ^. Pil.src]
   (Pil.VAR_PHI x) -> x ^. Pil.dest : x ^. Pil.src
   (Pil.VAR_SPLIT x) -> [x ^. Pil.high, x ^. Pil.low]
-  x -> concatMap getVarsFromExpr x
+  x -> concatMap getVarsFromExpr_ x
 
-getVars_ :: Stmt -> [PilVar]
-getVars_ = concatMap getVarsFromExpr
+getVarsFromExpr :: Expression -> Set PilVar
+getVarsFromExpr = Set.fromList . getVarsFromExpr_
 
-getVars :: [Stmt] -> [PilVar]
-getVars = concatMap getVars_
+getRefVars_ :: Stmt -> Set PilVar
+getRefVars_ = Set.fromList . concatMap getVarsFromExpr_
+
+-- |Get all vars references in any of the provided statements.
+--  NB: Vars that are defined but not used are not considered
+--  referenced.
+getRefVars :: [Stmt] -> Set PilVar
+getRefVars = Set.unions . map getRefVars_
 
 getFreeVars :: [Stmt] -> Set PilVar
 getFreeVars xs = Set.difference allVars defined
   where
-    defined = Set.fromList $ getDefinedVars xs
-    allVars = Set.fromList $ getVars xs
+    defined = getDefinedVars xs
+    allVars = getRefVars xs
 
 substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
 substVarsInExpr f e = case e ^. Pil.op of
-  (Pil.VAR x) -> e & Pil.op .~ (Pil.VAR $ x & Pil.src %~ f)
-  (Pil.VAR_FIELD x) -> e & Pil.op .~ (Pil.VAR_FIELD $ x & Pil.src %~ f)
-  (Pil.VAR_ALIASED x) -> e & Pil.op .~ (Pil.VAR_ALIASED $ x & Pil.src %~ f)
-  (Pil.VAR_ALIASED_FIELD x) -> e & Pil.op .~ (Pil.VAR_ALIASED_FIELD $ x & Pil.src %~ f)
-  (Pil.VAR_PHI x) -> e & Pil.op .~ (Pil.VAR_PHI $ x & Pil.src %~ fmap f
+  (Pil.VAR x) -> e & Pil.op .~ Pil.VAR (x & Pil.src %~ f)
+  (Pil.VAR_FIELD x) -> e & Pil.op .~ Pil.VAR_FIELD (x & Pil.src %~ f)
+  (Pil.VAR_ALIASED x) -> e & Pil.op .~ Pil.VAR_ALIASED (x & Pil.src %~ f)
+  (Pil.VAR_ALIASED_FIELD x) -> e & Pil.op .~ Pil.VAR_ALIASED_FIELD (x & Pil.src %~ f)
+  (Pil.VAR_PHI x) -> e & Pil.op .~ Pil.VAR_PHI (x & Pil.src %~ fmap f
                                                     & Pil.dest %~ f)
-  (Pil.VAR_SPLIT x) -> e & Pil.op .~ (Pil.VAR_SPLIT $ x & Pil.high %~ f
+  (Pil.VAR_SPLIT x) -> e & Pil.op .~ Pil.VAR_SPLIT (x & Pil.high %~ f
                                                         & Pil.low %~ f)
   _ -> e
 
@@ -84,7 +90,9 @@ updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m
   = addToEqMap (v1, v2) m
 updateVarEqMap _ m = m
 
--- each var that equals some other var will point to the origin var.
+-- |Each var equivalent to another var is resolved to the 
+--  earliest defined var. E.g., a = 1, b = a, c = b will
+--  result in c mapping to a.
 getVarEqMap :: [Stmt] -> EqMap PilVar
 getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap Map.empty
   where
@@ -104,7 +112,7 @@ originsMap = foldr f Map.empty . Map.toList
       g Nothing = Just $ Set.singleton v2
       g (Just s) = Just $ Set.insert v2 s
 
--- merges the mapsTo of every var in set into the origin var
+-- |Merges the mapsTo of every var in set into the origin var.
 mergePilVars :: PilVar -> Set PilVar -> PilVar
 mergePilVars originVar s = originVar & Pil.mapsTo .~ x where
   x = foldr Set.union Set.empty y
