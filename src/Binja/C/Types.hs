@@ -18,7 +18,9 @@ import Foreign.ForeignPtr
 type List = Ptr
 
 newtype Address = Address Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
+
+instance Hashable Address
 
 newtype BNPointer = BNPointer (ForeignPtr BNPointer)
 

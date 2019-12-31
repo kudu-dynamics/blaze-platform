@@ -28,7 +28,7 @@ newtype VariableIdentifier = VariableIdentifier Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
 newtype VariableIndex = VariableIndex Word32
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
 newtype VariableStorage = VariableStorage Int64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
@@ -48,7 +48,13 @@ data Variable = Variable
   , _storage :: VariableStorage
   , _sourceType :: BNVariableSourceType
   , _varType :: Maybe VarType
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
+
+-- TODO: Just using the index for hashing, is this OK? Are variables from multiple 
+--       functions with shared index values ever stored in the same hash-using
+--       data structure?
+instance Hashable Variable where
+  hashWithSalt s (Variable index _ _ _ _) = hashWithSalt s index
 
 data BNTypeWithConfidence = BNTypeWithConfidence
   { _bnType :: Maybe BNType

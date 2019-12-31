@@ -16,6 +16,9 @@ data Function = Function
 instance Eq Function where
   (==) a b = _start a == _start b
 
+instance Hashable Function where
+  hashWithSalt s x = hashWithSalt s $ _start x
+
 data LLILFunction = LLILFunction
   { _handle :: BNLowLevelILFunction
   , _func :: Function

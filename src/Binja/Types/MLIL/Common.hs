@@ -8,7 +8,9 @@ import Binja.Types.Variable (Variable)
 
 data SSAVariable = SSAVariable { _var :: Variable
                                , _version :: Int
-                               } deriving (Eq, Ord, Show)
+                               } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable SSAVariable
 
 data SSAVariableDestAndSrc = SSAVariableDestAndSrc
   { _dest :: SSAVariable
