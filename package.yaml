@@ -108,7 +108,7 @@ include-dirs:
   - "res"
 
 tests:
-  hinja-test:
+  binja-test:
     main: Spec.hs
     source-dirs:
     - test
