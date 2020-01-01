@@ -4,6 +4,8 @@ module Blaze.Prelude
   ( module Exports
   , Streaming
   , StreamingIO
+  , liftListM
+  , liftListIO
   , liftEitherIO
   , liftMaybeIO
   , liftEitherM
@@ -14,6 +16,7 @@ module Blaze.Prelude
   , pprint
   ) where
 
+import qualified Prelude as P
 import           Prelude         as Exports        ( String
                                                    , head
                                                    , (!!)
@@ -52,11 +55,19 @@ import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity
 import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
 import Control.Monad.Trans.Class as Exports (MonadTrans)
 import Control.Concurrent.Async as Exports (mapConcurrently)
-import Streamly (IsStream)
+import Streamly as Exports ( IsStream
+                           , asyncly )
+import qualified Streamly.Prelude
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 
 type StreamingIO t m = (Monad m, Monad (t m), MonadTrans t, IsStream t, MonadIO m, MonadIO (t m))
+
+liftListM :: Streaming t m => m [a] -> t m a
+liftListM = Streamly.Prelude.fromList <=< lift
+
+liftListIO :: (StreamingIO t m) => IO [a] -> t m a
+liftListIO = liftListM . liftIO
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

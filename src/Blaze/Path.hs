@@ -8,6 +8,8 @@ module Blaze.Path
 import qualified Prelude as P
 import           Blaze.Prelude
 
+import qualified Data.Map as Map
+import Data.Map ((!))
 import qualified Data.Map.Lazy as LMap
 import           Binja.BasicBlock                  ( BasicBlock
                                                    , BasicBlockFunction
@@ -23,6 +25,7 @@ import           Binja.Core                        ( BNBinaryView
                                                    
                                                    )
 import           Binja.Function                    ( Function
+                                                   , MLILSSAFunction
                                                    )
 import qualified Binja.Function       as HFunction
 import qualified Binja.MLIL           as MLIL
@@ -38,8 +41,11 @@ import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.Set as Set
+import qualified Streamly.Prelude as S
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
+
+-- type NodeGraph g = AlgaGraph (BlockEdge F) (BasicBlock F) g => g
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
   deriving (Graph () Node, Path)
@@ -103,7 +109,55 @@ constructBasicBlockGraph fn = do
       (e, y) <- ys
       return (e, (x, y))
 
--- convertBasicBlockGraphToNodeGraph
+-- convertBBEdgeListToNodeEdgeList :: [(BlockEdge F, (BasicBlock F, BasicBlock F))] -> IO [(Maybe ConditionNode, (Node, Node))]
+-- convertBBEdgeListToNodeEdgeList xs = S.toList . asyncly $ do
+--   (e, (bb1, bb2)) <- S.fromList xs
+--   nodes <- convertBasicBlockToNodeList
+
+data NodeList = NodeList
+  { allNodes :: [Node]
+  , firstNode' :: Node
+  , lastNode' :: Node
+  } deriving (Eq, Ord, Show)
+
+getBBNodeMap :: BNBinaryView -> [BasicBlock F] -> IO (Map (BasicBlock F) NodeList)
+getBBNodeMap bv bbs = fmap Map.fromList . S.toList . asyncly $ do
+  bb <- S.fromList bbs
+  bbNodes <- liftIO $ convertBasicBlockToNodeList bv bb
+  let lnode = fromJust $ lastMay bbNodes -- bbNodes should never be empty
+      fnode = fromJust $ headMay bbNodes
+  S.yield (bb, NodeList { allNodes = bbNodes, firstNode' = fnode, lastNode' = lnode })
+
+
+-- getNodeEdges :: BNBinaryView -> MLILSSAFunction -> IO [(Maybe ConditionNode, (Node, Node))]
+-- getNodeEdges fn = S.fromList . asyncly $ do
+--   bb <- liftListIO $ BB.getBasicBlocks fn
+--   bbNodes <- liftIO $ convertBasicBlockToNodeList
+--   let (Just (prevNodes, lastNode)) = unsnoc bbNodes -- bbNodes should never be empty
+--       (Just (firstNode,
+--   succ <- 
+
+constructNodeGraph :: ( Graph (Maybe ConditionNode) Node g )
+                   => BNBinaryView -> MLILSSAFunction -> IO g
+constructNodeGraph bv fn = do
+  bbs <- BB.getBasicBlocks fn
+  bbNodeMap <- getBBNodeMap bv bbs
+  let bbNodeEdges = concatMap getNodeListEdges . Map.elems $ bbNodeMap
+  succEdges <- concatMapM (getSuccEdges bbNodeMap) bbs
+  return . G.fromEdges $ bbNodeEdges <> succEdges
+  where
+    getNodeListEdges :: NodeList -> [(Maybe ConditionNode, (Node, Node))]
+    getNodeListEdges x = (Nothing,) <$> zip (allNodes x) (drop 1 $ allNodes x)
+
+    getSuccEdges :: Map (BasicBlock F) NodeList -> BasicBlock F -> IO [(Maybe ConditionNode, (Node, Node))]
+    getSuccEdges m bb = S.toList . asyncly $ do
+      let p = lastNode' $ m ! bb
+      e <- liftListIO $ BB.getOutgoingEdges bb
+      c <- liftIO $ getConditionNode e
+      case e ^. BB.target of
+        Nothing -> S.nil
+        Just t -> S.yield (c, (p, firstNode' $ m ! t))            
+
 
 isBackEdge :: (Eq t, BasicBlockFunction t) => BlockEdge t -> IO Bool
 isBackEdge be = case be ^. BB.target of
