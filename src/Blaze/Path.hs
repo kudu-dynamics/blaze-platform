@@ -8,6 +8,8 @@ module Blaze.Path
 import qualified Prelude as P
 import           Blaze.Prelude
 
+import qualified Data.Map as Map
+import Data.Map ((!))
 import qualified Data.Map.Lazy as LMap
 import           Binja.BasicBlock                  ( BasicBlock
                                                    , BasicBlockFunction
@@ -23,6 +25,7 @@ import           Binja.Core                        ( BNBinaryView
                                                    
                                                    )
 import           Binja.Function                    ( Function
+                                                   , MLILSSAFunction
                                                    )
 import qualified Binja.Function       as HFunction
 import qualified Binja.MLIL           as MLIL
@@ -38,8 +41,11 @@ import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.Set as Set
+import qualified Streamly.Prelude as S
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
+
+-- type NodeGraph g = AlgaGraph (BlockEdge F) (BasicBlock F) g => g
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
   deriving (Graph () Node, Path)
@@ -51,42 +57,7 @@ naiveLCS (x:xs) (y:ys)
   | x == y    = 1 + naiveLCS xs ys
   | otherwise = max (naiveLCS (x:xs) ys) (naiveLCS xs (y:ys))
 
--- constructBasicBlockGraph :: (Ord t, BasicBlockFunction t)
---                          => t -> IO (BasicBlockGraph t)
--- constructBasicBlockGraph fn = do
 
---   bbs <- BB.getBasicBlocks fn
---   succs <- traverse cleanSuccs bbs
---   return . G.edges $ succsToEdges succs
---   where
---     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [BasicBlock t])
---     cleanSuccs bb = (bb,) . catMaybes . fmap (view BB.target)
---                     <$> BB.getOutgoingEdges bb
---     succsToEdges :: [(a, [a])] -> [(a, a)]
---     succsToEdges xs = do
---       (x, ys) <- xs
---       y <- ys
---       return (x, y)
-
-
--- constructBasicBlockGraph :: (Ord t, BasicBlockFunction t)
---                          => t -> IO (BasicBlockGraph t)
--- constructBasicBlockGraph fn = do
---   bbs <- BB.getBasicBlocks fn
---   succs' <- traverse cleanSuccs bbs
---   return . G.fromEdges . fmap ((),) $ succsToEdges succs'
---   where
---     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [BasicBlock t])
---     cleanSuccs bb = (bb,) . catMaybes . fmap (view BB.target)
---                     <$> BB.getOutgoingEdges bb
---     succsToEdges :: [(a, [a])] -> [(a, a)]
---     succsToEdges xs = do
---       (x, ys) <- xs
---       y <- ys
---       return (x, y)
-
-
---- todo: shouldn't the edges be (Maybe Condition)? Yes, they should.
 constructBasicBlockGraph :: (Graph (BlockEdge t) (BasicBlock t) g, BasicBlockFunction t)
                          => t -> IO g
 constructBasicBlockGraph fn = do
@@ -102,6 +73,68 @@ constructBasicBlockGraph fn = do
       (x, ys) <- xs
       (e, y) <- ys
       return (e, (x, y))
+
+data NodeList = NodeList
+  { allNodes :: [Node]
+  , firstNode' :: Node
+  , lastNode' :: Node
+  } deriving (Eq, Ord, Show)
+
+getBBNodeMap :: BNBinaryView -> [BasicBlock F] -> IO (Map (BasicBlock F) NodeList)
+getBBNodeMap bv bbs = fmap Map.fromList . S.toList . asyncly $ do
+  bb <- S.fromList bbs
+  bbNodes <- liftIO $ convertBasicBlockToNodeList bv bb
+  let lnode = fromJust $ lastMay bbNodes -- bbNodes should never be empty
+      fnode = fromJust $ headMay bbNodes
+  S.yield (bb, NodeList { allNodes = bbNodes, firstNode' = fnode, lastNode' = lnode })
+
+
+-- edge conditions are just nodes in this graph.
+constructNodeGraph :: ( Graph () Node g )
+                   => BNBinaryView -> MLILSSAFunction -> IO g
+constructNodeGraph bv fn = do
+  bbs <- BB.getBasicBlocks fn
+  bbNodeMap <- getBBNodeMap bv bbs
+  let bbNodeEdges = concatMap getNodeListEdges . Map.elems $ bbNodeMap
+  succEdges <- concatMapM (getSuccEdges bbNodeMap) bbs
+  return . G.fromEdges . fmap ((),) $ bbNodeEdges <> succEdges
+  where
+    getNodeListEdges :: NodeList -> [(Node, Node)]
+    getNodeListEdges = pairs . allNodes
+
+    getSuccEdges :: Map (BasicBlock F) NodeList -> BasicBlock F -> IO [(Node, Node)]
+    getSuccEdges m bb = S.toList . asyncly $ do
+      let p = lastNode' $ m ! bb
+      e <- liftListIO $ BB.getOutgoingEdges bb
+      mc <- liftIO $ getConditionNode e
+      case e ^. BB.target of
+        Nothing -> S.nil
+        Just t -> case mc of
+          Nothing -> S.yield (p, firstNode' $ m ! t)
+          Just c -> S.fromFoldable [ (p, Condition c)
+                                   , (Condition c, firstNode' $ m ! t)
+                                   ]
+
+constructNodeGraph' :: ( Graph (Maybe ConditionNode) Node g )
+                   => BNBinaryView -> MLILSSAFunction -> IO g
+constructNodeGraph' bv fn = do
+  bbs <- BB.getBasicBlocks fn
+  bbNodeMap <- getBBNodeMap bv bbs
+  let bbNodeEdges = concatMap getNodeListEdges . Map.elems $ bbNodeMap
+  succEdges <- concatMapM (getSuccEdges bbNodeMap) bbs
+  return . G.fromEdges $ bbNodeEdges <> succEdges
+  where
+    getNodeListEdges :: NodeList -> [(Maybe ConditionNode, (Node, Node))]
+    getNodeListEdges x = (Nothing,) <$> pairs (allNodes x)
+
+    getSuccEdges :: Map (BasicBlock F) NodeList -> BasicBlock F -> IO [(Maybe ConditionNode, (Node, Node))]
+    getSuccEdges m bb = S.toList . asyncly $ do
+      let p = lastNode' $ m ! bb
+      e <- liftListIO $ BB.getOutgoingEdges bb
+      c <- liftIO $ getConditionNode e
+      case e ^. BB.target of
+        Nothing -> S.nil
+        Just t -> S.yield (c, (p, firstNode' $ m ! t))            
 
 
 isBackEdge :: (Eq t, BasicBlockFunction t) => BlockEdge t -> IO Bool
@@ -206,7 +239,6 @@ getConditionNode edge = case edge ^. BB.branchType of
         MLIL.IF op -> return . Just . ConditionNode fn isTrueBranch $ op ^. MLIL.condition
         _ -> return Nothing
 
-
 pathFromBasicBlockList :: (Graph (BlockEdge F) (BasicBlock F) g, Path p)
                        => BNBinaryView -> g -> [BasicBlock F] -> IO p
 pathFromBasicBlockList bv g = fmap (fromList . concat) . traverse f . mpairs
@@ -221,6 +253,11 @@ pathFromBasicBlockList bv g = fmap (fromList . concat) . traverse f . mpairs
       return . maybe nodes ((nodes <>) . (:[]) . Condition) $ mcond
 
 
+simplePathsFromNodeGraph :: (Graph () Node g, Path p)
+                         => g -> [p]
+simplePathsFromNodeGraph = fmap fromList . G.findAllSimplePaths
+
+
 simplePathsFromBasicBlockGraph :: (Graph (BlockEdge F) (BasicBlock F) g, Path p)
                                => BNBinaryView -> g -> IO [p]
 simplePathsFromBasicBlockGraph bv g =
@@ -229,8 +266,15 @@ simplePathsFromBasicBlockGraph bv g =
 allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
 allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
-  bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
-  simplePathsFromBasicBlockGraph bv bbg
+  ng <- constructNodeGraph bv mlilFn :: IO (AlgaGraph () Node)
+  return $ simplePathsFromNodeGraph ng
+
+
+-- allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
+-- allSimpleFunctionPaths bv fn = do
+--   mlilFn <- HFunction.getMLILSSAFunction fn
+--   bbg <- constructBasicBlockGraph mlilFn :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+--   simplePathsFromBasicBlockGraph bv bbg
 
 
 allSimpleFunctionPaths' :: Path p => BNBinaryView -> Function -> IO [p]
