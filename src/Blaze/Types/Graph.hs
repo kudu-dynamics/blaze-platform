@@ -52,6 +52,7 @@ class Graph e n g | g -> e n where
   removeEdge :: (n, n) -> g -> g
   removeNode :: n -> g -> g
   addEdge :: (e, (n, n)) -> g -> g
+  hasNode :: n -> g -> Bool
   -- add node/edges.. maybe overlay
 
 class GraphFunctor g where

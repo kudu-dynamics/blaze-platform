@@ -44,7 +44,7 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
     , edgeMap = Map.insert (n1, n2) e $ edgeMap g
     }
-
+  hasNode n = G.hasVertex n .adjacencyMap
 
 demograph :: AlgaGraph () Char
 demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
@@ -69,7 +69,7 @@ reachable x = GA.reachable x . adjacencyMap
 
 type FastSearchMap n = Map n (Set n)
 
-getFastSearchMap :: Ord n => AlgaGraph e n -> FastSearchMap n
-getFastSearchMap g = Map.fromList . fmap f . Set.toList . nodes $ g
-  where
-    f n = (n, reachable n g)
+-- getFastSearchMap :: Ord n => AlgaGraph e n -> FastSearchMap n
+-- getFastSearchMap g = Map.fromList . fmap f . Set.toList . nodes $ g
+--   where
+--     f n = (n, reachable n g)

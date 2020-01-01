@@ -24,6 +24,7 @@ class Path p where
   firstNode :: p -> Maybe Node
   lastNode :: p -> Maybe Node
   expandNode :: AbstractPathNode -> p -> p -> p
+  contains :: Node -> p -> Bool
 
 newtype PathGraph g = PathGraph g
 
@@ -75,6 +76,8 @@ instance (Graph () Node g) => Path (PathGraph g) where
       gpartEdges = zip gpartList (drop 1 gpartList)
       n = AbstractPath apn
 
+  contains = G.hasNode
+
 -- instance Graph edge node g => Path (PathGraph g) where
 --   fromList :: (Graph () Node g) => [Node] -> PathGraph g
 --   fromList [] = G.empty
@@ -93,6 +96,7 @@ data ConditionNode = ConditionNode
   { _func :: Function
   , _trueOrFalseBranch :: Bool
   , _condition :: MLIL.Expression F
+  , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
 data SubBlockNode = SubBlockNode
