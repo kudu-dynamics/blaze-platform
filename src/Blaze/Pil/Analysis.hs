@@ -68,12 +68,10 @@ substVars_ f = fmap $ substVarsInExpr f
 substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
 substVars f = fmap $ substVars_ f
 
--- TODO: This needs to recurse into expression trees in order to find nested vars
---       that need to be substituted
 substVarExprInExpr :: (PilVar -> Maybe Expression) -> Expression -> Expression
 substVarExprInExpr f x = case x ^. Pil.op of
   (Pil.VAR (Pil.VarOp v)) -> maybe x identity $ f v
-  _ -> x
+  _ -> x & Pil.op %~ fmap (substVarExprInExpr f)
 
 substVarExpr_ :: (PilVar -> Maybe Expression) -> Stmt -> Stmt
 substVarExpr_ f = fmap $ substVarExprInExpr f
