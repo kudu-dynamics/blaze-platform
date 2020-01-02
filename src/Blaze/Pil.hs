@@ -31,7 +31,7 @@ import           Blaze.Types.Pil                         ( CallDest
                                                          , UnimplMemOp( UnimplMemOp )
                                                          )
 import qualified Blaze.Types.Pil      as Pil
-import qualified Data.Set             as Set
+import qualified Data.HashSet         as HSet
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
@@ -149,7 +149,7 @@ convertToPilVar ctx v = PilVar
   (getSymbol v)
   (ctx ^. Pil.func)
   (ctx ^. Pil.ctxIndex)
-  (Set.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
+  (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
 
 -- does an MEXpression and its children have all `Just` op fields?
 isMExpressionComplete :: MExpression -> Bool
@@ -213,7 +213,7 @@ convertInstrOp ctx op' = maybe [] identity $ case op' of
 
   (MLIL.VAR_PHI x) -> do
     latestVar <- headMay
-                 . filter (flip Set.member $ ctx ^. Pil.definedVars)
+                 . filter (flip HSet.member $ ctx ^. Pil.definedVars)
                  . fmap (convertToPilVar ctx)
                  . sortOn ((*(-1)) . view MLIL.version)
                  $ x ^. MLIL.src

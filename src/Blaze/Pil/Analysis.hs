@@ -8,15 +8,19 @@ import           Blaze.Types.Pil        ( Expression( Expression )
                                         , Stmt
                                         )
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.Map        as Map
-import qualified Data.Set        as Set
+
+import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HMap
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashSet        as HSet
+import Data.HashSet (HashSet)
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
 getDefinedVars_ _ = []
 
-getDefinedVars :: [Stmt] -> Set PilVar
-getDefinedVars = Set.fromList . concatMap getDefinedVars_
+getDefinedVars :: [Stmt] -> HashSet PilVar
+getDefinedVars = HSet.fromList . concatMap getDefinedVars_
 
 getVarsFromExpr_ :: Expression -> [PilVar]
 getVarsFromExpr_ e = case e ^. Pil.op of
@@ -28,20 +32,20 @@ getVarsFromExpr_ e = case e ^. Pil.op of
   (Pil.VAR_SPLIT x) -> [x ^. Pil.high, x ^. Pil.low]
   x -> concatMap getVarsFromExpr_ x
 
-getVarsFromExpr :: Expression -> Set PilVar
-getVarsFromExpr = Set.fromList . getVarsFromExpr_
+getVarsFromExpr :: Expression -> HashSet PilVar
+getVarsFromExpr = HSet.fromList . getVarsFromExpr_
 
-getRefVars_ :: Stmt -> Set PilVar
-getRefVars_ = Set.fromList . concatMap getVarsFromExpr_
+getRefVars_ :: Stmt -> HashSet PilVar
+getRefVars_ = HSet.fromList . concatMap getVarsFromExpr_
 
 -- |Get all vars references in any of the provided statements.
 --  NB: Vars that are defined but not used are not considered
 --  referenced.
-getRefVars :: [Stmt] -> Set PilVar
-getRefVars = Set.unions . map getRefVars_
+getRefVars :: [Stmt] -> HashSet PilVar
+getRefVars = HSet.unions . map getRefVars_
 
-getFreeVars :: [Stmt] -> Set PilVar
-getFreeVars xs = Set.difference allVars defined
+getFreeVars :: [Stmt] -> HashSet PilVar
+getFreeVars xs = HSet.difference allVars defined
   where
     defined = getDefinedVars xs
     allVars = getRefVars xs
@@ -64,6 +68,8 @@ substVars_ f = fmap $ substVarsInExpr f
 substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
 substVars f = fmap $ substVars_ f
 
+-- TODO: This needs to recurse into expression trees in order to find nested vars
+--       that need to be substituted
 substVarExprInExpr :: (PilVar -> Maybe Expression) -> Expression -> Expression
 substVarExprInExpr f x = case x ^. Pil.op of
   (Pil.VAR (Pil.VarOp v)) -> maybe x identity $ f v
@@ -77,13 +83,13 @@ substVarExpr f = fmap $ substVarExpr_ f
 
 -----------------
 
-type EqMap a = Map a a
+type EqMap a = HashMap a a
 
 
-addToEqMap :: Ord a => (a, a) -> EqMap a -> EqMap a
-addToEqMap (v1, v2) m = case Map.lookup v2 m of
-  Nothing -> Map.insert v1 v2 m
-  Just origin -> Map.insert v1 origin m
+addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
+addToEqMap (v1, v2) m = case HMap.lookup v2 m of
+  Nothing -> HMap.insert v1 v2 m
+  Just origin -> HMap.insert v1 origin m
 
 updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
 updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m
@@ -94,27 +100,46 @@ updateVarEqMap _ m = m
 --  earliest defined var. E.g., a = 1, b = a, c = b will
 --  result in c mapping to a.
 getVarEqMap :: [Stmt] -> EqMap PilVar
-getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap Map.empty
+getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
   where
     updateMapsToInOriginVars :: EqMap PilVar -> EqMap PilVar
     updateMapsToInOriginVars m = fmap f m
       where
         omap = originsMap m
-        omap' = Map.mapWithKey mergePilVars omap
-        f v = case Map.lookup v omap' of
+        omap' = HMap.mapWithKey mergePilVars omap
+        f v = case HMap.lookup v omap' of
           Nothing -> v
           (Just v') -> v'
 
-originsMap :: EqMap PilVar -> Map PilVar (Set PilVar)
-originsMap = foldr f Map.empty . Map.toList
+originsMap :: EqMap PilVar -> HashMap PilVar (HashSet PilVar)
+originsMap = foldr f HMap.empty . HMap.toList
   where
-    f (v1, v2) m = Map.alter g v1 m where
-      g Nothing = Just $ Set.singleton v2
-      g (Just s) = Just $ Set.insert v2 s
+    f (v1, v2) = HMap.alter g v1 where
+      g Nothing = Just $ HSet.singleton v2
+      g (Just s) = Just $ HSet.insert v2 s
 
 -- |Merges the mapsTo of every var in set into the origin var.
-mergePilVars :: PilVar -> Set PilVar -> PilVar
+mergePilVars :: PilVar -> HashSet PilVar -> PilVar
 mergePilVars originVar s = originVar & Pil.mapsTo .~ x where
-  x = foldr Set.union Set.empty y
-  y = fmap (view Pil.mapsTo) . Set.toList $ Set.insert originVar s
+  x = foldr HSet.union HSet.empty y
+  y = fmap (view Pil.mapsTo) . HSet.toList $ HSet.insert originVar s
 
+---- Constant Propagation
+type VarExprMap = HashMap PilVar Expression
+
+data ConstantFold = ConstantFold
+  { exprMap :: VarExprMap
+  , stmts :: Set Stmt}
+
+constantProp :: [Stmt] -> [Stmt]
+constantProp xs = substVarExpr (\v -> HMap.lookup v (exprMap constFold)) 
+                               [x | x <- xs, not . Set.member x $ stmts constFold]
+  where addConst cf stmt var cnst = ConstantFold { exprMap = HMap.insert var cnst (exprMap cf)
+                                                 , stmts = Set.insert stmt (stmts cf)}
+        constFold = foldl' f (ConstantFold HMap.empty Set.empty) xs
+          where f cfAcc stmt = 
+                  case stmt of 
+                    (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) 
+                      -> addConst cfAcc stmt var (Pil.Expression sz (Pil.CONST constOp))
+                    _
+                      -> cfAcc

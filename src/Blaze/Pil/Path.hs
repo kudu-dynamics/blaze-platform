@@ -27,8 +27,8 @@ import           Blaze.Types.Pil                   ( Converter
                                                    , runConverter
                                                    )
 import qualified Blaze.Types.Pil      as Pil
-import qualified Data.Map             as Map
-import qualified Data.Set             as Set
+import qualified Data.HashMap.Strict  as HMap
+import qualified Data.HashSet         as HSet
 
 -- convert path to [Pil]
 
@@ -64,9 +64,9 @@ convertConditionNode n = do
   case Pil.convertExpr ctx $ n ^. Path.condition of
     Nothing -> return []
     Just expr -> return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
-      case n ^. Path.trueOrFalseBranch of
-        True -> expr
-        False -> Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
+      if n ^. Path.trueOrFalseBranch 
+        then expr
+        else Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
 
 convertAbstractCallNode :: AbstractCallNode -> Converter [Stmt]
 convertAbstractCallNode n = do
@@ -89,10 +89,10 @@ convertNode _ = return [] -- TODO
 
 
 convertNodes :: [Node] -> Converter [Stmt]
-convertNodes xs = fmap concat . traverse convertNode $ xs
+convertNodes = fmap concat . traverse convertNode
 
 startCtx :: Ctx
-startCtx = Ctx Nothing Nothing Set.empty Map.empty
+startCtx = Ctx Nothing Nothing HSet.empty HMap.empty
 
 startConverterCtx :: ConverterCtx
 startConverterCtx = ConverterCtx Nothing startCtx
