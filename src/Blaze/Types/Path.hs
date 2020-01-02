@@ -93,6 +93,7 @@ data ConditionNode = ConditionNode
   { _func :: Function
   , _trueOrFalseBranch :: Bool
   , _condition :: MLIL.Expression F
+  , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
 data SubBlockNode = SubBlockNode

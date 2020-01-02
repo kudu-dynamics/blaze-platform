@@ -15,7 +15,6 @@ import ListT ( ListT )
 import qualified Data.Set as Set
 import Blaze.Function (toCallInstruction) 
 import qualified Binja.MLIL as MLIL
-import Streamly (asyncly)
 import qualified Streamly.Prelude as S
 import           Blaze.Graph.Alga                  ( AlgaGraph )
 
@@ -34,12 +33,6 @@ getSpanList f lo hi (x:xs)
 
 liftListM' :: Monad m => m [a] -> ListT m a
 liftListM' = ListT.fromFoldable <=< lift
-  
-liftListM :: Streaming t m => m [a] -> t m a
-liftListM = S.fromList <=< lift
-
-liftListIO :: (StreamingIO t m) => IO [a] -> t m a
-liftListIO = liftListM . liftIO
 
 getCallGraphEdges :: StreamingIO t m => BNBinaryView -> t m (Function, Function)
 getCallGraphEdges bv = do
