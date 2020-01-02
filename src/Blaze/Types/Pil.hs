@@ -6,6 +6,9 @@ module Blaze.Types.Pil
 
 import Blaze.Prelude hiding (Symbol, Type)
 
+import Data.HashSet (HashSet)
+import Data.HashMap.Strict (HashMap)
+
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
                              , AddOverflowOp
@@ -176,7 +179,9 @@ import Binja.MLIL as Exports ( AdcOp(AdcOp)
 import Binja.Function (Function)
 
 newtype CtxIndex = CtxIndex Int
-  deriving (Eq, Ord, Show, Num)
+  deriving (Eq, Ord, Show, Num, Generic)
+
+instance Hashable CtxIndex
 
 type Symbol = Text
 
@@ -184,8 +189,15 @@ data PilVar = PilVar
   { _symbol :: Symbol
   , _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
-  , _mapsTo :: Set SSAVariableRef
+  , _mapsTo :: HashSet SSAVariableRef
   } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable PilVar where
+  hashWithSalt s (PilVar symbol mf mc ss) =
+    s `hashWithSalt` symbol
+      `hashWithSalt` mf
+      `hashWithSalt` mc
+      `hashWithSalt` ss
 
 data ConverterCtx = ConverterCtx
   { _ctxIndexCounter :: Maybe CtxIndex
@@ -203,6 +215,12 @@ data SSAVariableRef = SSAVariableRef
   , _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
   } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable SSAVariableRef where
+  hashWithSalt s (SSAVariableRef v mf mc) = 
+    s `hashWithSalt`
+    v `hashWithSalt`
+    mf `hashWithSalt` mc
 
 --- maybe should use higher kinded types for this
 data MExpression = MExpression
@@ -312,6 +330,7 @@ data ExprOp expr
 
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
 
+{- HLINT ignore VarOp -}
 data VarOp expr = VarOp
     { _varOpSrc :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -321,6 +340,7 @@ data VarFieldOp expr = VarFieldOp
     , _varFieldOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+{- HLINT ignore VarAliasedOp -}
 data VarAliasedOp expr = VarAliasedOp
     { _varAliasedOpSrc :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -375,6 +395,7 @@ data MemCmpOp expr = MemCmpOp
     , _right :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+{- HLINT ignore ConstStrOp -}
 data ConstStrOp expr = ConstStrOp
     { _value :: Text
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -397,6 +418,7 @@ data IntType = IntType
   , _signed :: Bool
   } deriving (Eq, Ord, Show, Generic)
 
+{- HLINT ignore FloatType -}
 data FloatType = FloatType
   { _width :: Int
   } deriving (Eq, Ord, Show, Generic)
@@ -441,14 +463,14 @@ data Type = TBool
           | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
            
-type TypeEnv = Map PilVar Type
+type TypeEnv = HashMap PilVar Type
 
 ------
 
 data Ctx = Ctx
   { _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
-  , _definedVars :: Set PilVar
+  , _definedVars :: HashSet PilVar
   , _typeEnv :: TypeEnv
   } deriving (Eq, Ord, Show)
 
@@ -485,14 +507,17 @@ data StoreOp expr = StoreOp
     , _value :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+{- HLINT ignore ConstraintOp -}
 data ConstraintOp expr = ConstraintOp
     { _condition :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+{- HLINT ignore UnimplMemOp -}
 data UnimplMemOp expr = UnimplMemOp
     { _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+{- HLINT ignore EnterContextOp -}
 data EnterContextOp expr = EnterContextOp
     { _ctx :: SimpleCtx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
