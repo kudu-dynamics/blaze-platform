@@ -216,9 +216,6 @@ convertBasicBlockToNodeList bv bb = do
       n <- AbstractCallNode fn <$> (createCallSite bv fn ci) <*> randomIO
       return [AbstractCall n]
 
-pairs :: [a] -> [(a, a)]
-pairs xs = zip xs $ drop 1 xs
-
 mpairs :: [a] -> [(a, Maybe a)]
 mpairs [] = []
 mpairs [x] = [(x, Nothing)]

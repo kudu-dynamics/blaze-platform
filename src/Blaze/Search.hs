@@ -10,6 +10,9 @@ import Blaze.Types.Path (Path, Node, AbstractCallNode)
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Function as BF
 import Blaze.Types.Function (CallSite)
+import qualified Blaze.Types.Graph as G
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 type F = MLILSSAFunction
 
@@ -55,13 +58,92 @@ getAbstractCallNodesToFunction fn = mapMaybe f . Path.toList
     f (Path.AbstractCall n) = bool Nothing (Just n) $ callSiteCallsFunction fn $ n ^. Path.callSite
     f _ = Nothing
 
--- | this is using the inefficent method of searching though all the nodes
+-- | Nothing if path doesn't contain instruction
+snipBeforeInstruction :: Path p => InstructionIndex F -> p -> Maybe p
+snipBeforeInstruction ix p = case dropWhile (not . nodeContainsInstruction ix) $ Path.toList p of
+  [] -> Nothing
+  xs -> Just $ Path.fromList xs
+
+
+-- takes, but includes the last one
+takeWhile' :: (a -> Bool) -> [a] -> [a]
+takeWhile' _ [] = []
+takeWhile' p (x:xs)
+  | p x = x : takeWhile' p xs
+  | otherwise = [x]
+
+-- | snips path after predicate is true
+snipAfter_ :: Path p => (Node -> Bool) -> p -> p
+snipAfter_ pred = Path.fromList . takeWhile' (not . pred) . Path.toList
+
+snipAfter :: Path p => (Node -> Bool) -> p -> Maybe p
+snipAfter pred p = case takeWhile' (not . pred) . Path.toList $ p of
+  [] -> Nothing
+  xs -> Just . Path.fromList $ xs
+
+
+-- | Nothing if path doesn't contain instruction
+--   TODO: add funcs for dropping nodes in the Path class
+snipAfterInstruction :: Path p => InstructionIndex F -> p -> Maybe p
+snipAfterInstruction ix = snipAfter $ nodeContainsInstruction ix
+
+
+data PathWithCall p = PathWithCall
+  { path :: p
+  , callNode :: AbstractCallNode
+  } deriving (Eq, Ord, Show)
+
+-- | A path might contain multiple calls to the same function
+-- these paths are snipped after call
+pathsWithCallTo :: Path p => Function -> p -> [PathWithCall p]
+pathsWithCallTo fn p = f <$> getAbstractCallNodesToFunction fn p
+  where
+    f n = PathWithCall (snipAfter_ (== (Path.AbstractCall n)) p) n
+
+-- | Expands AbstractCallNode in first path with second PathWithCall
+-- result is expanded path, with callNode from second
+joinPathWithCall :: Path p => PathWithCall p -> PathWithCall p -> PathWithCall p
+joinPathWithCall pc1 pc2 = PathWithCall
+  { path = Path.expandAbstractCall (callNode pc1) (path pc2) (path pc1)
+  , callNode = callNode pc2 }
+
+-- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: (Graph () Function g, Path p)
+searchBetween_ :: forall g p. (Graph () Function g, Path p)
                => BNBinaryView
                -> g
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
                -> Function -> InstructionIndex MLILSSAFunction
-               -> IO [p] -- maybe doesn't need IO?
-searchBetween_ bv cfg fpaths fn1 ix1 fn2 ix2 = undefined
+               -> [p]
+searchBetween_ bv cfg fpaths fn1 ix1 fn2 ix2
+  | fn1 == fn2 = endPaths
+  | otherwise = do
+      cp <- callPathsAsPairs
+      undefined
+  
+  where
+    startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
+    endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
+      if fn1 == fn2 then Just startPaths else Map.lookup fn1 fpaths
+
+    -- we can assume fn1 and fn2 are always at the start and end, and never in the middle
+    -- of the call path (because we are using simplePaths search)
+    fpaths' :: Map Function [p]
+    fpaths' = Map.insert fn2 endPaths $
+      if fn1 == fn2 then fpaths else Map.insert fn1 startPaths fpaths
+
+    callPaths :: [[Function]]
+    callPaths = G.findSimplePaths fn1 fn2 cfg
+    
+    callPathsAsPairs :: [[(Function, Function)]]
+    callPathsAsPairs = pairs <$> callPaths
+
+    allCallPairs :: Set (Function, Function)
+    allCallPairs = Set.fromList . join $ callPathsAsPairs
+
+    callPairCache :: Map (Function, Function) [PathWithCall p]
+    callPairCache = Map.fromList $ do
+      pair@(caller, callee) <- Set.toList allCallPairs
+      path <- maybe [] identity $ Map.lookup caller fpaths'
+      return (pair, pathsWithCallTo callee path)

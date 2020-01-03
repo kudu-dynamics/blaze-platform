@@ -14,6 +14,7 @@ module Blaze.Prelude
   , liftMaybeTIO
   , pshow
   , pprint
+  , pairs
   ) where
 
 import qualified Prelude as P
@@ -102,3 +103,5 @@ pshow = PP.pShowOpt ppOptions
 pprint :: Show a => a -> IO ()
 pprint = PP.pPrintOpt ppOptions
 
+pairs :: [a] -> [(a, a)]
+pairs xs = zip xs $ drop 1 xs

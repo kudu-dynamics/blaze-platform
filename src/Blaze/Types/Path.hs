@@ -30,6 +30,9 @@ class Path p where
   
   contains :: Node -> p -> Bool
 
+  -- -- removes all nodes after node.
+  -- expandAbstractCallSnipAfter :: AbstractCallNode -> p -> p -> p
+
 newtype PathGraph g = PathGraph g
 
 deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
@@ -170,6 +173,9 @@ instance (Graph () Node g) => Path (PathGraph g) where
 
   contains = G.hasNode
 
+  -- snipAfter n p = maybe G.empty identity $ do
+    
+    
 
 startFunction :: Path p => p -> Maybe Function
 startFunction p = do
