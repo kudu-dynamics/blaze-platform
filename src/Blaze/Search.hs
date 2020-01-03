@@ -12,6 +12,7 @@ import qualified Blaze.Types.Function as BF
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Graph as G
 import qualified Data.Map as Map
+import Data.Map ((!))
 import qualified Data.Set as Set
 
 type F = MLILSSAFunction
@@ -107,21 +108,41 @@ joinPathWithCall pc1 pc2 = PathWithCall
   { path = Path.expandAbstractCall (callNode pc1) (path pc2) (path pc1)
   , callNode = callNode pc2 }
 
+
+cartesian :: [a] -> [a] -> [[a]]
+cartesian xs ys = do
+  x <- xs
+  y <- ys
+  return [x, y]
+
+-- -- | allCombos [[1 2 3] [4 5] [6]] = [[1 4 6] [1 5 6] [2 4 6] [2 5 6] [3..]]
+allCombos :: [[a]] -> [[a]]
+allCombos [] = []
+allCombos [x] = [x]
+allCombos (xs:xss) = do
+  x <- xs
+  ys <- allCombos xss
+  return $ x:ys
+
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
 searchBetween_ :: forall g p. (Graph () Function g, Path p)
-               => BNBinaryView
-               -> g
+               => g
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
                -> Function -> InstructionIndex MLILSSAFunction
                -> [p]
-searchBetween_ bv cfg fpaths fn1 ix1 fn2 ix2
+searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = endPaths
   | otherwise = do
       cp <- callPathsAsPairs
-      undefined
-  
+      pwcCallPath <- allCombos $ (callPairCache !) <$> cp
+      case uncons pwcCallPath of
+        Nothing -> []
+        Just (x, xs) -> do
+          let pwc = foldr (flip joinPathWithCall) x xs
+          end <- endPaths
+          return $ Path.expandAbstractCall (callNode pwc) end (path pwc)
   where
     startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
     endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
@@ -145,5 +166,5 @@ searchBetween_ bv cfg fpaths fn1 ix1 fn2 ix2
     callPairCache :: Map (Function, Function) [PathWithCall p]
     callPairCache = Map.fromList $ do
       pair@(caller, callee) <- Set.toList allCallPairs
-      path <- maybe [] identity $ Map.lookup caller fpaths'
-      return (pair, pathsWithCallTo callee path)
+      path' <- maybe [] identity $ Map.lookup caller fpaths'
+      return (pair, pathsWithCallTo callee path')
