@@ -118,7 +118,7 @@ convertExprOp ctx mop =
     (MLIL.SUB x) -> Just . Pil.SUB $ f x
     (MLIL.SX x) -> Just . Pil.SX $ f x
     (MLIL.TEST_BIT x) -> Just . Pil.TEST_BIT $ f x
-    (MLIL.UNIMPL) -> Just Pil.UNIMPL
+    MLIL.UNIMPL -> Just Pil.UNIMPL
 --    (MLIL.VAR x) -> Just . VarOp expr)
     (MLIL.VAR_ALIASED x) -> Just . Pil.VAR_ALIASED
       $ Pil.VarAliasedOp (convertToPilVar ctx $ x ^. Pil.src)
@@ -142,7 +142,7 @@ convertExprOp ctx mop =
     f = fmap $ convertExpr_ ctx
 
 getSymbol :: MLIL.SSAVariable -> Symbol
-getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> (show $ v ^. MLIL.version)
+getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> show (v ^. MLIL.version)
 
 convertToPilVar :: Ctx -> MLIL.SSAVariable -> PilVar
 convertToPilVar ctx v = PilVar
@@ -255,8 +255,9 @@ convertCallInstruction ctx c = case cond of
   Nothing -> return []
   Just ([], _) -> return []
   Just ((dest:_), target) -> do
-    mname <- maybe (return Nothing) (flip getCallDestFunctionName target)
-             $ (ctx ^. Pil.func)
+    mname <- maybe (return Nothing) 
+                   (`getCallDestFunctionName` target)
+                   (ctx ^. Pil.func)
     let callExpr = Expression (c ^. Function.size)
           . Pil.CALL . Pil.CallOp target mname . mapMaybe (convertExpr ctx)
           $ c ^. Function.params

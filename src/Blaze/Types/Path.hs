@@ -4,7 +4,6 @@
 module Blaze.Types.Path where
 
 import Binja.Core (InstructionIndex)
-import Binja.Function (Function)
 import Blaze.Types.Function (CallSite)
 import Blaze.Types.Graph (Graph)
 import qualified Binja.MLIL as MLIL
@@ -12,7 +11,7 @@ import qualified Blaze.Types.Graph as G
 import qualified Data.Set as Set
 import qualified Prelude as P
 import Blaze.Prelude hiding (succ, pred, toList)
-import Binja.Function (MLILSSAFunction)
+import Binja.Function (Function, MLILSSAFunction)
 
 type F = MLILSSAFunction
 
@@ -32,7 +31,7 @@ deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
     Nothing -> []
-    Just x -> x:(getRest $ succ x g)
+    Just x -> x : getRest (succ x g)
       where
         getRest Nothing = []
         getRest (Just y) = y : getRest (succ y g)

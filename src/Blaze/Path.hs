@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Path
   ( module Exports
   , module Blaze.Path
@@ -142,9 +140,9 @@ isBackEdge be = case be ^. BB.target of
   Nothing -> return False
   Just dst -> if src == dst then return False else do
     b <- BB.getDominators src >>= return . (dst `elem`)
-    case b of
-      True -> putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
-      False -> return ()
+    if b then 
+      putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
+      else return ()
     return b
   where
     src = be ^. BB.src
@@ -197,7 +195,7 @@ data SpanItem a b = SpanSpan (a, a)
 getSpanList :: Integral a => (b -> a) -> a -> a -> [b] -> [SpanItem a b]
 getSpanList _ lo hi [] = if lo == hi then [] else [SpanSpan (lo, hi)]
 getSpanList f lo hi (x:xs)
-  | lo == n = (SpanBreak x):getSpanList f (lo + 1) hi xs
+  | lo == n = SpanBreak x : getSpanList f (lo + 1) hi xs
   | otherwise = SpanSpan (lo, n) : SpanBreak x : getSpanList f (n + 1) hi xs
   where
     n = f x
@@ -210,10 +208,10 @@ convertBasicBlockToNodeList bv bb = do
   where
     fn = bb ^. BB.func . HFunction.func
 
-    f :: SpanItem (InstructionIndex F) (CallInstruction) -> IO [Node]
+    f :: SpanItem (InstructionIndex F) CallInstruction -> IO [Node]
     f (SpanSpan (lo, hi)) = (:[]) . SubBlock . SubBlockNode fn (bb ^. BB.start) lo hi <$> randomIO
     f (SpanBreak ci) = do
-      n <- AbstractCallNode fn <$> (createCallSite bv fn ci) <*> randomIO
+      n <- AbstractCallNode fn <$> createCallSite bv fn ci <*> randomIO
       return [AbstractCall n]
 
 pairs :: [a] -> [(a, a)]

@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Pil.Path where
 
 import           Blaze.Prelude
@@ -22,8 +21,7 @@ import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx 
                                                    , Ctx( Ctx )
                                                    , CtxIndex
                                                    , Stmt
-                                                   )
-import           Blaze.Types.Pil                   ( Converter
+                                                   , Converter
                                                    , runConverter
                                                    )
 import qualified Blaze.Types.Pil      as Pil
@@ -44,7 +42,7 @@ enterNewCtx fn = do
   i <- use Pil.ctxIndexCounter
   Pil.ctx %= newCtx i
   where
-    newCtx i ctx = ctx & Pil.func .~ (Just fn)
+    newCtx i ctx = ctx & Pil.func ?~ fn
                        & Pil.ctxIndex .~ i
     incIndex :: Maybe CtxIndex -> Maybe CtxIndex
     incIndex Nothing = Just 1
