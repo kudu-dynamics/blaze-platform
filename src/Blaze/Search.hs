@@ -131,10 +131,15 @@ searchBetween_ :: forall g p. (Graph () Function g, Path p)
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
                -> Function -> InstructionIndex MLILSSAFunction
-               -> [p]
+               -> IO [p]
 searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
-  | fn1 == fn2 = endPaths
+  | fn1 == fn2 = return endPaths
   | otherwise = do
+      print $ (fmap $ view Func.name) <$> callPaths
+      print callPathsAsPairs
+      return results
+  where
+    results = do
       cp <- callPathsAsPairs
       pwcCallPath <- allCombos $ (callPairCache !) <$> cp
       case uncons pwcCallPath of
@@ -143,7 +148,7 @@ searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
           let pwc = foldr (flip joinPathWithCall) x xs
           end <- endPaths
           return $ Path.expandAbstractCall (callNode pwc) end (path pwc)
-  where
+
     startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
     endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
       if fn1 == fn2 then Just startPaths else Map.lookup fn1 fpaths
@@ -168,3 +173,5 @@ searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
       pair@(caller, callee) <- Set.toList allCallPairs
       path' <- maybe [] identity $ Map.lookup caller fpaths'
       return (pair, pathsWithCallTo callee path')
+
+

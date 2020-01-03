@@ -290,36 +290,13 @@ allSimpleFunctionPaths' bv fn = do
       putText $ "Simple paths: " <> (show . length $ ps)
       traverse (pathFromBasicBlockList bv bbg) ps      
     xs -> P.error $ "Bad " <> show (fmap (\bb -> let (InstructionIndex n) = (bb ^. BB.start) in n) xs)
-  -- putText "CONSTRUCTED"
-  -- simplePathsFromBasicBlockGraph bv bbg
 
 
-  
--- create map of bb -> [Node]
--- create map of bb -> first Node
--- create map of bb -> last Node
--- for each bb, get outgoing edges, convert them to "first Node"
--- create edges for nodes in each bb
--- create edges of last Node -> first Node for each bb (don't forget about conditionals!)
+pathsForAllFunctions :: forall p. Path p => BNBinaryView -> IO (Map Function [p])
+pathsForAllFunctions bv = do
+  fns <- HFunction.getFunctions bv
+  Map.fromList <$> traverse g fns
+  where
+    g :: Function -> IO (Function, [p])
+    g fn = (fn,) <$> allSimpleFunctionPaths bv fn
 
---- OOOOr, make an `expandNode` function
--- insertSubgraph :: Graph e n -> n -> Graph e n -> Graph e n
--- actually, you can only insert a path into a graph,
--- because a path has one input and one output
-
-
--- should represent paths as list-like structures with these features:
--- succ node, pred node, expand node, fromList, toList
--- need fast lookup
--- could use Graph underneath, but restrict access functions
--- should specify order in type somehow, ie. make sure Call->Ret->APN doesn't happen
-
-
-
---- call graph ------
---- get all calls out of function
-
---- create call graph from those
-
---- get function starts
---- get all call instructions that call those functions

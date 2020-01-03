@@ -98,6 +98,7 @@ library:
   - Blaze.Pil.Analysis
   - Blaze.Types.Pil
   - Blaze.Types.Graph
+  - Blaze.Search
 #  - Blaze.Liquid.Checker
   # scratch
   # - Blaze.PathScratch

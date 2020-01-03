@@ -4,6 +4,8 @@ module Blaze.Prelude
   ( module Exports
   , Streaming
   , StreamingIO
+  , Pretty(pretty)
+  , prettyPrint
   , liftListM
   , liftListIO
   , liftEitherIO
@@ -105,3 +107,4 @@ pprint = PP.pPrintOpt ppOptions
 
 pairs :: [a] -> [(a, a)]
 pairs xs = zip xs $ drop 1 xs
+
