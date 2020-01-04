@@ -37,6 +37,7 @@ import           Blaze.Types.Function              ( CallInstruction
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
+import qualified Blaze.Types.Path as P
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.Set as Set
 import qualified Streamly.Prelude as S
@@ -47,6 +48,23 @@ type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
   deriving (Graph () Node, Path)
+
+getNodeFunc :: Node -> Function
+getNodeFunc (SubBlock x) = x ^. P.func
+getNodeFunc (Call x) = x ^. P.func
+getNodeFunc (Ret x) = x ^. P.func
+getNodeFunc (AbstractCall x) = x ^. P.func
+getNodeFunc (AbstractPath x) = x ^. P.func
+getNodeFunc (Condition x) = x ^. P.func
+
+instance Pretty AlgaPath where
+  pretty p = case uncons (P.toList p) of
+    Nothing -> ""
+    Just (x, xs) -> "___ Starting in: " <> pretty (getNodeFunc x) <> " ___\n"
+      <> f (x:xs)
+    where
+      f [] = ""
+      f (x:xs) = pretty x <> "\n" <> f xs
 
 naiveLCS :: String -> String -> Int
 naiveLCS [] _ = 0

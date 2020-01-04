@@ -16,7 +16,7 @@ module Blaze.Prelude
   , pprint
   ) where
 
-import qualified Prelude as P
+--import qualified Prelude as P
 import           Prelude         as Exports        ( String
                                                    , head
                                                    , (!!)
@@ -24,6 +24,7 @@ import           Prelude         as Exports        ( String
 
 import qualified Data.Text.Lazy as L (Text)
 
+import Blaze.Pretty as Exports
 import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
 import Data.Data as Exports

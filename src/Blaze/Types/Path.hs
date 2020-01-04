@@ -5,6 +5,7 @@ module Blaze.Types.Path where
 
 import Binja.Core (InstructionIndex)
 import Blaze.Types.Function (CallSite)
+import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Graph (Graph)
 import qualified Binja.MLIL as MLIL
 import qualified Blaze.Types.Graph as G
@@ -136,6 +137,33 @@ $(makeFieldsNoPrefix ''RetNode)
 $(makeFieldsNoPrefix ''AbstractPathNode)
 $(makeFieldsNoPrefix ''AbstractCallNode)
 
+paren :: Text -> Text
+paren t = "(" <> t <> ")"
+
+brack :: Text -> Text
+brack t = "[" <> t <> "]"
+
+quote :: Text -> Text
+quote t = "\"" <> t <> "\""
+
+quote' :: Text -> Text
+quote' t = "'" <> t <> "'"
+
+instance Pretty Node where
+  pretty (SubBlock x) =
+    brack (pretty (x ^. start) <> "-" <> pretty (x ^. end - 1)) <> " : SubBlock"
+  pretty (Call x) =
+    "-------Expanding call: " <> pretty (x ^. callSite)
+  pretty (Ret x) =
+    "-------Returning to " <> pretty (x ^. func) <> " from " <> pretty (x ^. callSite . BFunc.callDest)
+  pretty (AbstractCall x) =
+    brack (pretty $ x ^. callSite . BFunc.callInstr . BFunc.index)
+    <> " : "
+    <> pretty (x ^. callSite)
+  pretty (AbstractPath _) = "AbstractPath"
+  pretty (Condition x) =
+    "Condition: " <> (bool "NOT " "" $ x ^. trueOrFalseBranch)
+    <> pretty (x ^. condition)
 
 startFunction :: Path p => p -> Maybe Function
 startFunction p = do

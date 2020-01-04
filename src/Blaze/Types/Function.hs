@@ -104,11 +104,22 @@ data DestCollOpt = DestCollAddr Address
                  | DestCollExpr (Expression F)
                  deriving (Eq, Ord, Show)
 
+instance Pretty DestCollOpt where
+  pretty (DestCollAddr x) = pretty x
+  pretty (DestCollExpr x) = pretty x
+  
+
 data CallDest = DestAddr Address
               | DestFunc Function
               | DestExpr (Expression F)
               | DestColl (Set DestCollOpt)
               deriving (Eq, Ord, Show)
+
+instance Pretty CallDest where
+  pretty (DestAddr x) = pretty x
+  pretty (DestFunc x) = pretty x
+  pretty (DestExpr x) = pretty x
+  pretty (DestColl x) = pretty x
 
 data CallSite = CallSite
   { _caller :: Function
@@ -118,3 +129,7 @@ data CallSite = CallSite
 
 $(makeFieldsNoPrefix ''CallInstruction)
 $(makeFieldsNoPrefix ''CallSite)
+
+instance Pretty CallSite where
+  pretty x = pretty (x ^. caller) <> " -> "
+             <> pretty (x ^. callDest)

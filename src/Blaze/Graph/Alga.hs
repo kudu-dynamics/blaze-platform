@@ -10,7 +10,7 @@ import Blaze.Types.Path (Node, PathGraph)
 import Blaze.Types.Graph
 import qualified Algebra.Graph.Export.Dot as Dot
 
-type AlgaPath = PathGraph (AlgaGraph () Node)
+-- type AlgaPath = PathGraph (AlgaGraph () Node)
 
 data AlgaGraph e a = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap a
