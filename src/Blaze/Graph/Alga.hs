@@ -10,12 +10,15 @@ import Blaze.Types.Path (Node, PathGraph)
 import Blaze.Types.Graph
 import qualified Algebra.Graph.Export.Dot as Dot
 
-type AlgaPath = PathGraph (AlgaGraph () Node)
+-- type AlgaPath = PathGraph (AlgaGraph () Node)
 
 data AlgaGraph e a = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap a
   , edgeMap :: Map (a, a) e
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Ord, Eq)
+
+-- TODO: see if G.AdjacencyMap's Eq is good enough
+-- I think that two graphs with identitcal nodes and edges will not be equal
 
 instance (NFData e, NFData a) => NFData (AlgaGraph e a)
 

@@ -2,6 +2,7 @@ module Blaze.Search where
 
 import Blaze.Prelude hiding (succ, pred, toList)
 
+import qualified Prelude as P
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
 import Binja.Core (InstructionIndex, BNBinaryView)
@@ -14,6 +15,7 @@ import qualified Blaze.Types.Graph as G
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 type F = MLILSSAFunction
 
@@ -126,7 +128,7 @@ allCombos (xs:xss) = do
 
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: forall g p. (Graph () Function g, Path p)
+searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p)
                => g
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
@@ -135,8 +137,8 @@ searchBetween_ :: forall g p. (Graph () Function g, Path p)
 searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = return endPaths
   | otherwise = do
-      print $ (fmap $ view Func.name) <$> callPaths
-      print callPathsAsPairs
+      -- print $ (fmap $ view Func.name) <$> callPaths
+      -- mapM_ (prettyPrint . path) . join $ Map.elems callPairCache
       return results
   where
     results = do

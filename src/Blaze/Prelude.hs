@@ -19,7 +19,7 @@ module Blaze.Prelude
   , pairs
   ) where
 
-import qualified Prelude as P
+--import qualified Prelude as P
 import           Prelude         as Exports        ( String
                                                    , head
                                                    , (!!)
@@ -27,6 +27,7 @@ import           Prelude         as Exports        ( String
 
 import qualified Data.Text.Lazy as L (Text)
 
+import Blaze.Pretty as Exports
 import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
 import Data.Data as Exports
@@ -107,4 +108,3 @@ pprint = PP.pPrintOpt ppOptions
 
 pairs :: [a] -> [(a, a)]
 pairs xs = zip xs $ drop 1 xs
-

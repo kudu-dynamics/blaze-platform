@@ -4,15 +4,15 @@
 module Blaze.Types.Path where
 
 import Binja.Core (InstructionIndex)
-import Binja.Function (Function)
 import Blaze.Types.Function (CallSite)
+import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Graph (Graph)
 import qualified Binja.MLIL as MLIL
 import qualified Blaze.Types.Graph as G
 import qualified Data.Set as Set
 import qualified Prelude as P
 import Blaze.Prelude hiding (succ, pred, toList)
-import Binja.Function (MLILSSAFunction)
+import Binja.Function (Function, MLILSSAFunction)
 
 type F = MLILSSAFunction
 
@@ -34,6 +34,7 @@ class Path p where
   -- expandAbstractCallSnipAfter :: AbstractCallNode -> p -> p -> p
 
 newtype PathGraph g = PathGraph g
+  deriving (Eq, Ord, Show)
 
 deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
 
@@ -102,6 +103,33 @@ $(makeFieldsNoPrefix ''RetNode)
 $(makeFieldsNoPrefix ''AbstractPathNode)
 $(makeFieldsNoPrefix ''AbstractCallNode)
 
+paren :: Text -> Text
+paren t = "(" <> t <> ")"
+
+brack :: Text -> Text
+brack t = "[" <> t <> "]"
+
+quote :: Text -> Text
+quote t = "\"" <> t <> "\""
+
+quote' :: Text -> Text
+quote' t = "'" <> t <> "'"
+
+instance Pretty Node where
+  pretty (SubBlock x) =
+    brack (pretty (x ^. start) <> "-" <> pretty (x ^. end - 1)) <> " : SubBlock"
+  pretty (Call x) =
+    "-------Expanding call: " <> pretty (x ^. callSite)
+  pretty (Ret x) =
+    "-------Returning to " <> pretty (x ^. func) <> " from " <> pretty (x ^. callSite . BFunc.callDest)
+  pretty (AbstractCall x) =
+    brack (pretty $ x ^. callSite . BFunc.callInstr . BFunc.index)
+    <> " : "
+    <> pretty (x ^. callSite)
+  pretty (AbstractPath _) = "AbstractPath"
+  pretty (Condition x) =
+    "Condition: " <> (bool "NOT " "" $ x ^. trueOrFalseBranch)
+    <> pretty (x ^. condition)
 
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
@@ -152,19 +180,25 @@ instance (Graph () Node g) => Path (PathGraph g) where
   expandAbstractCall acn ppart p = maybe p identity $ do
     firstN <- firstNode ppart
     lastN <- lastNode ppart
-    npred <- pred n p
-    nsucc <- succ n p
+    let mpred = pred n p
+        msucc = succ n p
+    -- npred <- pred n p
+    -- nsucc <- succ n p
+
     --- reusing the AbstractCallNode's uuid because we're not in IO
     --  and the uuid is just there to make sure nodes of the same type
     --  are distinguishable.
     let cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (acn ^. uuid)
         rnode = Ret $ RetNode (acn ^. func) (acn ^. callSite) (acn ^. uuid)
-    let p' = G.removeEdges [(npred, n), (n, nsucc)] p
+    let p' = G.removeNode n p
         p'' = flip G.addEdges p'
-              . fmap ((),) $ [ (npred, cnode)
-                             , (cnode, firstN)
-                             , (lastN, rnode)
-                             , (rnode, nsucc) ] <> ppartEdges
+              . fmap ((),) . (<> ppartEdges) . concat
+              $ [ maybe [] ((:[]) . (, cnode)) mpred
+                , [ (cnode, firstN)
+                  , (lastN, rnode)
+                  ]
+                , maybe [] ((:[]) . (rnode,)) msucc
+                ] 
     return p''
     where
       ppartList = toList ppart

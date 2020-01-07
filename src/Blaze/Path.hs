@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Path
   ( module Exports
   , module Blaze.Path
@@ -39,16 +37,42 @@ import           Blaze.Types.Function              ( CallInstruction
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
+import qualified Blaze.Types.Path as P
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.Set as Set
 import qualified Streamly.Prelude as S
+import qualified Data.Text as Text
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
 -- type NodeGraph g = AlgaGraph (BlockEdge F) (BasicBlock F) g => g
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
-  deriving (Graph () Node, Path)
+  deriving (Graph () Node, Path, Ord)
+
+-- converts to list because for some reason two identical graphs aren't equal
+instance Eq AlgaPath where
+  (==) a b = P.toList a == P.toList b
+
+instance Show AlgaPath where
+  show = show . P.toList
+
+getNodeFunc :: Node -> Function
+getNodeFunc (SubBlock x) = x ^. P.func
+getNodeFunc (Call x) = x ^. P.func
+getNodeFunc (Ret x) = x ^. P.func
+getNodeFunc (AbstractCall x) = x ^. P.func
+getNodeFunc (AbstractPath x) = x ^. P.func
+getNodeFunc (Condition x) = x ^. P.func
+
+instance Pretty AlgaPath where
+  pretty p = case uncons (P.toList p) of
+    Nothing -> ""
+    Just (x, xs) -> "___ Starting in: " <> pretty (getNodeFunc x) <> " ___\n"
+      <> f (x:xs)
+    where
+      f [] = ""
+      f (x:xs) = pretty x <> "\n" <> f xs
 
 naiveLCS :: String -> String -> Int
 naiveLCS [] _ = 0
@@ -142,9 +166,9 @@ isBackEdge be = case be ^. BB.target of
   Nothing -> return False
   Just dst -> if src == dst then return False else do
     b <- BB.getDominators src >>= return . (dst `elem`)
-    case b of
-      True -> putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
-      False -> return ()
+    if b then 
+      putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
+      else return ()
     return b
   where
     src = be ^. BB.src
@@ -197,7 +221,7 @@ data SpanItem a b = SpanSpan (a, a)
 getSpanList :: Integral a => (b -> a) -> a -> a -> [b] -> [SpanItem a b]
 getSpanList _ lo hi [] = if lo == hi then [] else [SpanSpan (lo, hi)]
 getSpanList f lo hi (x:xs)
-  | lo == n = (SpanBreak x):getSpanList f (lo + 1) hi xs
+  | lo == n = SpanBreak x : getSpanList f (lo + 1) hi xs
   | otherwise = SpanSpan (lo, n) : SpanBreak x : getSpanList f (n + 1) hi xs
   where
     n = f x
@@ -210,10 +234,10 @@ convertBasicBlockToNodeList bv bb = do
   where
     fn = bb ^. BB.func . HFunction.func
 
-    f :: SpanItem (InstructionIndex F) (CallInstruction) -> IO [Node]
+    f :: SpanItem (InstructionIndex F) CallInstruction -> IO [Node]
     f (SpanSpan (lo, hi)) = (:[]) . SubBlock . SubBlockNode fn (bb ^. BB.start) lo hi <$> randomIO
     f (SpanBreak ci) = do
-      n <- AbstractCallNode fn <$> (createCallSite bv fn ci) <*> randomIO
+      n <- AbstractCallNode fn <$> createCallSite bv fn ci <*> randomIO
       return [AbstractCall n]
 
 mpairs :: [a] -> [(a, Maybe a)]

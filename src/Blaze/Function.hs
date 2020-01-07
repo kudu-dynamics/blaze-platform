@@ -18,7 +18,7 @@ import qualified Data.Set as Set
 
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
-getDestOp CallInstruction{_dest=(Just(MLIL.Expression{MLIL._op=op'}))} = Just op'
+getDestOp CallInstruction{_dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'
 getDestOp _ = Nothing
 
 isDirectCall :: CallInstruction -> Bool
@@ -29,8 +29,8 @@ isDirectCall c = case getDestOp c of
 createCallSite :: BNBinaryView -> Function -> CallInstruction -> IO CallSite
 createCallSite bv func c = CallSite func c <$> case c ^. dest of
   Just dexpr -> case (dexpr ^. MLIL.op :: MLIL.Operation (MLIL.Expression F)) of
-    (MLIL.CONST_PTR cpop) -> getFunctionStartingAt bv Nothing addr
-                                  >>= return . maybe (DestAddr addr) DestFunc
+    (MLIL.CONST_PTR cpop) -> maybe (DestAddr addr) DestFunc <$>
+                              getFunctionStartingAt bv Nothing addr
       where
         addr :: Address
         addr = fromIntegral $ cpop ^. MLIL.constant
