@@ -99,6 +99,8 @@ library:
   - Blaze.Types.Pil
   - Blaze.Types.Graph
   - Blaze.Search
+  - Blaze.Function
+  - Blaze.Types.Function
 #  - Blaze.Liquid.Checker
   # scratch
   # - Blaze.PathScratch
