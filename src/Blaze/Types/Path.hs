@@ -13,6 +13,7 @@ import qualified Data.Set as Set
 import qualified Prelude as P
 import Blaze.Prelude hiding (succ, pred, toList)
 import Binja.Function (Function, MLILSSAFunction)
+import qualified Data.UUID as UUID
 
 type F = MLILSSAFunction
 
@@ -26,7 +27,7 @@ class Path p where
   expandNode :: AbstractPathNode -> p -> p -> p
 
   -- first p is path to replace AbstractPathNode
-  expandAbstractCall :: AbstractCallNode -> p -> p -> p
+  expandAbstractCall_ :: Bool -> AbstractCallNode -> p -> p -> p
   
   contains :: Node -> p -> Bool
 
@@ -38,6 +39,11 @@ newtype PathGraph g = PathGraph g
 
 deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
 
+expandAbstractCall :: Path p => AbstractCallNode -> p -> p -> p
+expandAbstractCall = expandAbstractCall_ True
+
+expandAbstractCallWithoutRet :: Path p => AbstractCallNode -> p -> p -> p
+expandAbstractCallWithoutRet = expandAbstractCall_ False
 
 -- instance Graph edge node g => Path (PathGraph g) where
 --   fromList :: (Graph () Node g) => [Node] -> PathGraph g
@@ -131,6 +137,12 @@ instance Pretty Node where
     "Condition: " <> (bool "NOT " "" $ x ^. trueOrFalseBranch)
     <> pretty (x ^. condition)
 
+callTwaddle :: Word32
+callTwaddle = 999
+
+retTwaddle :: Word32
+retTwaddle = 500
+
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
     Nothing -> []
@@ -177,7 +189,7 @@ instance (Graph () Node g) => Path (PathGraph g) where
       gpartEdges = zip gpartList (drop 1 gpartList)
       n = AbstractPath apn
 
-  expandAbstractCall acn ppart p = maybe p identity $ do
+  expandAbstractCall_ includeRet acn ppart p = maybe p identity $ do
     firstN <- firstNode ppart
     lastN <- lastNode ppart
     let mpred = pred n p
@@ -185,20 +197,24 @@ instance (Graph () Node g) => Path (PathGraph g) where
     -- npred <- pred n p
     -- nsucc <- succ n p
 
-    --- reusing the AbstractCallNode's uuid because we're not in IO
-    --  and the uuid is just there to make sure nodes of the same type
-    --  are distinguishable.
-    let cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (acn ^. uuid)
-        rnode = Ret $ RetNode (acn ^. func) (acn ^. callSite) (acn ^. uuid)
+    -- just twaddling the AbstractPathNode's UUID since we don't have IO.
+    let cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (twaddleUUID callTwaddle $ acn ^. uuid)
+        rnode = Ret $ RetNode (acn ^. func) (acn ^. callSite) (twaddleUUID retTwaddle $ acn ^. uuid)
     let p' = G.removeNode n p
         p'' = flip G.addEdges p'
               . fmap ((),) . (<> ppartEdges) . concat
               $ [ maybe [] ((:[]) . (, cnode)) mpred
-                , [ (cnode, firstN)
-                  , (lastN, rnode)
-                  ]
-                , maybe [] ((:[]) . (rnode,)) msucc
-                ] 
+                , [ (cnode, firstN) ]
+                , bool
+                  (if isJust msucc
+                    -- TODO: use types to make this error impossible
+                    then P.error "Can't expand AbstractCallNode without return unless it is on the end of a path."
+                    else [])
+                  (concat [ [(lastN, rnode)]
+                          , maybe [] ((:[]) . (rnode,)) msucc
+                  ])
+                  includeRet
+                ]
     return p''
     where
       ppartList = toList ppart

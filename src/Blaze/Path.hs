@@ -68,7 +68,7 @@ getNodeFunc (Condition x) = x ^. P.func
 instance Pretty AlgaPath where
   pretty p = case uncons (P.toList p) of
     Nothing -> ""
-    Just (x, xs) -> "___ Starting in: " <> pretty (getNodeFunc x) <> " ___\n"
+    Just (x, xs) -> "========= Starting in: " <> pretty (getNodeFunc x) <> " =========\n"
       <> f (x:xs)
     where
       f [] = ""

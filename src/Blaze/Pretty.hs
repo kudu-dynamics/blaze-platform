@@ -7,6 +7,7 @@ import Protolude
 
 import qualified Numeric
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Binja.Core (InstructionIndex(InstructionIndex), Address(Address))
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -14,6 +15,9 @@ import Binja.Function (Function)
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Function as Func
 import Control.Lens
+
+-- TODO: make pretty return a monad instead of text,
+-- which can do things like `indent`
 
 class Pretty x where
   pretty :: x -> Text
@@ -47,3 +51,9 @@ instance Pretty a => Pretty (Set a) where
 
 instance Pretty (MLIL.Expression a) where
   pretty _ = "(TODO: MLIL Expression)"
+
+instance (Pretty a, Pretty b) => Pretty (a, b) where
+  pretty (a, b) = "(" <> pretty a <> ", " <> pretty b <> ")"
+
+instance (Pretty k, Pretty v) => Pretty (Map k v) where
+  pretty m = "Map: " <> pretty (Map.toList m)

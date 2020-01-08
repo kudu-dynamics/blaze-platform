@@ -96,6 +96,12 @@ data PathWithCall p = PathWithCall
   , callNode :: AbstractCallNode
   } deriving (Eq, Ord, Show)
 
+instance Pretty p => Pretty (PathWithCall p) where
+  pretty x = "PathWithCall:\n" 
+    <> "callNode: " <> pretty (Path.AbstractCall $ callNode x) <> "\n"
+    <> "path:\n"
+    <> pretty (path x)
+
 -- | A path might contain multiple calls to the same function
 -- these paths are snipped after call
 pathsWithCallTo :: Path p => Function -> p -> [PathWithCall p]
@@ -107,9 +113,9 @@ pathsWithCallTo fn p = f <$> getAbstractCallNodesToFunction fn p
 -- result is expanded path, with callNode from second
 joinPathWithCall :: Path p => PathWithCall p -> PathWithCall p -> PathWithCall p
 joinPathWithCall pc1 pc2 = PathWithCall
-  { path = Path.expandAbstractCall (callNode pc1) (path pc2) (path pc1)
-  , callNode = callNode pc2 }
-
+  { path = Path.expandAbstractCallWithoutRet (callNode pc1) (path pc2) (path pc1)
+  , callNode = callNode pc2
+  }
 
 cartesian :: [a] -> [a] -> [[a]]
 cartesian xs ys = do
@@ -133,30 +139,27 @@ searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p)
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
                -> Function -> InstructionIndex MLILSSAFunction
-               -> IO [p]
+               -> [p]
 searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
-  | fn1 == fn2 = return endPaths
-  | otherwise = do
-      -- print $ (fmap $ view Func.name) <$> callPaths
-      -- mapM_ (prettyPrint . path) . join $ Map.elems callPairCache
-      return results
+  | fn1 == fn2 = endPaths
+  | otherwise = results
   where
     results = do
       cp <- callPathsAsPairs
-      pwcCallPath <- allCombos $ (callPairCache !) <$> cp
+      pwcCallPath <- allCombos $ (callPairCache !) <$> cp     
       case uncons pwcCallPath of
         Nothing -> []
         Just (x, xs) -> do
           let pwc = foldr (flip joinPathWithCall) x xs
           end <- endPaths
-          return $ Path.expandAbstractCall (callNode pwc) end (path pwc)
+          return $ Path.expandAbstractCallWithoutRet (callNode pwc) end (path pwc)
 
     startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
     endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
-      if fn1 == fn2 then Just startPaths else Map.lookup fn1 fpaths
+      if fn1 == fn2 then Just startPaths else Map.lookup fn2 fpaths
 
     -- we can assume fn1 and fn2 are always at the start and end, and never in the middle
-    -- of the call path (because we are using simplePaths search)
+    -- of the call path (because we are using simplePaths search that has no dups)
     fpaths' :: Map Function [p]
     fpaths' = Map.insert fn2 endPaths $
       if fn1 == fn2 then fpaths else Map.insert fn1 startPaths fpaths
