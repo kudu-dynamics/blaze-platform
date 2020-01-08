@@ -31,6 +31,9 @@ showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
 instance Pretty Function where
   pretty x = x ^. Func.name
 
+instance Pretty Int where
+  pretty = show
+
 instance Pretty (InstructionIndex a) where
   pretty (InstructionIndex x) = show x
 

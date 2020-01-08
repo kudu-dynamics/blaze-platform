@@ -127,6 +127,7 @@ cartesian xs ys = do
 allCombos :: [[a]] -> [[a]]
 allCombos [] = []
 allCombos [x] = [x]
+allCombos [x, y] = cartesian x y
 allCombos (xs:xss) = do
   x <- xs
   ys <- allCombos xss
@@ -134,7 +135,7 @@ allCombos (xs:xss) = do
 
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p)
+searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p, Ord p)
                => g
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
@@ -142,11 +143,13 @@ searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p)
                -> [p]
 searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = endPaths
-  | otherwise = results
+  | otherwise = hdebug results $ do
+      -- prettyPrint $ length <$> callPairCache
+      return ()
   where
     results = do
       cp <- callPathsAsPairs
-      pwcCallPath <- allCombos $ (callPairCache !) <$> cp     
+      pwcCallPath <- allCombos $ (callPairCache !) <$> cp
       case uncons pwcCallPath of
         Nothing -> []
         Just (x, xs) -> do
@@ -173,10 +176,17 @@ searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
     allCallPairs :: Set (Function, Function)
     allCallPairs = Set.fromList . join $ callPathsAsPairs
 
+    -- callPairCache :: Map (Function, Function) [PathWithCall p]
+    -- callPairCache = Map.fromList $ do
+    --   pair@(caller, callee) <- Set.toList allCallPairs
+    --   path' <- maybe [] identity $ Map.lookup caller fpaths'
+    --   return (pair, pathsWithCallTo callee path')
+
     callPairCache :: Map (Function, Function) [PathWithCall p]
-    callPairCache = Map.fromList $ do
+    callPairCache = fmap Set.toList . foldr f Map.empty $ do
       pair@(caller, callee) <- Set.toList allCallPairs
       path' <- maybe [] identity $ Map.lookup caller fpaths'
-      return (pair, pathsWithCallTo callee path')
-
+      return (pair, Set.fromList $ pathsWithCallTo callee path')
+      where
+        f (pair, xs) = Map.insertWith (<>) pair xs
 
