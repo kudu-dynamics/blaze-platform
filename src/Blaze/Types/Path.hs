@@ -39,12 +39,11 @@ class Path p where
 
 data InsertablePath p = InsertablePath
   { insertableFullPath :: p
-  , insertableFirstNode :: Node
-  , insertableLastNode :: Node
+  , insertableFirstNode :: Node -- proof that it's not empty
   } deriving (Eq, Ord, Show)
 
 mkInsertablePath :: Path p => p -> Maybe (InsertablePath p)
-mkInsertablePath p = InsertablePath p <$> firstNode p <*> lastNode p
+mkInsertablePath p = InsertablePath p <$> firstNode p
 
 data LastIsAbstractCall p = LastIsAbstractCall
   { lacFullPath :: p
@@ -233,7 +232,8 @@ instance (Graph () Node g) => Path (PathGraph g) where
 
       ppart = insertableFullPath ip
       firstN = insertableFirstNode ip
-      lastN = insertableLastNode ip
+      -- lastNode will never return Nothing b/c InsertablePath is not empty
+      lastN = fromJust $ lastNode ppart
       ppartList = toList ppart
       ppartEdges = zip ppartList (drop 1 ppartList)
       n = AbstractCall acn
