@@ -188,11 +188,13 @@ instance (Graph () Node g) => Path (PathGraph g) where
     [x] -> Just x
     _ -> P.error "Path node has multiple predecessors. Bad!"
 
+  -- TODO: VERY inefficent! change datatype to include first and last node
   firstNode g = case Set.toList $ G.sources g of
     [] -> Nothing
     [x] -> Just x
     _ -> P.error "Path has multiple source nodes. Bad!"
 
+  -- TODO: VERY inefficent! change datatype to include first and last node
   lastNode g = case Set.toList $ G.sinks g of
     [] -> Nothing
     [x] -> Just x
