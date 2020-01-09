@@ -26,24 +26,48 @@ class Path p where
   lastNode :: p -> Maybe Node
   expandNode :: AbstractPathNode -> p -> p -> p
 
-  -- first p is path to replace AbstractPathNode
-  expandAbstractCall_ :: Bool -> AbstractCallNode -> p -> p -> p
-  
+  -- if AbstractCallNode isn't in second p, just returns p
+  expandAbstractCall :: AbstractCallNode -> InsertablePath p -> p -> p
+
+  -- expands second path without Ret node
+  expandLast :: InsertablePath p -> LastIsAbstractCall p -> p
+
   contains :: Node -> p -> Bool
 
   -- -- removes all nodes after node.
   -- expandAbstractCallSnipAfter :: AbstractCallNode -> p -> p -> p
+
+data InsertablePath p = InsertablePath
+  { insertableFullPath :: p
+  , insertableFirstNode :: Node
+  , insertableLastNode :: Node
+  } deriving (Eq, Ord, Show)
+
+mkInsertablePath :: Path p => p -> Maybe (InsertablePath p)
+mkInsertablePath p = InsertablePath p <$> firstNode p <*> lastNode p
+
+data LastIsAbstractCall p = LastIsAbstractCall
+  { lacFullPath :: p
+  , lacLastNode :: AbstractCallNode
+  } deriving (Eq, Ord, Show)
+
+mkLastIsAbstractCall :: Path p => p -> Maybe (LastIsAbstractCall p)
+mkLastIsAbstractCall p = do
+  n <- lastNode p
+  case n of
+    AbstractCall acn -> return $ LastIsAbstractCall p acn
+    _ -> Nothing
 
 newtype PathGraph g = PathGraph g
   deriving (Eq, Ord, Show)
 
 deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
 
-expandAbstractCall :: Path p => AbstractCallNode -> p -> p -> p
-expandAbstractCall = expandAbstractCall_ True
+-- expandAbstractCall :: Path p => AbstractCallNode -> p -> p -> p
+-- expandAbstractCall = expandAbstractCall_ True
 
-expandAbstractCallWithoutRet :: Path p => AbstractCallNode -> p -> p -> p
-expandAbstractCallWithoutRet = expandAbstractCall_ False
+-- expandAbstractCallWithoutRet :: Path p => AbstractCallNode -> p -> p -> p
+-- expandAbstractCallWithoutRet = expandAbstractCall_ False
 
 -- instance Graph edge node g => Path (PathGraph g) where
 --   fromList :: (Graph () Node g) => [Node] -> PathGraph g
@@ -189,37 +213,50 @@ instance (Graph () Node g) => Path (PathGraph g) where
       gpartEdges = zip gpartList (drop 1 gpartList)
       n = AbstractPath apn
 
-  expandAbstractCall_ includeRet acn ppart p = maybe p identity $ do
-    firstN <- firstNode ppart
-    lastN <- lastNode ppart
-    let mpred = pred n p
-        msucc = succ n p
-    -- npred <- pred n p
-    -- nsucc <- succ n p
-
-    -- just twaddling the AbstractPathNode's UUID since we don't have IO.
-    let cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (twaddleUUID callTwaddle $ acn ^. uuid)
-        rnode = Ret $ RetNode (acn ^. func) (acn ^. callSite) (twaddleUUID retTwaddle $ acn ^. uuid)
-    let p' = G.removeNode n p
-        p'' = flip G.addEdges p'
-              . fmap ((),) . (<> ppartEdges) . concat
-              $ [ maybe [] ((:[]) . (, cnode)) mpred
-                , [ (cnode, firstN) ]
-                , bool
-                  (if isJust msucc
-                    -- TODO: use types to make this error impossible
-                    then P.error "Can't expand AbstractCallNode without return unless it is on the end of a path."
-                    else [])
-                  (concat [ [(lastN, rnode)]
-                          , maybe [] ((:[]) . (rnode,)) msucc
-                  ])
-                  includeRet
-                ]
-    return p''
+  -- this probably shouldn't just return 'p' if it fails..
+  expandAbstractCall acn ip p =
+    flip G.addEdges (G.removeNode n p)
+    . fmap ((),) . (<> ppartEdges) . concat
+    $ [ maybe [] ((:[]) . (, cnode)) mpred
+      , [ (cnode, firstN) ]
+      , concat [ [(lastN, rnode)]
+               , maybe [] ((:[]) . (rnode,)) msucc
+               ]
+      ]
     where
+      mpred = pred n p
+      msucc = succ n p
+
+      -- just twaddling the AbstractPathNode's UUID since we don't have IO.
+      cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (twaddleUUID callTwaddle $ acn ^. uuid)
+      rnode = Ret $ RetNode (acn ^. func) (acn ^. callSite) (twaddleUUID retTwaddle $ acn ^. uuid)
+
+      ppart = insertableFullPath ip
+      firstN = insertableFirstNode ip
+      lastN = insertableLastNode ip
       ppartList = toList ppart
       ppartEdges = zip ppartList (drop 1 ppartList)
       n = AbstractCall acn
+
+  expandLast ip lac =
+    flip G.addEdges (G.removeNode n p)
+    . fmap ((),) . (<> ppartEdges) . concat
+    $ [ maybe [] ((:[]) . (, cnode)) mpred
+      , [ (cnode, firstN) ]
+      ]
+    where
+      cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (twaddleUUID callTwaddle $ acn ^. uuid)
+      firstN = insertableFirstNode ip
+      acn = lacLastNode lac
+      n = AbstractCall acn
+      mpred = pred n $ lacFullPath lac
+      p = lacFullPath lac
+      ppart = insertableFullPath ip
+      ppartList = toList ppart
+      ppartEdges = zip ppartList (drop 1 ppartList)
+
+  
+
 
   contains = G.hasNode
 

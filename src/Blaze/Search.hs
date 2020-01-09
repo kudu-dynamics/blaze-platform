@@ -112,10 +112,15 @@ pathsWithCallTo fn p = f <$> getAbstractCallNodesToFunction fn p
 -- | Expands AbstractCallNode in first path with second PathWithCall
 -- result is expanded path, with callNode from second
 joinPathWithCall :: Path p => PathWithCall p -> PathWithCall p -> PathWithCall p
-joinPathWithCall pc1 pc2 = PathWithCall
-  { path = Path.expandAbstractCallWithoutRet (callNode pc1) (path pc2) (path pc1)
-  , callNode = callNode pc2
-  }
+joinPathWithCall pc1 pc2 = case x of
+  Nothing -> P.error "Tried to join PathWithCall that didn't have AbstractCallNode as last"
+  Just (ip, lac) -> PathWithCall
+    { path = Path.expandLast ip lac
+    , callNode = callNode pc2
+    }
+  where
+    x = (,) <$> Path.mkInsertablePath (path pc2)
+            <*> Path.mkLastIsAbstractCall (path pc1)
 
 cartesian :: [a] -> [a] -> [[a]]
 cartesian xs ys = do
@@ -143,9 +148,7 @@ searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p, Ord p)
                -> [p]
 searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = endPaths
-  | otherwise = hdebug results $ do
-      -- prettyPrint $ length <$> callPairCache
-      return ()
+  | otherwise = results
   where
     results = do
       cp <- callPathsAsPairs
@@ -155,8 +158,11 @@ searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
         Just (x, xs) -> do
           let pwc = foldr (flip joinPathWithCall) x xs
           end <- endPaths
-          return $ Path.expandAbstractCallWithoutRet (callNode pwc) end (path pwc)
-
+          let cond = (,) <$> Path.mkInsertablePath end
+                         <*> Path.mkLastIsAbstractCall (path pwc)
+          case cond of
+            Nothing -> P.error "Tried to join PathWithCall that didn't have AbstractCallNode as last"
+            Just (ip, lac) -> return $ Path.expandLast ip lac
     startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
     endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
       if fn1 == fn2 then Just startPaths else Map.lookup fn2 fpaths
