@@ -66,6 +66,9 @@ getVariableType :: BNFunction -> BNVariable -> IO BNTypeWithConfidence
 getVariableType fn var' =
   allocAndPeek $ wrapBNGetVariableType fn var'
 
+getChildType :: BNType -> IO BNTypeWithConfidence
+getChildType = allocAndPeek . wrapBNGetChildType
+
 isTypeSigned :: BNType -> IO BNBoolWithConfidence
 isTypeSigned t =
   allocAndPeek $ wrapBNIsTypeSigned t

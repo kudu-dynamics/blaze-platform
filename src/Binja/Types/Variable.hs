@@ -22,6 +22,7 @@ data VarType = VarType
   , _signedConfidence :: Confidence
   , _isConst :: Bool
   , _constConfidence :: Confidence
+  , _elementType :: Maybe VarType
   } deriving (Eq, Ord, Show)
 
 newtype VariableIdentifier = VariableIdentifier Word64
