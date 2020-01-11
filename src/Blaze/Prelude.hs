@@ -5,7 +5,6 @@ module Blaze.Prelude
   , Streaming
   , StreamingIO
   , Pretty(pretty)
-  , prettyPrint
   , liftListM
   , liftListIO
   , liftEitherIO

@@ -9,6 +9,9 @@ import Blaze.Prelude hiding (Symbol, Type)
 import Data.HashSet (HashSet)
 import Data.HashMap.Strict (HashMap)
 
+import qualified Data.Map as Map
+import qualified Binja.Variable as V
+import qualified Binja.C.Enums as E
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
                              , AddOverflowOp
@@ -462,8 +465,55 @@ data Type = TBool
           | TObs ObsType
           | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
-           
+
+instance Semigroup Type where
+  (<>) (TObs obs1) (TObs obs2) = TObs $ obs1 <> obs2
+  (<>) (TObs obs) t = TObs $ t:obs
+  (<>) t (TObs obs) = TObs $ t:obs
+  (<>) t1 t2
+    | t1 == t2 = t1
+    | otherwise = TObs [t1, t2]
+
+instance Monoid Type where
+  mempty = TObs []
+
 type TypeEnv = HashMap PilVar Type
+
+mlilTypeToPilType :: V.VarType -> Maybe Type
+mlilTypeToPilType vt = case vt ^. V.typeClass of
+  E.BoolTypeClass -> Just TBool
+  E.IntegerTypeClass -> Just . TInt $ IntType w (vt ^. V.signed)
+  E.FloatTypeClass -> Just . TFloat $ FloatType w
+  E.PointerTypeClass -> Just . TPtr . PtrType w $ case vt ^. V.elementType of
+    Nothing -> TObs []
+    Just et -> case et ^. V.typeString of
+      "void" -> TObs []
+      "char" -> TString
+      _ -> maybe (TObs []) identity $ mlilTypeToPilType et
+  _ -> Nothing
+  where
+    w = fromIntegral $ 8 * (vt ^. V.width)
+
+-- gets rid of inner obs types
+flattenObsTypes :: [Type] -> [Type]
+flattenObsTypes ts = ts >>= \case
+  (TObs ts') -> flattenObsTypes ts'
+  t -> return t
+
+frequencies :: Ord a => [a] -> Map a Double
+frequencies xs = fmap (/ total) m
+  where
+    m = foldr (flip (Map.insertWith (+)) 1) Map.empty xs
+    total = foldr (+) 0 m
+
+-- returns a non-Obs type
+mostLikelyConcreteType :: [Type] -> Maybe Type
+mostLikelyConcreteType =
+  fmap fst . headMay . sortOn snd . Map.toList . frequencies . flattenObsTypes
+
+mostLikelyPilType :: Type -> Type
+mostLikelyPilType t@(TObs obs) = maybe t identity $ mostLikelyConcreteType obs
+mostLikelyPilType t = t
 
 ------
 
