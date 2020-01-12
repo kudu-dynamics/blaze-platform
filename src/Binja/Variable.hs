@@ -35,6 +35,7 @@ getVarType vtc = case (vtc ^. bnType) of
     tclass <- BN.getTypeClass t
     talignment <- BN.getTypeAlignment t
     twidth <- BN.getTypeWidth t
+    ttypeString <- BN.getTypeString t Nothing
     tchildType <- BN.getChildType t >>= getVarType
     return . Just $ VarType { _confidence = vtc ^. confidence
                             , _typeClass = tclass

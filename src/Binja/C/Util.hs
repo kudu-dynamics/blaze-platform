@@ -68,6 +68,12 @@ nilable_ ptr
   | ptr == nullPtr = return Nothing
   | otherwise = Just <$> noFinPtrConv (castPtr ptr)
 
+withNilablePtr :: Pointer a => Maybe a -> (Ptr () -> IO b) -> IO b
+withNilablePtr Nothing action = do
+  fp <- newForeignPtr_ nullPtr
+  withForeignPtr fp action
+withNilablePtr (Just p) action = withPtr p action
+
 withPtr :: Pointer a => a -> (Ptr () -> IO b) -> IO b
 withPtr = withForeignPtr . castForeignPtr . pointerUnwrap
 
