@@ -3,8 +3,16 @@ module Blaze.Pil.Inference where
 import Blaze.Prelude hiding (Type)
 import qualified Prelude as P
 import Blaze.Types.Pil
-import qualified Data.HashMap.Strict as Map
-import Data.HashMap.Strict (HashMap)
+import qualified Data.Map as Map
+-- import Data.HashMap.Strict (HashMap)
+import qualified Binja.Variable as V
+import qualified Binja.C.Enums as E
+import qualified Binja.MLIL as MLIL
+-- import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+-- import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Blaze.Pil.Analysis as Analysis
 
 data UnificationError = UWidth
                       | USign
@@ -127,7 +135,7 @@ getExprType env x = case x ^. op of
   SX _ -> intRet
   TEST_BIT _ -> unknown
   UNIMPL -> bitvecRet
-  VAR n -> Map.lookup (n ^. src) env
+  VAR n -> typeEnvLookup (n ^. src) env
   VAR_ALIASED _ -> bitvecRet
   VAR_ALIASED_FIELD _ -> bitvecRet
   VAR_FIELD _ -> bitvecRet
@@ -165,4 +173,59 @@ getExprType env x = case x ^. op of
       t2 <- getExprType env (y ^. right)
       bool uintRet intRet $ isSignedInt t1 || isSignedInt t2
 
+
+
+mlilTypeToPilType :: V.VarType -> Maybe Type
+mlilTypeToPilType vt = case vt ^. V.typeClass of
+  E.BoolTypeClass -> Just TBool
+  E.IntegerTypeClass -> Just . TInt $ IntType w (vt ^. V.signed)
+  E.FloatTypeClass -> Just . TFloat $ FloatType w
+  E.PointerTypeClass -> Just . TPtr . PtrType w $ case vt ^. V.elementType of
+    Nothing -> TObs []
+    Just et -> case et ^. V.typeString of
+      "void" -> TObs []
+      "char" -> TString
+      _ -> maybe (TObs []) identity $ mlilTypeToPilType et
+  _ -> Nothing
+  where
+    w = fromIntegral $ 8 * (vt ^. V.width)
+
+ssasToType :: [SSAVariable] -> Type
+ssasToType ssas = case HashSet.toList uniques of
+  [] -> TObs []
+  [t] -> t
+  _ -> TObs ts
+  where
+    uniques = HashSet.fromList ts
+    ts :: [Type]
+    ts = mapMaybe (mlilTypeToPilType <=< (view $ MLIL.var . V.varType)) ssas
+
+getNaiveTypeEnvFromStmt :: Stmt -> TypeEnv
+getNaiveTypeEnvFromStmt s = TypeEnv . HashMap.fromList $ do
+  v <- HashSet.toList . Analysis.getVarsFromStmt $ s
+  return (v, ssasToType . fmap (view var) . HashSet.toList $ v ^. mapsTo)
+  
+getNaiveTypeEnvFromStmts :: [Stmt] -> TypeEnv
+getNaiveTypeEnvFromStmts = mconcat . fmap getNaiveTypeEnvFromStmt
+
+-- gets rid of inner obs types
+flattenObsTypes :: [Type] -> [Type]
+flattenObsTypes ts = ts >>= \case
+  (TObs ts') -> flattenObsTypes ts'
+  t -> return t
+
+frequencies :: Ord a => [a] -> Map a Double
+frequencies xs = fmap (/ total) m
+  where
+    m = foldr (flip (Map.insertWith (+)) 1) Map.empty xs
+    total = foldr (+) 0 m
+
+-- returns a non-Obs type
+mostLikelyConcreteType :: [Type] -> Maybe Type
+mostLikelyConcreteType =
+  fmap fst . headMay . sortOn snd . Map.toList . frequencies . flattenObsTypes
+
+mostLikelyPilType :: Type -> Type
+mostLikelyPilType t@(TObs obs) = maybe t identity $ mostLikelyConcreteType obs
+mostLikelyPilType t = t
 

@@ -7,11 +7,14 @@ module Blaze.Types.Pil
 import Blaze.Prelude hiding (Symbol, Type)
 
 import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
 import qualified Data.Map as Map
 import qualified Binja.Variable as V
 import qualified Binja.C.Enums as E
+import qualified Binja.MLIL as MLIL
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
                              , AddOverflowOp
@@ -416,40 +419,56 @@ newtype BitVecType = BitVecType
   { _width :: Int
   } deriving (Eq, Ord, Show, Generic)
 
+instance Hashable BitVecType
+
 data IntType = IntType
   { _width :: Int
   , _signed :: Bool
   } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable IntType
 
 {- HLINT ignore FloatType -}
 data FloatType = FloatType
   { _width :: Int
   } deriving (Eq, Ord, Show, Generic)
 
+instance Hashable FloatType
+
 data ArrayType = ArrayType
   { _capacity :: Int
   , _elemType :: Type
   } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable ArrayType
 
 data PtrType = PtrType
   { _width :: Int
   , _pointeeType :: Type
   } deriving (Eq, Ord, Show, Generic)
 
+instance Hashable PtrType
+
 data FieldType = FieldType
   { _offset :: Int
   , _fieldType :: Type
   } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable FieldType
 
 data StructType = StructType
   { _size :: Int
   , _fields :: [Type]
   } deriving (Eq, Ord, Show, Generic)
 
+instance Hashable StructType
+
 data FuncType = FuncType
   { _args :: [Type]
   , _ret :: Maybe Type
   } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable FuncType
 
 type ObsType = [Type]
 
@@ -466,9 +485,11 @@ data Type = TBool
           | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
 
+instance Hashable Type
+
 instance Semigroup Type where
   (<>) (TObs obs1) (TObs obs2) = TObs $ obs1 <> obs2
-  (<>) (TObs obs) t = TObs $ t:obs
+  (<>) (TObs obs) t = TObs $ obs <> [t] --to keep associativity
   (<>) t (TObs obs) = TObs $ t:obs
   (<>) t1 t2
     | t1 == t2 = t1
@@ -477,43 +498,18 @@ instance Semigroup Type where
 instance Monoid Type where
   mempty = TObs []
 
-type TypeEnv = HashMap PilVar Type
+newtype TypeEnv = TypeEnv (HashMap PilVar Type)
+  deriving (Eq, Ord, Show)
 
-mlilTypeToPilType :: V.VarType -> Maybe Type
-mlilTypeToPilType vt = case vt ^. V.typeClass of
-  E.BoolTypeClass -> Just TBool
-  E.IntegerTypeClass -> Just . TInt $ IntType w (vt ^. V.signed)
-  E.FloatTypeClass -> Just . TFloat $ FloatType w
-  E.PointerTypeClass -> Just . TPtr . PtrType w $ case vt ^. V.elementType of
-    Nothing -> TObs []
-    Just et -> case et ^. V.typeString of
-      "void" -> TObs []
-      "char" -> TString
-      _ -> maybe (TObs []) identity $ mlilTypeToPilType et
-  _ -> Nothing
-  where
-    w = fromIntegral $ 8 * (vt ^. V.width)
+typeEnvLookup :: PilVar -> TypeEnv -> Maybe Type
+typeEnvLookup v (TypeEnv env) = HashMap.lookup v env
 
--- gets rid of inner obs types
-flattenObsTypes :: [Type] -> [Type]
-flattenObsTypes ts = ts >>= \case
-  (TObs ts') -> flattenObsTypes ts'
-  t -> return t
+instance Semigroup TypeEnv where
+  (<>) (TypeEnv m1) (TypeEnv m2) = TypeEnv $ HashMap.unionWith (<>) m1 m2
 
-frequencies :: Ord a => [a] -> Map a Double
-frequencies xs = fmap (/ total) m
-  where
-    m = foldr (flip (Map.insertWith (+)) 1) Map.empty xs
-    total = foldr (+) 0 m
+instance Monoid TypeEnv where
+  mempty = TypeEnv $ HashMap.empty
 
--- returns a non-Obs type
-mostLikelyConcreteType :: [Type] -> Maybe Type
-mostLikelyConcreteType =
-  fmap fst . headMay . sortOn snd . Map.toList . frequencies . flattenObsTypes
-
-mostLikelyPilType :: Type -> Type
-mostLikelyPilType t@(TObs obs) = maybe t identity $ mostLikelyConcreteType obs
-mostLikelyPilType t = t
 
 ------
 
@@ -625,4 +621,6 @@ $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
 
+
+------------------------
 
