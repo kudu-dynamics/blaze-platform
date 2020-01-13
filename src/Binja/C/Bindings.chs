@@ -196,6 +196,13 @@ void wrapBNFromVariableIdentifier(uint64_t id, BNVariable* var) {
 {#fun unsafe BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* `BNVariable'} -> `String' #}
 
 #c
+void wrapBNGetChildType(BNType* t, BNTypeWithConfidence* tc) { *tc = BNGetChildType(t); }
+#endc
+
+{#fun unsafe wrapBNGetChildType as wrapBNGetChildType {withPtr* `BNType', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
+
+
+#c
 void wrapBNGetVariableType(BNFunction* func, const BNVariable* var, BNTypeWithConfidence* t) { *t = BNGetVariableType(func, var); }
 #endc
 
@@ -223,6 +230,7 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 
 {#fun unsafe BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
 
+{#fun unsafe BNGetTypeString as getTypeString {withPtr* `BNType', withNilablePtr* `Maybe BNPlatform'} -> `String' #}
 --------------------------
 ---------Code References
 
