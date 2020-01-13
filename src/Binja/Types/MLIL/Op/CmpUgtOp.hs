@@ -7,3 +7,5 @@ data CmpUgtOp expr = CmpUgtOp
     { _cmpUgtOpLeft :: expr
     , _cmpUgtOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (CmpUgtOp a)

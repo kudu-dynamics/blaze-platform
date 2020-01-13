@@ -7,3 +7,5 @@ data LslOp expr = LslOp
     { _lslOpLeft :: expr
     , _lslOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (LslOp a)

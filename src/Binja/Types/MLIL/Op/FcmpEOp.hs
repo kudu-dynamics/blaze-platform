@@ -7,3 +7,5 @@ data FcmpEOp expr = FcmpEOp
     { _fcmpEOpLeft :: expr
     , _fcmpEOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (FcmpEOp a)

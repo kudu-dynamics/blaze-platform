@@ -7,3 +7,5 @@ data MulsDpOp expr = MulsDpOp
     { _mulsDpOpLeft :: expr
     , _mulsDpOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (MulsDpOp a)

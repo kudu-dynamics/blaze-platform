@@ -6,3 +6,5 @@ import Binja.Prelude
 data CeilOp expr = CeilOp
     { _ceilOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (CeilOp a)

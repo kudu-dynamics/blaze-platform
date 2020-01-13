@@ -6,3 +6,5 @@ import Binja.Prelude
 data ZxOp expr = ZxOp
     { _zxOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (ZxOp a)

@@ -7,3 +7,5 @@ data JumpToOp expr = JumpToOp
     { _jumpToOpDest :: expr
     , _jumpToOpTargets :: [Int64]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (JumpToOp a)

@@ -9,3 +9,5 @@ data CallUntypedSSAOp expr = CallUntypedSSAOp
     , _callUntypedSSAOpParams :: expr
     , _callUntypedSSAOpStack :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (CallUntypedSSAOp a)

@@ -8,3 +8,5 @@ data SyscallUntypedOp expr = SyscallUntypedOp
     , _syscallUntypedOpParams :: expr
     , _syscallUntypedOpStack :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (SyscallUntypedOp a)

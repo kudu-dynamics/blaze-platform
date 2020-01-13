@@ -7,3 +7,5 @@ data RorOp expr = RorOp
     { _rorOpLeft :: expr
     , _rorOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (RorOp a)

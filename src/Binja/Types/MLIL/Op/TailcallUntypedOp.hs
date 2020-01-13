@@ -9,3 +9,5 @@ data TailcallUntypedOp expr = TailcallUntypedOp
     , _tailcallUntypedOpParams :: expr
     , _tailcallUntypedOpStack :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (TailcallUntypedOp a)

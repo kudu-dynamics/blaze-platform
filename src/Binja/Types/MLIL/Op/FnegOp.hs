@@ -6,3 +6,5 @@ import Binja.Prelude
 data FnegOp expr = FnegOp
     { _fnegOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (FnegOp a)

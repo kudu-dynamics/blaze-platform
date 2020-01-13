@@ -7,3 +7,5 @@ data DivuOp expr = DivuOp
     { _divuOpLeft :: expr
     , _divuOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (DivuOp a)

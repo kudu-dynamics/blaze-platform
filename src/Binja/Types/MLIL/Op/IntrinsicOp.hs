@@ -10,3 +10,5 @@ data IntrinsicOp expr = IntrinsicOp
     , _intrinsicOpIntrinsic :: Intrinsic
     , _intrinsicOpParams :: [expr]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (IntrinsicOp a)

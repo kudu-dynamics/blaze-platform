@@ -8,3 +8,5 @@ data StoreStructOp expr = StoreStructOp
     , _storeStructOpOffset :: Int64
     , _storeStructOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (StoreStructOp a)

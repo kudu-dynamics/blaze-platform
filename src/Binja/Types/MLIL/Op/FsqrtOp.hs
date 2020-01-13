@@ -6,3 +6,5 @@ import Binja.Prelude
 data FsqrtOp expr = FsqrtOp
     { _fsqrtOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (FsqrtOp a)

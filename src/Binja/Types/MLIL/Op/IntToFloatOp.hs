@@ -6,3 +6,5 @@ import Binja.Prelude
 data IntToFloatOp expr = IntToFloatOp
     { _intToFloatOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (IntToFloatOp a)

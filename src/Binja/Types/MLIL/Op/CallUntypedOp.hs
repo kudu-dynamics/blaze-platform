@@ -9,3 +9,5 @@ data CallUntypedOp expr = CallUntypedOp
     , _callUntypedOpParams :: expr
     , _callUntypedOpStack :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (CallUntypedOp a)

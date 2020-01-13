@@ -8,3 +8,5 @@ data LoadStructSSAOp expr = LoadStructSSAOp
     , _loadStructSSAOpOffset :: Int64
     , _loadStructSSAOpSrc_memory :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (LoadStructSSAOp a)

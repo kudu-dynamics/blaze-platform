@@ -9,3 +9,5 @@ data CallSSAOp expr = CallSSAOp
     , _callSSAOpParams :: [expr]
     , _callSSAOpSrc_memory :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (CallSSAOp a)

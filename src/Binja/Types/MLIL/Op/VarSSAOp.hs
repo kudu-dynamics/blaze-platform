@@ -7,3 +7,5 @@ import Binja.Types.MLIL.Common (SSAVariable)
 data VarSSAOp expr = VarSSAOp
     { _varSSAOpSrc :: SSAVariable
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (VarSSAOp a)

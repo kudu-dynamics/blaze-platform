@@ -7,3 +7,5 @@ data AddOverflowOp expr = AddOverflowOp
     { _addOverflowOpLeft :: expr
     , _addOverflowOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (AddOverflowOp a)

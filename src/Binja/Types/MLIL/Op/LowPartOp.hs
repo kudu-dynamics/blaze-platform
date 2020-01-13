@@ -6,3 +6,5 @@ import Binja.Prelude
 data LowPartOp expr = LowPartOp
     { _lowPartOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (LowPartOp a)

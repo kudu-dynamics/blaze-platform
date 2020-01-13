@@ -9,3 +9,5 @@ data SetVarSSAFieldOp expr = SetVarSSAFieldOp
     , _setVarSSAFieldOpOffset :: Int64
     , _setVarSSAFieldOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (SetVarSSAFieldOp a)

@@ -6,3 +6,5 @@ import Binja.Prelude
 data FtruncOp expr = FtruncOp
     { _ftruncOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (FtruncOp a)

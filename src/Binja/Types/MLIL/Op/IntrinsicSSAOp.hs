@@ -10,3 +10,5 @@ data IntrinsicSSAOp expr = IntrinsicSSAOp
     , _intrinsicSSAOpIntrinsic :: Intrinsic
     , _intrinsicSSAOpParams :: [expr]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (IntrinsicSSAOp a)

@@ -15,8 +15,11 @@ instance Hashable SSAVariable
 data SSAVariableDestAndSrc = SSAVariableDestAndSrc
   { _dest :: SSAVariable
   , _src :: SSAVariable
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable SSAVariableDestAndSrc
 
 newtype Intrinsic = Intrinsic Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
 
+instance Hashable Intrinsic

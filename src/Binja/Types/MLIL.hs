@@ -17,7 +17,9 @@ newtype OpIndex = OpIndex Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
 newtype OperationSize = OperationSize Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
+
+instance Hashable OperationSize
 
 newtype OperandsData = OperandsData [Word64]
   deriving (Eq, Ord, Show)

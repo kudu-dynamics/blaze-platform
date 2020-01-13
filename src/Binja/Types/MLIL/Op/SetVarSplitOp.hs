@@ -9,3 +9,5 @@ data SetVarSplitOp expr = SetVarSplitOp
     , _setVarSplitOpLow :: Variable
     , _setVarSplitOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (SetVarSplitOp a)

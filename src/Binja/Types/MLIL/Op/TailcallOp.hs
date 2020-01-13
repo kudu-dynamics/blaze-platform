@@ -9,3 +9,5 @@ data TailcallOp expr = TailcallOp
     , _tailcallOpDest :: expr
     , _tailcallOpParams :: [expr]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (TailcallOp a)

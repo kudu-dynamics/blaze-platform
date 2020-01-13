@@ -7,3 +7,5 @@ data TestBitOp expr = TestBitOp
     { _testBitOpLeft :: expr
     , _testBitOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (TestBitOp a)
