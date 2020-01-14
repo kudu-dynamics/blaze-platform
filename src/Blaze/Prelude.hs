@@ -33,6 +33,8 @@ import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
 import Data.Data as Exports
 import Data.UUID as Exports (UUID)
+import Data.HashMap.Strict as Exports (HashMap)
+import Data.HashSet as Exports (HashSet)
 import qualified Data.UUID as UUID
 --import Data.Typeable as Exports
 import           Control.Lens    as Exports        ( (%~)
