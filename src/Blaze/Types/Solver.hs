@@ -1,23 +1,23 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Blaze.Types.Solver
   ( module Exports
-  , Solver
-  , liftSolverT
-  , constrain
-  , emptyState
-  , emptyCtx
-  , checkSat
-  , checkSatWithSolution
+  , module Blaze.Types.Solver
+  -- , liftSolverT
+  -- , emptyState
+  -- , emptyCtx
+  -- , checkSat
+  -- , checkSatWithSolution
   ) where
 
 import Blaze.Prelude
 
 import qualified Data.SBV.Trans as SBV
 import qualified Data.SBV.Trans.Control as SBV
-import Data.SBV.Trans as Exports hiding (Solver, constrain, checkSat, CheckSatResult, SMTResult)
-import Data.SBV.Trans.Control as Exports hiding (Solver, constrain, checkSat, CheckSatResult, SMTResult, Sat, Unk, Unsat)
+import Data.SBV.Trans as Exports hiding (Solver, checkSat, CheckSatResult, SMTResult)
+import Data.SBV.Trans.Control as Exports hiding (Solver, checkSat, CheckSatResult, SMTResult, Sat, Unk, Unsat)
 import Blaze.Types.Pil (Expression, Stmt, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
+import Data.SBV.Internals (SolverContext(..))
 
 type SolverError = Text
 
@@ -62,6 +62,17 @@ newtype Solver a = Solver { runSolver_ ::
                             , MonadSymbolic
                             )
 
+instance SolverContext Solver where
+  constrain = liftSolverT . constrain
+  softConstrain = liftSolverT . softConstrain
+  namedConstraint s = liftSolverT . namedConstraint s
+  constrainWithAttribute xs = liftSolverT . constrainWithAttribute xs
+  setInfo s = liftSolverT . setInfo s
+  setOption = liftSolverT . setOption
+  setLogic = liftSolverT . setLogic
+  setTimeOut = liftSolverT . setTimeOut
+  contextState = liftSolverT contextState
+
 runSolver :: (SolverState, SolverCtx) -> Solver a -> IO (Either SolverError a)
 runSolver (st, ctx) = runExceptT . runSMT . flip evalStateT st . flip runReaderT ctx . runSolver_
 
@@ -99,5 +110,5 @@ getSolutions m = do
   xs <- mapM (\ (pv, x) -> (pv,) <$> getSolution x) $ HashMap.toList m
   return $ HashMap.fromList xs
 
-constrain :: SBool -> Solver ()
-constrain = liftSolverT . SBV.constrain
+-- constrain :: SBool -> Solver ()
+-- constrain = liftSolverT . SBV.constrain

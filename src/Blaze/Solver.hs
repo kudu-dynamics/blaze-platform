@@ -2,21 +2,34 @@ module Blaze.Solver where
 
 import Blaze.Prelude
 
-import Blaze.Types.Pil (Expression, Stmt, PilVar, TypeEnv)
+import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Pil (Expression, Stmt, PilVar, TypeEnv(TypeEnv))
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
 import qualified Data.SBV.Trans as SBV
 import qualified Data.SBV.Trans.Control as SBV
-
+import qualified Data.Text
+import qualified Binja.Function as Func
 
 add5 :: SWord16 -> SWord16
 add5 n = n + 5
 
+pilVarName :: PilVar -> Text
+pilVarName pv = pv ^. Pil.symbol
+  <> maybe "" (("@"<>) . view Func.name) (pv ^. Pil.func)
+  <> maybe "" (("."<>) . show . f) (pv ^. Pil.ctxIndex)
+  where
+    f (Pil.CtxIndex n) = n
 
--- runSolver :: (SolverState, SolverCtx) -> Solver a -> IO (Either SolverError a)
--- runSolver (st, ctx) = runExceptT . flip evalStateT st . flip runReaderT ctx . runSMT
+makeSymVar :: PilVar -> Pil.Type -> Solver SymExpr
+makeSymVar pv pt = undefined
 
-
+initVarMap :: Solver ()
+initVarMap = do
+  (TypeEnv te) <- typeEnv <$> ask
+  let pvts = HashMap.toList te
+  vars <- mapM (\ (pv, pt) -> (pv,) <$> makeSymVar pv pt) pvts
+  return ()
 
 
 add :: (SIntegral a, SIntegral b, SIntegral c) => SBV a -> SBV b -> SBV c
@@ -40,8 +53,8 @@ bigtest = do
   x <- exists "x"
   y <- exists "y"
   z <- exists "z" :: Symbolic (SBV Word32)
-  SBV.constrain $ z .== x `add` y
-  SBV.constrain $ add5 x .== (y :: SWord16)
+  constrain $ z .== x `add` y
+  constrain $ add5 x .== (y :: SWord16)
   query $ do
     csat <- SBV.checkSat
     case csat of
@@ -56,7 +69,7 @@ bigtest2 :: Symbolic SBool
 bigtest2 = do
   x <- exists "x"
   y <- exists "y"
-  SBV.constrain $ add5 x .== (y :: SWord16)
+  constrain $ add5 x .== (y :: SWord16)
   -- SBV.constrain $ add5 x .== x
   return sFalse
 
