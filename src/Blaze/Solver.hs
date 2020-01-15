@@ -43,9 +43,9 @@ bigtest = do
   SBV.constrain $ z .== x `add` y
   SBV.constrain $ add5 x .== (y :: SWord16)
   query $ do
-    cs <- SBV.checkSat
-    case cs of
-      Sat -> do
+    csat <- SBV.checkSat
+    case csat of
+      SBV.Sat -> do
         xv <- getValue x
         io . putText $ "This is Jimmy: " <> show xv
       _ -> io $ putText "sorry Jim"
