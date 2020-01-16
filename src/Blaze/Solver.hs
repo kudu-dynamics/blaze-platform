@@ -8,8 +8,9 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
 import qualified Data.SBV.Trans as SBV
 import qualified Data.SBV.Trans.Control as SBV
-import qualified Data.Text
+import qualified Data.Text as Text
 import qualified Binja.Function as Func
+
 
 add5 :: SWord16 -> SWord16
 add5 n = n + 5
@@ -22,7 +23,41 @@ pilVarName pv = pv ^. Pil.symbol
     f (Pil.CtxIndex n) = n
 
 makeSymVar :: PilVar -> Pil.Type -> Solver SymExpr
-makeSymVar pv pt = undefined
+makeSymVar pv pt = case pt of
+  Pil.TBool -> SymBool <$> exists nm
+  (Pil.TBitVec x) -> createWord $ x ^. Pil.width
+  (Pil.TInt x) -> bool (createWord w) (createInt w) $ x ^. Pil.signed
+    where w = x ^. Pil.width
+  -- Float is ignoring the width. Could also do a SDouble...
+  (Pil.TFloat _) -> SymFloat <$> exists nm
+  (Pil.TArray _) -> err ArrayTypeNotYetSupported
+  -- just set to biggest word... should be ok?
+  -- Ptr's should be turned into other things (like Arrays or Strings)
+  -- eventually
+  (Pil.TPtr _) -> SymWord64 <$> exists nm
+  (Pil.TField _) -> err FieldTypeNotYetSupported
+  Pil.TString -> SymString <$> exists nm
+  (Pil.TObs _) -> err EncounteredObsType
+  (Pil.TFunc _) -> err FuncTypeNotYetSupported
+  
+  where
+    err = throwError . SymVarConversionError pv pt
+
+    createWord 8 = SymWord8 <$> exists nm
+    createWord 16 = SymWord16 <$> exists nm
+    createWord 32 = SymWord32 <$> exists nm
+    createWord 64 = SymWord64 <$> exists nm
+    createWord n = err $ UnrecognizedWordWidth n
+
+    createInt :: Int -> Solver SymExpr
+    createInt 8 = SymInt8 <$> exists nm
+    createInt 16 = SymInt16 <$> exists nm
+    createInt 32 = SymInt32 <$> exists nm
+    createInt 64 = SymInt64 <$> exists nm
+    createInt n = err $ UnrecognizedIntWidth n
+      
+    nm = Text.unpack $ pilVarName pv
+
 
 initVarMap :: Solver ()
 initVarMap = do

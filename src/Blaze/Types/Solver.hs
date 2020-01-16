@@ -18,13 +18,29 @@ import Data.SBV.Trans.Control as Exports hiding (Solver, checkSat, CheckSatResul
 import Blaze.Types.Pil (Expression, Stmt, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Internals (SolverContext(..))
+import qualified Blaze.Types.Pil as Pil
 
-type SolverError = Text
+data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
+
+data SymVarConversionError = UnrecognizedWordWidth Int
+                           | UnrecognizedIntWidth Int
+                           | ArrayTypeNotYetSupported
+                           | FieldTypeNotYetSupported
+                           | EncounteredObsType
+                           | FuncTypeNotYetSupported
 
 data SymExpr = SymBool SBool
              | SymWord8 SWord8
              | SymWord16 SWord16
              | SymWord32 SWord32
+             | SymWord64 SWord64
+             | SymInt8 SInt8
+             | SymInt16 SInt16
+             | SymInt32 SInt32
+             | SymInt64 SInt64
+             | SymFloat SFloat
+             -- SymArray (SArray)
+             | SymString SString
              deriving (Eq, Show)
 
 data VarVal = VBool Bool
