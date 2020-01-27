@@ -45,6 +45,7 @@ getVarType vtc = case (vtc ^. bnType) of
                             , _signedConfidence = signedc ^. confidence
                             , _isConst = constc ^. value
                             , _constConfidence = constc ^. confidence
+                            , _typeString = Text.pack ttypeString
                             , _elementType = tchildType
                             }
 
