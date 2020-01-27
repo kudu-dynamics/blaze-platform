@@ -23,3 +23,6 @@ cabal.project.local~
 .stack-work
 *~
 .DS_Store
+.ghcid
+hie.yaml
+*.lock
