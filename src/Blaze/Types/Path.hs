@@ -24,7 +24,6 @@ class Path p where
   pred :: Node -> p -> Maybe Node
   firstNode :: p -> Maybe Node
   lastNode :: p -> Maybe Node
-  expandNode :: AbstractPathNode -> p -> p -> p
 
   -- if AbstractCallNode isn't in second p, just returns p
   expandAbstractCall :: AbstractCallNode -> InsertablePath p -> p -> p
@@ -40,7 +39,7 @@ class Path p where
 data InsertablePath p = InsertablePath
   { insertableFullPath :: p
   , insertableFirstNode :: Node -- proof that it's not empty
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Functor)
 
 mkInsertablePath :: Path p => p -> Maybe (InsertablePath p)
 mkInsertablePath p = InsertablePath p <$> firstNode p
@@ -48,7 +47,7 @@ mkInsertablePath p = InsertablePath p <$> firstNode p
 data LastIsAbstractCall p = LastIsAbstractCall
   { lacFullPath :: p
   , lacLastNode :: AbstractCallNode
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Functor)
 
 mkLastIsAbstractCall :: Path p => p -> Maybe (LastIsAbstractCall p)
 mkLastIsAbstractCall p = do
@@ -81,6 +80,7 @@ data Node = SubBlock SubBlockNode
           | AbstractPath AbstractPathNode
           | Condition ConditionNode
           deriving (Eq, Ord, Show)
+
 
 data ConditionNode = ConditionNode
   { _func :: Function
@@ -144,6 +144,15 @@ quote t = "\"" <> t <> "\""
 quote' :: Text -> Text
 quote' t = "'" <> t <> "'"
 
+getNodeFunc :: Node -> Function
+getNodeFunc (SubBlock x) = x ^. func
+getNodeFunc (Call x) = x ^. func
+getNodeFunc (Ret x) = x ^. func
+getNodeFunc (AbstractCall x) = x ^. func
+getNodeFunc (AbstractPath x) = x ^. func
+getNodeFunc (Condition x) = x ^. func
+
+
 instance Pretty Node where
   pretty (SubBlock x) =
     brack (pretty (x ^. start) <> "-" <> pretty (x ^. end - 1)) <> " : SubBlock"
@@ -165,6 +174,7 @@ callTwaddle = 999
 
 retTwaddle :: Word32
 retTwaddle = 500
+
 
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
@@ -199,20 +209,6 @@ instance (Graph () Node g) => Path (PathGraph g) where
     [] -> Nothing
     [x] -> Just x
     _ -> P.error "Path has multiple sink nodes. Bad!"
-
-  expandNode apn gpart g = maybe g identity $ do
-    firstN <- firstNode gpart
-    lastN <- lastNode gpart
-    npred <- pred n g
-    nsucc <- succ n g
-    let g' = G.removeEdges [(npred, n), (n, nsucc)] g
-        g'' = flip G.addEdges g'
-              . fmap ((),) $ [(npred, firstN), (lastN, nsucc)] <> gpartEdges
-    return g''
-    where
-      gpartList = toList gpart
-      gpartEdges = zip gpartList (drop 1 gpartList)
-      n = AbstractPath apn
 
   -- this probably shouldn't just return 'p' if it fails..
   expandAbstractCall acn ip p =

@@ -6,6 +6,9 @@ module Blaze.Path
 import qualified Prelude as P
 import           Blaze.Prelude
 
+import Blaze.Types.Path.FastPath as Exports (FastPath) 
+import Blaze.Types.Path.AlgaPath as Exports (AlgaPath)
+
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Map.Lazy as LMap
@@ -46,33 +49,6 @@ import qualified Data.Text as Text
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
 -- type NodeGraph g = AlgaGraph (BlockEdge F) (BasicBlock F) g => g
-
-newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
-  deriving (Graph () Node, Path, Ord)
-
--- converts to list because for some reason two identical graphs aren't equal
-instance Eq AlgaPath where
-  (==) a b = P.toList a == P.toList b
-
-instance Show AlgaPath where
-  show = show . P.toList
-
-getNodeFunc :: Node -> Function
-getNodeFunc (SubBlock x) = x ^. P.func
-getNodeFunc (Call x) = x ^. P.func
-getNodeFunc (Ret x) = x ^. P.func
-getNodeFunc (AbstractCall x) = x ^. P.func
-getNodeFunc (AbstractPath x) = x ^. P.func
-getNodeFunc (Condition x) = x ^. P.func
-
-instance Pretty AlgaPath where
-  pretty p = case uncons (P.toList p) of
-    Nothing -> ""
-    Just (x, xs) -> "========= Starting in: " <> pretty (getNodeFunc x) <> " =========\n"
-      <> f (x:xs)
-    where
-      f [] = ""
-      f (x:xs) = pretty x <> "\n" <> f xs
 
 naiveLCS :: String -> String -> Int
 naiveLCS [] _ = 0
