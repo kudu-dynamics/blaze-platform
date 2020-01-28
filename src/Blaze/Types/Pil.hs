@@ -233,6 +233,8 @@ data Expression = Expression
   , _op :: ExprOp Expression
   } deriving (Eq, Ord, Show, Generic)
 
+instance Hashable Expression
+
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
@@ -308,12 +310,9 @@ data ExprOp expr
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL
---    | VAR (VarOp expr)
     | VAR_ALIASED (VarAliasedOp expr)
     | VAR_ALIASED_FIELD (VarAliasedFieldOp expr)
---    | VAR_FIELD (VarFieldOp expr)
     | VAR_PHI (VarPhiOp expr)
---    | VAR_SPLIT (VarSplitOp expr)
     | VAR_SPLIT (VarSplitOp expr)
     | VAR (VarOp expr)
     | VAR_FIELD (VarFieldOp expr)
@@ -326,7 +325,9 @@ data ExprOp expr
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (ExprOp a)
 
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
 
@@ -335,30 +336,42 @@ data VarOp expr = VarOp
     { _varOpSrc :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (VarOp a)
+
 data VarFieldOp expr = VarFieldOp
     { _varFieldOpSrc :: PilVar
     , _varFieldOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (VarFieldOp a)
 
 {- HLINT ignore VarAliasedOp -}
 data VarAliasedOp expr = VarAliasedOp
     { _varAliasedOpSrc :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (VarAliasedOp a)
+
 data VarAliasedFieldOp expr = VarAliasedFieldOp
     { _varAliasedFieldOpSrc :: PilVar
     , _varAliasedFieldOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (VarAliasedFieldOp a)
 
 data VarPhiOp expr = VarPhiOp
     { _varPhiOpDest :: PilVar
     , _varPhiOpSrc :: [PilVar]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (VarPhiOp a)
+
 data VarSplitOp expr = VarSplitOp
     { _varSplitOpHigh :: PilVar
     , _varSplitOpLow :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (VarSplitOp a)
 
 --TODO: address_of and address_of_field
 ---------------
@@ -373,16 +386,22 @@ data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExprs [expr]
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (CallDest a)
+
 data CallOp expr = CallOp
   { _dest :: CallDest expr
   , _name :: Maybe Text
   , _params :: [expr]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (CallOp a)
+
 data StrCmpOp expr = StrCmpOp
     { _left :: expr
     , _right :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (StrCmpOp a)
 
 data StrNCmpOp expr = StrNCmpOp
     { _left :: expr
@@ -390,15 +409,21 @@ data StrNCmpOp expr = StrNCmpOp
     , _len :: Int
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (StrNCmpOp a)
+
 data MemCmpOp expr = MemCmpOp
     { _left :: expr
     , _right :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Hashable a => Hashable (MemCmpOp a)
+
 {- HLINT ignore ConstStrOp -}
 data ConstStrOp expr = ConstStrOp
     { _value :: Text
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (ConstStrOp a)
 
 -----------------------
 --- types
