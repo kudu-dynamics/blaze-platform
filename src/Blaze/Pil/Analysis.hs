@@ -179,6 +179,43 @@ copyProp xs = substExprs (\(e :: Expression) -> HMap.lookup e (mapping copyPropR
                       -> copyPropState
         copyPropResult' = copyPropResult { mapping = reduceMap (mapping copyPropResult)}
 
+data MemEquivGroup = MemEquivGroup
+  { store :: Stmt
+  , storeAddr :: Expression
+  , references :: [(Stmt, Expression)]}
+
+data MemEquivGroupState = MemEquivGroupState
+  { allGroups :: [MemEquivGroup]
+  , liveGroups :: HashMap Expression MemEquivGroup}
+
+data Load expr = Load expr
+               | LoadSSA expr
+               | LoadStruct expr
+               | LoadStructSSA expr
+
+findLoads :: Stmt -> [Expression]
+
+findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
+findMemEquivGroups = allGroups . memEquivGroupState
+ where
+  memEquivGroupState = foldl' f (MemEquivGroupState [] HMap.empty)
+  f s stmt = case stmt of
+    (Pil.Store storeOp) -> MemEquivGroupState
+      { allGroups  = case HMap.lookup addr (liveGroups s) of
+                      -- Previous equiv group for addr is being replaced
+                      -- TODO: Check if this store stmt uses the previous definition and update
+                      --       the old equiv group if necessary
+                      Just g -> g : allGroups s
+                      Nothing -> allGroups s
+      , liveGroups = HMap.insert addr newGroup (liveGroups s)
+      }
+     where
+      addr = storeOp ^. Pil.addr
+      newGroup =
+        MemEquivGroup { store = stmt, storeAddr = addr, references = [] }
+    _ -> s
+
+
 -- |Copy propagation via memory. Finds and simplifies variables that are copied
 -- through symbolic memory addresses that are identified to be equivalent.
 -- This is done by constructing store-load chains similar to def-use chains.
