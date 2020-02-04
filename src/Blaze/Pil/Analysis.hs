@@ -137,47 +137,67 @@ mergePilVars originVar s = originVar & Pil.mapsTo .~ x where
 ---- Constant Propagation
 type VarExprMap = HashMap PilVar Expression
 
-data ConstPropState = ConstPropState
-  { exprMap :: VarExprMap
-  , stmts :: Set Stmt }
+data ConstPropState
+  = ConstPropState
+      { exprMap :: VarExprMap,
+        stmts :: Set Stmt
+      }
 
 constantProp :: [Stmt] -> [Stmt]
-constantProp xs = substVarExpr (\v -> HMap.lookup v (exprMap constPropResult)) 
-                               [x | x <- xs, not . Set.member x $ stmts constPropResult]
-  where addConst s stmt var cnst = ConstPropState { exprMap = HMap.insert var cnst (exprMap s)
-                                                  , stmts = Set.insert stmt (stmts s)}
-        constPropResult = foldl' f (ConstPropState HMap.empty Set.empty) xs
-          where f constPropState stmt = 
-                  case stmt of 
-                    (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) 
-                      -> addConst constPropState stmt var (Pil.Expression sz (Pil.CONST constOp))
-                    _
-                      -> constPropState
+constantProp xs =
+  substVarExpr
+    (\v -> HMap.lookup v (exprMap constPropResult))
+    [x | x <- xs, not . Set.member x $ stmts constPropResult]
+  where
+    addConst s stmt var cnst =
+      ConstPropState
+        { exprMap = HMap.insert var cnst (exprMap s),
+          stmts = Set.insert stmt (stmts s)
+        }
+    constPropResult = foldl' f (ConstPropState HMap.empty Set.empty) xs
+      where
+        f constPropState stmt =
+          case stmt of
+            (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) ->
+              addConst constPropState stmt var (Pil.Expression sz (Pil.CONST constOp))
+            _ ->
+              constPropState
+
 
 ---- Copy Propagation
 type ExprMap = HashMap Expression Expression
 
 reduceMap :: (Eq a, Hashable a) => HashMap a a -> HashMap a a
 reduceMap m = fmap reduceKey m
-  where reduceKey v = maybe v reduceKey (HMap.lookup v m)
+  where
+    reduceKey v = maybe v reduceKey (HMap.lookup v m)
 
-data CopyPropState = CopyPropState
-  { mapping :: ExprMap 
-  , copyStmts :: Set Stmt }
+data CopyPropState
+  = CopyPropState
+      { mapping :: ExprMap,
+        copyStmts :: Set Stmt
+      }
 
 copyProp :: [Stmt] -> [Stmt]
-copyProp xs = substExprs (\(e :: Expression) -> HMap.lookup e (mapping copyPropResult'))
-                         [x | x <- xs, not . Set.member x $ copyStmts copyPropResult']
-  where addCopy s stmt copy orig = CopyPropState { mapping = HMap.insert copy orig (mapping s)
-                                                 , copyStmts = Set.insert stmt (copyStmts s)}
-        copyPropResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
-          where f copyPropState stmt = 
-                  case stmt of
-                    (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _)))))
-                      -> addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
-                    _
-                      -> copyPropState
-        copyPropResult' = copyPropResult { mapping = reduceMap (mapping copyPropResult)}
+copyProp xs =
+  substExprs
+    (\(e :: Expression) -> HMap.lookup e (mapping copyPropResult'))
+    [x | x <- xs, not . Set.member x $ copyStmts copyPropResult']
+  where
+    addCopy s stmt copy orig =
+      CopyPropState
+        { mapping = HMap.insert copy orig (mapping s),
+          copyStmts = Set.insert stmt (copyStmts s)
+        }
+    copyPropResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
+      where
+        f copyPropState stmt =
+          case stmt of
+            (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _))))) ->
+              addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
+            _ ->
+              copyPropState
+    copyPropResult' = copyPropResult {mapping = reduceMap (mapping copyPropResult)}
 
 data MemEquivGroup = MemEquivGroup
   { store :: Stmt
@@ -221,6 +241,8 @@ findMemEquivGroups = allGroups . memEquivGroupState
 -- This is done by constructing store-load chains similar to def-use chains.
 copyPropMem :: [Stmt] -> [Stmt]
 copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
-  where propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
-          where f propState stmt = 
-                  propState
+  where
+    propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
+      where
+        f propState stmt =
+          propState
