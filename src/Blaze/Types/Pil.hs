@@ -126,11 +126,12 @@ import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , UnimplOp(UnimplOp)
                              , XorOp(XorOp)
                              , ZxOp(ZxOp)
-                             , OperationSize
+                             , OperationSize(OperationSize)
                              , SSAVariable
                              , HasSize
                              , HasOp
                              , HasCondition
+                             , HasConstant
                              , HasDest
                              , HasFunc
                              , HasLeft
