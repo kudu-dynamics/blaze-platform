@@ -250,6 +250,7 @@ getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
   return $ view Function.name <$> mfn
 getCallDestFunctionName _ _ = return Nothing
 
+-- TODO: Does this fail on system calls?
 convertCallInstruction :: Ctx -> CallInstruction -> IO [Stmt]
 convertCallInstruction ctx c = case cond of
   Nothing -> return []
