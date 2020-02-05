@@ -510,7 +510,6 @@ instance Semigroup TypeEnv where
 instance Monoid TypeEnv where
   mempty = TypeEnv $ HashMap.empty
 
-
 ------
 
 data Ctx = Ctx
@@ -624,3 +623,11 @@ $(makeFieldsNoPrefix ''ConstraintOp)
 
 ------------------------
 
+
+-- gets bit width of integral type, if available
+getTypeWidth :: Type -> Maybe Int
+getTypeWidth (TBitVec x) = Just $ x ^. width
+getTypeWidth (TInt x) = Just $ x ^. width
+getTypeWidth (TPtr x) = Just $ x ^. width
+getTypeWidth (TFloat x) = Just $ x ^. width
+getTypeWidth _ = Nothing

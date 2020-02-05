@@ -22,6 +22,7 @@ import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx 
                                                    , CtxIndex
                                                    , Stmt
                                                    , Converter
+                                                   , TypeEnv( TypeEnv )
                                                    , runConverter
                                                    )
 import qualified Blaze.Types.Pil      as Pil
@@ -90,7 +91,7 @@ convertNodes :: [Node] -> Converter [Stmt]
 convertNodes = fmap concat . traverse convertNode
 
 startCtx :: Ctx
-startCtx = Ctx Nothing Nothing HSet.empty HMap.empty
+startCtx = Ctx Nothing Nothing HSet.empty (TypeEnv HMap.empty)
 
 startConverterCtx :: ConverterCtx
 startConverterCtx = ConverterCtx Nothing startCtx

@@ -8,3 +8,7 @@ extra-deps:
   - ../haskell-binja
   - ../binja-header-cleaner
   - parameterized-utils-2.0.1.0@sha256:ad6950440361b97222fe83932760311f88a0288e60f5d90ecbc67a68b86252fd,3673
+  # - z3-408.0@sha256:89bbc2d828dc1fe1f19666e8e501c69ce5d0ed8026e4a02f7eae1e69f4a352af,4052
+  - sbv-8.5@sha256:62217ddd7a29e14e75286cba4b406187f37df63fd48f356a6639e3f9c82a18c0,19781
+  - git: https://github.com/meditans/haskell-z3.git
+    commit: 8bb9fe8628f1e915880da1aaf2c20ce3e0a4fb2d

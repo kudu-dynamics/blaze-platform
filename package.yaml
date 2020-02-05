@@ -42,7 +42,7 @@ dependencies:
   - random
   - raw-strings-qq
   - recursion-schemes
-  - sbv >= 8.0
+  - sbv >= 8.5
   - stm
   - streamly
   - string-conversions
@@ -52,6 +52,7 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
+  - z3
 
 default-extensions:
   - BangPatterns
@@ -146,7 +147,7 @@ benchmarks:
     - blaze
     - binja
     - text
-    - criterion
+    #- criterion
 
 
 tests:

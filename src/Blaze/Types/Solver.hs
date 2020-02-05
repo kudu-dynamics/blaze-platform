@@ -13,14 +13,48 @@ import Blaze.Prelude
 
 import qualified Data.SBV.Trans as SBV
 import qualified Data.SBV.Trans.Control as SBV
+import qualified Data.SBV.Dynamic as SBV
+import qualified Data.SBV.Internals as SBV
+import Data.SBV.Trans ((.&&))
 import Data.SBV.Trans as Exports hiding (Solver, checkSat, CheckSatResult, SMTResult)
 import Data.SBV.Trans.Control as Exports hiding (Solver, checkSat, CheckSatResult, SMTResult, Sat, Unk, Unsat)
 import Blaze.Types.Pil (Expression, Stmt, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Internals (SolverContext(..))
 import qualified Blaze.Types.Pil as Pil
+import qualified Z3.Monad as Z3
+import Z3.Monad (Z3, MonadZ3)
+import GHC.Natural (Natural)
+
+ex34 :: Z3 Z3.Result
+ex34 = do
+  a <- Z3.mkTrue
+  b <- Z3.mkBoolVar =<< Z3.mkStringSymbol "b"
+  c <- Z3.mkAnd [a, b]
+  s1 <- Z3.mkString "Hello there"
+  s2 <- Z3.mkSeqEmpty =<< Z3.mkStringSort
+  d <- Z3.mkEq s1 s2
+  Z3.solverAssertCnstr d
+  Z3.solverAssertCnstr c
+  (r, mm) <- Z3.solverCheckAndGetModel
+  case mm of
+    Nothing -> return ()
+    Just m -> do
+      b' <- Z3.evalBool m b
+      print b'
+      Z3.getString s1 >>= print
+  return r
 
 data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
+                 | OpNotYetSupported Expression
+                 | UknownExpectedType Expression
+                 | UnexpectedReturnType
+                 | IntegralConversionError
+                 | ArgsAndRetNotTheSameType
+                 | UnrecognizedTypeWidth Int
+                 | ExpectedTypeWidth
+                 | SignExtendResultMustBeWiderThanArgument
+
 
 data SymVarConversionError = UnrecognizedWordWidth Int
                            | UnrecognizedIntWidth Int
@@ -28,6 +62,7 @@ data SymVarConversionError = UnrecognizedWordWidth Int
                            | FieldTypeNotYetSupported
                            | EncounteredObsType
                            | FuncTypeNotYetSupported
+
 
 data SymExpr = SymBool SBool
              | SymWord8 SWord8
@@ -43,13 +78,78 @@ data SymExpr = SymBool SBool
              | SymString SString
              deriving (Eq, Show)
 
+class SameType a b where
+  sameType :: a -> b -> Bool
+
+--- associativity
+--- sameType a b && sameType b c => sameType a c
+
+instance SameType SymExpr SymExpr where
+  sameType (SymBool _) (SymBool _) = True
+  sameType (SymWord8 _) (SymWord8 _) = True
+  sameType (SymWord16 _) (SymWord16 _) = True
+  sameType (SymWord32 _) (SymWord32 _) = True
+  sameType (SymWord64 _) (SymWord64 _) = True
+  sameType (SymInt8 _) (SymInt8 _) = True
+  sameType (SymInt16 _) (SymInt16 _) = True
+  sameType (SymInt32 _) (SymInt32 _) = True
+  sameType (SymInt64 _) (SymInt64 _) = True
+  sameType (SymFloat _) (SymFloat _) = True
+  sameType (SymString _) (SymString _) = True
+  sameType _ _ = False
+
+instance SameType SymExpr Pil.Type where
+  sameType (SymBool _) Pil.TBool = True
+
+  sameType (SymWord8 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 8
+  sameType (SymWord8 _) (Pil.TBitVec x) = x ^. Pil.width == 8
+  sameType (SymWord8 _) (Pil.TPtr x) = x ^. Pil.width == 8
+  sameType (SymWord16 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 16
+  sameType (SymWord16 _) (Pil.TBitVec x) = x ^. Pil.width == 16
+  sameType (SymWord16 _) (Pil.TPtr x) = x ^. Pil.width == 16
+  sameType (SymWord32 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 32
+  sameType (SymWord32 _) (Pil.TBitVec x) = x ^. Pil.width == 32
+  sameType (SymWord32 _) (Pil.TPtr x) = x ^. Pil.width == 32
+  sameType (SymWord64 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 64
+  sameType (SymWord64 _) (Pil.TBitVec x) = x ^. Pil.width == 64
+  sameType (SymWord64 _) (Pil.TPtr x) = x ^. Pil.width == 64
+
+  sameType (SymInt8 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 8
+  sameType (SymInt16 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 16
+  sameType (SymInt32 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 32
+  sameType (SymInt64 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 64
+
+  -- TODO: there's only one symfloat type, and several TFloat types
+  sameType (SymFloat _) (Pil.TFloat _) = True
+  sameType (SymString _) Pil.TString = True
+  sameType _ _ = False
+
+
+instance SameType Pil.Type SymExpr where
+  sameType = flip sameType
+
+-- data SymExpr a where
+--   SymBool :: SBool -> SymExpr SBool
+--   SymWord8 :: SWord8 -> SymExpr SWord8
+--   SymWord16 :: SWord16 -> SymExpr SWord16
+--   SymWord32 :: SWord32 -> SymExpr SWord32
+--   SymWord64 :: SWord64 -> SymExpr SWord64
+--   SymInt8 :: SInt8 -> SymExpr SInt8
+--   SymInt16 :: SInt16 -> SymExpr SInt16
+--   SymInt32 :: SInt32 -> SymExpr SInt32
+--   SymInt64 :: SInt64 -> SymExpr SInt64
+--   SymFloat :: SFloat -> SymExpr SFloat
+--   -- SymArray ::  (SArray)
+--   SymString :: SString -> SymExpr SString
+-- -- deriving (Eq, Show)
+
+
 data VarVal = VBool Bool
             | VWord8 Word8
             | VWord16 Word16
             | VWord32 Word32
             | VarNotFound
             deriving (Eq, Ord, Show)
-
                
 data SolverCtx = SolverCtx
   { typeEnv :: TypeEnv }
@@ -88,6 +188,9 @@ instance SolverContext Solver where
   setLogic = liftSolverT . setLogic
   setTimeOut = liftSolverT . setTimeOut
   contextState = liftSolverT contextState
+
+
+
 
 runSolver :: (SolverState, SolverCtx) -> Solver a -> IO (Either SolverError a)
 runSolver (st, ctx) = runExceptT . runSMT . flip evalStateT st . flip runReaderT ctx . runSolver_
