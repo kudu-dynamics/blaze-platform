@@ -24,3 +24,6 @@ cabal.project.local~
 *.liquid
 *~
 .DS_Store
+.ghcid
+hie.yaml
+*.lock

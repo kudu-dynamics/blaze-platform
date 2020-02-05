@@ -60,6 +60,7 @@ getFreeVars xs = HSet.difference allVars defined
     defined = getDefinedVars xs
     allVars = getRefVars xs
 
+---- Var -> Var substitution
 substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
 substVarsInExpr f e = case e ^. Pil.op of
   (Pil.VAR x) -> e & Pil.op .~ Pil.VAR (x & Pil.src %~ f)
@@ -78,6 +79,7 @@ substVars_ f = fmap $ substVarsInExpr f
 substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
 substVars f = fmap $ substVars_ f
 
+---- Var -> Expression substitution
 substVarExprInExpr :: (PilVar -> Maybe Expression) -> Expression -> Expression
 substVarExprInExpr f x = case x ^. Pil.op of
   (Pil.VAR (Pil.VarOp v)) -> maybe x identity $ f v
@@ -88,6 +90,16 @@ substVarExpr_ f = fmap $ substVarExprInExpr f
 
 substVarExpr :: (PilVar -> Maybe Expression) -> [Stmt] -> [Stmt]
 substVarExpr f = fmap $ substVarExpr_ f
+
+---- Expression -> Expression substitution
+substExprInExpr :: (Expression -> Maybe Expression) -> Expression -> Expression
+-- substExprInExpr f x = maybe x recurse $ f x
+substExprInExpr f x = recurse $ maybe x identity (f x)
+  where
+    recurse e = e & Pil.op %~ fmap (substExprInExpr f)
+
+substExprs :: (Expression -> Maybe Expression) -> [Stmt] -> [Stmt]
+substExprs f = fmap (fmap $ substExprInExpr f)
 
 -----------------
 
@@ -135,19 +147,53 @@ mergePilVars originVar s = originVar & Pil.mapsTo .~ x where
 ---- Constant Propagation
 type VarExprMap = HashMap PilVar Expression
 
-data ConstantFold = ConstantFold
+data ConstPropState = ConstPropState
   { exprMap :: VarExprMap
-  , stmts :: Set Stmt}
+  , stmts :: Set Stmt }
 
 constantProp :: [Stmt] -> [Stmt]
-constantProp xs = substVarExpr (\v -> HMap.lookup v (exprMap constFold)) 
-                               [x | x <- xs, not . Set.member x $ stmts constFold]
-  where addConst cf stmt var cnst = ConstantFold { exprMap = HMap.insert var cnst (exprMap cf)
-                                                 , stmts = Set.insert stmt (stmts cf)}
-        constFold = foldl' f (ConstantFold HMap.empty Set.empty) xs
-          where f cfAcc stmt = 
+constantProp xs = substVarExpr (\v -> HMap.lookup v (exprMap constPropResult)) 
+                               [x | x <- xs, not . Set.member x $ stmts constPropResult]
+  where addConst s stmt var cnst = ConstPropState { exprMap = HMap.insert var cnst (exprMap s)
+                                                  , stmts = Set.insert stmt (stmts s)}
+        constPropResult = foldl' f (ConstPropState HMap.empty Set.empty) xs
+          where f constPropState stmt = 
                   case stmt of 
                     (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) 
-                      -> addConst cfAcc stmt var (Pil.Expression sz (Pil.CONST constOp))
+                      -> addConst constPropState stmt var (Pil.Expression sz (Pil.CONST constOp))
                     _
-                      -> cfAcc
+                      -> constPropState
+
+---- Copy Propagation
+type ExprMap = HashMap Expression Expression
+
+reduceMap :: (Eq a, Hashable a) => HashMap a a -> HashMap a a
+reduceMap m = fmap reduceKey m
+  where reduceKey v = maybe v reduceKey (HMap.lookup v m)
+
+data CopyPropState = CopyPropState
+  { mapping :: ExprMap 
+  , copyStmts :: Set Stmt }
+
+copyProp :: [Stmt] -> [Stmt]
+copyProp xs = substExprs (\(e :: Expression) -> HMap.lookup e (mapping copyPropResult'))
+                         [x | x <- xs, not . Set.member x $ copyStmts copyPropResult']
+  where addCopy s stmt copy orig = CopyPropState { mapping = HMap.insert copy orig (mapping s)
+                                                 , copyStmts = Set.insert stmt (copyStmts s)}
+        copyPropResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
+          where f copyPropState stmt = 
+                  case stmt of
+                    (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _)))))
+                      -> addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
+                    _
+                      -> copyPropState
+        copyPropResult' = copyPropResult { mapping = reduceMap (mapping copyPropResult)}
+
+-- |Copy propagation via memory. Finds and simplifies variables that are copied
+-- through symbolic memory addresses that are identified to be equivalent.
+-- This is done by constructing store-load chains similar to def-use chains.
+copyPropMem :: [Stmt] -> [Stmt]
+copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
+  where propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
+          where f propState stmt = 
+                  propState

@@ -95,8 +95,10 @@ library:
   - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
-  - Blaze.Pil.Path
   - Blaze.Pil.Analysis
+  - Blaze.Pil.Path
+  - Blaze.Pil.Construct
+  - Blaze.Pil.Display
   - Blaze.Types.Pil
   - Blaze.Types.Graph
   - Blaze.Search
