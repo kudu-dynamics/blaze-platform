@@ -54,7 +54,7 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | UnrecognizedTypeWidth Int
                  | ExpectedTypeWidth
                  | SignExtendResultMustBeWiderThanArgument
-
+                 deriving (Eq, Ord, Show)
 
 data SymVarConversionError = UnrecognizedWordWidth Int
                            | UnrecognizedIntWidth Int
@@ -62,7 +62,7 @@ data SymVarConversionError = UnrecognizedWordWidth Int
                            | FieldTypeNotYetSupported
                            | EncounteredObsType
                            | FuncTypeNotYetSupported
-
+                           deriving (Eq, Ord, Show)
 
 data SymExpr = SymBool SBool
              | SymWord8 SWord8
