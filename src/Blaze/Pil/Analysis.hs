@@ -213,27 +213,29 @@ data Load expr = Load expr
                | LoadStruct expr
                | LoadStructSSA expr
 
-findLoads :: Stmt -> [Expression]
+-- findLoads :: Stmt -> [Load]
+-- findLoads stmt = []
 
 findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
 findMemEquivGroups = allGroups . memEquivGroupState
- where
-  memEquivGroupState = foldl' f (MemEquivGroupState [] HMap.empty)
-  f s stmt = case stmt of
-    (Pil.Store storeOp) -> MemEquivGroupState
-      { allGroups  = case HMap.lookup addr (liveGroups s) of
-                      -- Previous equiv group for addr is being replaced
-                      -- TODO: Check if this store stmt uses the previous definition and update
-                      --       the old equiv group if necessary
-                      Just g -> g : allGroups s
-                      Nothing -> allGroups s
-      , liveGroups = HMap.insert addr newGroup (liveGroups s)
-      }
-     where
-      addr = storeOp ^. Pil.addr
-      newGroup =
-        MemEquivGroup { store = stmt, storeAddr = addr, references = [] }
-    _ -> s
+  where
+    memEquivGroupState = foldl' f (MemEquivGroupState [] HMap.empty)
+    f s stmt = case stmt of
+      (Pil.Store storeOp) ->
+        MemEquivGroupState
+          { allGroups = case HMap.lookup addr (liveGroups s) of
+              -- Previous equiv group for addr is being replaced
+              -- TODO: Check if this store stmt uses the previous definition and update
+              --       the old equiv group if necessary
+              Just g -> g : allGroups s
+              Nothing -> allGroups s,
+            liveGroups = HMap.insert addr newGroup (liveGroups s)
+          }
+        where
+          addr = storeOp ^. Pil.addr
+          newGroup =
+            MemEquivGroup {store = stmt, storeAddr = addr, references = []}
+      _ -> s
 
 
 -- |Copy propagation via memory. Finds and simplifies variables that are copied
@@ -244,5 +246,4 @@ copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where
     propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
       where
-        f propState stmt =
-          propState
+        f propState stmt = undefined
