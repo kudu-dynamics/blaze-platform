@@ -269,8 +269,8 @@ instance Disp expr => Disp (Pil.Statement expr) where
 --               . fmap (view Func.name) $ ctx ^. Pil.func
 --       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxIndex
  
--- instance Disp expr => Disp [Pil.Statement expr] where
---   disp = Text.intercalate "\n" . fmap disp
+instance Disp expr => Disp [Pil.Statement expr] where
+  disp = Text.intercalate "\n" . fmap disp
 
 pdisp :: (MonadIO m, Disp a) => a -> m ()
 pdisp = putText . disp
