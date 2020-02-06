@@ -2,10 +2,12 @@ module Blaze.Pil.Display where
 
 import qualified Data.Text as Text
 import Text.Printf
+import Data.Coerce (coerce)
 
 import Blaze.Prelude hiding (Symbol, sym, const)
 import qualified Blaze.Types.Pil as Pil
 
+import qualified Binja.Function
 import qualified Binja.Variable
 import qualified Binja.MLIL
 
@@ -96,6 +98,47 @@ instance Disp (Pil.CallDest Pil.Expression) where
     (Pil.CallConstPtr ptr) -> show (ptr ^. Pil.constant)
     (Pil.CallExpr e) -> disp e
     (Pil.CallExprs es) -> show $ fmap disp es
+
+instance Disp Binja.Function.Function where
+  disp f = Text.pack $ printf "func \"%s\" 0x%x" name start
+    where
+      name = f ^. Binja.Function.name
+      start :: Word64
+      start = coerce $ f ^. Binja.Function.start
+
+instance Disp Pil.SimpleCtx where
+  disp ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
+    where
+      func :: Text
+      func = maybe "Nothing" disp (ctx ^. Pil.func)
+      idx :: Text
+      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+
+instance Disp Pil.Stmt where
+  disp stmt = case stmt of
+    (Pil.Def op) -> Text.pack $ printf "def \"%s\" (%s)" var val
+      where
+        var = disp $ op ^. Pil.var
+        val = disp $ op ^. Pil.value
+    (Pil.Constraint op) -> disp $ op ^. Pil.condition
+    (Pil.Store op) -> Text.pack $ printf "store (%s) (%s)" addr val
+      where
+        addr = disp $ op ^. Pil.addr
+        val = disp $ op ^. Pil.value
+    Pil.UnimplInstr -> "unimplInstr"
+    (Pil.UnimplMem op) -> Text.pack $ printf "unimplMem (%s)" src
+      where
+        src = disp $ op ^. Pil.src
+    Pil.Undef -> "undef"
+    Pil.Nop -> "nop"
+    (Pil.Annotation ann) -> Text.pack $ printf "ann \"%s\"" ann
+    (Pil.EnterContext op) -> Text.pack $ printf "enter (%s)" ctx
+      where
+        ctx = disp $ op ^. Pil.ctx
+    (Pil.ExitContext op) -> Text.pack $ printf "exit (%s) (%s)" exitCtx retCtx
+      where
+        exitCtx = disp $ op ^. Pil.leavingCtx
+        retCtx = disp $ op ^. Pil.returningToCtx
 
 instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = case exprOp of
