@@ -603,5 +603,3 @@ $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
 $(makeFieldsNoPrefix ''EnterContextOp)
 $(makeFieldsNoPrefix ''ExitContextOp)
-
-
