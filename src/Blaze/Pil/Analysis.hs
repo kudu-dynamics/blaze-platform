@@ -213,8 +213,8 @@ data Load expr = Load expr
                | LoadStruct expr
                | LoadStructSSA expr
 
--- findLoads :: Stmt -> [Load]
--- findLoads stmt = []
+findLoads :: Stmt -> [Expression]
+findLoads stmt = [x | x <- ]
 
 findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
 findMemEquivGroups = allGroups . memEquivGroupState
