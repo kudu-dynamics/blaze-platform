@@ -596,9 +596,15 @@ $(makeFieldsNoPrefix ''ConverterCtx)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
 
+$(makeFieldsNoPrefix ''SimpleCtx)
+
 $(makeFieldsNoPrefix ''DefOp)
 $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
+$(makeFieldsNoPrefix ''EnterContextOp)
+$(makeFieldsNoPrefix ''ExitContextOp)
+
+
 
 
