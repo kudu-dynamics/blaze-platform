@@ -2,12 +2,15 @@ module Blaze.Pil.Display where
 
 import qualified Data.Text as Text
 import Text.Printf
+import Data.Coerce (coerce)
 
 import Blaze.Prelude hiding (Symbol, sym, const)
 import qualified Blaze.Types.Pil as Pil
 
+import qualified Binja.Function
 import qualified Binja.Variable
 import qualified Binja.MLIL
+import qualified Binja.Function as Func
 
 type Symbol = Text
 
@@ -96,6 +99,47 @@ instance Disp (Pil.CallDest Pil.Expression) where
     (Pil.CallConstPtr ptr) -> show (ptr ^. Pil.constant)
     (Pil.CallExpr e) -> disp e
     (Pil.CallExprs es) -> show $ fmap disp es
+
+instance Disp Binja.Function.Function where
+  disp f = Text.pack $ printf "func \"%s\" 0x%x" name start
+    where
+      name = f ^. Binja.Function.name
+      start :: Word64
+      start = coerce $ f ^. Binja.Function.start
+
+instance Disp Pil.SimpleCtx where
+  disp ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
+    where
+      func :: Text
+      func = maybe "Nothing" disp (ctx ^. Pil.func)
+      idx :: Text
+      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+
+instance Disp Pil.Stmt where
+  disp stmt = case stmt of
+    (Pil.Def op) -> Text.pack $ printf "def \"%s\" (%s)" var val
+      where
+        var = disp $ op ^. Pil.var
+        val = disp $ op ^. Pil.value
+    (Pil.Constraint op) -> disp $ op ^. Pil.condition
+    (Pil.Store op) -> Text.pack $ printf "store (%s) (%s)" addr val
+      where
+        addr = disp $ op ^. Pil.addr
+        val = disp $ op ^. Pil.value
+    Pil.UnimplInstr -> "unimplInstr"
+    (Pil.UnimplMem op) -> Text.pack $ printf "unimplMem (%s)" src
+      where
+        src = disp $ op ^. Pil.src
+    Pil.Undef -> "undef"
+    Pil.Nop -> "nop"
+    (Pil.Annotation ann) -> Text.pack $ printf "ann \"%s\"" ann
+    (Pil.EnterContext op) -> Text.pack $ printf "enter (%s)" ctx
+      where
+        ctx = disp $ op ^. Pil.ctx
+    (Pil.ExitContext op) -> Text.pack $ printf "exit (%s) (%s)" exitCtx retCtx
+      where
+        exitCtx = disp $ op ^. Pil.leavingCtx
+        retCtx = disp $ op ^. Pil.returningToCtx
 
 instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = case exprOp of
@@ -203,3 +247,30 @@ instance Disp Pil.Expression where
     (Pil.MemCmp op) -> dispBinop "memcmp" op size
     -- TODO: Should ConstStr also use const rather than value as field name?
     (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. Pil.value
+
+instance Disp expr => Disp (Pil.Statement expr) where
+  disp stmt = case stmt of
+    (Pil.Def x) -> Text.pack $ printf "%s == %s" (disp $ x ^. Pil.var) (disp $ x ^. Pil.value)
+    (Pil.Constraint x) -> Text.pack $ printf "?: %s" (disp $ x ^. Pil.condition)
+    (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (disp $ x ^. Pil.addr) (disp $ x ^. Pil.value)
+    Pil.UnimplInstr -> "Unimplemented Instruction"
+    (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (disp $ x ^. Pil.src)
+    Pil.Undef -> "Undefined"
+    Pil.Nop -> "Nop"
+    (Pil.Annotation t) -> "Annotation: " <> t
+    (Pil.EnterContext x) -> "----> Entering " <> disp (x ^. Pil.ctx)
+    (Pil.ExitContext x) -> "<---- Leaving %s" <> disp (x ^. Pil.leavingCtx)
+    
+-- TODO: Replace existing instances with these or remove them    
+-- instance Disp Pil.SimpleCtx where
+--   disp ctx = "< " <> fname <> i <> " >"
+--     where
+--       fname = maybe "<Unknown Function>" identity
+--               . fmap (view Func.name) $ ctx ^. Pil.func
+--       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxIndex
+ 
+-- instance Disp expr => Disp [Pil.Statement expr] where
+--   disp = Text.intercalate "\n" . fmap disp
+
+pdisp :: (MonadIO m, Disp a) => a -> m ()
+pdisp = putText . disp
