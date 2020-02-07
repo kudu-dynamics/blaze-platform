@@ -27,7 +27,7 @@ add a b = a + b
 
 handleSx :: Pil.Type -> SymExpr -> Solver SymExpr
 handleSx et x = case Pil.getTypeWidth et of
-  (Just 64) -> case x of
+  (Just 8) -> case x of
     (SymWord8 v) -> return . SymWord64 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 64)
     (SymInt8 v) -> return . SymInt64 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 64)
 
@@ -38,7 +38,7 @@ handleSx et x = case Pil.getTypeWidth et of
     (SymInt32 v) -> return . SymInt64 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 64)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 32) -> case x of
+  (Just 4) -> case x of
     (SymWord8 v) -> return . SymWord32 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 32)
     (SymInt8 v) -> return . SymInt32 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 32)
 
@@ -46,7 +46,7 @@ handleSx et x = case Pil.getTypeWidth et of
     (SymInt16 v) -> return . SymInt32 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 32)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 16) -> case x of
+  (Just 2) -> case x of
     (SymWord8 v) -> return . SymWord16 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 16)
     (SymInt8 v) -> return . SymInt16 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 16)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
@@ -57,7 +57,7 @@ handleSx et x = case Pil.getTypeWidth et of
 
 handleZx :: Pil.Type -> SymExpr -> Solver SymExpr
 handleZx et x = case Pil.getTypeWidth et of
-  (Just 64) -> case x of
+  (Just 8) -> case x of
     (SymWord8 v) -> return . SymWord64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 64)
     (SymInt8 v) -> return . SymInt64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 64)
 
@@ -68,7 +68,7 @@ handleZx et x = case Pil.getTypeWidth et of
     (SymInt32 v) -> return . SymInt64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 64)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 32) -> case x of
+  (Just 4) -> case x of
     (SymWord8 v) -> return . SymWord32 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 32)
     (SymInt8 v) -> return . SymInt32 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 32)
 
@@ -76,7 +76,7 @@ handleZx et x = case Pil.getTypeWidth et of
     (SymInt16 v) -> return . SymInt32 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 32)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 16) -> case x of
+  (Just 2) -> case x of
     (SymWord8 v) -> return . SymWord16 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 16)
     (SymInt8 v) -> return . SymInt16 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 16)
     _ -> throwError SignExtendResultMustBeWiderThanArgument

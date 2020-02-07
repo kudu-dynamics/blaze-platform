@@ -15,10 +15,6 @@ pilVar s = Pil.PilVar { _symbol   = s
                        , _mapsTo   = HSet.empty
                        }
 
-const :: Int64 -> Pil.OperationSize -> Pil.Expression
-const x size = Pil.Expression { _size = size 
-                               , _op = Pil.CONST (Pil.ConstOp x) }
-
 var :: Pil.Symbol -> Pil.OperationSize -> Pil.Expression
 var sym size = Pil.Expression { _size = size 
                                , _op = Pil.VAR $ Pil.VarOp $ pilVar sym}
@@ -28,22 +24,23 @@ def sym expr = Pil.Def (Pil.DefOp (pilVar sym) expr)
 
 binOp :: (a -> ExprOp Expression)
   -> (Expression -> Expression -> a)
-  -> OperationSize -> Expression -> Expression -> Expression
-binOp f g size x y = Expression { _size = size
+  -> Expression -> Expression -> OperationSize -> Expression
+binOp f g x y size = Expression { _size = size
                                 , _op = f (g x y)
                                 }
 
-add :: OperationSize -> Expression -> Expression -> Expression
+add :: Expression -> Expression -> OperationSize -> Expression
 add = binOp Pil.ADD Pil.AddOp
 
-sub :: OperationSize -> Expression -> Expression -> Expression
+sub :: Expression -> Expression -> OperationSize -> Expression
 sub = binOp Pil.SUB Pil.SubOp
 
-cmpE :: OperationSize -> Expression -> Expression -> Expression
+cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
+const :: Int64 -> OperationSize -> Expression
+const n size = Expression { _size = size
+                          , _op = Pil.CONST . Pil.ConstOp $ n
+                          }
 
--- add :: Expression -> Expression -> OperationSize -> Expression
--- add x y size = Expression { _size = size
---                           , _op = Pil.ADD (Pil.AddOp x y)}
 

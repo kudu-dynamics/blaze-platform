@@ -46,14 +46,19 @@ ex34 = do
   return r
 
 data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
-                 | OpNotYetSupported Expression
+                 | ExpressionConversionError Expression Pil.Type SolverError
+                 | OpNotYetSupported
                  | UknownExpectedType Expression
                  | UnexpectedReturnType
+                 | UnexpectedReturnType'Expected Pil.Type
                  | IntegralConversionError
-                 | ArgsAndRetNotTheSameType
+                 | ArgsAndRetNotTheSameType SymType SymType
+                 | ArgsNotTheSameType
                  | UnrecognizedTypeWidth Int
                  | ExpectedTypeWidth
                  | SignExtendResultMustBeWiderThanArgument
+                 | UnexpectedArgType
+                 | SolverError
                  deriving (Eq, Ord, Show)
 
 data SymVarConversionError = UnrecognizedWordWidth Int
@@ -78,6 +83,35 @@ data SymExpr = SymBool SBool
              | SymString SString
              deriving (Eq, Show)
 
+data SymType = TBool
+             | TWord8
+             | TWord16
+             | TWord32
+             | TWord64
+             | TInt8
+             | TInt16
+             | TInt32
+             | TInt64
+             | TFloat
+             | TString
+             deriving (Eq, Ord, Show)
+
+symType :: SymExpr -> SymType
+symType s = case s of
+  (SymBool _) -> TBool
+  (SymWord8 _) -> TWord8
+  (SymWord16 _) -> TWord16
+  (SymWord32 _) -> TWord32
+  (SymWord64 _) -> TWord64
+  (SymInt8 _) -> TInt8
+  (SymInt16 _) -> TInt16
+  (SymInt32 _) -> TInt32
+  (SymInt64 _) -> TInt64
+  (SymFloat _) -> TFloat
+  -- SymArray (SArray)
+  (SymString _) -> TString
+
+
 class SameType a b where
   sameType :: a -> b -> Bool
 
@@ -101,23 +135,26 @@ instance SameType SymExpr SymExpr where
 instance SameType SymExpr Pil.Type where
   sameType (SymBool _) Pil.TBool = True
 
-  sameType (SymWord8 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 8
-  sameType (SymWord8 _) (Pil.TBitVec x) = x ^. Pil.width == 8
-  sameType (SymWord8 _) (Pil.TPtr x) = x ^. Pil.width == 8
-  sameType (SymWord16 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 16
-  sameType (SymWord16 _) (Pil.TBitVec x) = x ^. Pil.width == 16
-  sameType (SymWord16 _) (Pil.TPtr x) = x ^. Pil.width == 16
-  sameType (SymWord32 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 32
-  sameType (SymWord32 _) (Pil.TBitVec x) = x ^. Pil.width == 32
-  sameType (SymWord32 _) (Pil.TPtr x) = x ^. Pil.width == 32
-  sameType (SymWord64 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 64
-  sameType (SymWord64 _) (Pil.TBitVec x) = x ^. Pil.width == 64
-  sameType (SymWord64 _) (Pil.TPtr x) = x ^. Pil.width == 64
+  sameType (SymWord8 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 1
+  sameType (SymWord8 _) (Pil.TBitVec x) = x ^. Pil.width == 1
+  sameType (SymWord8 _) (Pil.TPtr x) = x ^. Pil.width == 1
+  
+  sameType (SymWord16 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 2
+  sameType (SymWord16 _) (Pil.TBitVec x) = x ^. Pil.width == 2
+  sameType (SymWord16 _) (Pil.TPtr x) = x ^. Pil.width == 2
+  
+  sameType (SymWord32 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 4
+  sameType (SymWord32 _) (Pil.TBitVec x) = x ^. Pil.width == 4
+  sameType (SymWord32 _) (Pil.TPtr x) = x ^. Pil.width == 4
+  
+  sameType (SymWord64 _) (Pil.TInt x) = not (x ^. Pil.signed) && x ^. Pil.width == 8
+  sameType (SymWord64 _) (Pil.TBitVec x) = x ^. Pil.width == 8
+  sameType (SymWord64 _) (Pil.TPtr x) = x ^. Pil.width == 8
 
-  sameType (SymInt8 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 8
-  sameType (SymInt16 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 16
-  sameType (SymInt32 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 32
-  sameType (SymInt64 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 64
+  sameType (SymInt8 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 1
+  sameType (SymInt16 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 2
+  sameType (SymInt32 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 4
+  sameType (SymInt64 _) (Pil.TInt x) = x ^. Pil.signed && x ^. Pil.width == 8
 
   -- TODO: there's only one symfloat type, and several TFloat types
   sameType (SymFloat _) (Pil.TFloat _) = True
@@ -160,11 +197,15 @@ emptyCtx = SolverCtx mempty
 data SolverState = SolverState
   { _varMap :: HashMap PilVar SymExpr
   , _mem :: HashMap Expression SymExpr
+  , _constraints :: [SBool]
   }
 $(makeFieldsNoPrefix ''SolverState)
 
 emptyState :: SolverState
-emptyState = SolverState HashMap.empty HashMap.empty
+emptyState = SolverState HashMap.empty HashMap.empty []
+
+addConstraint :: SBool -> Solver ()
+addConstraint c = constraints %= (c:)
 
 newtype Solver a = Solver { runSolver_ ::
                               (ReaderT SolverCtx
@@ -196,7 +237,13 @@ runSolver :: (SolverState, SolverCtx) -> Solver a -> IO (Either SolverError a)
 runSolver (st, ctx) = runExceptT . runSMT . flip evalStateT st . flip runReaderT ctx . runSolver_
 
 checkSat :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError SatResult)
-checkSat s m = runSolver s $ m >>= liftSolverT . lift . sat . const sTrue
+checkSat s m = runSolver s $ do
+  _ <- m
+  xs <- use constraints
+  liftSolverT . lift . sat . SBV.sAnd $ xs
+
+checkSat_ :: Solver () -> IO (Either SolverError SatResult)
+checkSat_ = checkSat (emptyState, emptyCtx)
 
 data SolutionResult = Unsat
                     | Unk

@@ -109,24 +109,77 @@ solveExpr expr@(Expression sz xop) = do
   et <- maybe (throwError $ UknownExpectedType expr) return
         $ Inference.getExprType tenv expr
 
-  let binIntegral :: (forall a. SIntegral a => SBV a -> SBV a -> SBV a) -> SymExpr -> SymExpr -> Solver SymExpr
+  let error :: SolverError -> Solver a
+      error = throwError . ExpressionConversionError expr et
+      
+      todo = error OpNotYetSupported
+
+      binIntegral :: (forall a. SIntegral a => SBV a -> SBV a -> SBV a)
+                  -> SymExpr -> SymExpr -> Solver SymExpr
       binIntegral f a b = do
-        bool (throwError ArgsAndRetNotTheSameType) (return ())
+        bool (error $ ArgsAndRetNotTheSameType (symType a) (symType b)) (return ())
           $ sameType a b && sameType a et
         let h :: SIntegral c => Solver (SBV c)
             h = f <$> getIntegral a <*> getIntegral b
         case et of
           (Pil.TInt x) -> case (x ^. Pil.signed, x ^. Pil.width) of
-            (False, 8) -> SymWord8 <$> h
-            (False, 16) -> SymWord16 <$> h
-            (False, 32) -> SymWord32 <$> h
-            (False, 64) -> SymWord64 <$> h
-            (True, 8) -> SymInt8 <$> h
-            (True, 16) -> SymInt16 <$> h
-            (True, 32) -> SymInt32 <$> h
-            (True, 64) -> SymInt64 <$> h
-            _ -> throwError UnexpectedReturnType
+            (False, 1) -> SymWord8 <$> h
+            (False, 2) -> SymWord16 <$> h
+            (False, 4) -> SymWord32 <$> h
+            (False, 8) -> SymWord64 <$> h
+            (True, 1) -> SymInt8 <$> h
+            (True, 2) -> SymInt16 <$> h
+            (True, 4) -> SymInt32 <$> h
+            (True, 8) -> SymInt64 <$> h
+            _ -> error UnexpectedReturnType
 
+      binIntegralToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
+                        -> SymExpr -> SymExpr -> Solver SymExpr
+      binIntegralToBool f a b = do
+        let h :: forall a . SIntegral a => SBV a -> SBV a -> Solver SymExpr
+            h x y = return . SymBool $ f x y
+        case (a, b) of
+          ((SymWord8 x), (SymWord8 y)) -> h x y
+          ((SymWord16 x), (SymWord16 y)) -> h x y
+          ((SymWord32 x), (SymWord32 y)) -> h x y
+          ((SymWord64 x), (SymWord64 y)) -> h x y
+          ((SymInt8 x), (SymInt8 y)) -> h x y
+          ((SymInt16 x), (SymInt16 y)) -> h x y
+          ((SymInt32 x), (SymInt32 y)) -> h x y
+          ((SymInt64 x), (SymInt64 y)) -> h x y
+          _ -> error UnexpectedArgType
+
+      binSignedToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
+                        -> SymExpr -> SymExpr -> Solver SymExpr
+      binSignedToBool f a b = do
+        let h :: forall a . SIntegral a => SBV a -> SBV a -> Solver SymExpr
+            h x y = return . SymBool $ f x y
+        case (a, b) of
+          ((SymInt8 x), (SymInt8 y)) -> h x y
+          ((SymInt16 x), (SymInt16 y)) -> h x y
+          ((SymInt32 x), (SymInt32 y)) -> h x y
+          ((SymInt64 x), (SymInt64 y)) -> h x y
+          _ -> error UnexpectedArgType
+
+      binUnsignedToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
+                        -> SymExpr -> SymExpr -> Solver SymExpr
+      binUnsignedToBool f a b = do
+        let h :: forall a . SIntegral a => SBV a -> SBV a -> Solver SymExpr
+            h x y = return . SymBool $ f x y
+        case (a, b) of
+          ((SymWord8 x), (SymWord8 y)) -> h x y
+          ((SymWord16 x), (SymWord16 y)) -> h x y
+          ((SymWord32 x), (SymWord32 y)) -> h x y
+          ((SymWord64 x), (SymWord64 y)) -> h x y
+          _ -> error UnexpectedArgType
+
+  
+      binBool :: (SBool -> SBool -> SBool) -> SymExpr -> SymExpr -> Solver SymExpr
+      binBool f (SymBool a) (SymBool b) = case et of
+        Pil.TBool -> return . SymBool $ f a b
+        _ -> error $ UnexpectedReturnType'Expected Pil.TBool
+      binBool _ _ _ = error UnexpectedArgType
+  
       lr :: (HasLeft x Expression, HasRight x Expression)
          => x -> (SymExpr -> SymExpr -> Solver SymExpr)
          -> Solver SymExpr
@@ -134,6 +187,15 @@ solveExpr expr@(Expression sz xop) = do
         a <- solveExpr (x ^. Pil.left)
         b <- solveExpr (x ^. Pil.right)
         f a b
+
+      mkConst :: Int64 -> Solver SymExpr
+      mkConst n = do
+        case Pil.getTypeWidth et of
+          (Just 1) -> return . SymWord8 . SBV.literal . fromIntegral $ n
+          (Just 2) -> return . SymWord16 . SBV.literal . fromIntegral $ n
+          (Just 4) -> return . SymWord32 . SBV.literal . fromIntegral $ n
+          (Just 8) -> return . SymWord64 . SBV.literal . fromIntegral $ n
+          _ -> error UnexpectedArgType
       
   case xop of
     (Pil.ADC x) -> todo
@@ -145,17 +207,18 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.ASR x) -> todo
     (Pil.BOOL_TO_INT x) -> todo
     (Pil.CEIL x) -> todo
-    (Pil.CMP_E x) -> todo
-    (Pil.CMP_NE x) -> todo
-    (Pil.CMP_SGE x) -> todo
-    (Pil.CMP_SGT x) -> todo
-    (Pil.CMP_SLE x) -> todo
-    (Pil.CMP_SLT x) -> todo
-    (Pil.CMP_UGE x) -> todo
-    (Pil.CMP_UGT x) -> todo
-    (Pil.CMP_ULE x) -> todo
-    (Pil.CMP_ULT x) -> todo
-    (Pil.CONST x) -> todo
+    (Pil.CMP_E x) -> lr x $ binIntegralToBool (.==)
+    (Pil.CMP_NE x) -> lr x $ binIntegralToBool (./=)
+    (Pil.CMP_SGE x) -> lr x $ binSignedToBool (.>=) 
+    (Pil.CMP_SGT x) -> lr x $ binSignedToBool (.>)
+    (Pil.CMP_SLE x) -> lr x $ binSignedToBool (.<=) 
+    (Pil.CMP_SLT x) -> lr x $ binSignedToBool (.<) 
+    (Pil.CMP_UGE x) -> lr x $ binUnsignedToBool (.>=) 
+    (Pil.CMP_UGT x) -> lr x $ binUnsignedToBool (.>) 
+    (Pil.CMP_ULE x) -> lr x $ binUnsignedToBool (.<=) 
+    (Pil.CMP_ULT x) -> lr x $ binUnsignedToBool (.<) 
+    (Pil.CONST x) -> mkConst $ x ^. Pil.constant
+
     (Pil.CONST_PTR x) -> todo
     (Pil.DIVS x) -> todo
     (Pil.DIVS_DP x) -> todo
@@ -233,9 +296,6 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.ConstStr x) -> todo
     _ -> todo
 
-  where
-    todo = throwError $ OpNotYetSupported expr
-
 
 getIntegral :: forall a. (SIntegral a) => SymExpr -> Solver (SBV a)
 getIntegral = \case
@@ -271,6 +331,11 @@ solveStmt = undefined
 --   x <- exists "x"
 --   return $ x `shiftL` 3 .== 4 * (x :: SWord8)
 
+-- constrainTest :: Symbolic SatResult
+-- constrainTest = do
+--   constrain sFalse
+--   r <- sat (const sTrue)
+--   return r
 
 -- bigtest :: Symbolic ()
 -- bigtest = do
