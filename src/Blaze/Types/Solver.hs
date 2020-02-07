@@ -59,6 +59,7 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | SignExtendResultMustBeWiderThanArgument
                  | UnexpectedArgType
                  | SolverError
+                 | CannotFindPilVarInVarMap
                  deriving (Eq, Ord, Show)
 
 data SymVarConversionError = UnrecognizedWordWidth Int

@@ -71,17 +71,17 @@ makeSymVar pv pt = case pt of
   where
     err = throwError . SymVarConversionError pv pt
 
-    createWord 8 = SymWord8 <$> exists nm
-    createWord 16 = SymWord16 <$> exists nm
-    createWord 32 = SymWord32 <$> exists nm
-    createWord 64 = SymWord64 <$> exists nm
+    createWord 1 = SymWord8 <$> exists nm
+    createWord 2 = SymWord16 <$> exists nm
+    createWord 4 = SymWord32 <$> exists nm
+    createWord 8 = SymWord64 <$> exists nm
     createWord n = err $ UnrecognizedWordWidth n
 
     createInt :: Int -> Solver SymExpr
-    createInt 8 = SymInt8 <$> exists nm
-    createInt 16 = SymInt16 <$> exists nm
-    createInt 32 = SymInt32 <$> exists nm
-    createInt 64 = SymInt64 <$> exists nm
+    createInt 1 = SymInt8 <$> exists nm
+    createInt 2 = SymInt16 <$> exists nm
+    createInt 4 = SymInt32 <$> exists nm
+    createInt 8 = SymInt64 <$> exists nm
     createInt n = err $ UnrecognizedIntWidth n
       
     nm = Text.unpack $ pilVarName pv
@@ -282,7 +282,12 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.VAR_PHI x) -> todo
   --  (Pil.VAR_SPLIT (VarSplitOp x) -> todo
     (Pil.VAR_SPLIT x) -> todo
-    (Pil.VAR x) -> todo
+    (Pil.VAR x) -> do
+      vm <- use varMap
+      case HashMap.lookup (x ^. Pil.src) vm of
+        Nothing -> error CannotFindPilVarInVarMap
+        Just v -> bool (error UnexpectedArgType) (return v) $ sameType v et
+
     (Pil.VAR_FIELD x) -> todo
     (Pil.XOR x) -> lr x $ binIntegral xor
     
