@@ -213,8 +213,20 @@ data Load expr = Load expr
                | LoadStruct expr
                | LoadStructSSA expr
 
-findLoads :: Stmt -> [Expression]
-findLoads stmt = [x | x <- ]
+findLoads_ :: Expression -> [Load Expression]
+findLoads_ e = case e ^. Pil.op of
+  (Pil.LOAD op) -> [Load $ op ^. Pil.src]
+  (Pil.LOAD_SSA op) -> [LoadSSA $ op ^. Pil.src]
+  (Pil.LOAD_STRUCT op) -> [LoadStruct $ op ^. Pil.src]
+  (Pil.LOAD_STRUCT_SSA op) -> [LoadStructSSA $ op ^. Pil.src]
+  x -> concatMap findLoads_ x
+
+findLoads :: Stmt -> [Load Expression]
+findLoads s = case s of
+  (Pil.Def op) -> findLoads_ (op ^. Pil.value)
+  (Pil.Store op) -> findLoads_ (op ^. Pil.value)
+  (Pil.Constraint op) -> findLoads_ (op ^. Pil.condition)
+  _ -> []
 
 findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
 findMemEquivGroups = allGroups . memEquivGroupState
