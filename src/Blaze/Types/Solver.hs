@@ -199,15 +199,11 @@ emptyCtx = SolverCtx mempty
 data SolverState = SolverState
   { _varMap :: HashMap PilVar SymExpr
   , _mem :: HashMap Expression SymExpr
-  , _constraints :: [SBool]
   }
 $(makeFieldsNoPrefix ''SolverState)
 
 emptyState :: SolverState
-emptyState = SolverState HashMap.empty HashMap.empty []
-
-addConstraint :: SBool -> Solver ()
-addConstraint c = constraints %= (c:)
+emptyState = SolverState HashMap.empty HashMap.empty
 
 newtype Solver a = Solver { runSolver_ ::
                               (ReaderT SolverCtx
@@ -240,43 +236,16 @@ instance SolverContext Solver where
 runSolver :: (SolverState, SolverCtx) -> Solver a -> IO (Either SolverError a)
 runSolver (st, ctx) = runExceptT . runSMT . flip evalStateT st . flip runReaderT ctx . runSolver_
 
-checkSat :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError SatResult)
-checkSat s m = runSolver s $ do
-  _ <- m
-  xs <- use constraints
-  liftSolverT . lift . sat . SBV.sAnd $ xs
-
-checkProof :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError SBV.ThmResult)
-checkProof s m = runSolver s $ do
-  _ <- m
-  xs <- use constraints
-  liftSolverT . lift . SBV.prove . SBV.sAnd $ xs
+data SolverResult = Unsat
+                  | Unk
+                  | Sat 
+                  deriving (Eq, Ord, Show)
 
 
-checkSat_ :: Solver () -> IO (Either SolverError SatResult)
-checkSat_ = checkSat (emptyState, emptyCtx)
-
-data SolutionResult = Unsat
-                    | Unk
-                    | Sat (HashMap PilVar VarVal)
+data SolutionResult = SUnsat
+                    | SUnk
+                    | SSat (HashMap PilVar VarVal)
                     deriving (Eq, Ord, Show)
-
-getResultsFromModel :: HashMap PilVar SymExpr -> SBV.SatResult -> Maybe Text
-getResultsFromModel vm (SBV.SatResult r) = case r of
-  (SBV.SatExtField _ model) -> Just $ f model
-  (SBV.Satisfiable _ model) -> Just $ f model
-  _ -> Nothing
-  where
-    f m = show $ m
-
-getResultsFromModel' :: HashMap PilVar SymExpr -> SBV.ThmResult -> Maybe Text
-getResultsFromModel' vm (SBV.ThmResult r) = case r of
-  (SBV.SatExtField _ model) -> Just $ f model
-  (SBV.Satisfiable _ model) -> Just $ f model
-  _ -> Nothing
-  where
-    f m = show $ m
-
 
 liftSolverT :: SymbolicT (ExceptT SolverError IO) a -> Solver a
 liftSolverT = Solver . lift . lift
