@@ -235,6 +235,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.ASR x) -> todo
     (Pil.BOOL_TO_INT x) -> todo
     (Pil.CEIL x) -> todo
+    
     (Pil.CMP_E x) -> lr x $ binIntegralToBool (.==)
     (Pil.CMP_NE x) -> lr x $ binIntegralToBool (./=)
     (Pil.CMP_SGE x) -> lr x $ binSignedToBool (.>=) 
@@ -348,96 +349,3 @@ getIntegral = \case
 
 solveStmt :: Stmt -> Solver ()
 solveStmt = undefined
-
--- uadd32 :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV Word32
--- uadd32 = Op.add
-
--- uadd64 :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV Word64
--- uadd64 = Op.add
-
--- smalltest :: SWord8 -> Symbolic SBool
--- smalltest x = do
---   return $ x `shiftL` 3 .== 4 * (x :: SWord8)
-
--- smalltest2 :: Symbolic SBool
--- smalltest2 = do
---   x <- exists "x"
---   return $ x `shiftL` 3 .== 4 * (x :: SWord8)
-
--- constrainTest :: Symbolic SatResult
--- constrainTest = do
---   constrain sFalse
---   r <- sat (const sTrue)
---   return r
-
--- bigtest :: Symbolic ()
--- bigtest = do
---   x <- exists "x"
---   y <- exists "y"
---   z <- exists "z" :: Symbolic (SBV Word32)
---   constrain $ z .== x `Op.add` y
---   constrain $ add5 x .== (y :: SWord16)
---   query $ do
---     csat <- SBV.checkSat
---     case csat of
---       SBV.Sat -> do
---         xv <- getValue x
---         io . putText $ "This is Jimmy: " <> show xv
---       _ -> io $ putText "sorry Jim"
---   return ()
---   -- return $ add5 x .== y
-
--- bigtest2 :: Symbolic SBool
--- bigtest2 = do
---   x <- exists "x"
---   y <- exists "y"
---   constrain $ add5 x .== (y :: SWord16)
---   -- SBV.constrain $ add5 x .== x
---   return sFalse
-
--- opy :: SWord16 -> SWord16 -> SWord32 -> Symbolic SBool
--- opy x y z = return $ z .== x `Op.add` y
-
--- bigtest8 :: Solver SBool
--- bigtest8 = return sFalse
-
--- bigtest' :: Symbolic SVal
--- bigtest' = do
---   x <- exists "x"
---   y <- exists "y"
---   z <- exists "z" :: Symbolic (SBV Word32)
---   s <- exists "s" :: Symbolic (SBV String)
---   --constrain $ s .== "hello"
---   constrain $ SS.isPrefixOf "hello" s
---   constrain $ SS.length s .== 18
---   constrain =<< opy x y z
---   constrain $ add5 x .== (y :: SWord16)
--- --   -- query $ do
--- --   --   cs <- checkSat
--- --   --   case cs of
--- --   --     Sat -> do
--- --   --       xv <- getValue x
--- --   --       io . putText $ "This is Jimmy: " <> show xv
--- --   --     _ -> io $ putText "sorry Jim"
---   return D.svTrue
---   -- return $ add5 x .== y
-
-
--- -- trydrop :: Int -> SVal -> SVal
--- -- trydrop n bv =
--- --   case SBV.kindOf bv of
--- --     KBounded signed width ->
--- --       case someNatVal (fromIntegral width) of
--- --         Nothing -> P.error "sorry"
--- --         (Just (SomeNat (_ :: Proxy m))) ->
--- --           unSBV $ SBV.bvTake (Proxy :: Proxy m) (SBV bv :: SWord m)
--- --     _ -> P.error "oh well"
-
--- svalDrop :: Int -> SVal -> SVal
--- svalDrop n inp
---    | sz <= n = P.error $ "Trying to drop too much: " ++ show (n, k)
---    | True    = D.svExtract (sz - n - 1) 0 inp
---   where k  = kindOf inp
---         sz = case k of
---                KBounded _ v -> v
---                _            -> P.error $ "getSignSize: Not a bitvector: " ++ show k
