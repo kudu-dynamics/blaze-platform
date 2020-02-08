@@ -208,17 +208,19 @@ data MemEquivGroupState = MemEquivGroupState
   { allGroups :: [MemEquivGroup]
   , liveGroups :: HashMap Expression MemEquivGroup}
 
-data Load expr = Load expr
-               | LoadSSA expr
-               | LoadStruct expr
-               | LoadStructSSA expr
+data Load expr
+  = Load expr
+  | LoadSSA expr
+  | LoadStruct expr
+  | LoadStructSSA expr
+  deriving (Show, Eq)
 
 findLoads_ :: Expression -> [Load Expression]
 findLoads_ e = case e ^. Pil.op of
-  (Pil.LOAD op) -> [Load $ op ^. Pil.src]
-  (Pil.LOAD_SSA op) -> [LoadSSA $ op ^. Pil.src]
-  (Pil.LOAD_STRUCT op) -> [LoadStruct $ op ^. Pil.src]
-  (Pil.LOAD_STRUCT_SSA op) -> [LoadStructSSA $ op ^. Pil.src]
+  Pil.LOAD _ -> [Load e]
+  Pil.LOAD_SSA _ -> [LoadSSA e]
+  Pil.LOAD_STRUCT _ -> [LoadStruct e]
+  Pil.LOAD_STRUCT_SSA _ -> [LoadStructSSA e]
   x -> concatMap findLoads_ x
 
 findLoads :: Stmt -> [Load Expression]
@@ -258,4 +260,8 @@ copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where
     propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
       where
-        f propState stmt = undefined
+        f propState stmt =
+          propState
+
+simplify :: [Stmt] -> [Stmt]
+simplify = copyProp . constantProp
