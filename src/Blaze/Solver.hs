@@ -86,6 +86,18 @@ makeSymVar pv pt = case pt of
       
     nm = Text.unpack $ pilVarName pv
 
+checkSatWithSolution :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError SolutionResult)
+checkSatWithSolution s m = runSolver s $ do
+  initVarMap
+  _ <- m
+  vm <- use varMap
+  liftSolverT . query $ do
+    csat <- SBV.checkSat
+    case csat of
+      SBV.Unsat -> return Unsat
+      SBV.Unk -> return Unk
+      SBV.Sat -> do
+        Sat <$> getSolutions vm
 
 initVarMap :: Solver ()
 initVarMap = do

@@ -25,6 +25,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Z3.Monad as Z3
 import Z3.Monad (Z3, MonadZ3)
 import GHC.Natural (Natural)
+import Control.Monad.Fail (MonadFail(fail))
 
 ex34 :: Z3 Z3.Result
 ex34 = do
@@ -58,7 +59,7 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | ExpectedTypeWidth
                  | SignExtendResultMustBeWiderThanArgument
                  | UnexpectedArgType
-                 | SolverError
+                 | SolverError Text
                  | CannotFindPilVarInVarMap
                  deriving (Eq, Ord, Show)
 
@@ -219,6 +220,8 @@ newtype Solver a = Solver { runSolver_ ::
                             , MonadIO
                             , MonadSymbolic
                             )
+instance MonadFail Solver where
+  fail = throwError . SolverError . cs
 
 instance SolverContext Solver where
   constrain = liftSolverT . constrain
@@ -243,6 +246,13 @@ checkSat s m = runSolver s $ do
   xs <- use constraints
   liftSolverT . lift . sat . SBV.sAnd $ xs
 
+checkProof :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError SBV.ThmResult)
+checkProof s m = runSolver s $ do
+  _ <- m
+  xs <- use constraints
+  liftSolverT . lift . SBV.prove . SBV.sAnd $ xs
+
+
 checkSat_ :: Solver () -> IO (Either SolverError SatResult)
 checkSat_ = checkSat (emptyState, emptyCtx)
 
@@ -251,17 +261,22 @@ data SolutionResult = Unsat
                     | Sat (HashMap PilVar VarVal)
                     deriving (Eq, Ord, Show)
 
-checkSatWithSolution :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError SolutionResult)
-checkSatWithSolution s m = runSolver s $ do
-  _ <- m
-  vm <- use varMap
-  liftSolverT . query $ do
-    csat <- SBV.checkSat
-    case csat of
-      SBV.Unsat -> return Unsat
-      SBV.Unk -> return Unk
-      SBV.Sat -> do
-        Sat <$> getSolutions vm
+getResultsFromModel :: HashMap PilVar SymExpr -> SBV.SatResult -> Maybe Text
+getResultsFromModel vm (SBV.SatResult r) = case r of
+  (SBV.SatExtField _ model) -> Just $ f model
+  (SBV.Satisfiable _ model) -> Just $ f model
+  _ -> Nothing
+  where
+    f m = show $ m
+
+getResultsFromModel' :: HashMap PilVar SymExpr -> SBV.ThmResult -> Maybe Text
+getResultsFromModel' vm (SBV.ThmResult r) = case r of
+  (SBV.SatExtField _ model) -> Just $ f model
+  (SBV.Satisfiable _ model) -> Just $ f model
+  _ -> Nothing
+  where
+    f m = show $ m
+
 
 liftSolverT :: SymbolicT (ExceptT SolverError IO) a -> Solver a
 liftSolverT = Solver . lift . lift

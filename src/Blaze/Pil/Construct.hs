@@ -17,17 +17,31 @@ pilVar s = Pil.PilVar { _symbol   = s
 
 var :: Pil.Symbol -> Pil.OperationSize -> Pil.Expression
 var sym size = Pil.Expression { _size = size 
-                               , _op = Pil.VAR $ Pil.VarOp $ pilVar sym}
+                              , _op = Pil.VAR $ Pil.VarOp $ pilVar sym
+                              }
 
 def :: Pil.Symbol -> Pil.Expression -> Pil.Stmt
 def sym expr = Pil.Def (Pil.DefOp (pilVar sym) expr)
 
 binOp :: (a -> ExprOp Expression)
-  -> (Expression -> Expression -> a)
-  -> Expression -> Expression -> OperationSize -> Expression
+      -> (Expression -> Expression -> a)
+      -> Expression -> Expression -> OperationSize -> Expression
 binOp f g x y size = Expression { _size = size
                                 , _op = f (g x y)
                                 }
+
+unOp :: (a -> ExprOp Expression)
+     -> (Expression -> a)
+     -> Expression -> OperationSize -> Expression
+unOp f g x size = Expression { _size = size
+                             , _op = f (g x)
+                             }
+
+sx :: Expression -> OperationSize -> Expression
+sx = unOp Pil.SX Pil.SxOp
+
+zx :: Expression -> OperationSize -> Expression
+zx = unOp Pil.ZX Pil.ZxOp
 
 add :: Expression -> Expression -> OperationSize -> Expression
 add = binOp Pil.ADD Pil.AddOp

@@ -132,7 +132,7 @@ getExprType env x = case x ^. op of
   StrNCmp _ -> intRet
   MemCmp _ -> intRet
   SUB n -> inheritIntRet n
-  SX _ -> intRet
+  SX n -> inheritIntUnary $ n ^. src
   TEST_BIT _ -> unknown
   UNIMPL -> bitvecRet
   VAR n -> typeEnvLookup (n ^. src) env
@@ -141,7 +141,7 @@ getExprType env x = case x ^. op of
   VAR_FIELD _ -> bitvecRet
   VAR_SPLIT _ -> bitvecRet
   XOR _ -> bitvecRet
-  ZX _ -> intRet -- shouldn't this be uintRet?
+  ZX n -> inheritIntUnary $ n ^. src
   -- _ -> unknown
 
   -- the following were missing from the Clojure implementation
@@ -166,6 +166,12 @@ getExprType env x = case x ^. op of
     isSignedInt :: Type -> Bool
     isSignedInt (TInt n) = n ^. signed
     isSignedInt _ = False
+
+    inheritIntUnary :: Expression -> Maybe Type
+    inheritIntUnary x = do
+      t1 <- getExprType env x
+      bool uintRet intRet $ isSignedInt t1
+
 
     inheritIntRet :: forall x. (HasLeft x Expression, HasRight x Expression) => x -> Maybe Type
     inheritIntRet y = do
