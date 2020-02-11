@@ -1,3 +1,10 @@
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Blaze.Solver.Experiment where
 
 import Blaze.Prelude
@@ -36,6 +43,43 @@ data ExprVal = VInt Int
              | VBool Bool
              deriving (Eq, Ord, Show)
 
+-- data ExprType = TInt
+--               | TWord
+--               | TBool
+--               deriving (Eq, Ord, Show)
+
+-- data Ex :: * where
+--   MkEx :: forall a. a -> Ex
+
+-- type family UnEx (ex :: Ex) :: k
+-- type instance UnEx ('MkEx x) = x
+
+
+
+-- type family F a where
+--   F ('VInt _) = Int
+--   F ('VWord _) = Word64
+--   F ('VBool _) = Bool
+
+-- type family F a where
+--   F 'VInt = Int
+--   F 'VWord = Word64
+--   F 'VBool = Bool
+
+-- bigTime :: ExprVal -> F 'VInt
+-- bigTime = undefined
+
+-- type family F a where
+--   F 'TInt = Int
+--   F 'TWord = Word
+--   F 'TBool = Bool
+
+-- data SingET :: ExprType -> Type where
+--   SInt :: SingET 'TInt
+--   SWord :: SingET 'TWord
+--   SBool :: SingET 'TBool
+
+
 
 getIntegral :: Integral a => ExprVal -> Maybe a
 getIntegral (VInt n) = Just . fromIntegral $ n
@@ -72,13 +116,27 @@ evalExpr (Expression r expr) = case expr of
   _ -> Nothing
 
 
+
 data TExpr a where
   TInt :: Int -> TExpr Int
   TWord :: Word64 -> TExpr Word64
   TBool :: Bool -> TExpr Bool
-  TAnd :: TExpr Bool -> TExpr Bool -> TExpr Bool
-  TEq :: Eq b => TExpr b -> TExpr b -> TExpr Bool
-  TAdd :: (Integral a, Integral b, Integral c) => TExpr b -> TExpr c -> TExpr a
+
+
+data Some f where
+  Some :: forall f a. f a -> Some f
+
+add :: Integral a => TExpr a -> TExpr a -> TExpr a
+add (TInt a) (TInt b) = TInt (a + b)
+
+binOp :: (Integral a => TExpr a -> TExpr a -> TExpr a)
+      -> Some TExpr -> Some TExpr
+      -> Maybe (TExpr a)
+binOp f (Some a) (Some b) = Nothing
+
+-- expr :: Some TExpr -> TExpr 
+-- expr 
+
 
 -- evalTExpr :: TExpr a -> a
 -- evalTExpr (TInt n) = n

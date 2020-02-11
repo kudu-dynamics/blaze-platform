@@ -628,6 +628,9 @@ $(makeFieldsNoPrefix ''StrCmpOp)
 $(makeFieldsNoPrefix ''StrNCmpOp)
 $(makeFieldsNoPrefix ''MemCmpOp)
 $(makeFieldsNoPrefix ''ConstStrOp)
+$(makeFieldsNoPrefix ''EnterContextOp)
+$(makeFieldsNoPrefix ''ExitContextOp)
+
 $(makeFieldsNoPrefix ''TypedExpression)
 $(makeFieldsNoPrefix ''BitVecType)
 $(makeFieldsNoPrefix ''IntType)
@@ -637,6 +640,7 @@ $(makeFieldsNoPrefix ''PtrType)
 $(makeFieldsNoPrefix ''FieldType)
 $(makeFieldsNoPrefix ''StructType)
 $(makeFieldsNoPrefix ''Ctx)
+$(makeFieldsNoPrefix ''SimpleCtx)
 $(makeFieldsNoPrefix ''ConverterCtx)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
@@ -657,3 +661,4 @@ getTypeWidth (TInt x) = Just $ x ^. width
 getTypeWidth (TPtr x) = Just $ x ^. width
 getTypeWidth (TFloat x) = Just $ x ^. width
 getTypeWidth _ = Nothing
+

@@ -96,11 +96,14 @@ library:
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
-  - Blaze.Pil.Path
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
+  - Blaze.Pil.Inference
+  - Blaze.Pil.Path
+  - Blaze.Solver
   - Blaze.Types.Pil
   - Blaze.Types.Graph
+  - Blaze.Types.Solver
   - Blaze.Search
   - Blaze.Function
   - Blaze.Types.Function

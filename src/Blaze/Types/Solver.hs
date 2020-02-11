@@ -54,6 +54,7 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | UnexpectedReturnType'Expected Pil.Type
                  | IntegralConversionError
                  | ArgsAndRetNotTheSameType SymType SymType
+                 | ArgAndRetNotTheSameType SymType
                  | ArgsNotTheSameType
                  | UnrecognizedTypeWidth Int
                  | ExpectedTypeWidth

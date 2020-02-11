@@ -197,3 +197,6 @@ copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
           where f propState stmt = 
                   propState
+
+simplify :: [Stmt] -> [Stmt]
+simplify xs = copyProp . constantProp $ xs

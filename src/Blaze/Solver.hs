@@ -142,25 +142,71 @@ solveExpr expr@(Expression sz xop) = do
       
       todo = error OpNotYetSupported
 
-      binIntegral :: (forall a. SIntegral a => SBV a -> SBV a -> SBV a)
+      binIntegral :: (forall a. (SDivisible (SBV a), SIntegral a) => SBV a -> SBV a -> SBV a)
                   -> SymExpr -> SymExpr -> Solver SymExpr
       binIntegral f a b = do
         bool (error $ ArgsAndRetNotTheSameType (symType a) (symType b)) (return ())
           $ sameType a b && sameType a et
-        let h :: SIntegral c => Solver (SBV c)
+        let h :: (SIntegral c, SDivisible (SBV c)) => Solver (SBV c)
             h = f <$> getIntegral a <*> getIntegral b
-        case et of
-          (Pil.TInt x) -> case (x ^. Pil.signed, x ^. Pil.width) of
-            (False, 1) -> SymWord8 <$> h
-            (False, 2) -> SymWord16 <$> h
-            (False, 4) -> SymWord32 <$> h
-            (False, 8) -> SymWord64 <$> h
-            (True, 1) -> SymInt8 <$> h
-            (True, 2) -> SymInt16 <$> h
-            (True, 4) -> SymInt32 <$> h
-            (True, 8) -> SymInt64 <$> h
-            _ -> error UnexpectedReturnType
+        case a of
+          (SymWord8 _) -> SymWord8 <$> h
+          (SymWord16 _) -> SymWord16 <$> h
+          (SymWord32 _) -> SymWord32 <$> h
+          (SymWord64 _) -> SymWord64 <$> h
+          (SymInt8 _) -> SymInt8 <$> h
+          (SymInt16 _) -> SymInt16 <$> h
+          (SymInt32 _) -> SymInt32 <$> h
+          (SymInt64 _) -> SymInt64 <$> h          
+          _ -> error UnexpectedReturnType
 
+
+      unIntegral :: (forall a. (SDivisible (SBV a), SIntegral a) => SBV a -> SBV a)
+                 -> SymExpr -> Solver SymExpr
+      unIntegral f a = do
+        bool (error $ ArgAndRetNotTheSameType (symType a)) (return ())
+          $ sameType a et
+        let h :: (SIntegral c, SDivisible (SBV c)) => Solver (SBV c)
+            h = f <$> getIntegral a
+        case a of
+          (SymWord8 _) -> SymWord8 <$> h
+          (SymWord16 _) -> SymWord16 <$> h
+          (SymWord32 _) -> SymWord32 <$> h
+          (SymWord64 _) -> SymWord64 <$> h
+          (SymInt8 _) -> SymInt8 <$> h
+          (SymInt16 _) -> SymInt16 <$> h
+          (SymInt32 _) -> SymInt32 <$> h
+          (SymInt64 _) -> SymInt64 <$> h          
+          _ -> error UnexpectedReturnType
+
+      binBiIntegral :: (forall a b. (SDivisible (SBV a), SIntegral a, SDivisible (SBV b), SIntegral b) => SBV a -> SBV b -> SBV a)
+                  -> SymExpr -> SymExpr -> Solver SymExpr
+      binBiIntegral f a b = do
+        bool (error $ ArgAndRetNotTheSameType (symType a)) (return ())
+          $ sameType a et
+        let h :: (SIntegral a, SDivisible (SBV a)) => SBV a -> Solver (SBV a)
+            h m = case b of
+              (SymWord8 n) -> return $ f m n
+              (SymWord16 n) -> return $ f m n
+              (SymWord32 n) -> return $ f m n
+              (SymWord64 n) -> return $ f m n
+              (SymInt8 n) -> return $ f m n
+              (SymInt16 n) -> return $ f m n
+              (SymInt32 n) -> return $ f m n
+              (SymInt64 n) -> return $ f m n
+              _ -> error UnexpectedReturnType
+        case a of
+          (SymWord8 m) -> SymWord8 <$> h m
+          (SymWord16 m) -> SymWord16 <$> h m
+          (SymWord32 m) -> SymWord32 <$> h m
+          (SymWord64 m) -> SymWord64 <$> h m
+          (SymInt8 m) -> SymInt8 <$> h m
+          (SymInt16 m) -> SymInt16 <$> h m
+          (SymInt32 m) -> SymInt32 <$> h m
+          (SymInt64 m) -> SymInt64 <$> h m
+          _ -> error UnexpectedReturnType
+
+  
       binIntegralToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
                         -> SymExpr -> SymExpr -> Solver SymExpr
       binIntegralToBool f a b = do
@@ -232,8 +278,12 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.ADDRESS_OF_FIELD x) -> todo
     (Pil.ADD_OVERFLOW x) -> todo
     (Pil.AND x) -> lr x $ binIntegral (.&.)
-    (Pil.ASR x) -> todo
+
+    -- sShiftRight preserves the sign bit if its arg is signed
+    (Pil.ASR x) -> lr x $ binBiIntegral (sShiftRight)
+    
     (Pil.BOOL_TO_INT x) -> todo
+
     (Pil.CEIL x) -> todo
     
     (Pil.CMP_E x) -> lr x $ binIntegralToBool (.==)
@@ -246,13 +296,15 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.CMP_UGT x) -> lr x $ binUnsignedToBool (.>) 
     (Pil.CMP_ULE x) -> lr x $ binUnsignedToBool (.<=) 
     (Pil.CMP_ULT x) -> lr x $ binUnsignedToBool (.<) 
-    (Pil.CONST x) -> mkConst $ x ^. Pil.constant
 
-    (Pil.CONST_PTR x) -> todo
-    (Pil.DIVS x) -> todo
-    (Pil.DIVS_DP x) -> todo
-    (Pil.DIVU x) -> todo
-    (Pil.DIVU_DP x) -> todo
+    (Pil.CONST x) -> mkConst $ x ^. Pil.constant
+    (Pil.CONST_PTR x) -> mkConst $ x ^. Pil.constant
+
+    (Pil.DIVS x) -> lr x $ binIntegral (sDiv)
+    (Pil.DIVS_DP x) -> lr x $ binIntegral (sDiv)
+    (Pil.DIVU x) -> lr x $ binIntegral (sDiv)
+    (Pil.DIVU_DP x) -> lr x $ binIntegral (sDiv)
+
     (Pil.FABS x) -> todo
     (Pil.FADD x) -> todo
     (Pil.FCMP_E x) -> todo
@@ -273,6 +325,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.FSQRT x) -> todo
     (Pil.FSUB x) -> todo
     (Pil.FTRUNC x) -> todo
+
     (Pil.IMPORT x) -> todo
     (Pil.INT_TO_FLOAT x) -> todo
     (Pil.LOAD x) -> todo
@@ -280,15 +333,15 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.LOAD_STRUCT x) -> todo
     (Pil.LOAD_STRUCT_SSA x) -> todo
     (Pil.LOW_PART x) -> todo
-    (Pil.LSL x) -> todo
-    (Pil.LSR x) -> todo
-    (Pil.MODS x) -> todo
-    (Pil.MODS_DP x) -> todo
-    (Pil.MODU x) -> todo
-    (Pil.MODU_DP x) -> todo
-    (Pil.MUL x) -> todo
-    (Pil.MULS_DP x) -> todo
-    (Pil.MULU_DP x) -> todo
+    (Pil.LSL x) -> lr x $ binBiIntegral (sShiftLeft)
+    (Pil.LSR x) -> lr x $ binBiIntegral (sShiftRight)
+    (Pil.MODS x) -> lr x $ binIntegral (sMod)
+    (Pil.MODS_DP x) -> lr x $ binIntegral (sMod)
+    (Pil.MODU x) -> lr x $ binIntegral (sMod)
+    (Pil.MODU_DP x) -> lr x $ binIntegral (sMod)
+    (Pil.MUL x) -> lr x $ binIntegral (*)
+    (Pil.MULS_DP x) -> lr x $ binIntegral (*)
+    (Pil.MULU_DP x) -> lr x $ binIntegral (*)
     (Pil.NEG x) -> todo
     (Pil.NOT x) -> todo
     (Pil.OR x) -> lr x $ binIntegral (.|.)
