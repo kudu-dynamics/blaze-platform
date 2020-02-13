@@ -139,7 +139,8 @@ literalToSymExpr et n = do
     (4, True) -> return . SymInt32 . SBV.literal . fromIntegral $ n
     (8, True) -> return . SymInt64 . SBV.literal . fromIntegral $ n
     _ -> Nothing
-  
+
+
 -- binOp :: (HasLeft a Expression, HasRight a Expression) => 
 
 -- getExprType :: Solver SymExpr
@@ -156,6 +157,9 @@ solveExpr expr@(Expression sz xop) = do
 
   let error :: SolverError -> Solver a
       error = throwError . ExpressionConversionError expr et
+
+      mapError :: Solver a -> Solver a
+      mapError = flip catchError error
       
       todo = error OpNotYetSupported
 
@@ -403,24 +407,37 @@ solveExpr expr@(Expression sz xop) = do
             (8, True) -> return . SymInt64 . fromSDouble rm $ n
             _ -> error UnexpectedReturnType
 
-    (Pil.FLOOR x) -> todo
-    (Pil.FMUL x) -> todo
-    (Pil.FNEG x) -> todo
-    (Pil.FSQRT x) -> todo
-    (Pil.FSUB x) -> todo
-    (Pil.FTRUNC x) -> todo
+    (Pil.FLOOR x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundTowardNegative)
+    (Pil.FMUL x) -> lr x $ binFloat (fpMul sRoundNearestTiesToAway)
+    (Pil.FNEG x) -> fromSrc x $ unFloat fpNeg
+    (Pil.FSQRT x) -> fromSrc x $ unFloat (fpSqrt sRoundNearestTiesToAway)
+    (Pil.FSUB x) -> lr x $ binFloat (fpSub sRoundNearestTiesToAway)
+    (Pil.FTRUNC x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundTowardZero)
 
     (Pil.IMPORT x) -> mkConst $ x ^. Pil.constant
 
-    (Pil.INT_TO_FLOAT x) -> todo
-      --r <- solveExpr $ x ^. Pil.src
-      
+    (Pil.INT_TO_FLOAT x) -> do
+      r <- solveExpr $ x ^. Pil.src
+      let h :: forall a. IEEEFloatConvertible a => SBV a -> Solver SymExpr
+          h = return . SymFloat . toSDouble sRoundNearestTiesToAway
+      case r of
+        (SymWord8 m) -> h m
+        (SymWord16 m) -> h m
+        (SymWord32 m) -> h m
+        (SymWord64 m) -> h m
+        (SymInt8 m) -> h m
+        (SymInt16 m) -> h m
+        (SymInt32 m) -> h m
+        (SymInt64 m) -> h m
+        _ -> error UnexpectedArgType
 
     (Pil.LOAD x) -> todo
     (Pil.LOAD_SSA x) -> todo
     (Pil.LOAD_STRUCT x) -> todo
     (Pil.LOAD_STRUCT_SSA x) -> todo
-    (Pil.LOW_PART x) -> todo
+
+    (Pil.LOW_PART x) -> mapError . fromSrc x $ Op.handleLowPart et
+
     (Pil.LSL x) -> lr x $ binBiIntegral (sShiftLeft)
     (Pil.LSR x) -> lr x $ binBiIntegral (sShiftRight)
     (Pil.MODS x) -> lr x $ binIntegral (sMod)
@@ -441,7 +458,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.SBB x) -> todo
     (Pil.SUB x) -> todo
     
-    (Pil.SX x) -> fromSrc x $ Op.handleSx et
+    (Pil.SX x) -> mapError . fromSrc x $ Op.handleSx et
     
     (Pil.TEST_BIT x) -> todo
     Pil.UNIMPL -> todo
@@ -461,7 +478,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.VAR_FIELD x) -> todo
     (Pil.XOR x) -> lr x $ binIntegral xor
     
-    (Pil.ZX x) -> fromSrc x $ Op.handleZx et
+    (Pil.ZX x) -> mapError . fromSrc x $ Op.handleZx et
   
     (Pil.CALL x) -> todo
 
