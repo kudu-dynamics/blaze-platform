@@ -662,3 +662,10 @@ getTypeWidth (TPtr x) = Just $ x ^. width
 getTypeWidth (TFloat x) = Just $ x ^. width
 getTypeWidth _ = Nothing
 
+getSignedness :: Type -> Maybe Bool
+getSignedness (TBitVec _) = Just False
+getSignedness (TInt x) = Just $ x ^. signed
+getSignedness (TPtr _) = Just False
+getSignedness (TFloat _) = Just True --floats are always signed?
+getSignedness _ = Nothing
+

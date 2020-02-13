@@ -123,6 +123,23 @@ initVarMap = do
   varMap .= HashMap.fromList vars
   return ()
 
+
+
+literalToSymExpr :: Integral a => Pil.Type -> a -> Maybe SymExpr
+literalToSymExpr et n = do
+  w <- Pil.getTypeWidth et
+  s <- Pil.getSignedness et
+  case (w, s) of
+    (1, False) -> return . SymWord8 . SBV.literal . fromIntegral $ n
+    (2, False) -> return . SymWord16 . SBV.literal . fromIntegral $ n
+    (4, False) -> return . SymWord32 . SBV.literal . fromIntegral $ n
+    (8, False) -> return . SymWord64 . SBV.literal . fromIntegral $ n
+    (1, True) -> return . SymInt8 . SBV.literal . fromIntegral $ n
+    (2, True) -> return . SymInt16 . SBV.literal . fromIntegral $ n
+    (4, True) -> return . SymInt32 . SBV.literal . fromIntegral $ n
+    (8, True) -> return . SymInt64 . SBV.literal . fromIntegral $ n
+    _ -> Nothing
+  
 -- binOp :: (HasLeft a Expression, HasRight a Expression) => 
 
 -- getExprType :: Solver SymExpr
@@ -142,6 +159,25 @@ solveExpr expr@(Expression sz xop) = do
       
       todo = error OpNotYetSupported
 
+      binFloat :: (forall a. IEEEFloating a => SBV a -> SBV a -> SBV a)
+               -> SymExpr -> SymExpr -> Solver SymExpr
+      binFloat f a b = do
+        bool (error $ ArgsAndRetNotTheSameType (symType a) (symType b)) (return ())
+          $ sameType a b && sameType a et
+        case (a, b) of
+          ((SymFloat a'), (SymFloat b')) -> return . SymFloat $ f a' b'
+          _ -> error UnexpectedArgType
+
+      unFloat :: (forall a. IEEEFloating a => SBV a -> SBV a)
+              -> SymExpr -> Solver SymExpr
+      unFloat f a = do
+        bool (error $ ArgAndRetNotTheSameType (symType a)) (return ())
+          $ sameType a et
+        case a of
+          (SymFloat a') -> return . SymFloat $ f a'
+          _ -> error UnexpectedArgType
+
+  
       binIntegral :: (forall a. (SDivisible (SBV a), SIntegral a) => SBV a -> SBV a -> SBV a)
                   -> SymExpr -> SymExpr -> Solver SymExpr
       binIntegral f a b = do
@@ -253,6 +289,11 @@ solveExpr expr@(Expression sz xop) = do
         Pil.TBool -> return . SymBool $ f a b
         _ -> error $ UnexpectedReturnType'Expected Pil.TBool
       binBool _ _ _ = error UnexpectedArgType
+
+      fromSrc :: (Pil.HasSrc x Expression)
+              => x -> (SymExpr -> Solver SymExpr)
+              -> Solver SymExpr
+      fromSrc x f = solveExpr (x ^. Pil.src) >>= f
   
       lr :: (HasLeft x Expression, HasRight x Expression)
          => x -> (SymExpr -> SymExpr -> Solver SymExpr)
@@ -263,28 +304,49 @@ solveExpr expr@(Expression sz xop) = do
         f a b
 
       mkConst :: Int64 -> Solver SymExpr
-      mkConst n = do
-        case Pil.getTypeWidth et of
-          (Just 1) -> return . SymWord8 . SBV.literal . fromIntegral $ n
-          (Just 2) -> return . SymWord16 . SBV.literal . fromIntegral $ n
-          (Just 4) -> return . SymWord32 . SBV.literal . fromIntegral $ n
-          (Just 8) -> return . SymWord64 . SBV.literal . fromIntegral $ n
-          _ -> error UnexpectedArgType
-      
+      mkConst n = maybe (error UnexpectedArgType) return $ literalToSymExpr et n
+
+      mkFloatConst :: Double -> Solver SymExpr
+      mkFloatConst = return . SymFloat . SBV.literal
+
   case xop of
-    (Pil.ADC x) -> todo
+    -- asumes left, right, and carry are all the same type.
+    (Pil.ADC x) -> do
+      r <- lr x $ binIntegral (+)
+      c <- solveExpr (x ^. Pil.carry)
+      binIntegral (+) r c
+
     (Pil.ADD x) -> lr x $ binIntegral (+)
+
     (Pil.ADDRESS_OF x) -> todo
     (Pil.ADDRESS_OF_FIELD x) -> todo
+
     (Pil.ADD_OVERFLOW x) -> todo
     (Pil.AND x) -> lr x $ binIntegral (.&.)
 
     -- sShiftRight preserves the sign bit if its arg is signed
     (Pil.ASR x) -> lr x $ binBiIntegral (sShiftRight)
-    
-    (Pil.BOOL_TO_INT x) -> todo
 
-    (Pil.CEIL x) -> todo
+    -- is x really an SBool type?
+    (Pil.BOOL_TO_INT x) -> case (literalToSymExpr et 0, literalToSymExpr et 1) of
+      (Just sf, Just st) -> do
+        solveExpr (x ^. Pil.src) >>= \case
+          (SymBool b) -> case (sf, st) of
+            ((SymWord8 f), (SymWord8 t)) -> return . SymWord8 $ SBV.ite b t f
+            ((SymWord16 f), (SymWord16 t)) -> return . SymWord16 $ SBV.ite b t f
+            ((SymWord32 f), (SymWord32 t)) -> return . SymWord32 $ SBV.ite b t f
+            ((SymWord64 f), (SymWord64 t)) -> return . SymWord64 $ SBV.ite b t f
+            ((SymInt8 f), (SymInt8 t)) -> return . SymInt8 $ SBV.ite b t f
+            ((SymInt16 f), (SymInt16 t)) -> return . SymInt16 $ SBV.ite b t f
+            ((SymInt32 f), (SymInt32 t)) -> return . SymInt32 $ SBV.ite b t f
+            ((SymInt64 f), (SymInt64 t)) -> return . SymInt64 $ SBV.ite b t f
+            _ -> error UnexpectedArgType
+          _ -> error UnexpectedArgType
+      _ -> error UnexpectedArgType
+
+
+    -- floats
+    (Pil.CEIL x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundTowardPositive)
     
     (Pil.CMP_E x) -> lr x $ binIntegralToBool (.==)
     (Pil.CMP_NE x) -> lr x $ binIntegralToBool (./=)
@@ -305,8 +367,9 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.DIVU x) -> lr x $ binIntegral (sDiv)
     (Pil.DIVU_DP x) -> lr x $ binIntegral (sDiv)
 
-    (Pil.FABS x) -> todo
-    (Pil.FADD x) -> todo
+    -- note: all floats are Doubles for now, regardless of binja type
+    (Pil.FABS x) -> fromSrc x $ unFloat fpAbs
+    (Pil.FADD x) -> lr x $ binFloat (fpAdd sRoundNearestTiesToAway)
     (Pil.FCMP_E x) -> todo
     (Pil.FCMP_GE x) -> todo
     (Pil.FCMP_GT x) -> todo
@@ -315,10 +378,31 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.FCMP_NE x) -> todo
     (Pil.FCMP_O x) -> todo
     (Pil.FCMP_UO x) -> todo
-    (Pil.FDIV x) -> todo
-    (Pil.FLOAT_CONST x) -> todo
-    (Pil.FLOAT_CONV x) -> todo
-    (Pil.FLOAT_TO_INT x) -> todo
+    (Pil.FDIV x) -> lr x $ binFloat (fpDiv sRoundNearestTiesToAway)
+    (Pil.FLOAT_CONST x) -> mkFloatConst $ x ^. Pil.constant
+    
+    (Pil.FLOAT_CONV x) -> solveExpr (x ^. Pil.src) >>= \case
+      (SymWord32 w) -> return . SymFloat . toSDouble sRoundNearestTiesToAway $ sWord32AsSFloat w
+      (SymWord64 w) -> return . SymFloat $ sWord64AsSDouble w
+      _ -> error UnexpectedArgType
+
+    (Pil.FLOAT_TO_INT x) -> do
+      m <- solveExpr (x ^. Pil.src)
+      case m of
+        (SymFloat n) -> do
+          let rm = sRoundNearestTiesToAway
+          (w, s) <- maybe (error UnexpectedArgType) return $ (,) <$> Pil.getTypeWidth et <*> Pil.getSignedness et
+          case (w, s) of
+            (1, False) -> return . SymWord8 . fromSDouble rm $ n
+            (2, False) -> return . SymWord16 . fromSDouble rm $ n
+            (4, False) -> return . SymWord32 . fromSDouble rm $ n
+            (8, False) -> return . SymWord64 . fromSDouble rm $ n
+            (1, True) -> return . SymInt8 . fromSDouble rm $ n
+            (2, True) -> return . SymInt16 . fromSDouble rm $ n
+            (4, True) -> return . SymInt32 . fromSDouble rm $ n
+            (8, True) -> return . SymInt64 . fromSDouble rm $ n
+            _ -> error UnexpectedReturnType
+
     (Pil.FLOOR x) -> todo
     (Pil.FMUL x) -> todo
     (Pil.FNEG x) -> todo
@@ -326,8 +410,12 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.FSUB x) -> todo
     (Pil.FTRUNC x) -> todo
 
-    (Pil.IMPORT x) -> todo
+    (Pil.IMPORT x) -> mkConst $ x ^. Pil.constant
+
     (Pil.INT_TO_FLOAT x) -> todo
+      --r <- solveExpr $ x ^. Pil.src
+      
+
     (Pil.LOAD x) -> todo
     (Pil.LOAD_SSA x) -> todo
     (Pil.LOAD_STRUCT x) -> todo
@@ -353,7 +441,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.SBB x) -> todo
     (Pil.SUB x) -> todo
     
-    (Pil.SX x) -> Op.handleSx et =<< solveExpr (x ^. Pil.src)
+    (Pil.SX x) -> fromSrc x $ Op.handleSx et
     
     (Pil.TEST_BIT x) -> todo
     Pil.UNIMPL -> todo
@@ -373,7 +461,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.VAR_FIELD x) -> todo
     (Pil.XOR x) -> lr x $ binIntegral xor
     
-    (Pil.ZX x) -> Op.handleZx et =<< solveExpr (x ^. Pil.src)
+    (Pil.ZX x) -> fromSrc x $ Op.handleZx et
   
     (Pil.CALL x) -> todo
 

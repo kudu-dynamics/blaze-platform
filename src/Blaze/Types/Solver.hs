@@ -81,7 +81,7 @@ data SymExpr = SymBool SBool
              | SymInt16 SInt16
              | SymInt32 SInt32
              | SymInt64 SInt64
-             | SymFloat SFloat
+             | SymFloat SDouble
              -- SymArray (SArray)
              | SymString SString
              deriving (Eq, Show)
