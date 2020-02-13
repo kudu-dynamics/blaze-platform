@@ -13,6 +13,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
 import qualified Data.SBV.Trans as SBV
 import qualified Data.SBV.Trans.Control as SBV
+import Data.SBV.List as SList
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
 import Data.SBV (SWord, SInt, fromSized, toSized, FromSized, ToSized)
@@ -136,3 +137,17 @@ atLeastOneIsNaN a b = fpIsNaN a .|| fpIsNaN b
 
 neitherIsNaN :: IEEEFloating a => SBV a -> SBV a -> SBool
 neitherIsNaN a b = sNot $ atLeastOneIsNaN a b
+
+integralNeg :: SIntegral a => SBV a -> SBV a
+integralNeg x = x * (-1)
+
+
+testSBit :: (SFiniteBits a, SIntegral b) => SBV a -> SBV b -> SBool
+testSBit n bitIndex =
+  (ix .< SList.length bits) .&& SList.elemAt bits ix
+  where
+    ix :: SInteger
+    ix = sFromIntegral bitIndex
+
+    bits :: SList Bool
+    bits = SList.implode $ blastLE n

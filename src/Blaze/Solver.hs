@@ -28,6 +28,7 @@ import Data.SBV.Dynamic (SVal)
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.Trans (Symbolic)
 import Data.SBV.String as SS
+import Data.SBV.List as SList
 import qualified Data.SBV.Trans.Control as SBV
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
@@ -123,6 +124,9 @@ initVarMap = do
   varMap .= HashMap.fromList vars
   return ()
 
+
+-- testSBit :: (SFiniteBits a, SIntegral b) => SBV a -> SBV b -> Solver SBool
+-- testSBit x bit = 
 
 
 literalToSymExpr :: Integral a => Pil.Type -> a -> Maybe SymExpr
@@ -254,6 +258,32 @@ solveExpr expr@(Expression sz xop) = do
           (SymInt16 m) -> SymInt16 <$> h m
           (SymInt32 m) -> SymInt32 <$> h m
           (SymInt64 m) -> SymInt64 <$> h m
+          _ -> error UnexpectedReturnType
+
+      binBiIntegralToBool :: (forall a b. (SFiniteBits a, SDivisible (SBV a), SIntegral a, SDivisible (SBV b), SIntegral b) => SBV a -> SBV b -> SBool)
+                  -> SymExpr -> SymExpr -> Solver SymExpr
+      binBiIntegralToBool f a b = do
+        let h :: (SDivisible (SBV a), SFiniteBits a, SIntegral a)
+              => SBV a -> Solver SBool
+            h m = case b of
+              (SymWord8 n) -> return $ f m n
+              (SymWord16 n) -> return $ f m n
+              (SymWord32 n) -> return $ f m n
+              (SymWord64 n) -> return $ f m n
+              (SymInt8 n) -> return $ f m n
+              (SymInt16 n) -> return $ f m n
+              (SymInt32 n) -> return $ f m n
+              (SymInt64 n) -> return $ f m n
+              _ -> error UnexpectedReturnType
+        case a of
+          (SymWord8 m) -> SymBool <$> h m
+          (SymWord16 m) -> SymBool <$> h m
+          (SymWord32 m) -> SymBool <$> h m
+          (SymWord64 m) -> SymBool <$> h m
+          (SymInt8 m) -> SymBool <$> h m
+          (SymInt16 m) -> SymBool <$> h m
+          (SymInt32 m) -> SymBool <$> h m
+          (SymInt64 m) -> SymBool <$> h m
           _ -> error UnexpectedReturnType
 
   
@@ -457,20 +487,30 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.MUL x) -> lr x $ binIntegral (*)
     (Pil.MULS_DP x) -> lr x $ binIntegral (*)
     (Pil.MULU_DP x) -> lr x $ binIntegral (*)
-    (Pil.NEG x) -> todo
-    (Pil.NOT x) -> todo
+
+    -- this will still 'negate` unsigned by adding the sign bit
+    -- maybe it should throw an error instead?
+    (Pil.NEG x) -> fromSrc x $ unIntegral Op.integralNeg
+
+    (Pil.NOT x) -> fromSrc x $ unIntegral complement
     (Pil.OR x) -> lr x $ binIntegral (.|.)
     (Pil.RLC x) -> todo
-    (Pil.ROL x) -> todo
-    (Pil.ROR x) -> todo
-    (Pil.ROUND_TO_INT x) -> todo
+    (Pil.ROL x) -> lr x $ binBiIntegral (sRotateLeft)
+    (Pil.ROR x) -> lr x $ binBiIntegral (sRotateRight)
+    (Pil.ROUND_TO_INT x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundNearestTiesToAway)
     (Pil.RRC x) -> todo
-    (Pil.SBB x) -> todo
-    (Pil.SUB x) -> todo
+    (Pil.SBB x) -> do
+      a <- solveExpr (x ^. Pil.left)
+      b <- solveExpr (x ^. Pil.right)
+      cf <- solveExpr (x ^. Pil.carry)
+      c <- binIntegral (+) b cf
+      binIntegral subtract a c
+
+    (Pil.SUB x) -> lr x $ binIntegral subtract
     
     (Pil.SX x) -> mapError . fromSrc x $ Op.handleSx et
     
-    (Pil.TEST_BIT x) -> todo
+    (Pil.TEST_BIT x) -> lr x $ binBiIntegralToBool Op.testSBit
     Pil.UNIMPL -> todo
   --  (Pil.VAR (VarOp x) -> todo
     (Pil.VAR_ALIASED x) -> todo
