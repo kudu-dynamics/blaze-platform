@@ -129,3 +129,10 @@ handleLowPart et x = case Pil.getTypeWidth et of
 
   (Just n) -> throwError $ UnrecognizedTypeWidth n
   Nothing -> throwError ExpectedTypeWidth
+
+
+atLeastOneIsNaN :: IEEEFloating a => SBV a -> SBV a -> SBool
+atLeastOneIsNaN a b = fpIsNaN a .|| fpIsNaN b
+
+neitherIsNaN :: IEEEFloating a => SBV a -> SBV a -> SBool
+neitherIsNaN a b = sNot $ atLeastOneIsNaN a b

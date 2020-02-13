@@ -163,6 +163,16 @@ solveExpr expr@(Expression sz xop) = do
       
       todo = error OpNotYetSupported
 
+      binFloatBool :: (forall a. IEEEFloating a => SBV a -> SBV a -> SBool)
+               -> SymExpr -> SymExpr -> Solver SymExpr
+      binFloatBool f a b = do
+        bool (error $ ArgsAndRetNotTheSameType (symType a) (symType b)) (return ())
+          $ sameType a b
+        case (a, b) of
+          ((SymFloat a'), (SymFloat b')) -> return . SymBool $ f a' b'
+          _ -> error UnexpectedArgType
+
+  
       binFloat :: (forall a. IEEEFloating a => SBV a -> SBV a -> SBV a)
                -> SymExpr -> SymExpr -> Solver SymExpr
       binFloat f a b = do
@@ -374,14 +384,14 @@ solveExpr expr@(Expression sz xop) = do
     -- note: all floats are Doubles for now, regardless of binja type
     (Pil.FABS x) -> fromSrc x $ unFloat fpAbs
     (Pil.FADD x) -> lr x $ binFloat (fpAdd sRoundNearestTiesToAway)
-    (Pil.FCMP_E x) -> todo
-    (Pil.FCMP_GE x) -> todo
-    (Pil.FCMP_GT x) -> todo
-    (Pil.FCMP_LE x) -> todo
-    (Pil.FCMP_LT x) -> todo
-    (Pil.FCMP_NE x) -> todo
-    (Pil.FCMP_O x) -> todo
-    (Pil.FCMP_UO x) -> todo
+    (Pil.FCMP_E x) -> lr x $ binFloatBool (.==)
+    (Pil.FCMP_GE x) -> lr x $ binFloatBool (.>=)
+    (Pil.FCMP_GT x) -> lr x $ binFloatBool (.>)
+    (Pil.FCMP_LE x) -> lr x $ binFloatBool (.<=)
+    (Pil.FCMP_LT x) -> lr x $ binFloatBool (.<)
+    (Pil.FCMP_NE x) -> lr x $ binFloatBool (./=)
+    (Pil.FCMP_O x) -> lr x $ binFloatBool Op.neitherIsNaN
+    (Pil.FCMP_UO x) -> lr x $ binFloatBool Op.atLeastOneIsNaN
     (Pil.FDIV x) -> lr x $ binFloat (fpDiv sRoundNearestTiesToAway)
     (Pil.FLOAT_CONST x) -> mkFloatConst $ x ^. Pil.constant
     
@@ -406,7 +416,7 @@ solveExpr expr@(Expression sz xop) = do
             (4, True) -> return . SymInt32 . fromSDouble rm $ n
             (8, True) -> return . SymInt64 . fromSDouble rm $ n
             _ -> error UnexpectedReturnType
-
+        _ -> error UnexpectedArgType
     (Pil.FLOOR x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundTowardNegative)
     (Pil.FMUL x) -> lr x $ binFloat (fpMul sRoundNearestTiesToAway)
     (Pil.FNEG x) -> fromSrc x $ unFloat fpNeg
