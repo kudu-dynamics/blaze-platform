@@ -536,23 +536,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.StrNCmp x) -> todo
     (Pil.MemCmp x) -> todo
     (Pil.ConstStr x) -> todo
-    _ -> todo
 
-
-getIntegral :: forall a. (SIntegral a) => SymExpr -> Solver (SBV a)
-getIntegral = \case
-  (SymWord8 x) -> r x
-  (SymWord16 x) -> r x
-  (SymWord32 x) -> r x
-  (SymWord64 x) -> r x
-  (SymInt8 x) -> r x
-  (SymInt16 x) -> r x
-  (SymInt32 x) -> r x
-  (SymInt64 x) -> r x
-  _ -> throwError IntegralConversionError
-  where
-    r :: forall m n. (SIntegral m, SIntegral n) => SBV m -> Solver (SBV n)
-    r x = return . sFromIntegral $ x
 
 
 solveStmt :: Stmt -> Solver ()

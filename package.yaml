@@ -42,7 +42,7 @@ dependencies:
   - random
   - raw-strings-qq
   - recursion-schemes
-  - sbv >= 8.5
+  - sbv >= 8.6
   - stm
   - streamly
   - string-conversions

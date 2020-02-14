@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 module Blaze.Solver.Op where
 
@@ -17,6 +19,8 @@ import Data.SBV.List as SList
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
 import Data.SBV (SWord, SInt, fromSized, toSized, FromSized, ToSized)
+import GHC.TypeNats
+import Unsafe.Coerce (unsafeCoerce)
 
 add :: (SIntegral a) => SBV a -> SBV a -> SBV a
 add a b = a + b
@@ -151,3 +155,76 @@ testSBit n bitIndex =
 
     bits :: SList Bool
     bits = SList.implode $ blastLE n
+
+rotateRightWithCarry :: forall a b c bv.
+                        ( IsNonZero a
+                        , IsNonZero (a + 1)
+                        , KnownNat a
+                        , KnownNat (a + 1)
+                        , SymVal (bv a)
+                        , SIntegral (bv (a + 1))
+                        , (a <=? (a + 1)) ~ 'True
+                        , SFiniteBits (bv 1)
+                        , SIntegral b, SFiniteBits c)
+                     => SBV (bv a) -> SBV b -> SBV c
+                     -> SBV (bv a)
+rotateRightWithCarry n rot carry = 
+  bvTake (Proxy @a) $ sRotateRight (n # carryBit) rot
+  where
+    carryBit :: SBV (bv 1)
+    carryBit = fromBitsLE [lsb carry]
+
+--     nWithCarry = toSized n # carryBit
+
+-- data RotType = WordRot SWord64
+--              | IntRot SInt64
+
+-- rotateRightWithCarry :: Pil.Type -> SymExpr -> SymExpr -> SymExpr
+--                      -> Solver SymExpr
+-- rotateRightWithCarry et n rot carry = do
+--   bool (throwError $ ArgAndRetNotTheSameType (symType n)) (return ())
+--     $ sameType n et
+--   -- all we care about is the lsb, so we can just convert carry to a word8
+--   carryBool <- lsb <$> (getIntegral carry :: Solver SWord8)
+--   let carryWord1 :: SWord 1
+--       carryWord1 = fromBitsLE [carryBool]
+
+--       carryInt1 :: SInt 1
+--       carryInt1 = fromBitsLE [carryBool]
+--   rotType <- case rot of
+--     (SymWord8 x) -> return . WordRot $ sFromIntegral x
+--     (SymWord16 x) -> return . WordRot $ sFromIntegral x
+--     (SymWord32 x) -> return . WordRot $ sFromIntegral x
+--     (SymWord64 x) -> return . WordRot $ x
+--     (SymInt8 x) -> return . IntRot $ sFromIntegral x
+--     (SymInt16 x) -> return . IntRot $ sFromIntegral x
+--     (SymInt32 x) -> return . IntRot $ sFromIntegral x
+--     (SymInt64 x) -> return . IntRot $ x
+--     _ -> throwError UnexpectedArgType
+
+--   -- todo -- reduce boilerplate
+--   case n of
+--     (SymWord8 x) -> case rotType of
+--       (WordRot r) -> return . SymWord8 . fromSized
+--         $ bvTake (Proxy @8) $ sRotateRight (toSized x # carryWord1) r
+      -- (IntRot r) -> return . SymWord8 . fromSized
+      --   $ bvTake (Proxy @8) $ sRotateRight (toSized x # carryWord1) r
+--     (SymWord16 x) -> case rotType of
+--       (WordRot r) -> return . SymWord16 . fromSized
+--         $ bvTake (Proxy @16) $ sRotateRight (toSized x # carryWord1) r
+--       (IntRot r) -> return . SymWord16 . fromSized
+--         $ bvTake (Proxy @16) $ sRotateRight (toSized x # carryWord1) r
+--     -- (SymWord32 x) -> return . WordRot $ sFromIntegral x
+--     -- (SymWord64 x) -> return . WordRot $ sFromIntegral x
+--     -- (SymInt8 x) -> return . IntRot $ sFromIntegral x
+--     -- (SymInt16 x) -> return . IntRot $ sFromIntegral x
+--     -- (SymInt32 x) -> return . IntRot $ sFromIntegral x
+--     -- (SymInt64 x) -> return . IntRot $ sFromIntegral x
+    
+--   undefined
+-- --   -- where
+-- --   --   carryBit :: SWord 1
+-- --   --   carryBit = fromBitsLE [lsb carry]
+
+-- --   --   nWithCarry = toSized n # carryBit
+
