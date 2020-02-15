@@ -22,6 +22,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
 import qualified Data.SBV.Dynamic as D
 import Data.SBV (SWord, SInt, fromSized, toSized, FromSized, ToSized)
+import Data.SBV.Tools.Overflow (ArithOverflow, bvAddO)
 --import qualified Data.SBV as SBV (fromSized, toSized)
 import Data.SBV.Internals (SBV(SBV, unSBV))
 import Data.SBV.Dynamic (SVal)
@@ -156,6 +157,7 @@ literalToSymExpr et n = do
 solveExpr :: Expression -> Solver SymExpr
 solveExpr expr@(Expression sz xop) = do
   tenv <- typeEnv <$> ask
+  -- et = expected type
   et <- maybe (throwError $ UknownExpectedType expr) return
         $ Inference.getExprType tenv expr
 
@@ -287,10 +289,11 @@ solveExpr expr@(Expression sz xop) = do
           _ -> error UnexpectedReturnType
 
   
-      binIntegralToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
+      binIntegralToBool :: (forall a. (ArithOverflow (SBV a), SIntegral a) => SBV a -> SBV a -> SBool)
                         -> SymExpr -> SymExpr -> Solver SymExpr
       binIntegralToBool f a b = do
-        let h :: forall a . SIntegral a => SBV a -> SBV a -> Solver SymExpr
+        let h :: forall a . (ArithOverflow (SBV a), SIntegral a)
+              => SBV a -> SBV a -> Solver SymExpr
             h x y = return . SymBool $ f x y
         case (a, b) of
           ((SymWord8 x), (SymWord8 y)) -> h x y
@@ -338,7 +341,7 @@ solveExpr expr@(Expression sz xop) = do
               => x -> (SymExpr -> Solver SymExpr)
               -> Solver SymExpr
       fromSrc x f = solveExpr (x ^. Pil.src) >>= f
-  
+
       lr :: (HasLeft x Expression, HasRight x Expression)
          => x -> (SymExpr -> SymExpr -> Solver SymExpr)
          -> Solver SymExpr
@@ -346,6 +349,17 @@ solveExpr expr@(Expression sz xop) = do
         a <- solveExpr (x ^. Pil.left)
         b <- solveExpr (x ^. Pil.right)
         f a b
+  
+      lrc :: ( HasLeft x Expression
+             , HasRight x Expression
+             , Pil.HasCarry x Expression)
+          => x -> (SymExpr -> SymExpr -> SymExpr -> Solver SymExpr)
+          -> Solver SymExpr
+      lrc x f = do
+        a <- solveExpr (x ^. Pil.left)
+        b <- solveExpr (x ^. Pil.right)
+        c <- solveExpr (x ^. Pil.carry)
+        f a b c
 
       mkConst :: Int64 -> Solver SymExpr
       mkConst n = maybe (error UnexpectedArgType) return $ literalToSymExpr et n
@@ -353,6 +367,10 @@ solveExpr expr@(Expression sz xop) = do
       mkFloatConst :: Double -> Solver SymExpr
       mkFloatConst = return . SymFloat . SBV.literal
 
+      lookupPilVar :: PilVar -> Solver SymExpr
+      lookupPilVar pv = use varMap
+        >>= maybe (error CannotFindPilVarInVarMap) return . HashMap.lookup pv
+ 
   case xop of
     -- asumes left, right, and carry are all the same type.
     (Pil.ADC x) -> do
@@ -365,7 +383,9 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.ADDRESS_OF x) -> todo
     (Pil.ADDRESS_OF_FIELD x) -> todo
 
-    (Pil.ADD_OVERFLOW x) -> todo
+    (Pil.ADD_OVERFLOW x) ->
+      lr x $ binIntegralToBool (\a b -> uncurry (.||) $ bvAddO a b)
+          
     (Pil.AND x) -> lr x $ binIntegral (.&.)
 
     -- sShiftRight preserves the sign bit if its arg is signed
@@ -494,11 +514,11 @@ solveExpr expr@(Expression sz xop) = do
 
     (Pil.NOT x) -> fromSrc x $ unIntegral complement
     (Pil.OR x) -> lr x $ binIntegral (.|.)
-    (Pil.RLC x) -> todo
+    (Pil.RLC x) -> lrc x $ Op.handleRLC et
     (Pil.ROL x) -> lr x $ binBiIntegral (sRotateLeft)
     (Pil.ROR x) -> lr x $ binBiIntegral (sRotateRight)
     (Pil.ROUND_TO_INT x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundNearestTiesToAway)
-    (Pil.RRC x) -> todo
+    (Pil.RRC x) -> lrc x $ Op.handleRRC et
     (Pil.SBB x) -> do
       a <- solveExpr (x ^. Pil.left)
       b <- solveExpr (x ^. Pil.right)
@@ -518,14 +538,14 @@ solveExpr expr@(Expression sz xop) = do
   --  (Pil.VAR_FIELD (VarFieldOp x) -> todo
     (Pil.VAR_PHI x) -> todo
   --  (Pil.VAR_SPLIT (VarSplitOp x) -> todo
-    (Pil.VAR_SPLIT x) -> todo
-    (Pil.VAR x) -> do
-      vm <- use varMap
-      case HashMap.lookup (x ^. Pil.src) vm of
-        Nothing -> error CannotFindPilVarInVarMap
-        Just v -> bool (error UnexpectedArgType) (return v) $ sameType v et
+    (Pil.VAR_SPLIT x) -> mapError $ Op.handleVarSplit et (x ^. Pil.high) (x ^. Pil.low)
 
-    (Pil.VAR_FIELD x) -> todo
+    (Pil.VAR x) -> do
+      v <- lookupPilVar (x ^. Pil.src) 
+      bool (error UnexpectedArgType) (return v) $ sameType v et
+
+    (Pil.VAR_FIELD x) -> lookupPilVar (x ^. Pil.src) >>= Op.extract et (x ^. Pil.offset)
+      
     (Pil.XOR x) -> lr x $ binIntegral xor
     
     (Pil.ZX x) -> mapError . fromSrc x $ Op.handleZx et

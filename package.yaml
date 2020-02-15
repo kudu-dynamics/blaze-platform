@@ -32,6 +32,7 @@ dependencies:
   - containers
   - data-binary-ieee754
   - envy
+#  - ghc-typelits-natnormalise
   - lens
   - list-t
   - mtl

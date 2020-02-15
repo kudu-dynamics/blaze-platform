@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+-- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
@@ -156,6 +158,27 @@ testSBit n bitIndex =
     bits :: SList Bool
     bits = SList.implode $ blastLE n
 
+rotateLeftWithCarry :: forall a b c bv.
+                        ( IsNonZero a
+                        , IsNonZero (1 + a)
+                        , KnownNat a
+                        , KnownNat (1 + a)
+                        , SymVal (bv a)
+                        , SIntegral (bv (1 + a))
+                        , (2 <=? (1 + a)) ~ 'True
+                        , (((1 + a) - (1 + a)) <=? 0) ~ 'True
+                        , IsNonZero (1 + a)
+                        , IsNonZero ((1 + a) - 1)
+                        , SFiniteBits (bv 1)
+                        , SIntegral b, SFiniteBits c)
+                     => SBV (bv a) -> SBV b -> SBV c
+                     -> SBV (bv a)
+rotateLeftWithCarry n rot carry = 
+  bvDrop (Proxy @1) $ sRotateLeft (carryBit # n) rot
+  where
+    carryBit :: SBV (bv 1)
+    carryBit = fromBitsLE [lsb carry]
+
 rotateRightWithCarry :: forall a b c bv.
                         ( IsNonZero a
                         , IsNonZero (a + 1)
@@ -173,58 +196,128 @@ rotateRightWithCarry n rot carry =
   where
     carryBit :: SBV (bv 1)
     carryBit = fromBitsLE [lsb carry]
+  
 
---     nWithCarry = toSized n # carryBit
+handleRRC :: Pil.Type -> SymExpr -> SymExpr -> SymExpr
+          -> Solver SymExpr
+handleRRC et n rot' carry' = do
+  bool (throwError $ ArgAndRetNotTheSameType (symType n)) (return ())
+    $ sameType n et
+  -- all we care about is the lsb, so we can just convert carry to a word8
+  carry <- getIntegral carry' :: Solver SWord8
+  rot <- getIntegral rot' :: Solver SWord64
 
--- data RotType = WordRot SWord64
---              | IntRot SInt64
+  -- todo -- reduce boilerplate
+  case n of
+    (SymWord8 x) -> return . SymWord8 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymWord16 x) -> return . SymWord16 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymWord32 x) -> return . SymWord32 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymWord64 x) -> return . SymWord64 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymInt8 x) -> return . SymInt8 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymInt16 x) -> return . SymInt16 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymInt32 x) -> return . SymInt32 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymInt64 x) -> return . SymInt64 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    _ -> throwError UnexpectedArgType
 
--- rotateRightWithCarry :: Pil.Type -> SymExpr -> SymExpr -> SymExpr
---                      -> Solver SymExpr
--- rotateRightWithCarry et n rot carry = do
---   bool (throwError $ ArgAndRetNotTheSameType (symType n)) (return ())
---     $ sameType n et
---   -- all we care about is the lsb, so we can just convert carry to a word8
---   carryBool <- lsb <$> (getIntegral carry :: Solver SWord8)
---   let carryWord1 :: SWord 1
---       carryWord1 = fromBitsLE [carryBool]
 
---       carryInt1 :: SInt 1
---       carryInt1 = fromBitsLE [carryBool]
---   rotType <- case rot of
---     (SymWord8 x) -> return . WordRot $ sFromIntegral x
---     (SymWord16 x) -> return . WordRot $ sFromIntegral x
---     (SymWord32 x) -> return . WordRot $ sFromIntegral x
---     (SymWord64 x) -> return . WordRot $ x
---     (SymInt8 x) -> return . IntRot $ sFromIntegral x
---     (SymInt16 x) -> return . IntRot $ sFromIntegral x
---     (SymInt32 x) -> return . IntRot $ sFromIntegral x
---     (SymInt64 x) -> return . IntRot $ x
---     _ -> throwError UnexpectedArgType
+handleRLC :: Pil.Type -> SymExpr -> SymExpr -> SymExpr
+          -> Solver SymExpr
+handleRLC et n rot' carry' = do
+  bool (throwError $ ArgAndRetNotTheSameType (symType n)) (return ())
+    $ sameType n et
+  -- all we care about is the lsb, so we can just convert carry to a word8
+  carry <- getIntegral carry' :: Solver SWord8
+  rot <- getIntegral rot' :: Solver SWord64
 
---   -- todo -- reduce boilerplate
---   case n of
---     (SymWord8 x) -> case rotType of
---       (WordRot r) -> return . SymWord8 . fromSized
---         $ bvTake (Proxy @8) $ sRotateRight (toSized x # carryWord1) r
-      -- (IntRot r) -> return . SymWord8 . fromSized
-      --   $ bvTake (Proxy @8) $ sRotateRight (toSized x # carryWord1) r
---     (SymWord16 x) -> case rotType of
---       (WordRot r) -> return . SymWord16 . fromSized
---         $ bvTake (Proxy @16) $ sRotateRight (toSized x # carryWord1) r
---       (IntRot r) -> return . SymWord16 . fromSized
---         $ bvTake (Proxy @16) $ sRotateRight (toSized x # carryWord1) r
---     -- (SymWord32 x) -> return . WordRot $ sFromIntegral x
---     -- (SymWord64 x) -> return . WordRot $ sFromIntegral x
---     -- (SymInt8 x) -> return . IntRot $ sFromIntegral x
---     -- (SymInt16 x) -> return . IntRot $ sFromIntegral x
---     -- (SymInt32 x) -> return . IntRot $ sFromIntegral x
---     -- (SymInt64 x) -> return . IntRot $ sFromIntegral x
-    
---   undefined
--- --   -- where
--- --   --   carryBit :: SWord 1
--- --   --   carryBit = fromBitsLE [lsb carry]
+  case n of
+    (SymWord8 x) -> return . SymWord8 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymWord16 x) -> return . SymWord16 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymWord32 x) -> return . SymWord32 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymWord64 x) -> return . SymWord64 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymInt8 x) -> return . SymInt8 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymInt16 x) -> return . SymInt16 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymInt32 x) -> return . SymInt32 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymInt64 x) -> return . SymInt64 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    _ -> throwError UnexpectedArgType
 
--- --   --   nWithCarry = toSized n # carryBit
+
+handleVarSplit :: Pil.Type -> PilVar -> PilVar -> Solver SymExpr
+handleVarSplit et pvHigh pvLow = do
+  vm <- use varMap
+  (a, b) <- maybe (throwError CannotFindPilVarInVarMap) return $ do
+    (,) <$> HashMap.lookup pvHigh vm <*> HashMap.lookup pvLow vm
+  (signedness, twidth) <- maybe (throwError UnexpectedReturnType) return
+    $ (,) <$> Pil.getSignedness et <*> Pil.getTypeWidth et
+  case (signedness, twidth) of
+    (True, 16) -> case (a, b) of
+      (SymInt8 x, SymInt8 y) -> return . SymInt16 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+    (False, 16) -> case (a, b) of
+      (SymWord8 x, SymWord8 y) -> return . SymWord16 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+
+    (True, 32) -> case (a, b) of
+      (SymInt16 x, SymInt16 y) -> return . SymInt32 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+    (False, 32) -> case (a, b) of
+      (SymWord16 x, SymWord16 y) -> return . SymWord32 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+
+    (True, 64) -> case (a, b) of
+      (SymInt32 x, SymInt32 y) -> return . SymInt64 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+    (False, 64) -> case (a, b) of
+      (SymWord32 x, SymWord32 y) -> return . SymWord64 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+
+    -- (True, 128) -> case (a, b) of
+    --   (SymInt64 x, SymInt64 y) -> return . SymInt128 . fromSized $ toSized x # toSized y
+    --   _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+    -- (False, 128) -> case (a, b) of
+    --   (SymWord64 x, SymWord64 y) -> return . SymWord128 . fromSized $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+    _ -> throwError $ UnexpectedReturnType
+
+
+--- todo: Just use SBV.Dynamic's svExtract
+-- it will be faster than having to convert x to a SWord64
+extract :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
+extract et bytePos x = do
+  let bitPos = fromIntegral $ bytePos * 8
+  w <- maybe (throwError UnexpectedReturnType) return $ Pil.getTypeWidth et
+  xwidth <- getIntegralWidth x
+  when (w + bitPos > xwidth) $ throwError ExtractionOutOfBounds
+  -- convert to Word64 to make case statement easier...
+  x' <- toSized <$> (getIntegral x :: Solver SWord64)
+  case w of
+    8 -> case bitPos of
+      0 -> return . SymWord8 . fromSized $ bvExtract (Proxy @7) (Proxy @0) x'
+      8 -> return . SymWord8 . fromSized $ bvExtract (Proxy @15) (Proxy @8) x'
+      16 -> return . SymWord8 . fromSized $ bvExtract (Proxy @23) (Proxy @16) x'
+      24 -> return . SymWord8 . fromSized $ bvExtract (Proxy @31) (Proxy @24) x'
+      32 -> return . SymWord8 . fromSized $ bvExtract (Proxy @39) (Proxy @32) x'
+      40 -> return . SymWord8 . fromSized $ bvExtract (Proxy @47) (Proxy @40) x'
+      48 -> return . SymWord8 . fromSized $ bvExtract (Proxy @55) (Proxy @48) x'
+      56 -> return . SymWord8 . fromSized $ bvExtract (Proxy @63) (Proxy @56) x'
+      _ -> throwError UnexpectedArgType
+    16 -> case bitPos of
+      0 -> return . SymWord16 . fromSized $ bvExtract (Proxy @15) (Proxy @0) x'
+      8 -> return . SymWord16 . fromSized $ bvExtract (Proxy @23) (Proxy @8) x'
+      16 -> return . SymWord16 . fromSized $ bvExtract (Proxy @31) (Proxy @16) x'
+      24 -> return . SymWord16 . fromSized $ bvExtract (Proxy @39) (Proxy @24) x'
+      32 -> return . SymWord16 . fromSized $ bvExtract (Proxy @47) (Proxy @32) x'
+      40 -> return . SymWord16 . fromSized $ bvExtract (Proxy @55) (Proxy @40) x'
+      48 -> return . SymWord16 . fromSized $ bvExtract (Proxy @63) (Proxy @48) x'
+      _ -> throwError UnexpectedArgType
+    32 -> case bitPos of
+      0 -> return . SymWord32 . fromSized $ bvExtract (Proxy @31) (Proxy @0) x'
+      8 -> return . SymWord32 . fromSized $ bvExtract (Proxy @39) (Proxy @8) x'
+      16 -> return . SymWord32 . fromSized $ bvExtract (Proxy @47) (Proxy @16) x'
+      24 -> return . SymWord32 . fromSized $ bvExtract (Proxy @55) (Proxy @24) x'
+      32 -> return . SymWord32 . fromSized $ bvExtract (Proxy @63) (Proxy @32) x'
+      _ -> throwError UnexpectedArgType
+    64 -> case bitPos of
+      0 -> return . SymWord64 . fromSized $ bvExtract (Proxy @63) (Proxy @0) x'
+      _ -> throwError UnexpectedArgType
+    _ -> throwError UnexpectedArgType
 

@@ -206,10 +206,13 @@ ssasToType ssas = case HashSet.toList uniques of
     ts :: [Type]
     ts = mapMaybe (mlilTypeToPilType <=< (view $ MLIL.var . V.varType)) ssas
 
+pilVarToType :: PilVar -> Type
+pilVarToType = ssasToType . fmap (view var) . HashSet.toList . view mapsTo
+
 getNaiveTypeEnvFromStmt :: Stmt -> TypeEnv
 getNaiveTypeEnvFromStmt s = TypeEnv . HashMap.fromList $ do
   v <- HashSet.toList . Analysis.getVarsFromStmt $ s
-  return (v, ssasToType . fmap (view var) . HashSet.toList $ v ^. mapsTo)
+  return (v, pilVarToType v)
   
 getNaiveTypeEnvFromStmts :: [Stmt] -> TypeEnv
 getNaiveTypeEnvFromStmts = mconcat . fmap getNaiveTypeEnvFromStmt

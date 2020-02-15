@@ -136,6 +136,7 @@ import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , SSAVariable
                              , HasSize
                              , HasOp
+                             , HasCarry
                              , HasCondition
                              , HasConstant
                              , HasDest

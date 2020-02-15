@@ -27,24 +27,6 @@ import Z3.Monad (Z3, MonadZ3)
 import GHC.Natural (Natural)
 import Control.Monad.Fail (MonadFail(fail))
 
-ex34 :: Z3 Z3.Result
-ex34 = do
-  a <- Z3.mkTrue
-  b <- Z3.mkBoolVar =<< Z3.mkStringSymbol "b"
-  c <- Z3.mkAnd [a, b]
-  s1 <- Z3.mkString "Hello there"
-  s2 <- Z3.mkSeqEmpty =<< Z3.mkStringSort
-  d <- Z3.mkEq s1 s2
-  Z3.solverAssertCnstr d
-  Z3.solverAssertCnstr c
-  (r, mm) <- Z3.solverCheckAndGetModel
-  case mm of
-    Nothing -> return ()
-    Just m -> do
-      b' <- Z3.evalBool m b
-      print b'
-      Z3.getString s1 >>= print
-  return r
 
 data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | ExpressionConversionError Expression Pil.Type SolverError
@@ -54,6 +36,7 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | UnexpectedReturnType'Expected Pil.Type
                  | IntegralConversionError
                  | ArgsAndRetNotTheSameType SymType SymType
+                 | UnexpectedArgs SymType SymType
                  | ArgAndRetNotTheSameType SymType
                  | ArgsNotTheSameType
                  | UnrecognizedTypeWidth Int
@@ -62,6 +45,7 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | UnexpectedArgType
                  | SolverError Text
                  | CannotFindPilVarInVarMap
+                 | ExtractionOutOfBounds
                  deriving (Eq, Ord, Show)
 
 data SymVarConversionError = UnrecognizedWordWidth Int
@@ -168,6 +152,7 @@ instance SameType SymExpr Pil.Type where
 instance SameType Pil.Type SymExpr where
   sameType = flip sameType
 
+
 -- data SymExpr a where
 --   SymBool :: SBool -> SymExpr SBool
 --   SymWord8 :: SWord8 -> SymExpr SWord8
@@ -261,6 +246,18 @@ getSolutions :: MonadIO m => HashMap PilVar SymExpr -> QueryT m (HashMap PilVar 
 getSolutions m = do
   xs <- mapM (\ (pv, x) -> (pv,) <$> getSolution x) $ HashMap.toList m
   return $ HashMap.fromList xs
+
+getIntegralWidth :: SymExpr -> Solver Int
+getIntegralWidth = \case
+  (SymWord8 _) -> return 8
+  (SymWord16 _) -> return 16
+  (SymWord32 _) -> return 32
+  (SymWord64 _) -> return 64
+  (SymInt8 _) -> return 8
+  (SymInt16 _) -> return 16
+  (SymInt32 _) -> return 32
+  (SymInt64 _) -> return 64
+  _ -> throwError IntegralConversionError
 
 getIntegral :: forall a. (SIntegral a) => SymExpr -> Solver (SBV a)
 getIntegral = \case
