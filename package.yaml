@@ -99,6 +99,7 @@ library:
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Types.Pil
+  - Blaze.Types.Pil.Analysis
   - Blaze.Types.Graph
   - Blaze.Search
   - Blaze.Function
