@@ -57,8 +57,9 @@ sub = binOp Pil.SUB Pil.SubOp
 cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
-loadSSA :: Expression -> Int64 -> OperationSize -> Expression
-loadSSA addr memVer size = mkExpr size (Pil.LOAD_SSA (Pil.LoadSSAOp addr memVer))
+-- TODO: Change to just Load. PIL is being updated to drop versioned memory.
+load :: Expression -> OperationSize -> Expression
+load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt

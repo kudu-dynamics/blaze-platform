@@ -9,11 +9,24 @@ import           Blaze.Types.Pil        ( Expression( Expression )
                                         )
 import qualified Blaze.Types.Pil as Pil
 
+import Blaze.Types.Pil.Analysis
+  ( LoadStmt (LoadStmt),
+    MemAddr,
+    MemEquivGroup (MemEquivGroup),
+    MemStmt (MemLoadStmt, MemStoreStmt),
+    StoreStmt (StoreStmt),
+    LoadExpr (LoadExpr)
+  )
+import qualified Blaze.Types.Pil.Analysis as A
+
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashSet        as HSet
 import Data.HashSet (HashSet)
+import Data.Coerce (coerce)
+import Data.List (nub)
+import qualified Data.Sequence as Data.Seq
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
@@ -139,20 +152,20 @@ type VarExprMap = HashMap PilVar Expression
 
 data ConstPropState
   = ConstPropState
-      { exprMap :: VarExprMap,
-        stmts :: Set Stmt
+      { _exprMap :: VarExprMap,
+        _stmts :: Set Stmt
       }
 
 constantProp :: [Stmt] -> [Stmt]
 constantProp xs =
   substVarExpr
-    (\v -> HMap.lookup v (exprMap constPropResult))
-    [x | x <- xs, not . Set.member x $ stmts constPropResult]
+    (\v -> HMap.lookup v (_exprMap constPropResult))
+    [x | x <- xs, not . Set.member x $ _stmts constPropResult]
   where
     addConst s stmt var cnst =
       ConstPropState
-        { exprMap = HMap.insert var cnst (exprMap s),
-          stmts = Set.insert stmt (stmts s)
+        { _exprMap = HMap.insert var cnst (_exprMap s),
+          _stmts = Set.insert stmt (_stmts s)
         }
     constPropResult = foldl' f (ConstPropState HMap.empty Set.empty) xs
       where
@@ -199,57 +212,137 @@ copyProp xs =
               copyPropState
     copyPropResult' = copyPropResult {mapping = reduceMap (mapping copyPropResult)}
 
-data MemEquivGroup = MemEquivGroup
-  { store :: Stmt
-  , storeAddr :: Expression
-  , references :: [(Stmt, Expression)]}
+usesAddr :: MemAddr -> Stmt -> Bool
+usesAddr addr stmt = case stmt of
+  Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD loadOp)}} 
+    -> ((loadOp ^. Pil.src) :: Expression) == coerce addr
+  Pil.Store storeOp 
+    -> ((storeOp ^. Pil.addr) :: Expression) == coerce addr
+  _ -> False
 
-data MemEquivGroupState = MemEquivGroupState
-  { allGroups :: [MemEquivGroup]
-  , liveGroups :: HashMap Expression MemEquivGroup}
-
-data Load expr
-  = Load expr
-  | LoadSSA expr
-  | LoadStruct expr
-  | LoadStructSSA expr
-  deriving (Show, Eq)
-
-findLoads_ :: Expression -> [Load Expression]
+getAddr :: MemStmt -> MemAddr
+getAddr memStmt = case memStmt of
+  MemStoreStmt storeStmt -> storeStmt ^. A.addr
+  MemLoadStmt loadStmt -> loadStmt ^. A.addr
+  
+-- TODO: Soon there will only be a Pil.LOAD and conversion from MLIL will handle this
+-- |Helper function for recursively finding loads.empty 
+-- NB: this implementation does not recurse on load expressions.
+findLoads_ :: Expression -> [LoadExpr]
 findLoads_ e = case e ^. Pil.op of
-  Pil.LOAD _ -> [Load e]
-  Pil.LOAD_SSA _ -> [LoadSSA e]
-  Pil.LOAD_STRUCT _ -> [LoadStruct e]
-  Pil.LOAD_STRUCT_SSA _ -> [LoadStructSSA e]
+  Pil.LOAD op -> LoadExpr e : findLoads_ (op ^. Pil.src)
+  Pil.LOAD_SSA op -> LoadExpr e : findLoads_ (op ^. Pil.src)
+  Pil.LOAD_STRUCT op -> LoadExpr e : findLoads_ (op ^. Pil.src)
+  Pil.LOAD_STRUCT_SSA op -> LoadExpr e : findLoads_ (op ^. Pil.src)
   x -> concatMap findLoads_ x
 
-findLoads :: Stmt -> [Load Expression]
+-- |Find all loads in a statement. 
+-- In practice, in BNIL (MLIL SSA), only Def statements contain a Load and Loads are not nested
+-- inside of any other expression.
+-- I.e., when processing PIL from MLIL SSA we would expect this function to only ever return
+-- a list with a single item.
+findLoads :: Stmt -> [LoadExpr]
 findLoads s = case s of
   (Pil.Def op) -> findLoads_ (op ^. Pil.value)
   (Pil.Store op) -> findLoads_ (op ^. Pil.value)
   (Pil.Constraint op) -> findLoads_ (op ^. Pil.condition)
   _ -> []
 
-findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
-findMemEquivGroups = allGroups . memEquivGroupState
+mkStoreStmt :: Stmt -> Maybe StoreStmt
+mkStoreStmt s = case s of
+  Pil.Store storeOp ->
+    Just $ StoreStmt s storeOp (storeOp ^. Pil.addr)
+  _ -> Nothing
+
+mkLoadStmt :: Stmt -> Maybe LoadStmt
+mkLoadStmt s = case s of
+  Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
+    Just $ LoadStmt s (LoadExpr expr) (loadOp ^. Pil.src)
+  _ -> Nothing
+
+-- Create a MemStmt
+mkMemStmt :: Stmt -> Maybe MemStmt
+mkMemStmt s = case s of
+  Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
+    MemLoadStmt <$> mkLoadStmt s
+  Pil.Store _ -> MemStoreStmt <$> mkStoreStmt s
+  _ -> Nothing
+
+-- |Finds memory statements. Update this function if the definition of memory
+-- statements changes.
+findMemStmts :: [Stmt] -> [MemStmt]
+findMemStmts = mapMaybe mkMemStmt
+
+mkMemEquivGroup :: Maybe StoreStmt -> MemAddr -> [LoadStmt] -> MemEquivGroup
+mkMemEquivGroup storeStmt addr loadStmts = 
+  MemEquivGroup
+    { _memEquivGroupStore = storeStmt,
+      _memEquivGroupAddr = addr,
+      _memEquivGroupLoads = loadStmts}
+
+-- |Given a memory address and list of memory statements, build up
+-- groups of statements that refer to the same value.
+--
+-- NB: Assumes all memory statements refer to the given memory address.
+findMemEquivGroupsForAddr :: MemAddr -> [MemStmt] -> [MemEquivGroup]
+findMemEquivGroupsForAddr addr (x:xs) = groups
   where
-    memEquivGroupState = foldl' f (MemEquivGroupState [] HMap.empty)
-    f s stmt = case stmt of
-      (Pil.Store storeOp) ->
-        MemEquivGroupState
-          { allGroups = case HMap.lookup addr (liveGroups s) of
-              -- Previous equiv group for addr is being replaced
-              -- TODO: Check if this store stmt uses the previous definition and update
-              --       the old equiv group if necessary
-              Just g -> g : allGroups s
-              Nothing -> allGroups s,
-            liveGroups = HMap.insert addr newGroup (liveGroups s)
-          }
+    initGroup = case x of
+      MemStoreStmt s ->
+        mkMemEquivGroup (Just s) addr []
+      MemLoadStmt s ->
+        mkMemEquivGroup Nothing addr [s]
+    groups = foldl' f [initGroup] xs
+    f gs stmt = case stmt of
+      MemStoreStmt storeStmt -> g : gs
         where
-          addr = storeOp ^. Pil.addr
-          newGroup =
-            MemEquivGroup {store = stmt, storeAddr = addr, references = []}
-      _ -> s
+          g = mkMemEquivGroup (Just storeStmt) addr []
+      MemLoadStmt loadStmt -> updatedGroup : tailSafe gs
+        where
+          currGroup = head gs
+          -- updatedLoads = loadStmt : currGroup ^. A.loads
+          -- updatedGroup = currGroup & A.loads .~ updatedLoads
+          -- loadStmt' = trace ("loadStmt: " ++ (show loadStmt) ++ "\n") loadStmt
+          updatedGroup = currGroup & A.loads %~ (loadStmt:)
+findMemEquivGroupsForAddr _ [] = []
+
+-- findMemEquivGroups_ :: MemAddr -> [MemStmt] -> [MemEquivGroup]
+-- findMemEquivGroups_ addr stmts = groups
+--   where
+--     groups = foldr f ([]::[MemEquivGroup]) stmtsWithAddr
+--     f gs stmt = case stmt of
+--       storeStmt@(Pil.Store _) -> g :: gs
+--         where
+--           g = MemEquivGroup
+--                 { store = Just storeStmt,
+--                   storeAddr = addr,
+--                   loads = []
+--                 }
+--       loadStmt@(Pil.Def _) -> undefined
+--     stmtsWithAddr = [x | x <- stmts, usesAddr x]
+--     usesAddr stmt = case stmt of
+--       Pil.Def Pil.DefOp {_value = (Pil.LOAD loadOp)} 
+--         -> (loadOp ^. Pil.src) == coerce addr
+--       Pil.Store storeOp 
+--         -> (storeOp ^. Pil.addr) == coerce addr
+--       _ -> False
+
+
+-- |Find equivalent variables that are defined by loading from the same symbolic address
+-- and the same memory state—at least for that address.
+-- We assume that LOADs only occur in a DEF statement and are not nested.
+-- We also assume that STOREs do not include a LOAD expression in the stored value expression.
+findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
+findMemEquivGroups stmts = groups
+  where
+    memStmts = findMemStmts stmts
+    memAddrs = nub $ fmap getAddr memStmts
+    memStmtsByAddr = do memAddr <- memAddrs
+                        return $
+                          do memStmt <- memStmts
+                             guard (memAddr == getAddr memStmt)
+                             return memStmt
+    groups = concatMap (uncurry findMemEquivGroupsForAddr) $ zip memAddrs memStmtsByAddr
 
 
 -- |Copy propagation via memory. Finds and simplifies variables that are copied
@@ -258,6 +351,7 @@ findMemEquivGroups = allGroups . memEquivGroupState
 copyPropMem :: [Stmt] -> [Stmt]
 copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where
+    memEquivGroups = findMemEquivGroups xs
     propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
       where
         f propState stmt =
