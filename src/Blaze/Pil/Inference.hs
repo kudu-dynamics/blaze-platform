@@ -168,8 +168,8 @@ getExprType env x = case x ^. op of
     isSignedInt _ = False
 
     inheritIntUnary :: Expression -> Maybe Type
-    inheritIntUnary x = do
-      t1 <- getExprType env x
+    inheritIntUnary x' = do
+      t1 <- getExprType env x'
       bool uintRet intRet $ isSignedInt t1
 
 

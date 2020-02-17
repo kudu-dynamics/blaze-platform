@@ -58,3 +58,11 @@ const n size = Expression { _size = size
                           }
 
 
+--------------
+
+varField :: Pil.Symbol -> Int64 -> Pil.OperationSize -> Expression
+varField sym offset size =
+  Pil.Expression { _size = size 
+                 , _op = Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset
+                 }
+

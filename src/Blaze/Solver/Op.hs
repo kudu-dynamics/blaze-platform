@@ -8,34 +8,26 @@ module Blaze.Solver.Op where
 import Blaze.Prelude
 
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil ( Expression( Expression )
-                       , Stmt
-                       , PilVar
-                       , TypeEnv(TypeEnv)
+import qualified Data.SBV.Dynamic as D
+import Data.SBV.Internals (SBV(SBV))
+import Blaze.Types.Pil ( PilVar
                        )
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
 import qualified Data.SBV.Trans as SBV
-import qualified Data.SBV.Trans.Control as SBV
 import Data.SBV.List as SList
-import qualified Data.Text as Text
-import qualified Binja.Function as Func
-import Data.SBV (SWord, SInt, fromSized, toSized, FromSized, ToSized)
+import Data.SBV (SWord, SInt, fromSized, toSized)
 import GHC.TypeNats
-import Unsafe.Coerce (unsafeCoerce)
 
 add :: (SIntegral a) => SBV a -> SBV a -> SBV a
 add a b = a + b
-
-
-
 
 --- TODO: make handleSx and handleZx less boilerplatey
 -- use GHC nats, perhaps
 
 handleSx :: Pil.Type -> SymExpr -> Solver SymExpr
-handleSx et x = case Pil.getTypeWidth et of
-  (Just 8) -> case x of
+handleSx et x = case Pil.getTypeBitWidth et of
+  (Just 64) -> case x of
     (SymWord8 v) -> return . SymWord64 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 64)
     (SymInt8 v) -> return . SymInt64 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 64)
 
@@ -46,7 +38,7 @@ handleSx et x = case Pil.getTypeWidth et of
     (SymInt32 v) -> return . SymInt64 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 64)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 4) -> case x of
+  (Just 32) -> case x of
     (SymWord8 v) -> return . SymWord32 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 32)
     (SymInt8 v) -> return . SymInt32 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 32)
 
@@ -54,7 +46,7 @@ handleSx et x = case Pil.getTypeWidth et of
     (SymInt16 v) -> return . SymInt32 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 32)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 2) -> case x of
+  (Just 16) -> case x of
     (SymWord8 v) -> return . SymWord16 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 16)
     (SymInt8 v) -> return . SymInt16 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 16)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
@@ -64,8 +56,8 @@ handleSx et x = case Pil.getTypeWidth et of
 
 
 handleZx :: Pil.Type -> SymExpr -> Solver SymExpr
-handleZx et x = case Pil.getTypeWidth et of
-  (Just 8) -> case x of
+handleZx et x = case Pil.getTypeBitWidth et of
+  (Just 64) -> case x of
     (SymWord8 v) -> return . SymWord64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 64)
     (SymInt8 v) -> return . SymInt64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 64)
 
@@ -76,7 +68,7 @@ handleZx et x = case Pil.getTypeWidth et of
     (SymInt32 v) -> return . SymInt64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 64)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 4) -> case x of
+  (Just 32) -> case x of
     (SymWord8 v) -> return . SymWord32 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 32)
     (SymInt8 v) -> return . SymInt32 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 32)
 
@@ -84,7 +76,7 @@ handleZx et x = case Pil.getTypeWidth et of
     (SymInt16 v) -> return . SymInt32 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 32)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just 2) -> case x of
+  (Just 16) -> case x of
     (SymWord8 v) -> return . SymWord16 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 16)
     (SymInt8 v) -> return . SymInt16 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 16)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
@@ -94,14 +86,14 @@ handleZx et x = case Pil.getTypeWidth et of
 
 
 handleLowPart :: Pil.Type -> SymExpr -> Solver SymExpr
-handleLowPart et x = case Pil.getTypeWidth et of
-  (Just 8) -> case x of
+handleLowPart et x = case Pil.getTypeBitWidth et of
+  (Just 64) -> case x of
     -- no change because 8 bytes returns the whole thing
     (SymWord64 v) -> return . SymWord64 $ v
     (SymInt64 v) -> return . SymInt64 $ v
     _ -> throwError UnexpectedArgType
 
-  (Just 4) -> case x of
+  (Just 32) -> case x of
     (SymWord32 v) -> return . SymWord32 $ v
     (SymInt32 v) -> return . SymInt32 $ v
 
@@ -109,7 +101,7 @@ handleLowPart et x = case Pil.getTypeWidth et of
     (SymInt64 v) -> return . SymInt32 . fromSized $ SBV.bvDrop (Proxy @ 32) (toSized v)
     _ -> throwError UnexpectedArgType
 
-  (Just 2) -> case x of
+  (Just 16) -> case x of
     (SymWord16 v) -> return . SymWord16 $ v
     (SymInt16 v) -> return . SymInt16 $ v
     
@@ -120,7 +112,7 @@ handleLowPart et x = case Pil.getTypeWidth et of
     (SymInt64 v) -> return . SymInt16 . fromSized $ SBV.bvDrop (Proxy @ 48) (toSized v)
     _ -> throwError UnexpectedArgType
 
-  (Just 1) -> case x of
+  (Just 8) -> case x of
     (SymWord8 v) -> return . SymWord8 $ v
     (SymInt8 v) -> return . SymInt8 $ v
 
@@ -160,7 +152,6 @@ testSBit n bitIndex =
 
 rotateLeftWithCarry :: forall a b c bv.
                         ( IsNonZero a
-                        , IsNonZero (1 + a)
                         , KnownNat a
                         , KnownNat (1 + a)
                         , SymVal (bv a)
@@ -247,7 +238,7 @@ handleVarSplit et pvHigh pvLow = do
   (a, b) <- maybe (throwError CannotFindPilVarInVarMap) return $ do
     (,) <$> HashMap.lookup pvHigh vm <*> HashMap.lookup pvLow vm
   (signedness, twidth) <- maybe (throwError UnexpectedReturnType) return
-    $ (,) <$> Pil.getSignedness et <*> Pil.getTypeWidth et
+    $ (,) <$> Pil.getSignedness et <*> Pil.getTypeBitWidth et
   case (signedness, twidth) of
     (True, 16) -> case (a, b) of
       (SymInt8 x, SymInt8 y) -> return . SymInt16 . fromSized $ toSized x # toSized y
@@ -275,8 +266,28 @@ handleVarSplit et pvHigh pvLow = do
     --   _ -> throwError $ UnexpectedArgs (symType a) (symType b)
     -- (False, 128) -> case (a, b) of
     --   (SymWord64 x, SymWord64 y) -> return . SymWord128 . fromSized $ toSized x # toSized y
-      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+
     _ -> throwError $ UnexpectedReturnType
+
+
+extract' :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
+extract' et bytePos x = do
+  let bitPos = fromIntegral $ bytePos * 8
+  (extractedWidth, extractedSignedness) <- maybe (throwError UnexpectedReturnType) return
+    $ (,) <$> Pil.getTypeBitWidth et <*> Pil.getSignedness et
+  totalWidth <- getIntegralWidth x
+  when (extractedWidth + bitPos > totalWidth) $ throwError ExtractionOutOfBounds
+  let x' = D.svExtract (bitPos + extractedWidth - 1) bitPos (toSVal x)
+  case (extractedWidth, extractedSignedness) of
+    (8, False) -> return . SymWord8 . SBV $ x'
+    (16, False) -> return . SymWord16 . SBV $ x'
+    (32, False) -> return . SymWord32 . SBV $ x'
+    (64, False) -> return . SymWord64 . SBV $ x'
+    (8, True) -> return . SymInt8 . SBV $ x'
+    (16, True) -> return . SymInt16 . SBV $ x'
+    (32, True) -> return . SymInt32 . SBV $ x'
+    (64, True) -> return . SymInt64 . SBV $ x'
+    _ -> throwError UnexpectedReturnType
 
 
 --- todo: Just use SBV.Dynamic's svExtract
@@ -284,7 +295,7 @@ handleVarSplit et pvHigh pvLow = do
 extract :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
 extract et bytePos x = do
   let bitPos = fromIntegral $ bytePos * 8
-  w <- maybe (throwError UnexpectedReturnType) return $ Pil.getTypeWidth et
+  w <- maybe (throwError UnexpectedReturnType) return $ Pil.getTypeBitWidth et
   xwidth <- getIntegralWidth x
   when (w + bitPos > xwidth) $ throwError ExtractionOutOfBounds
   -- convert to Word64 to make case statement easier...

@@ -8,7 +8,6 @@ module Blaze.Solver where
 
 import Blaze.Prelude
 
-import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Pil.Inference as Inference
 import Blaze.Types.Pil ( Expression( Expression )
@@ -20,22 +19,12 @@ import Blaze.Types.Pil ( Expression( Expression )
                        )
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
-import qualified Data.SBV.Dynamic as D
-import Data.SBV (SWord, SInt, fromSized, toSized, FromSized, ToSized)
 import Data.SBV.Tools.Overflow (ArithOverflow, bvAddO)
---import qualified Data.SBV as SBV (fromSized, toSized)
-import Data.SBV.Internals (SBV(SBV, unSBV))
-import Data.SBV.Dynamic (SVal)
 import qualified Data.SBV.Trans as SBV
-import Data.SBV.Trans (Symbolic)
-import Data.SBV.String as SS
-import Data.SBV.List as SList
 import qualified Data.SBV.Trans.Control as SBV
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
 import qualified Blaze.Solver.Op as Op
-import qualified Z3.Monad as Z3
-import Z3.Monad (Z3, MonadZ3)
 
 add5 :: SWord16 -> SWord16
 add5 n = n + 5
@@ -46,7 +35,6 @@ pilVarName pv = pv ^. Pil.symbol
   <> maybe "" (("."<>) . show . f) (pv ^. Pil.ctxIndex)
   where
     f (Pil.CtxIndex n) = n
-
 
 
 makeSymVar :: PilVar -> Pil.Type -> Solver SymExpr
@@ -69,6 +57,7 @@ makeSymVar pv pt = case pt of
   Pil.TString -> SymString <$> exists nm
   (Pil.TObs _) -> err EncounteredObsType
   (Pil.TFunc _) -> err FuncTypeNotYetSupported
+  (Pil.TStruct _) -> err StructTypeNotYetSupported
   
   where
     err = throwError . SymVarConversionError pv pt
@@ -126,13 +115,9 @@ initVarMap = do
   return ()
 
 
--- testSBit :: (SFiniteBits a, SIntegral b) => SBV a -> SBV b -> Solver SBool
--- testSBit x bit = 
-
-
 literalToSymExpr :: Integral a => Pil.Type -> a -> Maybe SymExpr
 literalToSymExpr et n = do
-  w <- Pil.getTypeWidth et
+  w <- Pil.getTypeByteWidth et
   s <- Pil.getSignedness et
   case (w, s) of
     (1, False) -> return . SymWord8 . SBV.literal . fromIntegral $ n
@@ -146,16 +131,12 @@ literalToSymExpr et n = do
     _ -> Nothing
 
 
--- binOp :: (HasLeft a Expression, HasRight a Expression) => 
-
--- getExprType :: Solver SymExpr
-
 -- because Expression is opaque and doesn't have specific return type
 -- the Solver return type has to be the opaque SymExpr
 -- maybe Expression should be converted to some type correct GADT
 -- first...
 solveExpr :: Expression -> Solver SymExpr
-solveExpr expr@(Expression sz xop) = do
+solveExpr expr@(Expression _sz xop) = do
   tenv <- typeEnv <$> ask
   -- et = expected type
   et <- maybe (throwError $ UknownExpectedType expr) return
@@ -331,11 +312,11 @@ solveExpr expr@(Expression sz xop) = do
           _ -> error UnexpectedArgType
 
   
-      binBool :: (SBool -> SBool -> SBool) -> SymExpr -> SymExpr -> Solver SymExpr
-      binBool f (SymBool a) (SymBool b) = case et of
-        Pil.TBool -> return . SymBool $ f a b
-        _ -> error $ UnexpectedReturnType'Expected Pil.TBool
-      binBool _ _ _ = error UnexpectedArgType
+      -- binBool :: (SBool -> SBool -> SBool) -> SymExpr -> SymExpr -> Solver SymExpr
+      -- binBool f (SymBool a) (SymBool b) = case et of
+      --   Pil.TBool -> return . SymBool $ f a b
+      --   _ -> error $ UnexpectedReturnType'Expected Pil.TBool
+      -- binBool _ _ _ = error UnexpectedArgType
 
       fromSrc :: (Pil.HasSrc x Expression)
               => x -> (SymExpr -> Solver SymExpr)
@@ -380,8 +361,8 @@ solveExpr expr@(Expression sz xop) = do
 
     (Pil.ADD x) -> lr x $ binIntegral (+)
 
-    (Pil.ADDRESS_OF x) -> todo
-    (Pil.ADDRESS_OF_FIELD x) -> todo
+    (Pil.ADDRESS_OF _x) -> todo
+    (Pil.ADDRESS_OF_FIELD _x) -> todo
 
     (Pil.ADD_OVERFLOW x) ->
       lr x $ binIntegralToBool (\a b -> uncurry (.||) $ bvAddO a b)
@@ -392,7 +373,7 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.ASR x) -> lr x $ binBiIntegral (sShiftRight)
 
     -- is x really an SBool type?
-    (Pil.BOOL_TO_INT x) -> case (literalToSymExpr et 0, literalToSymExpr et 1) of
+    (Pil.BOOL_TO_INT x) -> case (literalToSymExpr et (0 :: Int), literalToSymExpr et (1 :: Int)) of
       (Just sf, Just st) -> do
         solveExpr (x ^. Pil.src) >>= \case
           (SymBool b) -> case (sf, st) of
@@ -440,8 +421,8 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.FCMP_LE x) -> lr x $ binFloatBool (.<=)
     (Pil.FCMP_LT x) -> lr x $ binFloatBool (.<)
     (Pil.FCMP_NE x) -> lr x $ binFloatBool (./=)
-    (Pil.FCMP_O x) -> lr x $ binFloatBool Op.neitherIsNaN
-    (Pil.FCMP_UO x) -> lr x $ binFloatBool Op.atLeastOneIsNaN
+    (Pil.FCMP_O x) -> mapError . lr x $ binFloatBool Op.neitherIsNaN
+    (Pil.FCMP_UO x) -> mapError . lr x $ binFloatBool Op.atLeastOneIsNaN
     (Pil.FDIV x) -> lr x $ binFloat (fpDiv sRoundNearestTiesToAway)
     (Pil.FLOAT_CONST x) -> mkFloatConst $ x ^. Pil.constant
     
@@ -455,16 +436,16 @@ solveExpr expr@(Expression sz xop) = do
       case m of
         (SymFloat n) -> do
           let rm = sRoundNearestTiesToAway
-          (w, s) <- maybe (error UnexpectedArgType) return $ (,) <$> Pil.getTypeWidth et <*> Pil.getSignedness et
+          (w, s) <- maybe (error UnexpectedArgType) return $ (,) <$> Pil.getTypeBitWidth et <*> Pil.getSignedness et
           case (w, s) of
-            (1, False) -> return . SymWord8 . fromSDouble rm $ n
-            (2, False) -> return . SymWord16 . fromSDouble rm $ n
-            (4, False) -> return . SymWord32 . fromSDouble rm $ n
-            (8, False) -> return . SymWord64 . fromSDouble rm $ n
-            (1, True) -> return . SymInt8 . fromSDouble rm $ n
-            (2, True) -> return . SymInt16 . fromSDouble rm $ n
-            (4, True) -> return . SymInt32 . fromSDouble rm $ n
-            (8, True) -> return . SymInt64 . fromSDouble rm $ n
+            (8, False) -> return . SymWord8 . fromSDouble rm $ n
+            (16, False) -> return . SymWord16 . fromSDouble rm $ n
+            (32, False) -> return . SymWord32 . fromSDouble rm $ n
+            (64, False) -> return . SymWord64 . fromSDouble rm $ n
+            (8, True) -> return . SymInt8 . fromSDouble rm $ n
+            (16, True) -> return . SymInt16 . fromSDouble rm $ n
+            (32, True) -> return . SymInt32 . fromSDouble rm $ n
+            (64, True) -> return . SymInt64 . fromSDouble rm $ n
             _ -> error UnexpectedReturnType
         _ -> error UnexpectedArgType
     (Pil.FLOOR x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundTowardNegative)
@@ -491,10 +472,10 @@ solveExpr expr@(Expression sz xop) = do
         (SymInt64 m) -> h m
         _ -> error UnexpectedArgType
 
-    (Pil.LOAD x) -> todo
-    (Pil.LOAD_SSA x) -> todo
-    (Pil.LOAD_STRUCT x) -> todo
-    (Pil.LOAD_STRUCT_SSA x) -> todo
+    (Pil.LOAD _x) -> todo
+    (Pil.LOAD_SSA _x) -> todo
+    (Pil.LOAD_STRUCT _x) -> todo
+    (Pil.LOAD_STRUCT_SSA _x) -> todo
 
     (Pil.LOW_PART x) -> mapError . fromSrc x $ Op.handleLowPart et
 
@@ -510,11 +491,11 @@ solveExpr expr@(Expression sz xop) = do
 
     -- this will still 'negate` unsigned by adding the sign bit
     -- maybe it should throw an error instead?
-    (Pil.NEG x) -> fromSrc x $ unIntegral Op.integralNeg
+    (Pil.NEG x) -> mapError . fromSrc x $ unIntegral Op.integralNeg
 
     (Pil.NOT x) -> fromSrc x $ unIntegral complement
     (Pil.OR x) -> lr x $ binIntegral (.|.)
-    (Pil.RLC x) -> lrc x $ Op.handleRLC et
+    (Pil.RLC x) -> mapError . lrc x $ Op.handleRLC et
     (Pil.ROL x) -> lr x $ binBiIntegral (sRotateLeft)
     (Pil.ROR x) -> lr x $ binBiIntegral (sRotateRight)
     (Pil.ROUND_TO_INT x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundNearestTiesToAway)
@@ -533,10 +514,10 @@ solveExpr expr@(Expression sz xop) = do
     (Pil.TEST_BIT x) -> lr x $ binBiIntegralToBool Op.testSBit
     Pil.UNIMPL -> todo
   --  (Pil.VAR (VarOp x) -> todo
-    (Pil.VAR_ALIASED x) -> todo
-    (Pil.VAR_ALIASED_FIELD x) -> todo
+    (Pil.VAR_ALIASED _x) -> todo
+    (Pil.VAR_ALIASED_FIELD _x) -> todo
   --  (Pil.VAR_FIELD (VarFieldOp x) -> todo
-    (Pil.VAR_PHI x) -> todo
+    (Pil.VAR_PHI _x) -> todo
   --  (Pil.VAR_SPLIT (VarSplitOp x) -> todo
     (Pil.VAR_SPLIT x) -> mapError $ Op.handleVarSplit et (x ^. Pil.high) (x ^. Pil.low)
 
@@ -544,18 +525,20 @@ solveExpr expr@(Expression sz xop) = do
       v <- lookupPilVar (x ^. Pil.src) 
       bool (error UnexpectedArgType) (return v) $ sameType v et
 
-    (Pil.VAR_FIELD x) -> lookupPilVar (x ^. Pil.src) >>= Op.extract et (x ^. Pil.offset)
+    (Pil.VAR_FIELD x) -> do
+      v <- lookupPilVar (x ^. Pil.src)
+      mapError $ Op.extract' et (x ^. Pil.offset) v
       
     (Pil.XOR x) -> lr x $ binIntegral xor
     
     (Pil.ZX x) -> mapError . fromSrc x $ Op.handleZx et
   
-    (Pil.CALL x) -> todo
+    (Pil.CALL _x) -> todo
 
-    (Pil.StrCmp x) -> todo
-    (Pil.StrNCmp x) -> todo
-    (Pil.MemCmp x) -> todo
-    (Pil.ConstStr x) -> todo
+    (Pil.StrCmp _x) -> todo
+    (Pil.StrNCmp _x) -> todo
+    (Pil.MemCmp _x) -> todo
+    (Pil.ConstStr _x) -> todo
 
 
 

@@ -11,20 +11,16 @@ module Blaze.Types.Solver
 
 import Blaze.Prelude
 
-import qualified Data.SBV.Trans as SBV
-import qualified Data.SBV.Trans.Control as SBV
-import qualified Data.SBV.Dynamic as SBV
-import qualified Data.SBV.Internals as SBV
+import Data.SBV.Internals (SBV(unSBV))
+import Data.SBV.Dynamic (SVal)
+
 import Data.SBV.Trans ((.&&))
-import Data.SBV.Trans as Exports hiding (Solver, checkSat, CheckSatResult, SMTResult)
-import Data.SBV.Trans.Control as Exports hiding (Solver, checkSat, CheckSatResult, SMTResult, Sat, Unk, Unsat)
-import Blaze.Types.Pil (Expression, Stmt, PilVar, TypeEnv)
+import Data.SBV.Trans as Exports hiding (Solver, SMTResult)
+import Data.SBV.Trans.Control as Exports hiding (checkSat, CheckSatResult, Sat, Unk, Unsat)
+import Blaze.Types.Pil (Expression, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Internals (SolverContext(..))
 import qualified Blaze.Types.Pil as Pil
-import qualified Z3.Monad as Z3
-import Z3.Monad (Z3, MonadZ3)
-import GHC.Natural (Natural)
 import Control.Monad.Fail (MonadFail(fail))
 
 
@@ -52,6 +48,7 @@ data SymVarConversionError = UnrecognizedWordWidth Int
                            | UnrecognizedIntWidth Int
                            | ArrayTypeNotYetSupported
                            | FieldTypeNotYetSupported
+                           | StructTypeNotYetSupported
                            | EncounteredObsType
                            | FuncTypeNotYetSupported
                            deriving (Eq, Ord, Show)
@@ -69,6 +66,21 @@ data SymExpr = SymBool SBool
              -- SymArray (SArray)
              | SymString SString
              deriving (Eq, Show)
+
+-- for use with SBV.Dynamic module
+toSVal :: SymExpr -> SVal
+toSVal expr = case expr of
+  (SymBool x) -> unSBV x
+  (SymWord8 x) -> unSBV x
+  (SymWord16 x) -> unSBV x
+  (SymWord32 x) -> unSBV x
+  (SymWord64 x) -> unSBV x
+  (SymInt8 x) -> unSBV x
+  (SymInt16 x) -> unSBV x
+  (SymInt32 x) -> unSBV x
+  (SymInt64 x) -> unSBV x
+  (SymFloat x) -> unSBV x
+  (SymString x) -> unSBV x
 
 data SymType = TBool
              | TWord8
@@ -169,10 +181,16 @@ instance SameType Pil.Type SymExpr where
 -- -- deriving (Eq, Show)
 
 
+
 data VarVal = VBool Bool
             | VWord8 Word8
             | VWord16 Word16
             | VWord32 Word32
+            | VWord64 Word64
+            | VInt8 Int8
+            | VInt16 Int16
+            | VInt32 Int32
+            | VInt64 Int64
             | VarNotFound
             deriving (Eq, Ord, Show)
                
@@ -241,6 +259,12 @@ getSolution (SymBool x) = VBool <$> getValue x
 getSolution (SymWord8 x) = VWord8 <$> getValue x
 getSolution (SymWord16 x) = VWord16 <$> getValue x
 getSolution (SymWord32 x) = VWord32 <$> getValue x
+getSolution (SymWord64 x) = VWord64 <$> getValue x
+getSolution (SymInt8 x) = VInt8 <$> getValue x
+getSolution (SymInt16 x) = VInt16 <$> getValue x
+getSolution (SymInt32 x) = VInt32 <$> getValue x
+getSolution (SymInt64 x) = VInt64 <$> getValue x
+getSolution _ = return VarNotFound
 
 getSolutions :: MonadIO m => HashMap PilVar SymExpr -> QueryT m (HashMap PilVar VarVal)
 getSolutions m = do

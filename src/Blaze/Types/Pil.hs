@@ -7,14 +7,9 @@ module Blaze.Types.Pil
 import Blaze.Prelude hiding (Symbol, Type)
 
 import Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
-import qualified Data.Map as Map
-import qualified Binja.Variable as V
-import qualified Binja.C.Enums as E
-import qualified Binja.MLIL as MLIL
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
                              , AddOverflowOp
@@ -656,12 +651,15 @@ $(makeFieldsNoPrefix ''ConstraintOp)
 
 
 -- gets bit width of integral type, if available
-getTypeWidth :: Type -> Maybe Int
-getTypeWidth (TBitVec x) = Just $ x ^. width
-getTypeWidth (TInt x) = Just $ x ^. width
-getTypeWidth (TPtr x) = Just $ x ^. width
-getTypeWidth (TFloat x) = Just $ x ^. width
-getTypeWidth _ = Nothing
+getTypeByteWidth :: Type -> Maybe Int
+getTypeByteWidth (TBitVec x) = Just $ x ^. width
+getTypeByteWidth (TInt x) = Just $ x ^. width
+getTypeByteWidth (TPtr x) = Just $ x ^. width
+getTypeByteWidth (TFloat x) = Just $ x ^. width
+getTypeByteWidth _ = Nothing
+
+getTypeBitWidth :: Type -> Maybe Int
+getTypeBitWidth = fmap (*8) . getTypeByteWidth
 
 getSignedness :: Type -> Maybe Bool
 getSignedness (TBitVec _) = Just False

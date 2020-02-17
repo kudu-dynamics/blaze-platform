@@ -195,7 +195,7 @@ copyProp xs = substExprs (\(e :: Expression) -> HMap.lookup e (mapping copyPropR
 copyPropMem :: [Stmt] -> [Stmt]
 copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
-          where f propState stmt = 
+          where f propState _stmt = 
                   propState
 
 simplify :: [Stmt] -> [Stmt]
