@@ -434,45 +434,54 @@ data TypedExpression = TypedExpression
   , _size :: OperationSize
   , _op :: ExprOp Expression
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable TypedExpression
 
 newtype BitVecType = BitVecType
   { _width :: Int
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable BitVecType
 
 data IntType = IntType
   { _width :: Int
   , _signed :: Bool
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable IntType
 
 {- HLINT ignore FloatType -}
 data FloatType = FloatType
   { _width :: Int
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable FloatType
 
 data ArrayType = ArrayType
   { _capacity :: Int
   , _elemType :: Type
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable ArrayType
 
 data PtrType = PtrType
   { _width :: Int
   , _pointeeType :: Type
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable PtrType
 
 data FieldType = FieldType
   { _offset :: Int
   , _fieldType :: Type
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable FieldType
 
 data StructType = StructType
   { _size :: Int
   , _fields :: [Type]
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable StructType
 
 data FuncType = FuncType
   { _args :: [Type]
   , _ret :: Maybe Type
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable FuncType
 
 type ObsType = [Type]
 
@@ -488,6 +497,7 @@ data Type = TBool
           | TObs ObsType
           | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
+instance Hashable Type
            
 type TypeEnv = HashMap PilVar Type
 
@@ -498,18 +508,21 @@ data Ctx = Ctx
   , _ctxIndex :: Maybe CtxIndex
   , _definedVars :: HashSet PilVar
   , _typeEnv :: TypeEnv
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
+instance Hashable Ctx
 
 data SimpleCtx = SimpleCtx
   { _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
+instance Hashable SimpleCtx
 
 data StackOffset = StackOffset
   { _func :: Function
   , _ctxIndex :: CtxIndex
   , _offset :: Int
   } deriving (Eq, Ord, Show, Generic)
+instance Hashable StackOffset
 
 type Keyword = Text
 
@@ -527,31 +540,37 @@ data DefOp expr = DefOp
     { _var :: PilVar
     , _value :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (DefOp a)
 
 data StoreOp expr = StoreOp
     { _addr :: expr
     , _value :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (StoreOp a)
 
 {- HLINT ignore ConstraintOp -}
 data ConstraintOp expr = ConstraintOp
     { _condition :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (ConstraintOp a)
 
 {- HLINT ignore UnimplMemOp -}
 data UnimplMemOp expr = UnimplMemOp
     { _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (UnimplMemOp a)
 
 {- HLINT ignore EnterContextOp -}
 data EnterContextOp expr = EnterContextOp
     { _ctx :: SimpleCtx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (EnterContextOp a)
 
 data ExitContextOp expr = ExitContextOp
     { _leavingCtx :: SimpleCtx
     , _returningToCtx :: SimpleCtx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (ExitContextOp a)
 
 type Stmt = Statement Expression
 
@@ -566,6 +585,7 @@ data Statement expr = Def (DefOp expr)
                     | EnterContext (EnterContextOp expr)
                     | ExitContext (ExitContextOp expr)
                     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (Statement a)
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
