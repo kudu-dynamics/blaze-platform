@@ -27,6 +27,21 @@ add a b = a + b
 
 handleSx :: Pil.Type -> SymExpr -> Solver SymExpr
 handleSx et x = case Pil.getTypeBitWidth et of
+  (Just 128) -> case x of
+    (SymWord8 v) -> return . SymWord128 $ (SBV.signExtend $ toSized v :: SWord 128)
+    (SymInt8 v) -> return . SymInt128 $ (SBV.signExtend $ toSized v :: SInt 128)
+
+    (SymWord16 v) -> return . SymWord128 $ (SBV.signExtend $ toSized v :: SWord 128)
+    (SymInt16 v) -> return . SymInt128 $ (SBV.signExtend $ toSized v :: SInt 128)
+
+    (SymWord32 v) -> return . SymWord128 $ (SBV.signExtend $ toSized v :: SWord 128)
+    (SymInt32 v) -> return . SymInt128 $ (SBV.signExtend $ toSized v :: SInt 128)
+
+    (SymWord64 v) -> return . SymWord128 $ (SBV.signExtend $ toSized v :: SWord 128)
+    (SymInt64 v) -> return . SymInt128 $ (SBV.signExtend $ toSized v :: SInt 128)
+
+    _ -> throwError SignExtendResultMustBeWiderThanArgument
+
   (Just 64) -> case x of
     (SymWord8 v) -> return . SymWord64 . fromSized  $ (SBV.signExtend $ toSized v :: SWord 64)
     (SymInt8 v) -> return . SymInt64 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 64)
@@ -57,6 +72,21 @@ handleSx et x = case Pil.getTypeBitWidth et of
 
 handleZx :: Pil.Type -> SymExpr -> Solver SymExpr
 handleZx et x = case Pil.getTypeBitWidth et of
+  (Just 128) -> case x of
+    (SymWord8 v) -> return . SymWord128 $ (SBV.zeroExtend $ toSized v :: SWord 128)
+    (SymInt8 v) -> return . SymInt128 $ (SBV.zeroExtend $ toSized v :: SInt 128)
+
+    (SymWord16 v) -> return . SymWord128 $ (SBV.zeroExtend $ toSized v :: SWord 128)
+    (SymInt16 v) -> return . SymInt128 $ (SBV.zeroExtend $ toSized v :: SInt 128)
+
+    (SymWord32 v) -> return . SymWord128 $ (SBV.zeroExtend $ toSized v :: SWord 128)
+    (SymInt32 v) -> return . SymInt128 $ (SBV.zeroExtend $ toSized v :: SInt 128)
+
+    (SymWord64 v) -> return . SymWord128 $ (SBV.zeroExtend $ toSized v :: SWord 128)
+    (SymInt64 v) -> return . SymInt128 $ (SBV.zeroExtend $ toSized v :: SInt 128)
+
+    _ -> throwError SignExtendResultMustBeWiderThanArgument
+
   (Just 64) -> case x of
     (SymWord8 v) -> return . SymWord64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SWord 64)
     (SymInt8 v) -> return . SymInt64 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 64)
@@ -87,10 +117,20 @@ handleZx et x = case Pil.getTypeBitWidth et of
 
 handleLowPart :: Pil.Type -> SymExpr -> Solver SymExpr
 handleLowPart et x = case Pil.getTypeBitWidth et of
+  (Just 128) -> case x of
+    -- no change because 8 bytes returns the whole thing
+    (SymWord128 v) -> return . SymWord128 $ v
+    (SymInt128 v) -> return . SymInt128 $ v
+    _ -> throwError UnexpectedArgType
+
+    
   (Just 64) -> case x of
     -- no change because 8 bytes returns the whole thing
     (SymWord64 v) -> return . SymWord64 $ v
     (SymInt64 v) -> return . SymInt64 $ v
+
+    (SymWord128 v) -> return . SymWord64 . fromSized $ SBV.bvDrop (Proxy @ 64) v
+    (SymInt128 v) -> return . SymInt64 . fromSized $ SBV.bvDrop (Proxy @ 64) v
     _ -> throwError UnexpectedArgType
 
   (Just 32) -> case x of
@@ -99,6 +139,10 @@ handleLowPart et x = case Pil.getTypeBitWidth et of
 
     (SymWord64 v) -> return . SymWord32 . fromSized $ SBV.bvDrop (Proxy @ 32) (toSized v)
     (SymInt64 v) -> return . SymInt32 . fromSized $ SBV.bvDrop (Proxy @ 32) (toSized v)
+
+    (SymWord128 v) -> return . SymWord32 . fromSized $ SBV.bvDrop (Proxy @ 96) v
+    (SymInt128 v) -> return . SymInt32 . fromSized $ SBV.bvDrop (Proxy @ 96) v
+
     _ -> throwError UnexpectedArgType
 
   (Just 16) -> case x of
@@ -110,7 +154,12 @@ handleLowPart et x = case Pil.getTypeBitWidth et of
 
     (SymWord64 v) -> return . SymWord16 . fromSized $ SBV.bvDrop (Proxy @ 48) (toSized v)
     (SymInt64 v) -> return . SymInt16 . fromSized $ SBV.bvDrop (Proxy @ 48) (toSized v)
+
+    (SymWord128 v) -> return . SymWord16 . fromSized $ SBV.bvDrop (Proxy @ 112) v
+    (SymInt128 v) -> return . SymInt16 . fromSized $ SBV.bvDrop (Proxy @ 112) v
+
     _ -> throwError UnexpectedArgType
+
 
   (Just 8) -> case x of
     (SymWord8 v) -> return . SymWord8 $ v
@@ -124,6 +173,10 @@ handleLowPart et x = case Pil.getTypeBitWidth et of
 
     (SymWord64 v) -> return . SymWord8 . fromSized $ SBV.bvDrop (Proxy @ 56) (toSized v)
     (SymInt64 v) -> return . SymInt8 . fromSized $ SBV.bvDrop (Proxy @ 56) (toSized v)
+
+    (SymWord128 v) -> return . SymWord8 . fromSized $ SBV.bvDrop (Proxy @ 120) v
+    (SymInt128 v) -> return . SymInt8 . fromSized $ SBV.bvDrop (Proxy @ 120) v
+
     _ -> throwError UnexpectedArgType  
 
   (Just n) -> throwError $ UnrecognizedTypeWidth n
@@ -204,10 +257,12 @@ handleRRC et n rot' carry' = do
     (SymWord16 x) -> return . SymWord16 . fromSized $ rotateRightWithCarry (toSized x) rot carry
     (SymWord32 x) -> return . SymWord32 . fromSized $ rotateRightWithCarry (toSized x) rot carry
     (SymWord64 x) -> return . SymWord64 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymWord128 x) -> return . SymWord128 $ rotateRightWithCarry x rot carry
     (SymInt8 x) -> return . SymInt8 . fromSized $ rotateRightWithCarry (toSized x) rot carry
     (SymInt16 x) -> return . SymInt16 . fromSized $ rotateRightWithCarry (toSized x) rot carry
     (SymInt32 x) -> return . SymInt32 . fromSized $ rotateRightWithCarry (toSized x) rot carry
     (SymInt64 x) -> return . SymInt64 . fromSized $ rotateRightWithCarry (toSized x) rot carry
+    (SymInt128 x) -> return . SymInt128 $ rotateRightWithCarry x rot carry
     _ -> throwError UnexpectedArgType
 
 
@@ -225,10 +280,12 @@ handleRLC et n rot' carry' = do
     (SymWord16 x) -> return . SymWord16 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
     (SymWord32 x) -> return . SymWord32 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
     (SymWord64 x) -> return . SymWord64 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymWord128 x) -> return . SymWord128 $ rotateLeftWithCarry x rot carry
     (SymInt8 x) -> return . SymInt8 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
     (SymInt16 x) -> return . SymInt16 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
     (SymInt32 x) -> return . SymInt32 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
     (SymInt64 x) -> return . SymInt64 . fromSized $ rotateLeftWithCarry (toSized x) rot carry
+    (SymInt128 x) -> return . SymInt128 $ rotateLeftWithCarry x rot carry
     _ -> throwError UnexpectedArgType
 
 
@@ -261,11 +318,12 @@ handleVarSplit et pvHigh pvLow = do
       (SymWord32 x, SymWord32 y) -> return . SymWord64 . fromSized $ toSized x # toSized y
       _ -> throwError $ UnexpectedArgs (symType a) (symType b)
 
-    -- (True, 128) -> case (a, b) of
-    --   (SymInt64 x, SymInt64 y) -> return . SymInt128 . fromSized $ toSized x # toSized y
-    --   _ -> throwError $ UnexpectedArgs (symType a) (symType b)
-    -- (False, 128) -> case (a, b) of
-    --   (SymWord64 x, SymWord64 y) -> return . SymWord128 . fromSized $ toSized x # toSized y
+    (True, 128) -> case (a, b) of
+      (SymInt64 x, SymInt64 y) -> return . SymInt128 $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
+    (False, 128) -> case (a, b) of
+      (SymWord64 x, SymWord64 y) -> return . SymWord128 $ toSized x # toSized y
+      _ -> throwError $ UnexpectedArgs (symType a) (symType b)
 
     _ -> throwError $ UnexpectedReturnType
 
@@ -283,52 +341,54 @@ extract' et bytePos x = do
     (16, False) -> return . SymWord16 . SBV $ x'
     (32, False) -> return . SymWord32 . SBV $ x'
     (64, False) -> return . SymWord64 . SBV $ x'
+    (128, False) -> return . SymWord128 . SBV $ x'
     (8, True) -> return . SymInt8 . SBV $ x'
     (16, True) -> return . SymInt16 . SBV $ x'
     (32, True) -> return . SymInt32 . SBV $ x'
     (64, True) -> return . SymInt64 . SBV $ x'
+    (128, True) -> return . SymInt128 . SBV $ x'
     _ -> throwError UnexpectedReturnType
 
 
---- todo: Just use SBV.Dynamic's svExtract
--- it will be faster than having to convert x to a SWord64
-extract :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
-extract et bytePos x = do
-  let bitPos = fromIntegral $ bytePos * 8
-  w <- maybe (throwError UnexpectedReturnType) return $ Pil.getTypeBitWidth et
-  xwidth <- getIntegralWidth x
-  when (w + bitPos > xwidth) $ throwError ExtractionOutOfBounds
-  -- convert to Word64 to make case statement easier...
-  x' <- toSized <$> (getIntegral x :: Solver SWord64)
-  case w of
-    8 -> case bitPos of
-      0 -> return . SymWord8 . fromSized $ bvExtract (Proxy @7) (Proxy @0) x'
-      8 -> return . SymWord8 . fromSized $ bvExtract (Proxy @15) (Proxy @8) x'
-      16 -> return . SymWord8 . fromSized $ bvExtract (Proxy @23) (Proxy @16) x'
-      24 -> return . SymWord8 . fromSized $ bvExtract (Proxy @31) (Proxy @24) x'
-      32 -> return . SymWord8 . fromSized $ bvExtract (Proxy @39) (Proxy @32) x'
-      40 -> return . SymWord8 . fromSized $ bvExtract (Proxy @47) (Proxy @40) x'
-      48 -> return . SymWord8 . fromSized $ bvExtract (Proxy @55) (Proxy @48) x'
-      56 -> return . SymWord8 . fromSized $ bvExtract (Proxy @63) (Proxy @56) x'
-      _ -> throwError UnexpectedArgType
-    16 -> case bitPos of
-      0 -> return . SymWord16 . fromSized $ bvExtract (Proxy @15) (Proxy @0) x'
-      8 -> return . SymWord16 . fromSized $ bvExtract (Proxy @23) (Proxy @8) x'
-      16 -> return . SymWord16 . fromSized $ bvExtract (Proxy @31) (Proxy @16) x'
-      24 -> return . SymWord16 . fromSized $ bvExtract (Proxy @39) (Proxy @24) x'
-      32 -> return . SymWord16 . fromSized $ bvExtract (Proxy @47) (Proxy @32) x'
-      40 -> return . SymWord16 . fromSized $ bvExtract (Proxy @55) (Proxy @40) x'
-      48 -> return . SymWord16 . fromSized $ bvExtract (Proxy @63) (Proxy @48) x'
-      _ -> throwError UnexpectedArgType
-    32 -> case bitPos of
-      0 -> return . SymWord32 . fromSized $ bvExtract (Proxy @31) (Proxy @0) x'
-      8 -> return . SymWord32 . fromSized $ bvExtract (Proxy @39) (Proxy @8) x'
-      16 -> return . SymWord32 . fromSized $ bvExtract (Proxy @47) (Proxy @16) x'
-      24 -> return . SymWord32 . fromSized $ bvExtract (Proxy @55) (Proxy @24) x'
-      32 -> return . SymWord32 . fromSized $ bvExtract (Proxy @63) (Proxy @32) x'
-      _ -> throwError UnexpectedArgType
-    64 -> case bitPos of
-      0 -> return . SymWord64 . fromSized $ bvExtract (Proxy @63) (Proxy @0) x'
-      _ -> throwError UnexpectedArgType
-    _ -> throwError UnexpectedArgType
+-- --- todo: Just use SBV.Dynamic's svExtract
+-- -- it will be faster than having to convert x to a SWord64
+-- extract :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
+-- extract et bytePos x = do
+--   let bitPos = fromIntegral $ bytePos * 8
+--   w <- maybe (throwError UnexpectedReturnType) return $ Pil.getTypeBitWidth et
+--   xwidth <- getIntegralWidth x
+--   when (w + bitPos > xwidth) $ throwError ExtractionOutOfBounds
+--   -- convert to Word64 to make case statement easier...
+--   x' <- toSized <$> (getIntegral x :: Solver SWord64)
+--   case w of
+--     8 -> case bitPos of
+--       0 -> return . SymWord8 . fromSized $ bvExtract (Proxy @7) (Proxy @0) x'
+--       8 -> return . SymWord8 . fromSized $ bvExtract (Proxy @15) (Proxy @8) x'
+--       16 -> return . SymWord8 . fromSized $ bvExtract (Proxy @23) (Proxy @16) x'
+--       24 -> return . SymWord8 . fromSized $ bvExtract (Proxy @31) (Proxy @24) x'
+--       32 -> return . SymWord8 . fromSized $ bvExtract (Proxy @39) (Proxy @32) x'
+--       40 -> return . SymWord8 . fromSized $ bvExtract (Proxy @47) (Proxy @40) x'
+--       48 -> return . SymWord8 . fromSized $ bvExtract (Proxy @55) (Proxy @48) x'
+--       56 -> return . SymWord8 . fromSized $ bvExtract (Proxy @63) (Proxy @56) x'
+--       _ -> throwError UnexpectedArgType
+--     16 -> case bitPos of
+--       0 -> return . SymWord16 . fromSized $ bvExtract (Proxy @15) (Proxy @0) x'
+--       8 -> return . SymWord16 . fromSized $ bvExtract (Proxy @23) (Proxy @8) x'
+--       16 -> return . SymWord16 . fromSized $ bvExtract (Proxy @31) (Proxy @16) x'
+--       24 -> return . SymWord16 . fromSized $ bvExtract (Proxy @39) (Proxy @24) x'
+--       32 -> return . SymWord16 . fromSized $ bvExtract (Proxy @47) (Proxy @32) x'
+--       40 -> return . SymWord16 . fromSized $ bvExtract (Proxy @55) (Proxy @40) x'
+--       48 -> return . SymWord16 . fromSized $ bvExtract (Proxy @63) (Proxy @48) x'
+--       _ -> throwError UnexpectedArgType
+--     32 -> case bitPos of
+--       0 -> return . SymWord32 . fromSized $ bvExtract (Proxy @31) (Proxy @0) x'
+--       8 -> return . SymWord32 . fromSized $ bvExtract (Proxy @39) (Proxy @8) x'
+--       16 -> return . SymWord32 . fromSized $ bvExtract (Proxy @47) (Proxy @16) x'
+--       24 -> return . SymWord32 . fromSized $ bvExtract (Proxy @55) (Proxy @24) x'
+--       32 -> return . SymWord32 . fromSized $ bvExtract (Proxy @63) (Proxy @32) x'
+--       _ -> throwError UnexpectedArgType
+--     64 -> case bitPos of
+--       0 -> return . SymWord64 . fromSized $ bvExtract (Proxy @63) (Proxy @0) x'
+--       _ -> throwError UnexpectedArgType
+--     _ -> throwError UnexpectedArgType
 

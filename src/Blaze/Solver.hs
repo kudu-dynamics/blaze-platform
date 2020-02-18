@@ -66,6 +66,7 @@ makeSymVar pv pt = case pt of
     createWord 2 = SymWord16 <$> exists nm
     createWord 4 = SymWord32 <$> exists nm
     createWord 8 = SymWord64 <$> exists nm
+    createWord 16 = SymWord128 <$> exists nm
     createWord n = err $ UnrecognizedWordWidth n
 
     createInt :: Int -> Solver SymExpr
@@ -73,6 +74,7 @@ makeSymVar pv pt = case pt of
     createInt 2 = SymInt16 <$> exists nm
     createInt 4 = SymInt32 <$> exists nm
     createInt 8 = SymInt64 <$> exists nm
+    createInt 16 = SymInt128 <$> exists nm
     createInt n = err $ UnrecognizedIntWidth n
       
     nm = Text.unpack $ pilVarName pv
@@ -124,10 +126,12 @@ literalToSymExpr et n = do
     (2, False) -> return . SymWord16 . SBV.literal . fromIntegral $ n
     (4, False) -> return . SymWord32 . SBV.literal . fromIntegral $ n
     (8, False) -> return . SymWord64 . SBV.literal . fromIntegral $ n
+    (16, False) -> return . SymWord128 . SBV.literal . fromIntegral $ n
     (1, True) -> return . SymInt8 . SBV.literal . fromIntegral $ n
     (2, True) -> return . SymInt16 . SBV.literal . fromIntegral $ n
     (4, True) -> return . SymInt32 . SBV.literal . fromIntegral $ n
     (8, True) -> return . SymInt64 . SBV.literal . fromIntegral $ n
+    (16, True) -> return . SymInt128 . SBV.literal . fromIntegral $ n
     _ -> Nothing
 
 
@@ -191,10 +195,12 @@ solveExpr expr@(Expression _sz xop) = do
           (SymWord16 _) -> SymWord16 <$> h
           (SymWord32 _) -> SymWord32 <$> h
           (SymWord64 _) -> SymWord64 <$> h
+          (SymWord128 _) -> SymWord128 <$> h
           (SymInt8 _) -> SymInt8 <$> h
           (SymInt16 _) -> SymInt16 <$> h
           (SymInt32 _) -> SymInt32 <$> h
-          (SymInt64 _) -> SymInt64 <$> h          
+          (SymInt64 _) -> SymInt64 <$> h
+          (SymInt128 _) -> SymInt128 <$> h
           _ -> error UnexpectedReturnType
 
 
@@ -210,10 +216,12 @@ solveExpr expr@(Expression _sz xop) = do
           (SymWord16 _) -> SymWord16 <$> h
           (SymWord32 _) -> SymWord32 <$> h
           (SymWord64 _) -> SymWord64 <$> h
+          (SymWord128 _) -> SymWord128 <$> h
           (SymInt8 _) -> SymInt8 <$> h
           (SymInt16 _) -> SymInt16 <$> h
           (SymInt32 _) -> SymInt32 <$> h
-          (SymInt64 _) -> SymInt64 <$> h          
+          (SymInt64 _) -> SymInt64 <$> h
+          (SymInt128 _) -> SymInt128 <$> h
           _ -> error UnexpectedReturnType
 
       binBiIntegral :: (forall a b. (SDivisible (SBV a), SIntegral a, SDivisible (SBV b), SIntegral b) => SBV a -> SBV b -> SBV a)
@@ -227,20 +235,24 @@ solveExpr expr@(Expression _sz xop) = do
               (SymWord16 n) -> return $ f m n
               (SymWord32 n) -> return $ f m n
               (SymWord64 n) -> return $ f m n
+              (SymWord128 n) -> return $ f m n
               (SymInt8 n) -> return $ f m n
               (SymInt16 n) -> return $ f m n
               (SymInt32 n) -> return $ f m n
               (SymInt64 n) -> return $ f m n
+              (SymInt128 n) -> return $ f m n
               _ -> error UnexpectedReturnType
         case a of
           (SymWord8 m) -> SymWord8 <$> h m
           (SymWord16 m) -> SymWord16 <$> h m
           (SymWord32 m) -> SymWord32 <$> h m
           (SymWord64 m) -> SymWord64 <$> h m
+          (SymWord128 m) -> SymWord128 <$> h m
           (SymInt8 m) -> SymInt8 <$> h m
           (SymInt16 m) -> SymInt16 <$> h m
           (SymInt32 m) -> SymInt32 <$> h m
           (SymInt64 m) -> SymInt64 <$> h m
+          (SymInt128 m) -> SymInt128 <$> h m
           _ -> error UnexpectedReturnType
 
       binBiIntegralToBool :: (forall a b. (SFiniteBits a, SDivisible (SBV a), SIntegral a, SDivisible (SBV b), SIntegral b) => SBV a -> SBV b -> SBool)
@@ -253,20 +265,24 @@ solveExpr expr@(Expression _sz xop) = do
               (SymWord16 n) -> return $ f m n
               (SymWord32 n) -> return $ f m n
               (SymWord64 n) -> return $ f m n
+              (SymWord128 n) -> return $ f m n
               (SymInt8 n) -> return $ f m n
               (SymInt16 n) -> return $ f m n
               (SymInt32 n) -> return $ f m n
               (SymInt64 n) -> return $ f m n
+              (SymInt128 n) -> return $ f m n
               _ -> error UnexpectedReturnType
         case a of
           (SymWord8 m) -> SymBool <$> h m
           (SymWord16 m) -> SymBool <$> h m
           (SymWord32 m) -> SymBool <$> h m
           (SymWord64 m) -> SymBool <$> h m
+          (SymWord128 m) -> SymBool <$> h m
           (SymInt8 m) -> SymBool <$> h m
           (SymInt16 m) -> SymBool <$> h m
           (SymInt32 m) -> SymBool <$> h m
           (SymInt64 m) -> SymBool <$> h m
+          (SymInt128 m) -> SymBool <$> h m
           _ -> error UnexpectedReturnType
 
   
@@ -281,10 +297,12 @@ solveExpr expr@(Expression _sz xop) = do
           ((SymWord16 x), (SymWord16 y)) -> h x y
           ((SymWord32 x), (SymWord32 y)) -> h x y
           ((SymWord64 x), (SymWord64 y)) -> h x y
+          ((SymWord128 x), (SymWord128 y)) -> h x y
           ((SymInt8 x), (SymInt8 y)) -> h x y
           ((SymInt16 x), (SymInt16 y)) -> h x y
           ((SymInt32 x), (SymInt32 y)) -> h x y
           ((SymInt64 x), (SymInt64 y)) -> h x y
+          ((SymInt128 x), (SymInt128 y)) -> h x y
           _ -> error UnexpectedArgType
 
       binSignedToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
@@ -309,6 +327,7 @@ solveExpr expr@(Expression _sz xop) = do
           ((SymWord16 x), (SymWord16 y)) -> h x y
           ((SymWord32 x), (SymWord32 y)) -> h x y
           ((SymWord64 x), (SymWord64 y)) -> h x y
+          ((SymWord128 x), (SymWord128 y)) -> h x y
           _ -> error UnexpectedArgType
 
   
@@ -381,10 +400,12 @@ solveExpr expr@(Expression _sz xop) = do
             ((SymWord16 f), (SymWord16 t)) -> return . SymWord16 $ SBV.ite b t f
             ((SymWord32 f), (SymWord32 t)) -> return . SymWord32 $ SBV.ite b t f
             ((SymWord64 f), (SymWord64 t)) -> return . SymWord64 $ SBV.ite b t f
+            ((SymWord128 f), (SymWord128 t)) -> return . SymWord128 $ SBV.ite b t f
             ((SymInt8 f), (SymInt8 t)) -> return . SymInt8 $ SBV.ite b t f
             ((SymInt16 f), (SymInt16 t)) -> return . SymInt16 $ SBV.ite b t f
             ((SymInt32 f), (SymInt32 t)) -> return . SymInt32 $ SBV.ite b t f
             ((SymInt64 f), (SymInt64 t)) -> return . SymInt64 $ SBV.ite b t f
+            ((SymInt128 f), (SymInt128 t)) -> return . SymInt128 $ SBV.ite b t f
             _ -> error UnexpectedArgType
           _ -> error UnexpectedArgType
       _ -> error UnexpectedArgType

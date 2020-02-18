@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Blaze.Prelude
   ( module Exports
@@ -66,6 +68,9 @@ import Control.Concurrent.Async as Exports (mapConcurrently)
 import Streamly as Exports ( IsStream
                            , asyncly )
 import qualified Streamly.Prelude
+import Data.SBV.Tools.Overflow (ArithOverflow(bvAddO, bvSubO, bvMulO, bvMulOFast, bvDivO, bvNegO))
+import Data.SBV.Internals (SBV(SBV, unSBV), SVal)
+import Data.SBV.Trans (SWord, SInt, SBool)
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 
@@ -122,3 +127,24 @@ twaddleUUID diff' uuid =
   UUID.fromWords (w1 + diff') (w2 + diff') (w3 + diff') (w4 + diff')
   where
     (w1, w2, w3, w4) = UUID.toWords uuid
+
+--------------
+
+l2 :: (SVal -> SVal -> (SBool, SBool)) -> SBV a -> SBV a -> (SBool, SBool)
+l2 f (SBV a) (SBV b) = f a b
+
+instance ArithOverflow (SWord 128) where
+  bvAddO = l2 bvAddO
+  bvSubO = l2 bvSubO
+  bvMulO = l2 bvMulO
+  bvMulOFast = l2 bvMulOFast
+  bvDivO = l2 bvDivO
+  bvNegO = bvNegO . unSBV
+
+instance ArithOverflow (SInt 128) where
+  bvAddO = l2 bvAddO
+  bvSubO = l2 bvSubO
+  bvMulO = l2 bvMulO
+  bvMulOFast = l2 bvMulOFast
+  bvDivO = l2 bvDivO
+  bvNegO = bvNegO . unSBV

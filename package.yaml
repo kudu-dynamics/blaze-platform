@@ -53,7 +53,7 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
-  - z3
+
 
 default-extensions:
   - BangPatterns
@@ -162,7 +162,7 @@ tests:
     source-dirs:
     - test
     ghc-options:
-    - -Wall
+#    - -Wall
     - -O2
     - -threaded
     - -rtsopts
