@@ -40,11 +40,9 @@ import           Blaze.Types.Function              ( CallInstruction
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
-import qualified Blaze.Types.Path as P
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.Set as Set
 import qualified Streamly.Prelude as S
-import qualified Data.Text as Text
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 

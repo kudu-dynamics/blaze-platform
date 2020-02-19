@@ -83,12 +83,11 @@ convertSubBlockNode sb = do
 convertConditionNode :: ConditionNode -> Converter [Stmt]
 convertConditionNode n = do
   ctx <- use Pil.ctx
-  case Pil.convertExpr ctx $ n ^. Path.condition of
-    Nothing -> return []
-    Just expr -> return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
-      if n ^. Path.trueOrFalseBranch 
-        then expr
-        else Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
+  let expr = Pil.convertExpr ctx $ n ^. Path.condition
+  return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
+    if n ^. Path.trueOrFalseBranch 
+    then expr
+    else Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
 
 convertAbstractCallNode :: AbstractCallNode -> Converter [Stmt]
 convertAbstractCallNode n = do

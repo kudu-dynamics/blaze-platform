@@ -13,7 +13,6 @@ import qualified Data.Set as Set
 import qualified Prelude as P
 import Blaze.Prelude hiding (succ, pred, toList)
 import Binja.Function (Function, MLILSSAFunction)
-import qualified Data.UUID as UUID
 
 type F = MLILSSAFunction
 

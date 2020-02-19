@@ -3,7 +3,7 @@
 module Blaze.Cfg where
 
 import Blaze.Prelude
-import Binja.Core (BNBinaryView, getLowLevelILForInstruction, getFunctionsContaining, getLLILInstructionIndexAtAddress)
+import Binja.Core (BNBinaryView, getFunctionsContaining, getLLILInstructionIndexAtAddress)
 import Binja.Reference (getCodeReferences, ReferenceSource)
 import qualified Binja.Reference as Ref
 import Binja.Function (getFunctions, Function)
@@ -16,7 +16,7 @@ import qualified Data.Set as Set
 import Blaze.Function (toCallInstruction) 
 import qualified Binja.MLIL as MLIL
 import qualified Streamly.Prelude as S
-import           Blaze.Graph.Alga                  ( AlgaGraph )
+
 
 data SpanItem a b = SpanSpan (a, a)
                   | SpanBreak b

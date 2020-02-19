@@ -494,9 +494,9 @@ solveExpr expr@(Expression _sz xop) = do
         _ -> error UnexpectedArgType
 
     (Pil.LOAD _x) -> todo
-    (Pil.LOAD_SSA _x) -> todo
-    (Pil.LOAD_STRUCT _x) -> todo
-    (Pil.LOAD_STRUCT_SSA _x) -> todo
+    -- (Pil.LOAD_SSA _x) -> todo
+    -- (Pil.LOAD_STRUCT _x) -> todo
+    -- (Pil.LOAD_STRUCT_SSA _x) -> todo
 
     (Pil.LOW_PART x) -> mapError . fromSrc x $ Op.handleLowPart et
 
@@ -533,7 +533,7 @@ solveExpr expr@(Expression _sz xop) = do
     (Pil.SX x) -> mapError . fromSrc x $ Op.handleSx et
     
     (Pil.TEST_BIT x) -> lr x $ binBiIntegralToBool Op.testSBit
-    Pil.UNIMPL -> todo
+    (Pil.UNIMPL _) -> todo
   --  (Pil.VAR (VarOp x) -> todo
     (Pil.VAR_ALIASED _x) -> todo
     (Pil.VAR_ALIASED_FIELD _x) -> todo
@@ -561,6 +561,7 @@ solveExpr expr@(Expression _sz xop) = do
     (Pil.MemCmp _x) -> todo
     (Pil.ConstStr _x) -> todo
 
+    (Pil.Extract x) -> mapError . fromSrc x $ Op.extract' et (x ^. Pil.offset)
 
 
 solveStmt :: Stmt -> Solver ()

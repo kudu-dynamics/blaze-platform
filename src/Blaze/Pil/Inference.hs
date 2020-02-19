@@ -107,7 +107,7 @@ getExprType env x = case x ^. op of
   IMPORT _ -> bitvecRet
   INT_TO_FLOAT _ -> floatRet
   LOAD _ -> bitvecRet
-  LOAD_STRUCT _ -> bitvecRet
+  -- LOAD_STRUCT _ -> bitvecRet
   LOW_PART _ -> bitvecRet
   LSL _ -> bitvecRet
   LSR _ -> bitvecRet
@@ -133,8 +133,8 @@ getExprType env x = case x ^. op of
   MemCmp _ -> intRet
   SUB n -> inheritIntRet n
   SX n -> inheritIntUnary $ n ^. src
-  TEST_BIT _ -> unknown
-  UNIMPL -> bitvecRet
+  TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
+  UNIMPL _ -> bitvecRet -- should this be unknown?
   VAR n -> typeEnvLookup (n ^. src) env
   VAR_ALIASED _ -> bitvecRet
   VAR_ALIASED_FIELD _ -> bitvecRet
@@ -146,9 +146,11 @@ getExprType env x = case x ^. op of
 
   -- the following were missing from the Clojure implementation
   -- i think because the _SSA version got renamed and replaced the nonssa
-  LOAD_SSA _ -> bitvecRet
-  LOAD_STRUCT_SSA _ -> bitvecRet
+  -- LOAD_SSA _ -> bitvecRet
+  -- LOAD_STRUCT_SSA _ -> bitvecRet
   VAR_PHI _ -> unknown -- should be removed by analysis
+
+  Extract _ -> bitvecRet
   
   where
     sz :: Int

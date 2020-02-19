@@ -225,12 +225,6 @@ instance Hashable SSAVariableRef where
     v `hashWithSalt`
     mf `hashWithSalt` mc
 
---- maybe should use higher kinded types for this
-data MExpression = MExpression
-  { _size :: OperationSize
-  , _op :: Maybe (ExprOp MExpression)
-  } deriving (Eq, Ord, Show, Generic)
-
 data Expression = Expression
   { _size :: OperationSize
   , _op :: ExprOp Expression
@@ -287,9 +281,9 @@ data ExprOp expr
     | IMPORT (ImportOp expr)
     | INT_TO_FLOAT (IntToFloatOp expr)
     | LOAD (LoadOp expr)
-    | LOAD_SSA (LoadSSAOp expr)
-    | LOAD_STRUCT (LoadStructOp expr)
-    | LOAD_STRUCT_SSA (LoadStructSSAOp expr)
+    -- | LOAD_SSA (LoadSSAOp expr)
+    -- | LOAD_STRUCT (LoadStructOp expr)
+    -- | LOAD_STRUCT_SSA (LoadStructSSAOp expr)
     | LOW_PART (LowPartOp expr)
     | LSL (LslOp expr)
     | LSR (LsrOp expr)
@@ -312,7 +306,7 @@ data ExprOp expr
     | SUB (SubOp expr)
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
-    | UNIMPL
+    | UNIMPL Text
     | VAR_ALIASED (VarAliasedOp expr)
     | VAR_ALIASED_FIELD (VarAliasedFieldOp expr)
     | VAR_PHI (VarPhiOp expr)
@@ -324,6 +318,7 @@ data ExprOp expr
 
     | CALL (CallOp expr)
 
+    | Extract (ExtractOp expr)
     | StrCmp (StrCmpOp expr)
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
@@ -398,6 +393,14 @@ data CallOp expr = CallOp
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallOp a)
+
+data ExtractOp expr = ExtractOp
+    { _src :: expr
+    , _offset :: Int64
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (ExtractOp a)
+
 
 data StrCmpOp expr = StrCmpOp
     { _left :: expr
@@ -618,8 +621,8 @@ $(makeFields ''VarSplitOp)
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)
 $(makeFieldsNoPrefix ''Expression)
-$(makeFieldsNoPrefix ''MExpression)
 $(makeFieldsNoPrefix ''CallOp)
+$(makeFieldsNoPrefix ''ExtractOp)
 $(makeFieldsNoPrefix ''StrCmpOp)
 $(makeFieldsNoPrefix ''StrNCmpOp)
 $(makeFieldsNoPrefix ''MemCmpOp)

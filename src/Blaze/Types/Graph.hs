@@ -1,7 +1,6 @@
 module Blaze.Types.Graph where
 
 import Blaze.Prelude
-import Binja.Function (Function)
 
 import qualified Data.Set as Set
 import qualified Data.Map.Lazy as Map

@@ -15,7 +15,6 @@ import           Blaze.Types.Pil                         ( CallDest
                                                          , DefOp( DefOp )
                                                          , ExprOp
                                                          , Expression( Expression )
-                                                         , MExpression( MExpression )
                                                          , PilVar( PilVar )
                                                          , SSAVariableRef( SSAVariableRef )
                                                          , Statement( Def
@@ -32,114 +31,114 @@ import           Blaze.Types.Pil                         ( CallDest
                                                          )
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.HashSet         as HSet
+import qualified Data.Text            as Text
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
 
-convertExpr :: Ctx -> MLIL.Expression t -> Maybe Expression
-convertExpr ctx = convertMExpression . convertExpr_ ctx
+convertExpr :: Ctx -> MLIL.Expression t -> Expression
+convertExpr ctx x = Expression (x ^. Pil.size) (convertExprOp ctx $ x ^. Pil.op)
 
-convertExpr_ :: Ctx -> MLIL.Expression t -> MExpression
-convertExpr_ ctx e = MExpression (e ^. Pil.size) (convertExprOp ctx $ e ^. Pil.op)
-
-convertExprOp :: Ctx -> MLIL.Operation (MLIL.Expression t) -> Maybe (ExprOp MExpression)
+convertExprOp :: Ctx -> MLIL.Operation (MLIL.Expression t) -> ExprOp Expression
 convertExprOp ctx mop =
   case mop of
-    (MLIL.ADC x) -> Just . Pil.ADC $ f x
-    (MLIL.ADD x) -> Just . Pil.ADD $ f x
-    (MLIL.ADDRESS_OF x) -> Just . Pil.ADDRESS_OF $ f x
-    (MLIL.ADDRESS_OF_FIELD x) -> Just . Pil.ADDRESS_OF_FIELD $ f x
-    (MLIL.ADD_OVERFLOW x) -> Just . Pil.ADD_OVERFLOW $ f x
-    (MLIL.AND x) -> Just . Pil.AND $ f x
-    (MLIL.ASR x) -> Just . Pil.ASR $ f x
-    (MLIL.BOOL_TO_INT x) -> Just . Pil.BOOL_TO_INT $ f x
-    (MLIL.CEIL x) -> Just . Pil.CEIL $ f x
-    (MLIL.CMP_E x) -> Just . Pil.CMP_E $ f x
-    (MLIL.CMP_NE x) -> Just . Pil.CMP_NE $ f x
-    (MLIL.CMP_SGE x) -> Just . Pil.CMP_SGE $ f x
-    (MLIL.CMP_SGT x) -> Just . Pil.CMP_SGT $ f x
-    (MLIL.CMP_SLE x) -> Just . Pil.CMP_SLE $ f x
-    (MLIL.CMP_SLT x) -> Just . Pil.CMP_SLT $ f x
-    (MLIL.CMP_UGE x) -> Just . Pil.CMP_UGE $ f x
-    (MLIL.CMP_UGT x) -> Just . Pil.CMP_UGT $ f x
-    (MLIL.CMP_ULE x) -> Just . Pil.CMP_ULE $ f x
-    (MLIL.CMP_ULT x) -> Just . Pil.CMP_ULT $ f x
-    (MLIL.CONST x) -> Just . Pil.CONST $ f x
-    (MLIL.CONST_PTR x) -> Just . Pil.CONST_PTR $ f x
-    (MLIL.DIVS x) -> Just . Pil.DIVS $ f x
-    (MLIL.DIVS_DP x) -> Just . Pil.DIVS_DP $ f x
-    (MLIL.DIVU x) -> Just . Pil.DIVU $ f x
-    (MLIL.DIVU_DP x) -> Just . Pil.DIVU_DP $ f x
-    (MLIL.FABS x) -> Just . Pil.FABS $ f x
-    (MLIL.FADD x) -> Just . Pil.FADD $ f x
-    (MLIL.FCMP_E x) -> Just . Pil.FCMP_E $ f x
-    (MLIL.FCMP_GE x) -> Just . Pil.FCMP_GE $ f x
-    (MLIL.FCMP_GT x) -> Just . Pil.FCMP_GT $ f x
-    (MLIL.FCMP_LE x) -> Just . Pil.FCMP_LE $ f x
-    (MLIL.FCMP_LT x) -> Just . Pil.FCMP_LT $ f x
-    (MLIL.FCMP_NE x) -> Just . Pil.FCMP_NE $ f x
-    (MLIL.FCMP_O x) -> Just . Pil.FCMP_O $ f x
-    (MLIL.FCMP_UO x) -> Just . Pil.FCMP_UO $ f x
-    (MLIL.FDIV x) -> Just . Pil.FDIV $ f x
-    (MLIL.FLOAT_CONST x) -> Just . Pil.FLOAT_CONST $ f x
-    (MLIL.FLOAT_CONV x) -> Just . Pil.FLOAT_CONV $ f x
-    (MLIL.FLOAT_TO_INT x) -> Just . Pil.FLOAT_TO_INT $ f x
-    (MLIL.FLOOR x) -> Just . Pil.FLOOR $ f x
-    (MLIL.FMUL x) -> Just . Pil.FMUL $ f x
-    (MLIL.FNEG x) -> Just . Pil.FNEG $ f x
-    (MLIL.FSQRT x) -> Just . Pil.FSQRT $ f x
-    (MLIL.FSUB x) -> Just . Pil.FSUB $ f x
-    (MLIL.FTRUNC x) -> Just . Pil.FTRUNC $ f x
-    (MLIL.IMPORT x) -> Just . Pil.IMPORT $ f x
-    (MLIL.INT_TO_FLOAT x) -> Just . Pil.INT_TO_FLOAT $ f x
-    (MLIL.LOAD x) -> Just . Pil.LOAD $ f x
-    (MLIL.LOAD_SSA x) -> Just . Pil.LOAD_SSA $ f x
-    (MLIL.LOAD_STRUCT x) -> Just . Pil.LOAD_STRUCT $ f x
-    (MLIL.LOAD_STRUCT_SSA x) -> Just . Pil.LOAD_STRUCT_SSA $ f x
-    (MLIL.LOW_PART x) -> Just . Pil.LOW_PART $ f x
-    (MLIL.LSL x) -> Just . Pil.LSL $ f x
-    (MLIL.LSR x) -> Just . Pil.LSR $ f x
-    (MLIL.MODS x) -> Just . Pil.MODS $ f x
-    (MLIL.MODS_DP x) -> Just . Pil.MODS_DP $ f x
-    (MLIL.MODU x) -> Just . Pil.MODU $ f x
-    (MLIL.MODU_DP x) -> Just . Pil.MODU_DP $ f x
-    (MLIL.MUL x) -> Just . Pil.MUL $ f x
-    (MLIL.MULS_DP x) -> Just . Pil.MULS_DP $ f x
-    (MLIL.MULU_DP x) -> Just . Pil.MULU_DP $ f x
-    (MLIL.NEG x) -> Just . Pil.NEG $ f x
-    (MLIL.NOT x) -> Just . Pil.NOT $ f x
-    (MLIL.OR x) -> Just . Pil.OR $ f x
-    (MLIL.RLC x) -> Just . Pil.RLC $ f x
-    (MLIL.ROL x) -> Just . Pil.ROL $ f x
-    (MLIL.ROR x) -> Just . Pil.ROR $ f x
-    (MLIL.ROUND_TO_INT x) -> Just . Pil.ROUND_TO_INT $ f x
-    (MLIL.RRC x) -> Just . Pil.RRC $ f x
-    (MLIL.SBB x) -> Just . Pil.SBB $ f x
-    (MLIL.SUB x) -> Just . Pil.SUB $ f x
-    (MLIL.SX x) -> Just . Pil.SX $ f x
-    (MLIL.TEST_BIT x) -> Just . Pil.TEST_BIT $ f x
-    MLIL.UNIMPL -> Just Pil.UNIMPL
---    (MLIL.VAR x) -> Just . VarOp expr)
-    (MLIL.VAR_ALIASED x) -> Just . Pil.VAR_ALIASED
-      $ Pil.VarAliasedOp (convertToPilVar ctx $ x ^. Pil.src)
-    (MLIL.VAR_ALIASED_FIELD x) -> Just . Pil.VAR_ALIASED_FIELD
+    (MLIL.ADC x) -> Pil.ADC $ f x
+    (MLIL.ADD x) -> Pil.ADD $ f x
+    (MLIL.ADDRESS_OF x) -> Pil.ADDRESS_OF $ f x
+    (MLIL.ADDRESS_OF_FIELD x) -> Pil.ADDRESS_OF_FIELD $ f x
+    (MLIL.ADD_OVERFLOW x) -> Pil.ADD_OVERFLOW $ f x
+    (MLIL.AND x) -> Pil.AND $ f x
+    (MLIL.ASR x) -> Pil.ASR $ f x
+    (MLIL.BOOL_TO_INT x) -> Pil.BOOL_TO_INT $ f x
+    (MLIL.CEIL x) -> Pil.CEIL $ f x
+    (MLIL.CMP_E x) -> Pil.CMP_E $ f x
+    (MLIL.CMP_NE x) -> Pil.CMP_NE $ f x
+    (MLIL.CMP_SGE x) -> Pil.CMP_SGE $ f x
+    (MLIL.CMP_SGT x) -> Pil.CMP_SGT $ f x
+    (MLIL.CMP_SLE x) -> Pil.CMP_SLE $ f x
+    (MLIL.CMP_SLT x) -> Pil.CMP_SLT $ f x
+    (MLIL.CMP_UGE x) -> Pil.CMP_UGE $ f x
+    (MLIL.CMP_UGT x) -> Pil.CMP_UGT $ f x
+    (MLIL.CMP_ULE x) -> Pil.CMP_ULE $ f x
+    (MLIL.CMP_ULT x) -> Pil.CMP_ULT $ f x
+    (MLIL.CONST x) -> Pil.CONST $ f x
+    (MLIL.CONST_PTR x) -> Pil.CONST_PTR $ f x
+    (MLIL.DIVS x) -> Pil.DIVS $ f x
+    (MLIL.DIVS_DP x) -> Pil.DIVS_DP $ f x
+    (MLIL.DIVU x) -> Pil.DIVU $ f x
+    (MLIL.DIVU_DP x) -> Pil.DIVU_DP $ f x
+    (MLIL.FABS x) -> Pil.FABS $ f x
+    (MLIL.FADD x) -> Pil.FADD $ f x
+    (MLIL.FCMP_E x) -> Pil.FCMP_E $ f x
+    (MLIL.FCMP_GE x) -> Pil.FCMP_GE $ f x
+    (MLIL.FCMP_GT x) -> Pil.FCMP_GT $ f x
+    (MLIL.FCMP_LE x) -> Pil.FCMP_LE $ f x
+    (MLIL.FCMP_LT x) -> Pil.FCMP_LT $ f x
+    (MLIL.FCMP_NE x) -> Pil.FCMP_NE $ f x
+    (MLIL.FCMP_O x) -> Pil.FCMP_O $ f x
+    (MLIL.FCMP_UO x) -> Pil.FCMP_UO $ f x
+    (MLIL.FDIV x) -> Pil.FDIV $ f x
+    (MLIL.FLOAT_CONST x) -> Pil.FLOAT_CONST $ f x
+    (MLIL.FLOAT_CONV x) -> Pil.FLOAT_CONV $ f x
+    (MLIL.FLOAT_TO_INT x) -> Pil.FLOAT_TO_INT $ f x
+    (MLIL.FLOOR x) -> Pil.FLOOR $ f x
+    (MLIL.FMUL x) -> Pil.FMUL $ f x
+    (MLIL.FNEG x) -> Pil.FNEG $ f x
+    (MLIL.FSQRT x) -> Pil.FSQRT $ f x
+    (MLIL.FSUB x) -> Pil.FSUB $ f x
+    (MLIL.FTRUNC x) -> Pil.FTRUNC $ f x
+    (MLIL.IMPORT x) -> Pil.IMPORT $ f x
+    (MLIL.INT_TO_FLOAT x) -> Pil.INT_TO_FLOAT $ f x
+    (MLIL.LOAD x) -> Pil.LOAD $ f x
+    (MLIL.LOAD_SSA x) -> Pil.LOAD . Pil.LoadOp . convertExpr ctx $ x ^. MLIL.src
+    (MLIL.LOAD_STRUCT x) -> Pil.LOAD . Pil.LoadOp
+      $ addConstToExpr (convertExpr ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
+    (MLIL.LOAD_STRUCT_SSA x) -> Pil.LOAD . Pil.LoadOp
+      $ addConstToExpr (convertExpr ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
+    (MLIL.LOW_PART x) -> Pil.LOW_PART $ f x
+    (MLIL.LSL x) -> Pil.LSL $ f x
+    (MLIL.LSR x) -> Pil.LSR $ f x
+    (MLIL.MODS x) -> Pil.MODS $ f x
+    (MLIL.MODS_DP x) -> Pil.MODS_DP $ f x
+    (MLIL.MODU x) -> Pil.MODU $ f x
+    (MLIL.MODU_DP x) -> Pil.MODU_DP $ f x
+    (MLIL.MUL x) -> Pil.MUL $ f x
+    (MLIL.MULS_DP x) -> Pil.MULS_DP $ f x
+    (MLIL.MULU_DP x) -> Pil.MULU_DP $ f x
+    (MLIL.NEG x) -> Pil.NEG $ f x
+    (MLIL.NOT x) -> Pil.NOT $ f x
+    (MLIL.OR x) -> Pil.OR $ f x
+    (MLIL.RLC x) -> Pil.RLC $ f x
+    (MLIL.ROL x) -> Pil.ROL $ f x
+    (MLIL.ROR x) -> Pil.ROR $ f x
+    (MLIL.ROUND_TO_INT x) -> Pil.ROUND_TO_INT $ f x
+    (MLIL.RRC x) -> Pil.RRC $ f x
+    (MLIL.SBB x) -> Pil.SBB $ f x
+    (MLIL.SUB x) -> Pil.SUB $ f x
+    (MLIL.SX x) -> Pil.SX $ f x
+    (MLIL.TEST_BIT x) -> Pil.TEST_BIT $ f x
+    MLIL.UNIMPL -> Pil.UNIMPL "UNIMPL"
+--    (MLIL.VAR x) -> VarOp expr)
+    (MLIL.VAR_ALIASED x) -> Pil.VAR_ALIASED
+      . Pil.VarAliasedOp . convertToPilVar ctx $ x ^. Pil.src
+    (MLIL.VAR_ALIASED_FIELD x) -> Pil.VAR_ALIASED_FIELD
       $ Pil.VarAliasedFieldOp (convertToPilVar ctx $ x ^. MLIL.src) (x ^. MLIL.offset)      
---    (MLIL.VAR_FIELD x) -> Just . VarFieldOp expr)
-    (MLIL.VAR_PHI x) -> Just . Pil.VAR_PHI
+--    (MLIL.VAR_FIELD x) -> VarFieldOp expr)
+    (MLIL.VAR_PHI x) -> Pil.VAR_PHI
       $ Pil.VarPhiOp (convertToPilVar ctx $ x ^. MLIL.dest) (fmap (convertToPilVar ctx) $ x ^. MLIL.src)
---    (MLIL.VAR_SPLIT x) -> Just . VarSplitOp expr)
-    (MLIL.VAR_SPLIT_SSA x) -> Just . Pil.VAR_SPLIT
+--    (MLIL.VAR_SPLIT x) -> VarSplitOp expr)
+    (MLIL.VAR_SPLIT_SSA x) -> Pil.VAR_SPLIT
       $ Pil.VarSplitOp (convertToPilVar ctx $ x ^. MLIL.high) (convertToPilVar ctx $ x ^. MLIL.low)
-    (MLIL.VAR_SSA x) -> Just . Pil.VAR
+    (MLIL.VAR_SSA x) -> Pil.VAR
       $ Pil.VarOp (convertToPilVar ctx $ x ^. MLIL.src)
-    (MLIL.VAR_SSA_FIELD x) -> Just . Pil.VAR_FIELD
+    (MLIL.VAR_SSA_FIELD x) -> Pil.VAR_FIELD
       $ Pil.VarFieldOp (convertToPilVar ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
-    (MLIL.XOR x) -> Just . Pil.XOR $ f x
-    (MLIL.ZX x) -> Just . Pil.ZX $ f x
-    _ -> Nothing
+    (MLIL.XOR x) -> Pil.XOR $ f x
+    (MLIL.ZX x) -> Pil.ZX $ f x
+    x -> Pil.UNIMPL $ Text.take 20 (show x) <> "..."
   where
-    f :: Functor m => m (MLIL.Expression t) -> m MExpression
-    f = fmap $ convertExpr_ ctx
+    f :: Functor m => m (MLIL.Expression t) -> m Expression
+    f = fmap $ convertExpr ctx
 
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> show (v ^. MLIL.version)
@@ -151,20 +150,12 @@ convertToPilVar ctx v = PilVar
   (ctx ^. Pil.ctxIndex)
   (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
 
--- does an MEXpression and its children have all `Just` op fields?
-isMExpressionComplete :: MExpression -> Bool
-isMExpressionComplete mexpr = case mexpr ^. Pil.op of
-  Nothing -> False
-  Just exop -> foldr (\mexpr' b -> isMExpressionComplete mexpr' && b) True exop
 
-convertMExpression :: MExpression -> Maybe Expression
-convertMExpression mexpr = bool Nothing (Just $ convertCompleteMExpression mexpr)
-  $ isMExpressionComplete mexpr
+addConstToExpr :: Expression -> Int64 -> Expression
+addConstToExpr expr@(Expression size _) n = Expression size addOp
   where
-    convertCompleteMExpression :: MExpression -> Expression
-    convertCompleteMExpression mexpr' =
-      Expression (mexpr' ^. Pil.size)
-      (fmap convertCompleteMExpression . fromJust $ mexpr' ^. Pil.op)
+    addOp = Pil.ADD $ Pil.AddOp expr const'
+    const' = Expression size . Pil.CONST $ Pil.ConstOp n
 
 convertInstrOp :: Ctx -> MLIL.Operation (MLIL.Expression t) -> [Statement Expression]
 convertInstrOp ctx op' = maybe [] identity $ case op' of
@@ -179,23 +170,26 @@ convertInstrOp ctx op' = maybe [] identity $ case op' of
   (MLIL.CALL_UNTYPED_SSA _) -> Nothing
 
   (MLIL.SET_VAR_SSA x) -> do
-    expr <- convertExpr ctx (x ^. MLIL.src)
+    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
     return [Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.dest) expr]
 
   -- TODO: Need some way to merge with previous version and include offset
   (MLIL.SET_VAR_SSA_FIELD x) -> do
-    expr <- convertExpr ctx (x ^. MLIL.src)
+    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
     return [Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.prev . MLIL.dest) expr]
 
   (MLIL.SET_VAR_SPLIT_SSA x) -> do
-    expr <- convertExpr ctx (x ^. MLIL.src)
-    return [ Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.high) expr
-           , Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.low) expr
+    expr@(Expression size _) <- Just $ convertExpr ctx (x ^. MLIL.src)
+    let halfSize = size `div` 2
+        highExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr (fromIntegral halfSize)
+        lowExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr 0
+    return [ Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.high) highExpr
+           , Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.low) lowExpr
            ]
 
-  -- TODO: Need to use :prev?
+  -- TODO: Need to use prev.src?
   (MLIL.SET_VAR_ALIASED x) -> do
-    expr <- convertExpr ctx (x ^. MLIL.src)
+    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
     return [Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.prev . MLIL.dest) expr]
 
   -- TODO: Need to find an example
@@ -203,13 +197,14 @@ convertInstrOp ctx op' = maybe [] identity $ case op' of
   (MLIL.SET_VAR_ALIASED_FIELD _) -> pure []
 
   (MLIL.STORE_SSA x) -> do
-    exprSrc <- convertExpr ctx (x ^. MLIL.src)
-    exprDest <- convertExpr ctx (x ^. MLIL.dest)
+    exprSrc <- Just $ convertExpr ctx (x ^. MLIL.src)
+    exprDest <- Just $ convertExpr ctx (x ^. MLIL.dest)
     return [Store $ StoreOp exprDest exprSrc]
 
-  -- TODO: Need to find an example
-  -- not in Dive-Logger
-  (MLIL.STORE_STRUCT_SSA _) -> pure []
+  (MLIL.STORE_STRUCT_SSA x) -> Just [Store $ StoreOp exprDest exprSrc]
+    where
+      exprDest = addConstToExpr (convertExpr ctx (x ^. MLIL.dest)) (x ^. MLIL.offset)
+      exprSrc = convertExpr ctx (x ^. MLIL.src)
 
   (MLIL.VAR_PHI x) -> do
     latestVar <- headMay
@@ -226,7 +221,7 @@ convertInstrOp ctx op' = maybe [] identity $ case op' of
   MLIL.UNIMPL -> Just [UnimplInstr]
 
   (MLIL.UNIMPL_MEM x) -> do
-    expr <- convertExpr ctx (x ^. MLIL.src)
+    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
     return [UnimplMem $ UnimplMemOp expr]
 
   MLIL.UNDEF -> Just [Undef]
@@ -260,10 +255,10 @@ convertCallInstruction ctx c = case cond of
                    (`getCallDestFunctionName` target)
                    (ctx ^. Pil.func)
     let callExpr = Expression (c ^. Function.size)
-          . Pil.CALL . Pil.CallOp target mname . mapMaybe (convertExpr ctx)
+          . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx)
           $ c ^. Function.params
     return [Def $ DefOp (convertToPilVar ctx dest) callExpr]
   where
     cond = (,) <$> (c ^. Function.outputDest)
                <*> (Pil.getCallDest <$>
-                    (c ^. Function.dest >>= convertExpr ctx))
+                    (c ^. Function.dest >>= Just . convertExpr ctx))

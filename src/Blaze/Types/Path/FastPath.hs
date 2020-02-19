@@ -2,12 +2,9 @@ module Blaze.Types.Path.FastPath
   ( FastPath (FastPath, path, firstAndLastNode)
   ) where
 
-import qualified Prelude as P
 import Blaze.Prelude
 import Blaze.Types.Path.AlgaPath ( AlgaPath )
-import           Blaze.Graph.Alga                  ( AlgaGraph )
 import           Blaze.Types.Path
-import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Graph as G
 
