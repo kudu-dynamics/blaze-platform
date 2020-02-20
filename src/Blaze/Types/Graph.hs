@@ -221,3 +221,9 @@ searchBetween :: forall e node g. (Graph e node g, Ord node)
               => g -> node -> node -> [[node]]
 searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
 
+
+siblings :: forall e node g. (Graph e node g, Ord node)
+         => node -> node -> g -> Set node
+siblings child parent g = Set.delete child $ succs parent g
+
+    
