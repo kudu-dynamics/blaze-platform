@@ -48,6 +48,40 @@ naiveLCS (x:xs) (y:ys)
   | x == y    = 1 + naiveLCS xs ys
   | otherwise = max (naiveLCS (x:xs) ys) (naiveLCS xs (y:ys))
 
+isGotoInstr :: F -> InstructionIndex F -> IO Bool
+isGotoInstr fn ix = do
+  instr <- MLIL.instruction fn ix
+  return $ case instr ^. MLIL.op of
+    (MLIL.GOTO _) -> True
+    _ -> False
+
+isGotoNode :: BasicBlock F -> IO Bool
+isGotoNode bb = do
+  b <- isGotoInstr (bb ^. BB.func) (bb ^. BB.start)
+  return $ bb ^. BB.end - bb ^. BB.start == 1 && b
+
+collapseGotoBlocks :: (Graph (BlockEdge F) (BasicBlock F) g)
+                   => g -> IO g
+collapseGotoBlocks g = do
+  gotos <- fmap Set.fromList . filterM isGotoNode . Set.toList $ G.nodes g
+  let edges = G.edges g
+  return . G.fromEdges $ foldr (f gotos) [] edges
+  where
+    f gotos edge@(be, (bbSrc, bbDst)) xs
+      | Set.member bbSrc gotos = xs
+      | Set.member bbDst gotos = case Set.toList $ G.succs bbDst g of
+            [bbTgt] -> ( be & BB.target .~ Just bbTgt
+                       , (bbSrc, bbTgt) )
+                       : xs
+            _ -> edge : xs
+      | otherwise = edge : xs
+          
+
+-- collapseGotoBlockEdge :: BlockEdge F -> IO (BlockEdge F)
+-- collapseGotoBlockEdge edge = case edge ^. BB.target of
+--   Nothing -> return edge
+--   (Just bb) -> 
+
 
 constructBasicBlockGraph :: (Graph (BlockEdge t) (BasicBlock t) g, BasicBlockFunction t)
                          => t -> IO g

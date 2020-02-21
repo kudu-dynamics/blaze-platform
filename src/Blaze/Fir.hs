@@ -3,9 +3,7 @@ module Blaze.Fir where
 import qualified Prelude as P
 import           Blaze.Prelude
 
-import qualified Data.Map as Map
 import Data.Map ((!))
-import qualified Data.Map.Lazy as LMap
 import           Binja.BasicBlock                  ( BasicBlock
                                                    , BasicBlockFunction
                                                    , BlockEdge
@@ -37,8 +35,8 @@ import qualified Data.Set as Set
 import qualified Streamly.Prelude as S
 import Blaze.Types.Path (ConditionNode(ConditionNode))
 import qualified Blaze.Graph as Graph
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 
 type F = MLILSSAFunction
@@ -72,16 +70,16 @@ data ChainNode n = OriginChainNode n
 instance Hashable n => Hashable (ChainNode n)
 
 
-type ChainMapping n = HashMap (ChainNode n) (ChainNode n)
+type ChainMapping n = Map (ChainNode n) (ChainNode n)
 
-chainMapOrigins :: (Hashable a, Eq a) => HashMap a a -> HashSet a
-chainMapOrigins hm = keySet `HashSet.difference` elemSet
+chainMapOrigins :: (Ord a, Eq a) => Map a a -> Set a
+chainMapOrigins hm = keySet `Set.difference` elemSet
   where
-    elemSet = HashSet.fromList $ HashMap.elems hm
-    keySet = HashSet.fromList $ HashMap.keys hm
+    elemSet = Set.fromList $ Map.elems hm
+    keySet = Set.fromList $ Map.keys hm
 
-demoh :: HashMap Int Int
-demoh = HashMap.fromList
+demoh :: Map Int Int
+demoh = Map.fromList
   [ (1, 2)
   , (2, 3)
   , (3, 4)
@@ -91,18 +89,15 @@ demoh = HashMap.fromList
   , (8, 9)
   ]
 
-getChain :: (Hashable a, Eq a) => HashMap a a -> a -> [a]
-getChain hm origin = case HashMap.lookup origin hm of
+getChain :: (Ord a, Eq a) => Map a a -> a -> [a]
+getChain hm origin = case Map.lookup origin hm of
   Nothing -> [origin]
   (Just next) -> origin : getChain hm next
 
-chainMapToLists :: (Hashable n, Eq n) => HashMap n n -> [[n]]
-chainMapToLists hm = fmap (getChain hm) . HashSet.toList $ chainMapOrigins hm
+chainMapToLists :: (Ord n, Eq n) => Map n n -> [[n]]
+chainMapToLists hm = fmap (getChain hm) . Set.toList $ chainMapOrigins hm
 
-getIfChainNodes :: forall e n g. ( Graph e n g
-                                 , Ord n
-                                 , Hashable n
-                                 )
+getIfChainNodes :: forall e n g. ( Graph e n g, Ord n )
                 => g -> [IfChainNode n]
 getIfChainNodes g = do
   (n, (c1, c2)) <- twoKidsList
@@ -110,7 +105,7 @@ getIfChainNodes g = do
     p <- case Set.toList $ G.preds n g of
       [p] -> return p
       _ -> Nothing
-    (pkid1, pkid2) <- HashMap.lookup p twoKidsMap
+    (pkid1, pkid2) <- Map.lookup p twoKidsMap
     let cnode cEsc dest = IfChainNode { commonEscape = cEsc
                                       , destination = dest
                                       , self = n
@@ -124,8 +119,8 @@ getIfChainNodes g = do
     twoKidsList :: [(n, (n, n))]
     twoKidsList = getNodesWithTwoChildren g
 
-    twoKidsMap :: HashMap n (n, n)
-    twoKidsMap = HashMap.fromList twoKidsList
+    twoKidsMap :: Map n (n, n)
+    twoKidsMap = Map.fromList twoKidsList
 
 
 data IfChain n = IfChain
@@ -138,7 +133,7 @@ instance Hashable n => Hashable (IfChain n)
 
 
 getIfChains :: forall e n g.
-               ( Graph e n g, Ord n, Hashable n)
+               ( Graph e n g, Ord n )
             => g -> [IfChain n]
 getIfChains g = do
   xs <- chainMapToLists chainMapping
@@ -149,7 +144,7 @@ getIfChains g = do
     convertChainList :: [n] -> Maybe (IfChain n)
     convertChainList xs = do
       lastNode <- lastMay xs
-      lastIfChainNode <- HashMap.lookup lastNode chainNodeMap
+      lastIfChainNode <- Map.lookup lastNode chainNodeMap
       let dest = destination (lastIfChainNode :: IfChainNode n)
           esc = commonEscape (lastIfChainNode :: IfChainNode n)
       -- restNodes <- getRestNodes firstNode (drop 1 xs)
@@ -158,15 +153,12 @@ getIfChains g = do
                        , nodes = xs
                        }
 
-    chainNodeMap :: HashMap n (IfChainNode n)
-    chainNodeMap = HashMap.fromList . fmap (\n -> (self n, n)) $ chainNodes
+    chainNodeMap :: Map n (IfChainNode n)
+    chainNodeMap = Map.fromList . fmap (\n -> (self n, n)) $ chainNodes
     
-    chainMapping :: HashMap n n
-    chainMapping = HashMap.fromList . fmap f $ chainNodes
+    chainMapping :: Map n n
+    chainMapping = Map.fromList . fmap f $ chainNodes
       where
         f n = (parent n, self n)
       
-    
-          
-          
     

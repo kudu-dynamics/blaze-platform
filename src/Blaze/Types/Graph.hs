@@ -222,6 +222,12 @@ searchBetween :: forall e node g. (Graph e node g, Ord node)
 searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
 
 
+-- -- finding parents is (n * log(n)) for each node
+-- -- this 
+-- parentMap :: forall e node g. (Graph e node g, Ord node)
+--           => g -> HashMap n (HashSet n)
+          
+
 siblings :: forall e node g. (Graph e node g, Ord node)
          => node -> node -> g -> Set node
 siblings child parent g = Set.delete child $ succs parent g
