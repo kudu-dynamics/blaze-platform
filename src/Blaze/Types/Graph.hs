@@ -117,7 +117,9 @@ findSimplePaths :: (Graph e node g, Ord node) => node -> node -> g -> [[node]]
 findSimplePaths = findSimplePaths' Set.empty
 
 findAllSimplePaths :: (Graph e node g, Ord node) => g -> [[node]]
-findAllSimplePaths g = do
+findAllSimplePaths g 
+  | length (nodes g) == 1 = [Set.toList $ nodes g]
+  | otherwise = do
   src <- Set.toList $ sources g
   sink <- Set.toList $ sinks g
   findSimplePaths src sink g
