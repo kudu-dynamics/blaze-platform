@@ -1,11 +1,13 @@
 module Blaze.Types.Path.AlgaPath (AlgaPath) where
 
 import qualified Prelude as P
+
 import Blaze.Prelude
 import           Blaze.Graph.Alga                  ( AlgaGraph )
 import           Blaze.Types.Path
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Path as Path
+import Blaze.Pretty (Pretty, pretty)
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
   deriving (Graph () Node, Path, Ord)

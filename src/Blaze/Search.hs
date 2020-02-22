@@ -6,12 +6,15 @@ import qualified Prelude as P
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
 import Binja.Core (InstructionIndex)
+
 import qualified Blaze.Path as Path
 import Blaze.Types.Path (Path, Node, AbstractCallNode)
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Function as BF
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Graph as G
+import Blaze.Pretty (Pretty, pretty)
+
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Set as Set
