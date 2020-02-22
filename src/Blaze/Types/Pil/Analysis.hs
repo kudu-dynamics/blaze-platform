@@ -21,7 +21,9 @@ data MemEquivGroup
       } deriving (Eq, Ord, Show, Generic)
 instance Hashable MemEquivGroup
 
-type Index = Word64
+-- TODO: Index should really be unsigned, but Haskell idiom
+--       seems to be to just always use signed ints
+type Index = Int
 type MemAddr = Expression
 type BitWidth = Word64
 type VarName = Text

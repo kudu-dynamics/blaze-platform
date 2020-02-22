@@ -221,11 +221,7 @@ data SSAVariableRef = SSAVariableRef
   , _ctxIndex :: Maybe CtxIndex
   } deriving (Eq, Ord, Show, Generic)
 
-instance Hashable SSAVariableRef where
-  hashWithSalt s (SSAVariableRef v mf mc) = 
-    s `hashWithSalt`
-    v `hashWithSalt`
-    mf `hashWithSalt` mc
+instance Hashable SSAVariableRef
 
 data Expression = Expression
   { _size :: OperationSize

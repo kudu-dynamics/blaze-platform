@@ -30,8 +30,8 @@ import qualified Data.HashSet        as HSet
 import Data.HashSet (HashSet)
 import Data.Coerce (coerce)
 import Data.List (nub)
-import Data.Sequence (Seq)
-import Data.Sequence as DSeq
+import Data.Sequence (Seq, update)
+import qualified Data.Sequence as DSeq
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
@@ -263,15 +263,12 @@ getStorage memStmt = case memStmt of
   MemStoreStmt storeStmt -> storeStmt ^. A.storage
   MemLoadStmt loadStmt -> loadStmt ^. A.storage
 
--- TODO: Soon there will only be a Pil.LOAD and conversion from MLIL will handle this
+-- TODO: There is now only a Pil.LOAD, can we just use that directly now?
 -- |Helper function for recursively finding loads.empty 
 -- NB: this implementation does not recurse on load expressions.
 _findLoads :: Expression -> [LoadExpr]
 _findLoads e = case e ^. Pil.op of
   Pil.LOAD op -> LoadExpr e : _findLoads (op ^. Pil.src)
-  Pil.LOAD_SSA op -> LoadExpr e : _findLoads (op ^. Pil.src)
-  Pil.LOAD_STRUCT op -> LoadExpr e : _findLoads (op ^. Pil.src)
-  Pil.LOAD_STRUCT_SSA op -> LoadExpr e : _findLoads (op ^. Pil.src)
   x -> concatMap _findLoads x
 
 -- |Find all loads in a statement. 
@@ -370,9 +367,9 @@ findMemEquivGroups stmts = groups
 -- now refer to a new PilVar. If the MemEquivGroup does not include a Store,
 -- no Def will be emitted but the Loads will still refer to a common, new PilVar
 resolveMemGroup :: MemEquivGroup -> VarName -> [Stmt] -> [Stmt]
-resolveMemGroup group name xs = DSeq.fromList _xs
+resolveMemGroup group name xs = toList _xs
   where
-    _xs = toList xs
+    _xs = DSeq.fromList xs
 
 replaceStore :: StoreStmt -> Index -> VarName -> Seq Stmt -> Seq Stmt
 replaceStore store idx varName = update idx varDef
@@ -380,7 +377,7 @@ replaceStore store idx varName = update idx varDef
     storedVal = store ^. (A.op . Pil.value)
     func = Nothing -- TODO
     ctxIndex = Nothing -- TODO
-    mapsTo = HSet.singleton Pil.SSAVariableRef -- TODO
+    mapsTo = HSet.empty -- TODO
     varDef = Pil.Def (Pil.DefOp
                       { _var = Pil.PilVar varName func ctxIndex mapsTo,
                         _value = storedVal})
