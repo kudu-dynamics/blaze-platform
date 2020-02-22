@@ -9,8 +9,6 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 
-import Data.HashMap.Strict (HashMap)
-
 
 data MemEquivGroup
   = MemEquivGroup
@@ -21,39 +19,26 @@ data MemEquivGroup
         -- load expressions.
         _memEquivGroupLoads :: [LoadStmt]
       } deriving (Eq, Ord, Show, Generic)
+instance Hashable MemEquivGroup
 
-data MemEquivGroupState
-  = MemEquivGroupState
-      { allGroups :: [MemEquivGroup],
-        liveGroups :: HashMap Expression MemEquivGroup
-      } deriving (Eq, Ord, Show, Generic)
-
--- TODO: Consider adding this to Blaze.Pil as a LoadOp
---       Is anything other than LoadSSA used for MLIL SSA?
---       I think we can specialize this version of PIL (or PIL*?) for MLIL SSA
--- data Load expr
---   = Load expr
---   | LoadSSA expr
---   | LoadStruct expr
---   | LoadStructSSA expr
---   deriving (Show, Eq)
-
-type Index = Int
+type Index = Word64
 type MemAddr = Expression
-type BitWidth = Int
+type BitWidth = Word64
+type VarName = Text
 
-data Storage
-  = Storage
-      { start :: MemAddr,
-        size :: BitWidth
+data MemStorage
+  = MemStorage
+      { _memStorageStart :: MemAddr,
+        _memStorageWidth :: BitWidth
       } deriving (Eq, Ord, Show, Generic)
-instance Hashable Storage
+instance Hashable MemStorage
 
 data StoreStmt
   = StoreStmt
       { _storeStmtStmt :: Stmt,
         _storeStmtOp :: Pil.StoreOp Expression,
-        _storeStmtAddr :: MemAddr
+        _storeStmtStorage :: MemStorage,
+        _storeStmtIndex :: Index
       } deriving (Eq, Ord, Show, Generic)
 instance Hashable StoreStmt
 
@@ -61,13 +46,16 @@ data LoadStmt
   = LoadStmt
       { _loadStmtStmt :: Stmt,
         _loadStmtLoadExpr :: LoadExpr,
-        _loadStmtAddr :: MemAddr
+        _loadStmtStorage :: MemStorage,
+        _loadStmtIndex :: Index
       } deriving (Eq, Ord, Show, Generic)
 instance Hashable LoadStmt
 
 data MemStmt
   = MemStoreStmt StoreStmt
   | MemLoadStmt LoadStmt
+  deriving (Eq, Ord, Show, Generic)
+instance Hashable MemStmt
 
 -- Need the expression in order to include the size of the value being loaded
 -- from memory. NB: We don't need the same for StoreOp/Store because the size
@@ -79,3 +67,4 @@ instance Hashable LoadExpr
 $(makeFields ''StoreStmt)
 $(makeFields ''LoadStmt)
 $(makeFields ''MemEquivGroup)
+$(makeFields ''MemStorage)

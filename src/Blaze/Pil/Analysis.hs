@@ -10,12 +10,16 @@ import           Blaze.Types.Pil        ( Expression( Expression )
 import qualified Blaze.Types.Pil as Pil
 
 import Blaze.Types.Pil.Analysis
-  ( LoadStmt (LoadStmt),
+  ( BitWidth,
+    Index,
+    LoadExpr (LoadExpr),
+    LoadStmt (LoadStmt),
     MemAddr,
     MemEquivGroup (MemEquivGroup),
     MemStmt (MemLoadStmt, MemStoreStmt),
+    MemStorage (MemStorage),
     StoreStmt (StoreStmt),
-    LoadExpr (LoadExpr)
+    VarName,
   )
 import qualified Blaze.Types.Pil.Analysis as A
 
@@ -26,7 +30,8 @@ import qualified Data.HashSet        as HSet
 import Data.HashSet (HashSet)
 import Data.Coerce (coerce)
 import Data.List (nub)
-import qualified Data.Sequence as Data.Seq
+import Data.Sequence (Seq)
+import Data.Sequence as DSeq
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
@@ -212,29 +217,52 @@ copyProp xs =
               copyPropState
     copyPropResult' = copyPropResult {mapping = reduceMap (mapping copyPropResult)}
 
+mkMemStorage :: MemAddr -> BitWidth -> MemStorage
+mkMemStorage addr width = MemStorage 
+                            { _memStorageStart = addr,
+                              _memStorageWidth = width
+                            } 
+                            
 usesAddr :: MemAddr -> Stmt -> Bool
 usesAddr addr stmt = case stmt of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD loadOp)}} 
-    -> ((loadOp ^. Pil.src) :: Expression) == coerce addr
+    -> (loadOp ^. Pil.src) == coerce addr
   Pil.Store storeOp 
     -> ((storeOp ^. Pil.addr) :: Expression) == coerce addr
   _ -> False
 
+usesStorage :: MemStorage -> Stmt -> Bool
+usesStorage storage stmt = case stmt of
+  Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} -> 
+    loadStorage == storage
+      where
+        loadStorage = mkMemStorage (loadOp ^. Pil.src) (coerce $ expr ^. Pil.size)
+  Pil.Store storeOp ->
+    storeStorage == storage
+      where
+        storeStorage = mkMemStorage (storeOp ^. Pil.addr) (coerce $ storeOp ^. (Pil.value . Pil.size))
+  _ -> False
+
 getAddr :: MemStmt -> MemAddr
 getAddr memStmt = case memStmt of
-  MemStoreStmt storeStmt -> storeStmt ^. A.addr
-  MemLoadStmt loadStmt -> loadStmt ^. A.addr
-  
+  MemStoreStmt storeStmt -> storeStmt ^. (A.storage . A.start)
+  MemLoadStmt loadStmt -> loadStmt ^. (A.storage . A.start)
+
+getStorage :: MemStmt -> MemStorage
+getStorage memStmt = case memStmt of
+  MemStoreStmt storeStmt -> storeStmt ^. A.storage
+  MemLoadStmt loadStmt -> loadStmt ^. A.storage
+
 -- TODO: Soon there will only be a Pil.LOAD and conversion from MLIL will handle this
 -- |Helper function for recursively finding loads.empty 
 -- NB: this implementation does not recurse on load expressions.
-findLoads_ :: Expression -> [LoadExpr]
-findLoads_ e = case e ^. Pil.op of
-  Pil.LOAD op -> LoadExpr e : findLoads_ (op ^. Pil.src)
-  Pil.LOAD_SSA op -> LoadExpr e : findLoads_ (op ^. Pil.src)
-  Pil.LOAD_STRUCT op -> LoadExpr e : findLoads_ (op ^. Pil.src)
-  Pil.LOAD_STRUCT_SSA op -> LoadExpr e : findLoads_ (op ^. Pil.src)
-  x -> concatMap findLoads_ x
+_findLoads :: Expression -> [LoadExpr]
+_findLoads e = case e ^. Pil.op of
+  Pil.LOAD op -> LoadExpr e : _findLoads (op ^. Pil.src)
+  Pil.LOAD_SSA op -> LoadExpr e : _findLoads (op ^. Pil.src)
+  Pil.LOAD_STRUCT op -> LoadExpr e : _findLoads (op ^. Pil.src)
+  Pil.LOAD_STRUCT_SSA op -> LoadExpr e : _findLoads (op ^. Pil.src)
+  x -> concatMap _findLoads x
 
 -- |Find all loads in a statement. 
 -- In practice, in BNIL (MLIL SSA), only Def statements contain a Load and Loads are not nested
@@ -243,35 +271,39 @@ findLoads_ e = case e ^. Pil.op of
 -- a list with a single item.
 findLoads :: Stmt -> [LoadExpr]
 findLoads s = case s of
-  (Pil.Def op) -> findLoads_ (op ^. Pil.value)
-  (Pil.Store op) -> findLoads_ (op ^. Pil.value)
-  (Pil.Constraint op) -> findLoads_ (op ^. Pil.condition)
+  (Pil.Def op) -> _findLoads (op ^. Pil.value)
+  (Pil.Store op) -> _findLoads (op ^. Pil.value)
+  (Pil.Constraint op) -> _findLoads (op ^. Pil.condition)
   _ -> []
 
-mkStoreStmt :: Stmt -> Maybe StoreStmt
-mkStoreStmt s = case s of
+mkStoreStmt :: Index -> Stmt -> Maybe StoreStmt
+mkStoreStmt idx s = case s of
   Pil.Store storeOp ->
-    Just $ StoreStmt s storeOp (storeOp ^. Pil.addr)
+    Just $ StoreStmt s storeOp storage idx
+      where
+        storage = mkMemStorage (storeOp ^. Pil.addr) (coerce $ storeOp ^. (Pil.value . Pil.size))
   _ -> Nothing
 
-mkLoadStmt :: Stmt -> Maybe LoadStmt
-mkLoadStmt s = case s of
+mkLoadStmt :: Index -> Stmt -> Maybe LoadStmt
+mkLoadStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
-    Just $ LoadStmt s (LoadExpr expr) (loadOp ^. Pil.src)
+    Just $ LoadStmt s (LoadExpr expr) storage idx
+      where
+        storage = mkMemStorage (loadOp ^. Pil.src) (coerce $ expr ^. Pil.size)
   _ -> Nothing
 
 -- Create a MemStmt
-mkMemStmt :: Stmt -> Maybe MemStmt
-mkMemStmt s = case s of
+mkMemStmt :: Index -> Stmt -> Maybe MemStmt
+mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
-    MemLoadStmt <$> mkLoadStmt s
-  Pil.Store _ -> MemStoreStmt <$> mkStoreStmt s
+    MemLoadStmt <$> mkLoadStmt idx s
+  Pil.Store _ -> MemStoreStmt <$> mkStoreStmt idx s
   _ -> Nothing
 
 -- |Finds memory statements. Update this function if the definition of memory
 -- statements changes.
 findMemStmts :: [Stmt] -> [MemStmt]
-findMemStmts = mapMaybe mkMemStmt
+findMemStmts = mapMaybe (uncurry mkMemStmt) . indexed
 
 mkMemEquivGroup :: Maybe StoreStmt -> MemAddr -> [LoadStmt] -> MemEquivGroup
 mkMemEquivGroup storeStmt addr loadStmts = 
@@ -306,28 +338,6 @@ findMemEquivGroupsForAddr addr (x:xs) = groups
           updatedGroup = currGroup & A.loads %~ (loadStmt:)
 findMemEquivGroupsForAddr _ [] = []
 
--- findMemEquivGroups_ :: MemAddr -> [MemStmt] -> [MemEquivGroup]
--- findMemEquivGroups_ addr stmts = groups
---   where
---     groups = foldr f ([]::[MemEquivGroup]) stmtsWithAddr
---     f gs stmt = case stmt of
---       storeStmt@(Pil.Store _) -> g :: gs
---         where
---           g = MemEquivGroup
---                 { store = Just storeStmt,
---                   storeAddr = addr,
---                   loads = []
---                 }
---       loadStmt@(Pil.Def _) -> undefined
---     stmtsWithAddr = [x | x <- stmts, usesAddr x]
---     usesAddr stmt = case stmt of
---       Pil.Def Pil.DefOp {_value = (Pil.LOAD loadOp)} 
---         -> (loadOp ^. Pil.src) == coerce addr
---       Pil.Store storeOp 
---         -> (storeOp ^. Pil.addr) == coerce addr
---       _ -> False
-
-
 -- |Find equivalent variables that are defined by loading from the same symbolic address
 -- and the same memory state—at least for that address.
 -- We assume that LOADs only occur in a DEF statement and are not nested.
@@ -344,6 +354,26 @@ findMemEquivGroups stmts = groups
                              return memStmt
     groups = concatMap (uncurry findMemEquivGroupsForAddr) $ zip memAddrs memStmtsByAddr
 
+-- |Update a sequence of statements to a new sequence of statements where
+-- the memory statements referenced by the group have been resolved such that
+-- the possible Store statement has been replaced with a Def and all Loads
+-- now refer to a new PilVar. If the MemEquivGroup does not include a Store,
+-- no Def will be emitted but the Loads will still refer to a common, new PilVar
+resolveMemGroup :: MemEquivGroup -> VarName -> [Stmt] -> [Stmt]
+resolveMemGroup group name xs = DSeq.fromList _xs
+  where
+    _xs = toList xs
+
+replaceStore :: StoreStmt -> Index -> VarName -> Seq Stmt -> Seq Stmt
+replaceStore store idx varName = update idx varDef
+  where
+    storedVal = store ^. (A.op . Pil.value)
+    func = Nothing -- TODO
+    ctxIndex = Nothing -- TODO
+    mapsTo = HSet.singleton Pil.SSAVariableRef -- TODO
+    varDef = Pil.Def (Pil.DefOp
+                      { _var = Pil.PilVar varName func ctxIndex mapsTo,
+                        _value = storedVal})
 
 -- |Copy propagation via memory. Finds and simplifies variables that are copied
 -- through symbolic memory addresses that are identified to be equivalent.

@@ -193,12 +193,14 @@ data PilVar = PilVar
   , _mapsTo :: HashSet SSAVariableRef
   } deriving (Eq, Ord, Show, Generic)
 
-instance Hashable PilVar where
-  hashWithSalt s (PilVar symbol mf mc ss) =
-    s `hashWithSalt` symbol
-      `hashWithSalt` mf
-      `hashWithSalt` mc
-      `hashWithSalt` ss
+-- instance Hashable PilVar where
+--   hashWithSalt s (PilVar symbol mf mc ss) =
+--     s `hashWithSalt` symbol
+--       `hashWithSalt` mf
+--       `hashWithSalt` mc
+--       `hashWithSalt` ss
+
+instance Hashable PilVar
 
 data ConverterCtx = ConverterCtx
   { _ctxIndexCounter :: Maybe CtxIndex
