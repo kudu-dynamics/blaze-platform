@@ -77,9 +77,12 @@ constructNodeGraph :: ( Graph () Node g )
 constructNodeGraph bv fn = do
   bbs <- BB.getBasicBlocks fn
   bbNodeMap <- getBBNodeMap bv bbs
+  let bbNodes = concatMap allNodes (Map.elems bbNodeMap)
   let bbNodeEdges = concatMap getNodeListEdges . Map.elems $ bbNodeMap
   succEdges <- concatMapM (getSuccEdges bbNodeMap) bbs
-  return . G.fromEdges . fmap ((),) $ bbNodeEdges <> succEdges
+  return $ case bbNodes of
+            n:[] -> G.fromNode n
+            _ -> G.fromEdges . fmap ((),) $ bbNodeEdges <> succEdges
   where
     getNodeListEdges :: NodeList -> [(Node, Node)]
     getNodeListEdges = pairs . allNodes

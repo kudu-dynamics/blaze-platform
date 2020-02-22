@@ -103,6 +103,7 @@ library:
   - Blaze.Pil.Path
   - Blaze.Solver
   - Blaze.Types.Pil
+  - Blaze.Types.Pil.Analysis
   - Blaze.Types.Graph
   - Blaze.Types.Solver
   - Blaze.Search

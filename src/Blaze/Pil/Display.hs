@@ -244,19 +244,20 @@ instance Disp Pil.Expression where
     (Pil.MemCmp op) -> dispBinop "memcmp" op size
     -- TODO: Should ConstStr also use const rather than value as field name?
     (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. Pil.value
+    (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. Pil.src)) (op ^. Pil.offset)
 
-instance Disp expr => Disp (Pil.Statement expr) where
-  disp stmt = case stmt of
-    (Pil.Def x) -> Text.pack $ printf "%s == %s" (disp $ x ^. Pil.var) (disp $ x ^. Pil.value)
-    (Pil.Constraint x) -> Text.pack $ printf "?: %s" (disp $ x ^. Pil.condition)
-    (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (disp $ x ^. Pil.addr) (disp $ x ^. Pil.value)
-    Pil.UnimplInstr -> "Unimplemented Instruction"
-    (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (disp $ x ^. Pil.src)
-    Pil.Undef -> "Undefined"
-    Pil.Nop -> "Nop"
-    (Pil.Annotation t) -> "Annotation: " <> t
-    (Pil.EnterContext x) -> "----> Entering " <> disp (x ^. Pil.ctx)
-    (Pil.ExitContext x) -> "<---- Leaving %s" <> disp (x ^. Pil.leavingCtx)
+-- instance Disp expr => Disp (Pil.Statement expr) where
+--   disp stmt = case stmt of
+--     (Pil.Def x) -> Text.pack $ printf "%s == %s" (disp $ x ^. Pil.var) (disp $ x ^. Pil.value)
+--     (Pil.Constraint x) -> Text.pack $ printf "?: %s" (disp $ x ^. Pil.condition)
+--     (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (disp $ x ^. Pil.addr) (disp $ x ^. Pil.value)
+--     Pil.UnimplInstr -> "Unimplemented Instruction"
+--     (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (disp $ x ^. Pil.src)
+--     Pil.Undef -> "Undefined"
+--     Pil.Nop -> "Nop"
+--     (Pil.Annotation t) -> "Annotation: " <> t
+--     (Pil.EnterContext x) -> "----> Entering " <> disp (x ^. Pil.ctx)
+--     (Pil.ExitContext x) -> "<---- Leaving %s" <> disp (x ^. Pil.leavingCtx)
     
 -- TODO: Replace existing instances with these or remove them    
 -- instance Disp Pil.SimpleCtx where
@@ -266,7 +267,7 @@ instance Disp expr => Disp (Pil.Statement expr) where
 --               . fmap (view Func.name) $ ctx ^. Pil.func
 --       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxIndex
  
-instance Disp expr => Disp [Pil.Statement expr] where
+instance Disp [Pil.Stmt] where
   disp = Text.intercalate "\n" . fmap disp
 
 pdisp :: (MonadIO m, Disp a) => a -> m ()

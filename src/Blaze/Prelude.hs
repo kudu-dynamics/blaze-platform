@@ -18,6 +18,7 @@ module Blaze.Prelude
   , pshow
   , pprint
   , pairs
+  , indexed
   , hdebug
   , twaddleUUID
   ) where
@@ -117,6 +118,9 @@ pprint = PP.pPrintOpt ppOptions
 
 pairs :: [a] -> [(a, a)]
 pairs xs = zip xs $ drop 1 xs
+
+indexed :: [a] -> [(Int, a)]
+indexed = zip [0..]
 
 -- hardcore debug
 hdebug :: b -> IO () -> b
