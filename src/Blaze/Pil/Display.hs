@@ -191,10 +191,7 @@ instance Disp Pil.Expression where
     (Pil.IMPORT op) -> dispConst "import" op size
     (Pil.INT_TO_FLOAT op) -> dispUnop "intToFloat" op size
     (Pil.LOAD op) -> dispUnop "load" op size
-    (Pil.LOAD_SSA op) -> dispUnop "loadSSA" op size
-    (Pil.LOAD_STRUCT op) -> dispField "loadStruct" op size
     -- TODO: add memory versions for all SSA ops
-    (Pil.LOAD_STRUCT_SSA op) -> dispField "loadStructSSA" op size
     (Pil.LOW_PART op) -> dispUnop "lowPart" op size
     (Pil.LSL op) -> dispBinop "lsl" op size
     (Pil.LSR op) -> dispBinop "lsr" op size
@@ -219,7 +216,7 @@ instance Disp Pil.Expression where
     (Pil.SUB op) -> dispBinop "sub" op size
     (Pil.SX op) -> dispUnop "sx" op size
     (Pil.TEST_BIT op) -> dispBinop "testBit" op size
-    Pil.UNIMPL -> "unimpl"
+    (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
     (Pil.VAR_ALIASED op) -> dispVar "varAliased" op size
     -- TODO: Add field offset
     (Pil.VAR_ALIASED_FIELD op) -> dispVar "varAliasedField" op size

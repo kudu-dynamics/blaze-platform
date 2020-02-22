@@ -32,6 +32,7 @@ dependencies:
   - containers
   - data-binary-ieee754
   - envy
+#  - ghc-typelits-natnormalise
   - lens
   - list-t
   - mtl
@@ -42,7 +43,7 @@ dependencies:
   - random
   - raw-strings-qq
   - recursion-schemes
-  - sbv >= 8.0
+  - sbv >= 8.6
   - stm
   - streamly
   - string-conversions
@@ -52,6 +53,7 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
+
 
 default-extensions:
   - BangPatterns
@@ -95,12 +97,15 @@ library:
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
-  - Blaze.Pil.Path
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
+  - Blaze.Pil.Inference
+  - Blaze.Pil.Path
+  - Blaze.Solver
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Graph
+  - Blaze.Types.Solver
   - Blaze.Search
   - Blaze.Function
   - Blaze.Types.Function
@@ -149,7 +154,7 @@ benchmarks:
     - blaze
     - binja
     - text
-    - criterion
+    #- criterion
 
 
 tests:
@@ -158,7 +163,7 @@ tests:
     source-dirs:
     - test
     ghc-options:
-    - -Wall
+#    - -Wall
     - -O2
     - -threaded
     - -rtsopts

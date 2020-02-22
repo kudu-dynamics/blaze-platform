@@ -8,6 +8,7 @@ import Blaze.Prelude hiding (Symbol, Type)
 
 import Data.HashSet (HashSet)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
@@ -130,6 +131,7 @@ import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , SSAVariable
                              , HasSize
                              , HasOp
+                             , HasCarry
                              , HasCondition
                              , HasConstant
                              , HasDest
@@ -225,12 +227,6 @@ instance Hashable SSAVariableRef where
     v `hashWithSalt`
     mf `hashWithSalt` mc
 
---- maybe should use higher kinded types for this
-data MExpression = MExpression
-  { _size :: OperationSize
-  , _op :: Maybe (ExprOp MExpression)
-  } deriving (Eq, Ord, Show, Generic)
-
 data Expression = Expression
   { _size :: OperationSize
   , _op :: ExprOp Expression
@@ -287,9 +283,9 @@ data ExprOp expr
     | IMPORT (ImportOp expr)
     | INT_TO_FLOAT (IntToFloatOp expr)
     | LOAD (LoadOp expr)
-    | LOAD_SSA (LoadSSAOp expr)
-    | LOAD_STRUCT (LoadStructOp expr)
-    | LOAD_STRUCT_SSA (LoadStructSSAOp expr)
+    -- | LOAD_SSA (LoadSSAOp expr)
+    -- | LOAD_STRUCT (LoadStructOp expr)
+    -- | LOAD_STRUCT_SSA (LoadStructSSAOp expr)
     | LOW_PART (LowPartOp expr)
     | LSL (LslOp expr)
     | LSR (LsrOp expr)
@@ -312,7 +308,7 @@ data ExprOp expr
     | SUB (SubOp expr)
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
-    | UNIMPL
+    | UNIMPL Text
     | VAR_ALIASED (VarAliasedOp expr)
     | VAR_ALIASED_FIELD (VarAliasedFieldOp expr)
     | VAR_PHI (VarPhiOp expr)
@@ -324,6 +320,7 @@ data ExprOp expr
 
     | CALL (CallOp expr)
 
+    | Extract (ExtractOp expr)
     | StrCmp (StrCmpOp expr)
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
@@ -399,6 +396,14 @@ data CallOp expr = CallOp
 
 instance Hashable a => Hashable (CallOp a)
 
+data ExtractOp expr = ExtractOp
+    { _src :: expr
+    , _offset :: Int64
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (ExtractOp a)
+
+
 data StrCmpOp expr = StrCmpOp
     { _left :: expr
     , _right :: expr
@@ -471,6 +476,7 @@ data FieldType = FieldType
   { _offset :: Int
   , _fieldType :: Type
   } deriving (Eq, Ord, Show, Generic)
+
 instance Hashable FieldType
 
 data StructType = StructType
@@ -500,8 +506,30 @@ data Type = TBool
           | TFunc FuncType
           deriving (Eq, Ord, Show, Generic)
 instance Hashable Type
-           
-type TypeEnv = HashMap PilVar Type
+
+instance Semigroup Type where
+  (<>) (TObs obs1) (TObs obs2) = TObs $ obs1 <> obs2
+  (<>) (TObs obs) t = TObs $ obs <> [t] --to keep associativity
+  (<>) t (TObs obs) = TObs $ t:obs
+  (<>) t1 t2
+    | t1 == t2 = t1
+    | otherwise = TObs [t1, t2]
+
+instance Monoid Type where
+  mempty = TObs []
+
+newtype TypeEnv = TypeEnv (HashMap PilVar Type)
+  deriving (Eq, Ord, Show, Generic)
+instance Hashable TypeEnv
+
+typeEnvLookup :: PilVar -> TypeEnv -> Maybe Type
+typeEnvLookup v (TypeEnv env) = HashMap.lookup v env
+
+instance Semigroup TypeEnv where
+  (<>) (TypeEnv m1) (TypeEnv m2) = TypeEnv $ HashMap.unionWith (<>) m1 m2
+
+instance Monoid TypeEnv where
+  mempty = TypeEnv HashMap.empty
 
 ------
 
@@ -599,12 +627,15 @@ $(makeFields ''VarSplitOp)
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)
 $(makeFieldsNoPrefix ''Expression)
-$(makeFieldsNoPrefix ''MExpression)
 $(makeFieldsNoPrefix ''CallOp)
+$(makeFieldsNoPrefix ''ExtractOp)
 $(makeFieldsNoPrefix ''StrCmpOp)
 $(makeFieldsNoPrefix ''StrNCmpOp)
 $(makeFieldsNoPrefix ''MemCmpOp)
 $(makeFieldsNoPrefix ''ConstStrOp)
+$(makeFieldsNoPrefix ''EnterContextOp)
+$(makeFieldsNoPrefix ''ExitContextOp)
+
 $(makeFieldsNoPrefix ''TypedExpression)
 $(makeFieldsNoPrefix ''BitVecType)
 $(makeFieldsNoPrefix ''IntType)
@@ -623,5 +654,26 @@ $(makeFieldsNoPrefix ''DefOp)
 $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
-$(makeFieldsNoPrefix ''EnterContextOp)
-$(makeFieldsNoPrefix ''ExitContextOp)
+
+
+------------------------
+
+
+-- gets bit width of integral type, if available
+getTypeByteWidth :: Type -> Maybe Int
+getTypeByteWidth (TBitVec x) = Just $ x ^. width
+getTypeByteWidth (TInt x) = Just $ x ^. width
+getTypeByteWidth (TPtr x) = Just $ x ^. width
+getTypeByteWidth (TFloat x) = Just $ x ^. width
+getTypeByteWidth _ = Nothing
+
+getTypeBitWidth :: Type -> Maybe Int
+getTypeBitWidth = fmap (*8) . getTypeByteWidth
+
+getSignedness :: Type -> Maybe Bool
+getSignedness (TBitVec _) = Just False
+getSignedness (TInt x) = Just $ x ^. signed
+getSignedness (TPtr _) = Just False
+getSignedness (TFloat _) = Just True --floats are always signed?
+getSignedness _ = Nothing
+

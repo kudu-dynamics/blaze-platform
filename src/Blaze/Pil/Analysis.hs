@@ -53,6 +53,16 @@ getVarsFromExpr_ e = case e ^. Pil.op of
 getVarsFromExpr :: Expression -> HashSet PilVar
 getVarsFromExpr = HSet.fromList . getVarsFromExpr_
 
+getDefinedVar :: Stmt -> Maybe PilVar
+getDefinedVar (Def d) = Just $ d ^. Pil.var
+getDefinedVar _ = Nothing
+
+getVarsFromStmt :: Stmt -> HashSet PilVar
+getVarsFromStmt s = foldr f init s
+  where
+    init = maybe HSet.empty HSet.singleton $ getDefinedVar s
+    f x = HSet.union (getVarsFromExpr x)
+
 getRefVars_ :: Stmt -> HashSet PilVar
 getRefVars_ = HSet.fromList . concatMap getVarsFromExpr_
 

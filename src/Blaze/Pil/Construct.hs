@@ -41,6 +41,18 @@ binOp f g x y size =
       _op = f (g x y)
     }
 
+unOp ::
+  (a -> ExprOp Expression) ->
+  (Expression -> a) ->
+  Expression ->
+  OperationSize ->
+  Expression
+unOp f g x size =
+  Expression
+    { _size = size,
+      _op = f (g x)
+    }
+
 ---- Expressions
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
@@ -57,9 +69,20 @@ sub = binOp Pil.SUB Pil.SubOp
 cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
+sx :: Expression -> OperationSize -> Expression
+sx = unOp Pil.SX Pil.SxOp
+
+zx :: Expression -> OperationSize -> Expression
+zx = unOp Pil.ZX Pil.ZxOp
+
 -- TODO: Change to just Load. PIL is being updated to drop versioned memory.
 load :: Expression -> OperationSize -> Expression
 load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
+
+varField :: Pil.Symbol -> Int64 -> Pil.OperationSize -> Expression
+varField sym offset size =
+  mkExpr size (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset)
+
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt
