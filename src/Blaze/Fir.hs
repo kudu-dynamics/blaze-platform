@@ -135,18 +135,20 @@ getIfChains g = do
 toFirGraph :: forall e n g g'.
               ( Graph e n g, Ord n, Graph (FirEdgeLabel e) (FirNode n) g')
            => [IfChain n] -> g -> g'
-toFirGraph ifChains g = G.fromEdges $ do
-  (e, (src, dst)) <- G.edges g
-  guard . not $ Set.member src nodeSet
-  case Map.lookup dst startNodeMap of
-    Nothing -> return (NormalEdge e, (FirBasicBlock src, FirBasicBlock dst))
-    (Just ifc) -> [ ( NormalEdge e
-                    , (FirBasicBlock src, FirIfChain ifc))
-                  , ( ChainEscapeEdge
-                    , (FirIfChain ifc, FirBasicBlock $ ifc ^. commonEscape))
-                  , ( ChainDestinationEdge
-                    , (FirIfChain ifc, FirBasicBlock $ ifc ^. destination))
-                  ]
+toFirGraph ifChains g = case Set.toList $ G.nodes g of
+  [bb] -> G.fromNode $ FirBasicBlock bb
+  _ -> G.fromEdges $ do
+    (e, (src, dst)) <- G.edges g
+    guard . not $ Set.member src nodeSet
+    case Map.lookup dst startNodeMap of
+      Nothing -> return (NormalEdge e, (FirBasicBlock src, FirBasicBlock dst))
+      (Just ifc) -> [ ( NormalEdge e
+                      , (FirBasicBlock src, FirIfChain ifc))
+                    , ( ChainEscapeEdge
+                      , (FirIfChain ifc, FirBasicBlock $ ifc ^. commonEscape))
+                    , ( ChainDestinationEdge
+                      , (FirIfChain ifc, FirBasicBlock $ ifc ^. destination))
+                    ]
   where
     nodeSet :: Set n
     nodeSet = Set.fromList $ concatMap (view nodes) ifChains

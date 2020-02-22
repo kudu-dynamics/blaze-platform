@@ -63,9 +63,12 @@ isGotoNode bb = do
 collapseGotoBlocks :: (Graph (BlockEdge F) (BasicBlock F) g)
                    => g -> IO g
 collapseGotoBlocks g = do
-  gotos <- fmap Set.fromList . filterM isGotoNode . Set.toList $ G.nodes g
-  let edges = G.edges g
-  return . G.fromEdges $ foldr (f gotos) [] edges
+  case Set.toList $ G.nodes g of
+    [_] -> return g
+    ns -> do  
+      gotos <- fmap Set.fromList . filterM isGotoNode $ ns
+      let edges = G.edges g
+      return . G.fromEdges $ foldr (f gotos) [] edges
   where
     f gotos edge@(be, (bbSrc, bbDst)) xs
       | Set.member bbSrc gotos = xs
@@ -81,8 +84,11 @@ constructBasicBlockGraph :: (Graph (BlockEdge t) (BasicBlock t) g, BasicBlockFun
                          => t -> IO g
 constructBasicBlockGraph fn = do
   bbs <- BB.getBasicBlocks fn
-  succs' <- traverse cleanSuccs bbs
-  return . G.fromEdges . succsToEdges $ succs'
+  case bbs of
+    [bb] -> return $ G.fromNode bb
+    _ -> do
+      succs' <- traverse cleanSuccs bbs
+      return . G.fromEdges . succsToEdges $ succs'
   where
     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
     cleanSuccs bb = (bb,) . catMaybes . fmap (\e -> (e,) <$>  (e ^. BB.target))
@@ -98,9 +104,9 @@ isBackEdge be = case be ^. BB.target of
   Nothing -> return False
   Just dst -> if src == dst then return False else do
     b <- BB.getDominators src >>= return . (dst `elem`)
-    if b then 
-      putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
-      else return ()
+    -- if b then 
+    --   putText $ "BackEdge: " <> show (src ^. BB.start) <> " -> " <> show (dst ^. BB.start)
+    --   else return ()
     return b
   where
     src = be ^. BB.src
@@ -110,11 +116,15 @@ constructBasicBlockGraphWithoutBackEdges ::
   => t -> IO g
 constructBasicBlockGraphWithoutBackEdges fn = do
   bbs <- BB.getBasicBlocks fn
-  succs' <- traverse cleanSuccs bbs
-  putText "Filtering out back edges"
-  edges <- filterM (fmap not . isBackEdge . fst) . succsToEdges $ succs'
-  putText $ "Filtered! " <> show (length edges) <> " edges."
-  return $ G.fromEdges edges
+  case bbs of
+    [bb] -> do
+      return $ G.fromNode bb
+    _ -> do
+      succs' <- traverse cleanSuccs bbs
+      --putText "Filtering out back edges"
+      edges <- filterM (fmap not . isBackEdge . fst) . succsToEdges $ succs'
+      -- putText $ "Filtered! " <> show (length edges) <> " edges."
+      return $ G.fromEdges edges
 --   return
 --     . G.fromEdges
 -- --    . filter (not . view BB.isBackEdge . fst)

@@ -49,9 +49,9 @@ findAllSimplePaths :: (Graph e node g, Ord node) => g -> [[node]]
 findAllSimplePaths g 
   | length (nodes g) == 1 = [Set.toList $ nodes g]
   | otherwise = do
-  src <- Set.toList $ sources g
-  sink <- Set.toList $ sinks g
-  findSimplePaths src sink g
+      src <- Set.toList $ sources g
+      sink <- Set.toList $ sinks g
+      findSimplePaths src sink g
 
 sources :: Graph e n g => g -> Set n
 sources g = Set.filter ((== 0) . Set.size . flip preds g) . nodes $ g

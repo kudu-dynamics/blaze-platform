@@ -19,6 +19,16 @@ import Control.Lens
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
 
+class Pretty' t x | x -> t where
+  pretty' :: x -> Text
+
+instance Pretty' Text Int where
+  pretty' n = show n
+
+-- instance Pretty' () Int where
+--   pretty' n = show (n + 1)
+
+
 class Pretty x where
   pretty :: x -> Text
 
