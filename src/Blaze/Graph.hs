@@ -75,12 +75,6 @@ collapseGotoBlocks g = do
                        : xs
             _ -> edge : xs
       | otherwise = edge : xs
-          
-
--- collapseGotoBlockEdge :: BlockEdge F -> IO (BlockEdge F)
--- collapseGotoBlockEdge edge = case edge ^. BB.target of
---   Nothing -> return edge
---   (Just bb) -> 
 
 
 constructBasicBlockGraph :: (Graph (BlockEdge t) (BasicBlock t) g, BasicBlockFunction t)

@@ -37,9 +37,9 @@ import Blaze.Types.Path (ConditionNode(ConditionNode))
 import qualified Blaze.Graph as Graph
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Blaze.Types.Fir
 
-
-type F = MLILSSAFunction
 
 getNodesWithTwoChildren :: forall e n g. (Graph e n g, Ord n) => g -> [(n, (n, n))]
 getNodesWithTwoChildren g = mapMaybe f . Set.toList . G.nodes $ g
@@ -51,26 +51,6 @@ getNodesWithTwoChildren g = mapMaybe f . Set.toList . G.nodes $ g
 
 
 
-data IfChainNode n = IfChainNode
-  { commonEscape :: n
-  , destination :: n
-  , self :: n
-  , parent :: n
-  } deriving (Eq, Ord, Show, Generic)
-
-instance Hashable n => Hashable (IfChainNode n)
-
--- newtype ChildSibling n = ChildSibling n
---   deriving (Eq, Ord, Show, Hashable)
-
-data ChainNode n = OriginChainNode n
-                 | TraversedChainNode (IfChainNode n)
-                 deriving (Eq, Ord, Show, Generic)
-
-instance Hashable n => Hashable (ChainNode n)
-
-
-type ChainMapping n = Map (ChainNode n) (ChainNode n)
 
 chainMapOrigins :: (Ord a, Eq a) => Map a a -> Set a
 chainMapOrigins hm = keySet `Set.difference` elemSet
@@ -106,10 +86,10 @@ getIfChainNodes g = do
       [p] -> return p
       _ -> Nothing
     (pkid1, pkid2) <- Map.lookup p twoKidsMap
-    let cnode cEsc dest = IfChainNode { commonEscape = cEsc
-                                      , destination = dest
-                                      , self = n
-                                      , parent = p
+    let cnode cEsc dest = IfChainNode { _commonEscape = cEsc
+                                      , _destination = dest
+                                      , _self = n
+                                      , _parent = p
                                       }
     case (c1 == pkid1 || c1 == pkid2, c2 == pkid1 || c2 == pkid2) of
       (True, False) -> return $ cnode c1 c2
@@ -121,15 +101,6 @@ getIfChainNodes g = do
 
     twoKidsMap :: Map n (n, n)
     twoKidsMap = Map.fromList twoKidsList
-
-
-data IfChain n = IfChain
-  { commonEscape :: n
-  , destination :: n
-  , nodes :: [n]
-  } deriving (Eq, Ord, Show, Generic)
-
-instance Hashable n => Hashable (IfChain n)
 
 
 getIfChains :: forall e n g.
@@ -145,20 +116,42 @@ getIfChains g = do
     convertChainList xs = do
       lastNode <- lastMay xs
       lastIfChainNode <- Map.lookup lastNode chainNodeMap
-      let dest = destination (lastIfChainNode :: IfChainNode n)
-          esc = commonEscape (lastIfChainNode :: IfChainNode n)
+      let dest = view destination (lastIfChainNode :: IfChainNode n)
+          esc = view commonEscape (lastIfChainNode :: IfChainNode n)
       -- restNodes <- getRestNodes firstNode (drop 1 xs)
-      return $ IfChain { commonEscape = esc
-                       , destination = dest
-                       , nodes = xs
+      return $ IfChain { _commonEscape = esc
+                       , _destination = dest
+                       , _nodes = xs
                        }
 
     chainNodeMap :: Map n (IfChainNode n)
-    chainNodeMap = Map.fromList . fmap (\n -> (self n, n)) $ chainNodes
+    chainNodeMap = Map.fromList . fmap (\n -> (view self n, n)) $ chainNodes
     
     chainMapping :: Map n n
     chainMapping = Map.fromList . fmap f $ chainNodes
       where
-        f n = (parent n, self n)
-      
-    
+        f n = (view parent n, view self n)
+
+toFirGraph :: forall e n g g'.
+              ( Graph e n g, Ord n, Graph (FirEdgeLabel e) (FirNode n) g')
+           => [IfChain n] -> g -> g'
+toFirGraph ifChains g = G.fromEdges $ do
+  (e, (src, dst)) <- G.edges g
+  guard . not $ Set.member src nodeSet
+  case Map.lookup dst startNodeMap of
+    Nothing -> return (NormalEdge e, (FirBasicBlock src, FirBasicBlock dst))
+    (Just ifc) -> [ ( NormalEdge e
+                    , (FirBasicBlock src, FirIfChain ifc))
+                  , ( ChainEscapeEdge
+                    , (FirIfChain ifc, FirBasicBlock $ ifc ^. commonEscape))
+                  , ( ChainDestinationEdge
+                    , (FirIfChain ifc, FirBasicBlock $ ifc ^. destination))
+                  ]
+  where
+    nodeSet :: Set n
+    nodeSet = Set.fromList $ concatMap (view nodes) ifChains
+
+    startNodeMap :: Map n (IfChain n)
+    startNodeMap = Map.fromList $ mapMaybe f ifChains
+      where
+        f ifc = (,ifc) <$> headMay (ifc ^. nodes)
