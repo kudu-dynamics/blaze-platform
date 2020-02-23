@@ -206,7 +206,7 @@ instance Pretty Pil.Expression where
     (Pil.FTRUNC op) -> prettyUnop "ftrunc" op
     (Pil.IMPORT op) -> prettyConst op
     (Pil.INT_TO_FLOAT op) -> prettyUnop "intToFloat" op
-    (Pil.LOAD op) -> prettyUnop "load" op
+    (Pil.LOAD op) -> Text.pack $ printf "[%s]" $ Text.unpack (pretty (op ^. Pil.src))
     -- TODO: add memory versions for all SSA ops
     (Pil.LOW_PART op) -> prettyUnop "lowPart" op
     (Pil.LSL op) -> prettyBinop "lsl" op
