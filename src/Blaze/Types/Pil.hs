@@ -193,15 +193,18 @@ data PilVar = PilVar
   , _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
   , _mapsTo :: HashSet SSAVariableRef
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Show, Generic)
 
--- instance Hashable PilVar where
---   hashWithSalt s (PilVar symbol mf mc ss) =
---     s `hashWithSalt` symbol
---       `hashWithSalt` mf
---       `hashWithSalt` mc
---       `hashWithSalt` ss
+instance Eq PilVar where
+  x == y = _symbol (x :: PilVar) == _symbol (y :: PilVar) &&
+           _func (x ::PilVar) == _func (y :: PilVar) &&
+           _ctxIndex (x :: PilVar) == _ctxIndex (y :: PilVar)
 
+instance Ord PilVar where
+  x <= y = _symbol (x :: PilVar) <= _symbol (y :: PilVar) &&
+           _func (x ::PilVar) <= _func (y :: PilVar) &&
+           _ctxIndex (x :: PilVar) <= _ctxIndex (y :: PilVar)
+           
 instance Hashable PilVar
 
 data ConverterCtx = ConverterCtx
@@ -672,4 +675,3 @@ getSignedness (TInt x) = Just $ x ^. signed
 getSignedness (TPtr _) = Just False
 getSignedness (TFloat _) = Just True --floats are always signed?
 getSignedness _ = Nothing
-
