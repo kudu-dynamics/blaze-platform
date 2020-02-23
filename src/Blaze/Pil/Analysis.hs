@@ -206,25 +206,35 @@ data CopyPropState
         copyStmts :: Set Stmt
       }
 
+_foldCopyPropState :: [Stmt] -> CopyPropState
+_foldCopyPropState = foldl' f (CopyPropState HMap.empty Set.empty)
+  where
+    f :: CopyPropState -> Stmt -> CopyPropState
+    f copyPropState stmt =
+      case stmt of
+        (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _))))) ->
+          addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
+        _ -> copyPropState
+    addCopy :: CopyPropState -> Stmt -> Expression -> Expression -> CopyPropState
+    addCopy s stmt copy orig =
+      CopyPropState
+        { mapping = HMap.insert copy orig (mapping s),
+          copyStmts = Set.insert stmt (copyStmts s)
+        }
+
+-- |Perform copy propagation on a sequence of statements.
+--
+-- NB: Copy propagation operates on expressions, while Def statements refer to the lhs as a PilVar.
+--     We handle this by removing statements of the form var_a = var_b since all instances of var_a
+--     will be replaced with var_b and only the single assignment of var_a to var_b is represented
+--     as a PilVar rather than an expression wrapping a PilVar.
 copyProp :: [Stmt] -> [Stmt]
 copyProp xs =
   substExprs
     (\(e :: Expression) -> HMap.lookup e (mapping copyPropResult'))
     [x | x <- xs, not . Set.member x $ copyStmts copyPropResult']
   where
-    addCopy s stmt copy orig =
-      CopyPropState
-        { mapping = HMap.insert copy orig (mapping s),
-          copyStmts = Set.insert stmt (copyStmts s)
-        }
-    copyPropResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
-      where
-        f copyPropState stmt =
-          case stmt of
-            (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _))))) ->
-              addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
-            _ ->
-              copyPropState
+    copyPropResult = _foldCopyPropState xs
     copyPropResult' = copyPropResult {mapping = reduceMap (mapping copyPropResult)}
 
 mkMemStorage :: MemAddr -> BitWidth -> MemStorage
