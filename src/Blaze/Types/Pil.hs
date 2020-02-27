@@ -193,17 +193,7 @@ data PilVar = PilVar
   , _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
   , _mapsTo :: HashSet SSAVariableRef
-  } deriving (Show, Generic)
-
-instance Eq PilVar where
-  x == y = _symbol (x :: PilVar) == _symbol (y :: PilVar) &&
-           _func (x ::PilVar) == _func (y :: PilVar) &&
-           _ctxIndex (x :: PilVar) == _ctxIndex (y :: PilVar)
-
-instance Ord PilVar where
-  x <= y = _symbol (x :: PilVar) <= _symbol (y :: PilVar) &&
-           _func (x ::PilVar) <= _func (y :: PilVar) &&
-           _ctxIndex (x :: PilVar) <= _ctxIndex (y :: PilVar)
+  } deriving (Eq, Ord, Show, Generic)
            
 instance Hashable PilVar
 
