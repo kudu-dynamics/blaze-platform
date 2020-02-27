@@ -1,14 +1,13 @@
 module Blaze.Pil.Analysis where
 
-import           Blaze.Prelude
-
-import           Blaze.Types.Pil        ( Expression( Expression )
-                                        , PilVar
-                                        , Statement( Def )
-                                        , Stmt
-                                        )
+import Blaze.Prelude hiding (group)
+import Blaze.Types.Pil
+  ( Expression (Expression),
+    PilVar,
+    Statement (Def),
+    Stmt,
+  )
 import qualified Blaze.Types.Pil as Pil
-
 import Blaze.Types.Pil.Analysis
   ( BitWidth,
     Index,
@@ -22,17 +21,16 @@ import Blaze.Types.Pil.Analysis
     VarName,
   )
 import qualified Blaze.Types.Pil.Analysis as A
-
-import qualified Data.Text as Text
-import qualified Data.Set as Set
+import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import Data.HashMap.Strict (HashMap)
-import qualified Data.HashSet        as HSet
+import qualified Data.HashSet as HSet
 import Data.HashSet (HashSet)
-import Data.Coerce (coerce)
 import Data.List (nub)
 import Data.Sequence (Seq, update)
 import qualified Data.Sequence as DSeq
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
@@ -378,9 +376,9 @@ findMemEquivGroups stmts = groups
 -- now refer to a new PilVar. If the MemEquivGroup does not include a Store,
 -- no Def will be emitted but the Loads will still refer to a common, new PilVar
 resolveMemGroup :: MemEquivGroup -> VarName -> [Stmt] -> [Stmt]
-resolveMemGroup group name xs = toList _xs
+resolveMemGroup _group _name xs = toList xs'
   where
-    _xs = DSeq.fromList xs
+    xs' = DSeq.fromList xs
 
 -- TODO: Make this better.
 -- |Generate variable names.
@@ -412,10 +410,10 @@ replaceStore store idx varName = update idx varDef
 copyPropMem :: [Stmt] -> [Stmt]
 copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where
-    memEquivGroups = findMemEquivGroups xs
+    _memEquivGroups = findMemEquivGroups xs
     propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
       where
-        f propState stmt =
+        f propState _stmt =
           propState
 
 simplify :: [Stmt] -> [Stmt]

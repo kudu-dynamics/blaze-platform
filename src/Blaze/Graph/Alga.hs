@@ -6,7 +6,6 @@ import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Blaze.Types.Path (Node, PathGraph)
 import Blaze.Types.Graph
 import qualified Algebra.Graph.Export.Dot as Dot
 
@@ -29,10 +28,10 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
     { adjacencyMap = G.edges . map snd $ ledges
     , edgeMap = Map.fromList . fmap swap $ ledges
     }
-  succs n g = G.postSet n . adjacencyMap $ g
-  preds n g = G.preSet n . adjacencyMap $ g
+  succs n = G.postSet n . adjacencyMap
+  preds n = G.preSet n . adjacencyMap
   nodes = Set.fromList . G.vertexList . adjacencyMap
-  edges g = catMaybes . fmap (\p -> (,p) <$> Map.lookup p (edgeMap g)) . G.edgeList . adjacencyMap $ g
+  edges g = mapMaybe (\p -> (,p) <$> Map.lookup p (edgeMap g)) . G.edgeList . adjacencyMap $ g
   getEdgeLabel edge = Map.lookup edge . edgeMap
   setEdgeLabel label edge g = g { edgeMap = Map.insert edge label $ edgeMap g }
   removeEdge e@(n1, n2) g = AlgaGraph

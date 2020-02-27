@@ -181,7 +181,7 @@ retTwaddle = 500
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
     Nothing -> []
-    Just x -> x:(getRest $ succ x g)
+    Just x -> x : getRest (succ x g)
       where
         getRest Nothing = []
         getRest (Just y) = y : getRest (succ y g)
