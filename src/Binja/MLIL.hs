@@ -49,23 +49,23 @@ instance StatementFunction MLILSSAFunction where
       fnPtr = fn ^. Func.handle
 
 getMLILFromLLIL :: LLILFunction -> InstructionIndex LLILFunction -> IO (InstructionIndex MLILFunction)
-getMLILFromLLIL fn i = BN.getMediumLevelILInstructionIndexFromLLIL (fn ^. Func.handle) i
+getMLILFromLLIL fn = BN.getMediumLevelILInstructionIndexFromLLIL (fn ^. Func.handle)
 
 getMLILSSSAFromMLIL :: MLILFunction -> InstructionIndex MLILFunction -> IO (InstructionIndex MLILSSAFunction)
-getMLILSSSAFromMLIL fn i = BN.getMediumLevelILSSAInstructionIndexFromMLIL (fn ^. Func.handle) i
+getMLILSSSAFromMLIL fn = BN.getMediumLevelILSSAInstructionIndexFromMLIL (fn ^. Func.handle)
 
 getInstructionCount :: StatementFunction fun => fun -> IO Word64
 getInstructionCount = BN.getMediumLevelILInstructionCount . view Func.handle
 
 getMediumLevelILInstructionByExpressionIndex :: StatementFunction fun
                          => fun -> ExpressionIndex fun
-                         -> IO (MediumLevelILInstruction)
+                         -> IO MediumLevelILInstruction
 getMediumLevelILInstructionByExpressionIndex fn eindex =
   BN.getMediumLevelILByIndex (fn ^. Func.handle) (coerceExpressionIndex eindex)
 
 getMediumLevelILInstructionByInstructionIndex :: StatementFunction fun
                           => fun -> InstructionIndex fun
-                          -> IO (MediumLevelILInstruction) 
+                          -> IO MediumLevelILInstruction
 getMediumLevelILInstructionByInstructionIndex fn iindex = getExprIndex fn iindex >>= getMediumLevelILInstructionByExpressionIndex fn
 
 buildInt :: OpBuilder t Int64
@@ -145,7 +145,7 @@ buildIntrinsinc = fromIntegral <$> takeOpDataWord
 buildExpr :: StatementFunction t => OpBuilder t (Expression t)
 buildExpr = do
   w <- takeOpDataWord
-  fn <- (view func) <$> ask
+  fn <- view func <$> ask
   liftIO $ expression fn (fromIntegral w)
 
 expression :: StatementFunction t => t -> ExpressionIndex t -> IO (Expression t)
