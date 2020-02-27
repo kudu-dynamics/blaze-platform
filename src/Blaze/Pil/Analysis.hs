@@ -23,6 +23,7 @@ import Blaze.Types.Pil.Analysis
   )
 import qualified Blaze.Types.Pil.Analysis as A
 
+import qualified Data.Text as Text
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
 import Data.HashMap.Strict (HashMap)
@@ -380,6 +381,19 @@ resolveMemGroup :: MemEquivGroup -> VarName -> [Stmt] -> [Stmt]
 resolveMemGroup group name xs = toList _xs
   where
     _xs = DSeq.fromList xs
+
+-- TODO: Make this better.
+-- |Generate variable names.
+varNameGenerator :: HashSet VarName -> [VarName]
+varNameGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
+  where
+    letters :: String
+    letters = ['a'..'z']
+
+    names :: [VarName]
+    names = [Text.pack [a, b, c] | a <- letters, 
+                                   b <- letters,
+                                   c <- letters]
 
 replaceStore :: StoreStmt -> Index -> VarName -> Seq Stmt -> Seq Stmt
 replaceStore store idx varName = update idx varDef
