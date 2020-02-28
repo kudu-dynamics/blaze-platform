@@ -90,7 +90,6 @@ library:
   - -O2
   source-dirs:
   - src
-  - demo
   exposed-modules:
   - Blaze.Cfg
   - Blaze.Graph.Alga
@@ -123,6 +122,22 @@ executables:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - hspec
+    - text
+
+  demo:
+    main: Main.hs
+    source-dirs:  demo
+    ghc-options:
+    - -O2
     - -Wall
     - -threaded
     - -rtsopts
