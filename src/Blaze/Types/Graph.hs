@@ -167,14 +167,18 @@ siblings :: forall e node g. (Graph e node g, Ord node)
          => node -> node -> g -> Set node
 siblings child parent g = Set.delete child $ succs parent g
 
+mapGraph :: (Graph e n g, Graph e' n' g')
+         => (e -> e') -> (n -> n') -> g -> g'
+mapGraph ef nf = fromEdges . fmap (\ (e, (n1, n2)) -> (ef e, (nf n1, nf n2))) . edges
 
-mapEdges :: (Graph e n g, Graph e' n' g')
-         => ((e, (n, n)) -> (e', (n', n'))) -> g -> g'
-mapEdges f g = fromEdges . fmap f $ edges g
+
+mapEdges :: (Graph e n g, Graph e' n g')
+         => (e -> e') -> g -> g'
+mapEdges f = mapGraph f identity
 
 
 mapNodes :: (Graph e n g, Graph e n' g') => (n -> n') -> g -> g'
-mapNodes f = mapEdges (\(e, (n1, n2)) -> (e, (f n1, f n2)))
+mapNodes f = mapGraph identity f
 
 
     
