@@ -7,6 +7,7 @@ import Blaze.Types.Path.AlgaPath ( AlgaPath )
 import           Blaze.Types.Path
 import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Graph as G
+import Blaze.Pretty (Pretty, pretty)
 
 
 data FastPath = FastPath

@@ -6,12 +6,15 @@ import qualified Prelude as P
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
 import Binja.Core (InstructionIndex)
+
 import qualified Blaze.Path as Path
 import Blaze.Types.Path (Path, Node, AbstractCallNode)
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Function as BF
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Graph as G
+import Blaze.Pretty (Pretty, pretty)
+
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Set as Set
@@ -106,7 +109,7 @@ instance Pretty p => Pretty (PathWithCall p) where
 pathsWithCallTo :: Path p => Function -> p -> [PathWithCall p]
 pathsWithCallTo fn p = f <$> getAbstractCallNodesToFunction fn p
   where
-    f n = PathWithCall (snipAfter_ (== (Path.AbstractCall n)) p) n
+    f n = PathWithCall (snipAfter_ (== Path.AbstractCall n) p) n
 
 -- | Expands AbstractCallNode in first path with second PathWithCall
 -- result is expanded path, with callNode from second
@@ -139,7 +142,7 @@ allCombos (xs:xss) = do
 
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: forall g p. (Graph () Function g, Path p, Pretty p, Ord p)
+searchBetween_ :: forall g p. (Graph () Function g, Path p, Ord p)
                => g
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction

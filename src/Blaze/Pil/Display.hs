@@ -10,7 +10,6 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Binja.Function
 import qualified Binja.Variable
 import qualified Binja.MLIL
-import qualified Binja.Function as Func
 
 type Symbol = Text
 
@@ -146,7 +145,7 @@ instance Disp Pil.Expression where
     (Pil.ADC op) -> dispBinop "adc" op size
     (Pil.ADD op) -> dispBinop "add" op size
     (Pil.ADDRESS_OF op) -> dispUnop "addr" op size
-    (Pil.ADDRESS_OF_FIELD op) -> dispField "fieldAddr" op size
+    (Pil.ADDRESS_OF_FIELD op) -> dispUnop "fieldAddr" op size
     (Pil.ADD_OVERFLOW op) -> dispBinop "addOf" op size
     (Pil.AND op) -> dispBinop "and" op size
     (Pil.ASR op) -> dispBinop "asr" op size
@@ -219,7 +218,7 @@ instance Disp Pil.Expression where
     (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
     (Pil.VAR_ALIASED op) -> dispVar "varAliased" op size
     -- TODO: Add field offset
-    (Pil.VAR_ALIASED_FIELD op) -> dispVar "varAliasedField" op size
+    (Pil.VAR_ALIASED_FIELD op) -> dispField "varAliasedField" op size
     (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (disp (op ^. Pil.dest)) srcs
       where 
         srcs :: Text
@@ -229,7 +228,7 @@ instance Disp Pil.Expression where
     -- TODO: Need size added
     (Pil.VAR op) -> dispVar "var" op size
     -- TODO: Add field offset
-    (Pil.VAR_FIELD op) -> dispVar "varField" op size
+    (Pil.VAR_FIELD op) -> dispField "varField" op size
     (Pil.XOR op) -> dispBinop "xor" op size
     (Pil.ZX op) -> dispUnop "zx" op size
     (Pil.CALL op) -> case op ^. Pil.name of
@@ -245,19 +244,6 @@ instance Disp Pil.Expression where
     -- TODO: Should ConstStr also use const rather than value as field name?
     (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. Pil.value
     (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. Pil.src)) (op ^. Pil.offset)
-
--- instance Disp expr => Disp (Pil.Statement expr) where
---   disp stmt = case stmt of
---     (Pil.Def x) -> Text.pack $ printf "%s == %s" (disp $ x ^. Pil.var) (disp $ x ^. Pil.value)
---     (Pil.Constraint x) -> Text.pack $ printf "?: %s" (disp $ x ^. Pil.condition)
---     (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (disp $ x ^. Pil.addr) (disp $ x ^. Pil.value)
---     Pil.UnimplInstr -> "Unimplemented Instruction"
---     (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (disp $ x ^. Pil.src)
---     Pil.Undef -> "Undefined"
---     Pil.Nop -> "Nop"
---     (Pil.Annotation t) -> "Annotation: " <> t
---     (Pil.EnterContext x) -> "----> Entering " <> disp (x ^. Pil.ctx)
---     (Pil.ExitContext x) -> "<---- Leaving %s" <> disp (x ^. Pil.leavingCtx)
     
 -- TODO: Replace existing instances with these or remove them    
 -- instance Disp Pil.SimpleCtx where

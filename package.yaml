@@ -103,6 +103,7 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
   - Blaze.Pil.Path
+  - Blaze.Pretty
   - Blaze.Solver
   - Blaze.Types.Fir
   - Blaze.Types.Pil
@@ -121,18 +122,26 @@ include-dirs:
   - "../haskell-binja/res"
 
 executables:
-  scratch:
-    main:                Main.hs
-    source-dirs:         scratch
-    ghc-options: -Wall -threaded -O2 -rtsopts -feager-blackholing "-with-rtsopts=-A512m -n64m -N -s"
-    dependencies:
-    - blaze
-    - timeit
-
   blaze-profile:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - hspec
+    - text
+
+  demo:
+    main: Main.hs
+    source-dirs:  demo
+    ghc-options:
+    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -158,7 +167,6 @@ benchmarks:
     - binja
     - text
     #- criterion
-
 
 tests:
   blaze-test:

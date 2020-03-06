@@ -5,6 +5,7 @@ module Blaze.Path
 
 import qualified Prelude                   as P
 import           Blaze.Prelude
+
 import qualified Streamly.Prelude          as S
 
 import           Binja.BasicBlock                       ( BasicBlock
@@ -37,6 +38,7 @@ import           Blaze.Types.Function                   ( CallInstruction
 import           Blaze.Types.Graph                      ( Graph )
 import qualified Blaze.Types.Graph         as G
 import           Blaze.Types.Path          as Exports
+import qualified Blaze.Types.Path as Path
 import           Blaze.Types.Path.AlgaPath as Exports   ( AlgaPath )
 import           Blaze.Types.Path.FastPath as Exports   ( FastPath )
 import qualified Blaze.Types.Pil           as Pil
@@ -44,6 +46,47 @@ import           Data.Map                               ( (!) )
 import qualified Data.Map                  as Map
 import qualified Data.Map.Lazy             as LMap
 import qualified Data.Set                  as Set
+-- =======
+
+-- import Blaze.Types.Path.FastPath as Exports (FastPath) 
+-- import Blaze.Types.Path.AlgaPath as Exports (AlgaPath)
+
+-- import qualified Data.Map as Map
+-- import Data.Map ((!))
+-- import qualified Data.Map.Lazy as LMap
+-- import           Binja.BasicBlock                  ( BasicBlock
+--                                                    , BasicBlockFunction
+--                                                    , BlockEdge
+--                                                    )
+-- import qualified Binja.BasicBlock     as BB
+-- import           Binja.C.Enums                     ( BNBranchType( FalseBranch
+--                                                                  , TrueBranch
+--                                                                  )
+--                                                    )
+-- import           Binja.Core                        ( BNBinaryView
+--                                                    , InstructionIndex(InstructionIndex)
+                                                   
+--                                                    )
+-- import           Binja.Function                    ( Function
+--                                                    , MLILSSAFunction
+--                                                    )
+-- import qualified Binja.Function       as HFunction
+-- import qualified Binja.MLIL           as MLIL
+-- import           Blaze.Function                    ( createCallSite )
+-- import qualified Blaze.Function       as Function
+-- import           Blaze.Graph.Alga                  ( AlgaGraph )
+-- import           Blaze.Types.Function              ( CallInstruction
+--                                                    , CallSite
+--                                                    , toCallInstruction
+--                                                    )
+-- import           Blaze.Types.Graph                 ( Graph )
+-- import qualified Blaze.Types.Graph    as G
+-- import           Blaze.Types.Path     as Exports
+-- import qualified Blaze.Types.Path as Path
+-- import qualified Blaze.Types.Pil      as Pil
+-- import qualified Data.Set as Set
+-- import qualified Streamly.Prelude as S
+-- >>>>>>> master
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 
@@ -248,7 +291,7 @@ allSimpleFunctionPaths' bv fn = do
       putText "Finding all simple paths2"
       let ps = G.findAllSimplePaths2 bbg s
       putText $ "Simple paths: " <> (show . length $ ps)
-      traverse (pathFromBasicBlockList bv bbg) ps      
+      traverse (pathFromBasicBlockList bv bbg) ps
     xs -> P.error $ "Bad " <> show (fmap (\bb -> let (InstructionIndex n) = (bb ^. BB.start) in n) xs)
 
 
@@ -259,3 +302,13 @@ pathsForAllFunctions bv = do
   where
     g :: Function -> IO (Function, [p])
     g fn = (fn,) <$> allSimpleFunctionPaths bv fn
+
+findAbstractCallNode :: Path p => Function -> Function -> p -> [AbstractCallNode]
+findAbstractCallNode caller callee = mapMaybe f . Path.toList
+  where
+    f (AbstractCall acn)
+      | (acn ^. callSite . Function.caller == caller)
+        && (Function.DestFunc callee == acn ^. callSite . Function.callDest)
+      = Just acn
+      | otherwise = Nothing
+    f _ = Nothing

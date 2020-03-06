@@ -6,7 +6,6 @@ module Blaze.Prelude
   ( module Exports
   , Streaming
   , StreamingIO
-  , Pretty(pretty)
   , liftListM
   , liftListIO
   , liftEitherIO
@@ -31,7 +30,6 @@ import           Prelude         as Exports        ( String
 
 import qualified Data.Text.Lazy as L (Text)
 import System.IO.Unsafe (unsafePerformIO)
-import Blaze.Pretty as Exports
 import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
 import Data.Data as Exports

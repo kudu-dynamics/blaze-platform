@@ -1,14 +1,13 @@
 module Blaze.Pil.Analysis where
 
-import           Blaze.Prelude
-
-import           Blaze.Types.Pil        ( Expression( Expression )
-                                        , PilVar
-                                        , Statement( Def )
-                                        , Stmt
-                                        )
+import Blaze.Prelude hiding (group)
+import Blaze.Types.Pil
+  ( Expression (Expression),
+    PilVar,
+    Statement (Def),
+    Stmt,
+  )
 import qualified Blaze.Types.Pil as Pil
-
 import Blaze.Types.Pil.Analysis
   ( BitWidth,
     Index,
@@ -22,16 +21,16 @@ import Blaze.Types.Pil.Analysis
     VarName,
   )
 import qualified Blaze.Types.Pil.Analysis as A
-
-import qualified Data.Set as Set
+import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import Data.HashMap.Strict (HashMap)
-import qualified Data.HashSet        as HSet
+import qualified Data.HashSet as HSet
 import Data.HashSet (HashSet)
-import Data.Coerce (coerce)
 import Data.List (nub)
 import Data.Sequence (Seq, update)
 import qualified Data.Sequence as DSeq
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
@@ -206,25 +205,35 @@ data CopyPropState
         copyStmts :: Set Stmt
       }
 
+_foldCopyPropState :: [Stmt] -> CopyPropState
+_foldCopyPropState = foldl' f (CopyPropState HMap.empty Set.empty)
+  where
+    f :: CopyPropState -> Stmt -> CopyPropState
+    f copyPropState stmt =
+      case stmt of
+        (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _))))) ->
+          addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
+        _ -> copyPropState
+    addCopy :: CopyPropState -> Stmt -> Expression -> Expression -> CopyPropState
+    addCopy s stmt copy orig =
+      CopyPropState
+        { mapping = HMap.insert copy orig (mapping s),
+          copyStmts = Set.insert stmt (copyStmts s)
+        }
+
+-- |Perform copy propagation on a sequence of statements.
+--
+-- NB: Copy propagation operates on expressions, while Def statements refer to the lhs as a PilVar.
+--     We handle this by removing statements of the form var_a = var_b since all instances of var_a
+--     will be replaced with var_b and only the single assignment of var_a to var_b is represented
+--     as a PilVar rather than an expression wrapping a PilVar.
 copyProp :: [Stmt] -> [Stmt]
 copyProp xs =
   substExprs
     (\(e :: Expression) -> HMap.lookup e (mapping copyPropResult'))
     [x | x <- xs, not . Set.member x $ copyStmts copyPropResult']
   where
-    addCopy s stmt copy orig =
-      CopyPropState
-        { mapping = HMap.insert copy orig (mapping s),
-          copyStmts = Set.insert stmt (copyStmts s)
-        }
-    copyPropResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
-      where
-        f copyPropState stmt =
-          case stmt of
-            (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _))))) ->
-              addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
-            _ ->
-              copyPropState
+    copyPropResult = _foldCopyPropState xs
     copyPropResult' = copyPropResult {mapping = reduceMap (mapping copyPropResult)}
 
 mkMemStorage :: MemAddr -> BitWidth -> MemStorage
@@ -367,9 +376,22 @@ findMemEquivGroups stmts = groups
 -- now refer to a new PilVar. If the MemEquivGroup does not include a Store,
 -- no Def will be emitted but the Loads will still refer to a common, new PilVar
 resolveMemGroup :: MemEquivGroup -> VarName -> [Stmt] -> [Stmt]
-resolveMemGroup group name xs = toList _xs
+resolveMemGroup _group _name xs = toList xs'
   where
-    _xs = DSeq.fromList xs
+    xs' = DSeq.fromList xs
+
+-- TODO: Make this better.
+-- |Generate variable names.
+varNameGenerator :: HashSet VarName -> [VarName]
+varNameGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
+  where
+    letters :: String
+    letters = ['a'..'z']
+
+    names :: [VarName]
+    names = [Text.pack [a, b, c] | a <- letters, 
+                                   b <- letters,
+                                   c <- letters]
 
 replaceStore :: StoreStmt -> Index -> VarName -> Seq Stmt -> Seq Stmt
 replaceStore store idx varName = update idx varDef
@@ -388,10 +410,10 @@ replaceStore store idx varName = update idx varDef
 copyPropMem :: [Stmt] -> [Stmt]
 copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
   where
-    memEquivGroups = findMemEquivGroups xs
+    _memEquivGroups = findMemEquivGroups xs
     propResult = foldl' f (CopyPropState HMap.empty Set.empty) xs
       where
-        f propState stmt =
+        f propState _stmt =
           propState
 
 simplify :: [Stmt] -> [Stmt]

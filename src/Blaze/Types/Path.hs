@@ -4,15 +4,18 @@
 module Blaze.Types.Path where
 
 import Binja.Core (InstructionIndex)
+import Binja.Function (Function, MLILSSAFunction)
+import qualified Binja.MLIL as MLIL
+
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Graph (Graph)
-import qualified Binja.MLIL as MLIL
 import qualified Blaze.Types.Graph as G
+import Blaze.Pretty (Pretty, pretty)
+
 import qualified Data.Set as Set
 import qualified Prelude as P
 import Blaze.Prelude hiding (succ, pred, toList)
-import Binja.Function (Function, MLILSSAFunction)
 
 type F = MLILSSAFunction
 
@@ -165,7 +168,7 @@ instance Pretty Node where
     <> pretty (x ^. callSite)
   pretty (AbstractPath _) = "AbstractPath"
   pretty (Condition x) =
-    "Condition: " <> (bool "NOT " "" $ x ^. trueOrFalseBranch)
+    "Condition: " <> bool "NOT " "" (x ^. trueOrFalseBranch)
     <> pretty (x ^. condition)
 
 callTwaddle :: Word32
@@ -178,7 +181,7 @@ retTwaddle = 500
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
     Nothing -> []
-    Just x -> x:(getRest $ succ x g)
+    Just x -> x : getRest (succ x g)
       where
         getRest Nothing = []
         getRest (Just y) = y : getRest (succ y g)

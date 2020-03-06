@@ -6,6 +6,7 @@ import Binja.Core (Address, InstructionIndex)
 import Binja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
+import Blaze.Pretty (Pretty, pretty)
 import Binja.Function (Function, MLILSSAFunction)
 
 type F = MLILSSAFunction

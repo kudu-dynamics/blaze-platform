@@ -1,10 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Blaze.Types.Fir where
 
-import qualified Prelude as P
+import qualified Prelude              as P
 import           Blaze.Prelude
+import qualified Streamly.Prelude     as S
 
-import Data.Map ((!))
 import           Binja.BasicBlock                  ( BasicBlock
                                                    , BasicBlockFunction
                                                    , BlockEdge
@@ -15,8 +15,7 @@ import           Binja.C.Enums                     ( BNBranchType( FalseBranch
                                                                  )
                                                    )
 import           Binja.Core                        ( BNBinaryView
-                                                   , InstructionIndex(InstructionIndex)
-                                                   
+                                                   , InstructionIndex( InstructionIndex )
                                                    )
 import           Binja.Function                    ( Function
                                                    , MLILSSAFunction
@@ -25,21 +24,20 @@ import qualified Binja.Function       as HFunction
 import qualified Binja.MLIL           as MLIL
 import           Blaze.Function                    ( createCallSite )
 import qualified Blaze.Function       as Function
+import qualified Blaze.Graph          as Graph
 import           Blaze.Graph.Alga                  ( AlgaGraph )
+import           Blaze.Pretty
 import           Blaze.Types.Function              ( CallInstruction
                                                    , CallSite
                                                    , toCallInstruction
                                                    )
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
-import qualified Data.Set as Set
-import qualified Streamly.Prelude as S
-import Blaze.Types.Path (ConditionNode(ConditionNode))
-import qualified Blaze.Graph as Graph
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-
+import           Blaze.Types.Path                  ( ConditionNode( ConditionNode ) )
+import           Data.Map                          ( (!) )
+import qualified Data.Map.Strict      as Map
+import qualified Data.Set             as Set
+import qualified Data.Text            as Text
 
 type F = MLILSSAFunction
 
@@ -108,4 +106,3 @@ data FirIfChainNode a = FirIfChainNode
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''FirIfChainNode)
-
