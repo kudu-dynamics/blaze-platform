@@ -101,6 +101,7 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
   - Blaze.Pil.Path
+  - Blaze.Pretty
   - Blaze.Solver
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
