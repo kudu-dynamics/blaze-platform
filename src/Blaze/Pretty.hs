@@ -3,6 +3,7 @@ module Blaze.Pretty
   , prettyPrint
   , pp
   , PStmts (PStmts)
+  , prettyStmts
   ) where
 
 import Protolude hiding (Symbol, sym, const)
@@ -279,6 +280,9 @@ newtype PStmts = PStmts [Pil.Stmt]
 
 instance Pretty PStmts where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
+
+prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m()
+prettyStmts = prettyPrint . PStmts
 
 -- |Pretty print to IO.
 prettyPrint :: (MonadIO m, Pretty a) => a -> m ()

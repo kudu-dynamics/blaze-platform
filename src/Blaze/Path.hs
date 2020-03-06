@@ -40,6 +40,7 @@ import           Blaze.Types.Function              ( CallInstruction
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
 import           Blaze.Types.Path     as Exports
+import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.Set as Set
 import qualified Streamly.Prelude as S
@@ -289,7 +290,7 @@ allSimpleFunctionPaths' bv fn = do
       putText "Finding all simple paths2"
       let ps = G.findAllSimplePaths2 bbg s
       putText $ "Simple paths: " <> (show . length $ ps)
-      traverse (pathFromBasicBlockList bv bbg) ps      
+      traverse (pathFromBasicBlockList bv bbg) ps
     xs -> P.error $ "Bad " <> show (fmap (\bb -> let (InstructionIndex n) = (bb ^. BB.start) in n) xs)
 
 
@@ -301,3 +302,13 @@ pathsForAllFunctions bv = do
     g :: Function -> IO (Function, [p])
     g fn = (fn,) <$> allSimpleFunctionPaths bv fn
 
+
+findAbstractCallNode :: Path p => Function -> Function -> p -> [AbstractCallNode]
+findAbstractCallNode caller callee = mapMaybe f . Path.toList
+  where
+    f (AbstractCall acn)
+      | (acn ^. callSite . Function.caller == caller)
+        && (Function.DestFunc callee == acn ^. callSite . Function.callDest)
+      = Just acn
+      | otherwise = Nothing
+    f _ = Nothing
