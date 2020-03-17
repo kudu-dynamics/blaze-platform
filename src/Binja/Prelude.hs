@@ -75,7 +75,7 @@ pshow :: Show a => a -> L.Text
 pshow = PP.pShowOpt ppOptions
 
 pprint :: Show a => a -> IO ()
-pprint = PP.pPrintOpt ppOptions
+pprint = PP.pPrintOpt PP.NoCheckColorTty ppOptions
 
 -- fromRight :: Either e a -> a
 -- fromRight (Right x) = x
