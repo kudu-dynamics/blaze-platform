@@ -9,11 +9,10 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 
-
 data MemEquivGroup
   = MemEquivGroup
       { _memEquivGroupStore :: Maybe StoreStmt,
-        _memEquivGroupAddr :: MemAddr,
+        _memEquivGroupStorage :: MemStorage,
         -- There may be multiple LoadStmt instances for a single
         -- statement if that statement includes multiple matching 
         -- load expressions.
@@ -26,7 +25,6 @@ instance Hashable MemEquivGroup
 type Index = Int
 type MemAddr = Expression
 type BitWidth = Word64
-type VarName = Text
 
 data MemStorage
   = MemStorage
@@ -70,3 +68,4 @@ $(makeFields ''StoreStmt)
 $(makeFields ''LoadStmt)
 $(makeFields ''MemEquivGroup)
 $(makeFields ''MemStorage)
+$(makeFieldsNoPrefix ''LoadExpr)
