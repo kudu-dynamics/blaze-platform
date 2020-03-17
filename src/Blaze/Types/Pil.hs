@@ -6,8 +6,6 @@ module Blaze.Types.Pil
 
 import Blaze.Prelude hiding (Symbol, Type)
 
-import Data.HashSet (HashSet)
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
 import Binja.MLIL as Exports ( AdcOp(AdcOp)

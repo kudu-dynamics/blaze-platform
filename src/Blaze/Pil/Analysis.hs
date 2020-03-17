@@ -25,11 +25,9 @@ import qualified Blaze.Pil.Construct as C
 
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashSet as HSet
-import Data.HashSet (HashSet)
 import Data.List (nub)
-import Data.Sequence (Seq, update)
+import Data.Sequence (update, mapWithIndex)
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -390,18 +388,26 @@ resolveMemGroup :: MemEquivGroup -> Symbol -> Seq Stmt -> Seq Stmt
 resolveMemGroup group name xs = 
   case group ^. A.store of
     Nothing ->
-      substExpr (`HMap.lookup` loadExprMap) <$> xs
+      mapWithIndex (updateStmt loadIdxs) xs
     Just storeStmt ->
-      substExpr (`HMap.lookup` loadExprMap) <$> xs'
+      mapWithIndex (updateStmt loadIdxs) xs'
         where
           xs' = replaceStore storeStmt name xs
   where
+    loadIdxs :: HashSet Index
+    loadIdxs = HSet.fromList . fmap (^. A.index) . (^. A.loads) $ group
     varExpr :: Expression
     varExpr = C.var name $ widthToSize (group ^. (A.storage . A.width))
     loadExprMap :: HashMap Expression Expression
     loadExprMap = HMap.fromList (zip (map (^. (A.loadExpr . A.expr)) 
                                           (group ^. A.loads)) 
                                      (repeat varExpr))
+    updateStmt :: HashSet Index -> Index -> Stmt -> Stmt
+    updateStmt idxsToUpdate stmtIdx stmt = 
+      if HSet.member stmtIdx idxsToUpdate then
+        substExpr (`HMap.lookup` loadExprMap) stmt
+      else 
+        stmt
 
 -- | The groups need to be sorted in order by the index of the store statement.
 resolveMemGroups :: [MemEquivGroup] -> [Stmt] -> [Stmt]
