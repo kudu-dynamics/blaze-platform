@@ -3,6 +3,7 @@ module Blaze.Pretty
   , prettyPrint
   , pp
   , PStmts (PStmts)
+  , prettyStmts
   ) where
 
 import Protolude hiding (Symbol, sym, const)
@@ -27,6 +28,16 @@ import Control.Lens hiding (op)
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
+
+-- class Pretty' t x | x -> t where
+--   pretty' :: x -> Text
+
+-- instance Pretty' Text Int where
+--   pretty' n = show n
+
+-- instance Pretty' () Int where
+--   pretty' n = show (n + 1)
+
 
 class Pretty x where
   pretty :: x -> Text
@@ -279,6 +290,9 @@ newtype PStmts = PStmts [Pil.Stmt]
 
 instance Pretty PStmts where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
+
+prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m()
+prettyStmts = prettyPrint . PStmts
 
 -- |Pretty print to IO.
 prettyPrint :: (MonadIO m, Pretty a) => a -> m ()

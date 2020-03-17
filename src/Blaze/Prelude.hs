@@ -112,7 +112,7 @@ pshow :: Show a => a -> L.Text
 pshow = PP.pShowOpt ppOptions
 
 pprint :: Show a => a -> IO ()
-pprint = PP.pPrintOpt ppOptions
+pprint = PP.pPrintOpt PP.NoCheckColorTty ppOptions
 
 pairs :: [a] -> [(a, a)]
 pairs xs = zip xs $ drop 1 xs

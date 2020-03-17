@@ -665,3 +665,4 @@ getSignedness (TInt x) = Just $ x ^. signed
 getSignedness (TPtr _) = Just False
 getSignedness (TFloat _) = Just True --floats are always signed?
 getSignedness _ = Nothing
+

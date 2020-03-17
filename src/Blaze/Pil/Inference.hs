@@ -54,7 +54,7 @@ unify t@(TPtr p) (TInt n)
 unify _ _ = P.error "type not implemented in unify"
 
 
-getExprType :: TypeEnv -> Expression ->  Maybe Type
+getExprType :: TypeEnv -> Expression -> Maybe Type
 getExprType env x = case x ^. op of
   ADC n -> inheritIntRet n
   ADD n -> inheritIntRet n

@@ -10,34 +10,6 @@ type LEdge label node = (label, (node, node))
 
 type Edge node = (node, node)
 
--- TODO: Ask mattp about this.
--- newtype CallGraph g = CallGraph g
--- deriving instance (Graph (Function, Function) Function g) => Graph (Function, Function) Function (CallGraph g)
-
--- class Graph g where
---   type EdgeLabel g :: *
---   type Node g :: *
---   fromEdges :: [LEdge (EdgeLabel g) (Node g)] -> g
---   succs :: Node g -> g -> Set (Node g)
---   preds :: Node g -> g -> Set (Node g)
---   getEdgeLabel :: Edge (Node g) -> g -> Maybe (EdgeLabel g)
---   setEdgeLabel :: EdgeLabel g -> Edge (Node g) -> g -> g
-
-
--- findSimplePaths' :: (Graph g, Ord (Node g)) => Set (Node g) -> (Node g) -> (Node g) ->g -> [[Node g]]
--- findSimplePaths' seen start' end' g = fmap (start':) $ do
---   succ' <- Set.toList $ succs start' g `Set.difference` seen
---   if succ' == end'
---     then return [succ']
---     else findSimplePaths' (Set.insert succ' seen) succ' end' g
-  
--- --- simple paths (non-repeating) from start to end
--- findSimplePaths :: (Graph g, Ord (Node g)) => Node g -> Node g -> g -> [[Node g]]
--- findSimplePaths = findSimplePaths' Set.empty
-
---------------------------
---------------------------
-
 class Graph e n g | g -> e n where
   empty :: g
   fromNode :: n -> g
@@ -52,50 +24,7 @@ class Graph e n g | g -> e n where
   removeNode :: n -> g -> g
   addEdge :: (e, (n, n)) -> g -> g
   hasNode :: n -> g -> Bool
-  -- add node/edges.. maybe overlay
 
-class GraphFunctor g where
-  mapEdges :: (e -> e') -> g e n -> g e' n
-  mapNodes :: (n -> n') -> g e n -> g e n'
-
-
--- class ( EmptyGraph g
---       , BasicGraph node g
---       , EdgeGraph edge node g) => Graph edge node g
-
--- class EmptyGraph g where
---   empty :: g
-
--- class BasicGraph node g where
---   fromNode :: node -> g
---   succs :: node -> g -> Set node
---   preds :: node -> g -> Set node
-
--- class EdgeGraph edge node g where
---   fromEdges :: [(edge, (node, node))] -> g
---   getEdgeLabel :: (node, node) -> g -> Maybe edge
---   setEdgeLabel :: edge -> (node, node) -> g -> g
-
--- findSimplePaths' :: (BasicGraph n g, Ord n) => Set n -> n -> n -> g -> [[n]]
--- findSimplePaths' seen start' end' g = fmap (start':) $ do
---   succ' <- Set.toList $ succs start' g `Set.difference` seen
---   if succ' == end'
---     then return [succ']
---     else findSimplePaths' (Set.insert succ' seen) succ' end' g
-  
--- --- simple paths (non-repeating) from start to end
--- findSimplePaths :: (BasicGraph n g, Ord n) => n -> n -> g -> [[n]]
--- findSimplePaths = findSimplePaths' Set.empty
-
---------------------------
---------------------------
-
--- class Graph g e n | g -> e n where
---   fromEdges :: [LEdge e n] -> g
---   succs :: n -> g -> Set n
---   preds :: n -> g -> Set n
---   getEdgeLabel :: Edge n -> g -> Maybe e
---   setEdgeLabel :: e -> Edge a -> g -> g
 
 findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
 findNonRepeatPaths' seen start' g = do
@@ -120,9 +49,9 @@ findAllSimplePaths :: (Graph e node g, Ord node) => g -> [[node]]
 findAllSimplePaths g 
   | length (nodes g) == 1 = [Set.toList $ nodes g]
   | otherwise = do
-  src <- Set.toList $ sources g
-  sink <- Set.toList $ sinks g
-  findSimplePaths src sink g
+      src <- Set.toList $ sources g
+      sink <- Set.toList $ sinks g
+      findSimplePaths src sink g
 
 sources :: Graph e n g => g -> Set n
 sources g = Set.filter ((== 0) . Set.size . flip preds g) . nodes $ g
@@ -174,6 +103,10 @@ countAllSimplePaths g =
             xs -> sum . fmap (m !) $ xs
       return (n, x)
 
+maxSimplePaths :: forall e node g. (Graph e node g, Ord node)
+               => g -> Integer
+maxSimplePaths = foldr max 0 . countAllSimplePaths
+
 -- -- The total number of 
 -- descendentFrequencyCount :: forall e node g. (Graph e node g, Ord node)
 --                     => g -> Map node (Map node Int)
@@ -223,3 +156,29 @@ searchBetween :: forall e node g. (Graph e node g, Ord node)
               => g -> node -> node -> [[node]]
 searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
 
+
+-- -- finding parents is (n * log(n)) for each node
+-- -- this 
+-- parentMap :: forall e node g. (Graph e node g, Ord node)
+--           => g -> HashMap n (HashSet n)
+          
+
+siblings :: forall e node g. (Graph e node g, Ord node)
+         => node -> node -> g -> Set node
+siblings child parent g = Set.delete child $ succs parent g
+
+mapGraph :: (Graph e n g, Graph e' n' g')
+         => (e -> e') -> (n -> n') -> g -> g'
+mapGraph ef nf = fromEdges . fmap (\ (e, (n1, n2)) -> (ef e, (nf n1, nf n2))) . edges
+
+
+mapEdges :: (Graph e n g, Graph e' n g')
+         => (e -> e') -> g -> g'
+mapEdges f = mapGraph f identity
+
+
+mapNodes :: (Graph e n g, Graph e n' g') => (n -> n') -> g -> g'
+mapNodes f = mapGraph identity f
+
+
+    

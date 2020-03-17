@@ -92,6 +92,8 @@ library:
   - src
   exposed-modules:
   - Blaze.Cfg
+  - Blaze.Fir
+  - Blaze.Graph
   - Blaze.Graph.Alga
   - Blaze.Prelude
   - Blaze.Path
@@ -101,7 +103,9 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
   - Blaze.Pil.Path
+  - Blaze.Pretty
   - Blaze.Solver
+  - Blaze.Types.Fir
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Graph
