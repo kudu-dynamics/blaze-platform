@@ -450,6 +450,12 @@ replaceStore store symbol = update storeIdx varDef
                       { _var = Pil.PilVar symbol func ctxIndex mapsTo,
                         _value = storedVal})
 
+memoryTransform :: [Stmt] -> [Stmt]
+memoryTransform xs =
+  resolveMemGroups memGroups xs
+    where
+      memGroups = findMemEquivGroups xs
+
 -- |Copy propagation via memory. Finds and simplifies variables that are copied
 -- through symbolic memory addresses that are identified to be equivalent.
 -- This is done by constructing store-load chains similar to def-use chains.
