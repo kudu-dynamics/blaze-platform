@@ -1,4 +1,4 @@
-blaze.cabal
+*.cabal
 dist
 dist-*
 cabal-dev
