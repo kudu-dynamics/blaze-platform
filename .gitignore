@@ -1,3 +1,4 @@
+blaze.cabal
 dist
 dist-*
 cabal-dev
@@ -25,5 +26,4 @@ cabal.project.local~
 *~
 .DS_Store
 .ghcid
-hie.yaml
 *.lock

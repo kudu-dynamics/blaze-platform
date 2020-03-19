@@ -1,0 +1,8 @@
+cradle:
+  stack:
+    - path: "src/"
+      component: "blaze:lib"
+    - path: "test/"
+      component: "blaze:test:blaze-test"
+    - path: "demo/"
+      component: "blaze:exe:demo"
