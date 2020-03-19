@@ -25,10 +25,14 @@ instance Hashable Address
 newtype BNPointer = BNPointer (ForeignPtr BNPointer)
 
 newtype InstructionIndex x = InstructionIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable, Generic)
+
+instance Hashable (InstructionIndex x)
 
 newtype ExpressionIndex x = ExpressionIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable, Generic)
+
+instance Hashable (ExpressionIndex x)
 
 coerceInstructionIndex :: InstructionIndex a -> InstructionIndex b
 coerceInstructionIndex (InstructionIndex x) = InstructionIndex x
