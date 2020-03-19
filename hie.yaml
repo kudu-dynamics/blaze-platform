@@ -1,0 +1,10 @@
+cradle:
+  stack:
+    - path: "src/"
+      component: "binja:lib"
+    - path: "test/"
+      component: "binja:test:binja-test"
+    - path: "app/gen-mlil-op-modules/"
+      component: "binja:exe:gen-mlil-op-modules"
+    - path: "app/clean/"
+      component: "binja:exe:gen-clean-binja-header"
