@@ -1,4 +1,4 @@
-binja.cabal
+*.cabal
 dist
 dist-*
 cabal-dev
