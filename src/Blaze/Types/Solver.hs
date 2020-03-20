@@ -43,6 +43,9 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | SolverError Text
                  | CannotFindPilVarInVarMap
                  | ExtractionOutOfBounds
+                 | DefVarAndExprNotSame SymType SymType
+                 | FromSymBoolNotBool SymType
+                 | UnsupportedStmt Pil.Stmt
                  deriving (Eq, Ord, Show)
 
 data SymVarConversionError = UnrecognizedWordWidth Int

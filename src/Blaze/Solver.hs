@@ -26,9 +26,6 @@ import qualified Data.Text as Text
 import qualified Binja.Function as Func
 import qualified Blaze.Solver.Op as Op
 
-add5 :: SWord16 -> SWord16
-add5 n = n + 5
-
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. Pil.symbol
   <> maybe "" (("@"<>) . view Func.name) (pv ^. Pil.func)
@@ -133,6 +130,11 @@ literalToSymExpr et n = do
     (8, True) -> return . SymInt64 . SBV.literal . fromIntegral $ n
     (16, True) -> return . SymInt128 . SBV.literal . fromIntegral $ n
     _ -> Nothing
+
+
+lookupPilVar :: PilVar -> Solver SymExpr
+lookupPilVar pv = use varMap
+  >>= maybe (throwError CannotFindPilVarInVarMap) return . HashMap.lookup pv
 
 
 -- because Expression is opaque and doesn't have specific return type
@@ -367,9 +369,6 @@ solveExpr expr@(Expression _sz xop) = do
       mkFloatConst :: Double -> Solver SymExpr
       mkFloatConst = return . SymFloat . SBV.literal
 
-      lookupPilVar :: PilVar -> Solver SymExpr
-      lookupPilVar pv = use varMap
-        >>= maybe (error CannotFindPilVarInVarMap) return . HashMap.lookup pv
  
   case xop of
     -- asumes left, right, and carry are all the same type.
@@ -563,6 +562,41 @@ solveExpr expr@(Expression _sz xop) = do
 
     (Pil.Extract x) -> mapError . fromSrc x $ Op.extract' et (x ^. Pil.offset)
 
+fromSymBool :: SymExpr -> Solver SBool
+fromSymBool (SymBool b) = return b
+fromSymBool x = throwError $ FromSymBoolNotBool (symType x)
 
 solveStmt :: Stmt -> Solver ()
-solveStmt = undefined
+solveStmt (Pil.Def x') = do
+  pv <- lookupPilVar $ x' ^. Pil.var
+  expr <- solveExpr $ x' ^. Pil.value
+  let h :: forall a . SBV a -> SBV a -> Solver (SBV Bool)
+      h x y = return $ x .== y
+  r <- case (pv, expr) of
+    ((SymBool x), (SymBool y)) -> h x y
+    ((SymWord8 x), (SymWord8 y)) -> h x y
+    ((SymWord16 x), (SymWord16 y)) -> h x y
+    ((SymWord32 x), (SymWord32 y)) -> h x y
+    ((SymWord64 x), (SymWord64 y)) -> h x y
+    ((SymWord128 x), (SymWord128 y)) -> h x y
+    ((SymInt8 x), (SymInt8 y)) -> h x y
+    ((SymInt16 x), (SymInt16 y)) -> h x y
+    ((SymInt32 x), (SymInt32 y)) -> h x y
+    ((SymInt64 x), (SymInt64 y)) -> h x y
+    ((SymInt128 x), (SymInt128 y)) -> h x y
+    ((SymFloat x), (SymFloat y)) -> h x y
+    ((SymString x), (SymString y)) -> h x y
+    (x, y) -> throwError $ DefVarAndExprNotSame (symType x) (symType y)
+  constrain r
+solveStmt (Pil.Constraint x) = do
+  x' <- solveExpr $ x ^. Pil.condition
+  b <- fromSymBool x'
+  constrain b
+solveStmt s@(Pil.Store _) = throwError $ UnsupportedStmt s
+solveStmt Pil.UnimplInstr = return ()
+solveStmt (Pil.UnimplMem _) = return ()
+solveStmt Pil.Undef = return ()
+solveStmt Pil.Nop = return ()
+solveStmt (Pil.Annotation _) = return ()
+solveStmt (Pil.EnterContext _) = return ()
+solveStmt (Pil.ExitContext _) = return ()
