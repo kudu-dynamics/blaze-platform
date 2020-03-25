@@ -55,6 +55,8 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 {#fun unsafe BNGetDefaultPlatform as getDefaultPlatform {withPtr* `BNBinaryView'} -> `BNPlatform' safePtr* #}
 
+{#fun unsafe BNGetDefaultEndianness as getDefaultEndianness {withPtr* `BNBinaryView'} -> `BNEndianness' integralToEnum #}
+
 {#fun unsafe BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
 
 {#fun unsafe BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}

@@ -75,6 +75,7 @@ library:
   exposed-modules:
   - Binja.Architecture
   - Binja.Core
+  - Binja.View
   - Binja.Function
   - Binja.BasicBlock
   - Binja.MLIL
