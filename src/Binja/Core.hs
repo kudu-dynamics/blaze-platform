@@ -8,19 +8,13 @@ module Binja.Core
   ) where
 
 import Binja.Prelude
-import Prelude (String)
 import qualified Data.Text as Text
 import qualified Binja.BasicBlock as BB
 import Binja.Architecture (Architecture)
 import qualified Binja.Architecture as Arch
--- import Binja.BasicBlock (BasicBlock)
---import qualified Binja.MLIL as MLIL
 import qualified Binja.C.Main as BN
 import Binja.C.Main as Exports
 import Binja.C.Types as Exports
-import Binja.C.Main ( BNBinaryView
-                    , BNBinaryViewType
-                    )
 import Binja.Function ( Function, LLILFunction )
 import qualified Binja.Function as Func
 import System.Envy
@@ -39,7 +33,7 @@ initBinja ctx = do
   BN.setBundledPluginDirectory $ binjaPluginsDir ctx
   BN.initCorePlugins
   BN.initUserPlugins
-  void $ BN.initRepoPlugins
+  void BN.initRepoPlugins
   BN.isLicenseValidated
 
 getBestViewType :: BNBinaryView -> IO (Maybe BNBinaryViewType)
@@ -60,7 +54,7 @@ getBestViewType bv = do
 saveBndb :: BNBinaryView -> FilePath -> IO Bool
 saveBndb bv fp = getFileForView bv
   >>= flip getFileViewOfType "Raw"
-  >>= maybe (return False) (flip createDatabase fp)
+  >>= maybe (return False) (`createDatabase` fp)
 
 getBinaryView :: FilePath -> IO (Either Text BNBinaryView)
 getBinaryView fp = runExceptT $ do
@@ -101,5 +95,5 @@ getFunctionsContaining bv addr = do
   return . Set.fromList $ fmap (view BB.func) blocks
 
 getLLILInstructionIndexAtAddress :: Function -> Architecture -> Address -> IO (InstructionIndex LLILFunction)
-getLLILInstructionIndexAtAddress func arch addr =
-  getLowLevelILForInstruction (func ^. Func.handle) (arch ^. Arch.handle) addr
+getLLILInstructionIndexAtAddress func arch =
+  getLowLevelILForInstruction (func ^. Func.handle) (arch ^. Arch.handle)
