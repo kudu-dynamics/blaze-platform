@@ -73,6 +73,45 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 {#fun unsafe BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
+---- Stream reader
+
+{#fun unsafe BNCreateBinaryReader as createBinaryReader {withPtr* `BNBinaryView'} -> `Maybe BNBinaryReader' nilable* #}
+
+{#fun unsafe BNFreeBinaryReader as freeBinaryReader {withPtr* `BNBinaryReader'} -> `()' #}
+
+{#fun unsafe BNGetBinaryReaderEndianness as getBinaryReaderEndianness {withPtr* `BNBinaryReader'} -> `BNEndianness' integralToEnum #}
+
+{#fun unsafe BNSetBinaryReaderEndianness as setBinaryReaderEndianness {withPtr* `BNBinaryReader', enumToIntegral `BNEndianness'} -> `()' #}
+
+{#fun unsafe BNReadData as readData' {withPtr* `BNBinaryReader', castPtr `List Word8', `Word64'} -> `Bool' toBool #}
+
+{#fun unsafe BNRead8 as read8' {withPtr* `BNBinaryReader', alloca- `Word8' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNRead16 as read16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNRead32 as read32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNRead64 as read64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNReadLE16 as readLE16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNReadLE32 as readLE32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNReadLE64 as readLE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNReadBE16 as readBE16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNReadBE32 as readBE32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNReadBE64 as readBE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
+
+{#fun unsafe BNGetReaderPosition as getReaderPosition {withPtr* `BNBinaryReader'} -> `Word64' #}
+
+{#fun unsafe BNSeekBinaryReader as seekBinaryReader {withPtr* `BNBinaryReader', `Word64'} -> `()' #}
+
+{#fun unsafe BNSeekBinaryReader as seekBinaryReaderRelative {withPtr* `BNBinaryReader', `Word64'} -> `()' #}
+
+{#fun unsafe BNIsEndOfFile as isEndOfFile {withPtr* `BNBinaryReader'} -> `Bool' toBool #}
 
 --------- functions
 

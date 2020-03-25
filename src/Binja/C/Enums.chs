@@ -22,3 +22,5 @@ import Prelude (error)
 {#enum BNVariableSourceType {} deriving (Eq, Ord, Read, Show)#}
 
 {#enum BNBranchType {} deriving (Eq, Ord, Read, Show)#}
+
+{#enum BNEndianness {} deriving (Eq, Ord, Read, Show)#}

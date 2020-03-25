@@ -104,3 +104,5 @@ ptrListIn = castPtr
 integralToEnum :: (Enum b, Integral a) => a -> b
 integralToEnum = toEnum . fromIntegral
 
+enumToIntegral :: (Enum a, Integral b) => a -> b
+enumToIntegral = fromIntegral . fromEnum

@@ -1,8 +1,9 @@
 module Binja.C.Helpers where
 
-import Binja.Prelude
+import Binja.Prelude hiding (reader)
 
 import Foreign.Ptr
+import Foreign.Marshal.Array (allocaArray, peekArray)
 import Binja.C.Bindings
 import Binja.C.Util
 import Binja.C.Types
@@ -17,12 +18,12 @@ getBinaryViewTypesForData bv =
   getBinaryViewTypesForData' bv >>= manifestArray standardPtrConv freeBinaryViewTypeList
 
 getFunctions :: BNBinaryView -> IO [BNFunction]
-getFunctions bv = 
+getFunctions bv =
   getAnalysisFunctionList' bv
   >>= manifestArrayWithFreeSize (newFunctionReference <=< noFinPtrConv) freeFunctionList
 
 getFunctionName :: BNFunction -> IO String
-getFunctionName = getFunctionSymbol >=> getSymbolShortName 
+getFunctionName = getFunctionSymbol >=> getSymbolShortName
 
 getAllArchitectureSemanticFlagClasses :: BNArchitecture -> IO [Word32]
 getAllArchitectureSemanticFlagClasses arch =
@@ -35,22 +36,22 @@ getAllArchitectureSemanticFlagGroups arch =
   manifestArray (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
-getFunctionBasicBlockList fn = 
+getFunctionBasicBlockList fn =
   getFunctionBasicBlockList' fn
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 
 getMediumLevelILBasicBlockList :: BNMediumLevelILFunction -> IO [BNBasicBlock]
-getMediumLevelILBasicBlockList fn = 
+getMediumLevelILBasicBlockList fn =
   getMediumLevelILBasicBlockList' fn
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 
 getLowLevelILBasicBlockList :: BNLowLevelILFunction -> IO [BNBasicBlock]
-getLowLevelILBasicBlockList fn = 
+getLowLevelILBasicBlockList fn =
   getLowLevelILBasicBlockList' fn
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 
 getBasicBlocksForAddress :: BNBinaryView -> Address -> IO [BNBasicBlock]
-getBasicBlocksForAddress bv addr = 
+getBasicBlocksForAddress bv addr =
   getBasicBlocksForAddress' bv addr
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 
@@ -88,12 +89,62 @@ getCodeReferences' bv addr =
   >>= manifestArrayWithFreeSize return freeCodeReferences
 
 getBasicBlockOutgoingEdges :: BNBasicBlock -> IO [BNBasicBlockEdge]
-getBasicBlockOutgoingEdges bb = 
+getBasicBlockOutgoingEdges bb =
   getBasicBlockOutgoingEdges' bb
   >>= manifestArrayWithFreeSize return freeBasicBlockEdgeList
 
 getBasicBlockDominators :: BNBasicBlock -> Bool -> IO [BNBasicBlock]
-getBasicBlockDominators bb isPost = 
+getBasicBlockDominators bb isPost =
   getBasicBlockDominators' bb isPost
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 
+readData :: BNBinaryReader -> Word64 -> IO (Maybe [Word8])
+readData reader len =
+  allocaArray (fromIntegral len) converter
+    where
+      len' :: Int
+      len' = fromIntegral len
+      converter :: Ptr Word8 -> IO (Maybe [Word8])
+      converter buf = do
+        ok <- readData' reader buf len
+        if ok then
+          Just <$> peekArray len' buf
+        else
+          pure Nothing
+
+maybeValue :: (Bool, a) -> Maybe a
+maybeValue (valid, x) =
+  if valid then
+    Just x
+  else
+    Nothing
+
+read8 :: BNBinaryReader -> IO (Maybe Word8)
+read8 r = maybeValue <$> read8' r
+
+read16 :: BNBinaryReader -> IO (Maybe Word16)
+read16 r = maybeValue <$> read16' r
+
+read32 :: BNBinaryReader -> IO (Maybe Word32)
+read32 r = maybeValue <$> read32' r
+
+read64 :: BNBinaryReader -> IO (Maybe Word64)
+read64 r = maybeValue <$> read64' r
+
+readLE16 :: BNBinaryReader -> IO (Maybe Word16)
+readLE16 r = maybeValue <$> readLE16' r
+
+readLE32 :: BNBinaryReader -> IO (Maybe Word32)
+readLE32 r = maybeValue <$> readLE32' r
+
+readLE64 :: BNBinaryReader -> IO (Maybe Word64)
+readLE64 r = maybeValue <$> readLE64' r
+
+readBE16 :: BNBinaryReader -> IO (Maybe Word16)
+readBE16 r = maybeValue <$> readBE16' r
+
+readBE32 :: BNBinaryReader -> IO (Maybe Word32)
+readBE32 r = maybeValue <$> readBE32' r
+
+readBE64 :: BNBinaryReader -> IO (Maybe Word64)
+readBE64 r = maybeValue <$> readBE64' r
