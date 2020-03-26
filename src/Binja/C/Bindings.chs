@@ -6,6 +6,7 @@ import Binja.Prelude
 
 import qualified Prelude as P
 import Foreign.C.Types
+import Foreign.Storable
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Binja.C.Enums
@@ -18,6 +19,7 @@ import Binja.Types.Function
 import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
+import Binja.Types.StringReference (BNStringReference)
 
 #include <binaryninjacore.h>
   
@@ -115,7 +117,14 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 {#fun unsafe BNIsEndOfFile as isEndOfFile {withPtr* `BNBinaryReader'} -> `Bool' toBool #}
 
---------- functions
+
+---- strings
+
+-- {#fun unsafe BNGetStringAtAddress as getStringAtAddress' 
+--   {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `BNStringReference' toStruct*} -> `Bool' toBool #}
+
+
+---- functions
 
 {#fun unsafe BNGetFunctionStart as getFunctionStart {withPtr* `BNFunction'} -> `Address' fromIntegral #}
 
@@ -132,7 +141,7 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 {#fun unsafe BNGetAnalysisFunction as getGetAnalysisFunction {withPtr* `BNBinaryView', withPtr* `BNPlatform', fromIntegral `Address'} -> `Maybe BNFunction' nilable* #}
 
 
---------- symbols
+---- symbols
 
 {#fun unsafe BNGetSymbolRawName as getSymbolRawName {withPtr* `BNSymbol'} -> `String' #}
 
@@ -140,7 +149,8 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 {#fun unsafe BNGetSymbolShortName as getSymbolShortName {withPtr* `BNSymbol'} -> `String' #}
 
---- architecture
+
+---- architecture
 
 {#fun unsafe BNGetAllArchitectureSemanticFlagClasses as getAllArchitectureSemanticFlagClasses' {withPtr* `BNArchitecture', alloca- `CSize' peekIntConv*} -> `List CUInt' id #}
 
@@ -155,7 +165,7 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 {#fun unsafe BNLowLevelILFreeOperandList as lowLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
 
 
----------- basic blocks
+---- basic blocks
 
 {#fun unsafe BNGetBasicBlockStart as getBasicBlockStart {withPtr* `BNBasicBlock'} -> `InstructionIndex ()' fromIntegral #}
 
@@ -168,7 +178,6 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 {#fun unsafe BNGetMediumLevelILBasicBlockList as getMediumLevelILBasicBlockList' {withPtr* `BNMediumLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
 {#fun unsafe BNGetLowLevelILBasicBlockList as getLowLevelILBasicBlockList' {withPtr* `BNLowLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
-
 
 {#fun unsafe BNFreeBasicBlockList as freeBasicBlockList {ptrListIn `List (Ptr BNBasicBlock)', `Word64'} -> `()' #}
 
@@ -186,11 +195,11 @@ import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 
 {#fun unsafe BNGetBasicBlockDominators as getBasicBlockDominators' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*, `Bool'} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
------ LLIL
+---- LLIL
 
 {#fun unsafe BNGetLowLevelILForInstruction as getLowLevelILForInstruction {withPtr* `BNFunction', withPtr* `BNArchitecture', fromIntegral `Address'} -> `InstructionIndex LLILFunction' fromIntegral #}
 
------ MLIL
+---- MLIL
 
 {#fun unsafe BNGetMediumLevelILInstructionIndex as getMediumLevelILInstructionIndexFromLLIL {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `InstructionIndex MLILFunction' fromIntegral #}
 
@@ -272,8 +281,8 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 {#fun unsafe BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
 
 {#fun unsafe BNGetTypeString as getTypeString {withPtr* `BNType', withNilablePtr* `Maybe BNPlatform'} -> `String' #}
---------------------------
----------Code References
+
+---- Code References
 
 instance Storable BNReferenceSource where
   sizeOf _ = {#sizeof BNReferenceSource#}

@@ -12,6 +12,8 @@ import Binja.Types.MLIL
 import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource)
+import Binja.Types.StringReference (BNStringReference)
+
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
@@ -148,3 +150,11 @@ readBE32 r = maybeValue <$> readBE32' r
 
 readBE64 :: BNBinaryReader -> IO (Maybe Word64)
 readBE64 r = maybeValue <$> readBE64' r
+
+-- getStringAtAddress :: BNBinaryView -> Address -> IO (Maybe BNStringReference)
+-- getStringAtAddress v addr = do
+--   (success, stringRef) <- getStringAtAddress' v addr
+--   if success then
+--     return (Just stringRef)
+--   else
+--     return Nothing

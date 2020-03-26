@@ -24,3 +24,5 @@ import Prelude (error)
 {#enum BNBranchType {} deriving (Eq, Ord, Read, Show)#}
 
 {#enum BNEndianness {} deriving (Eq, Ord, Read, Show)#}
+
+{#enum BNStringType {} deriving (Eq, Ord, Read, Show)#}

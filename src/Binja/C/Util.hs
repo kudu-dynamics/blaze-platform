@@ -1,9 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Binja.C.Util where
 
@@ -30,9 +25,7 @@ noFinPtrConv = fmap pointerWrap . newForeignPtr_
 standardPtrConv :: Pointer a => Ptr a -> IO a
 standardPtrConv = fmap pointerWrap . newFPtr
   where
-    newFPtr = case pointerFinalizer of
-      Nothing -> newForeignPtr_
-      Just fin -> newForeignPtr fin
+    newFPtr = maybe newForeignPtr_ newForeignPtr pointerFinalizer
 
 --manifestArrayWithFreeSize :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> CULong -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
 manifestArrayWithFreeSize :: (Storable a)
@@ -46,15 +39,18 @@ manifestArrayWithFreeSize f freeArray (arr, len) = do
   freeArray arr (fromIntegral len)
   return xs'
 
-
 peekIntConv   :: (Storable a, Integral a, Integral b) 
               => Ptr a -> IO b
-peekIntConv    = liftM fromIntegral . peek
+peekIntConv    = fmap fromIntegral . peek
 
 toBool :: CInt -> Bool
 toBool 0 = False
 toBool _ = True
 
+toStruct :: (Storable a) => Ptr () -> IO a
+toStruct ptr = peek ptr'
+  where
+    ptr' = castPtr ptr
 
 nilable :: (Pointer a) => Ptr () -> IO (Maybe a)
 nilable ptr
@@ -106,3 +102,7 @@ integralToEnum = toEnum . fromIntegral
 
 enumToIntegral :: (Enum a, Integral b) => a -> b
 enumToIntegral = fromIntegral . fromEnum
+
+
+-- peekStringRef :: Ptr BNStringReference -> IO BNStringReference
+-- peekStringRef = peek

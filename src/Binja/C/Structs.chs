@@ -12,6 +12,8 @@ import Binja.Types.MLIL
 import Binja.Types.Variable
 import qualified Binja.Types.Variable as Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
+import Binja.Types.StringReference (BNStringReference(BNStringReference))
+import qualified Binja.Types.StringReference as StrRef
 
 #include <binaryninjacore.h>
   
@@ -70,3 +72,15 @@ instance Storable BNBasicBlockEdge where
     <*> ({#get BNBasicBlockEdge->backEdge #} p)
     <*> ({#get BNBasicBlockEdge->fallThrough #} p)
   poke _ _ = P.error "BNBasicBlockEdge 'poke' not implemented"
+
+instance Storable BNStringReference where
+  sizeOf _ = {#sizeof BNStringReference#}
+  alignment _ = {#alignof BNStringReference#}
+  peek p = BNStringReference
+    <$> liftM (toEnum . fromIntegral) ({#get BNStringReference->type #} p)
+    <*> liftM fromIntegral ({#get BNStringReference->start #} p)
+    <*> liftM fromIntegral ({#get BNStringReference->length #} p)
+  poke p x = do
+    {#set BNStringReference->type #} p (fromIntegral . fromEnum $ x ^. StrRef.stringType)
+    {#set BNStringReference->start #} p (fromIntegral $ x ^. StrRef.start)
+    {#set BNStringReference->length #} p (fromIntegral $ x ^. StrRef.length)
