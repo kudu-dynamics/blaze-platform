@@ -57,7 +57,6 @@ default-extensions:
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
-#  - StrictData
   - TupleSections
 
 

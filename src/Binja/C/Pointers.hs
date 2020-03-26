@@ -3,8 +3,6 @@
 
 module Binja.C.Pointers where
 
--- import Binja.Prelude
-
 import Binja.C.TH
 
 $(mkPointer "BNBinaryView" "BNFreeBinaryView")

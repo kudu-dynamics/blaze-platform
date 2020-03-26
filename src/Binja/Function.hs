@@ -72,7 +72,7 @@ getMLILSSAFunction fn = MLILSSAFunction
 
 getFunctionStartingAt :: BNBinaryView -> Maybe BNPlatform -> Address -> IO (Maybe Function)
 getFunctionStartingAt bv mplat addr = do
-  plat <- maybe (BN.getDefaultPlatform bv) return $ mplat
+  plat <- maybe (BN.getDefaultPlatform bv) return mplat
   mfn <- BN.getGetAnalysisFunction bv plat addr
   maybe (return Nothing) (fmap Just . createFunction) mfn
 

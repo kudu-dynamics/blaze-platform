@@ -47,6 +47,11 @@ toBool :: CInt -> Bool
 toBool 0 = False
 toBool _ = True
 
+allocaStruct :: forall b. Storable b => (Ptr () -> IO (Bool, b)) -> IO (Bool, b)
+allocaStruct f = alloca g where
+  g :: Ptr b -> IO (Bool, b)
+  g = f . castPtr
+
 toStruct :: (Storable a) => Ptr () -> IO a
 toStruct ptr = peek ptr'
   where

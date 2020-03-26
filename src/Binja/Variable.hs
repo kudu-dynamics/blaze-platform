@@ -1,16 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 
 module Binja.Variable
   ( module Exports
@@ -27,7 +19,7 @@ import           Binja.Types.Variable as Exports
 
 
 getVarType :: BNTypeWithConfidence -> IO (Maybe VarType)
-getVarType vtc = case (vtc ^. bnType) of
+getVarType vtc = case vtc ^. bnType of
   Nothing -> return Nothing
   Just t -> do
     signedc <- BN.isTypeSigned t

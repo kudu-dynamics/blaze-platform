@@ -120,13 +120,8 @@ import Binja.Types.StringReference (BNStringReference)
 
 ---- strings
 
-allocaStringRef :: forall b. (Ptr () -> IO b) -> IO b
-allocaStringRef f = alloca g where
-  g :: Ptr BNStringReference -> IO b
-  g = f . castPtr
-
 {#fun unsafe BNGetStringAtAddress as getStringAtAddress' 
-  {withPtr* `BNBinaryView', fromIntegral `Address', allocaStringRef- `BNStringReference' toStruct*} -> `Bool' toBool #}
+  {withPtr* `BNBinaryView', fromIntegral `Address', allocaStruct- `BNStringReference' toStruct*} -> `Bool' toBool #}
 
 
 ---- functions

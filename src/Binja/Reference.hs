@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Binja.Reference
   ( module Exports
   , getCodeReferences

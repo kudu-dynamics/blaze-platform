@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Binja.Types.MLIL.Common where
 
 import Binja.Prelude
