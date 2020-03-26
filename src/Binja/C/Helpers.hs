@@ -151,10 +151,10 @@ readBE32 r = maybeValue <$> readBE32' r
 readBE64 :: BNBinaryReader -> IO (Maybe Word64)
 readBE64 r = maybeValue <$> readBE64' r
 
--- getStringAtAddress :: BNBinaryView -> Address -> IO (Maybe BNStringReference)
--- getStringAtAddress v addr = do
---   (success, stringRef) <- getStringAtAddress' v addr
---   if success then
---     return (Just stringRef)
---   else
---     return Nothing
+getStringAtAddress :: BNBinaryView -> Address -> IO (Maybe BNStringReference)
+getStringAtAddress v addr = do
+  (success, stringRef) <- getStringAtAddress' v addr
+  if success then
+    return (Just stringRef)
+  else
+    return Nothing

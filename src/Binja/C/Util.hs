@@ -106,3 +106,4 @@ enumToIntegral = fromIntegral . fromEnum
 
 -- peekStringRef :: Ptr BNStringReference -> IO BNStringReference
 -- peekStringRef = peek
+
