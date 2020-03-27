@@ -23,6 +23,7 @@ dependencies:
   - attoparsec
   - base
   - binja-header-cleaner
+  - bytestring
   - casing
   - containers
   - data-binary-ieee754
