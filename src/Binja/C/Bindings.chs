@@ -120,8 +120,14 @@ import Binja.Types.StringReference (BNStringReference)
 
 ---- strings
 
-{#fun unsafe BNGetStringAtAddress as getStringAtAddress' 
+{#fun unsafe BNGetStringAtAddress as getStringAtAddress'
   {withPtr* `BNBinaryView', fromIntegral `Address', allocaStruct- `BNStringReference' toStruct*} -> `Bool' toBool #}
+
+{#fun unsafe BNGetStrings as getStrings'
+  {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List BNStringReference' castPtr #}
+
+{#fun unsafe BNFreeStringReferenceList as freeStringReferenceList
+  {castPtr `List BNStringReference'} -> `()' #}
 
 
 ---- functions

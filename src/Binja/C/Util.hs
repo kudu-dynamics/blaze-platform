@@ -39,6 +39,18 @@ manifestArrayWithFreeSize f freeArray (arr, len) = do
   freeArray arr (fromIntegral len)
   return xs'
 
+manifestArrayWithFree ::
+  (Storable a) =>
+  (a -> IO b) ->
+  (List a -> IO ()) ->
+  (List a, CSize) ->
+  IO [b]
+manifestArrayWithFree f freeArray (arr, len) = do
+  xs <- peekArray (fromIntegral len) arr
+  xs' <- mapM f xs
+  freeArray arr
+  return xs'
+
 peekIntConv   :: (Storable a, Integral a, Integral b) 
               => Ptr a -> IO b
 peekIntConv    = fmap fromIntegral . peek
@@ -61,7 +73,6 @@ nilable :: (Pointer a) => Ptr () -> IO (Maybe a)
 nilable ptr
   | ptr == nullPtr = return Nothing
   | otherwise = Just <$> safePtr ptr
-
 
 -- no finalizer, but null pointer is Nothing
 nilable_ :: (Pointer a) => Ptr () -> IO (Maybe a)
