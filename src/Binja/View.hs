@@ -9,9 +9,12 @@ import Binja.Types.StringReference (BNStringReference)
 import qualified Binja.Types.StringReference as StrRef
 import Binja.Prelude hiding (reader)
 import Binja.C.Enums as BNEnums
+import Binja.C.Types (Address)
 
+import qualified Data.HashMap.Strict as HMap
+import Data.HashMap.Strict (HashMap)
 import Data.Text.Encoding as TE
-import Data.ByteString as BS
+import qualified Data.ByteString as BS
 
 getDefaultReader :: BNBinaryView -> IO BNBinaryReader
 getDefaultReader bv = do
@@ -20,17 +23,17 @@ getDefaultReader bv = do
   BN.setBinaryReaderEndianness reader defaultEndianness
   return reader
 
-readByte :: BNBinaryView -> Word64 -> IO Word8
+readByte :: BNBinaryView -> Address -> IO Word8
 readByte bv offset = do
   reader <- getDefaultReader bv
-  BN.seekBinaryReader reader offset
+  BN.seekBinaryReader reader $ fromIntegral offset
   (Just val) <- BN.read8 reader
   return val
 
-readBytes :: BNBinaryView -> Word64 -> Word64 -> IO [Word8]
+readBytes :: BNBinaryView -> Address -> Word64 -> IO [Word8]
 readBytes bv offset numBytes = do
   reader <- getDefaultReader bv
-  BN.seekBinaryReader reader offset
+  BN.seekBinaryReader reader $ fromIntegral offset
   (Just vals) <- BN.readData reader numBytes
   return vals
 
@@ -53,8 +56,15 @@ getStrings bv = do
   refs <- BN.getStringRefs bv
   traverse (convertStringRef bv) refs
 
+getStringsMap :: BNBinaryView -> IO (HashMap Address Text)
+getStringsMap bv = do
+  refs <- BN.getStringRefs bv
+  let addrs = fmap (view StrRef.start) refs
+  strs <- traverse (convertStringRef bv) refs
+  return (HMap.fromList $ zip addrs strs)
+
 -- TODO: Word64 should be Address, but don't want to leak that type from a Binja.C.* module
-getStringAtAddress :: BNBinaryView -> Word64 -> IO (Maybe Text)
+getStringAtAddress :: BNBinaryView -> Address -> IO (Maybe Text)
 getStringAtAddress bv addr = do
   maybeRef <- BN.getStringRefAtAddress bv (fromIntegral addr)
   case maybeRef of
