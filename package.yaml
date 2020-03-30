@@ -39,6 +39,7 @@ dependencies:
   - template-haskell
   - text
   - transformers
+  - unordered-containers
 
 default-extensions:
   - BangPatterns
