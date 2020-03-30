@@ -17,30 +17,6 @@ import Binja.C.Types as Exports (Address(Address))
 import Binja.C.Pointers
 import Binja.Types.Function as Exports
 
--- ( Function(..)
---                               , LLILFunction(..)
---                               , LLILSSAFunction(..)
---                               , MLILFunction(..)
---                               , MLILSSAFunction(..)
---                               , Variable(..)
---                               , VarType(..)
---                               , index
---                               , storage
---                               , sourceType
---                               , varType
---                               , handle
---                               , name
---                               , start
---                               , func
---                               , confidence
---                               , typeClass
---                               , width
---                               , alignment
---                               , signed
---                               , signedConfidence
---                               , isConst
---                               , constConfidence )
-
 
 createFunction :: BNFunction -> IO Function
 createFunction ptr = Function ptr
