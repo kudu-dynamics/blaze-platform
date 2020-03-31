@@ -18,7 +18,9 @@ import Blaze.Types.Pil ( Expression( Expression )
                        , HasRight
                        )
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import Blaze.Types.Solver
+import qualified Blaze.Pil.Analysis as A
 import Data.SBV.Tools.Overflow (ArithOverflow, bvAddO)
 import qualified Data.SBV.Trans as SBV
 import qualified Data.SBV.Trans.Control as SBV
@@ -80,8 +82,8 @@ checkSat :: (SolverState, SolverCtx) -> Solver () -> IO (Either SolverError Solv
 checkSat s m = runSolver s $ do
   initVarMap
   _ <- m
-  initVarMap
-  _ <- m
+  -- initVarMap
+  -- _ <- m
   liftSolverT . query $ do
     csat <- SBV.checkSat
     case csat of
@@ -108,10 +110,8 @@ checkSatWithSolution s m = runSolver s $ do
 initVarMap :: Solver ()
 initVarMap = do
   (TypeEnv te) <- typeEnv <$> ask
-  let pvts = HashMap.toList te
-  vars <- mapM (\ (pv, pt) -> (pv,) <$> makeSymVar pv pt) pvts
+  vars <- traverse (\ (pv, pt) -> (pv,) <$> makeSymVar pv pt) $ HashMap.toList te
   varMap .= HashMap.fromList vars
-  return ()
 
 
 literalToSymExpr :: Integral a => Pil.Type -> a -> Maybe SymExpr
@@ -600,3 +600,43 @@ solveStmt Pil.Nop = return ()
 solveStmt (Pil.Annotation _) = return ()
 solveStmt (Pil.EnterContext _) = return ()
 solveStmt (Pil.ExitContext _) = return ()
+
+
+prepSolverFromStmts :: [Stmt] -> (SolverCtx, SolverState)
+prepSolverFromStmts stmts = undefined
+  where
+    tenv = Inference.getNaiveTypeEnvFromStmts stmts
+    ctx = SolverCtx tenv
+    
+
+-- varMapFromStmts :: TypeEnv -> [Stmt] -> Solver (HashMap PilVar SymExpr)
+-- varMapFromStmts te = fmap HashMap.fromList
+--                    . traverse getType
+--                    . HashSet.toList
+--                    . foldr HashSet.union HashSet.empty
+--                    . fmap A.getVarsFromStmt
+--   where
+--     getType :: 
+--     getType = 
+
+varMapFromTypeEnv :: TypeEnv -> Solver (HashMap PilVar SymExpr)
+varMapFromTypeEnv (TypeEnv te) = fmap HashMap.fromList . traverse f $ HashMap.toList te
+  where
+    f :: (PilVar, Pil.Type) -> Solver (PilVar, SymExpr)
+    f (pv, pt) = (pv,) <$> makeSymVar pv pt
+
+updateVarMapState :: Solver ()
+updateVarMapState = do
+  te <- typeEnv <$> ask
+  vm <- varMapFromTypeEnv te
+  varMap .= vm
+
+checkStmtsDefault :: [Stmt] -> IO (Either SolverError SolverResult)
+checkStmtsDefault stmts = checkSat (emptyState, ctx) $ mapM_ solveStmt stmts
+  where
+    ctx = SolverCtx $ Inference.getNaiveTypeEnvFromStmts stmts
+
+checkStmtsWithSolutionDefault :: [Stmt] -> IO (Either SolverError SolutionResult)
+checkStmtsWithSolutionDefault stmts = checkSatWithSolution (emptyState, ctx) $ mapM_ solveStmt stmts
+  where
+    ctx = SolverCtx $ Inference.getNaiveTypeEnvFromStmts stmts
