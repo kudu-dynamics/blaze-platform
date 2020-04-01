@@ -9,6 +9,17 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 
+import Prelude (show)
+import Text.Printf (printf)
+
+-- |A concrete address.
+newtype Address = Address Word64
+  deriving (Eq, Ord, Num, Real, Enum, Integral, Generic)
+instance Hashable Address
+
+instance Show Address where
+  show (Address x) = printf "Address 0x%x" x
+
 data MemEquivGroup
   = MemEquivGroup
       { _memEquivGroupStore :: Maybe StoreStmt,
@@ -60,12 +71,21 @@ instance Hashable MemStmt
 -- Need the expression in order to include the size of the value being loaded
 -- from memory. NB: We don't need the same for StoreOp/Store because the size
 -- of the store is inferred from the value to be written. Is that a safe assumption?
-newtype LoadExpr = LoadExpr {_expr :: Expression}
-                   deriving (Eq, Ord, Show, Generic)
+newtype LoadExpr
+  = LoadExpr { _loadExprExpr :: Expression }
+  deriving (Eq, Ord, Show, Generic)
+
 instance Hashable LoadExpr
+
+newtype ConstLoadExpr
+  = ConstLoadExpr Expression
+  deriving (Eq, Ord, Show, Generic)
+
+instance Hashable ConstLoadExpr
+
 
 $(makeFields ''StoreStmt)
 $(makeFields ''LoadStmt)
 $(makeFields ''MemEquivGroup)
 $(makeFields ''MemStorage)
-$(makeFieldsNoPrefix ''LoadExpr)
+$(makeFields ''LoadExpr)

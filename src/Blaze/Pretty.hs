@@ -13,7 +13,6 @@ import qualified Numeric
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Binja.Core (InstructionIndex(InstructionIndex), Address(Address))
-import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Coerce (coerce)
 

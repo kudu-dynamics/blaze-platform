@@ -270,9 +270,6 @@ data ExprOp expr
     | IMPORT (ImportOp expr)
     | INT_TO_FLOAT (IntToFloatOp expr)
     | LOAD (LoadOp expr)
-    -- | LOAD_SSA (LoadSSAOp expr)
-    -- | LOAD_STRUCT (LoadStructOp expr)
-    -- | LOAD_STRUCT_SSA (LoadStructSSAOp expr)
     | LOW_PART (LowPartOp expr)
     | LSL (LslOp expr)
     | LSR (LsrOp expr)
@@ -642,6 +639,7 @@ $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
 
+$(makePrisms ''ExprOp)
 
 ------------------------
 

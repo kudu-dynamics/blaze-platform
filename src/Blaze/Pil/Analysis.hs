@@ -18,7 +18,8 @@ import Blaze.Types.Pil.Analysis
     MemEquivGroup (MemEquivGroup),
     MemStmt (MemLoadStmt, MemStoreStmt),
     MemStorage (MemStorage),
-    StoreStmt (StoreStmt)
+    StoreStmt (StoreStmt),
+    Address
   )
 import qualified Blaze.Types.Pil.Analysis as A
 import qualified Blaze.Pil.Construct as C
@@ -119,7 +120,6 @@ substVarExpr f = fmap $ substVarExpr_ f
 
 ---- Expression -> Expression substitution
 substExprInExpr :: (Expression -> Maybe Expression) -> Expression -> Expression
--- substExprInExpr f x = maybe x recurse $ f x
 substExprInExpr f x = recurse $ maybe x identity (f x)
   where
     recurse e = e & Pil.op %~ fmap (substExprInExpr f)
@@ -213,8 +213,8 @@ reduceMap m = fmap reduceKey m
 
 data CopyPropState
   = CopyPropState
-      { mapping :: ExprMap,
-        copyStmts :: Set Stmt
+      { _mapping :: ExprMap,
+        _copyStmts :: Set Stmt
       }
 
 _foldCopyPropState :: [Stmt] -> CopyPropState
@@ -229,8 +229,8 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
     addCopy :: CopyPropState -> Stmt -> Expression -> Expression -> CopyPropState
     addCopy s stmt copy orig =
       CopyPropState
-        { mapping = HMap.insert copy orig (mapping s),
-          copyStmts = Set.insert stmt (copyStmts s)
+        { _mapping = HMap.insert copy orig (_mapping s),
+          _copyStmts = Set.insert stmt (_copyStmts s)
         }
 
 -- |Perform copy propagation on a sequence of statements.
@@ -242,11 +242,11 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
 copyProp :: [Stmt] -> [Stmt]
 copyProp xs =
   substExprs
-    (\(e :: Expression) -> HMap.lookup e (mapping copyPropResult'))
-    [x | x <- xs, not . Set.member x $ copyStmts copyPropResult']
+    (\(e :: Expression) -> HMap.lookup e (_mapping copyPropResult'))
+    [x | x <- xs, not . Set.member x $ _copyStmts copyPropResult']
   where
     copyPropResult = _foldCopyPropState xs
-    copyPropResult' = copyPropResult {mapping = reduceMap (mapping copyPropResult)}
+    copyPropResult' = copyPropResult {_mapping = reduceMap (_mapping copyPropResult)}
                             
 usesAddr :: MemAddr -> Stmt -> Bool
 usesAddr addr stmt = case stmt of
@@ -278,7 +278,7 @@ getStorage memStmt = case memStmt of
   MemStoreStmt storeStmt -> storeStmt ^. A.storage
   MemLoadStmt loadStmt -> loadStmt ^. A.storage
 
--- |Helper function for recursively finding loads.empty 
+-- |Helper function for recursively finding loads. 
 -- NB: this implementation does not recurse on load expressions.
 _findLoads :: Expression -> [LoadExpr]
 _findLoads e = case e ^. Pil.op of
@@ -296,6 +296,33 @@ findLoads s = case s of
   (Pil.Store op) -> _findLoads (op ^. Pil.value)
   (Pil.Constraint op) -> _findLoads (op ^. Pil.condition)
   _ -> []
+
+memSubst' :: HashMap Address Text -> Stmt -> Stmt
+memSubst' valMap stmt =
+  substExpr (`HMap.lookup` mkMapping valMap stmt) stmt
+  where
+    traverseToSnd :: (a -> Maybe b) -> a -> Maybe (a, b)
+    traverseToSnd g load = (load,) <$> g load
+    constLoadsWithText :: HashMap Address Text -> Stmt -> [(LoadExpr, Text)]
+    constLoadsWithText valMap' x = catMaybes $ traverseToSnd (getConstAddress >=> (`HMap.lookup` valMap')) <$> findLoads x
+    -- TODO: Consider using unipatterns
+    getConstAddress :: LoadExpr -> Maybe Address
+    getConstAddress l =
+      case l of
+        LoadExpr Pil.Expression {_op = (Pil.LOAD (Pil.LoadOp Pil.Expression {_op = (Pil.CONST_PTR constPtrOp)}))} ->
+          Just $ fromIntegral (constPtrOp ^. Pil.constant)
+        _ -> Nothing
+    mkMapping :: HashMap Address Text -> Stmt -> HashMap Expression Expression
+    mkMapping valMap' stmt' = HMap.fromList $ updateWithSize . first coerce <$> constLoadsWithText valMap' stmt'
+      where
+        updateWithSize :: (Expression, Text) -> (Expression, Expression)
+        updateWithSize (load, txt) = (load, C.constStr txt (load ^. Pil.size)) 
+
+-- |Substitute memory loads of constant pointers
+-- to constant values with those constant values.
+-- For now, only supporting string values.
+memSubst :: HashMap Address Text -> [Stmt] -> [Stmt]
+memSubst valmap = fmap (memSubst' valmap)
 
 mkStoreStmt :: Index -> Stmt -> Maybe StoreStmt
 mkStoreStmt idx s = case s of
@@ -399,7 +426,7 @@ resolveMemGroup group name xs =
     varExpr :: Expression
     varExpr = C.var name $ widthToSize (group ^. (A.storage . A.width))
     loadExprMap :: HashMap Expression Expression
-    loadExprMap = HMap.fromList (zip (map (^. (A.loadExpr . A.expr)) 
+    loadExprMap = HMap.fromList (zip (map (coerce . (^. A.loadExpr))
                                           (group ^. A.loads)) 
                                      (repeat varExpr))
     updateStmt :: HashSet Index -> Index -> Stmt -> Stmt
@@ -460,7 +487,7 @@ memoryTransform xs =
 -- through symbolic memory addresses that are identified to be equivalent.
 -- This is done by constructing store-load chains similar to def-use chains.
 copyPropMem :: [Stmt] -> [Stmt]
-copyPropMem xs = substExprs (\v -> HMap.lookup v (mapping propResult)) xs
+copyPropMem xs = substExprs (\v -> HMap.lookup v (_mapping propResult)) xs
   where
     _memEquivGroups = findMemEquivGroups xs
     propResult = foldr f (CopyPropState HMap.empty Set.empty) xs
