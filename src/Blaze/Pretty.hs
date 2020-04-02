@@ -13,7 +13,6 @@ import qualified Numeric
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Binja.Core (InstructionIndex(InstructionIndex), Address(Address))
-import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Coerce (coerce)
 
@@ -291,7 +290,7 @@ newtype PStmts = PStmts [Pil.Stmt]
 instance Pretty PStmts where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
 
-prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m()
+prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts
 
 -- |Pretty print to IO.

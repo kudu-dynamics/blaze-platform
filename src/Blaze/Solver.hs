@@ -7,6 +7,7 @@
 module Blaze.Solver where
 
 import Blaze.Prelude
+import qualified Prelude as P
 
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Pil.Inference as Inference
@@ -568,6 +569,8 @@ fromSymBool (SymBool b) = return b
 fromSymBool x = throwError $ FromSymBoolNotBool (symType x)
 
 solveStmt :: Stmt -> Solver ()
+-- for now, do nothing with unexpanded call
+solveStmt (Pil.Def (Pil.DefOp _ (Pil.Expression _ (Pil.CALL _)))) = return ()
 solveStmt (Pil.Def x') = do
   pv <- lookupPilVar $ x' ^. Pil.var
   expr <- solveExpr $ x' ^. Pil.value
@@ -642,5 +645,17 @@ checkStmtsWithSolutionDefault stmts = checkSatWithSolution (emptyState, ctx) $ m
   where
     ctx = SolverCtx $ Inference.getNaiveTypeEnvFromStmts stmts
 
+doUntilNoChange_ :: Eq a => Word64 -> (a -> a) -> a -> a
+doUntilNoChange_ 0 _ _ = P.error "doUntilNoChange hit limit."
+doUntilNoChange_ limit f !x
+  | r == x = x
+  | otherwise = doUntilNoChange_ (limit - 1) f r
+  where
+    r = f x
+
+doUntilNoChange :: Eq a => (a -> a) -> a -> a
+doUntilNoChange = doUntilNoChange_ 9999
+
 analysisPrep :: [Stmt] -> [Stmt]
-analysisPrep = undefined
+analysisPrep = doUntilNoChange A.memoryTransform
+             . doUntilNoChange A.simplify 

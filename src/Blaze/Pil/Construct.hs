@@ -57,6 +57,12 @@ unOp f g x size =
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
+constPtr :: Word64 -> OperationSize -> Expression
+constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr)))
+
+constStr :: Text -> OperationSize -> Expression
+constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
+
 var :: Symbol -> OperationSize -> Expression
 var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
 
@@ -74,6 +80,9 @@ sx = unOp Pil.SX Pil.SxOp
 
 zx :: Expression -> OperationSize -> Expression
 zx = unOp Pil.ZX Pil.ZxOp
+
+strcmp :: Expression -> Expression -> OperationSize -> Expression
+strcmp = binOp Pil.StrCmp Pil.StrCmpOp
 
 -- TODO: Change to just Load. PIL is being updated to drop versioned memory.
 load :: Expression -> OperationSize -> Expression
