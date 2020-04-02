@@ -66,7 +66,7 @@ handleSx et x = case Pil.getTypeBitWidth et of
     (SymInt8 v) -> return . SymInt16 . fromSized  $ (SBV.signExtend $ toSized v :: SInt 16)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just n) -> throwError $ UnrecognizedTypeWidth n
+  (Just n) -> throwError $ UnrecognizedTypeWidth (fromIntegral n)
   Nothing -> throwError ExpectedTypeWidth
 
 
@@ -111,7 +111,7 @@ handleZx et x = case Pil.getTypeBitWidth et of
     (SymInt8 v) -> return . SymInt16 . fromSized  $ (SBV.zeroExtend $ toSized v :: SInt 16)
     _ -> throwError SignExtendResultMustBeWiderThanArgument
 
-  (Just n) -> throwError $ UnrecognizedTypeWidth n
+  (Just n) -> throwError $ UnrecognizedTypeWidth (fromIntegral n)
   Nothing -> throwError ExpectedTypeWidth
 
 
@@ -179,7 +179,7 @@ handleLowPart et x = case Pil.getTypeBitWidth et of
 
     _ -> throwError UnexpectedArgType  
 
-  (Just n) -> throwError $ UnrecognizedTypeWidth n
+  (Just n) -> throwError $ UnrecognizedTypeWidth (fromIntegral n)
   Nothing -> throwError ExpectedTypeWidth
 
 
@@ -330,12 +330,14 @@ handleVarSplit et pvHigh pvLow = do
 
 extract' :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
 extract' et bytePos x = do
-  let bitPos = fromIntegral $ bytePos * 8
+  let bitPos = BitWidth . fromIntegral $ bytePos * 8
   (extractedWidth, extractedSignedness) <- maybe (throwError UnexpectedReturnType) return
     $ (,) <$> Pil.getTypeBitWidth et <*> Pil.getSignedness et
   totalWidth <- getIntegralWidth x
   when (extractedWidth + bitPos > totalWidth) $ throwError ExtractionOutOfBounds
-  let x' = D.svExtract (bitPos + extractedWidth - 1) bitPos (toSVal x)
+  let x' = D.svExtract (fromIntegral $ bitPos + extractedWidth - 1)
+                       (fromIntegral bitPos)
+                       (toSVal x)
   case (extractedWidth, extractedSignedness) of
     (8, False) -> return . SymWord8 . SBV $ x'
     (16, False) -> return . SymWord16 . SBV $ x'

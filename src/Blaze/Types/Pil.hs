@@ -425,25 +425,25 @@ instance Hashable a => Hashable (ConstStrOp a)
 
 data TypedExpression = TypedExpression
   { _exprType :: Type
-  , _size :: OperationSize
+  , _size :: ByteWidth
   , _op :: ExprOp Expression
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable TypedExpression
 
 newtype BitVecType = BitVecType
-  { _width :: Int
+  { _width :: ByteWidth
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable BitVecType
 
 data IntType = IntType
-  { _width :: Int
+  { _width :: ByteWidth
   , _signed :: Bool
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable IntType
 
 {- HLINT ignore FloatType -}
 data FloatType = FloatType
-  { _width :: Int
+  { _width :: ByteWidth
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable FloatType
 
@@ -454,20 +454,20 @@ data ArrayType = ArrayType
 instance Hashable ArrayType
 
 data PtrType = PtrType
-  { _width :: Int
+  { _width :: ByteWidth
   , _pointeeType :: Type
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable PtrType
 
 data FieldType = FieldType
-  { _offset :: Int
+  { _offset :: ByteWidth
   , _fieldType :: Type
   } deriving (Eq, Ord, Show, Generic)
 
 instance Hashable FieldType
 
 data StructType = StructType
-  { _size :: Int
+  { _size :: ByteWidth
   , _fields :: [Type]
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable StructType
@@ -647,15 +647,15 @@ $(makeFieldsNoPrefix ''ConstraintOp)
 
 
 -- gets bit width of integral type, if available
-getTypeByteWidth :: Type -> Maybe Int
+getTypeByteWidth :: Type -> Maybe ByteWidth
 getTypeByteWidth (TBitVec x) = Just $ x ^. width
 getTypeByteWidth (TInt x) = Just $ x ^. width
 getTypeByteWidth (TPtr x) = Just $ x ^. width
 getTypeByteWidth (TFloat x) = Just $ x ^. width
 getTypeByteWidth _ = Nothing
 
-getTypeBitWidth :: Type -> Maybe Int
-getTypeBitWidth = fmap (*8) . getTypeByteWidth
+getTypeBitWidth :: Type -> Maybe BitWidth
+getTypeBitWidth = fmap toBitWidth . getTypeByteWidth
 
 getSignedness :: Type -> Maybe Bool
 getSignedness (TBitVec _) = Just False

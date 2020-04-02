@@ -24,7 +24,7 @@ instance Hashable MemEquivGroup
 --       seems to be to just always use signed ints
 type Index = Int
 type MemAddr = Expression
-type BitWidth = Word64
+--type BitWidth = Word64
 
 data MemStorage
   = MemStorage

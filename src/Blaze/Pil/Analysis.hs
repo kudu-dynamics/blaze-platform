@@ -10,8 +10,7 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis
-  ( BitWidth,
-    Index,
+  ( Index,
     LoadExpr (LoadExpr),
     LoadStmt (LoadStmt),
     MemAddr,
@@ -33,10 +32,10 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 widthToSize :: BitWidth -> Pil.OperationSize
-widthToSize x = Pil.OperationSize $ x `div` 8
+widthToSize (BitWidth x) = Pil.OperationSize $ x `div` 8
 
 sizeToWidth :: Pil.OperationSize -> BitWidth
-sizeToWidth (Pil.OperationSize x) = x * 8
+sizeToWidth (Pil.OperationSize x) = BitWidth $ x * 8
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]

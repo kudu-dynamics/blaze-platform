@@ -297,7 +297,7 @@ getSolutions m = do
   xs <- mapM (\ (pv, x) -> (pv,) <$> getSolution x) $ HashMap.toList m
   return $ HashMap.fromList xs
 
-getIntegralWidth :: SymExpr -> Solver Int
+getIntegralWidth :: SymExpr -> Solver BitWidth
 getIntegralWidth = \case
   (SymWord8 _) -> return 8
   (SymWord16 _) -> return 16

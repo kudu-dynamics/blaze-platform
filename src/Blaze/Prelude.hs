@@ -20,6 +20,9 @@ module Blaze.Prelude
   , indexed
   , hdebug
   , twaddleUUID
+  , ByteWidth(ByteWidth)
+  , BitWidth(BitWidth)
+  , toBitWidth
   ) where
 
 --import qualified Prelude as P
@@ -38,6 +41,7 @@ import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
 import qualified Data.UUID as UUID
 --import Data.Typeable as Exports
+import Data.Hashable as Exports (Hashable)
 import           Control.Lens    as Exports        ( (%~)
                                                    , (.~)
                                                    , (.=)
@@ -150,3 +154,17 @@ instance ArithOverflow (SInt 128) where
   bvMulOFast = l2 bvMulOFast
   bvDivO = l2 bvDivO
   bvNegO = bvNegO . unSBV
+
+
+newtype ByteWidth = ByteWidth Word64
+  deriving (Eq, Ord, Read, Show, Generic, Enum, Real, Integral, Num)
+
+instance Hashable ByteWidth
+
+newtype BitWidth = BitWidth Word64
+  deriving (Eq, Ord, Read, Show, Generic, Enum, Real, Integral, Num)
+
+instance Hashable BitWidth
+
+toBitWidth :: ByteWidth -> BitWidth
+toBitWidth (ByteWidth n) = BitWidth (8*n)

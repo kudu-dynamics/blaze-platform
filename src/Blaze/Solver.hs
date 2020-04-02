@@ -61,20 +61,21 @@ makeSymVar pv pt = case pt of
   where
     err = throwError . SymVarConversionError pv pt
 
+    createWord :: ByteWidth -> Solver SymExpr
     createWord 1 = SymWord8 <$> exists nm
     createWord 2 = SymWord16 <$> exists nm
     createWord 4 = SymWord32 <$> exists nm
     createWord 8 = SymWord64 <$> exists nm
     createWord 16 = SymWord128 <$> exists nm
-    createWord n = err $ UnrecognizedWordWidth n
+    createWord n = err $ UnrecognizedWordWidth (fromIntegral n)
 
-    createInt :: Int -> Solver SymExpr
+    createInt :: ByteWidth -> Solver SymExpr
     createInt 1 = SymInt8 <$> exists nm
     createInt 2 = SymInt16 <$> exists nm
     createInt 4 = SymInt32 <$> exists nm
     createInt 8 = SymInt64 <$> exists nm
     createInt 16 = SymInt128 <$> exists nm
-    createInt n = err $ UnrecognizedIntWidth n
+    createInt n = err $ UnrecognizedIntWidth (fromIntegral n)
       
     nm = Text.unpack $ pilVarName pv
 
@@ -640,3 +641,6 @@ checkStmtsWithSolutionDefault :: [Stmt] -> IO (Either SolverError SolutionResult
 checkStmtsWithSolutionDefault stmts = checkSatWithSolution (emptyState, ctx) $ mapM_ solveStmt stmts
   where
     ctx = SolverCtx $ Inference.getNaiveTypeEnvFromStmts stmts
+
+analysisPrep :: [Stmt] -> [Stmt]
+analysisPrep = undefined

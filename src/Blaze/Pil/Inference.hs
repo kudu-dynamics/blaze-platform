@@ -153,7 +153,7 @@ getExprType env x = case x ^. op of
   Extract _ -> bitvecRet
   
   where
-    sz :: Int
+    sz :: ByteWidth
     sz = fromIntegral $ x ^. size
     boolRet = Just TBool
     pointerRet = Just $ TPtr $ PtrType sz (TObs [])
@@ -196,7 +196,7 @@ mlilTypeToPilType vt = case vt ^. V.typeClass of
       _ -> maybe (TObs []) identity $ mlilTypeToPilType et
   _ -> Nothing
   where
-    w = fromIntegral $ 8 * (vt ^. V.width)
+    w = fromIntegral $ vt ^. V.width
 
 ssasToType :: [SSAVariable] -> Type
 ssasToType ssas = case HashSet.toList uniques of
