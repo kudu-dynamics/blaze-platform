@@ -307,7 +307,7 @@ solveExpr expr@(Expression _sz xop) = do
           ((SymInt32 x), (SymInt32 y)) -> h x y
           ((SymInt64 x), (SymInt64 y)) -> h x y
           ((SymInt128 x), (SymInt128 y)) -> h x y
-          _ -> error UnexpectedArgType
+          _ -> error $ UnexpectedArgs (symType a) (symType b)
 
       binSignedToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
                         -> SymExpr -> SymExpr -> Solver SymExpr
