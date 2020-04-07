@@ -20,6 +20,7 @@ import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 import Binja.Types.StringReference (BNStringReference)
+import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
 
 #include <binaryninjacore.h>
   
@@ -154,6 +155,9 @@ import Binja.Types.StringReference (BNStringReference)
 {#fun unsafe BNGetSymbolFullName as getSymbolFullName {withPtr* `BNSymbol'} -> `String' #}
 
 {#fun unsafe BNGetSymbolShortName as getSymbolShortName {withPtr* `BNSymbol'} -> `String' #}
+
+{#fun unsafe BNGetSymbolByAddress as getSymbolByAddress {withPtr* `BNBinaryView', fromIntegral `Address', withStruct* `Maybe BNNameSpace'} -> `Maybe BNSymbol' nilable* #}
+
 
 
 ---- architecture

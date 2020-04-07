@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+
 module Binja.C.Structs where
 
 import Binja.Prelude
@@ -9,11 +10,15 @@ import Foreign.Ptr
 import Foreign.Marshal.Array
 import Binja.C.Util
 import Binja.Types.MLIL
-import Binja.Types.Variable
+import Binja.Types.Variable (BNVariable(BNVariable), BNTypeWithConfidence(BNTypeWithConfidence), BNBoolWithConfidence(BNBoolWithConfidence))
 import qualified Binja.Types.Variable as Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
 import Binja.Types.StringReference (BNStringReference(BNStringReference))
 import qualified Binja.Types.StringReference as StrRef
+import Foreign.C.String (peekCString, withCString, CString)
+import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
+import qualified Data.Text as T
+import Foreign.Storable (sizeOf, alignment, peek, poke)
 
 #include <binaryninjacore.h>
   
@@ -43,9 +48,9 @@ instance Storable BNVariable where
     <*> liftM fromIntegral ({#get BNVariable->index #} p)
     <*> liftM fromIntegral ({#get BNVariable->storage #} p)
   poke p x = do
-     {#set BNVariable->type #} p (fromIntegral . fromEnum $ x ^. sourceType)
+     {#set BNVariable->type #} p (fromIntegral . fromEnum $ x ^. Variable.sourceType)
      {#set BNVariable->index #} p (fromIntegral $ x ^. Variable.index)
-     {#set BNVariable->storage #} p (fromIntegral $ x ^. storage)
+     {#set BNVariable->storage #} p (fromIntegral $ x ^. Variable.storage)
 
 instance Storable BNTypeWithConfidence where
   sizeOf _ = {#sizeof BNTypeWithConfidence#}
@@ -84,3 +89,30 @@ instance Storable BNStringReference where
     {#set BNStringReference->type #} p (fromIntegral . fromEnum $ x ^. StrRef.stringType)
     {#set BNStringReference->start #} p (fromIntegral $ x ^. StrRef.start)
     {#set BNStringReference->length #} p (fromIntegral $ x ^. StrRef.length)
+
+instance Storable BNNameSpace where
+  sizeOf _ = {#sizeof BNNameSpace#}
+  alignment _ = {#alignof BNNameSpace#}
+  peek p = do
+    count <- fromIntegral <$> ({#get BNNameSpace->nameCount #} p)
+    name' <- ({#get BNNameSpace->name #} p) >>= peekArray count 
+    name <- convertCStrings name'
+    join <- ({#get BNNameSpace->join #} p) >>= (fmap T.pack . peekCString) 
+    return $ BNNameSpace name join (fromIntegral count)
+      where
+        convertCStrings :: [CString] -> IO [Text]
+        convertCStrings cStrs = traverse (fmap T.pack . peekCString) cStrs
+
+instance Storable a => Storable (Maybe a) where
+  sizeOf p = case p of
+    Just x -> sizeOf x
+    Nothing -> 0
+  alignment p = case p of
+    Just x -> alignment x
+    Nothing -> 0
+  peek (Ptr z) = case z of
+    Just x -> peek x
+    Nothing -> return Nothing
+  poke (Ptr z) x = case z of
+    Just y -> poke y x
+    Nothing -> return ()

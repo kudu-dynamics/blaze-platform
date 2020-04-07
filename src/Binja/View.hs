@@ -10,6 +10,9 @@ import qualified Binja.Types.StringReference as StrRef
 import Binja.Prelude hiding (reader)
 import Binja.C.Enums as BNEnums
 import Binja.C.Types (Address)
+import Binja.Types.Symbol (BNNameSpace)
+import Binja.C.Pointers (BNSymbol)
+
 
 import qualified Data.HashMap.Strict as HMap
 import Data.HashMap.Strict (HashMap)
@@ -70,3 +73,7 @@ getStringAtAddress bv addr = do
   case maybeRef of
     (Just ref) -> Just <$> convertStringRef bv ref
     Nothing -> return Nothing
+
+
+getSymbolAtAddress :: BNBinaryView -> Address -> Maybe BNNameSpace -> IO (Maybe BNSymbol)
+getSymbolAtAddress = BN.getSymbolByAddress 
