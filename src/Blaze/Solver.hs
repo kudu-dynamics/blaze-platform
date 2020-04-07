@@ -55,7 +55,14 @@ makeSymVar pv pt = case pt of
   (Pil.TPtr _) -> SymWord64 <$> exists nm
   (Pil.TField _) -> err FieldTypeNotYetSupported
   Pil.TString -> SymString <$> exists nm
-  (Pil.TObs _) -> err EncounteredObsType
+
+  -- unkown pil var types get set to this, like for free vars in memory analysis
+  -- solving fails if a pilvar is obs
+  -- TODO: better type inference... set free vars to some Any type
+  -- for now, workaround is to set it to some concrete type
+  (Pil.TObs _) -> SymWord8 <$> exists nm
+  --(Pil.TObs _) -> err EncounteredObsType
+
   (Pil.TFunc _) -> err FuncTypeNotYetSupported
   (Pil.TStruct _) -> err StructTypeNotYetSupported
   
@@ -205,7 +212,7 @@ solveExpr expr@(Expression _sz xop) = do
           (SymInt32 _) -> SymInt32 <$> h
           (SymInt64 _) -> SymInt64 <$> h
           (SymInt128 _) -> SymInt128 <$> h
-          _ -> error UnexpectedReturnType
+          _ -> error $ UnexpectedReturnType (symType a)
 
 
       unIntegral :: (forall a. (SDivisible (SBV a), SIntegral a) => SBV a -> SBV a)
@@ -226,7 +233,7 @@ solveExpr expr@(Expression _sz xop) = do
           (SymInt32 _) -> SymInt32 <$> h
           (SymInt64 _) -> SymInt64 <$> h
           (SymInt128 _) -> SymInt128 <$> h
-          _ -> error UnexpectedReturnType
+          _ -> error $ UnexpectedReturnType (symType a)
 
       binBiIntegral :: (forall a b. (SDivisible (SBV a), SIntegral a, SDivisible (SBV b), SIntegral b) => SBV a -> SBV b -> SBV a)
                   -> SymExpr -> SymExpr -> Solver SymExpr
@@ -245,7 +252,7 @@ solveExpr expr@(Expression _sz xop) = do
               (SymInt32 n) -> return $ f m n
               (SymInt64 n) -> return $ f m n
               (SymInt128 n) -> return $ f m n
-              _ -> error UnexpectedReturnType
+              _ -> error $ UnexpectedReturnType (symType b)
         case a of
           (SymWord8 m) -> SymWord8 <$> h m
           (SymWord16 m) -> SymWord16 <$> h m
@@ -257,7 +264,7 @@ solveExpr expr@(Expression _sz xop) = do
           (SymInt32 m) -> SymInt32 <$> h m
           (SymInt64 m) -> SymInt64 <$> h m
           (SymInt128 m) -> SymInt128 <$> h m
-          _ -> error UnexpectedReturnType
+          _ -> error $ UnexpectedReturnType (symType a)
 
       binBiIntegralToBool :: (forall a b. (SFiniteBits a, SDivisible (SBV a), SIntegral a, SDivisible (SBV b), SIntegral b) => SBV a -> SBV b -> SBool)
                   -> SymExpr -> SymExpr -> Solver SymExpr
@@ -275,7 +282,7 @@ solveExpr expr@(Expression _sz xop) = do
               (SymInt32 n) -> return $ f m n
               (SymInt64 n) -> return $ f m n
               (SymInt128 n) -> return $ f m n
-              _ -> error UnexpectedReturnType
+              _ -> error $ UnexpectedReturnType (symType b)
         case a of
           (SymWord8 m) -> SymBool <$> h m
           (SymWord16 m) -> SymBool <$> h m
@@ -287,7 +294,7 @@ solveExpr expr@(Expression _sz xop) = do
           (SymInt32 m) -> SymBool <$> h m
           (SymInt64 m) -> SymBool <$> h m
           (SymInt128 m) -> SymBool <$> h m
-          _ -> error UnexpectedReturnType
+          _ -> error $ UnexpectedReturnType (symType a)
 
   
       binIntegralToBool :: (forall a. (ArithOverflow (SBV a), SIntegral a) => SBV a -> SBV a -> SBool)
@@ -319,7 +326,7 @@ solveExpr expr@(Expression _sz xop) = do
           ((SymInt16 x), (SymInt16 y)) -> h x y
           ((SymInt32 x), (SymInt32 y)) -> h x y
           ((SymInt64 x), (SymInt64 y)) -> h x y
-          _ -> error UnexpectedArgType
+          _ -> error $ UnexpectedArgs (symType a) (symType b)
 
       binUnsignedToBool :: (forall a. SIntegral a => SBV a -> SBV a -> SBool)
                         -> SymExpr -> SymExpr -> Solver SymExpr
@@ -332,7 +339,7 @@ solveExpr expr@(Expression _sz xop) = do
           ((SymWord32 x), (SymWord32 y)) -> h x y
           ((SymWord64 x), (SymWord64 y)) -> h x y
           ((SymWord128 x), (SymWord128 y)) -> h x y
-          _ -> error UnexpectedArgType
+          _ -> error $ UnexpectedArgs (symType a) (symType b)
 
   
       -- binBool :: (SBool -> SBool -> SBool) -> SymExpr -> SymExpr -> Solver SymExpr
@@ -468,7 +475,7 @@ solveExpr expr@(Expression _sz xop) = do
             (16, True) -> return . SymInt16 . fromSDouble rm $ n
             (32, True) -> return . SymInt32 . fromSDouble rm $ n
             (64, True) -> return . SymInt64 . fromSDouble rm $ n
-            _ -> error UnexpectedReturnType
+            _ -> error $ UnexpectedReturnType_ "FLOAT_TO_INT"
         _ -> error UnexpectedArgType
     (Pil.FLOOR x) -> fromSrc x $ unFloat (fpRoundToIntegral sRoundTowardNegative)
     (Pil.FMUL x) -> lr x $ binFloat (fpMul sRoundNearestTiesToAway)
@@ -515,7 +522,21 @@ solveExpr expr@(Expression _sz xop) = do
     -- maybe it should throw an error instead?
     (Pil.NEG x) -> mapError . fromSrc x $ unIntegral Op.integralNeg
 
-    (Pil.NOT x) -> fromSrc x $ unIntegral complement
+    (Pil.NOT x) -> fromSrc x $ \sx -> case sx of
+      (SymBool m) -> return . SymBool $ sNot m
+      (SymWord8 m) -> return . SymWord8 $ complement m
+      (SymWord16 m) -> return . SymWord16 $ complement m
+      (SymWord32 m) -> return . SymWord32 $ complement m
+      (SymWord64 m) -> return . SymWord64 $ complement m
+      (SymWord128 m) -> return . SymWord128 $ complement m
+      (SymInt8 m) -> return . SymInt8 $ complement m
+      (SymInt16 m) -> return . SymInt16 $ complement m
+      (SymInt32 m) -> return . SymInt32 $ complement m
+      (SymInt64 m) -> return . SymInt64 $ complement m
+      (SymInt128 m) -> return . SymInt128 $ complement m
+      _ -> error UnexpectedArgType
+
+    --unIntegral complement
     (Pil.OR x) -> lr x $ binIntegral (.|.)
     (Pil.RLC x) -> mapError . lrc x $ Op.handleRLC et
     (Pil.ROL x) -> lr x $ binBiIntegral (sRotateLeft)

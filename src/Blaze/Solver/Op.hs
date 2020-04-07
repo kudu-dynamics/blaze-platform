@@ -294,7 +294,7 @@ handleVarSplit et pvHigh pvLow = do
   vm <- use varMap
   (a, b) <- maybe (throwError CannotFindPilVarInVarMap) return $ do
     (,) <$> HashMap.lookup pvHigh vm <*> HashMap.lookup pvLow vm
-  (signedness, twidth) <- maybe (throwError UnexpectedReturnType) return
+  (signedness, twidth) <- maybe (throwError $ UnexpectedReturnType_ "handleVarSplit'1") return
     $ (,) <$> Pil.getSignedness et <*> Pil.getTypeBitWidth et
   case (signedness, twidth) of
     (True, 16) -> case (a, b) of
@@ -325,13 +325,13 @@ handleVarSplit et pvHigh pvLow = do
       (SymWord64 x, SymWord64 y) -> return . SymWord128 $ toSized x # toSized y
       _ -> throwError $ UnexpectedArgs (symType a) (symType b)
 
-    _ -> throwError $ UnexpectedReturnType
+    _ -> throwError $ UnexpectedReturnType_ "handleVarSplit'2"
 
 
 extract' :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
 extract' et bytePos x = do
   let bitPos = BitWidth . fromIntegral $ bytePos * 8
-  (extractedWidth, extractedSignedness) <- maybe (throwError UnexpectedReturnType) return
+  (extractedWidth, extractedSignedness) <- maybe (throwError $ UnexpectedReturnType_ "extract'1") return
     $ (,) <$> Pil.getTypeBitWidth et <*> Pil.getSignedness et
   totalWidth <- getIntegralWidth x
   when (extractedWidth + bitPos > totalWidth) $ throwError ExtractionOutOfBounds
@@ -349,7 +349,7 @@ extract' et bytePos x = do
     (32, True) -> return . SymInt32 . SBV $ x'
     (64, True) -> return . SymInt64 . SBV $ x'
     (128, True) -> return . SymInt128 . SBV $ x'
-    _ -> throwError UnexpectedReturnType
+    _ -> throwError $ UnexpectedReturnType_ "extract'2"
 
 
 -- --- todo: Just use SBV.Dynamic's svExtract

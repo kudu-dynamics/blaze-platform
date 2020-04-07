@@ -77,7 +77,7 @@ getExprType env x = case x ^. op of
   CMP_UGT _ -> boolRet
   CMP_ULE _ -> boolRet
   CMP_ULT _ -> boolRet
-  CONST _ -> bitvecRet
+  CONST _ -> intRet --- we need real type inference here...
   CONST_PTR _ -> pointerRet
   ConstStr _ -> stringRet
   DIVS _ -> intRet

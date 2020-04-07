@@ -29,10 +29,12 @@ data SolverError = SymVarConversionError PilVar Pil.Type SymVarConversionError
                  | ExpressionConversionError Expression Pil.Type SolverError
                  | OpNotYetSupported
                  | UknownExpectedType Expression
-                 | UnexpectedReturnType
+                 | UnexpectedReturnType_ Text
+                 | UnexpectedReturnType SymType
                  | UnexpectedReturnType'Expected Pil.Type
                  | IntegralConversionError
                  | ArgsAndRetNotTheSameType SymType SymType
+                 | UnexpectedArg SymType
                  | UnexpectedArgs SymType SymType
                  | ArgAndRetNotTheSameType SymType
                  | ArgsNotTheSameType
