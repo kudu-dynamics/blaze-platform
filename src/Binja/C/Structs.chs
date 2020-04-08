@@ -3,11 +3,10 @@
 
 module Binja.C.Structs where
 
-import Binja.Prelude
+import Binja.Prelude hiding (join)
 
 import qualified Prelude as P
-import Foreign.Ptr
-import Foreign.Marshal.Array
+
 import Binja.C.Util
 import Binja.Types.MLIL
 import Binja.Types.Variable (BNVariable(BNVariable), BNTypeWithConfidence(BNTypeWithConfidence), BNBoolWithConfidence(BNBoolWithConfidence))
@@ -15,8 +14,12 @@ import qualified Binja.Types.Variable as Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
 import Binja.Types.StringReference (BNStringReference(BNStringReference))
 import qualified Binja.Types.StringReference as StrRef
-import Foreign.C.String (peekCString, withCString, CString)
+import qualified Binja.Types.Symbol as Sym
 import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
+
+import Foreign.Ptr
+import Foreign.Marshal.Array
+import Foreign.C.String (peekCString, withCString, CString)
 import qualified Data.Text as T
 import Foreign.Storable (sizeOf, alignment, peek, poke)
 
@@ -95,24 +98,13 @@ instance Storable BNNameSpace where
   alignment _ = {#alignof BNNameSpace#}
   peek p = do
     count <- fromIntegral <$> ({#get BNNameSpace->nameCount #} p)
-    name' <- ({#get BNNameSpace->name #} p) >>= peekArray count 
-    name <- convertCStrings name'
+    name <- ({#get BNNameSpace->name #} p) >>= peekArray count >>= convertCStrings
     join <- ({#get BNNameSpace->join #} p) >>= (fmap T.pack . peekCString) 
     return $ BNNameSpace name join (fromIntegral count)
       where
         convertCStrings :: [CString] -> IO [Text]
         convertCStrings cStrs = traverse (fmap T.pack . peekCString) cStrs
-
-instance Storable a => Storable (Maybe a) where
-  sizeOf p = case p of
-    Just x -> sizeOf x
-    Nothing -> 0
-  alignment p = case p of
-    Just x -> alignment x
-    Nothing -> 0
-  peek (Ptr z) = case z of
-    Just x -> peek x
-    Nothing -> return Nothing
-  poke (Ptr z) x = case z of
-    Just y -> poke y x
-    Nothing -> return ()
+  poke p x = do
+    withCStringArray (x ^. Sym.name) ({#set BNNameSpace->name #} p)
+    withCString (T.unpack (x ^. Sym.join)) ({#set BNNameSpace->join #} p)
+    {#set BNNameSpace->nameCount #} p (fromIntegral $ x ^. Sym.nameCount)

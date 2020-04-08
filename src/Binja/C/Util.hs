@@ -7,9 +7,13 @@ import Binja.Prelude
 import Foreign.C.Types
 import Foreign.ForeignPtr
 import Foreign.Ptr
+import Foreign.C.String
 import Foreign.Storable
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
+
+import qualified Data.Text as T
+
 import Binja.C.Types
 
 manifestArray :: (Storable a) => (a -> IO b) -> (List a -> IO ()) -> (List a, CSize) -> IO [b]
@@ -94,6 +98,12 @@ withStruct s f = alloca $ \ptr -> do
   poke ptr s
   f $ castPtr ptr
 
+withMaybeStruct :: (Storable a) => Maybe a -> (Ptr x -> IO b) -> IO b
+withMaybeStruct ms f =
+  case ms of
+    (Just s) -> withStruct s f
+    Nothing -> f nullPtr
+
 allocAndPeek :: Storable b => (Ptr b -> IO ()) -> IO b
 allocAndPeek f = alloca $ \ptr -> f ptr >> peek ptr
 
@@ -119,7 +129,18 @@ integralToEnum = toEnum . fromIntegral
 enumToIntegral :: (Enum a, Integral b) => a -> b
 enumToIntegral = fromIntegral . fromEnum
 
+makeCStringArray :: [Text] -> IO (Ptr CString)
+makeCStringArray arr = newArray =<< traverse (newCString . T.unpack) arr
 
--- peekStringRef :: Ptr BNStringReference -> IO BNStringReference
--- peekStringRef = peek
+freeCStringArray :: Int -> Ptr CString -> IO ()
+freeCStringArray n ptr = do
+  strs <- peekArray n ptr
+  traverse_ free strs
+  free ptr
 
+withCStringArray :: [Text] -> (Ptr CString -> IO a) -> IO a
+withCStringArray strs f = do
+  arr <- makeCStringArray strs
+  result <- f arr
+  freeCStringArray (length strs) arr
+  return result
