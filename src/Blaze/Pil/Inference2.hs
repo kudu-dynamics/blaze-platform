@@ -38,13 +38,15 @@ data PilType = TAny
              | TArray { elemType :: PilType, len :: Word64 }
              | TNumber
              | TInteger
-             | TInt { intWidth :: BitWidth, signed :: Maybe Bool }
+             | TInt { intWidth :: BitWidth }
+             | TSigned { intWidth :: BitWidth }
+             | TUnsigned { intWidth :: BitWidth } 
              | TReal
              | TFloat { bitWidth :: BitWidth }
              | TBitVector { bitWidth :: BitWidth }
              | TString { len :: Word64 }
-             | TPointer
-             | TRecord
+             | TPointer { bitWidth :: BitWidth }
+--             | TRecord -- eventully [PilType] to get fields
              | TBottom
              deriving (Eq, Ord, Read, Show)
 
@@ -60,6 +62,7 @@ data SymType = SVar Sym
 data CheckerError = CannotFindPilVarInVarSymMap PilVar
                   | CannotFindSymInSymMap
                   | UnhandledExpr
+                  | UnhandledStmt
   deriving (Eq, Ord, Show)
 
 incrementSym :: Sym -> Sym
@@ -87,6 +90,15 @@ lookupVarSym pv = do
   case HashMap.lookup pv vsm of
     Nothing -> throwError $ CannotFindPilVarInVarSymMap pv
     Just s -> return s
+
+lookupSymExpr :: (MonadState SymState m, MonadError CheckerError m)
+             => Sym -> m SymExpression
+lookupSymExpr sym = do
+  m <- use symMap
+  case HashMap.lookup sym m of
+    Nothing -> throwError $ CannotFindSymInSymMap
+    Just x -> return x
+
 
 addSymExpression :: MonadState SymState m => Sym -> SymExpression -> m ()
 addSymExpression sym x = symMap %= HashMap.insert sym x
@@ -142,7 +154,7 @@ exprTypeRules r (SymExpression sz op) = case op of
 --   CMP_UGT _ -> boolRet
 --   CMP_ULE _ -> boolRet
 --   CMP_ULT _ -> boolRet
---   CONST _ -> intRet --- we need real type inference here...
+  Pil.CONST _ -> return [(r, SType $ TInt sz)]
 --   CONST_PTR _ -> pointerRet
 --   ConstStr _ -> stringRet
 --   DIVS _ -> intRet
@@ -223,7 +235,7 @@ exprTypeRules r (SymExpression sz op) = case op of
 
     integralBinOp :: (Pil.HasLeft x Sym, Pil.HasRight x Sym) => x -> m [(Sym, SymType)]
     integralBinOp x = return
-      [ (r, SType (TInt sz Nothing))
+      [ (r, SType (TInt sz))
       , (r, SVar $ x ^. Pil.left)
       , (r, SVar $ x ^. Pil.right)
       ]
@@ -231,7 +243,7 @@ exprTypeRules r (SymExpression sz op) = case op of
     integralBinOpReturnsBool :: (Pil.HasLeft x Sym, Pil.HasRight x Sym)
                              => x -> m [(Sym, SymType)]
     integralBinOpReturnsBool x = return  
-      [ (r, SType (TInt sz Nothing))
+      [ (r, SType (TInt sz))
       , (x ^. Pil.left, SVar $ x ^. Pil.right)
       ]
 
@@ -249,202 +261,162 @@ getAllExprTypeRules thisExprSym x@(SymExpression _ op) = do
       Just x' -> (<> rules) <$> getAllExprTypeRules sym x' 
 
 -- get all rules for stmts
--- stmtTypeRules :: MonadState SymState m
---               => Statement Expression -> m [(Sym, SymType)]
--- stmtTypeRules (Pil.Def x) = do
---   exprSym <- toSymExpression $ x ^. Pil.value
-  
-  
-  
--- toSymStmt :: Statement Expression -> SymMonad (Statement Sym)
--- toSymStmt (Pil.Def x) =
-  
---- createSymMap :: 
+-- preserve [Statement SymExpression]
+-- needs to get all rules and all Stmts
+stmtTypeRules :: (MonadState SymState m, MonadError CheckerError m)
+              => Statement Expression -> m (Statement Sym, [(Sym, SymType)])
+stmtTypeRules (Pil.Def (Pil.DefOp pv expr)) = do
+  exprSym <- toSymExpression expr
+  pvSym <- lookupVarSym pv
+  symExpr <- lookupSymExpr exprSym
+  exprRules <- getAllExprTypeRules exprSym symExpr
+  return ( Pil.Def (Pil.DefOp pv exprSym)
+         , [ (pvSym, SVar exprSym) ]
+           <> exprRules )
+stmtTypeRules (Pil.Constraint (Pil.ConstraintOp expr)) = do
+  exprSym <- toSymExpression expr
+  symExpr <- lookupSymExpr exprSym
+  exprRules <- getAllExprTypeRules exprSym symExpr
+  return ( Pil.Constraint (Pil.ConstraintOp exprSym)
+         , exprRules )
+stmtTypeRules _ = throwError UnhandledStmt
 
+type Rule = (Sym, SymType)
 
--- getExprType :: TypeEnv -> Expression -> Maybe Type
--- getExprType env x = case x ^. op of
---   ADC n -> inheritIntRet n
---   ADD n -> inheritIntRet n
---   ADD_OVERFLOW n -> inheritIntRet n
---   ADDRESS_OF _ -> pointerRet
---   ADDRESS_OF_FIELD _ -> pointerRet
---   AND _ -> bitvecRet
---   ASR _ -> bitvecRet
---   BOOL_TO_INT _ -> uintRet
---   CALL _ -> unknown
---   CEIL _ -> bitvecRet
---   CMP_E _ -> boolRet
---   CMP_NE _ -> boolRet
+type StmtRule = (Statement Sym, Rule)
 
---   CMP_SGE _ -> boolRet
---   CMP_SGT _ -> boolRet
---   CMP_SLE _ -> boolRet
---   CMP_SLT _ -> boolRet
---   CMP_UGE _ -> boolRet
---   CMP_UGT _ -> boolRet
---   CMP_ULE _ -> boolRet
---   CMP_ULT _ -> boolRet
---   CONST _ -> intRet --- we need real type inference here...
---   CONST_PTR _ -> pointerRet
---   ConstStr _ -> stringRet
---   DIVS _ -> intRet
---   DIVS_DP _ -> intRet
---   DIVU _ -> uintRet
---   DIVU_DP _ -> uintRet
---   FABS _ -> floatRet
---   FADD _ -> floatRet
---   FCMP_E _ -> boolRet
---   FCMP_GE _ -> boolRet
---   FCMP_GT _ -> boolRet
---   FCMP_LE _ -> boolRet
---   FCMP_LT _ -> boolRet
---   FCMP_O _ -> boolRet
---   FCMP_NE _ -> boolRet
---   FCMP_UO _ -> boolRet
---   FDIV _ -> floatRet
---   FLOAT_CONST _ -> floatRet
---   FLOAT_CONV _ -> floatRet
---   FLOAT_TO_INT _ -> intRet
---   FLOOR _ -> bitvecRet
---   FMUL _ -> floatRet
---   FNEG _ -> floatRet
---   FSQRT _ -> floatRet
---   FTRUNC _ -> floatRet
---   FSUB _ -> floatRet
---   IMPORT _ -> bitvecRet
---   INT_TO_FLOAT _ -> floatRet
---   LOAD _ -> bitvecRet
---   -- LOAD_STRUCT _ -> bitvecRet
---   LOW_PART _ -> bitvecRet
---   LSL _ -> bitvecRet
---   LSR _ -> bitvecRet
---   MODS _ -> intRet
---   MODS_DP _ -> intRet
---   MODU _ -> uintRet
---   MODU_DP _ -> uintRet
---   MUL n -> inheritIntRet n
---   MULS_DP _ -> intRet
---   MULU_DP _ -> uintRet
---   NEG _ -> bitvecRet
---   NOT _ -> boolRet
---   OR _ -> bitvecRet
---   RLC _ -> bitvecRet
---   ROL _ -> bitvecRet
---   ROR _ -> bitvecRet
---   ROUND_TO_INT _ -> intRet
---   RRC _ -> bitvecRet
---   SBB n -> inheritIntRet n
---   -- STORAGE _ -> unknown
---   StrCmp _ -> intRet
---   StrNCmp _ -> intRet
---   MemCmp _ -> intRet
---   SUB n -> inheritIntRet n
---   SX n -> inheritIntUnary $ n ^. src
---   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
---   UNIMPL _ -> bitvecRet -- should this be unknown?
---   VAR n -> typeEnvLookup (n ^. src) env
---   VAR_ALIASED _ -> bitvecRet
---   VAR_ALIASED_FIELD _ -> bitvecRet
---   VAR_FIELD _ -> bitvecRet
---   VAR_SPLIT _ -> bitvecRet
---   XOR _ -> bitvecRet
---   ZX n -> inheritIntUnary $ n ^. src
---   -- _ -> unknown
+-- need to preserve type for every Sym
 
---   -- the following were missing from the Clojure implementation
---   -- i think because the _SSA version got renamed and replaced the nonssa
---   -- LOAD_SSA _ -> bitvecRet
---   -- LOAD_STRUCT_SSA _ -> bitvecRet
---   VAR_PHI _ -> unknown -- should be removed by analysis
+-- | if second SymType is SVar euqal to first Sym, replaces with first SymType |--
+subst :: (Sym, SymType) -> (Sym, SymType) -> (Sym, SymType)
+subst (sym, st) x@(sym', SVar v)
+  | v == sym = (sym', st)
+  | otherwise = x
+subst _ x = x
 
---   Extract _ -> bitvecRet
-  
+unifyRules :: [(Sym, SymType)] -> [(Sym, SymType)]
+unifyRules xs' = f xs' []
+  where
+    f :: [(Sym, SymType)] -> [(Sym, SymType)] -> [(Sym, SymType)]
+    f [] xs = xs
+    f (x:xs) ys = f xs (subst x <$> ys)
+
+-- | if a symbol type cannot be inferred, it will be in the [(Sym, Sym)] | --
+splitSVarsAndSTypes :: [(Sym, SymType)] -> ([(Sym, Sym)], [(Sym, PilType)])
+splitSVarsAndSTypes xs = (mapMaybe getSVar xs, mapMaybe getSType xs)
+  where
+    getSVar :: (Sym, SymType) -> Maybe (Sym, Sym)
+    getSVar (sym, SVar x) = Just (sym, x)
+    getSVar _ = Nothing
+
+    getSType :: (Sym, SymType) -> Maybe (Sym, PilType)
+    getSType (sym, SType x) = Just (sym, x)
+    getSType _ = Nothing
+
+-- | fst result is list of syms that can't unify, second is inferred type map | --
+unifyPilTypes :: [(Sym, PilType)] -> ([(Sym, PilType, PilType)], HashMap Sym PilType)
+unifyPilTypes = foldr f ([], HashMap.empty)
+  where
+    f :: (Sym, PilType) -> ([(Sym, PilType, PilType)], HashMap Sym PilType) -> ([(Sym, PilType, PilType)], HashMap Sym PilType)
+    f (sym, pt) (conflicts, m) = case HashMap.lookup sym m of
+      Just pt' -> case mostSpecificUnifyType pt pt' of
+        Nothing -> ((sym, pt, pt'):conflicts, m)
+        Just msuPt -> (conflicts, HashMap.insert sym msuPt m)
+      Nothing -> (conflicts, HashMap.insert sym pt m)
+
+-- unifyStmts :: forall m. (MonadState SymState m, MonadError CheckerError m)
+--               => [Statement Expression] -> m [StmtRule]
+-- unifyStmts = concatMapM f
 --   where
---     sz :: ByteWidth
---     sz = fromIntegral $ x ^. size
---     boolRet = Just TBool
---     pointerRet = Just $ TPtr $ PtrType sz (TObs [])
---     bitvecRet = Just $ TBitVec $ BitVecType sz
---     floatRet = Just $ TFloat $ FloatType sz
---     stringRet = Just $ TString
---     intRet = Just . TInt $ IntType sz True
---     uintRet = Just . TInt $ IntType sz False
-
---     unknown = Nothing
-
---     isSignedInt :: Type -> Bool
---     isSignedInt (TInt n) = n ^. signed
---     isSignedInt _ = False
-
---     inheritIntUnary :: Expression -> Maybe Type
---     inheritIntUnary x' = do
---       t1 <- getExprType env x'
---       bool uintRet intRet $ isSignedInt t1
-
-
---     inheritIntRet :: forall x. (HasLeft x Expression, HasRight x Expression) => x -> Maybe Type
---     inheritIntRet y = do
---       t1 <- getExprType env (y ^. left) 
---       t2 <- getExprType env (y ^. right)
---       bool uintRet intRet $ isSignedInt t1 || isSignedInt t2
+--     f stmt = do
 
 
 
--- mlilTypeToPilType :: V.VarType -> Maybe Type
--- mlilTypeToPilType vt = case vt ^. V.typeClass of
---   E.BoolTypeClass -> Just TBool
---   E.IntegerTypeClass -> Just . TInt $ IntType w (vt ^. V.signed)
---   E.FloatTypeClass -> Just . TFloat $ FloatType w
---   E.PointerTypeClass -> Just . TPtr . PtrType w $ case vt ^. V.elementType of
---     Nothing -> TObs []
---     Just et -> case et ^. V.typeString of
---       "void" -> TObs []
---       "char" -> TString
---       _ -> maybe (TObs []) identity $ mlilTypeToPilType et
---   _ -> Nothing
---   where
---     w = fromIntegral $ vt ^. V.width
 
--- ssasToType :: [SSAVariable] -> Type
--- ssasToType ssas = case HashSet.toList uniques of
---   [] -> TObs []
---   [t] -> t
---   _ -> TObs ts
---   where
---     uniques = HashSet.fromList ts
---     ts :: [Type]
---     ts = mapMaybe (mlilTypeToPilType <=< (view $ MLIL.var . V.varType)) ssas
+------------------- unification --------------
 
--- pilVarToType :: PilVar -> Type
--- pilVarToType = ssasToType . fmap (view var) . HashSet.toList . view mapsTo
+-- | True if second is equal or subtype of first | --
+isSubTypeOf :: PilType -> PilType -> Bool
+isSubTypeOf TAny _ = True
+isSubTypeOf (TArray et1 len1) t = case t of
+  (TArray et2 len2) -> et1 == et2 && len1 == len2
+  (TString len2) -> et1 == (TUnsigned 8) && len1 == len2
+  TBottom -> True
+  _ -> False
+isSubTypeOf TNumber t = case t of
+  TNumber -> True
+  TInteger -> True
+  TInt _ -> True
+  TSigned _ -> True
+  TUnsigned _ -> True
+  TPointer _ -> True
+  TReal -> True
+  TFloat _ -> True
+  TBottom -> True
+  _ -> False
+isSubTypeOf TInteger t = case t of
+  TInteger -> True
+  TInt _ -> True
+  TSigned _ -> True
+  TUnsigned _ -> True
+  TPointer _ -> True
+  TBottom -> True
+  _ -> False
+isSubTypeOf (TInt sz1) t = case t of
+  TInt sz2 -> sz1 == sz2
+  TSigned sz2 -> sz1 == sz2
+  TUnsigned sz2 -> sz1 == sz2
+  TPointer sz2 -> sz1 == sz2
+  TBottom -> True
+  _ -> False
+isSubTypeOf (TUnsigned sz1) t = case t of
+  TUnsigned sz2 -> sz1 == sz2
+  TPointer sz2 -> sz1 == sz2
+  TBottom -> True
+  _ -> False
+isSubTypeOf (TSigned sz1) t = case t of
+  TSigned sz2 -> sz1 == sz2
+  TBottom -> True
+  _ -> False
+isSubTypeOf TReal t = case t of
+  TReal -> True
+  TFloat _ -> True
+  TBottom -> True
+  _ -> False
+isSubTypeOf (TFloat sz1) t = case t of
+  TFloat sz2 -> sz1 == sz2
+  TBottom -> True
+  _ -> False
+isSubTypeOf (TBitVector sz1) t = case t of
+  TBitVector sz2 -> sz1 == sz2
+  TBottom -> True
+  _ -> False
+-- isSubTypeOf TRecord t = case t of
+--   TRecord -> TRecord
+--   TBottom -> True
+--   _ -> False
+isSubTypeOf TBottom t = case t of
+  TBottom -> True
+  _ -> False
 
--- getNaiveTypeEnvFromStmt :: Stmt -> TypeEnv
--- getNaiveTypeEnvFromStmt s = TypeEnv . HashMap.fromList $ do
---   v <- HashSet.toList . Analysis.getVarsFromStmt $ s
---   return (v, pilVarToType v)
   
--- getNaiveTypeEnvFromStmts :: [Stmt] -> TypeEnv
--- getNaiveTypeEnvFromStmts = mconcat . fmap getNaiveTypeEnvFromStmt
 
--- -- gets rid of inner obs types
--- flattenObsTypes :: [Type] -> [Type]
--- flattenObsTypes ts = ts >>= \case
---   (TObs ts') -> flattenObsTypes ts'
---   t -> return t
+-- | unifies to the most specific type, i.e. TInt and TInteger => TInt | --
+mostSpecificUnifyType :: PilType -> PilType -> Maybe PilType
+mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+  (True, _) -> Just b
+  (_, True) -> Just a
+  _ -> Nothing
 
--- frequencies :: Ord a => [a] -> Map a Double
--- frequencies xs = fmap (/ total) m
---   where
---     m = foldr (flip (Map.insertWith (+)) 1) Map.empty xs
---     total = foldr (+) 0 m
+-- | unifies to the most general type, i.e. TInt and TInteger => TInteger | --
+mostGeneralType :: PilType -> PilType -> Maybe PilType
+mostGeneralType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+  (True, _) -> Just a
+  (_, True) -> Just b
+  _ -> Nothing
 
--- -- returns a non-Obs type
--- mostLikelyConcreteType :: [Type] -> Maybe Type
--- mostLikelyConcreteType =
---   fmap fst . headMay . sortOn snd . Map.toList . frequencies . flattenObsTypes
 
--- mostLikelyPilType :: Type -> Type
--- mostLikelyPilType t@(TObs obs) = maybe t identity $ mostLikelyConcreteType obs
--- mostLikelyPilType t = t
+-- -- | finds nearest common ancestor in type lattice
+-- generalUnify :: PilType -> PilType -> PilType
+
 
