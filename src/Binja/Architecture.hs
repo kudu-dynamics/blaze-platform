@@ -8,7 +8,6 @@ module Binja.Architecture
 
 import Binja.Prelude
 
-import Binja.Types.Architecture
 import Binja.Types.Architecture as Exports
 import qualified Data.Text as Text
 import qualified Data.Map as Map

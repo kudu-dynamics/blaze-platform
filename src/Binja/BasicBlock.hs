@@ -46,12 +46,12 @@ class BasicBlockInstructionFunction fun where
   getBasicBlockPtrForInstruction :: fun -> InstructionIndex fun -> IO (Maybe BNBasicBlock)
 
 instance BasicBlockInstructionFunction LLILFunction where
-  getBasicBlockPtrForInstruction fn idx =
-    BN.getLowLevelILBasicBlockForInstruction (fn ^. Func.handle) idx
+  getBasicBlockPtrForInstruction fn =
+    BN.getLowLevelILBasicBlockForInstruction (fn ^. Func.handle)
 
 instance BasicBlockInstructionFunction MLILFunction where
-  getBasicBlockPtrForInstruction fn idx =
-    BN.getMediumLevelILBasicBlockForInstruction (fn ^. Func.handle) idx
+  getBasicBlockPtrForInstruction fn =
+    BN.getMediumLevelILBasicBlockForInstruction (fn ^. Func.handle)
 
 instance BasicBlockInstructionFunction MLILSSAFunction where
   getBasicBlockPtrForInstruction fn idx =
