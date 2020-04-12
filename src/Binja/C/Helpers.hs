@@ -18,7 +18,7 @@ import Binja.C.Structs ()
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
-  getBinaryViewTypesForData' bv >>= manifestArray standardPtrConv freeBinaryViewTypeList
+  getBinaryViewTypesForData' bv >>= manifestArrayWithFree standardPtrConv freeBinaryViewTypeList
 
 getFunctions :: BNBinaryView -> IO [BNFunction]
 getFunctions bv =
@@ -31,12 +31,12 @@ getFunctionName = getFunctionSymbol >=> getSymbolShortName
 getAllArchitectureSemanticFlagClasses :: BNArchitecture -> IO [Word32]
 getAllArchitectureSemanticFlagClasses arch =
   getAllArchitectureSemanticFlagClasses' arch >>=
-  manifestArray (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
+  manifestArrayWithFree (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
 
 getAllArchitectureSemanticFlagGroups :: BNArchitecture -> IO [Word32]
 getAllArchitectureSemanticFlagGroups arch =
   getAllArchitectureSemanticFlagGroups' arch >>=
-  manifestArray (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
+  manifestArrayWithFree (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =
@@ -84,7 +84,7 @@ isTypeConst t =
 mediumLevelILGetOperandList :: BNMediumLevelILFunction -> ExpressionIndex () -> OpIndex -> IO [Int64]
 mediumLevelILGetOperandList fn eindex oindex =
   mediumLevelILGetOperandList' fn eindex oindex
-  >>= manifestArray (return . fromIntegral) mediumLevelILFreeOperandList
+  >>= manifestArrayWithFree (return . fromIntegral) mediumLevelILFreeOperandList
 
 getCodeReferences' :: BNBinaryView -> Address -> IO [BNReferenceSource]
 getCodeReferences' bv addr =

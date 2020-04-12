@@ -16,33 +16,6 @@ import qualified Data.Text as T
 
 import Binja.C.Types
 
-manifestArray :: (Storable a) => (a -> IO b) -> (List a -> IO ()) -> (List a, CSize) -> IO [b]
-manifestArray f freeArray (arr, len) = do
-  xs <- peekArray (fromIntegral len) arr
-  xs' <- mapM f xs
-  freeArray arr
-  return xs'
-
-noFinPtrConv :: Pointer a => Ptr a -> IO a
-noFinPtrConv = fmap pointerWrap . newForeignPtr_
-
-standardPtrConv :: Pointer a => Ptr a -> IO a
-standardPtrConv = fmap pointerWrap . newFPtr
-  where
-    newFPtr = maybe newForeignPtr_ newForeignPtr pointerFinalizer
-
---manifestArrayWithFreeSize :: (Ptr a -> IO a) -> (Ptr (Ptr a) -> CULong -> IO ()) -> (Ptr (Ptr a), CSize) -> IO [a]
-manifestArrayWithFreeSize :: (Storable a)
-                          => (a -> IO b)
-                          -> (List a -> Word64 -> IO ())
-                          -> (List a, CSize)
-                          -> IO [b]
-manifestArrayWithFreeSize f freeArray (arr, len) = do
-  xs <- peekArray (fromIntegral len) arr
-  xs' <- mapM f xs
-  freeArray arr (fromIntegral len)
-  return xs'
-
 manifestArrayWithFree ::
   (Storable a) =>
   (a -> IO b) ->
@@ -54,6 +27,23 @@ manifestArrayWithFree f freeArray (arr, len) = do
   xs' <- mapM f xs
   freeArray arr
   return xs'
+
+manifestArrayWithFreeSize ::
+  (Storable a) =>
+  (a -> IO b) ->
+  (List a -> Word64 -> IO ()) ->
+  (List a, CSize) ->
+  IO [b]
+manifestArrayWithFreeSize f freeArray (arr, len) = 
+  manifestArrayWithFree f (`freeArray` fromIntegral len) (arr, len)
+
+noFinPtrConv :: Pointer a => Ptr a -> IO a
+noFinPtrConv = fmap pointerWrap . newForeignPtr_
+
+standardPtrConv :: Pointer a => Ptr a -> IO a
+standardPtrConv = fmap pointerWrap . newFPtr
+  where
+    newFPtr = maybe newForeignPtr_ newForeignPtr pointerFinalizer
 
 peekIntConv   :: (Storable a, Integral a, Integral b) 
               => Ptr a -> IO b
