@@ -11,9 +11,11 @@ module Binja.Function
   ) where
 
 import Binja.Prelude hiding (onException, handle)
+
 import qualified Data.Text as Text
+import Data.BinaryAnalysis (Address)
+
 import qualified Binja.C.Main as BN
-import Binja.C.Types as Exports (Address(Address))
 import Binja.C.Pointers
 import Binja.Types.Function as Exports
 

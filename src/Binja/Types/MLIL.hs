@@ -6,12 +6,15 @@ module Binja.Types.MLIL
   ) where
 
 import Binja.Prelude
+import qualified Prelude as P
+
+import Data.BinaryAnalysis (Address)
 
 import Binja.C.Enums
 import Binja.C.Types
 import Binja.Types.MLIL.Common as Exports
 import Binja.Types.MLIL.Ops as Exports
-import qualified Prelude as P
+
 
 newtype OpIndex = OpIndex Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)

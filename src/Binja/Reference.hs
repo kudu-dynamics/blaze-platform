@@ -5,11 +5,12 @@ module Binja.Reference
 
 import Binja.Prelude
 
+import Data.BinaryAnalysis (Address)
+
 import Binja.Types.Reference as Exports
 import Binja.Function (createFunction)
 import qualified Binja.Architecture as Architecture
 import Binja.C.Helpers (getCodeReferences')
-import Binja.C.Types (Address)
 import Binja.C.Pointers (BNBinaryView)
 
 

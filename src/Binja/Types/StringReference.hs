@@ -5,7 +5,7 @@ module Binja.Types.StringReference where
 import Binja.Prelude
 
 import Binja.C.Enums (BNStringType)
-import Binja.C.Types (Address)
+import Data.BinaryAnalysis (Address)
 
 data BNStringReference
   = BNStringReference

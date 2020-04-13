@@ -7,21 +7,10 @@
 module Binja.C.Types where
 
 import Binja.Prelude
-import Prelude (show)
-
-import Text.Printf (printf)
 
 import Foreign.ForeignPtr
 
 type List = Ptr
-
-newtype Address = Address Word64
-  deriving (Eq, Ord, Num, Real, Enum, Integral, Generic)
-
-instance Show Address where
-  show (Address x) = printf "Address 0x%x" x
-
-instance Hashable Address
 
 newtype BNPointer = BNPointer (ForeignPtr BNPointer)
 

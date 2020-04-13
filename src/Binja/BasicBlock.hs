@@ -10,6 +10,9 @@ module Binja.BasicBlock
   ) where
 
 import Binja.Prelude hiding (onException, handle)
+
+import Data.BinaryAnalysis (Address)
+
 import qualified Binja.C.Main as BN
 import Binja.C.Pointers
 import Binja.Function ( Function

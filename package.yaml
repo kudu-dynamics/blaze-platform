@@ -22,6 +22,7 @@ description:         Please see the readme
 dependencies:
   - attoparsec
   - base
+  - binary-analysis
   - binja-header-cleaner
   - bytestring
   - casing

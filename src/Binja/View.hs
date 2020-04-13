@@ -9,9 +9,10 @@ import Binja.Types.StringReference (BNStringReference)
 import qualified Binja.Types.StringReference as StrRef
 import Binja.Prelude hiding (reader)
 import Binja.C.Enums as BNEnums
-import Binja.C.Types (Address(Address))
 import Binja.Types.Symbol (BNNameSpace)
 import Binja.C.Pointers (BNSymbol)
+
+import Data.BinaryAnalysis (Address)
 
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
@@ -26,14 +27,14 @@ getDefaultReader bv = do
   BN.setBinaryReaderEndianness reader defaultEndianness
   return reader
 
-readByte :: BNBinaryView -> Word64 -> IO Word8
+readByte :: BNBinaryView -> Address -> IO Word8
 readByte bv offset = do
   reader <- getDefaultReader bv
   BN.seekBinaryReader reader $ fromIntegral offset
   (Just val) <- BN.read8 reader
   return val
 
-readBytes :: BNBinaryView -> Word64 -> Word64 -> IO [Word8]
+readBytes :: BNBinaryView -> Address -> Word64 -> IO [Word8]
 readBytes bv offset numBytes = do
   reader <- getDefaultReader bv
   BN.seekBinaryReader reader $ fromIntegral offset
@@ -52,14 +53,14 @@ convertStringRef bv x =
         BNEnums.Utf16String -> TE.decodeUtf16LE bs
         BNEnums.Utf32String -> TE.decodeUtf32LE bs
     bytes :: IO ByteString
-    bytes = BS.pack <$> readBytes bv (coerce $ x ^. StrRef.start) (x ^. StrRef.length)
+    bytes = BS.pack <$> readBytes bv (x ^. StrRef.start) (x ^. StrRef.length)
 
 getStrings :: BNBinaryView -> IO [Text]
 getStrings bv = do
   refs <- BN.getStringRefs bv
   traverse (convertStringRef bv) refs
 
-getStringsMap :: BNBinaryView -> IO (HashMap Word64 Text)
+getStringsMap :: BNBinaryView -> IO (HashMap Address Text)
 getStringsMap bv = do
   refs <- BN.getStringRefs bv
   let addrs = fmap (fromIntegral . view StrRef.start) refs
@@ -67,7 +68,7 @@ getStringsMap bv = do
   return (HMap.fromList $ zip addrs strs)
 
 -- TODO: Word64 should be Address, but don't want to leak that type from a Binja.C.* module
-getStringAtAddress :: BNBinaryView -> Word64 -> IO (Maybe Text)
+getStringAtAddress :: BNBinaryView -> Address -> IO (Maybe Text)
 getStringAtAddress bv addr = do
   maybeRef <- BN.getStringRefAtAddress bv (fromIntegral addr)
   case maybeRef of
@@ -75,6 +76,6 @@ getStringAtAddress bv addr = do
     Nothing -> return Nothing
 
 
-getSymbolAtAddress :: BNBinaryView -> Word64 -> Maybe BNNameSpace -> IO (Maybe BNSymbol)
+getSymbolAtAddress :: BNBinaryView -> Address -> Maybe BNNameSpace -> IO (Maybe BNSymbol)
 getSymbolAtAddress bv addr =
   BN.getSymbolByAddress bv (coerce addr)

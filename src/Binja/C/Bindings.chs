@@ -5,10 +5,14 @@ module Binja.C.Bindings where
 import Binja.Prelude
 
 import qualified Prelude as P
+
 import Foreign.C.Types
 import Foreign.Storable
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
+
+import Data.BinaryAnalysis (Address)
+
 import Binja.C.Enums
 import Binja.C.Pointers
 import Binja.C.Structs ()

@@ -4,8 +4,9 @@ module Binja.Types.Function where
 
 import Binja.Prelude hiding (handle)
 
+import Data.BinaryAnalysis (Address)
 import Binja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
-import Binja.C.Types (Address)
+
 
 data Function = Function
   { _handle :: BNFunction

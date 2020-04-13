@@ -17,8 +17,10 @@ import Binja.C.Main as Exports
 import Binja.C.Types as Exports
 import Binja.Function ( Function, LLILFunction )
 import qualified Binja.Function as Func
+
 import System.Envy
 import qualified Data.Set as Set
+import Data.BinaryAnalysis (Address)
 
 newtype BinjaConfig = BinjaConfig {
   binjaPluginsDir :: String

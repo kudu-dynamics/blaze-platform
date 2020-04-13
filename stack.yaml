@@ -7,3 +7,4 @@ packages:
 extra-deps:
   - c2hs-0.28.6
   - ../binja-header-cleaner
+  - ../binary-analysis

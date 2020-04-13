@@ -4,6 +4,9 @@ import Binja.Prelude hiding (reader)
 
 import Foreign.Ptr
 import Foreign.Marshal.Array (allocaArray, peekArray)
+
+import Data.BinaryAnalysis (Address)
+
 import Binja.C.Bindings
 import Binja.C.Util
 import Binja.C.Types
