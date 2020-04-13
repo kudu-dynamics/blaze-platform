@@ -2,12 +2,14 @@
 
 module Blaze.Types.Function where
 
-import Binja.Core (Address, InstructionIndex)
+import Binja.Core (InstructionIndex)
 import Binja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import Blaze.Pretty (Pretty, pretty)
 import Binja.Function (Function, MLILSSAFunction)
+
+import Data.BinaryAnalysis (Address)
 
 type F = MLILSSAFunction
 

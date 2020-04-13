@@ -9,16 +9,6 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 
-import Prelude (show)
-import Text.Printf (printf)
-
--- |A concrete address.
-newtype Address = Address Word64
-  deriving (Eq, Ord, Num, Real, Enum, Integral, Generic)
-instance Hashable Address
-
-instance Show Address where
-  show (Address x) = printf "Address 0x%x" x
 
 data MemEquivGroup
   = MemEquivGroup
