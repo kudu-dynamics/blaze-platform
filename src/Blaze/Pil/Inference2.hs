@@ -21,6 +21,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as Analysis
 import qualified Data.Map as Map
+import System.IO.Unsafe (unsafePerformIO)
 
 data IntWidth = I8
               | I16
@@ -68,22 +69,48 @@ data CheckerError = CannotFindPilVarInVarSymMap PilVar
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
 
-data SymExpression = SymExpression
-  { _size :: BitWidth
-  , _op :: ExprOp Sym
-  } deriving (Eq, Ord, Show, Generic)
 
-data SymState = SymState
+data InfoExpression a = InfoExpression
+  { _size :: BitWidth
+  , _info :: a
+  , _op :: ExprOp (InfoExpression a)
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+$(makeFieldsNoPrefix ''InfoExpression)
+
+type SymExpression = InfoExpression Sym
+
+type TypedExpression = InfoExpression PilType
+
+
+data CheckerState = CheckerState
   { _currentSym :: Sym
   , _symMap :: HashMap Sym SymExpression
   , _varSymMap :: HashMap PilVar Sym
   } deriving (Eq, Ord, Show)
 
-$(makeFieldsNoPrefix ''SymState)
+$(makeFieldsNoPrefix ''CheckerState)
 
-type SymMonad a = State SymState a
+emptyCheckerState :: CheckerState
+emptyCheckerState = CheckerState (Sym 0) HashMap.empty HashMap.empty
 
-lookupVarSym :: (MonadState SymState m, MonadError CheckerError m)
+newtype Checker a = Checker
+  { _runChecker :: ExceptT CheckerError (StateT CheckerState Identity) a }
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , MonadError CheckerError
+           , MonadState CheckerState
+           )
+
+runChecker :: Checker a -> CheckerState -> (Either CheckerError a, CheckerState)
+runChecker m ss = runIdentity . flip runStateT ss . runExceptT . _runChecker $ m
+
+runChecker_ :: Checker a -> (Either CheckerError a, CheckerState)
+runChecker_ m = runChecker m emptyCheckerState
+
+
+lookupVarSym :: (MonadState CheckerState m, MonadError CheckerError m)
              => PilVar -> m Sym
 lookupVarSym pv = do
   vsm <- use varSymMap
@@ -91,7 +118,7 @@ lookupVarSym pv = do
     Nothing -> throwError $ CannotFindPilVarInVarSymMap pv
     Just s -> return s
 
-lookupSymExpr :: (MonadState SymState m, MonadError CheckerError m)
+lookupSymExpr :: (MonadState CheckerState m, MonadError CheckerError m)
              => Sym -> m SymExpression
 lookupSymExpr sym = do
   m <- use symMap
@@ -100,39 +127,48 @@ lookupSymExpr sym = do
     Just x -> return x
 
 
-addSymExpression :: MonadState SymState m => Sym -> SymExpression -> m ()
+addSymExpression :: MonadState CheckerState m => Sym -> SymExpression -> m ()
 addSymExpression sym x = symMap %= HashMap.insert sym x
 
-addVarSym :: MonadState SymState m => PilVar -> Sym -> m ()
+addVarSym :: MonadState CheckerState m => PilVar -> Sym -> m ()
 addVarSym pv sym = varSymMap %= HashMap.insert pv sym
 
 -- |Create mapping of each PilVar to a symbol| --
-createVarSymMap :: MonadState SymState m => [Statement Expression] -> m ()
+createVarSymMap :: MonadState CheckerState m => [Statement Expression] -> m ()
 createVarSymMap stmts = do
-  let vars = Analysis.getRefVars stmts
+  let vars = Analysis.getAllVars stmts
   mapM_ f $ HashSet.toList vars
   where
     f var = newSym >>= addVarSym var
-  
 
-newSym :: MonadState SymState m => m Sym
+newSym :: MonadState CheckerState m => m Sym
 newSym = do
   x <- use currentSym
   currentSym %= incrementSym
   return x
 
-toSymExpression :: MonadState SymState m => Expression -> m Sym
+toSymExpression :: MonadState CheckerState m => Expression -> m SymExpression
 toSymExpression (Expression sz op) = do
   symOp <- traverse toSymExpression op
-  let bitSize = fromIntegral sz * 8
-      sexpr = SymExpression bitSize symOp
   s <- newSym
+  let bitSize = fromIntegral sz * 8
+      sexpr = InfoExpression bitSize s symOp
   addSymExpression s sexpr
-  return s
+  return sexpr
 
-exprTypeRules :: forall m. (MonadState SymState m, MonadError CheckerError m)
-              => Sym -> SymExpression -> m [(Sym, SymType)]
-exprTypeRules r (SymExpression sz op) = case op of
+
+-- toSymExpression :: MonadState CheckerState m => Expression -> m Sym
+-- toSymExpression (Expression sz op) = do
+--   symOp <- traverse toSymExpression op
+--   let bitSize = fromIntegral sz * 8
+--       sexpr = SymExpression bitSize symOp
+--   s <- newSym
+--   addSymExpression s sexpr
+--   return s
+
+exprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
+              => InfoExpression Sym -> m [(Sym, SymType)]
+exprTypeRules (InfoExpression sz r op) = case op of
 --   ADC n -> inheritIntRet n
   Pil.ADD x -> integralBinOp x
 --   ADD_OVERFLOW n -> inheritIntRet n
@@ -233,51 +269,47 @@ exprTypeRules r (SymExpression sz op) = case op of
   _ -> throwError UnhandledExpr
   where
 
-    integralBinOp :: (Pil.HasLeft x Sym, Pil.HasRight x Sym) => x -> m [(Sym, SymType)]
+    integralBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => x -> m [(Sym, SymType)]
     integralBinOp x = return
       [ (r, SType (TInt sz))
-      , (r, SVar $ x ^. Pil.left)
-      , (r, SVar $ x ^. Pil.right)
+      , (r, SVar $ x ^. Pil.left . info)
+      , (r, SVar $ x ^. Pil.right . info)
       ]
 
-    integralBinOpReturnsBool :: (Pil.HasLeft x Sym, Pil.HasRight x Sym)
+    integralBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
                              => x -> m [(Sym, SymType)]
-    integralBinOpReturnsBool x = return  
+    integralBinOpReturnsBool x = return
       [ (r, SType (TInt sz))
-      , (x ^. Pil.left, SVar $ x ^. Pil.right)
+      , (x ^. Pil.left . info, SVar $ x ^. Pil.right . info)
       ]
 
-getAllExprTypeRules :: forall m. (MonadState SymState m, MonadError CheckerError m)
-                    => Sym -> SymExpression -> m [(Sym, SymType)]
-getAllExprTypeRules thisExprSym x@(SymExpression _ op) = do
-  rulesForThisExpr <- exprTypeRules thisExprSym x
-  sm <- use symMap
-  rulesForChildren <-foldM (f sm) [] op
+getAllExprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
+                    => InfoExpression Sym -> m [(Sym, SymType)]
+getAllExprTypeRules x@(InfoExpression _ thisExprSym op') = do
+  rulesForThisExpr <- exprTypeRules x
+  rulesForChildren <- foldM f  [] op'
   return $ rulesForThisExpr <> rulesForChildren
   where
-    f :: HashMap Sym SymExpression -> [(Sym, SymType)] -> Sym -> m [(Sym, SymType)]
-    f sm rules sym = case HashMap.lookup sym sm of
-      Nothing -> throwError CannotFindSymInSymMap
-      Just x' -> (<> rules) <$> getAllExprTypeRules sym x' 
+    f :: [(Sym, SymType)] -> InfoExpression Sym -> m [(Sym, SymType)]
+    f rules sexpr = (<> rules) <$> getAllExprTypeRules sexpr
 
 -- get all rules for stmts
 -- preserve [Statement SymExpression]
 -- needs to get all rules and all Stmts
-stmtTypeRules :: (MonadState SymState m, MonadError CheckerError m)
-              => Statement Expression -> m (Statement Sym, [(Sym, SymType)])
+stmtTypeRules :: (MonadState CheckerState m, MonadError CheckerError m)
+              => Statement Expression -> m (Statement SymExpression, [(Sym, SymType)])
 stmtTypeRules (Pil.Def (Pil.DefOp pv expr)) = do
-  exprSym <- toSymExpression expr
+  symExpr <- toSymExpression expr
+  let exprSym = symExpr ^. info
   pvSym <- lookupVarSym pv
-  symExpr <- lookupSymExpr exprSym
-  exprRules <- getAllExprTypeRules exprSym symExpr
-  return ( Pil.Def (Pil.DefOp pv exprSym)
+  exprRules <- getAllExprTypeRules symExpr
+  return ( Pil.Def (Pil.DefOp pv symExpr)
          , [ (pvSym, SVar exprSym) ]
            <> exprRules )
 stmtTypeRules (Pil.Constraint (Pil.ConstraintOp expr)) = do
-  exprSym <- toSymExpression expr
-  symExpr <- lookupSymExpr exprSym
-  exprRules <- getAllExprTypeRules exprSym symExpr
-  return ( Pil.Constraint (Pil.ConstraintOp exprSym)
+  symExpr <- toSymExpression expr
+  exprRules <- getAllExprTypeRules symExpr
+  return ( Pil.Constraint (Pil.ConstraintOp symExpr)
          , exprRules )
 stmtTypeRules _ = throwError UnhandledStmt
 
@@ -324,7 +356,12 @@ unifyPilTypes = foldr f ([], HashMap.empty)
         Just msuPt -> (conflicts, HashMap.insert sym msuPt m)
       Nothing -> (conflicts, HashMap.insert sym pt m)
 
--- unifyStmts :: forall m. (MonadState SymState m, MonadError CheckerError m)
+
+-- -- | replaces Sym's with expressions, fails if Sym missing in map |--
+-- toTypedExpression :: HashMap Sym SymExpression -> SymExpression -> Maybe TypedExpression
+-- toTypedExpression m  = 
+
+-- unifyStmts :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
 --               => [Statement Expression] -> m [StmtRule]
 -- unifyStmts = concatMapM f
 --   where
