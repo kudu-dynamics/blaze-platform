@@ -47,7 +47,7 @@ data PilType = TAny
              | TReal
              | TFloat { bitWidth :: BitWidth }
              | TBitVector { bitWidth :: BitWidth }
-             | TPointer { bitWidth :: BitWidth, pointeeType :: PilType }
+             | TPointer { pointeeType :: PilType, bitWidth :: BitWidth }
              | TRecord (HashMap BitWidth PilType)
              | TBottom
              | TFunction { ret :: PilType, params :: [PilType] }
@@ -470,13 +470,13 @@ isSubTypeOf (TInt sz1) t = case t of
   TInt sz2 -> sz1 == sz2
   TSigned sz2 -> sz1 == sz2
   TUnsigned sz2 -> sz1 == sz2
-  TPointer sz2 _ -> sz1 == sz2
+  TPointer _ sz2 -> sz1 == sz2
   TChar -> sz1 == charSize
   TBottom -> True
   _ -> False
 isSubTypeOf (TUnsigned sz1) t = case t of
   TUnsigned sz2 -> sz1 == sz2
-  TPointer sz2 _ -> sz1 == sz2
+  TPointer _ sz2 -> sz1 == sz2
   TChar -> sz1 == charSize
   TBottom -> True
   _ -> False
@@ -497,8 +497,8 @@ isSubTypeOf (TBitVector sz1) t = case t of
   TBitVector sz2 -> sz1 == sz2
   TBottom -> True
   _ -> False
-isSubTypeOf (TPointer sz1 pt1) t = case t of
-  TPointer sz2 pt2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
+isSubTypeOf (TPointer pt1 sz1) t = case t of
+  TPointer pt2 sz2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
   TBottom -> True
   _ -> False
 isSubTypeOf TChar t = case t of
@@ -529,7 +529,7 @@ getTypeWidth (TSigned w) = Just w
 getTypeWidth (TUnsigned w) = Just w
 getTypeWidth (TFloat w) = Just w
 getTypeWidth (TBitVector w) = Just w
-getTypeWidth (TPointer w _) = Just w
+getTypeWidth (TPointer _ w) = Just w
 getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
 getTypeWidth _ = Nothing
 
@@ -561,12 +561,34 @@ doFieldRangesOverlap (start, end) (start', end') =
   || start' >= start && start' < end
   || end' > start && end' <= end
 
+secondRangeContainsFirst :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+secondRangeContainsFirst (start, end) (start', end') =
+  start >= start' && start < end'
+  && end >= start' && end <= end'
+
+
+data UnificationDirection = MostSpecific
+                          | MostGeneral
+                          deriving (Eq, Ord, Read, Show, Generic)
+
 -- | returns Nothing if there is a known conflict.
 --   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
-addFieldToRecord :: HashMap BitWidth PilType -> BitWidth -> PilType
+addFieldToRecord :: UnificationDirection
+                 -> HashMap BitWidth PilType
+                 -> BitWidth
+                 -> PilType
                  -> Maybe (HashMap BitWidth PilType)
-addFieldToRecord m off pt = undefined
-  -- let fr = getFieldRange off pt
+addFieldToRecord uniDir m off pt = case HashMap.lookup off m of
+  Just pt' -> do
+    uniPt <- case uniDir of
+               MostSpecific -> mostSpecificUnifyType pt' pt
+               MostGeneral -> mostGeneralUnifyType pt' pt
+    bool Nothing (Just $ HashMap.insert off uniPt m)
+      . not . any (doFieldRangesOverlap $ getFieldRange off pt)
+      . getFieldRanges $ HashMap.delete off m  
+  Nothing -> bool Nothing (Just $ HashMap.insert off pt m)
+    . not . any (doFieldRangesOverlap $ getFieldRange off pt)
+    $ getFieldRanges m
   
 
 -- mostSpecificUnifyRecordFields :: HashMap BitWidth PilType -> HashMap BitWidth PilType -> Maybe (HashMap BitWidth PilType)
@@ -584,8 +606,8 @@ mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
   _ -> Nothing
 
 -- | unifies to the most general type, i.e. TInt and TInteger => TInteger | --
-mostGeneralType :: PilType -> PilType -> Maybe PilType
-mostGeneralType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+mostGeneralUnifyType :: PilType -> PilType -> Maybe PilType
+mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
   (True, _) -> Just a
   (_, True) -> Just b
   _ -> Nothing
