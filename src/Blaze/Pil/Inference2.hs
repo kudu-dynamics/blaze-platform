@@ -36,7 +36,9 @@ data FloatWidth = F32
                 deriving (Eq, Ord, Read, Show)
 
 data PilType = TAny
+             | TStream { elemType :: PilType }
              | TArray { elemType :: PilType, len :: Word64 }
+             | TChar
              | TNumber
              | TInteger
              | TInt { intWidth :: BitWidth }
@@ -45,11 +47,23 @@ data PilType = TAny
              | TReal
              | TFloat { bitWidth :: BitWidth }
              | TBitVector { bitWidth :: BitWidth }
-             | TString { len :: Word64 }
-             | TPointer { bitWidth :: BitWidth }
---             | TRecord -- eventully [PilType] to get fields
+             | TPointer { bitWidth :: BitWidth, pointeeType :: PilType }
+             | TRecord (HashMap BitWidth PilType)
              | TBottom
+             | TFunction { ret :: PilType, params :: [PilType] }
              deriving (Eq, Ord, Read, Show)
+
+-- data RecordField = RecordField { offset :: Word64, fieldType :: PilType }
+--   deriving (Eq, Ord, Read, Show)
+
+-- data TFunctionType = TFunctionType
+--   { _name :: Text
+--   , _ret :: PilType
+--   , _params :: [PilType]
+--   } deriving (Eq, Ord, Show, Read)
+
+-- $(makeFieldsNoPrefix ''TFunctionType)
+
 
 newtype Sym = Sym Int
             deriving (Eq, Ord, Show, Generic)
@@ -71,16 +85,33 @@ incrementSym (Sym n) = Sym $ n + 1
 
 
 data InfoExpression a = InfoExpression
-  { _size :: BitWidth
-  , _info :: a
+  { _info :: a
   , _op :: ExprOp (InfoExpression a)
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 $(makeFieldsNoPrefix ''InfoExpression)
 
-type SymExpression = InfoExpression Sym
+data SymInfo = SymInfo
+  { _size :: BitWidth
+  , _sym :: Sym
+  } deriving (Eq, Ord, Show, Generic)
+
+$(makeFieldsNoPrefix ''SymInfo)
+
+
+type SymExpression = InfoExpression SymInfo
 
 type TypedExpression = InfoExpression PilType
+
+data TypeReport = TypeReport
+  { _stmts :: [Statement TypedExpression]
+  , _varTypeMap :: HashMap PilVar PilType
+  , _unresolvedStmts :: [Statement SymExpression]
+  , _unresolvedSyms :: [(Sym, Sym)]
+  , _unresolvedTypes :: [(Sym, PilType, PilType)]
+  } deriving (Eq, Ord, Show, Generic)
+
+$(makeFieldsNoPrefix ''TypeReport)
 
 
 data CheckerState = CheckerState
@@ -152,7 +183,7 @@ toSymExpression (Expression sz op) = do
   symOp <- traverse toSymExpression op
   s <- newSym
   let bitSize = fromIntegral sz * 8
-      sexpr = InfoExpression bitSize s symOp
+      sexpr = InfoExpression (SymInfo bitSize s) symOp
   addSymExpression s sexpr
   return sexpr
 
@@ -167,8 +198,8 @@ toSymExpression (Expression sz op) = do
 --   return s
 
 exprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
-              => InfoExpression Sym -> m [(Sym, SymType)]
-exprTypeRules (InfoExpression sz r op) = case op of
+              => SymExpression -> m [(Sym, SymType)]
+exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
 --   ADC n -> inheritIntRet n
   Pil.ADD x -> integralBinOp x
 --   ADD_OVERFLOW n -> inheritIntRet n
@@ -272,25 +303,25 @@ exprTypeRules (InfoExpression sz r op) = case op of
     integralBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => x -> m [(Sym, SymType)]
     integralBinOp x = return
       [ (r, SType (TInt sz))
-      , (r, SVar $ x ^. Pil.left . info)
-      , (r, SVar $ x ^. Pil.right . info)
+      , (r, SVar $ x ^. Pil.left . info . sym)
+      , (r, SVar $ x ^. Pil.right . info . sym)
       ]
 
     integralBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
                              => x -> m [(Sym, SymType)]
     integralBinOpReturnsBool x = return
       [ (r, SType (TInt sz))
-      , (x ^. Pil.left . info, SVar $ x ^. Pil.right . info)
+      , (x ^. Pil.left . info . sym, SVar $ x ^. Pil.right . info . sym)
       ]
 
 getAllExprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
-                    => InfoExpression Sym -> m [(Sym, SymType)]
-getAllExprTypeRules x@(InfoExpression _ thisExprSym op') = do
+                    => SymExpression -> m [(Sym, SymType)]
+getAllExprTypeRules x@(InfoExpression (SymInfo _ thisExprSym) op') = do
   rulesForThisExpr <- exprTypeRules x
   rulesForChildren <- foldM f  [] op'
   return $ rulesForThisExpr <> rulesForChildren
   where
-    f :: [(Sym, SymType)] -> InfoExpression Sym -> m [(Sym, SymType)]
+    f :: [(Sym, SymType)] -> SymExpression -> m [(Sym, SymType)]
     f rules sexpr = (<> rules) <$> getAllExprTypeRules sexpr
 
 -- get all rules for stmts
@@ -300,7 +331,7 @@ stmtTypeRules :: (MonadState CheckerState m, MonadError CheckerError m)
               => Statement Expression -> m (Statement SymExpression, [(Sym, SymType)])
 stmtTypeRules (Pil.Def (Pil.DefOp pv expr)) = do
   symExpr <- toSymExpression expr
-  let exprSym = symExpr ^. info
+  let exprSym = symExpr ^. info . sym
   pvSym <- lookupVarSym pv
   exprRules <- getAllExprTypeRules symExpr
   return ( Pil.Def (Pil.DefOp pv symExpr)
@@ -317,9 +348,32 @@ type Rule = (Sym, SymType)
 
 type StmtRule = (Statement Sym, Rule)
 
+--toTypedExpression :: SymExpression -> TypedExpression
+
+-- symStatementToTypedStatement :: Statement SymExpression -> Statement TypedExpression
+-- symStatementToTypedStatement 
+
+checkStmts :: [Statement Expression] -> Checker TypeReport
+checkStmts stmts = do
+  (symStmts, rules) <- foldM getStmtRules ([], []) stmts
+  let ur = unifyRules rules
+      (symSymMap, symPilTypeMap) = splitSVarsAndSTypes ur
+  -- "ur" should have every Sym on left side, so
+  undefined
+  where
+    getStmtRules :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> Checker ([Statement SymExpression], [(Sym, SymType)])
+    getStmtRules (symStmts, rules) stmt = do
+      (s, rs) <- stmtTypeRules stmt
+      return ( symStmts <> [s] -- maybe should use a Vector
+             , rs <> rules)
+
+-----------------------------
 -- need to preserve type for every Sym
 
--- | if second SymType is SVar euqal to first Sym, replaces with first SymType |--
+-- wandUnification :: [(Sym, SymType)] -> [(Sym, SymType)]
+-- wandUnification constraints' = wand constraints' []
+
+-- | if second SymType is SVar equal to first Sym, replaces with first SymType |--
 subst :: (Sym, SymType) -> (Sym, SymType) -> (Sym, SymType)
 subst (sym, st) x@(sym', SVar v)
   | v == sym = (sym', st)
@@ -331,7 +385,7 @@ unifyRules xs' = f xs' []
   where
     f :: [(Sym, SymType)] -> [(Sym, SymType)] -> [(Sym, SymType)]
     f [] xs = xs
-    f (x:xs) ys = f xs (subst x <$> ys)
+    f (x:xs) ys = f xs ((subst x <$> ys) <> [x]) -- should use a Vector
 
 -- | if a symbol type cannot be inferred, it will be in the [(Sym, Sym)] | --
 splitSVarsAndSTypes :: [(Sym, SymType)] -> ([(Sym, Sym)], [(Sym, PilType)])
@@ -356,10 +410,13 @@ unifyPilTypes = foldr f ([], HashMap.empty)
         Just msuPt -> (conflicts, HashMap.insert sym msuPt m)
       Nothing -> (conflicts, HashMap.insert sym pt m)
 
+-- | replaces Sym's with expressions, fails if Sym missing in map |--
+symInfoToPilType :: HashMap Sym PilType -> SymInfo -> Maybe PilType
+symInfoToPilType m si = HashMap.lookup (si ^. sym) m
 
--- -- | replaces Sym's with expressions, fails if Sym missing in map |--
--- toTypedExpression :: HashMap Sym SymExpression -> SymExpression -> Maybe TypedExpression
--- toTypedExpression m  = 
+-- | replaces Sym's with expressions, fails if Sym missing in map |--
+toTypedExpression :: HashMap Sym PilType -> SymExpression -> Maybe TypedExpression
+toTypedExpression m = traverse (symInfoToPilType m)
 
 -- unifyStmts :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
 --               => [Statement Expression] -> m [StmtRule]
@@ -372,12 +429,20 @@ unifyPilTypes = foldr f ([], HashMap.empty)
 
 ------------------- unification --------------
 
+charSize :: BitWidth
+charSize = 8
+
 -- | True if second is equal or subtype of first | --
 isSubTypeOf :: PilType -> PilType -> Bool
 isSubTypeOf TAny _ = True
+isSubTypeOf (TStream et1) t = case t of
+  (TStream et2) -> isSubTypeOf et1 et2
+  (TArray et2 _) -> isSubTypeOf et1 et2
+  TBottom -> True
+  _ -> False
 isSubTypeOf (TArray et1 len1) t = case t of
-  (TArray et2 len2) -> et1 == et2 && len1 == len2
-  (TString len2) -> et1 == (TUnsigned 8) && len1 == len2
+  -- should an array with a greater length be a subtype of one with lesser?
+  (TArray et2 len2) -> len1 == len2 && isSubTypeOf et1 et2
   TBottom -> True
   _ -> False
 isSubTypeOf TNumber t = case t of
@@ -386,9 +451,10 @@ isSubTypeOf TNumber t = case t of
   TInt _ -> True
   TSigned _ -> True
   TUnsigned _ -> True
-  TPointer _ -> True
+  TPointer _ _ -> True
   TReal -> True
   TFloat _ -> True
+  TChar -> True
   TBottom -> True
   _ -> False
 isSubTypeOf TInteger t = case t of
@@ -396,19 +462,22 @@ isSubTypeOf TInteger t = case t of
   TInt _ -> True
   TSigned _ -> True
   TUnsigned _ -> True
-  TPointer _ -> True
+  TPointer _ _ -> True
+  TChar -> True
   TBottom -> True
   _ -> False
 isSubTypeOf (TInt sz1) t = case t of
   TInt sz2 -> sz1 == sz2
   TSigned sz2 -> sz1 == sz2
   TUnsigned sz2 -> sz1 == sz2
-  TPointer sz2 -> sz1 == sz2
+  TPointer sz2 _ -> sz1 == sz2
+  TChar -> sz1 == charSize
   TBottom -> True
   _ -> False
 isSubTypeOf (TUnsigned sz1) t = case t of
   TUnsigned sz2 -> sz1 == sz2
-  TPointer sz2 -> sz1 == sz2
+  TPointer sz2 _ -> sz1 == sz2
+  TChar -> sz1 == charSize
   TBottom -> True
   _ -> False
 isSubTypeOf (TSigned sz1) t = case t of
@@ -428,6 +497,21 @@ isSubTypeOf (TBitVector sz1) t = case t of
   TBitVector sz2 -> sz1 == sz2
   TBottom -> True
   _ -> False
+isSubTypeOf (TPointer sz1 pt1) t = case t of
+  TPointer sz2 pt2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
+  TBottom -> True
+  _ -> False
+isSubTypeOf TChar t = case t of
+  TChar -> True
+  TBottom -> True
+  _ -> False
+isSubTypeOf (TFunction ret1 params1) t = case t of
+  (TFunction ret2 params2) ->
+    length params1 == length params2
+    && isSubTypeOf ret1 ret2
+    && all (uncurry isSubTypeOf) (zip params1 params2)
+  TBottom -> True
+  _ -> False
 -- isSubTypeOf TRecord t = case t of
 --   TRecord -> TRecord
 --   TBottom -> True
@@ -436,10 +520,64 @@ isSubTypeOf TBottom t = case t of
   TBottom -> True
   _ -> False
 
+
+getTypeWidth :: PilType -> Maybe BitWidth
+getTypeWidth (TArray et len') = (* (fromIntegral len')) <$> getTypeWidth et
+getTypeWidth TChar = Just 8
+getTypeWidth (TInt w) = Just w
+getTypeWidth (TSigned w) = Just w
+getTypeWidth (TUnsigned w) = Just w
+getTypeWidth (TFloat w) = Just w
+getTypeWidth (TBitVector w) = Just w
+getTypeWidth (TPointer w _) = Just w
+getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
+getTypeWidth _ = Nothing
+
+-- | given the fields in the hashmap, find the greatest (offset + known width)
+--   This doesn't consider padding or error on overlapping fields. | --
+getMinimumRecordWidth :: HashMap BitWidth PilType -> BitWidth
+getMinimumRecordWidth m = max maxOffset maxOffsetPlusKnownWidth
+  where
+    -- for if a field has a big offset, but an unkown width
+    maxOffset = foldr max 0 . HashMap.keys $ m
+    maxOffsetPlusKnownWidth = foldr max 0
+                              . mapMaybe fieldReach
+                              . HashMap.toList $ m
+    fieldReach (off, pt) = (+ off) <$> getTypeWidth pt
+
+
+-- | if field has offset 32 and width 16, its range is (32, 48)
+--   if field has offset 32, but unknown width, it's range is (32, 33) | --
+getFieldRange :: BitWidth -> PilType -> (BitWidth, BitWidth)
+getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
+
+getFieldRanges :: HashMap BitWidth PilType -> [(BitWidth, BitWidth)]
+getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
+
+doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+doFieldRangesOverlap (start, end) (start', end') = 
+  start >= start' && start < end'
+  || end > start' && end <= end'
+  || start' >= start && start' < end
+  || end' > start && end' <= end
+
+-- | returns Nothing if there is a known conflict.
+--   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
+addFieldToRecord :: HashMap BitWidth PilType -> BitWidth -> PilType
+                 -> Maybe (HashMap BitWidth PilType)
+addFieldToRecord m off pt = undefined
+  -- let fr = getFieldRange off pt
   
+
+-- mostSpecificUnifyRecordFields :: HashMap BitWidth PilType -> HashMap BitWidth PilType -> Maybe (HashMap BitWidth PilType)
+-- mostSpecificUnifyRecordFields m1 m2 = 
+
+-- Will need special cases for records, to get most/least specific for each field
 
 -- | unifies to the most specific type, i.e. TInt and TInteger => TInt | --
 mostSpecificUnifyType :: PilType -> PilType -> Maybe PilType
+--mostSpecificUnifyType (TRecord m1) (TRecord m2) = do
+  
 mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
   (True, _) -> Just b
   (_, True) -> Just a
