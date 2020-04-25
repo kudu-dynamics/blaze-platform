@@ -38,7 +38,7 @@ data FloatWidth = F32
 
 data PilType t = TAny
                | TStream { elemType :: t }
-               | TArray { elemType :: t, len :: Word64 }
+               | TArray { len :: Word64, elemType :: t }
                | TChar
                | TNumber
                | TInteger
@@ -48,7 +48,7 @@ data PilType t = TAny
                | TReal
                | TFloat { bitWidth :: BitWidth }
                | TBitVector { bitWidth :: BitWidth }
-               | TPointer { pointeeType :: t, bitWidth :: BitWidth }
+               | TPointer { bitWidth :: BitWidth, pointeeType :: t }
                | TRecord (HashMap BitWidth t)
                | TBottom
                | TFunction { ret :: t, params :: [t] }
@@ -460,12 +460,12 @@ instance IsType a => IsType (PilType a) where
   isSubTypeOf TAny _ = True
   isSubTypeOf (TStream et1) t = case t of
     (TStream et2) -> isSubTypeOf et1 et2
-    (TArray et2 _) -> isSubTypeOf et1 et2
+    (TArray _ et2) -> isSubTypeOf et1 et2
     TBottom -> True
     _ -> False
-  isSubTypeOf (TArray et1 len1) t = case t of
+  isSubTypeOf (TArray len1 et1) t = case t of
     -- should an array with a greater length be a subtype of one with lesser?
-    (TArray et2 len2) -> len1 == len2 && isSubTypeOf et1 et2
+    (TArray len2 et2) -> len1 == len2 && isSubTypeOf et1 et2
     TBottom -> True
     _ -> False
   isSubTypeOf TNumber t = case t of
@@ -493,13 +493,13 @@ instance IsType a => IsType (PilType a) where
     TInt sz2 -> sz1 == sz2
     TSigned sz2 -> sz1 == sz2
     TUnsigned sz2 -> sz1 == sz2
-    TPointer _ sz2 -> sz1 == sz2
+    TPointer sz2 _ -> sz1 == sz2
     TChar -> sz1 == charSize
     TBottom -> True
     _ -> False
   isSubTypeOf (TUnsigned sz1) t = case t of
     TUnsigned sz2 -> sz1 == sz2
-    TPointer _ sz2 -> sz1 == sz2
+    TPointer sz2 _ -> sz1 == sz2
     TChar -> sz1 == charSize
     TBottom -> True
     _ -> False
@@ -520,8 +520,8 @@ instance IsType a => IsType (PilType a) where
     TBitVector sz2 -> sz1 == sz2
     TBottom -> True
     _ -> False
-  isSubTypeOf (TPointer pt1 sz1) t = case t of
-    TPointer pt2 sz2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
+  isSubTypeOf (TPointer sz1 pt1) t = case t of
+    TPointer sz2 pt2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
     TBottom -> True
     _ -> False
   isSubTypeOf TChar t = case t of
@@ -544,14 +544,14 @@ instance IsType a => IsType (PilType a) where
     _ -> False
 
 
-  getTypeWidth (TArray et len') = (* (fromIntegral len')) <$> getTypeWidth et
+  getTypeWidth (TArray len' et) = (* (fromIntegral len')) <$> getTypeWidth et
   getTypeWidth TChar = Just 8
   getTypeWidth (TInt w) = Just w
   getTypeWidth (TSigned w) = Just w
   getTypeWidth (TUnsigned w) = Just w
   getTypeWidth (TFloat w) = Just w
   getTypeWidth (TBitVector w) = Just w
-  getTypeWidth (TPointer _ w) = Just w
+  getTypeWidth (TPointer w _) = Just w
   getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
   getTypeWidth _ = Nothing
 
@@ -569,74 +569,103 @@ getMinimumRecordWidth m = max maxOffset maxOffsetPlusKnownWidth
     fieldReach (off, pt) = (+ off) <$> getTypeWidth pt
 
 
--- -- | if field has offset 32 and width 16, its range is (32, 48)
--- --   if field has offset 32, but unknown width, it's range is (32, 33) | --
--- getFieldRange :: BitWidth -> PilType -> (BitWidth, BitWidth)
--- getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
+-- | if field has offset 32 and width 16, its range is (32, 48)
+--   if field has offset 32, but unknown width, it's range is (32, 33) | --
+getFieldRange :: IsType a => BitWidth -> a-> (BitWidth, BitWidth)
+getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
 
--- getFieldRanges :: HashMap BitWidth PilType -> [(BitWidth, BitWidth)]
--- getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
+getFieldRanges :: IsType a => HashMap BitWidth a -> [(BitWidth, BitWidth)]
+getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
 
--- doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
--- doFieldRangesOverlap (start, end) (start', end') = 
---   start >= start' && start < end'
---   || end > start' && end <= end'
---   || start' >= start && start' < end
---   || end' > start && end' <= end
+doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+doFieldRangesOverlap (start, end) (start', end') = 
+  start >= start' && start < end'
+  || end > start' && end <= end'
+  || start' >= start && start' < end
+  || end' > start && end' <= end
 
--- secondRangeContainsFirst :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
--- secondRangeContainsFirst (start, end) (start', end') =
---   start >= start' && start < end'
---   && end >= start' && end <= end'
+secondRangeContainsFirst :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+secondRangeContainsFirst (start, end) (start', end') =
+  start >= start' && start < end'
+  && end >= start' && end <= end'
 
 
--- data UnificationDirection = MostSpecific
---                           | MostGeneral
---                           deriving (Eq, Ord, Read, Show, Generic)
+data UnificationDirection = MostSpecific
+                          | MostGeneral
+                          deriving (Eq, Ord, Read, Show, Generic)
 
--- -- | returns Nothing if there is a known conflict.
--- --   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
--- addFieldToRecord :: UnificationDirection
---                  -> HashMap BitWidth PilType
---                  -> BitWidth
---                  -> PilType
---                  -> Maybe (HashMap BitWidth PilType)
--- addFieldToRecord uniDir m off pt = case HashMap.lookup off m of
---   Just pt' -> do
---     uniPt <- case uniDir of
---                MostSpecific -> mostSpecificUnifyType pt' pt
---                MostGeneral -> mostGeneralUnifyType pt' pt
---     bool Nothing (Just $ HashMap.insert off uniPt m)
---       . not . any (doFieldRangesOverlap $ getFieldRange off pt)
---       . getFieldRanges $ HashMap.delete off m  
---   Nothing -> bool Nothing (Just $ HashMap.insert off pt m)
---     . not . any (doFieldRangesOverlap $ getFieldRange off pt)
---     $ getFieldRanges m
+-- | returns Nothing if there is a known conflict.
+--   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
+addFieldToRecord :: IsType a
+                 => UnificationDirection
+                 -> HashMap BitWidth (PilType a)
+                 -> BitWidth
+                 -> PilType a
+                 -> Maybe (HashMap BitWidth (PilType a))
+addFieldToRecord uniDir m off pt = case HashMap.lookup off m of
+  Just pt' -> do
+    uniPt <- case uniDir of
+               MostSpecific -> mostSpecificUnifyType pt' pt
+               MostGeneral -> mostGeneralUnifyType pt' pt
+    bool Nothing (Just $ HashMap.insert off uniPt m)
+      . not . any (doFieldRangesOverlap $ getFieldRange off pt)
+      . getFieldRanges $ HashMap.delete off m  
+  Nothing -> bool Nothing (Just $ HashMap.insert off pt m)
+    . not . any (doFieldRangesOverlap $ getFieldRange off pt)
+    $ getFieldRanges m
   
 
--- -- mostSpecificUnifyRecordFields :: HashMap BitWidth PilType -> HashMap BitWidth PilType -> Maybe (HashMap BitWidth PilType)
--- -- mostSpecificUnifyRecordFields m1 m2 = 
+-- mostSpecificUnifyRecordFields :: HashMap BitWidth PilType -> HashMap BitWidth PilType -> Maybe (HashMap BitWidth PilType)
+-- mostSpecificUnifyRecordFields m1 m2 = 
 
--- -- Will need special cases for records, to get most/least specific for each field
+-- Will need special cases for records, to get most/least specific for each field
 
--- -- | unifies to the most specific type, i.e. TInt and TInteger => TInt | --
--- mostSpecificUnifyType :: PilType -> PilType -> Maybe PilType
--- --mostSpecificUnifyType (TRecord m1) (TRecord m2) = do
+-- | unifies to the most specific type, i.e. TInt and TInteger => TInt | --
+mostSpecificUnifyType :: IsType a => PilType a -> PilType a -> Maybe (PilType a)
+--mostSpecificUnifyType (TRecord m1) (TRecord m2) = do
   
--- mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
---   (True, _) -> Just b
---   (_, True) -> Just a
---   _ -> Nothing
+mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+  (True, _) -> Just b
+  (_, True) -> Just a
+  _ -> Nothing
 
--- -- | unifies to the most general type, i.e. TInt and TInteger => TInteger | --
--- mostGeneralUnifyType :: PilType -> PilType -> Maybe PilType
--- mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
---   (True, _) -> Just a
---   (_, True) -> Just b
---   _ -> Nothing
+-- | unifies to the most general type, i.e. TInt and TInteger => TInteger | --
+mostGeneralUnifyType :: IsType a => PilType a -> PilType a -> Maybe (PilType a)
+mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+  (True, _) -> Just a
+  (_, True) -> Just b
+  _ -> Nothing
 
 
--- -- -- | finds nearest common ancestor in type lattice
--- -- generalUnify :: PilType -> PilType -> PilType
+addSubs :: MonadState [(Sym, SymType)] m => [(Sym, SymType)] -> m ()
+addSubs subs = modify (<> subs)
+
+
+-- | unifies to most specific and spits out substitutions | --
+unifyWithSubs :: ( MonadError (SymType, SymType) m
+                 , MonadState [(Sym, SymType)] m
+                 )
+              => SymType -> SymType -> m SymType
+unifyWithSubs (SVar a) (SVar b) = addSubs [(b, SVar a)] >> pure (SVar a)
+unifyWithSubs (SVar a) (SType pt) = addSubs [(a, SType pt)] >> pure (SType pt)
+unifyWithSubs a@(SType _) b@(SVar _) = unifyWithSubs b a
+unifyWithSubs (SType pt1) (SType pt2) = case pt1 of
+  TAny -> solo pt2
+  (TStream et1) -> case pt2 of
+    (TStream et2) -> SType . TStream <$> unifyWithSubs et1 et2
+    (TArray len2 et2) -> SType . TArray len2 <$> unifyWithSubs et1 et2
+    _ -> err
+  (TArray len1 et1) -> case pt2 of
+    (TArray len2 et2)
+      | len1 == len2 -> SType . TArray len1 <$> unifyWithSubs et1 et2
+      | otherwise -> err -- array length mismatch
+    _ -> err
+  where
+    err = throwError (SType pt1, SType pt2)
+    solo = pure . SType
+    --duo a b = unifyWithSubs
+
+-- -- | finds nearest common ancestor in type lattice
+-- generalUnify :: PilType -> PilType -> PilType
 
 
