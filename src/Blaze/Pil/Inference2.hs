@@ -73,13 +73,13 @@ unT (T pt) = pt
 
 
 newtype Sym = Sym Int
-            deriving (Eq, Ord, Show, Generic)
+            deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Sym
 
 data SymType = SVar Sym
              | SType (PilType SymType)
-             deriving (Eq, Ord, Show, Generic)
+             deriving (Eq, Ord, Read, Show, Generic)
 
 data CheckerError = CannotFindPilVarInVarSymMap PilVar
                   | CannotFindSymInSymMap
@@ -455,8 +455,105 @@ instance IsType SymType where
   getTypeWidth (SVar _) = Nothing
   getTypeWidth (SType pt) = getTypeWidth pt
 
--- | True if second is equal or subtype of first. | --
+
+-- | True if second is at the same level or below in the type lattice
+--   doesn't check recursive types | --
+isTypeDescendent :: PilType a -> PilType a -> Bool
+isTypeDescendent TAny _ = True
+isTypeDescendent (TStream _) t = case t of
+  TStream _ -> True
+  TArray _ _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TArray _ _) t = case t of
+  TArray _ _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent TNumber t = case t of
+  TNumber -> True
+  TInteger -> True
+  TInt _ -> True
+  TSigned _ -> True
+  TUnsigned _ -> True
+  TPointer _ _ -> True
+  TReal -> True
+  TFloat _ -> True
+  TChar -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent TInteger t = case t of
+  TInteger -> True
+  TInt _ -> True
+  TSigned _ -> True
+  TUnsigned _ -> True
+  TPointer _ _ -> True
+  TChar -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TInt _) t = case t of
+  TInt _ -> True
+  TSigned _ -> True
+  TUnsigned _ -> True
+  TPointer _ _ -> True
+  TChar -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TUnsigned _) t = case t of
+  TUnsigned _ -> True
+  TPointer _ _ -> True
+  TChar -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TSigned _) t = case t of
+  TSigned _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent TReal t = case t of
+  TReal -> True
+  TFloat _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TFloat _) t = case t of
+  TFloat _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TBitVector _) t = case t of
+  TBitVector _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TPointer _ _) t = case t of
+  TPointer _ _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent TChar t = case t of
+  TChar -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TFunction _ _) t = case t of
+  (TFunction _ _) -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent (TRecord _) t = case t of
+  TRecord _ -> True
+  TBottom -> True
+  _ -> False
+isTypeDescendent TBottom t = case t of
+  TBottom -> True
+  _ -> False
+
 instance IsType a => IsType (PilType a) where
+  getTypeWidth (TArray len' et) = (* (fromIntegral len')) <$> getTypeWidth et
+  getTypeWidth TChar = Just 8
+  getTypeWidth (TInt w) = Just w
+  getTypeWidth (TSigned w) = Just w
+  getTypeWidth (TUnsigned w) = Just w
+  getTypeWidth (TFloat w) = Just w
+  getTypeWidth (TBitVector w) = Just w
+  getTypeWidth (TPointer w _) = Just w
+  getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
+  getTypeWidth _ = Nothing
+
+
   isSubTypeOf TAny _ = True
   isSubTypeOf (TStream et1) t = case t of
     (TStream et2) -> isSubTypeOf et1 et2
@@ -544,18 +641,6 @@ instance IsType a => IsType (PilType a) where
     _ -> False
 
 
-  getTypeWidth (TArray len' et) = (* (fromIntegral len')) <$> getTypeWidth et
-  getTypeWidth TChar = Just 8
-  getTypeWidth (TInt w) = Just w
-  getTypeWidth (TSigned w) = Just w
-  getTypeWidth (TUnsigned w) = Just w
-  getTypeWidth (TFloat w) = Just w
-  getTypeWidth (TBitVector w) = Just w
-  getTypeWidth (TPointer w _) = Just w
-  getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
-  getTypeWidth _ = Nothing
-
-
 -- | given the fields in the hashmap, find the greatest (offset + known width)
 --   This doesn't consider padding or error on overlapping fields. | --
 getMinimumRecordWidth :: IsType a => HashMap BitWidth a -> BitWidth
@@ -594,26 +679,56 @@ data UnificationDirection = MostSpecific
                           | MostGeneral
                           deriving (Eq, Ord, Read, Show, Generic)
 
+-- -- | returns Nothing if there is a known conflict.
+-- --   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
+-- addFieldToRecord :: IsType a
+--                  => UnificationDirection
+--                  -> HashMap BitWidth (PilType a)
+--                  -> BitWidth
+--                  -> PilType a
+--                  -> Maybe (HashMap BitWidth (PilType a))
+-- addFieldToRecord uniDir m off pt = case HashMap.lookup off m of
+--   Just pt' -> do
+--     uniPt <- case uniDir of
+--                MostSpecific -> mostSpecificUnifyType pt' pt
+--                MostGeneral -> mostGeneralUnifyType pt' pt
+--     bool Nothing (Just $ HashMap.insert off uniPt m)
+--       . not . any (doFieldRangesOverlap $ getFieldRange off pt)
+--       . getFieldRanges $ HashMap.delete off m  
+--   Nothing -> bool Nothing (Just $ HashMap.insert off pt m)
+--     . not . any (doFieldRangesOverlap $ getFieldRange off pt)
+--     $ getFieldRanges m
+  
+
 -- | returns Nothing if there is a known conflict.
 --   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
-addFieldToRecord :: IsType a
-                 => UnificationDirection
-                 -> HashMap BitWidth (PilType a)
+addFieldToRecord :: ( MonadError UnifyError m
+                    , MonadState [(Sym, SymType)] m
+                    )
+                 => HashMap BitWidth SymType
                  -> BitWidth
-                 -> PilType a
-                 -> Maybe (HashMap BitWidth (PilType a))
-addFieldToRecord uniDir m off pt = case HashMap.lookup off m of
+                 -> SymType
+                 -> m (HashMap BitWidth SymType)
+addFieldToRecord m off pt = case HashMap.lookup off m of
   Just pt' -> do
-    uniPt <- case uniDir of
-               MostSpecific -> mostSpecificUnifyType pt' pt
-               MostGeneral -> mostGeneralUnifyType pt' pt
-    bool Nothing (Just $ HashMap.insert off uniPt m)
-      . not . any (doFieldRangesOverlap $ getFieldRange off pt)
-      . getFieldRanges $ HashMap.delete off m  
-  Nothing -> bool Nothing (Just $ HashMap.insert off pt m)
-    . not . any (doFieldRangesOverlap $ getFieldRange off pt)
-    $ getFieldRanges m
-  
+    x <- unifyWithSubs pt pt'
+    checkOverlap x $ HashMap.delete off m
+    return $ HashMap.insert off x m
+  Nothing -> do
+    checkOverlap pt m
+    return $ HashMap.insert off pt m
+  where
+    checkOverlap pt' m'
+      | (not . any (doFieldRangesOverlap $ getFieldRange off pt') . getFieldRanges $ m') = return ()
+      | otherwise = throwError $ OverlappingRecordField (HashMap.insert off pt' m') off
+
+mergeRecords :: ( MonadError UnifyError m
+                , MonadState [(Sym, SymType)] m
+                )
+             => HashMap BitWidth SymType
+             -> HashMap BitWidth SymType
+             -> m (HashMap BitWidth SymType)
+mergeRecords m1 = foldM (uncurry . addFieldToRecord) m1 . HashMap.toList
 
 -- mostSpecificUnifyRecordFields :: HashMap BitWidth PilType -> HashMap BitWidth PilType -> Maybe (HashMap BitWidth PilType)
 -- mostSpecificUnifyRecordFields m1 m2 = 
@@ -640,29 +755,89 @@ mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
 addSubs :: MonadState [(Sym, SymType)] m => [(Sym, SymType)] -> m ()
 addSubs subs = modify (<> subs)
 
+data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
+                | OverlappingRecordField { recordFields :: (HashMap BitWidth SymType)
+                                         , offendingOffset :: BitWidth
+                                         }
+                deriving (Eq, Ord, Read, Show, Generic)
 
 -- | unifies to most specific and spits out substitutions | --
-unifyWithSubs :: ( MonadError (SymType, SymType) m
+unifyWithSubs :: ( MonadError UnifyError m
                  , MonadState [(Sym, SymType)] m
                  )
               => SymType -> SymType -> m SymType
 unifyWithSubs (SVar a) (SVar b) = addSubs [(b, SVar a)] >> pure (SVar a)
 unifyWithSubs (SVar a) (SType pt) = addSubs [(a, SType pt)] >> pure (SType pt)
 unifyWithSubs a@(SType _) b@(SVar _) = unifyWithSubs b a
-unifyWithSubs (SType pt1) (SType pt2) = case pt1 of
-  TAny -> solo pt2
-  (TStream et1) -> case pt2 of
-    (TStream et2) -> SType . TStream <$> unifyWithSubs et1 et2
-    (TArray len2 et2) -> SType . TArray len2 <$> unifyWithSubs et1 et2
-    _ -> err
-  (TArray len1 et1) -> case pt2 of
-    (TArray len2 et2)
-      | len1 == len2 -> SType . TArray len1 <$> unifyWithSubs et1 et2
-      | otherwise -> err -- array length mismatch
-    _ -> err
+unifyWithSubs (SType pt1) (SType pt2)
+  | not (isTypeDescendent pt1 pt2) = unifyWithSubs (SType pt2) (SType pt1)
+  | otherwise = case pt1 of
+      TAny -> solo pt2
+      (TStream et1) -> case pt2 of
+        (TStream et2) -> SType . TStream <$> unifyWithSubs et1 et2
+        (TArray len2 et2) -> SType . TArray len2 <$> unifyWithSubs et1 et2
+        _ -> err
+      (TArray len1 et1) -> case pt2 of
+        (TArray len2 et2)
+          | len1 == len2 -> SType . TArray len1 <$> unifyWithSubs et1 et2
+          | otherwise -> err -- array length mismatch
+        _ -> err
+      TNumber -> case pt2 of
+        TNumber -> solo TNumber
+        TInteger -> solo TInteger
+        TInt w -> solo $ TInt w
+        TSigned w -> solo $ TSigned w
+        TUnsigned w -> solo $ TUnsigned w
+        TPointer w ptype -> solo $ TPointer w ptype
+        TReal -> solo TReal
+        TFloat w -> solo $ TFloat w
+        TChar -> solo TChar
+        _ -> err
+      TInteger -> case pt2 of
+        TInteger -> solo TInteger
+        TInt w -> solo $ TInt w
+        TSigned w -> solo $ TSigned w
+        TUnsigned w -> solo $ TUnsigned w
+        TPointer w ptype -> solo $ TPointer w ptype
+        TChar -> solo TChar
+        _ -> err
+      TUnsigned w1 -> case pt2 of
+        TUnsigned w2 -> soloW w1 w2 $ TUnsigned w1
+        TPointer w2 ptype -> soloW w1 w2 $ TPointer w2 ptype
+        TChar -> soloW w1 charSize TChar
+        _ -> err
+      TChar -> case pt2 of
+        TChar -> solo TChar
+        _ -> err
+      TSigned w1 -> case pt2 of
+        TSigned w2 -> soloW w1 w2 $ TSigned w1
+        _ -> err
+      TReal -> case pt2 of
+        TReal -> solo TReal
+        TFloat w -> solo $ TFloat w
+        _ -> err
+      TFloat w1 -> case pt2 of
+        TFloat w2 -> soloW w1 w2 $ TFloat w2
+        _ -> err
+      TBitVector w1 -> case pt2 of
+        TBitVector w2 -> soloW w1 w2 $ TBitVector w2
+        _ -> err
+      TPointer w1 pointeeType1 -> case pt2 of
+        TPointer w2 pointeeType2
+          | w1 == w2 -> SType . TPointer w2 <$> unifyWithSubs pointeeType1 pointeeType2
+          | otherwise -> err
+        _ -> err
+      TFunction ret1 params1 -> err -- don't know how to unify at the moment...
+      TRecord m1 -> case pt2 of
+        TRecord m2 -> SType . TRecord <$> mergeRecords m1 m2
+        _ -> err
+      _ -> err
   where
-    err = throwError (SType pt1, SType pt2)
+    err = throwError $ IncompatibleTypes pt1 pt2
     solo = pure . SType
+    soloW w1 w2 x
+      | w1 == w2 = solo x
+      | otherwise = err
     --duo a b = unifyWithSubs
 
 -- -- | finds nearest common ancestor in type lattice
