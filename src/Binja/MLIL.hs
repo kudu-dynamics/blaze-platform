@@ -9,6 +9,7 @@ module Binja.MLIL
   , getMediumLevelILInstructionByExpressionIndex
   , getMLILFromLLIL
   , getMLILSSSAFromMLIL
+  , getParams
   ) where
 
 import           Binja.Prelude
@@ -440,3 +441,19 @@ getOperation fn eindex = do
         fmap VAR_PHI $ VarPhiOp <$> buildSSAVariable <*> buildSSAVarList
     BN.MLIL_MEM_PHI ->
         fmap MEM_PHI $ MemPhiOp <$> buildInt <*> buildIntList
+
+-- TODO: the params returning single expr can probably be expanded
+getParams :: Operation (Expression MLILSSAFunction) -> [Expression MLILSSAFunction]
+getParams (CALL op') = op' ^. params
+getParams (CALL_SSA op') = op' ^. params
+getParams (CALL_UNTYPED op') = [op' ^. params]
+getParams (CALL_UNTYPED_SSA op') = [op' ^. params]
+getParams (TAILCALL op') = op' ^. params
+getParams (TAILCALL_SSA op') = op' ^. params
+getParams (TAILCALL_UNTYPED op') = [op' ^. params]
+getParams (TAILCALL_UNTYPED_SSA op') = [op' ^. params]
+getParams (SYSCALL op') = op' ^. params
+getParams (SYSCALL_SSA op') = op' ^. params
+getParams (SYSCALL_UNTYPED op') = [op' ^. params]
+getParams (SYSCALL_UNTYPED_SSA op') = [op' ^. params]
+getParams _ = []
