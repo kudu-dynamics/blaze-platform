@@ -38,22 +38,6 @@ data CallInstruction = CallInstruction
   , _op :: CallOperation
   } deriving (Eq, Ord, Show)
 
--- TODO: the params returning single expr can probably be expanded
-getParams :: MLIL.Operation (MLIL.Expression F) -> [MLIL.Expression F]
-getParams (MLIL.CALL op) = op ^. MLIL.params
-getParams (MLIL.CALL_SSA op) = op ^. MLIL.params
-getParams (MLIL.CALL_UNTYPED op) = [op ^. MLIL.params]
-getParams (MLIL.CALL_UNTYPED_SSA op) = [op ^. MLIL.params]
-getParams (MLIL.TAILCALL op) = op ^. MLIL.params
-getParams (MLIL.TAILCALL_SSA op) = op ^. MLIL.params
-getParams (MLIL.TAILCALL_UNTYPED op) = [op ^. MLIL.params]
-getParams (MLIL.TAILCALL_UNTYPED_SSA op) = [op ^. MLIL.params]
-getParams (MLIL.SYSCALL op) = op ^. MLIL.params
-getParams (MLIL.SYSCALL_SSA op) = op ^. MLIL.params
-getParams (MLIL.SYSCALL_UNTYPED op) = [op ^. MLIL.params]
-getParams (MLIL.SYSCALL_UNTYPED_SSA op) = [op ^. MLIL.params]
-getParams _ = []
-
 getOutputDest :: MLIL.Expression F -> Maybe [SSAVariable]
 getOutputDest expr = case expr ^. MLIL.op of
   (MLIL.CALL_OUTPUT_SSA x) -> Just $ x ^. MLIL.dest
@@ -97,7 +81,7 @@ toCallInstruction instr = toCallInstr <$> case instr ^. MLIL.op of
       (instr ^. MLIL.address)
       (instr ^. MLIL.index)
       (instr ^. MLIL.size)
-      (getParams $ instr ^. MLIL.op)
+      (MLIL.getParams $ instr ^. MLIL.op)
       mdest'
       mOutputDest
       op'
