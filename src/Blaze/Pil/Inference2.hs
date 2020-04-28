@@ -761,6 +761,19 @@ data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
                                          }
                 deriving (Eq, Ord, Read, Show, Generic)
 
+type UnifyState = [(Sym, SymType)]
+
+newtype Unify a = Unify { _runUnify :: ExceptT UnifyError (StateT UnifyState Identity) a }
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , MonadError UnifyError
+           , MonadState UnifyState
+           )
+
+runUnify :: Unify a -> UnifyState -> (Either UnifyError a, UnifyState)
+runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
+
 -- | unifies to most specific and spits out substitutions | --
 unifyWithSubs :: ( MonadError UnifyError m
                  , MonadState [(Sym, SymType)] m
@@ -769,9 +782,11 @@ unifyWithSubs :: ( MonadError UnifyError m
 unifyWithSubs (SVar a) (SVar b) = addSubs [(b, SVar a)] >> pure (SVar a)
 unifyWithSubs (SVar a) (SType pt) = addSubs [(a, SType pt)] >> pure (SType pt)
 unifyWithSubs a@(SType _) b@(SVar _) = unifyWithSubs b a
-unifyWithSubs (SType pt1) (SType pt2)
-  | not (isTypeDescendent pt1 pt2) = unifyWithSubs (SType pt2) (SType pt1)
-  | otherwise = case pt1 of
+unifyWithSubs (SType pt1) (SType pt2) =
+  case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
+    (False, False) -> err
+    (False, True) -> unifyWithSubs (SType pt2) (SType pt1)
+    _ -> case pt1 of
       TAny -> solo pt2
       (TStream et1) -> case pt2 of
         (TStream et2) -> SType . TStream <$> unifyWithSubs et1 et2
