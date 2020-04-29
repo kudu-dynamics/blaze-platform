@@ -152,6 +152,7 @@ searchBetween_ g (DescendentsMap dm) start end
       return $ start : kidPath      
   | otherwise = []
 
+{- HLINT searchBetween ignore: "Eta reduce" -}
 searchBetween :: forall e node g. (Graph e node g, Ord node)
               => g -> node -> node -> [[node]]
 searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
