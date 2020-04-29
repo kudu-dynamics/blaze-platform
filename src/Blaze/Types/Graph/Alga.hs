@@ -1,4 +1,4 @@
-module Blaze.Graph.Alga where
+module Blaze.Types.Graph.Alga where
 
 import Blaze.Prelude
 
