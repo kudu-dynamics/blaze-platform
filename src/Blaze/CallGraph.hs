@@ -52,17 +52,3 @@ getCallGraphStreaming :: Graph () Function g => BNBinaryView -> [Function] -> IO
 getCallGraphStreaming bv funcs = do
   edges <- S.toList . asyncly $ getCallGraphEdges bv funcs
   return . G.fromEdges . fmap ((),) $ edges
-
-getCallGraphListT :: Graph () Function g => BNBinaryView -> IO g
-getCallGraphListT bv = do
-  edges <- ListT.toReverseList $ do
-    func <- liftListM' $ getFunctions bv
-    ref <- liftListM' $ getCodeReferences bv (func ^. Func.start)
-    caller <-
-      liftListM' . fmap Set.toList $
-        getFunctionsContaining bv (ref ^. Ref.addr)
-    mcall <- liftIO $ getCallInstruction caller ref
-    case mcall of
-      Nothing -> mzero
-      Just _ -> ListT.fromFoldable [(caller, func)]
-  return . G.fromEdges . fmap ((),) $ edges
