@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Blaze.Pil.Inference2 where
 
-import Blaze.Prelude hiding (Type, sym, bitSize)
+import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Prelude as P
 import Blaze.Types.Pil ( Expression(Expression)
                        , ExprOp
@@ -387,8 +387,16 @@ subst (sym, st) x@(sym', SVar v)
   | otherwise = x
 subst _ x = x
 
+
+-- unification' :: [(Sym, SymType)] -> [(Sym, SymType)] -> [(Sym, SymType)]
+-- unification' [] solutions = solutions
+-- unification' constraints solutions =
+
 unifyRules :: [(Sym, SymType)] -> [(Sym, SymType)]
-unifyRules xs' = f xs' []
+unifyRules xs = undefined
+
+unifyRules' :: [(Sym, SymType)] -> [(Sym, SymType)]
+unifyRules' xs' = f xs' []
   where
     f :: [(Sym, SymType)] -> [(Sym, SymType)] -> [(Sym, SymType)]
     f [] xs = xs
@@ -553,7 +561,6 @@ instance IsType a => IsType (PilType a) where
   getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
   getTypeWidth _ = Nothing
 
-
   isSubTypeOf TAny _ = True
   isSubTypeOf (TStream et1) t = case t of
     (TStream et2) -> isSubTypeOf et1 et2
@@ -700,35 +707,6 @@ data UnificationDirection = MostSpecific
 --     $ getFieldRanges m
   
 
--- | returns Nothing if there is a known conflict.
---   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
-addFieldToRecord :: ( MonadError UnifyError m
-                    , MonadState [(Sym, SymType)] m
-                    )
-                 => HashMap BitWidth SymType
-                 -> BitWidth
-                 -> SymType
-                 -> m (HashMap BitWidth SymType)
-addFieldToRecord m off pt = case HashMap.lookup off m of
-  Just pt' -> do
-    x <- unifyWithSubs pt pt'
-    checkOverlap x $ HashMap.delete off m
-    return $ HashMap.insert off x m
-  Nothing -> do
-    checkOverlap pt m
-    return $ HashMap.insert off pt m
-  where
-    checkOverlap pt' m'
-      | (not . any (doFieldRangesOverlap $ getFieldRange off pt') . getFieldRanges $ m') = return ()
-      | otherwise = throwError $ OverlappingRecordField (HashMap.insert off pt' m') off
-
-mergeRecords :: ( MonadError UnifyError m
-                , MonadState [(Sym, SymType)] m
-                )
-             => HashMap BitWidth SymType
-             -> HashMap BitWidth SymType
-             -> m (HashMap BitWidth SymType)
-mergeRecords m1 = foldM (uncurry . addFieldToRecord) m1 . HashMap.toList
 
 -- mostSpecificUnifyRecordFields :: HashMap BitWidth PilType -> HashMap BitWidth PilType -> Maybe (HashMap BitWidth PilType)
 -- mostSpecificUnifyRecordFields m1 m2 = 
@@ -752,8 +730,18 @@ mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
   _ -> Nothing
 
 
-addSubs :: MonadState [(Sym, SymType)] m => [(Sym, SymType)] -> m ()
-addSubs subs = modify (<> subs)
+---------- unification ----------------------
+
+
+newtype Constraint = Constraint (Sym, SymType)
+  deriving (Eq, Ord, Read, Show, Generic)
+
+-- | solutions should be the "final unification" for any sym.
+-- | complex types might still contain SVars subject to substitution
+-- | but the type structure shouldn't change.
+newtype Solution = Solution (Sym, SymType)
+  deriving (Eq, Ord, Read, Show, Generic)
+
 
 data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
                 | OverlappingRecordField { recordFields :: (HashMap BitWidth SymType)
@@ -761,40 +749,61 @@ data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
                                          }
                 deriving (Eq, Ord, Read, Show, Generic)
 
-type UnifyState = [(Sym, SymType)]
+data UnifyWithSubsState = UnifyWithSubsState
+                          { _accSubs :: [Constraint]
+                            -- , _solutions :: [(Sym, SymType)]
+                             -- , _errors :: [UnifyError]
+                          } deriving (Eq, Ord, Read, Show)
+$(makeFieldsNoPrefix ''UnifyWithSubsState)
 
-newtype Unify a = Unify { _runUnify :: ExceptT UnifyError (StateT UnifyState Identity) a }
+data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
+                               , _errors :: [UnifyError]
+                               } deriving (Eq, Ord, Read, Show)
+$(makeFieldsNoPrefix ''UnifyResult)
+
+
+newtype UnifyWithSubs a = UnifyWithSubs { _runUnifyWithSubs :: ExceptT UnifyError (StateT UnifyWithSubsState Identity) a }
   deriving ( Functor
            , Applicative
            , Monad
            , MonadError UnifyError
-           , MonadState UnifyState
+           , MonadState UnifyWithSubsState
            )
 
-runUnify :: Unify a -> UnifyState -> (Either UnifyError a, UnifyState)
-runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
+runUnifyWithSubs :: UnifyWithSubs a -> UnifyWithSubsState -> (Either UnifyError a, UnifyWithSubsState)
+runUnifyWithSubs m s = runIdentity . flip runStateT s . runExceptT . _runUnifyWithSubs $ m
+
+
+addSubs :: MonadState UnifyWithSubsState m => [Constraint] -> m ()
+addSubs subs = accSubs %= (<> subs)
+
+
+unifyWithSubs :: SymType -> SymType -> (Either UnifyError SymType, [Constraint])
+unifyWithSubs t1 t2 =
+  let (er, ustate) = runUnifyWithSubs (unifyWithSubsM t1 t2) (UnifyWithSubsState []) in
+    (er, ustate ^. accSubs)
 
 -- | unifies to most specific and spits out substitutions | --
-unifyWithSubs :: ( MonadError UnifyError m
-                 , MonadState [(Sym, SymType)] m
-                 )
-              => SymType -> SymType -> m SymType
-unifyWithSubs (SVar a) (SVar b) = addSubs [(b, SVar a)] >> pure (SVar a)
-unifyWithSubs (SVar a) (SType pt) = addSubs [(a, SType pt)] >> pure (SType pt)
-unifyWithSubs a@(SType _) b@(SVar _) = unifyWithSubs b a
-unifyWithSubs (SType pt1) (SType pt2) =
+unifyWithSubsM :: ( MonadError UnifyError m
+                  , MonadState UnifyWithSubsState m
+                  )
+               => SymType -> SymType -> m SymType
+unifyWithSubsM (SVar a) (SVar b) = addSubs [Constraint (b, SVar a)] >> pure (SVar a)
+unifyWithSubsM (SVar a) (SType pt) = addSubs [Constraint (a, SType pt)] >> pure (SType pt)
+unifyWithSubsM a@(SType _) b@(SVar _) = unifyWithSubsM b a
+unifyWithSubsM (SType pt1) (SType pt2) =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
-    (False, True) -> unifyWithSubs (SType pt2) (SType pt1)
+    (False, True) -> unifyWithSubsM (SType pt2) (SType pt1)
     _ -> case pt1 of
       TAny -> solo pt2
       (TStream et1) -> case pt2 of
-        (TStream et2) -> SType . TStream <$> unifyWithSubs et1 et2
-        (TArray len2 et2) -> SType . TArray len2 <$> unifyWithSubs et1 et2
+        (TStream et2) -> SType . TStream <$> unifyWithSubsM et1 et2
+        (TArray len2 et2) -> SType . TArray len2 <$> unifyWithSubsM et1 et2
         _ -> err
       (TArray len1 et1) -> case pt2 of
         (TArray len2 et2)
-          | len1 == len2 -> SType . TArray len1 <$> unifyWithSubs et1 et2
+          | len1 == len2 -> SType . TArray len1 <$> unifyWithSubsM et1 et2
           | otherwise -> err -- array length mismatch
         _ -> err
       TNumber -> case pt2 of
@@ -839,7 +848,7 @@ unifyWithSubs (SType pt1) (SType pt2) =
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
         TPointer w2 pointeeType2
-          | w1 == w2 -> SType . TPointer w2 <$> unifyWithSubs pointeeType1 pointeeType2
+          | w1 == w2 -> SType . TPointer w2 <$> unifyWithSubsM pointeeType1 pointeeType2
           | otherwise -> err
         _ -> err
       TFunction ret1 params1 -> err -- don't know how to unify at the moment...
@@ -853,9 +862,149 @@ unifyWithSubs (SType pt1) (SType pt2) =
     soloW w1 w2 x
       | w1 == w2 = solo x
       | otherwise = err
-    --duo a b = unifyWithSubs
-
--- -- | finds nearest common ancestor in type lattice
--- generalUnify :: PilType -> PilType -> PilType
+    --duo a b = unifyWithSubsM
 
 
+-- | returns Nothing if there is a known conflict.
+--   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
+addFieldToRecord :: ( MonadError UnifyError m
+                    , MonadState UnifyWithSubsState m
+                    )
+                 => HashMap BitWidth SymType
+                 -> BitWidth
+                 -> SymType
+                 -> m (HashMap BitWidth SymType)
+addFieldToRecord m off pt = case HashMap.lookup off m of
+  Just pt' -> do
+    x <- unifyWithSubsM pt pt'
+    checkOverlap x $ HashMap.delete off m
+    return $ HashMap.insert off x m
+  Nothing -> do
+    checkOverlap pt m
+    return $ HashMap.insert off pt m
+  where
+    checkOverlap pt' m'
+      | (not . any (doFieldRangesOverlap $ getFieldRange off pt') . getFieldRanges $ m') = return ()
+      | otherwise = throwError $ OverlappingRecordField (HashMap.insert off pt' m') off
+
+mergeRecords :: ( MonadError UnifyError m
+                , MonadState UnifyWithSubsState m
+                )
+             => HashMap BitWidth SymType
+             -> HashMap BitWidth SymType
+             -> m (HashMap BitWidth SymType)
+mergeRecords m1 = foldM (uncurry . addFieldToRecord) m1 . HashMap.toList
+
+
+-- unifyConstraints :: ( MonadError UnifyError m
+--                     , MonadState UnifyState m
+--                     )
+--                  => m ()
+-- unifyConstraints = undefined      
+
+
+substitute' :: (Sym, SymType) -> SymType -> SymType
+substitute' (v, t) (SVar v')
+  | v == v' = t
+  | otherwise = SVar v'
+substitute' x (SType pt) = SType $ substitute' x <$> pt
+
+class Substitute a where
+  substitute :: Solution -> a -> a
+
+instance Substitute Constraint where
+  substitute (Solution (v, t)) (Constraint (_, t')) =
+    Constraint . (v,) $ substitute' (v, t) t'
+
+instance Substitute Solution where
+  substitute (Solution (v, t)) (Solution (_, t')) =
+    Solution . (v,) $ substitute' (v, t) t'
+
+-- unifyConstraintWith :: ( MonadError UnifyError m
+--                        , MonadState UnifyState m
+--                        )
+--                     => (Sym, SymType) -> [(Sym, SymType)] -> m (Sym, SymType)
+-- unifyConstraintWith (v, t) (v', t')
+--   | v == v' = unifyWithSubs t t'
+
+-- unifyConstraints :: [(Sym, SymType)]
+--                  -> [(Sym, SymType)]
+--                  -> [UnifyError]
+--                  -> ([(Sym, SymType)], [UnifyError])
+-- unifyConstraints [] sols errs = (sols, errs)
+-- unifyConstraints (c:cxs) sols errs =
+--   let (cxs', sols', errs') = unifyConstraintWithAll c cxs sols errs in
+--     unifyConstraints cxs' sols' errs'
+
+data UnifyConstraintsResult = UnifyConstraintsResult
+  { _constraints :: [(Sym, SymType)]
+  , _solutions :: [(Sym, SymType)]
+  , _errors :: [UnifyError]
+  } deriving (Eq, Ord, Read, Show)
+$(makeFieldsNoPrefix ''UnifyConstraintsResult)
+
+
+
+
+
+-- | unifies (v, t) with any (v', t') where v == v'
+-- | returns most unified type for v, plus any extra subs
+-- | (which should be appended to end of constraints list)
+getMostUnifiedConstraintAndSubs :: Constraint
+                                -> [Constraint]
+                                -> (Solution, [Constraint], [UnifyError])
+getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], []) cxs
+  where
+    f (Constraint (v', t')) ((Solution (v, t)), newConstraints, errs)
+      | v' /= v = (Solution (v, t), (Constraint (v',t')):newConstraints, errs)
+      | otherwise = let (er, subs) = unifyWithSubs t t' in
+          case er of
+            Left uerr -> (Solution (v, t), subs <> newConstraints, uerr:errs)
+            Right ut -> (Solution (v, ut), subs <> newConstraints, errs)
+
+
+-- unifyConstraintWithConstraints :: (Sym, SymType)
+--                                -> [(Sym, SymType)]
+--                                -> [(Sym, SymType)]
+--                                -> [UnifyError]
+--                                -> UnifyConstraintsResult
+-- unifyConstraintWithConstraints (v, t) [] newConstraints errs' =
+--   UnifyConstraintsResult { _constraints = newConstraints
+--                          , _solutions = [(v, t)]
+--                          , _errs = err's
+--                          }
+-- unifyConstraintWithConstraints (v, t) ((v', t'):cxs) sols errs
+--   | v == v' = 
+  
+  
+  
+
+-- | cx - constraint "at bat"
+-- | cxs - non-solution constraint list, minus cx
+-- | sols - solutions (the final unification for any var, subject to substitution)
+-- | outputs (updated constraints, updated solutions, errors)
+unifyConstraintWithAll :: Constraint
+                       -> [Constraint]
+                       -> [Solution]
+                       -> ([Constraint], [Solution], [UnifyError])
+unifyConstraintWithAll cx cxs sols  =
+  ( substitute sol <$> constraintsWithSubs
+  , sol : (substitute sol <$> sols)
+  , errs'
+  )
+  where
+    (sol, constraintsWithSubs, errs') = getMostUnifiedConstraintAndSubs cx cxs
+    
+
+unifyConstraints' :: [Constraint]
+                  -> [Solution]
+                  -> [UnifyError]
+                  -> ([Solution], [UnifyError])
+unifyConstraints' [] sols errs = (sols, errs)
+unifyConstraints' (cx:cxs) sols errs =
+  unifyConstraints' cxs' sols' (errs <> errs')
+  where
+      (cxs', sols', errs') = unifyConstraintWithAll cx cxs sols
+
+unifyConstraints :: [Constraint] -> ([Solution], [UnifyError])
+unifyConstraints cxs = unifyConstraints' cxs [] []
