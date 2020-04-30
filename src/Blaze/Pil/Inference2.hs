@@ -732,8 +732,7 @@ mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
 
 ---------- unification ----------------------
 
-
-newtype Constraint = Constraint (Sym, SymType)
+data Constraint = Constraint (Sym, SymType)
   deriving (Eq, Ord, Read, Show, Generic)
 
 -- | solutions should be the "final unification" for any sym.
@@ -913,12 +912,12 @@ class Substitute a where
   substitute :: Solution -> a -> a
 
 instance Substitute Constraint where
-  substitute (Solution (v, t)) (Constraint (_, t')) =
-    Constraint . (v,) $ substitute' (v, t) t'
+  substitute (Solution (v, t)) (Constraint (v', t')) =
+    Constraint . (v',) $ substitute' (v, t) t'
 
 instance Substitute Solution where
-  substitute (Solution (v, t)) (Solution (_, t')) =
-    Solution . (v,) $ substitute' (v, t) t'
+  substitute (Solution (v, t)) (Solution (v', t')) =
+    Solution . (v',) $ substitute' (v, t) t'
 
 -- unifyConstraintWith :: ( MonadError UnifyError m
 --                        , MonadState UnifyState m
@@ -955,12 +954,12 @@ getMostUnifiedConstraintAndSubs :: Constraint
                                 -> (Solution, [Constraint], [UnifyError])
 getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], []) cxs
   where
-    f (Constraint (v', t')) ((Solution (v, t)), newConstraints, errs)
-      | v' /= v = (Solution (v, t), (Constraint (v',t')):newConstraints, errs)
-      | otherwise = let (er, subs) = unifyWithSubs t t' in
+    f (Constraint (cv, ct)) ((Solution (sv, st)), newConstraints, errs)
+      | cv /= sv = (Solution (sv, st), (Constraint (cv,ct)):newConstraints, errs)
+      | otherwise = let (er, subs) = unifyWithSubs st ct in
           case er of
-            Left uerr -> (Solution (v, t), subs <> newConstraints, uerr:errs)
-            Right ut -> (Solution (v, ut), subs <> newConstraints, errs)
+            Left uerr -> (Solution (sv, st), subs <> newConstraints, uerr:errs)
+            Right ut -> (Solution (sv, ut), subs <> newConstraints, errs)
 
 
 -- unifyConstraintWithConstraints :: (Sym, SymType)

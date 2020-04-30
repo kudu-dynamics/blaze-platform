@@ -104,6 +104,7 @@ library:
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
+  - Blaze.Pil.Inference2
   - Blaze.Pil.Path
   - Blaze.Pretty
   - Blaze.Solver
