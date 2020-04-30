@@ -17,8 +17,7 @@ import Blaze.Types.Pil.Analysis
     MemEquivGroup (MemEquivGroup),
     MemStmt (MemLoadStmt, MemStoreStmt),
     MemStorage (MemStorage),
-    StoreStmt (StoreStmt),
-    Address
+    StoreStmt (StoreStmt)
   )
 import qualified Blaze.Types.Pil.Analysis as A
 import qualified Blaze.Pil.Construct as C
@@ -296,22 +295,22 @@ findLoads s = case s of
   (Pil.Constraint op) -> _findLoads (op ^. Pil.condition)
   _ -> []
 
-memSubst' :: HashMap Address Text -> Stmt -> Stmt
+memSubst' :: HashMap Word64 Text -> Stmt -> Stmt
 memSubst' valMap stmt =
   substExpr (`HMap.lookup` mkMapping valMap stmt) stmt
   where
     traverseToSnd :: (a -> Maybe b) -> a -> Maybe (a, b)
     traverseToSnd g load = (load,) <$> g load
-    constLoadsWithText :: HashMap Address Text -> Stmt -> [(LoadExpr, Text)]
+    constLoadsWithText :: HashMap Word64 Text -> Stmt -> [(LoadExpr, Text)]
     constLoadsWithText valMap' x = catMaybes $ traverseToSnd (getConstAddress >=> (`HMap.lookup` valMap')) <$> findLoads x
     -- TODO: Consider using unipatterns
-    getConstAddress :: LoadExpr -> Maybe Address
+    getConstAddress :: LoadExpr -> Maybe Word64
     getConstAddress l =
       case l of
         LoadExpr Pil.Expression {_op = (Pil.LOAD (Pil.LoadOp Pil.Expression {_op = (Pil.CONST_PTR constPtrOp)}))} ->
           Just $ fromIntegral (constPtrOp ^. Pil.constant)
         _ -> Nothing
-    mkMapping :: HashMap Address Text -> Stmt -> HashMap Expression Expression
+    mkMapping :: HashMap Word64 Text -> Stmt -> HashMap Expression Expression
     mkMapping valMap' stmt' = HMap.fromList $ updateWithSize . first coerce <$> constLoadsWithText valMap' stmt'
       where
         updateWithSize :: (Expression, Text) -> (Expression, Expression)
@@ -320,7 +319,7 @@ memSubst' valMap stmt =
 -- |Substitute memory loads of constant pointers
 -- to constant values with those constant values.
 -- For now, only supporting string values.
-memSubst :: HashMap Address Text -> [Stmt] -> [Stmt]
+memSubst :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 memSubst valmap = fmap (memSubst' valmap)
 
 mkStoreStmt :: Index -> Stmt -> Maybe StoreStmt
@@ -496,3 +495,6 @@ copyPropMem xs = substExprs (\v -> HMap.lookup v (_mapping propResult)) xs
 
 simplify :: [Stmt] -> [Stmt]
 simplify = copyProp . constantProp
+
+simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
+simplifyMem valMap =  memoryTransform . memSubst valMap

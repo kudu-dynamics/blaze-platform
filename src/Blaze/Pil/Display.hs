@@ -2,7 +2,6 @@ module Blaze.Pil.Display where
 
 import qualified Data.Text as Text
 import Text.Printf
-import Data.Coerce (coerce)
 
 import Blaze.Prelude hiding (Symbol, sym, const)
 import qualified Blaze.Types.Pil as Pil
@@ -100,11 +99,11 @@ instance Disp (Pil.CallDest Pil.Expression) where
     (Pil.CallExprs es) -> show $ fmap disp es
 
 instance Disp Binja.Function.Function where
-  disp f = Text.pack $ printf "func \"%s\" 0x%x" name start
+  disp f = Text.pack $ printf "func \"%s\" %s" name start
     where
       name = f ^. Binja.Function.name
-      start :: Word64
-      start = coerce $ f ^. Binja.Function.start
+      start :: Text
+      start = show $ f ^. Binja.Function.start
 
 instance Disp Pil.SimpleCtx where
   disp ctx = Text.pack $ printf "simpCtx (%s) %s" func idx

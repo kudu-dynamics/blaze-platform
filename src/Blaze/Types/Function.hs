@@ -2,12 +2,14 @@
 
 module Blaze.Types.Function where
 
-import Binja.Core (Address, InstructionIndex)
+import Binja.Core (InstructionIndex)
 import Binja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import Blaze.Pretty (Pretty, pretty)
 import Binja.Function (Function, MLILSSAFunction)
+
+import Data.BinaryAnalysis (Address)
 
 type F = MLILSSAFunction
 
@@ -35,22 +37,6 @@ data CallInstruction = CallInstruction
   , _outputDest :: Maybe [SSAVariable]
   , _op :: CallOperation
   } deriving (Eq, Ord, Show)
-
--- TODO: the params returning single expr can probably be expanded
-getParams :: MLIL.Operation (MLIL.Expression F) -> [MLIL.Expression F]
-getParams (MLIL.CALL op) = op ^. MLIL.params
-getParams (MLIL.CALL_SSA op) = op ^. MLIL.params
-getParams (MLIL.CALL_UNTYPED op) = [op ^. MLIL.params]
-getParams (MLIL.CALL_UNTYPED_SSA op) = [op ^. MLIL.params]
-getParams (MLIL.TAILCALL op) = op ^. MLIL.params
-getParams (MLIL.TAILCALL_SSA op) = op ^. MLIL.params
-getParams (MLIL.TAILCALL_UNTYPED op) = [op ^. MLIL.params]
-getParams (MLIL.TAILCALL_UNTYPED_SSA op) = [op ^. MLIL.params]
-getParams (MLIL.SYSCALL op) = op ^. MLIL.params
-getParams (MLIL.SYSCALL_SSA op) = op ^. MLIL.params
-getParams (MLIL.SYSCALL_UNTYPED op) = [op ^. MLIL.params]
-getParams (MLIL.SYSCALL_UNTYPED_SSA op) = [op ^. MLIL.params]
-getParams _ = []
 
 getOutputDest :: MLIL.Expression F -> Maybe [SSAVariable]
 getOutputDest expr = case expr ^. MLIL.op of
@@ -95,7 +81,7 @@ toCallInstruction instr = toCallInstr <$> case instr ^. MLIL.op of
       (instr ^. MLIL.address)
       (instr ^. MLIL.index)
       (instr ^. MLIL.size)
-      (getParams $ instr ^. MLIL.op)
+      (MLIL.getParams $ instr ^. MLIL.op)
       mdest'
       mOutputDest
       op'

@@ -1,37 +1,41 @@
 module Blaze.Pil where
 
-import           Blaze.Prelude                    hiding ( Symbol
-                                                         , Type
-                                                         )
-
-import           Binja.Function                          ( Function )
-import qualified Binja.Function       as Function
-import qualified Binja.MLIL           as MLIL
-import qualified Binja.Variable       as Variable
-import           Blaze.Types.Function                    ( CallInstruction )
+import Binja.Function (Function)
+import qualified Binja.Function as Function
+import qualified Binja.MLIL as MLIL
+import qualified Binja.Variable as Variable
+import Blaze.Prelude hiding
+  ( Symbol,
+    Type,
+  )
+import Blaze.Types.Function (CallInstruction)
 import qualified Blaze.Types.Function as Function
-import           Blaze.Types.Pil                         ( CallDest
-                                                         , Ctx
-                                                         , DefOp( DefOp )
-                                                         , ExprOp
-                                                         , Expression( Expression )
-                                                         , PilVar( PilVar )
-                                                         , SSAVariableRef( SSAVariableRef )
-                                                         , Statement( Def
-                                                                    , Nop
-                                                                    , Store
-                                                                    , Undef
-                                                                    , UnimplInstr
-                                                                    , UnimplMem
-                                                                    )
-                                                         , Stmt
-                                                         , StoreOp( StoreOp )
-                                                         , Symbol
-                                                         , UnimplMemOp( UnimplMemOp )
-                                                         )
-import qualified Blaze.Types.Pil      as Pil
-import qualified Data.HashSet         as HSet
-import qualified Data.Text            as Text
+import Blaze.Types.Pil
+  ( CallDest,
+    Ctx,
+    DefOp (DefOp),
+    ExprOp,
+    Expression (Expression),
+    PilVar (PilVar),
+    SSAVariableRef (SSAVariableRef),
+    Statement
+      ( Def,
+        Nop,
+        Store,
+        Undef,
+        UnimplInstr,
+        UnimplMem
+      ),
+    Stmt,
+    StoreOp (StoreOp),
+    Symbol,
+    UnimplMemOp (UnimplMemOp),
+  )
+import qualified Blaze.Types.Pil as Pil
+import Data.BinaryAnalysis (Address (Address))
+import qualified Data.HashSet as HSet
+import qualified Data.Text as Text
+
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
@@ -241,7 +245,7 @@ getCallDestFunctionName :: Function -> CallDest expr -> IO (Maybe Text)
 getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
   bv <- Function.getFunctionDataBinaryView ctxfn
   mfn <- Function.getFunctionStartingAt bv Nothing
-    . Function.Address . fromIntegral $ op ^. Pil.constant
+    . Address . fromIntegral $ op ^. Pil.constant
   return $ view Function.name <$> mfn
 getCallDestFunctionName _ _ = return Nothing
 

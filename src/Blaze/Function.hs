@@ -4,17 +4,18 @@ module Blaze.Function
   , isDirectCall
   ) where
 
-import           Blaze.Prelude
+import Binja.Core (BNBinaryView)
+import Binja.Function
+  ( Function,
+    getFunctionStartingAt,
+  )
+import qualified Binja.MLIL as MLIL
 
+import Blaze.Prelude
 import Blaze.Types.Function as Exports
-import           Binja.Core                  ( Address
-                                             , BNBinaryView
-                                             )
-import           Binja.Function              ( Function
-                                             , getFunctionStartingAt
-                                             )
-import qualified Binja.MLIL          as MLIL
+
 import qualified Data.Set as Set
+import Data.BinaryAnalysis (Address)
 
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))

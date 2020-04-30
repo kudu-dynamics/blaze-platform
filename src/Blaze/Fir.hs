@@ -1,47 +1,15 @@
 module Blaze.Fir where
 
-import qualified Prelude as P
 import           Blaze.Prelude
-
-import Data.Map ((!))
-import           Binja.BasicBlock                  ( BasicBlock
-                                                   , BasicBlockFunction
-                                                   , BlockEdge
-                                                   )
-import qualified Binja.BasicBlock     as BB
-import           Binja.C.Enums                     ( BNBranchType( FalseBranch
-                                                                 , TrueBranch
-                                                                 )
-                                                   )
-import           Binja.Core                        ( BNBinaryView
-                                                   , InstructionIndex(InstructionIndex)
-                                                   
-                                                   )
-import           Binja.Function                    ( Function
-                                                   , MLILSSAFunction
-                                                   )
-import qualified Binja.Function       as HFunction
-import qualified Binja.MLIL           as MLIL
-import           Blaze.Function                    ( createCallSite )
-import qualified Blaze.Function       as Function
-import           Blaze.Graph.Alga                  ( AlgaGraph )
-import           Blaze.Types.Function              ( CallInstruction
-                                                   , CallSite
-                                                   , toCallInstruction
-                                                   )
 import           Blaze.Types.Graph                 ( Graph )
 import qualified Blaze.Types.Graph    as G
-import qualified Data.Set as Set
-import qualified Streamly.Prelude as S
-import Blaze.Types.Path (ConditionNode(ConditionNode))
-import qualified Blaze.Graph as Graph
+import Blaze.Types.Fir hiding (dest)
+
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import Blaze.Types.Fir
 
 
-getNodesWithTwoChildren :: forall e n g. (Graph e n g, Ord n) => g -> [(n, (n, n))]
+getNodesWithTwoChildren :: forall e n g. (Graph e n g) => g -> [(n, (n, n))]
 getNodesWithTwoChildren g = mapMaybe f . Set.toList . G.nodes $ g
   where
     f :: n -> Maybe (n, (n, n))
@@ -49,32 +17,18 @@ getNodesWithTwoChildren g = mapMaybe f . Set.toList . G.nodes $ g
       [c1, c2] -> Just (p, (c1, c2))
       _ -> Nothing
 
-
-
-
-chainMapOrigins :: (Ord a, Eq a) => Map a a -> Set a
+chainMapOrigins :: (Ord a) => Map a a -> Set a
 chainMapOrigins hm = keySet `Set.difference` elemSet
   where
     elemSet = Set.fromList $ Map.elems hm
     keySet = Set.fromList $ Map.keys hm
 
-demoh :: Map Int Int
-demoh = Map.fromList
-  [ (1, 2)
-  , (2, 3)
-  , (3, 4)
-  , (4, 5)
-  , (5, 6)
-  , (7, 8)
-  , (8, 9)
-  ]
-
-getChain :: (Ord a, Eq a) => Map a a -> a -> [a]
+getChain :: (Ord a) => Map a a -> a -> [a]
 getChain hm origin = case Map.lookup origin hm of
   Nothing -> [origin]
   (Just next) -> origin : getChain hm next
 
-chainMapToLists :: (Ord n, Eq n) => Map n n -> [[n]]
+chainMapToLists :: (Ord n) => Map n n -> [[n]]
 chainMapToLists hm = fmap (getChain hm) . Set.toList $ chainMapOrigins hm
 
 getIfChainNodes :: forall e n g. ( Graph e n g, Ord n )
@@ -108,7 +62,7 @@ getIfChains :: forall e n g.
             => g -> [IfChain n]
 getIfChains g = do
   xs <- chainMapToLists chainMapping
-  maybe [] (:[]) $ convertChainList xs
+  maybeToList $ convertChainList xs
   where
     chainNodes = getIfChainNodes g    
 

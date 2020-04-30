@@ -27,10 +27,8 @@ import qualified Binja.Function            as HFunction
 import qualified Binja.MLIL                as MLIL
 import           Blaze.Function                         ( createCallSite )
 import qualified Blaze.Function            as Function
-import           Blaze.Graph                            ( constructBasicBlockGraph
-                                                        , constructBasicBlockGraphWithoutBackEdges
-                                                        )
-import           Blaze.Graph.Alga                       ( AlgaGraph )
+import           Blaze.Graph                            ( constructBasicBlockGraphWithoutBackEdges )
+import           Blaze.Types.Graph.Alga                 ( AlgaGraph )
 import           Blaze.Types.Function                   ( CallInstruction
                                                         , CallSite
                                                         , toCallInstruction
@@ -46,47 +44,7 @@ import           Data.Map                               ( (!) )
 import qualified Data.Map                  as Map
 import qualified Data.Map.Lazy             as LMap
 import qualified Data.Set                  as Set
--- =======
 
--- import Blaze.Types.Path.FastPath as Exports (FastPath) 
--- import Blaze.Types.Path.AlgaPath as Exports (AlgaPath)
-
--- import qualified Data.Map as Map
--- import Data.Map ((!))
--- import qualified Data.Map.Lazy as LMap
--- import           Binja.BasicBlock                  ( BasicBlock
---                                                    , BasicBlockFunction
---                                                    , BlockEdge
---                                                    )
--- import qualified Binja.BasicBlock     as BB
--- import           Binja.C.Enums                     ( BNBranchType( FalseBranch
---                                                                  , TrueBranch
---                                                                  )
---                                                    )
--- import           Binja.Core                        ( BNBinaryView
---                                                    , InstructionIndex(InstructionIndex)
-                                                   
---                                                    )
--- import           Binja.Function                    ( Function
---                                                    , MLILSSAFunction
---                                                    )
--- import qualified Binja.Function       as HFunction
--- import qualified Binja.MLIL           as MLIL
--- import           Blaze.Function                    ( createCallSite )
--- import qualified Blaze.Function       as Function
--- import           Blaze.Graph.Alga                  ( AlgaGraph )
--- import           Blaze.Types.Function              ( CallInstruction
---                                                    , CallSite
---                                                    , toCallInstruction
---                                                    )
--- import           Blaze.Types.Graph                 ( Graph )
--- import qualified Blaze.Types.Graph    as G
--- import           Blaze.Types.Path     as Exports
--- import qualified Blaze.Types.Path as Path
--- import qualified Blaze.Types.Pil      as Pil
--- import qualified Data.Set as Set
--- import qualified Streamly.Prelude as S
--- >>>>>>> master
 
 type BasicBlockGraph t = AlgaGraph () (BasicBlock t)
 

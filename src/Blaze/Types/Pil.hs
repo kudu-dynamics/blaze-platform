@@ -200,6 +200,7 @@ data ConverterCtx = ConverterCtx
   , _ctx :: Ctx
   } deriving (Eq, Ord, Show, Generic)
 
+-- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: StateT ConverterCtx IO a}
   deriving (Functor, Applicative, Monad, MonadState ConverterCtx, MonadIO)
 

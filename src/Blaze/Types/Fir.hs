@@ -1,46 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Blaze.Types.Fir where
 
-import qualified Prelude              as P
 import           Blaze.Prelude
-import qualified Streamly.Prelude     as S
 
-import           Binja.BasicBlock                  ( BasicBlock
-                                                   , BasicBlockFunction
-                                                   , BlockEdge
-                                                   )
-import qualified Binja.BasicBlock     as BB
-import           Binja.C.Enums                     ( BNBranchType( FalseBranch
-                                                                 , TrueBranch
-                                                                 )
-                                                   )
-import           Binja.Core                        ( BNBinaryView
-                                                   , InstructionIndex( InstructionIndex )
-                                                   )
-import           Binja.Function                    ( Function
-                                                   , MLILSSAFunction
-                                                   )
-import qualified Binja.Function       as HFunction
-import qualified Binja.MLIL           as MLIL
-import           Blaze.Function                    ( createCallSite )
-import qualified Blaze.Function       as Function
-import qualified Blaze.Graph          as Graph
-import           Blaze.Graph.Alga                  ( AlgaGraph )
+import Binja.BasicBlock as BB
+import Binja.Function (MLILSSAFunction)
+
 import           Blaze.Pretty
-import           Blaze.Types.Function              ( CallInstruction
-                                                   , CallSite
-                                                   , toCallInstruction
-                                                   )
-import           Blaze.Types.Graph                 ( Graph )
-import qualified Blaze.Types.Graph    as G
-import           Blaze.Types.Path                  ( ConditionNode( ConditionNode ) )
-import           Data.Map                          ( (!) )
-import qualified Data.Map.Strict      as Map
-import qualified Data.Set             as Set
+
 import qualified Data.Text            as Text
 
 type F = MLILSSAFunction
-
 
 data IfChainNode n = IfChainNode
   { _commonEscape :: n

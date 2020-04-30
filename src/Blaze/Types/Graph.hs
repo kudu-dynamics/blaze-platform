@@ -81,7 +81,7 @@ findAllSimplePaths2 g startNode =
     mkNonLoopingNodeMap :: Map node [[node]] -> [node] -> Map node [[node]]
     mkNonLoopingNodeMap m ns = Map.fromList $ do
       n <- ns
-      let succPaths = concat . fmap (\s -> case m ! s of
+      let succPaths = concatMap (\s -> case m ! s of
                                         [] -> [[s]]
                                         xs -> (s:) <$> xs)
                       . Set.toList $ succs n g
@@ -152,6 +152,7 @@ searchBetween_ g (DescendentsMap dm) start end
       return $ start : kidPath      
   | otherwise = []
 
+{- HLINT searchBetween ignore: "Eta reduce" -}
 searchBetween :: forall e node g. (Graph e node g, Ord node)
               => g -> node -> node -> [[node]]
 searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
@@ -178,7 +179,7 @@ mapEdges f = mapGraph f identity
 
 
 mapNodes :: (Graph e n g, Graph e n' g') => (n -> n') -> g -> g'
-mapNodes f = mapGraph identity f
+mapNodes = mapGraph identity
 
 
     

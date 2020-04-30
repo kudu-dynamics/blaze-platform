@@ -12,9 +12,10 @@ import Text.Printf
 import qualified Numeric
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Binja.Core (InstructionIndex(InstructionIndex), Address(Address))
+import Binja.Core (InstructionIndex(InstructionIndex))
 import qualified Data.Text as Text
 import Data.Coerce (coerce)
+import Data.BinaryAnalysis (Address(Address))
 
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Function

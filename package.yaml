@@ -24,6 +24,7 @@ dependencies:
   - async
   - attoparsec
   - base >= 4.7 && < 5
+  - binary-analysis
   - bimap
   - binja
   - bv
@@ -92,10 +93,10 @@ library:
   source-dirs:
   - src
   exposed-modules:
+  - Blaze.CallGraph
   - Blaze.Cfg
   - Blaze.Fir
   - Blaze.Graph
-  - Blaze.Graph.Alga
   - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
@@ -107,16 +108,14 @@ library:
   - Blaze.Pretty
   - Blaze.Solver
   - Blaze.Types.Fir
+  - Blaze.Types.Graph
+  - Blaze.Types.Graph.Alga
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
-  - Blaze.Types.Graph
   - Blaze.Types.Solver
   - Blaze.Search
   - Blaze.Function
   - Blaze.Types.Function
-#  - Blaze.Liquid.Checker
-  # scratch
-  # - Blaze.PathScratch
 
 include-dirs:
   - "src"
