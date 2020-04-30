@@ -107,9 +107,10 @@ library:
   - Blaze.Pretty
   - Blaze.Solver
   - Blaze.Types.Fir
+  - Blaze.Types.Graph
+  - Blaze.Types.Graph.Alga
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
-  - Blaze.Types.Graph
   - Blaze.Types.Solver
   - Blaze.Search
   - Blaze.Function

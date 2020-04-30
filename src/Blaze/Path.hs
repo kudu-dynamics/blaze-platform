@@ -28,7 +28,7 @@ import qualified Binja.MLIL                as MLIL
 import           Blaze.Function                         ( createCallSite )
 import qualified Blaze.Function            as Function
 import           Blaze.Graph                            ( constructBasicBlockGraphWithoutBackEdges )
-import           Blaze.Graph.Alga                       ( AlgaGraph )
+import           Blaze.Types.Graph.Alga                 ( AlgaGraph )
 import           Blaze.Types.Function                   ( CallInstruction
                                                         , CallSite
                                                         , toCallInstruction
