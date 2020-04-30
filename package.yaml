@@ -96,7 +96,6 @@ library:
   - Blaze.Cfg
   - Blaze.Fir
   - Blaze.Graph
-  - Blaze.Graph.Alga
   - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
