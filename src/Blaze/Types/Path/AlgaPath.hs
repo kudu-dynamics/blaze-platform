@@ -1,13 +1,12 @@
 module Blaze.Types.Path.AlgaPath (AlgaPath) where
 
-import qualified Prelude as P
-
 import Blaze.Prelude
-import           Blaze.Graph.Alga                  ( AlgaGraph )
-import           Blaze.Types.Path
-import           Blaze.Types.Graph                 ( Graph )
-import qualified Blaze.Types.Path as Path
 import Blaze.Pretty (Pretty, pretty)
+import Blaze.Types.Graph (Graph)
+import Blaze.Types.Graph.Alga (AlgaGraph)
+import Blaze.Types.Path
+import qualified Blaze.Types.Path as Path
+import qualified Prelude as P
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
   deriving (Graph () Node, Path, Ord)
@@ -23,8 +22,9 @@ instance Show AlgaPath where
 instance Pretty AlgaPath where
   pretty p = case uncons (Path.toList p) of
     Nothing -> ""
-    Just (x, xs) -> "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
-      <> f (x:xs)
+    Just (x, xs) ->
+      "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
+        <> f (x : xs)
     where
       f [] = ""
-      f (x:xs) = pretty x <> "\n" <> f xs
+      f (x : xs) = pretty x <> "\n" <> f xs
