@@ -108,14 +108,18 @@ $(makeFieldsNoPrefix ''SymInfo)
 
 type SymExpression = InfoExpression SymInfo
 
+type SymTypeExpression = InfoExpression SymType
+
 type TypedExpression = InfoExpression (PilType T)
 
 data TypeReport = TypeReport
-  { _stmts :: [Statement TypedExpression]
-  , _varTypeMap :: HashMap PilVar (PilType T)
-  , _unresolvedStmts :: [Statement SymExpression]
-  , _unresolvedSyms :: [(Sym, Sym)]
-  , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
+  { _symTypeStmts :: [Statement SymTypeExpression]
+--  , _typedStmts :: [Statement TypedExpression]
+  , _varSymTypeMap :: HashMap PilVar SymType
+--  , _varTypeMap :: HashMap PilVar (PilType T)
+--  , _unresolvedStmts :: [Statement SymExpression]
+  -- , _unresolvedSyms :: [(Sym, Sym)]
+  -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
   } deriving (Eq, Ord, Show, Generic)
 
 $(makeFieldsNoPrefix ''TypeReport)
@@ -220,7 +224,7 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
   Pil.CMP_E x -> integralBinOpReturnsBool x
   Pil.CMP_NE x -> integralBinOpReturnsBool x
 
---   CMP_SGE _ -> boolRet
+  -- CMP_SGE _ -> signedBinOpReturnsBool x
 --   CMP_SGT _ -> boolRet
 --   CMP_SLE _ -> boolRet
 --   CMP_SLT _ -> boolRet
@@ -321,6 +325,16 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
       , (x ^. Pil.left . info . sym, SVar $ x ^. Pil.right . info . sym)
       ]
 
+  -- TODO: need to be able to return attributes,
+  -- specificially that the type is signed, with width unknown.
+    -- signedBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
+    --                          => x -> m [(Sym, SymType)]
+    -- signedBinOpReturnsBool x = return
+    --   [ (r, SType (TInt sz))
+    --   , (x ^. Pil.left . info . sym, SType 
+    --   , (x ^. Pil.left . info . sym, SVar $ x ^. Pil.right . info . sym)
+    --   ]
+
 getAllExprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
                     => SymExpression -> m [(Sym, SymType)]
 getAllExprTypeRules x@(InfoExpression (SymInfo _ thisExprSym) op') = do
@@ -360,19 +374,6 @@ type StmtRule = (Statement Sym, Rule)
 -- symStatementToTypedStatement :: Statement SymExpression -> Statement TypedExpression
 -- symStatementToTypedStatement 
 
-checkStmts :: [Statement Expression] -> Checker TypeReport
-checkStmts stmts = do
-  (symStmts, rules) <- foldM getStmtRules ([], []) stmts
-  let ur = unifyRules rules
-      (symSymMap, symPilTypeMap) = splitSVarsAndSTypes ur
-  -- "ur" should have every Sym on left side, so
-  undefined
-  where
-    getStmtRules :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> Checker ([Statement SymExpression], [(Sym, SymType)])
-    getStmtRules (symStmts, rules) stmt = do
-      (s, rs) <- stmtTypeRules stmt
-      return ( symStmts <> [s] -- maybe should use a Vector
-             , rs <> rules)
 
 -----------------------------
 -- need to preserve type for every Sym
@@ -1007,3 +1008,59 @@ unifyConstraints' (cx:cxs) sols errs =
 
 unifyConstraints :: [Constraint] -> ([Solution], [UnifyError])
 unifyConstraints cxs = unifyConstraints' cxs [] []
+
+
+-------------------------
+
+stmtSolutions :: [Statement Expression]
+              -> Either CheckerError ([Statement SymExpression], [Solution], [UnifyError], CheckerState)
+stmtSolutions stmts = case er of
+  Left err -> Left err
+  Right (symStmts, cxs) -> Right (symStmts, sols, errs, s)
+    where
+      (sols, errs) = unifyConstraints cxs
+  where
+    (er, s) = runChecker_ $ do
+      createVarSymMap stmts
+      (symStmts, rules) <- foldM getStmtRules ([], []) stmts
+      return (symStmts, Constraint <$> rules)
+      
+    getStmtRules :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> Checker ([Statement SymExpression], [(Sym, SymType)])
+    getStmtRules (symStmts, rules) stmt = do
+      (s, rs) <- stmtTypeRules stmt
+      return ( symStmts <> [s] -- maybe should use a Vector
+             , rs <> rules)
+      
+
+checkStmts :: [Statement Expression] -> Either CheckerError TypeReport
+checkStmts = fmap toReport . stmtSolutions
+  where
+    toReport :: ([Statement SymExpression], [Solution], [UnifyError], CheckerState)
+             -> TypeReport
+    toReport (stmts, sols, errs, s) = TypeReport
+      { _symTypeStmts = []
+      , _varSymTypeMap = pilVarMap
+      }
+      where
+        solutionsMap :: HashMap Sym SymType
+        solutionsMap = HashMap.fromList . fmap coerce $ sols
+
+        pilVarMap :: HashMap PilVar SymType
+        pilVarMap = fmap f $ s ^. varSymMap
+          where
+            f :: Sym -> SymType
+            f sv = maybe (SVar sv) identity $ HashMap.lookup sv solutionsMap
+
+-- checkStmts :: [Statement Expression] -> TypeReport
+-- checkStmts stmts = do
+--   (symStmts, rules) <- foldM getStmtRules ([], []) stmts
+--   let ur = unifyRules rules
+--       (symSymMap, symPilTypeMap) = splitSVarsAndSTypes ur
+--   -- "ur" should have every Sym on left side, so
+--   undefined
+--   where
+--     getStmtRules :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> Checker ([Statement SymExpression], [(Sym, SymType)])
+--     getStmtRules (symStmts, rules) stmt = do
+--       (s, rs) <- stmtTypeRules stmt
+--       return ( symStmts <> [s] -- maybe should use a Vector
+--              , rs <> rules)
