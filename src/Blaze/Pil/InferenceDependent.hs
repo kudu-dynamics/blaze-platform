@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Blaze.Pil.Inference2 where
+module Blaze.Pil.InferenceDependent where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Prelude as P
@@ -24,22 +24,23 @@ import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
 
 
-data PilType t = TAny
-               | TStream { elemType :: t }
-               | TArray { len :: Word64, elemType :: t }
+data PilType t = TArray { len :: t, elemType :: t }
                | TChar
-               | TNumber
-               | TInteger
-               | TInt { intWidth :: BitWidth }
-               | TSigned { intWidth :: BitWidth }
-               | TUnsigned { intWidth :: BitWidth } 
-               | TReal
-               | TFloat { bitWidth :: BitWidth }
-               | TBitVector { bitWidth :: BitWidth }
-               | TPointer { bitWidth :: BitWidth, pointeeType :: t }
-               | TRecord (HashMap BitWidth t)
+               | TInt { bitWidth :: t, signed :: t }
+               | TFloat { bitWidth :: t }
+               | TBitVector { bitWidth :: t }
+               | TPointer { bitWidth :: t, pointeeType :: t }
+               | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'
+                                  t -- type
+                         )
                | TBottom
                | TFunction { ret :: t, params :: [t] }
+
+               -- type level values for some dependent-type action
+               | TVBitWidth BitWidth
+               | TVLength Word64
+               | TVBool Bool
+
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
 data T = T (PilType T)
@@ -220,7 +221,9 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
 --   CMP_UGT _ -> boolRet
 --   CMP_ULE _ -> boolRet
 --   CMP_ULT _ -> boolRet
-  Pil.CONST _ -> return [(r, SType $ TInt sz)]
+  Pil.CONST _ -> do
+    unknownSignednessSym <- newSym
+    return [(r, SType $ TInt sz' (SVar unknownSignednessSym))]
 --   CONST_PTR _ -> pointerRet
 --   ConstStr _ -> stringRet
 --   DIVS _ -> intRet
@@ -298,13 +301,15 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
 --   Extract _ -> bitvecRet
   _ -> throwError UnhandledExpr
   where
-
+    sz' = SType $ TVBitWidth sz
+    
     integralBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => x -> m [(Sym, SymType)]
-    integralBinOp x = return
-      [ (r, SType (TInt sz))
-      , (r, SVar $ x ^. Pil.left . info . sym)
-      , (r, SVar $ x ^. Pil.right . info . sym)
-      ]
+    integralBinOp x = do
+      signednessSym <- newSym
+      return [ (r, SType (TInt sz' (SVar signednessSym)))
+             , (r, SVar $ x ^. Pil.left . info . sym)
+             , (r, SVar $ x ^. Pil.right . info . sym)
+             ]
 
     integralBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
                              => x -> m [(Sym, SymType)]
@@ -315,13 +320,15 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
 
   -- TODO: need to be able to return attributes,
   -- specificially that the type is signed, with width unknown.
-    -- signedBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
-    --                          => x -> m [(Sym, SymType)]
-    -- signedBinOpReturnsBool x = return
-    --   [ (r, SType (TInt sz))
-    --   , (x ^. Pil.left . info . sym, SType 
-    --   , (x ^. Pil.left . info . sym, SVar $ x ^. Pil.right . info . sym)
-    --   ]
+    signedBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
+                             => x -> m [(Sym, SymType)]
+    signedBinOpReturnsBool x = do
+      argWidthSym <- newSym
+      arg
+      return [ (r, SType (TInt sz' (SType $ TVBool True)))
+             , (r, SVar $ x ^. Pil.left . info . sym)
+             , (r, SVar $ x ^. Pil.right . info . sym)
+             ]
 
 getAllExprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
                     => SymExpression -> m [(Sym, SymType)]
@@ -454,60 +461,16 @@ instance IsType SymType where
 
 
 -- | True if second is at the same level or below in the type lattice
---   doesn't check recursive types | --
+--   doesn't check recursive types or type sizes/signs | --
 isTypeDescendent :: PilType a -> PilType a -> Bool
-isTypeDescendent TAny _ = True
-isTypeDescendent (TStream _) t = case t of
-  TStream _ -> True
-  TArray _ _ -> True
-  TBottom -> True
-  _ -> False
 isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
   TBottom -> True
   _ -> False
-isTypeDescendent TNumber t = case t of
-  TNumber -> True
-  TInteger -> True
-  TInt _ -> True
-  TSigned _ -> True
-  TUnsigned _ -> True
-  TPointer _ _ -> True
-  TReal -> True
-  TFloat _ -> True
-  TChar -> True
-  TBottom -> True
-  _ -> False
-isTypeDescendent TInteger t = case t of
-  TInteger -> True
-  TInt _ -> True
-  TSigned _ -> True
-  TUnsigned _ -> True
+isTypeDescendent (TInt _ _) t = case t of
+  TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
-  _ -> False
-isTypeDescendent (TInt _) t = case t of
-  TInt _ -> True
-  TSigned _ -> True
-  TUnsigned _ -> True
-  TPointer _ _ -> True
-  TChar -> True
-  TBottom -> True
-  _ -> False
-isTypeDescendent (TUnsigned _) t = case t of
-  TUnsigned _ -> True
-  TPointer _ _ -> True
-  TChar -> True
-  TBottom -> True
-  _ -> False
-isTypeDescendent (TSigned _) t = case t of
-  TSigned _ -> True
-  TBottom -> True
-  _ -> False
-isTypeDescendent TReal t = case t of
-  TReal -> True
-  TFloat _ -> True
   TBottom -> True
   _ -> False
 isTypeDescendent (TFloat _) t = case t of
@@ -538,142 +501,142 @@ isTypeDescendent TBottom t = case t of
   TBottom -> True
   _ -> False
 
-instance IsType a => IsType (PilType a) where
-  getTypeWidth (TArray len' et) = (* (fromIntegral len')) <$> getTypeWidth et
-  getTypeWidth TChar = Just 8
-  getTypeWidth (TInt w) = Just w
-  getTypeWidth (TSigned w) = Just w
-  getTypeWidth (TUnsigned w) = Just w
-  getTypeWidth (TFloat w) = Just w
-  getTypeWidth (TBitVector w) = Just w
-  getTypeWidth (TPointer w _) = Just w
-  getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
-  getTypeWidth _ = Nothing
+-- instance IsType a => IsType (PilType a) where
+--   getTypeWidth (TArray len' et) = (* (fromIntegral len')) <$> getTypeWidth et
+--   getTypeWidth TChar = Just 8
+--   getTypeWidth (TInt w) = Just w
+--   getTypeWidth (TSigned w) = Just w
+--   getTypeWidth (TUnsigned w) = Just w
+--   getTypeWidth (TFloat w) = Just w
+--   getTypeWidth (TBitVector w) = Just w
+--   getTypeWidth (TPointer w _) = Just w
+--   getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
+--   getTypeWidth _ = Nothing
 
-  isSubTypeOf TAny _ = True
-  isSubTypeOf (TStream et1) t = case t of
-    (TStream et2) -> isSubTypeOf et1 et2
-    (TArray _ et2) -> isSubTypeOf et1 et2
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TArray len1 et1) t = case t of
-    -- should an array with a greater length be a subtype of one with lesser?
-    (TArray len2 et2) -> len1 == len2 && isSubTypeOf et1 et2
-    TBottom -> True
-    _ -> False
-  isSubTypeOf TNumber t = case t of
-    TNumber -> True
-    TInteger -> True
-    TInt _ -> True
-    TSigned _ -> True
-    TUnsigned _ -> True
-    TPointer _ _ -> True
-    TReal -> True
-    TFloat _ -> True
-    TChar -> True
-    TBottom -> True
-    _ -> False
-  isSubTypeOf TInteger t = case t of
-    TInteger -> True
-    TInt _ -> True
-    TSigned _ -> True
-    TUnsigned _ -> True
-    TPointer _ _ -> True
-    TChar -> True
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TInt sz1) t = case t of
-    TInt sz2 -> sz1 == sz2
-    TSigned sz2 -> sz1 == sz2
-    TUnsigned sz2 -> sz1 == sz2
-    TPointer sz2 _ -> sz1 == sz2
-    TChar -> sz1 == charSize
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TUnsigned sz1) t = case t of
-    TUnsigned sz2 -> sz1 == sz2
-    TPointer sz2 _ -> sz1 == sz2
-    TChar -> sz1 == charSize
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TSigned sz1) t = case t of
-    TSigned sz2 -> sz1 == sz2
-    TBottom -> True
-    _ -> False
-  isSubTypeOf TReal t = case t of
-    TReal -> True
-    TFloat _ -> True
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TFloat sz1) t = case t of
-    TFloat sz2 -> sz1 == sz2
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TBitVector sz1) t = case t of
-    TBitVector sz2 -> sz1 == sz2
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TPointer sz1 pt1) t = case t of
-    TPointer sz2 pt2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
-    TBottom -> True
-    _ -> False
-  isSubTypeOf TChar t = case t of
-    TChar -> True
-    TBottom -> True
-    _ -> False
-  isSubTypeOf (TFunction ret1 params1) t = case t of
-    (TFunction ret2 params2) ->
-      length params1 == length params2
-      && isSubTypeOf ret1 ret2
-      && all (uncurry isSubTypeOf) (zip params1 params2)
-    TBottom -> True
-    _ -> False
-  -- isSubTypeOf TRecord t = case t of
-  --   TRecord -> TRecord
-  --   TBottom -> True
-  --   _ -> False
-  isSubTypeOf TBottom t = case t of
-    TBottom -> True
-    _ -> False
-
-
--- | given the fields in the hashmap, find the greatest (offset + known width)
---   This doesn't consider padding or error on overlapping fields. | --
-getMinimumRecordWidth :: IsType a => HashMap BitWidth a -> BitWidth
-getMinimumRecordWidth m = max maxOffset maxOffsetPlusKnownWidth
-  where
-    -- for if a field has a big offset, but an unkown width
-    maxOffset = foldr max 0 . HashMap.keys $ m
-    maxOffsetPlusKnownWidth = foldr max 0
-                              . mapMaybe fieldReach
-                              . HashMap.toList $ m
-    fieldReach (off, pt) = (+ off) <$> getTypeWidth pt
+--   isSubTypeOf TAny _ = True
+--   isSubTypeOf (TStream et1) t = case t of
+--     (TStream et2) -> isSubTypeOf et1 et2
+--     (TArray _ et2) -> isSubTypeOf et1 et2
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TArray len1 et1) t = case t of
+--     -- should an array with a greater length be a subtype of one with lesser?
+--     (TArray len2 et2) -> len1 == len2 && isSubTypeOf et1 et2
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf TNumber t = case t of
+--     TNumber -> True
+--     TInteger -> True
+--     TInt _ -> True
+--     TSigned _ -> True
+--     TUnsigned _ -> True
+--     TPointer _ _ -> True
+--     TReal -> True
+--     TFloat _ -> True
+--     TChar -> True
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf TInteger t = case t of
+--     TInteger -> True
+--     TInt _ -> True
+--     TSigned _ -> True
+--     TUnsigned _ -> True
+--     TPointer _ _ -> True
+--     TChar -> True
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TInt sz1) t = case t of
+--     TInt sz2 -> sz1 == sz2
+--     TSigned sz2 -> sz1 == sz2
+--     TUnsigned sz2 -> sz1 == sz2
+--     TPointer sz2 _ -> sz1 == sz2
+--     TChar -> sz1 == charSize
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TUnsigned sz1) t = case t of
+--     TUnsigned sz2 -> sz1 == sz2
+--     TPointer sz2 _ -> sz1 == sz2
+--     TChar -> sz1 == charSize
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TSigned sz1) t = case t of
+--     TSigned sz2 -> sz1 == sz2
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf TReal t = case t of
+--     TReal -> True
+--     TFloat _ -> True
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TFloat sz1) t = case t of
+--     TFloat sz2 -> sz1 == sz2
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TBitVector sz1) t = case t of
+--     TBitVector sz2 -> sz1 == sz2
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TPointer sz1 pt1) t = case t of
+--     TPointer sz2 pt2 -> sz1 == sz2 && isSubTypeOf pt1 pt2
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf TChar t = case t of
+--     TChar -> True
+--     TBottom -> True
+--     _ -> False
+--   isSubTypeOf (TFunction ret1 params1) t = case t of
+--     (TFunction ret2 params2) ->
+--       length params1 == length params2
+--       && isSubTypeOf ret1 ret2
+--       && all (uncurry isSubTypeOf) (zip params1 params2)
+--     TBottom -> True
+--     _ -> False
+--   -- isSubTypeOf TRecord t = case t of
+--   --   TRecord -> TRecord
+--   --   TBottom -> True
+--   --   _ -> False
+--   isSubTypeOf TBottom t = case t of
+--     TBottom -> True
+--     _ -> False
 
 
--- | if field has offset 32 and width 16, its range is (32, 48)
---   if field has offset 32, but unknown width, it's range is (32, 33) | --
-getFieldRange :: IsType a => BitWidth -> a-> (BitWidth, BitWidth)
-getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
-
-getFieldRanges :: IsType a => HashMap BitWidth a -> [(BitWidth, BitWidth)]
-getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
-
-doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
-doFieldRangesOverlap (start, end) (start', end') = 
-  start >= start' && start < end'
-  || end > start' && end <= end'
-  || start' >= start && start' < end
-  || end' > start && end' <= end
-
-secondRangeContainsFirst :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
-secondRangeContainsFirst (start, end) (start', end') =
-  start >= start' && start < end'
-  && end >= start' && end <= end'
+-- -- | given the fields in the hashmap, find the greatest (offset + known width)
+-- --   This doesn't consider padding or error on overlapping fields. | --
+-- getMinimumRecordWidth :: IsType a => HashMap BitWidth a -> BitWidth
+-- getMinimumRecordWidth m = max maxOffset maxOffsetPlusKnownWidth
+--   where
+--     -- for if a field has a big offset, but an unkown width
+--     maxOffset = foldr max 0 . HashMap.keys $ m
+--     maxOffsetPlusKnownWidth = foldr max 0
+--                               . mapMaybe fieldReach
+--                               . HashMap.toList $ m
+--     fieldReach (off, pt) = (+ off) <$> getTypeWidth pt
 
 
-data UnificationDirection = MostSpecific
-                          | MostGeneral
-                          deriving (Eq, Ord, Read, Show, Generic)
+-- -- | if field has offset 32 and width 16, its range is (32, 48)
+-- --   if field has offset 32, but unknown width, it's range is (32, 33) | --
+-- getFieldRange :: IsType a => BitWidth -> a-> (BitWidth, BitWidth)
+-- getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
+
+-- getFieldRanges :: IsType a => HashMap BitWidth a -> [(BitWidth, BitWidth)]
+-- getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
+
+-- doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+-- doFieldRangesOverlap (start, end) (start', end') = 
+--   start >= start' && start < end'
+--   || end > start' && end <= end'
+--   || start' >= start && start' < end
+--   || end' > start && end' <= end
+
+-- secondRangeContainsFirst :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+-- secondRangeContainsFirst (start, end) (start', end') =
+--   start >= start' && start < end'
+--   && end >= start' && end <= end'
+
+
+-- data UnificationDirection = MostSpecific
+--                           | MostGeneral
+--                           deriving (Eq, Ord, Read, Show, Generic)
 
 -- -- | returns Nothing if there is a known conflict.
 -- --   TODO: allow some overlapping fields, like an Int16 in an Int32 | --
@@ -702,21 +665,21 @@ data UnificationDirection = MostSpecific
 
 -- Will need special cases for records, to get most/least specific for each field
 
--- | unifies to the most specific type, i.e. TInt and TInteger => TInt | --
-mostSpecificUnifyType :: IsType a => PilType a -> PilType a -> Maybe (PilType a)
---mostSpecificUnifyType (TRecord m1) (TRecord m2) = do
+-- -- | unifies to the most specific type, i.e. TInt and TInteger => TInt | --
+-- mostSpecificUnifyType :: IsType a => PilType a -> PilType a -> Maybe (PilType a)
+-- --mostSpecificUnifyType (TRecord m1) (TRecord m2) = do
   
-mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
-  (True, _) -> Just b
-  (_, True) -> Just a
-  _ -> Nothing
+-- mostSpecificUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+--   (True, _) -> Just b
+--   (_, True) -> Just a
+--   _ -> Nothing
 
--- | unifies to the most general type, i.e. TInt and TInteger => TInteger | --
-mostGeneralUnifyType :: IsType a => PilType a -> PilType a -> Maybe (PilType a)
-mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
-  (True, _) -> Just a
-  (_, True) -> Just b
-  _ -> Nothing
+-- -- | unifies to the most general type, i.e. TInt and TInteger => TInteger | --
+-- mostGeneralUnifyType :: IsType a => PilType a -> PilType a -> Maybe (PilType a)
+-- mostGeneralUnifyType a b = case (isSubTypeOf a b, isSubTypeOf b a) of
+--   (True, _) -> Just a
+--   (_, True) -> Just b
+--   _ -> Nothing
 
 
 ---------- unification ----------------------
@@ -784,68 +747,62 @@ unifyWithSubsM (SType pt1) (SType pt2) =
     (False, False) -> err
     (False, True) -> unifyWithSubsM (SType pt2) (SType pt1)
     _ -> case pt1 of
-      TAny -> solo pt2
-      (TStream et1) -> case pt2 of
-        (TStream et2) -> SType . TStream <$> unifyWithSubsM et1 et2
-        (TArray len2 et2) -> SType . TArray len2 <$> unifyWithSubsM et1 et2
-        _ -> err
-      (TArray len1 et1) -> case pt2 of
+      TArray len1 et1 -> case pt2 of
         (TArray len2 et2)
-          | len1 == len2 -> SType . TArray len1 <$> unifyWithSubsM et1 et2
+          | len1 == len2 -> stype $ TArray len1 <$> unifyWithSubsM et1 et2
           | otherwise -> err -- array length mismatch
         _ -> err
-      TNumber -> case pt2 of
-        TNumber -> solo TNumber
-        TInteger -> solo TInteger
-        TInt w -> solo $ TInt w
-        TSigned w -> solo $ TSigned w
-        TUnsigned w -> solo $ TUnsigned w
-        TPointer w ptype -> solo $ TPointer w ptype
-        TReal -> solo TReal
-        TFloat w -> solo $ TFloat w
-        TChar -> solo TChar
-        _ -> err
-      TInteger -> case pt2 of
-        TInteger -> solo TInteger
-        TInt w -> solo $ TInt w
-        TSigned w -> solo $ TSigned w
-        TUnsigned w -> solo $ TUnsigned w
-        TPointer w ptype -> solo $ TPointer w ptype
-        TChar -> solo TChar
-        _ -> err
-      TUnsigned w1 -> case pt2 of
-        TUnsigned w2 -> soloW w1 w2 $ TUnsigned w1
-        TPointer w2 ptype -> soloW w1 w2 $ TPointer w2 ptype
-        TChar -> soloW w1 charSize TChar
-        _ -> err
+      TInt w1 sign1 -> case pt2 of
+        TInt w2 sign2 -> stype $ TInt <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+                                      <*> (guardBool =<< unifyWithSubsM sign1 sign2)
+        TPointer w2 pointeeType1 -> do
+          void . unifyWithSubsM sign1 . SType $ TVBool False
+          stype $ flip TPointer pointeeType1 <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+        TChar -> do
+          void . unifyWithSubsM w1 . SType $ TVBitWidth charSize
+          void . unifyWithSubsM sign1 . SType $ TVBool False
+          solo TChar
+
+      -- TUnsigned w1 -> case pt2 of
+      --   TUnsigned w2 -> soloW w1 w2 $ TUnsigned w1
+      --   TPointer w2 ptype -> soloW w1 w2 $ TPointer w2 ptype
+      --   TChar -> soloW w1 charSize TChar
+      --   _ -> err
       TChar -> case pt2 of
         TChar -> solo TChar
         _ -> err
-      TSigned w1 -> case pt2 of
-        TSigned w2 -> soloW w1 w2 $ TSigned w1
-        _ -> err
-      TReal -> case pt2 of
-        TReal -> solo TReal
-        TFloat w -> solo $ TFloat w
-        _ -> err
       TFloat w1 -> case pt2 of
-        TFloat w2 -> soloW w1 w2 $ TFloat w2
+        TFloat w2 -> stype $ TFloat <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
         _ -> err
       TBitVector w1 -> case pt2 of
-        TBitVector w2 -> soloW w1 w2 $ TBitVector w2
+        TBitVector w2 -> stype $ TBitVector <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
-        TPointer w2 pointeeType2
-          | w1 == w2 -> SType . TPointer w2 <$> unifyWithSubsM pointeeType1 pointeeType2
-          | otherwise -> err
+        TPointer w2 pointeeType2 ->
+          stype $ TPointer <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+                           <*> unifyWithSubsM pointeeType1 pointeeType2
         _ -> err
       TFunction ret1 params1 -> err -- don't know how to unify at the moment...
       TRecord m1 -> case pt2 of
-        TRecord m2 -> SType . TRecord <$> mergeRecords m1 m2
+        TRecord m2 -> stype $ TRecord <$> mergeRecords m1 m2
         _ -> err
       _ -> err
   where
+    stype = (SType <$>)
     err = throwError $ IncompatibleTypes pt1 pt2
+
+    guardBitWidth x@(SVar _) = pure x
+    guardBitWidth x@(SType (TVBitWidth _)) = pure x
+    guardBitWidth _ = err -- maybe need better error here
+
+    guardBool x@(SVar _) = pure x
+    guardBool x@(SType (TVBool _)) = pure x
+    guardBool _ = err -- maybe need better error here
+
+    guardLength x@(SVar _) = pure x
+    guardLength x@(SType (TVLength _)) = pure x
+    guardLength _ = err -- maybe need better error here
+    
     solo = pure . SType
     soloW w1 w2 x
       | w1 == w2 = solo x
