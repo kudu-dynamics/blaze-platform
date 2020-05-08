@@ -302,6 +302,8 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
   _ -> throwError UnhandledExpr
   where
     sz' = SType $ TVBitWidth sz
+
+    retBool = SType . TInt sz' . SVar <$> newSym
     
     integralBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => x -> m [(Sym, SymType)]
     integralBinOp x = do
@@ -313,21 +315,27 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
 
     integralBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
                              => x -> m [(Sym, SymType)]
-    integralBinOpReturnsBool x = return
-      [ (r, SType (TInt sz))
-      , (x ^. Pil.left . info . sym, SVar $ x ^. Pil.right . info . sym)
-      ]
+    integralBinOpReturnsBool x = do
+      b <- retBool
+      argWidthSym <- newSym
+      argSignSym <- newSym
+      let argType = SType (TInt (SVar argWidthSym) (SVar argSignSym))
+      return [ ( r, b )
+             , ( x ^. Pil.left . info . sym, argType )
+             , ( x ^. Pil.right . info . sym, argType )
+             ]
 
   -- TODO: need to be able to return attributes,
   -- specificially that the type is signed, with width unknown.
     signedBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
                              => x -> m [(Sym, SymType)]
     signedBinOpReturnsBool x = do
+      b <- retBool
+      retSignSym <- newSym
       argWidthSym <- newSym
-      arg
-      return [ (r, SType (TInt sz' (SType $ TVBool True)))
-             , (r, SVar $ x ^. Pil.left . info . sym)
-             , (r, SVar $ x ^. Pil.right . info . sym)
+      return [ (r, b)
+             , (x ^. Pil.left . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVBool True)))
+             , (x ^. Pil.right . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVBool True)))
              ]
 
 getAllExprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
