@@ -39,7 +39,7 @@ data PilType t = TArray { len :: t, elemType :: t }
                -- type level values for some dependent-type action
                | TVBitWidth BitWidth
                | TVLength Word64
-               | TVBool Bool
+               | TVSign Bool
 
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
@@ -334,8 +334,8 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
       retSignSym <- newSym
       argWidthSym <- newSym
       return [ (r, b)
-             , (x ^. Pil.left . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVBool True)))
-             , (x ^. Pil.right . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVBool True)))
+             , (x ^. Pil.left . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign True)))
+             , (x ^. Pil.right . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign True)))
              ]
 
 getAllExprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
@@ -452,20 +452,24 @@ charSize :: BitWidth
 charSize = 8
 
 class IsType a where
-  isSubTypeOf :: a -> a -> Bool
   getTypeWidth :: a -> Maybe BitWidth
+  getTypeLength :: a -> Maybe Word64
+  getTypeSign :: a -> Maybe Bool
 
 instance IsType T where
-  isSubTypeOf (T pt1) (T pt2) = isSubTypeOf pt1 pt2
   getTypeWidth (T pt) = getTypeWidth pt
+  getTypeLength (T pt) = getTypeLength pt
+  getTypeSign (T pt) = getTypeSign pt
 
 instance IsType SymType where
-  isSubTypeOf (SVar _) _ = True -- ???
-  isSubTypeOf _ (SVar _) = False -- ??? maybe an SVar is like a TAny?
-  isSubTypeOf (SType pt1) (SType pt2) = isSubTypeOf pt1 pt2
-
   getTypeWidth (SVar _) = Nothing
   getTypeWidth (SType pt) = getTypeWidth pt
+
+  getTypeLength (SVar _) = Nothing
+  getTypeLength (SType pt) = getTypeLength pt
+
+  getTypeSign (SVar _) = Nothing
+  getTypeSign (SType pt) = getTypeSign pt
 
 
 -- | True if second is at the same level or below in the type lattice
@@ -508,18 +512,37 @@ isTypeDescendent (TRecord _) t = case t of
 isTypeDescendent TBottom t = case t of
   TBottom -> True
   _ -> False
+isTypeDescendent (TVBitWidth _) t = case t of
+  TVBitWidth _ -> True
+  _ -> False
+isTypeDescendent (TVLength _) t = case t of
+  TVLength _ -> True
+  _ -> False
+isTypeDescendent (TVSign _) t = case t of
+  TVSign _ -> True
+  _ -> False
 
--- instance IsType a => IsType (PilType a) where
---   getTypeWidth (TArray len' et) = (* (fromIntegral len')) <$> getTypeWidth et
---   getTypeWidth TChar = Just 8
---   getTypeWidth (TInt w) = Just w
---   getTypeWidth (TSigned w) = Just w
---   getTypeWidth (TUnsigned w) = Just w
---   getTypeWidth (TFloat w) = Just w
---   getTypeWidth (TBitVector w) = Just w
---   getTypeWidth (TPointer w _) = Just w
---   getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
---   getTypeWidth _ = Nothing
+
+instance IsType a => IsType (PilType a) where
+  getTypeWidth (TArray len' et) = (*) <$> (fromIntegral <$> getTypeLength len')
+                                      <*> getTypeWidth et
+  getTypeWidth (TVBitWidth bw) = Just bw
+  getTypeWidth TChar = Just charSize
+  getTypeWidth (TInt w _) = getTypeWidth w
+  getTypeWidth (TFloat w) = getTypeWidth w
+  getTypeWidth (TBitVector w) = getTypeWidth w
+  getTypeWidth (TPointer w _) = getTypeWidth w
+  getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
+  getTypeWidth _ = Nothing
+
+  getTypeLength (TVLength n) = Just n
+  getTypeLength (TArray len' _) = getTypeLength len'
+  getTypeLength _ = Nothing
+
+  -- maybe should be TVSign instead of TVSign
+  getTypeSign (TVSign b) = Just b
+  getTypeSign (TInt _ s) = getTypeSign s
+  getTypeSign _ = Nothing
 
 --   isSubTypeOf TAny _ = True
 --   isSubTypeOf (TStream et1) t = case t of
@@ -610,31 +633,31 @@ isTypeDescendent TBottom t = case t of
 
 -- -- | given the fields in the hashmap, find the greatest (offset + known width)
 -- --   This doesn't consider padding or error on overlapping fields. | --
--- getMinimumRecordWidth :: IsType a => HashMap BitWidth a -> BitWidth
--- getMinimumRecordWidth m = max maxOffset maxOffsetPlusKnownWidth
---   where
---     -- for if a field has a big offset, but an unkown width
---     maxOffset = foldr max 0 . HashMap.keys $ m
---     maxOffsetPlusKnownWidth = foldr max 0
---                               . mapMaybe fieldReach
---                               . HashMap.toList $ m
---     fieldReach (off, pt) = (+ off) <$> getTypeWidth pt
+getMinimumRecordWidth :: IsType a => HashMap BitWidth a -> BitWidth
+getMinimumRecordWidth m = max maxOffset maxOffsetPlusKnownWidth
+  where
+    -- for if a field has a big offset, but an unkown width
+    maxOffset = foldr max 0 . HashMap.keys $ m
+    maxOffsetPlusKnownWidth = foldr max 0
+                              . mapMaybe fieldReach
+                              . HashMap.toList $ m
+    fieldReach (off, pt) = (+ off) <$> getTypeWidth pt
 
 
--- -- | if field has offset 32 and width 16, its range is (32, 48)
--- --   if field has offset 32, but unknown width, it's range is (32, 33) | --
--- getFieldRange :: IsType a => BitWidth -> a-> (BitWidth, BitWidth)
--- getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
+-- | if field has offset 32 and width 16, its range is (32, 48)
+--   if field has offset 32, but unknown width, it's range is (32, 33) | --
+getFieldRange :: IsType a => BitWidth -> a-> (BitWidth, BitWidth)
+getFieldRange off = (off,) . (+off) . maybe 1 identity . getTypeWidth
 
--- getFieldRanges :: IsType a => HashMap BitWidth a -> [(BitWidth, BitWidth)]
--- getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
+getFieldRanges :: IsType a => HashMap BitWidth a -> [(BitWidth, BitWidth)]
+getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
 
--- doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
--- doFieldRangesOverlap (start, end) (start', end') = 
---   start >= start' && start < end'
---   || end > start' && end <= end'
---   || start' >= start && start' < end
---   || end' > start && end' <= end
+doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
+doFieldRangesOverlap (start, end) (start', end') = 
+  start >= start' && start < end'
+  || end > start' && end <= end'
+  || start' >= start && start' < end
+  || end' > start && end' <= end
 
 -- secondRangeContainsFirst :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
 -- secondRangeContainsFirst (start, end) (start', end') =
@@ -762,14 +785,15 @@ unifyWithSubsM (SType pt1) (SType pt2) =
         _ -> err
       TInt w1 sign1 -> case pt2 of
         TInt w2 sign2 -> stype $ TInt <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
-                                      <*> (guardBool =<< unifyWithSubsM sign1 sign2)
+                                      <*> (guardSign =<< unifyWithSubsM sign1 sign2)
         TPointer w2 pointeeType1 -> do
-          void . unifyWithSubsM sign1 . SType $ TVBool False
+          void . unifyWithSubsM sign1 . SType $ TVSign False
           stype $ flip TPointer pointeeType1 <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
         TChar -> do
           void . unifyWithSubsM w1 . SType $ TVBitWidth charSize
-          void . unifyWithSubsM sign1 . SType $ TVBool False
+          void . unifyWithSubsM sign1 . SType $ TVSign False
           solo TChar
+        _ -> err
 
       -- TUnsigned w1 -> case pt2 of
       --   TUnsigned w2 -> soloW w1 w2 $ TUnsigned w1
@@ -794,6 +818,25 @@ unifyWithSubsM (SType pt1) (SType pt2) =
       TRecord m1 -> case pt2 of
         TRecord m2 -> stype $ TRecord <$> mergeRecords m1 m2
         _ -> err
+
+      TVBitWidth bw1 -> case pt2 of
+        TVBitWidth bw2
+          | bw1 == bw2 -> solo $ TVBitWidth bw1
+          | otherwise -> err
+        _ -> err
+
+      TVLength len1 -> case pt2 of
+        TVLength len2
+          | len1 == len2 -> solo $ TVLength len1
+          | otherwise -> err
+        _ -> err
+
+      TVSign s1 -> case pt2 of
+        TVSign s2
+          | s1 == s2 -> solo $ TVSign s1
+          | otherwise -> err
+        _ -> err
+
       _ -> err
   where
     stype = (SType <$>)
@@ -803,18 +846,15 @@ unifyWithSubsM (SType pt1) (SType pt2) =
     guardBitWidth x@(SType (TVBitWidth _)) = pure x
     guardBitWidth _ = err -- maybe need better error here
 
-    guardBool x@(SVar _) = pure x
-    guardBool x@(SType (TVBool _)) = pure x
-    guardBool _ = err -- maybe need better error here
+    guardSign x@(SVar _) = pure x
+    guardSign x@(SType (TVSign _)) = pure x
+    guardSign _ = err -- maybe need better error here
 
     guardLength x@(SVar _) = pure x
     guardLength x@(SType (TVLength _)) = pure x
     guardLength _ = err -- maybe need better error here
     
     solo = pure . SType
-    soloW w1 w2 x
-      | w1 == w2 = solo x
-      | otherwise = err
     --duo a b = unifyWithSubsM
 
 
