@@ -1,6 +1,6 @@
 module Blaze.Import.CallGraph where
 
-import Blaze.CallGraph (CallSite, Function)
+import Blaze.Types.CallGraph (CallSite, Function)
 import Blaze.Prelude
 
 class CallGraphImporter a where
