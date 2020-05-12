@@ -75,6 +75,9 @@ sub = binOp Pil.SUB Pil.SubOp
 cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
+cmpSgt :: Expression -> Expression -> OperationSize -> Expression
+cmpSgt = binOp Pil.CMP_SGT Pil.CmpSgtOp
+
 sx :: Expression -> OperationSize -> Expression
 sx = unOp Pil.SX Pil.SxOp
 

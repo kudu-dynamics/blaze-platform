@@ -23,7 +23,6 @@ module Blaze.Prelude
   , ByteWidth(ByteWidth)
   , BitWidth(BitWidth)
   , toBitWidth
-  , 
   ) where
 
 --import qualified Prelude as P

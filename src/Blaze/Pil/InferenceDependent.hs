@@ -40,7 +40,6 @@ data PilType t = TArray { len :: t, elemType :: t }
                | TVBitWidth BitWidth
                | TVLength Word64
                | TVSign Bool
-
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
 data T = T (PilType T)
@@ -69,6 +68,11 @@ instance Hashable Sym
 data SymType = SVar Sym
              | SType (PilType SymType)
              deriving (Eq, Ord, Read, Show, Generic)
+
+type XVar = Text
+data ExistentialType = XVar Text
+                     | XType (PilType ExistentialType)
+                     deriving (Eq, Ord, Read, Show, Generic)
 
 data CheckerError = CannotFindPilVarInVarSymMap PilVar
                   | CannotFindSymInSymMap
@@ -197,6 +201,16 @@ toSymExpression (Expression sz op) = do
 --   addSymExpression s sexpr
 --   return s
 
+-- example for signed-greater-than
+-- funcSig ["a", "b"] [(a, 
+
+-- funcSig :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
+--         => [XVar] -> [(XVar, ExistentialType)] -> [XVar]
+--         -> m ( [SymType] -> m [(Sym, SymType)] )
+-- funcSig existentials classBindings funcTypes = undefined
+  
+
+
 exprTypeRules :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
               => SymExpression -> m [(Sym, SymType)]
 exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
@@ -213,10 +227,10 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
   Pil.CMP_E x -> integralBinOpReturnsBool x
   Pil.CMP_NE x -> integralBinOpReturnsBool x
 
-  -- CMP_SGE _ -> signedBinOpReturnsBool x
---   CMP_SGT _ -> boolRet
---   CMP_SLE _ -> boolRet
---   CMP_SLT _ -> boolRet
+  Pil.CMP_SGE x -> signedBinOpReturnsBool x
+  Pil.CMP_SGT x -> signedBinOpReturnsBool x
+  Pil.CMP_SLE x -> signedBinOpReturnsBool x
+  Pil.CMP_SLT x -> signedBinOpReturnsBool x
 --   CMP_UGE _ -> boolRet
 --   CMP_UGT _ -> boolRet
 --   CMP_ULE _ -> boolRet
@@ -331,7 +345,6 @@ exprTypeRules (InfoExpression (SymInfo sz r) op) = case op of
                              => x -> m [(Sym, SymType)]
     signedBinOpReturnsBool x = do
       b <- retBool
-      retSignSym <- newSym
       argWidthSym <- newSym
       return [ (r, b)
              , (x ^. Pil.left . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign True)))
@@ -507,6 +520,7 @@ isTypeDescendent (TFunction _ _) t = case t of
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
+  TPointer _ _ -> True
   TBottom -> True
   _ -> False
 isTypeDescendent TBottom t = case t of
@@ -817,6 +831,7 @@ unifyWithSubsM (SType pt1) (SType pt2) =
       TFunction ret1 params1 -> err -- don't know how to unify at the moment...
       TRecord m1 -> case pt2 of
         TRecord m2 -> stype $ TRecord <$> mergeRecords m1 m2
+        TPointer _ t -> stype . fmap TRecord . mergeRecords m1 . HashMap.fromList $ [(0, t)]
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of
