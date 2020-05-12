@@ -78,14 +78,14 @@ convertSubBlockNode sb = do
   instrs <- liftIO $ do
     mlilFunc <- HFunction.getMLILSSAFunction $ sb ^. Path.func
     mapM (MLIL.instruction mlilFunc) [(sb ^. Path.start) .. (sb ^. Path.end - 1)]
-  flip Pil.convertInstrs instrs <$> use Pil.ctx
+  Pil.convertInstrs instrs
 
 convertConditionNode :: ConditionNode -> Converter [Stmt]
 convertConditionNode n = do
   ctx <- use Pil.ctx
   let expr = Pil.convertExpr ctx $ n ^. Path.condition
   return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
-    if n ^. Path.trueOrFalseBranch 
+    if n ^. Path.trueOrFalseBranch
     then expr
     else Pil.Expression (expr ^. Pil.size) (Pil.NOT . Pil.NotOp $ expr)
 
@@ -97,7 +97,7 @@ convertAbstractCallNode n = do
 getCallDestFunc :: CallSite -> Maybe Function
 getCallDestFunc x = case x ^. Func.callDest of
   (Func.DestFunc f) -> Just f
-  _ -> Nothing  
+  _ -> Nothing
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
@@ -111,9 +111,6 @@ convertRetNode n = do
   retCtxTo . Just $ n ^. Path.callSite . Func.caller
   returningCtx <- getSimpleCtx
   return [ Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx ]
-  
-  
-  
 --   enterNewCtx $ n ^. Path.func
 --   sCtx <- getSimpleCtx
 --   return [Pil.EnterContext . Pil.EnterContextOp $ sCtx]
