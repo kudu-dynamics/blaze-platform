@@ -8,6 +8,7 @@ import Data.BinaryAnalysis (Address, Symbol)
 
 -- TODO: Consider adding information about call sites as edge metadata
 type CallGraph = AlgaGraph () Function
+type CallEdge = (Function, Function)
 
 -- TODO: Consider moving Function to Data.BinaryAnalysis
 data Function
