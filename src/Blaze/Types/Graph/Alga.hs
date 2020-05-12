@@ -40,6 +40,9 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
     { adjacencyMap = G.removeVertex n $ adjacencyMap g
     , edgeMap = Map.filterWithKey (\(n1, n2) _ -> n1 == n || n2 == n) $ edgeMap g
     }
+  addNodes ns g = AlgaGraph
+    { adjacencyMap = G.overlay (adjacencyMap g) $ G.vertices ns
+    , edgeMap = edgeMap g}
   addEdge (e, (n1, n2)) g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
     , edgeMap = Map.insert (n1, n2) e $ edgeMap g
