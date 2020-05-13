@@ -32,6 +32,7 @@ dependencies:
   - casing
   - containers
   - data-binary-ieee754
+  - digits
   - envy
 #  - ghc-typelits-natnormalise
   - lens

@@ -2,13 +2,16 @@
 
 module Blaze.Types.Pil.Analysis where
 
-import Blaze.Prelude
+import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Pil
   ( Expression,
     Stmt,
+    Symbol
   )
 import qualified Blaze.Types.Pil as Pil
-
+import Data.Digits (digits)
+import qualified Data.Text as Text
+import qualified Data.HashSet as HashSet
 
 data MemEquivGroup
   = MemEquivGroup
@@ -72,6 +75,42 @@ newtype ConstLoadExpr
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable ConstLoadExpr
+
+-- this doesn't work quite as expected.
+-- since "a" is zero and "b" is 1, you never get "aa"
+symNumToSymbol :: Word64 -> Symbol
+symNumToSymbol 0 = "a"
+symNumToSymbol n = Text.pack
+  . fmap (chr . (+97) . fromIntegral)
+  . digits 26 $ n
+
+data AnalysisState = AnalysisState
+                   { _analysisStateUsedSyms :: HashSet Symbol
+                   , _analysisStateCurrentSymNum :: Word64
+                   } deriving (Eq, Ord, Read, Show)
+
+$(makeFields ''AnalysisState)
+
+newtype Analysis a = Analysis { _runAnalysis :: State AnalysisState a }
+  deriving ( Functor
+           , Applicative
+           , Monad
+           , MonadState AnalysisState
+           )
+
+newSym :: Analysis Symbol
+newSym = get >>= \st -> do
+  currentSymNum %= (+1)
+  let s = symNumToSymbol $ st ^. currentSymNum
+  bool (pure s) newSym $ HashSet.member s (st ^. usedSyms)
+   
+
+runAnalysis :: HashSet Symbol -> Analysis a -> a
+runAnalysis usedSymbols = flip evalState s . _runAnalysis
+  where
+    s = AnalysisState
+      { _analysisStateUsedSyms = usedSymbols
+      , _analysisStateCurrentSymNum = 0 }
 
 
 $(makeFields ''StoreStmt)
