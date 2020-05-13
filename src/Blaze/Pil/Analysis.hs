@@ -19,7 +19,9 @@ import Blaze.Types.Pil.Analysis
     MemEquivGroup (MemEquivGroup),
     MemStmt (MemLoadStmt, MemStoreStmt),
     MemStorage (MemStorage),
-    StoreStmt (StoreStmt)
+    StoreStmt (StoreStmt),
+    runAnalysis,
+    symbolGenerator
   )
 import qualified Blaze.Types.Pil.Analysis as A
 import qualified Blaze.Pil.Construct as C
@@ -129,6 +131,12 @@ substExpr f = fmap $ substExprInExpr f
 
 substExprs :: (Expression -> Maybe Expression) -> [Stmt] -> [Stmt]
 substExprs f = fmap (substExpr f)
+
+substExprMap :: ExprMap -> Stmt -> Stmt
+substExprMap m = flip (foldr f) $ HMap.toList m
+  where
+    f :: (Expression, Expression) -> Stmt -> Stmt
+    f (a, b) s = substExpr (\x -> if x == a then Just b else Nothing) s
 
 -----------------
 
@@ -452,19 +460,6 @@ resolveMemGroups groups stmts = toList result
     f :: (MemEquivGroup, Symbol) -> Seq Stmt -> Seq Stmt
     f (group, symbol) = resolveMemGroup group symbol
 
--- TODO: Make this better.
--- |Generate variable names.
-symbolGenerator :: HashSet Symbol -> [Symbol]
-symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
-  where
-    letters :: String
-    letters = ['a'..'z']
-
-    names :: [Symbol]
-    names = [Text.pack [a, b, c] | a <- letters, 
-                                   b <- letters,
-                                   c <- letters]
-
 replaceStore :: StoreStmt -> Symbol -> Seq Stmt -> Seq Stmt
 replaceStore store symbol = update storeIdx varDef
   where
@@ -493,7 +488,9 @@ propInfoForMemGroup mg = do
   s <- A.newSym
   let pv = C.pilVar s
       storageExpr = mg ^. A.storage . A.start
-      defStmt' = Pil.Def (Pil.DefOp pv storageExpr)
+      storageWidth = fromIntegral . (`div` 8) $ mg ^. A.storage . A.width
+      loadExpr = C.load storageExpr storageWidth
+      defStmt' = Pil.Def (Pil.DefOp pv loadExpr)
       pvExpr = C.var s $ storageExpr ^. Pil.size
   return $ PropInfo
     { substMap = mkSubstMap pvExpr $ mg ^. A.loads
@@ -510,9 +507,12 @@ propInfoForMemGroup mg = do
             g Nothing = Just $ HMap.fromList [(lexpr, pvExpr)]
             g (Just m) = Just $ HMap.insert lexpr pvExpr m
 
+-- | Creates defs for each memgroup load
 copyPropMem_ :: [Stmt] -> Analysis [Stmt]
 copyPropMem_ xs = do
-  propInfos <- mapM propInfoForMemGroup memEquivGroups
+  propInfos <- mapM propInfoForMemGroup
+               . filter (not . null . view A.loads)
+               $ memEquivGroups
   let defsAtBeginning :: [Stmt]
       defsAtBeginning = mapMaybe (\pi -> maybe (Just $ defStmt pi)
                                          (const Nothing)
@@ -528,46 +528,27 @@ copyPropMem_ xs = do
       allSubstsPerIndex :: HashMap Index ExprMap
       allSubstsPerIndex = foldr (HMap.unionWith HMap.union) HMap.empty
                           . fmap substMap $ propInfos
-  undefined
-  where
-    indexedStmts = indexed xs
 
+      substAndInsertDefs :: (Index, Stmt) -> [Stmt] -> [Stmt]
+      substAndInsertDefs (ix, stmt) ys = newStmt:newDefs <> ys
+        where
+          newDefs = maybe [] HSet.toList $ HMap.lookup ix defAfterMap
+          newStmt = maybe stmt (flip substExprMap stmt)
+                    $ HMap.lookup ix allSubstsPerIndex
+  
+  return $ defsAtBeginning <> foldr substAndInsertDefs [] (indexed xs)
+  where
     memEquivGroups :: [MemEquivGroup]
     memEquivGroups = findMemEquivGroups xs
-    
-
-    propResult = foldr f (CopyPropState HMap.empty Set.empty) xs
-
-      where
-        f _stmt propState =
-          propState
 
 
 -- |Copy propagation via memory. Finds and simplifies variables that are copied
 -- through symbolic memory addresses that are identified to be equivalent.
 -- This is done by constructing store-load chains similar to def-use chains.
 copyPropMem :: [Stmt] -> [Stmt]
-copyPropMem xs = undefined
-  --substExprs (flip HMap.lookup $ _mapping propResult) xs
+copyPropMem xs = runAnalysis (copyPropMem_ xs) usedSyms
   where
-    names :: [Symbol]
-    names = symbolGenerator (HSet.map (^. Pil.symbol) $ getAllVars xs)
-
-    -- one pil var for every mem group
-    -- memGroupVars :: [Symbol] -> [MemEquivGroup] -> 
-    -- memGroupVars
-
-    
-    
-    memEquivGroups :: [MemEquivGroup]
-    memEquivGroups = findMemEquivGroups xs
-    propResult = foldr f (CopyPropState HMap.empty Set.empty) xs
-    -- isDefLoad :: Stmt -> Bool
-    -- isDefLoad
-
-      where
-        f _stmt propState =
-          propState
+    usedSyms = (HSet.map (^. Pil.symbol) $ getAllVars xs)
 
 simplify :: [Stmt] -> [Stmt]
 simplify = copyProp . constantProp

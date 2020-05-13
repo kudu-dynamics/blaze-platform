@@ -11,7 +11,7 @@ import Blaze.Types.Pil
 import qualified Blaze.Types.Pil as Pil
 import Data.Digits (digits)
 import qualified Data.Text as Text
-import qualified Data.HashSet as HashSet
+import qualified Data.HashSet as HSet
 
 data MemEquivGroup
   = MemEquivGroup
@@ -84,9 +84,21 @@ symNumToSymbol n = Text.pack
   . fmap (chr . (+97) . fromIntegral)
   . digits 26 $ n
 
+-- TODO: Make this better.
+-- |Generate variable names.
+symbolGenerator :: HashSet Symbol -> [Symbol]
+symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
+  where
+    letters :: String
+    letters = ['a'..'z']
+
+    names :: [Symbol]
+    names = [Text.pack [a, b, c] | a <- letters, 
+                                   b <- letters,
+                                   c <- letters]
+
 data AnalysisState = AnalysisState
-                   { _analysisStateUsedSyms :: HashSet Symbol
-                   , _analysisStateCurrentSymNum :: Word64
+                   { _analysisStateNewSymbols :: [Symbol]
                    } deriving (Eq, Ord, Read, Show)
 
 $(makeFields ''AnalysisState)
@@ -99,18 +111,18 @@ newtype Analysis a = Analysis { _runAnalysis :: State AnalysisState a }
            )
 
 newSym :: Analysis Symbol
-newSym = get >>= \st -> do
-  currentSymNum %= (+1)
-  let s = symNumToSymbol $ st ^. currentSymNum
-  bool (pure s) newSym $ HashSet.member s (st ^. usedSyms)
-   
+newSym = do
+  slist <- use newSymbols
+  newSymbols %= drop 1
+  return . maybe "RAN_OUT_OF_SYMBOLS" identity . headMay $ slist
+  
 
-runAnalysis :: HashSet Symbol -> Analysis a -> a
-runAnalysis usedSymbols = flip evalState s . _runAnalysis
+runAnalysis :: Analysis a -> HashSet Symbol -> a
+runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
   where
     s = AnalysisState
-      { _analysisStateUsedSyms = usedSymbols
-      , _analysisStateCurrentSymNum = 0 }
+      { _analysisStateNewSymbols = symbolGenerator usedSymbols
+      }
 
 
 $(makeFields ''StoreStmt)
