@@ -340,8 +340,8 @@ mkStoreStmt idx s = case s of
         storage = mkMemStorage (storeOp ^. Pil.addr) (sizeToWidth $ storeOp ^. (Pil.value . Pil.size))
   _ -> Nothing
 
-mkLoadStmt :: Index -> Stmt -> Maybe LoadStmt
-mkLoadStmt idx s = case s of
+mkDefLoadStmt :: Index -> Stmt -> Maybe LoadStmt
+mkDefLoadStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
     Just $ LoadStmt s (LoadExpr expr) storage idx
       where
@@ -349,7 +349,7 @@ mkLoadStmt idx s = case s of
   _ -> Nothing
 
 -- Create a MemStmt
-mkMemStmt :: Index -> Stmt -> Maybe MemStmt
+mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
 mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
     MemLoadStmt <$> mkLoadStmt idx s
@@ -359,14 +359,16 @@ mkMemStmt idx s = case s of
 -- |Finds memory statements. Update this function if the definition of memory
 -- statements changes.
 findMemStmts :: [Stmt] -> [MemStmt]
-findMemStmts = mapMaybe (uncurry mkMemStmt) . indexed
+findMemStmts = concat . mapMaybe (uncurry mkMemStmt) . indexed
 
-mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [LoadStmt] -> MemEquivGroup
-mkMemEquivGroup storeStmt storage loadStmts = 
+mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [LoadStmt] -> [LoadStmt] -> MemEquivGroup
+mkMemEquivGroup storeStmt storage loadStmts nestedLoadStmts = 
   MemEquivGroup
     { _memEquivGroupStore = storeStmt,
       _memEquivGroupStorage = storage,
-      _memEquivGroupLoads = loadStmts}
+      _memEquivGroupLoads = loadStmts,
+      _memEquivGroupNestedLoads = nestedLoadStmts
+    }
 
 mkMemStorage :: MemAddr -> BitWidth -> MemStorage
 mkMemStorage addr width = 

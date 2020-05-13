@@ -6,7 +6,8 @@ import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Pil
   ( Expression,
     Stmt,
-    Symbol
+    Symbol,
+    PilVar
   )
 import qualified Blaze.Types.Pil as Pil
 import Data.Digits (digits)
@@ -20,7 +21,12 @@ data MemEquivGroup
         -- There may be multiple LoadStmt instances for a single
         -- statement if that statement includes multiple matching 
         -- load expressions.
+        -- def x [load]
         _memEquivGroupLoads :: [LoadStmt]
+
+        -- any stmt with nested load
+        -- if there are n loads in a single stmt, there will be n LoadStmts
+--        _memEquivGroupNestedLoads :: [LoadStmt]
       } deriving (Eq, Ord, Show, Generic)
 instance Hashable MemEquivGroup
 
@@ -55,8 +61,16 @@ data LoadStmt
       } deriving (Eq, Ord, Show, Generic)
 instance Hashable LoadStmt
 
+data DefLoadStmt
+  = DefLoadStmt
+    { _defLoadStmtVar :: PilVar,
+      _defLoadStmtLoadStmt :: LoadStmt
+    } deriving (Eq, Ord, Show, Generic)
+instance Hashable DefLoadStmt
+
 data MemStmt
   = MemStoreStmt StoreStmt
+  | MemDefLoadStmt DefLoadStmt
   | MemLoadStmt LoadStmt
   deriving (Eq, Ord, Show, Generic)
 instance Hashable MemStmt
