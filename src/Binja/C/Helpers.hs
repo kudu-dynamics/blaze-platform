@@ -41,6 +41,11 @@ getAllArchitectureSemanticFlagGroups arch =
   getAllArchitectureSemanticFlagGroups' arch >>=
   manifestArrayWithFree (pure . fromIntegral) (lowLevelILFreeOperandList . castPtr)
 
+getSectionsAt :: BNBinaryView -> Address -> IO [BNSection]
+getSectionsAt bv addr =
+  getSectionsAt' bv addr
+  >>= manifestArrayWithFreeSize (newSectionReference <=< noFinPtrConv) freeSectionList
+
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =
   getFunctionBasicBlockList' fn
