@@ -313,3 +313,14 @@ instance Storable BNReferenceSource where
 
 {#fun unsafe BNFreeCodeReferences as freeCodeReferences {castPtr `List BNReferenceSource', `Word64'} -> `()' #}
 
+---- Sections
+
+{#fun unsafe BNGetSectionsAt as getSectionsAt' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List (Ptr BNSection)' ptrListOut #}
+
+{#fun unsafe BNSectionGetType as getSectionType {withPtr* `BNSection'} -> `String' #}
+
+{#fun unsafe BNFreeSectionList as freeSectionList {ptrListIn `List (Ptr BNSection)', `Word64'} -> `()' #}
+
+{#fun unsafe BNFreeSection as freeSection {withPtr* `BNSection'} -> `()' #}
+
+{#fun unsafe BNNewSectionReference as newSectionReference {withPtr* `BNSection'} -> `BNSection' safePtr* #}
