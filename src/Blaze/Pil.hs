@@ -12,6 +12,7 @@ import Blaze.Types.Function (CallInstruction)
 import qualified Blaze.Types.Function as Function
 import Blaze.Types.Pil
   ( CallDest,
+    CallOp (CallOp),
     Ctx,
     DefOp (DefOp),
     ExprOp,
@@ -19,7 +20,8 @@ import Blaze.Types.Pil
     PilVar (PilVar),
     SSAVariableRef (SSAVariableRef),
     Statement
-      ( Def,
+      ( Call,
+        Def,
         Nop,
         Store,
         Undef,
@@ -31,10 +33,12 @@ import Blaze.Types.Pil
     Symbol,
     UnimplMemOp (UnimplMemOp),
   )
+
 import qualified Blaze.Types.Pil as Pil
 import Data.BinaryAnalysis (Address (Address))
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
+
 
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
@@ -126,7 +130,7 @@ convertExprOp ctx mop =
     (MLIL.VAR_ALIASED x) -> Pil.VAR_ALIASED
       . Pil.VarAliasedOp . convertToPilVar ctx $ x ^. Pil.src
     (MLIL.VAR_ALIASED_FIELD x) -> Pil.VAR_ALIASED_FIELD
-      $ Pil.VarAliasedFieldOp (convertToPilVar ctx $ x ^. MLIL.src) (x ^. MLIL.offset)      
+      $ Pil.VarAliasedFieldOp (convertToPilVar ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
 --    (MLIL.VAR_FIELD x) -> VarFieldOp expr)
     (MLIL.VAR_PHI x) -> Pil.VAR_PHI
       $ Pil.VarPhiOp (convertToPilVar ctx $ x ^. MLIL.dest) (fmap (convertToPilVar ctx) $ x ^. MLIL.src)
@@ -161,85 +165,94 @@ addConstToExpr expr@(Expression size _) n = Expression size addOp
     addOp = Pil.ADD $ Pil.AddOp expr const'
     const' = Expression size . Pil.CONST $ Pil.ConstOp n
 
-convertInstrOp :: Ctx -> MLIL.Operation (MLIL.Expression t) -> [Statement Expression]
-convertInstrOp ctx op' = maybe [] identity $ case op' of
-  (MLIL.CALL_OUTPUT_SSA _) -> Nothing
-
-  (MLIL.CALL_PARAM_SSA _) -> Nothing
-
-  -- TODO
-  -- output field points to CallOutputSSA
-  (MLIL.CALL_SSA _) -> Nothing
-
-  (MLIL.CALL_UNTYPED_SSA _) -> Nothing
-
-  (MLIL.SET_VAR_SSA x) -> do
-    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
-    return [Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.dest) expr]
-
-  -- TODO: Need some way to merge with previous version and include offset
-  (MLIL.SET_VAR_SSA_FIELD x) -> do
-    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
-    return [Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.prev . MLIL.dest) expr]
-
-  (MLIL.SET_VAR_SPLIT_SSA x) -> do
-    expr@(Expression size _) <- Just $ convertExpr ctx (x ^. MLIL.src)
-    let halfSize = size `div` 2
+convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
+convertInstrOp op' = do
+  ctx <- use Pil.ctx
+  case op' of
+    (MLIL.CALL_OUTPUT_SSA _) -> return []
+    (MLIL.CALL_PARAM_SSA _) -> return []
+    -- TODO
+    -- output field points to CallOutputSSA
+    (MLIL.CALL_SSA _) -> return []
+    (MLIL.CALL_UNTYPED_SSA _) -> return []
+    (MLIL.SET_VAR_SSA x) -> do
+      (Pil.ctx . Pil.definedVars) %= HSet.insert pvar
+      return [Def $ DefOp pvar expr]
+      where
+        pvar = convertToPilVar ctx $ x ^. MLIL.dest
+        expr = convertExpr ctx (x ^. MLIL.src)
+    -- TODO: Need some way to merge with previous version and include offset
+    (MLIL.SET_VAR_SSA_FIELD x) -> do
+      (Pil.ctx . Pil.definedVars) %= HSet.insert pvar
+      return [Def $ DefOp pvar expr]
+      where
+        pvar = convertToPilVar ctx $ x ^. MLIL.prev . MLIL.dest
+        expr = convertExpr ctx (x ^. MLIL.src)
+    (MLIL.SET_VAR_SPLIT_SSA x) -> do
+      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarHigh
+      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarLow
+      return
+        [ Def $ DefOp pvarHigh highExpr,
+          Def $ DefOp pvarLow lowExpr
+        ]
+      where
+        pvarHigh = convertToPilVar ctx $ x ^. MLIL.high
+        pvarLow = convertToPilVar ctx $ x ^. MLIL.low
+        expr@(Expression size _) = convertExpr ctx (x ^. MLIL.src)
+        halfSize = size `div` 2
         highExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr (fromIntegral halfSize)
         lowExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr 0
-    return [ Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.high) highExpr
-           , Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.low) lowExpr
-           ]
+    -- TODO: Need to use prev.src?
+    (MLIL.SET_VAR_ALIASED x) -> do
+      (Pil.ctx . Pil.definedVars) %= HSet.insert pvar
+      return [Def $ DefOp pvar expr]
+      where
+        pvar = convertToPilVar ctx $ x ^. MLIL.prev . MLIL.dest
+        expr = convertExpr ctx (x ^. MLIL.src)
+    -- TODO: Need to find an example
+    -- not in Dive-Logger
+    (MLIL.SET_VAR_ALIASED_FIELD _) -> pure []
+    (MLIL.STORE_SSA x) -> return [Store $ StoreOp exprDest exprSrc]
+      where
+        exprSrc = convertExpr ctx (x ^. MLIL.src)
+        exprDest = convertExpr ctx (x ^. MLIL.dest)
+    (MLIL.STORE_STRUCT_SSA x) -> return [Store $ StoreOp exprDest exprSrc]
+      where
+        exprDest = addConstToExpr (convertExpr ctx (x ^. MLIL.dest)) (x ^. MLIL.offset)
+        exprSrc = convertExpr ctx (x ^. MLIL.src)
+    (MLIL.VAR_PHI x) ->
+      case latestVar of
+        Nothing -> return []
+        Just lVar -> do
+          (Pil.ctx . Pil.definedVars) %= HSet.insert lVar
+          return
+            [ Def . DefOp pvar $
+                Expression
+                  (typeWidthToOperationSize $ vt ^. Variable.width)
+                  (Pil.VAR $ Pil.VarOp lVar)
+            ]
+      where
+        pvar = convertToPilVar ctx $ x ^. MLIL.dest
+        latestVar =
+          headMay
+            . filter (flip HSet.member $ ctx ^. Pil.definedVars)
+            . fmap (convertToPilVar ctx)
+            . sortOn ((* (-1)) . view MLIL.version)
+            $ x ^. MLIL.src
+        vt = fromJust $ x ^. MLIL.dest . MLIL.var . Variable.varType
+    MLIL.UNIMPL -> return [UnimplInstr]
+    (MLIL.UNIMPL_MEM x) -> return [UnimplMem $ UnimplMemOp expr]
+      where
+        expr = convertExpr ctx (x ^. MLIL.src)
+    MLIL.UNDEF -> return [Undef]
+    MLIL.NOP -> return [Nop]
+    _ -> return []
 
-  -- TODO: Need to use prev.src?
-  (MLIL.SET_VAR_ALIASED x) -> do
-    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
-    return [Def $ DefOp (convertToPilVar ctx $ x ^. MLIL.prev . MLIL.dest) expr]
+convertInstr :: MLIL.Instruction t -> Pil.Converter [Stmt]
+convertInstr = convertInstrOp . view MLIL.op
 
-  -- TODO: Need to find an example
-  -- not in Dive-Logger
-  (MLIL.SET_VAR_ALIASED_FIELD _) -> pure []
-
-  (MLIL.STORE_SSA x) -> do
-    exprSrc <- Just $ convertExpr ctx (x ^. MLIL.src)
-    exprDest <- Just $ convertExpr ctx (x ^. MLIL.dest)
-    return [Store $ StoreOp exprDest exprSrc]
-
-  (MLIL.STORE_STRUCT_SSA x) -> Just [Store $ StoreOp exprDest exprSrc]
-    where
-      exprDest = addConstToExpr (convertExpr ctx (x ^. MLIL.dest)) (x ^. MLIL.offset)
-      exprSrc = convertExpr ctx (x ^. MLIL.src)
-
-  (MLIL.VAR_PHI x) -> do
-    latestVar <- headMay
-                 . filter (flip HSet.member $ ctx ^. Pil.definedVars)
-                 . fmap (convertToPilVar ctx)
-                 . sortOn ((*(-1)) . view MLIL.version)
-                 $ x ^. MLIL.src
-    vt <- x ^. MLIL.dest . MLIL.var . Variable.varType
-    return [Def . DefOp (convertToPilVar ctx $ x ^. MLIL.dest)
-             $ Expression (typeWidthToOperationSize $ vt ^. Variable.width)
-             (Pil.VAR $ Pil.VarOp latestVar)
-           ]
-
-  MLIL.UNIMPL -> Just [UnimplInstr]
-
-  (MLIL.UNIMPL_MEM x) -> do
-    expr <- Just $ convertExpr ctx (x ^. MLIL.src)
-    return [UnimplMem $ UnimplMemOp expr]
-
-  MLIL.UNDEF -> Just [Undef]
-
-  MLIL.NOP -> Just [Nop]
-
-  _ -> Nothing
-
-
-convertInstr :: Ctx -> MLIL.Instruction t -> [Stmt]
-convertInstr ctx = convertInstrOp ctx . view MLIL.op
-
-convertInstrs :: Ctx -> [MLIL.Instruction t] -> [Stmt]
-convertInstrs ctx = concatMap $ convertInstr ctx
+convertInstrs :: [MLIL.Instruction t] -> Pil.Converter [Stmt]
+convertInstrs = concatMapM convertInstr
 
 getCallDestFunctionName :: Function -> CallDest expr -> IO (Maybe Text)
 getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
@@ -249,20 +262,23 @@ getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
   return $ view Function.name <$> mfn
 getCallDestFunctionName _ _ = return Nothing
 
--- TODO: Does this fail on system calls?
 convertCallInstruction :: Ctx -> CallInstruction -> IO [Stmt]
-convertCallInstruction ctx c = case cond of
-  Nothing -> return []
-  Just ([], _) -> return []
-  Just ((dest:_), target) -> do
-    mname <- maybe (return Nothing) 
-                   (`getCallDestFunctionName` target)
-                   (ctx ^. Pil.func)
-    let callExpr = Expression (c ^. Function.size)
-          . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx)
-          $ c ^. Function.params
-    return [Def $ DefOp (convertToPilVar ctx dest) callExpr]
-  where
-    cond = (,) <$> (c ^. Function.outputDest)
-               <*> (Pil.getCallDest <$>
-                    (c ^. Function.dest >>= Just . convertExpr ctx))
+convertCallInstruction ctx c = do
+  let target = fromJust (Pil.getCallDest <$> (c ^. Function.dest >>= Just . convertExpr ctx))
+  let params = fmap (convertExpr ctx) $ c ^. Function.params
+  mname <-
+    maybe
+      (return Nothing)
+      (`getCallDestFunctionName` target)
+      (ctx ^. Pil.func)
+  let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
+  return $ case c ^. Function.outputDest of
+    Nothing -> []
+    Just [] -> [Call $ CallOp target mname params]
+    Just (dest : _) -> [Def $ DefOp (convertToPilVar ctx dest) callExpr]
+
+isDirectCall :: CallOp Expression -> Bool
+isDirectCall c = case c ^. Pil.dest of
+  (Pil.CallConstPtr _) -> True
+  _ -> False
+
