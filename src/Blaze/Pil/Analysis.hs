@@ -340,6 +340,7 @@ mkStoreStmt idx s = case s of
         storage = mkMemStorage (storeOp ^. Pil.addr) (sizeToWidth $ storeOp ^. (Pil.value . Pil.size))
   _ -> Nothing
 
+-- |A Def Load statement is "def x = [y]" (load is not nested)
 mkDefLoadStmt :: Index -> Stmt -> Maybe LoadStmt
 mkDefLoadStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
@@ -347,6 +348,18 @@ mkDefLoadStmt idx s = case s of
       where
         storage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
   _ -> Nothing
+
+-- |LoadStmt for each load in Stmt, including nested loads
+mkLoadStmts :: Index -> Stmt -> [LoadStmt]
+mkLoadStmts ix s = toLoadStmt <$> findLoads s
+  where
+    toLoadStmt :: LoadExpr -> LoadStmt
+    toLoadStmt lx = LoadStmt s lx str ix
+      where
+        x = lx ^. A.expr
+        str = MemStorage (x ^. Pil.src) (x ^. Pil.width)
+          
+
 
 -- Create a MemStmt
 mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
