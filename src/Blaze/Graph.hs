@@ -1,4 +1,10 @@
-module Blaze.Graph where
+module Blaze.Graph
+  ( isBackEdge,
+    collapseGotoBlocks,
+    constructBasicBlockGraphWithoutBackEdges,
+    constructBasicBlockGraph
+  )
+where
 
 import Binja.BasicBlock
   ( BasicBlock,
@@ -6,31 +12,17 @@ import Binja.BasicBlock
     BlockEdge,
   )
 import qualified Binja.BasicBlock as BB
-import Binja.C.Enums
-  ( BNBranchType
-      ( FalseBranch,
-        TrueBranch
-      ),
-  )
+
 import Binja.Core (InstructionIndex)
 import Binja.Function (MLILSSAFunction)
-import qualified Binja.Function as HFunction
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Path (ConditionNode (ConditionNode))
 import qualified Data.Set as Set
 
 
 type F = MLILSSAFunction
-
-naiveLCS :: String -> String -> Int
-naiveLCS [] _ = 0
-naiveLCS _ [] = 0
-naiveLCS (x:xs) (y:ys)
-  | x == y    = 1 + naiveLCS xs ys
-  | otherwise = max (naiveLCS (x:xs) ys) (naiveLCS xs (y:ys))
 
 isGotoInstr :: F -> InstructionIndex F -> IO Bool
 isGotoInstr fn ix = do
@@ -112,18 +104,3 @@ constructBasicBlockGraphWithoutBackEdges fn = do
     cleanSuccs bb =
       (bb,) . mapMaybe (\e -> (e,) <$> (e ^. BB.target))
         <$> BB.getOutgoingEdges bb
-
-getConditionNode :: BlockEdge F -> IO (Maybe ConditionNode)
-getConditionNode edge = case edge ^. BB.branchType of
-  TrueBranch -> f True
-  FalseBranch -> f False
-  _ -> return Nothing
-  where
-    bb = edge ^. BB.src
-    fn = bb ^. BB.func . HFunction.func
-    f isTrueBranch = do
-      endInstr <- MLIL.instruction (bb ^. BB.func) (bb ^. BB.end - 1)
-      case endInstr ^. MLIL.op of
-        MLIL.IF op -> Just . ConditionNode fn isTrueBranch (op ^. MLIL.condition) <$> randomIO
-        _ -> return Nothing
-

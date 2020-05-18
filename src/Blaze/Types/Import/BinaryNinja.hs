@@ -2,6 +2,7 @@
 
 module Blaze.Types.Import.BinaryNinja where
 
+import qualified Binja.BasicBlock as BNBb
 import qualified Binja.Core as Binja
 import Binja.Core (BNBinaryView, BNSymbol)
 import qualified Binja.Function as BNFunc
@@ -11,10 +12,25 @@ import qualified Binja.View
 import Blaze.Function (CallInstruction, toCallInstruction)
 import qualified Blaze.Function as Func
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
+import Blaze.Import.Cfg (CfgImporter (getCfg))
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.CallGraph as CG
-import Blaze.Types.CallGraph (CallSite (CallSite, _callSiteAddress, _callSiteCaller, _callSiteDest))
+import Blaze.Types.CallGraph
+  ( CallSite
+      ( CallSite,
+        _callSiteAddress,
+        _callSiteCaller,
+        _callSiteDest
+      ),
+  )
+import Blaze.Types.Cfg
+  ( CfEdge (CfEdge),
+    CfNode (BasicBlock, Call),
+    Cfg (Cfg),
+    ControlFlowGraph,
+  )
 import Control.Monad.Extra (mapMaybeM)
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.BinaryAnalysis (Address, Symbol (Symbol, _symbolName, _symbolRawName))
 import Data.Set as Set
 import qualified Data.Text as Text
@@ -118,3 +134,44 @@ instance CallGraphImporter BNImporter where
         --       Right now we're fmap'ing a tuple constructor over them. This seems excessive.
         let callSiteArgs = catMaybes $ uncurry getMaybeCallerAndInstr <$> zip callers mCallInstrs
         mapMaybeM (uncurry $ createCallSite bv) callSiteArgs
+
+
+---- CFG
+
+buildCfg :: [BNBb.BasicBlock BNFunc.MLILSSAFunction] ->
+            [BNBb.BlockEdge BNFunc.MLILSSAFunction] ->
+            Cfg BNImporter
+buildCfg bnNodes bnEdges = 
+  _
+    where
+      cfNodes :: [CfNode]
+      cfNodes = _
+      cfEdges :: [CfEdge]
+      cfEdges = _
+
+instance CfgImporter BNImporter where
+  getCfg imp func = do
+    let bv = imp ^. binaryView
+    mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. CG.address)
+    case mBnFunc of
+      Nothing -> 
+        return Nothing
+      (Just bnFunc) -> do
+        bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
+        bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
+        bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
+        return $ Just (buildCfg bnMlilBbs bnMlilBbEdges)
+  -- getCfg imp func = do
+  --   let bv = imp ^. binaryView
+  --   runMaybeT $ do
+  --     bnFunc <- MaybeT $ BNFunc.getFunctionStartingAt bv Nothing (func ^. CG.address)
+  --     bnMlilFunc <- liftIO $ BNFunc.getMLILSSAFunction bnFunc
+  --     bnMlilBbs <- liftIO $ BNBb.getBasicBlocks bnMlilFunc
+  --     bnMlilBbEdges <- liftIO $ concatMapM BNBb.getOutgoingEdges bnMlilBbs
+  --     return $ buildCfg bnMlilBbs bnMlilBbEdges
+  --   where
+  --     buildCfg ::
+  --       [BNBb.BasicBlock BNFunc.MLILSSAFunction] ->
+  --       [BNBb.BlockEdge BNFunc.MLILSSAFunction] ->
+  --       Cfg BNImporter
+  --     buildCfg = undefined
