@@ -55,6 +55,7 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
+  - bytestring
 
 
 default-extensions:
