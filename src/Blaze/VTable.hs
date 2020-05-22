@@ -5,7 +5,7 @@ import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, getViewAddre
 import qualified Binja.Function as BF
 import Binja.Function (getFunctionStartingAt)
 import qualified Binja.View as BV
-import Binja.View (getDefaultReader, getStringAtAddress)
+import Binja.View (getDefaultReader)
 import Blaze.CallGraph (Function)
 import Blaze.Prelude
 import Blaze.Types.Import.BinaryNinja (convertFunction)
@@ -18,7 +18,6 @@ import Blaze.Types.VTable
   )
 import Data.BinaryAnalysis (Address (Address))
 import Data.Text (pack)
-import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString as BS
 
 getTopOffset_ :: Address -> VTable.Ctx (Maybe Word64)
@@ -31,20 +30,21 @@ getTopOffset_ vptr = do
   where
     toAddress = Address . fromIntegral
 
--- name does not populate. getStringAtAddress fails deep. no BNStringReference at test location
-createTypeInfo_ :: VTable.VTContext -> Word64 -> IO (Maybe VTable.TypeInfo)
-createTypeInfo_ ctx typeInfoPtr
+createTypeInfo_ :: Word64 -> VTable.Ctx (Maybe VTable.TypeInfo)
+createTypeInfo_ typeInfoPtr
   | typeInfoPtr == 0 = return Nothing
   | otherwise = do
-    helperClassPtr <- seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) typeInfoPtr >>= \case
+    ctx <- ask
+    helperClassPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) typeInfoPtr >>= \case
       Nothing -> return Nothing
       Just p -> return $ Just $ (Address . fromIntegral) p
-    name <- seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + ctx ^. VTable.width) >>= \case
+    name <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + ctx ^. VTable.width) >>= \case
       Nothing -> return Nothing
       Just p -> readName_ ctx $ (Address . fromIntegral) p
-    parentTypeInfo <- seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * ctx ^. VTable.width) >>= \case
+    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * ctx ^. VTable.width)
+    parentTypeInfo <- case parentTypeInfoPtr of
       Nothing -> return Nothing
-      Just p -> createTypeInfo_ ctx p
+      Just p -> createTypeInfo_ p
     return $
       Just
         ( TypeInfo
@@ -61,8 +61,6 @@ createTypeInfo_ ctx typeInfoPtr
         8 -> read64 br
         _ -> return Nothing
 
--- need this because BNReferenceString has no "Reference" to these strings
--- within the object. Maybe because their xrefs aren't recognized
 readName_ :: VTContext -> Address -> IO (Maybe Text)
 readName_ ctx addr = do
   let readr = ctx ^. VTable.reader
@@ -92,7 +90,7 @@ getTypeInfo_ vptr = do
     _ -> return Nothing
   case ptrToTypeInfo of
     Nothing -> return Nothing
-    Just p -> liftIO $ createTypeInfo_ ctx p
+    Just p -> liftIO $ createTypeInfo_ p
   where
     toAddress = Address . fromIntegral
 
@@ -125,15 +123,11 @@ takeWhileM_ p act = do
     then (x :) <$> takeWhileM_ p act
     else return []
 
-getParents_ :: Address -> VTable.Ctx (Maybe [VTable])
-getParents_ vptr = undefined
-
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
 createVTable_ vptr = do
   topOffset <- getTopOffset_ vptr
   typeInfo <- getTypeInfo_ vptr
   vFunctions <- getVirtualFunctions_ vptr
-  --parents <- getParents_ vptr
   return
     ( VTable
         { _topOffset = topOffset,

@@ -4,12 +4,10 @@ module Blaze.Types.VTable
   (module Blaze.Types.VTable) where
   
 
-import Binja.Core (BNBinaryReader, BNBinaryView, getViewAddressSize)
+import Binja.Core (BNBinaryReader, BNBinaryView)
 import Blaze.CallGraph (Function)
 import Blaze.Prelude
-import Data.BinaryAnalysis (Address(Address))
-import Data.Text (Text)
-import Binja.View (getDefaultReader)
+import Data.BinaryAnalysis (Address)
 
 type Ctx = ReaderT VTContext IO
 
