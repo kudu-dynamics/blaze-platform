@@ -1,27 +1,31 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Blaze.Types.Cfg where
 
 import Blaze.Prelude
 import Blaze.Types.CallGraph (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import qualified Blaze.Types.Pil as Pil
 import Data.BinaryAnalysis (Address)
-
-type ControlFlowGraph = AlgaGraph (Maybe BranchType) CfNode
-
-data CfNode
-  = BasicBlock
-      { _function :: Function,
-        _start :: Address
-      }
-  | Call {_target :: Address}
-  deriving (Eq, Ord, Show, Generic)
-
-instance Hashable CfNode
 
 -- TODO: Consider adding more depending on what is being represented.
 data BranchType = TrueBranch 
                 | FalseBranch
                 | UnconditionalBranch
+
+type ControlFlowGraph = AlgaGraph (Maybe BranchType) CfNode
+
+data CfNode
+  = BasicBlock
+      { _basicBlockFunction :: Function,
+        _basicBlockStart :: Address
+      }
+  | Call {  _callFunction :: Function,
+            _callTarget :: Address }
+  deriving (Eq, Ord, Show, Generic)
+
+instance Hashable CfNode
+
+$(makeFields ''CfNode)
 
 data CfEdge
   = CfEdge
