@@ -28,6 +28,7 @@ dependencies:
   - bimap
   - binja
   - bv
+  - bytestring
 #  - bv-sized
   - casing
   - containers
@@ -55,7 +56,6 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
-  - bytestring
 
 
 default-extensions:
