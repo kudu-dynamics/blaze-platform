@@ -32,11 +32,12 @@ dependencies:
   - casing
   - containers
   - data-binary-ieee754
+  - dlist
   - envy
+  - extra
 #  - ghc-typelits-natnormalise
   - lens
   - list-t
-  - monad-extras
   - mtl
   - newtype
   - parameterized-utils
