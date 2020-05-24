@@ -167,12 +167,12 @@ instruction fn iindex = do
                        , _op = op' }
 
 fromBasicBlock :: StatementFunction t => BasicBlock t -> IO [Instruction t]
-fromBasicBlock bb = mapM (instruction $ bb ^. BB.func) [(bb ^. BB.start) .. (bb ^. BB.end)]
+fromBasicBlock bb = mapM (instruction $ bb ^. BB.func) [(bb ^. BB.start) .. (bb ^. BB.end) - 1]
 
 fromFunction :: StatementFunction fun => fun -> IO [Instruction fun]
 fromFunction fn = do
   len <- getInstructionCount fn
-  mapM (instruction fn) [0 .. (fromIntegral len)]
+  mapM (instruction fn) [0 .. fromIntegral len - 1]
 
 getOperation :: StatementFunction t
             => t -> ExpressionIndex t -> IO (MediumLevelILInstruction, Operation (Expression t))
