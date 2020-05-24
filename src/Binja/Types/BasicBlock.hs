@@ -19,6 +19,12 @@ instance Eq fun => Eq (BasicBlock fun) where
   (BasicBlock _ f1 s1 e1) == (BasicBlock _ f2 s2 e2) =
     f1 == f2 && s1 == s2 && e1 == e2
 
+instance Hashable fun => Hashable (BasicBlock fun) where
+  hashWithSalt s (BasicBlock _ func start end) = 
+    s `hashWithSalt` func
+      `hashWithSalt` start
+      `hashWithSalt` end
+
 data BlockEdge fun = BlockEdge
   { _src :: BasicBlock fun
   , _target :: Maybe (BasicBlock fun)

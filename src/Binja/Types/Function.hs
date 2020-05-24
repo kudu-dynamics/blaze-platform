@@ -8,6 +8,7 @@ import Data.BinaryAnalysis (Address)
 import Binja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
 
 
+-- TODO: Add a symbol field
 data Function = Function
   { _handle :: BNFunction
   , _name :: Text
@@ -28,6 +29,9 @@ data LLILFunction = LLILFunction
 instance Eq LLILFunction where
   (==) a b = _func (a :: LLILFunction) == _func (b :: LLILFunction)
 
+instance Hashable LLILFunction where
+  hashWithSalt s x = hashWithSalt s $ _func (x :: LLILFunction)
+
 data LLILSSAFunction = LLILSSAFunction
   { _handle :: BNLowLevelILFunction
   , _func :: Function
@@ -35,6 +39,9 @@ data LLILSSAFunction = LLILSSAFunction
 
 instance Eq LLILSSAFunction where
   (==) a b = _func (a :: LLILSSAFunction) == _func (b :: LLILSSAFunction)
+
+instance Hashable LLILSSAFunction where
+  hashWithSalt s x = hashWithSalt s $ _func (x :: LLILSSAFunction)
 
 data MLILFunction = MLILFunction
   { _handle :: BNMediumLevelILFunction
@@ -44,6 +51,9 @@ data MLILFunction = MLILFunction
 instance Eq MLILFunction where
   (==) a b = _func (a :: MLILFunction) == _func (b :: MLILFunction)
 
+instance Hashable MLILFunction where
+  hashWithSalt s x = hashWithSalt s $ _func (x :: MLILFunction)
+
 data MLILSSAFunction = MLILSSAFunction
   { _handle :: BNMediumLevelILFunction
   , _func :: Function
@@ -51,6 +61,9 @@ data MLILSSAFunction = MLILSSAFunction
 
 instance Eq MLILSSAFunction where
   (==) a b = _func (a :: MLILSSAFunction) == _func (b :: MLILSSAFunction)
+
+instance Hashable MLILSSAFunction where
+  hashWithSalt s x = hashWithSalt s $ _func (x :: MLILSSAFunction)
 
 
 $(makeFieldsNoPrefix ''Function)
