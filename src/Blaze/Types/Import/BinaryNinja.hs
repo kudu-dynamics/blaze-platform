@@ -3,6 +3,7 @@
 module Blaze.Types.Import.BinaryNinja where
 
 import qualified Binja.BasicBlock as BNBb
+import qualified Binja.C.Enums as BNEnums
 import qualified Binja.Core as Binja
 import Binja.Core (BNBinaryView, BNSymbol)
 import qualified Binja.Function as BNFunc
@@ -25,7 +26,12 @@ import Blaze.Types.CallGraph
     Function,
   )
 import Blaze.Types.Cfg
-  ( CfEdge (CfEdge),
+  ( BranchType
+      ( FalseBranch,
+        TrueBranch,
+        UnconditionalBranch
+      ),
+    CfEdge (CfEdge),
     CfNode
       ( BasicBlock,
         Call,
@@ -44,7 +50,7 @@ import Data.DList (DList)
 import qualified Data.DList as DList
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
-import Data.Set as Set
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Prelude (error)
 
@@ -159,15 +165,19 @@ type MlilSsaInstruction = Mlil.Instruction MlilSsaFunc
 
 type MlilSsaInstructionIndex = Binja.InstructionIndex MlilSsaFunc
 
+type MlilSsaBlockMap = HashMap MlilSsaBlock [CfNode]
+
 type NonCallInstruction = MlilSsaInstruction
 
 data InstrGroup
   = SingleCall {_callInstr :: CallInstruction}
   | ManyNonCalls {_nonCallInstrs :: NonEmpty NonCallInstruction}
+  deriving (Eq, Ord, Show)
 
 data MlilSsaInstr
   = MlilSsaCall CallInstruction
   | MlilSsaNonCall NonCallInstruction
+  deriving (Eq, Ord, Show)
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
 toMlilSsaInstr instr =
@@ -179,6 +189,7 @@ data CodeReference
         _startIndex :: MlilSsaInstructionIndex,
         _endIndex :: MlilSsaInstructionIndex
       }
+  deriving (Eq, Ord, Show)
 
 type NodeMap = HashMap CfNode CodeReference
 
@@ -274,12 +285,27 @@ convertNode func bnBlock = do
 
 createEdgesForNodeGroup :: [CfNode] -> [CfEdge]
 createEdgesForNodeGroup ns =
-  maybe [] (uncurry CfEdge <$>) (maybeNodePairs =<< NEList.nonEmpty ns)
+  maybe [] (($ UnconditionalBranch) . uncurry CfEdge <$>) (maybeNodePairs =<< NEList.nonEmpty ns)
   where
     maybeNodePairs :: NonEmpty CfNode -> Maybe [(CfNode, CfNode)]
     maybeNodePairs = \case
       _ :| [] -> Nothing
       nodes -> Just $ zip (NEList.toList nodes) (NEList.tail nodes)
+
+convertBranchType :: BNEnums.BNBranchType -> BranchType
+convertBranchType = \case
+  BNEnums.UnconditionalBranch -> UnconditionalBranch
+  BNEnums.TrueBranch -> TrueBranch
+  BNEnums.FalseBranch -> FalseBranch
+  _ -> UnconditionalBranch
+
+convertEdge :: MlilSsaBlockMap -> MlilSsaBlockEdge -> Maybe CfEdge
+convertEdge nodeMap bnEdge = do
+  let bnSrc = bnEdge ^. BNBb.src
+  bnDst <- bnEdge ^. BNBb.target
+  cfSrc <- lastMay =<< HMap.lookup bnSrc nodeMap
+  cfDst <- headMay =<< HMap.lookup bnDst nodeMap
+  return $ CfEdge cfSrc cfDst (convertBranchType $ bnEdge ^. BNBb.branchType)
 
 importCfg ::
   Function ->
@@ -289,10 +315,10 @@ importCfg ::
 importCfg func bnNodes bnEdges = do
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode func) bnNodes
   let cfEdgesFromNodeGroups = concatMap createEdgesForNodeGroup cfNodeGroups
+      bnNodeMap = HMap.fromList $ zip bnNodes cfNodeGroups
+      cfEdgesFromBnCfg = convertEdge bnNodeMap <$> bnEdges
+      cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
   return $ buildCfg (concat cfNodeGroups) cfEdges (Just . HMap.fromList . DList.toList $ mapEntries)
-  where
-    cfEdges :: [CfEdge]
-    cfEdges = _
 
 instance CfgImporter BNImporter NodeMap where
   getCfg imp func = do
