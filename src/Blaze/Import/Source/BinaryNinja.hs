@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Blaze.Types.Import.BinaryNinja where
+module Blaze.Import.Source.BinaryNinja where
 
 import qualified Binja.BasicBlock as BNBb
 import qualified Binja.C.Enums as BNEnums
