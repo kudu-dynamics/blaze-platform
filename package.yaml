@@ -99,6 +99,7 @@ library:
   - Blaze.Fir
   - Blaze.Graph
   - Blaze.Import.CallGraph
+  - Blaze.Import.Cfg
   - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
