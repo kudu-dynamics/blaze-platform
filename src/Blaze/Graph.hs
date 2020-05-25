@@ -1,9 +1,6 @@
-module Blaze.Graph
-  ( isBackEdge,
-    collapseGotoBlocks,
-    constructBasicBlockGraphWithoutBackEdges,
-    constructBasicBlockGraph
-  )
+module Blaze.Graph 
+  (module Exports,
+   module Blaze.Graph)
 where
 
 import Binja.BasicBlock
@@ -19,6 +16,8 @@ import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
+import Blaze.Types.Graph as Exports
+import Blaze.Types.Path (ConditionNode (ConditionNode))
 import qualified Data.Set as Set
 
 
