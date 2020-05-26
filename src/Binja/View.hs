@@ -12,7 +12,7 @@ import Binja.C.Enums as BNEnums
 import Binja.Types.Symbol (BNNameSpace)
 import Binja.C.Pointers (BNSymbol)
 
-import Data.BinaryAnalysis (Address)
+import Data.BinaryAnalysis (Address, AddressWidth(AddressWidth))
 
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
@@ -79,3 +79,8 @@ getStringAtAddress bv addr = do
 getSymbolAtAddress :: BNBinaryView -> Address -> Maybe BNNameSpace -> IO (Maybe BNSymbol)
 getSymbolAtAddress bv addr =
   BN.getSymbolByAddress bv (coerce addr)
+
+getAddressSize :: BNBinaryView -> IO AddressWidth
+getAddressSize bv = do
+  addrSize <- BN.getViewAddressSize bv
+  return $ (AddressWidth . fromIntegral) addrSize
