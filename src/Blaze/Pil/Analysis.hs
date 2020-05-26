@@ -10,8 +10,7 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis
-  ( BitWidth,
-    Index,
+  ( Index,
     LoadExpr (LoadExpr),
     LoadStmt (LoadStmt),
     MemAddr,
@@ -22,6 +21,7 @@ import Blaze.Types.Pil.Analysis
   )
 import qualified Blaze.Types.Pil.Analysis as A
 import qualified Blaze.Pil.Construct as C
+import Data.BinaryAnalysis (BitWidth)
 
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
