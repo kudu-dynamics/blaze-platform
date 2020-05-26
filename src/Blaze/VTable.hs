@@ -7,7 +7,7 @@ import Binja.Function (getFunctionStartingAt)
 import Binja.View (getDefaultReader, getAddressSize)
 import Blaze.CallGraph (Function)
 import Blaze.Prelude
-import Blaze.Types.Import.BinaryNinja (convertFunction)
+import Blaze.Import.Source.BinaryNinja (convertFunction)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.VTable as VTable
 import Blaze.Types.VTable
