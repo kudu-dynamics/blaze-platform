@@ -82,6 +82,8 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
+{#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `Word64' #}
+
 ---- Stream reader
 
 {#fun unsafe BNCreateBinaryReader as createBinaryReader {withPtr* `BNBinaryView'} -> `Maybe BNBinaryReader' nilable* #}
