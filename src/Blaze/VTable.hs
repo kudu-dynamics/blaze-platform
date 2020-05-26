@@ -1,11 +1,10 @@
 module Blaze.VTable where
 
 import qualified Binja.Core as BN
-import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, getViewAddressSize, read64, read8, seekBinaryReader)
+import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, read64, read8, seekBinaryReader)
 import qualified Binja.Function as BF
 import Binja.Function (getFunctionStartingAt)
-import qualified Binja.View as BV
-import Binja.View (getDefaultReader)
+import Binja.View (getDefaultReader, getAddressSize)
 import Blaze.CallGraph (Function)
 import Blaze.Prelude
 import Blaze.Types.Import.BinaryNinja (convertFunction)
@@ -16,7 +15,7 @@ import Blaze.Types.VTable
     VTContext (VTContext, _bv, _reader, _width),
     VTable (VTable, _parents, _topOffset, _typeInfo, _vFunctions, _vptrAddress),
   )
-import Data.BinaryAnalysis (Address (Address))
+import Data.BinaryAnalysis (Address (Address), AddressWidth (AddressWidth))
 import Data.Text (pack)
 import qualified Data.ByteString as BS
 
@@ -145,11 +144,11 @@ createVTable_ vptr = do
 
 initialVTContext_ :: BNBinaryView -> IO VTContext
 initialVTContext_ bv = do
-  width <- getViewAddressSize bv
+  width <- getAddressSize bv
   readr <- getDefaultReader bv
   return
     ( VTContext
-        { _width = VTable.AddressWidth $ fromIntegral width,
+        { _width = width,
           _reader = readr,
           _bv = bv
         }
@@ -172,9 +171,9 @@ getVTableStores bv stmts = filterM (isVtable bv . snd) storeConst
 
 isVtable :: BN.BNBinaryView -> Address -> IO Bool
 isVtable bv addr = do
-  readr <- BV.getDefaultReader bv
+  readr <- getDefaultReader bv
   _ <- BN.seekBinaryReader readr $ fromIntegral addr
-  VTable.AddressWidth . fromIntegral <$> BN.getViewAddressSize bv >>= \case
+  getAddressSize bv >>= \case
     (VTable.AddressWidth 8) -> BN.read64 readr >>= \case
       Nothing -> return False
       Just ptr ->
