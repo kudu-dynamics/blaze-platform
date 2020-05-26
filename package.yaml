@@ -28,6 +28,7 @@ dependencies:
   - bimap
   - binja
   - bv
+  - bytestring
 #  - bv-sized
   - casing
   - containers

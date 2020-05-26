@@ -8,7 +8,7 @@ import Blaze.Types.Pil
     Stmt,
   )
 import qualified Blaze.Types.Pil as Pil
-
+import Data.BinaryAnalysis (BitWidth)
 
 data MemEquivGroup
   = MemEquivGroup
@@ -25,7 +25,6 @@ instance Hashable MemEquivGroup
 --       seems to be to just always use signed ints
 type Index = Int
 type MemAddr = Expression
-type BitWidth = Word64
 
 data MemStorage
   = MemStorage
