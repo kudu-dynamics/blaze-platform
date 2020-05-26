@@ -23,11 +23,13 @@ import qualified Data.ByteString as BS
 getTopOffset_ :: Address -> VTable.Ctx (Maybe Word64)
 getTopOffset_ vptr = do
   ctx <- ask
-  _ <- liftIO $ seekBinaryReader (ctx ^. VTable.reader) (fromIntegral $ vptr - toAddress (2 * ctx ^. VTable.width))
+  let (VTable.AddressWidth bitW) = ctx ^. VTable.width
+  _ <- liftIO $ seekBinaryReader (ctx ^. VTable.reader) (fromIntegral $ vptr - toAddress 2 * fromIntegral bitW)
   case ctx ^. VTable.width of
-    8 -> liftIO $ read64 (ctx ^. VTable.reader)
+    (VTable.AddressWidth 8) -> liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
   where
+    toAddress :: Integer -> Address
     toAddress = Address . fromIntegral
 
 createTypeInfo_ :: Word64 -> VTable.Ctx (Maybe VTable.TypeInfo)
@@ -35,13 +37,16 @@ createTypeInfo_ typeInfoPtr
   | typeInfoPtr == 0 = return Nothing
   | otherwise = do
     ctx <- ask
-    helperClassPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) typeInfoPtr >>= \case
-      Nothing -> return Nothing
-      Just p -> return $ Just $ (Address . fromIntegral) p
-    name <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + ctx ^. VTable.width) >>= \case
-      Nothing -> return Nothing
-      Just p -> readName_ ctx $ (Address . fromIntegral) p
-    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * ctx ^. VTable.width)
+    let (VTable.AddressWidth bitW) = ctx ^. VTable.width
+    helperClassPtr <- liftIO $
+      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) typeInfoPtr >>= \case
+        Nothing -> return Nothing
+        Just p -> return $ Just $ (Address . fromIntegral) p
+    name <- liftIO $
+      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + bitW) >>= \case
+        Nothing -> return Nothing
+        Just p -> readName_ ctx $ (Address . fromIntegral) p
+    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * bitW)
     parentTypeInfo <- case parentTypeInfoPtr of
       Nothing -> return Nothing
       Just p -> createTypeInfo_ p
@@ -54,11 +59,11 @@ createTypeInfo_ typeInfoPtr
             }
         )
   where
-    seekAndRead :: BNBinaryReader -> Word64 -> Word64 -> IO (Maybe Word64)
+    seekAndRead :: BNBinaryReader -> VTable.AddressWidth -> Word64 -> IO (Maybe Word64)
     seekAndRead br width addr = do
       _ <- seekBinaryReader br addr
       case width of
-        8 -> read64 br
+        (VTable.AddressWidth 8) -> read64 br
         _ -> return Nothing
 
 readName_ :: VTContext -> Address -> IO (Maybe Text)
@@ -84,15 +89,14 @@ getTypeInfo_ :: Address -> VTable.Ctx (Maybe VTable.TypeInfo)
 getTypeInfo_ vptr = do
   ctx <- ask
   let readr = ctx ^. VTable.reader
-  _ <- liftIO $ seekBinaryReader readr $ fromIntegral (vptr - toAddress (ctx ^. VTable.width))
+  let (VTable.AddressWidth bitW) = ctx ^. VTable.width
+  _ <- liftIO $ seekBinaryReader readr $ fromIntegral vptr - bitW
   ptrToTypeInfo <- case ctx ^. VTable.width of
-    8 -> liftIO $ read64 (ctx ^. VTable.reader)
+    (VTable.AddressWidth 8) -> liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
   case ptrToTypeInfo of
     Nothing -> return Nothing
-    Just p -> liftIO $ createTypeInfo_ p
-  where
-    toAddress = Address . fromIntegral
+    Just p -> createTypeInfo_ p
 
 getVirtualFunctions_ :: Address -> VTable.Ctx [Function]
 getVirtualFunctions_ initVptr = do
@@ -107,13 +111,14 @@ getVirtualFunctions_ initVptr = do
   let tmp = fromJust <$> fs
   liftIO $ traverse (convertFunction (ctx ^. VTable.bv)) tmp
   where
-    getFunctionAndUpdateReader :: BNBinaryView -> BNBinaryReader -> Word64 -> IO (Maybe BF.Function)
+    getFunctionAndUpdateReader :: BNBinaryView -> BNBinaryReader -> VTable.AddressWidth -> IO (Maybe BF.Function)
     getFunctionAndUpdateReader bv br width = do
       currentPosition <- getReaderPosition br
       fAddr <- case width of
-        8 -> read64 br
+        (VTable.AddressWidth 8) -> read64 br
         _ -> return Nothing
-      _ <- seekBinaryReader br $ fromIntegral (currentPosition + width)
+      let (VTable.AddressWidth bitW) = width
+      _ <- seekBinaryReader br $ currentPosition + bitW
       getFunctionStartingAt bv Nothing $ (Address . fromJust) fAddr
 
 takeWhileM_ :: (a -> Bool) -> IO a -> IO [a]
@@ -144,7 +149,7 @@ initialVTContext_ bv = do
   readr <- getDefaultReader bv
   return
     ( VTContext
-        { _width = fromIntegral width,
+        { _width = VTable.AddressWidth $ fromIntegral width,
           _reader = readr,
           _bv = bv
         }
@@ -157,36 +162,30 @@ getVTable bv addr = do
   runReaderT vtable initContext
 
 -- currently this just checks for an array of function pointers, not a vtable
-getVtableStores :: BN.BNBinaryView -> [Pil.Stmt] -> IO [Pil.Stmt]
-getVtableStores bv stmts = map fst <$> filterM (isVtable bv . snd) storeConst
+getVTableStores :: BN.BNBinaryView -> [Pil.Stmt] -> IO [(Pil.Stmt, Address)]
+getVTableStores bv stmts = filterM (isVtable bv . snd) storeConst
   where
     storeConst =
-      [ (storeStmt, Address <$> toIntegralSized vptrCandidate)
+      [ (storeStmt, Address $ fromIntegral vptrCandidate)
         | storeStmt@(Pil.Store (Pil.StoreOp _ (Pil.Expression _ (Pil.CONST (Pil.ConstOp vptrCandidate))))) <- stmts
       ]
 
-isVtable :: BN.BNBinaryView -> Maybe Address -> IO Bool
-isVtable _ Nothing =
-  return False
-isVtable bv mAddr = do
-  let addr = fromJust mAddr
+isVtable :: BN.BNBinaryView -> Address -> IO Bool
+isVtable bv addr = do
   readr <- BV.getDefaultReader bv
   _ <- BN.seekBinaryReader readr $ fromIntegral addr
-  addrSize <- BN.getViewAddressSize bv
-  val <- case addrSize of
-    8 -> BN.read64 readr
-    _ -> return Nothing
-  case val of
-    Nothing -> return False
-    _ -> do
-      sectionType <- getSectionTypeOfAddr bv addr
-      case sectionType of
-        "PROGBITS" ->
-          isJust <$> BF.getFunctionStartingAt bv Nothing (toAddress val)
-        _ -> return False
-  where
-    toAddress :: Maybe Word64 -> Address
-    toAddress = Address . fromJust . toIntegralSized . fromJust
+  VTable.AddressWidth . fromIntegral <$> BN.getViewAddressSize bv >>= \case
+    (VTable.AddressWidth 8) -> BN.read64 readr >>= \case
+      Nothing -> return False
+      Just ptr ->
+        getSectionTypeOfAddr bv addr >>= \case
+          "PROGBITS" ->
+            isJust <$> BF.getFunctionStartingAt bv Nothing ((Address . fromIntegral) ptr)
+          _ -> return False
+    _ -> return False
 
 getSectionTypeOfAddr :: BN.BNBinaryView -> Address -> IO Text
 getSectionTypeOfAddr bv addr = pack <$> (BN.getSectionsAt bv addr >>= BN.getSectionType . head)
+
+getVTables :: BNBinaryView -> [Address] -> IO [VTable]
+getVTables bv = mapM (getVTable bv)

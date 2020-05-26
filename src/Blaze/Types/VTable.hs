@@ -7,13 +7,15 @@ module Blaze.Types.VTable
 import Binja.Core (BNBinaryReader, BNBinaryView)
 import Blaze.CallGraph (Function)
 import Blaze.Prelude
-import Data.BinaryAnalysis (Address)
+import Data.BinaryAnalysis (Address, BitWidth)
+
+newtype AddressWidth = AddressWidth BitWidth
 
 type Ctx = ReaderT VTContext IO
 
 data VTContext
   = VTContext
-    { _width :: Word64,
+    { _width :: AddressWidth,
       _reader :: BNBinaryReader,
       _bv :: BNBinaryView
     }
