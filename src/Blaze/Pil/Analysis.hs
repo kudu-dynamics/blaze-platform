@@ -17,7 +17,7 @@ import Blaze.Types.Pil.Analysis
     LoadStmt (LoadStmt),
     MemAddr,
     MemEquivGroup (MemEquivGroup),
-    MemStmt (MemLoadStmt, MemStoreStmt),
+    MemStmt (MemDefLoadStmt, MemLoadStmt, MemStoreStmt),
     MemStorage (MemStorage),
     StoreStmt (StoreStmt),
     runAnalysis,
@@ -349,29 +349,25 @@ mkDefLoadStmt idx s = case s of
         storage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
   _ -> Nothing
 
--- |LoadStmt for each load in Stmt, including nested loads
-mkLoadStmts :: Index -> Stmt -> [LoadStmt]
-mkLoadStmts ix s = toLoadStmt <$> findLoads s
-  where
-    toLoadStmt :: LoadExpr -> LoadStmt
-    toLoadStmt lx = LoadStmt s lx str ix
-      where
-        x = lx ^. A.expr
-        str = MemStorage (x ^. Pil.src) (x ^. Pil.width)
-          
 
+loadExprToLoadStmt :: Index -> Stmt -> LoadExpr -> Maybe LoadStmt
+loadExprToLoadStmt idx s x = case x ^. expr . Pil.op of
+  Pil.LOAD (Pil.LoadOp src') -> Just $ LoadStmt  s x src' idx
+  _ -> Nothing
 
--- Create a MemStmt
+-- | Creates MemStmts.
+-- a statement can have multiple loads and will generate one memstmt for each load
 mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
 mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
-    MemLoadStmt <$> mkLoadStmt idx s
-  Pil.Store _ -> MemStoreStmt <$> mkStoreStmt idx s
+    Just [MemDefLoadStmt <$> mkLoadStmt idx s]
+  Pil.Store _ -> Just $
+    (MemStoreStmt <$> mkStoreStmt idx s) : (loadExprToLoadStmt s idx `mapMaybe` findLoads s)  
   _ -> Nothing
 
 -- |Finds memory statements. Update this function if the definition of memory
 -- statements changes.
-findMemStmts :: [Stmt] -> [MemStmt]
+findMemStmts :: [Stmt] -> MemStmt
 findMemStmts = concat . mapMaybe (uncurry mkMemStmt) . indexed
 
 mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [LoadStmt] -> [LoadStmt] -> MemEquivGroup

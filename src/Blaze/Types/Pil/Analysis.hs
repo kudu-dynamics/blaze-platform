@@ -22,7 +22,7 @@ data MemEquivGroup
         -- statement if that statement includes multiple matching 
         -- load expressions.
         -- def x [load]
-        _memEquivGroupLoads :: [LoadStmt],
+        _memEquivGroupLoads :: [DefLoadStmt],
 
         -- any stmt with nested load
         -- if there are n loads in a single stmt, there will be n LoadStmts
@@ -70,16 +70,10 @@ instance Hashable DefLoadStmt
 
 data MemStmt
   = MemStoreStmt StoreStmt
+  | MemNestedLoadStmt LoadStmt
   | MemDefLoadStmt DefLoadStmt
-  | MemLoadStmt LoadStmt
   deriving (Eq, Ord, Show, Generic)
 instance Hashable MemStmt
-
-data MemStmtSummary
-  = MemStmtSummary { _memStmtSummaryMemStmt :: MemStmt,
-                     _memStmtSummaryLoads :: [LoadExpr]
-                   } deriving (Eq, Ord, Show, Generic)
-instance Hashable MemStmtSummary
 
 
 -- Need the expression in order to include the size of the value being loaded
