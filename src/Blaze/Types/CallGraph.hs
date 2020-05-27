@@ -17,7 +17,9 @@ data Function
         _functionName :: Text,
         _functionAddress :: Address
       }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+
+instance Hashable Function
 
 data CallSite
   = CallSite
