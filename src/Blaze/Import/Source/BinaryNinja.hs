@@ -209,14 +209,14 @@ nodeFromInstrs func instrs = do
   let node =
         BasicBlock
           { _basicBlockFunction = func,
-            _basicBlockStart = (^. Mlil.address) . NEList.head $ instrs
+            _basicBlockStart = view Mlil.address . NEList.head $ instrs
           }
   tellEntry
     ( node,
       CodeReference
         { _function = func,
-          _startIndex = (^. Mlil.index) . NEList.head $ instrs,
-          _endIndex = (^. Mlil.index) . NEList.last $ instrs
+          _startIndex = view Mlil.index . NEList.head $ instrs,
+          _endIndex = view Mlil.index . NEList.last $ instrs
         }
     )
   return node
