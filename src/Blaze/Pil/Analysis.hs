@@ -369,8 +369,10 @@ mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
 mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
     (:[]) . MemDefLoadStmt <$> mkDefLoadStmt idx s
-  Pil.Store _ -> (: (MemNestedLoadStmt <$> mkNestedLoadStmts idx s))
-    . MemStoreStmt <$> mkStoreStmt idx s
+  Pil.Store _ -> do
+    let nested = MemNestedLoadStmt <$> mkNestedLoadStmts idx s
+    ds <- MemStoreStmt <$> mkStoreStmt idx s
+    Just $ nested <> [ds]
   _ -> case mkNestedLoadStmts idx s of
     [] -> Nothing
     xs -> Just $ MemNestedLoadStmt <$> xs
