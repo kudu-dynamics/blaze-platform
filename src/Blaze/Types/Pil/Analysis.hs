@@ -22,7 +22,7 @@ data MemEquivGroup
         -- statement if that statement includes multiple matching 
         -- load expressions.
         -- def x [load]
-        _memEquivGroupLoads :: [DefLoadStmt],
+        _memEquivGroupDefLoads :: [DefLoadStmt],
 
         -- any stmt with nested load
         -- if there are n loads in a single stmt, there will be n LoadStmts
@@ -142,6 +142,7 @@ runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
 
 $(makeFields ''StoreStmt)
 $(makeFields ''LoadStmt)
+$(makeFields ''DefLoadStmt)
 $(makeFields ''MemEquivGroup)
 $(makeFields ''MemStorage)
 $(makeFields ''LoadExpr)

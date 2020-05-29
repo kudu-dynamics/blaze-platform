@@ -13,11 +13,12 @@ import Blaze.Types.Pil.Analysis
   ( Analysis,
     BitWidth,
     Index,
+    DefLoadStmt (DefLoadStmt),
     LoadExpr (LoadExpr),
     LoadStmt (LoadStmt),
     MemAddr,
     MemEquivGroup (MemEquivGroup),
-    MemStmt (MemDefLoadStmt, MemLoadStmt, MemStoreStmt),
+    MemStmt (MemDefLoadStmt, MemNestedLoadStmt, MemStoreStmt),
     MemStorage (MemStorage),
     StoreStmt (StoreStmt),
     runAnalysis,
@@ -33,7 +34,6 @@ import Data.List (nub)
 import Data.Sequence (update, mapWithIndex)
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 
 widthToSize :: BitWidth -> Pil.OperationSize
 widthToSize x = Pil.OperationSize $ x `div` 8
@@ -277,14 +277,16 @@ usesStorage storage stmt = case stmt of
   _ -> False
 
 getAddr :: MemStmt -> MemAddr
-getAddr memStmt = case memStmt of
-  MemStoreStmt storeStmt -> storeStmt ^. (A.storage . A.start)
-  MemLoadStmt loadStmt -> loadStmt ^. (A.storage . A.start)
+getAddr = \case
+  MemStoreStmt storeStmt -> storeStmt ^. A.storage . A.start
+  MemDefLoadStmt loadStmt -> loadStmt ^. A.loadStmt . A.storage . A.start
+  MemNestedLoadStmt x -> x ^. A.storage . A.start
 
 getStorage :: MemStmt -> MemStorage
-getStorage memStmt = case memStmt of
-  MemStoreStmt storeStmt -> storeStmt ^. A.storage
-  MemLoadStmt loadStmt -> loadStmt ^. A.storage
+getStorage = \case
+  MemStoreStmt x -> x ^. A.storage
+  MemDefLoadStmt x -> x ^. A.loadStmt . A.storage
+  MemNestedLoadStmt x -> x ^. A.storage
 
 -- |Helper function for recursively finding loads. 
 -- NB: this implementation does not recurse on load expressions.
@@ -341,41 +343,50 @@ mkStoreStmt idx s = case s of
   _ -> Nothing
 
 -- |A Def Load statement is "def x = [y]" (load is not nested)
-mkDefLoadStmt :: Index -> Stmt -> Maybe LoadStmt
+mkDefLoadStmt :: Index -> Stmt -> Maybe DefLoadStmt
 mkDefLoadStmt idx s = case s of
-  Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
-    Just $ LoadStmt s (LoadExpr expr) storage idx
+  Pil.Def (Pil.DefOp pv expr@Pil.Expression {_op = (Pil.LOAD loadOp)}) ->
+    Just . DefLoadStmt pv $ LoadStmt s (LoadExpr expr) storage idx
       where
         storage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
   _ -> Nothing
 
-
 loadExprToLoadStmt :: Index -> Stmt -> LoadExpr -> Maybe LoadStmt
-loadExprToLoadStmt idx s x = case x ^. expr . Pil.op of
-  Pil.LOAD (Pil.LoadOp src') -> Just $ LoadStmt  s x src' idx
+loadExprToLoadStmt idx s x = case x ^. A.expr . Pil.op of
+  Pil.LOAD (Pil.LoadOp src') -> Just $ LoadStmt s x mem idx
+    where
+      mem = MemStorage src' . fromIntegral . (*8) $ x ^. A.expr . Pil.size
   _ -> Nothing
+
+-- |A statement that is not a DefLoad statement, but has nested loads.
+-- Could include a Store stmt.
+mkNestedLoadStmts :: Index -> Stmt -> [LoadStmt]
+mkNestedLoadStmts idx s = loadExprToLoadStmt idx s `mapMaybe` findLoads s
 
 -- | Creates MemStmts.
 -- a statement can have multiple loads and will generate one memstmt for each load
 mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
 mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
-    Just [MemDefLoadStmt <$> mkLoadStmt idx s]
-  Pil.Store _ -> Just $
-    (MemStoreStmt <$> mkStoreStmt idx s) : (loadExprToLoadStmt s idx `mapMaybe` findLoads s)  
-  _ -> Nothing
+    (:[]) . MemDefLoadStmt <$> mkDefLoadStmt idx s
+  Pil.Store _ -> (: (MemNestedLoadStmt <$> mkNestedLoadStmts idx s))
+    . MemStoreStmt <$> mkStoreStmt idx s
+  _ -> case mkNestedLoadStmts idx s of
+    [] -> Nothing
+    xs -> Just $ MemNestedLoadStmt <$> xs
+
 
 -- |Finds memory statements. Update this function if the definition of memory
 -- statements changes.
-findMemStmts :: [Stmt] -> MemStmt
+findMemStmts :: [Stmt] -> [MemStmt]
 findMemStmts = concat . mapMaybe (uncurry mkMemStmt) . indexed
 
-mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [LoadStmt] -> [LoadStmt] -> MemEquivGroup
-mkMemEquivGroup storeStmt storage loadStmts nestedLoadStmts = 
+mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [DefLoadStmt] -> [LoadStmt] -> MemEquivGroup
+mkMemEquivGroup storeStmt storage defLoadStmts nestedLoadStmts = 
   MemEquivGroup
     { _memEquivGroupStore = storeStmt,
       _memEquivGroupStorage = storage,
-      _memEquivGroupLoads = loadStmts,
+      _memEquivGroupDefLoads = defLoadStmts,
       _memEquivGroupNestedLoads = nestedLoadStmts
     }
 
@@ -392,20 +403,31 @@ mkMemStorage addr width =
 findMemEquivGroupsForStorage :: MemStorage -> [MemStmt] -> [MemEquivGroup]
 findMemEquivGroupsForStorage storage (x:xs) = reverse groups
   where
+    initGroup :: MemEquivGroup
     initGroup = case x of
       MemStoreStmt s ->
-        mkMemEquivGroup (Just s) storage []
-      MemLoadStmt s ->
-        mkMemEquivGroup Nothing storage [s]
+        mkMemEquivGroup (Just s) storage [] []
+      MemDefLoadStmt s ->
+        mkMemEquivGroup Nothing storage [s] []
+      MemNestedLoadStmt s ->
+        mkMemEquivGroup Nothing storage [] [s]
+
+    groups :: [MemEquivGroup]
     groups = foldl' f [initGroup] xs
+    
+    f :: [MemEquivGroup] -> MemStmt -> [MemEquivGroup]
     f gs stmt = case stmt of
-      MemStoreStmt storeStmt -> g : gs
+      MemStoreStmt s -> g : gs
         where
-          g = mkMemEquivGroup (Just storeStmt) storage []
-      MemLoadStmt loadStmt -> updatedGroup : tailSafe gs
+          g = mkMemEquivGroup (Just s) storage [] []
+      MemDefLoadStmt s -> updatedGroup : tailSafe gs
         where
           currGroup = head gs
-          updatedGroup = currGroup & A.loads %~ (loadStmt:)
+          updatedGroup = currGroup & A.defLoads %~ (s:)
+      MemNestedLoadStmt s -> updatedGroup : tailSafe gs
+        where
+          currGroup = head gs
+          updatedGroup = currGroup & A.nestedLoads %~ (s:)          
 findMemEquivGroupsForStorage _ [] = []
 
 -- |Find equivalent variables that are defined by loading from the same symbolic address
@@ -425,6 +447,10 @@ findMemEquivGroups stmts = groups
     groups :: [MemEquivGroup]
     groups = concatMap (uncurry findMemEquivGroupsForStorage) $ zip memStores memStmtsByStorage
 
+allMemEquivGroupLoads :: MemEquivGroup -> [LoadStmt]
+allMemEquivGroupLoads g = (view A.loadStmt <$> g ^. A.defLoads)
+  <> g ^. A.nestedLoads
+
 -- |Update a sequence of statements to a new sequence of statements where
 -- the memory statements referenced by the group have been resolved such that
 -- the possible Store statement has been replaced with a Def and all Loads
@@ -440,13 +466,15 @@ resolveMemGroup group name xs =
         where
           xs' = replaceStore storeStmt name xs
   where
+    allLoads :: [LoadStmt]
+    allLoads = allMemEquivGroupLoads group
     loadIdxs :: HashSet Index
-    loadIdxs = HSet.fromList . fmap (^. A.index) . (^. A.loads) $ group
+    loadIdxs = HSet.fromList . fmap (^. A.index) $ allLoads
     varExpr :: Expression
     varExpr = C.var name $ widthToSize (group ^. (A.storage . A.width))
     loadExprMap :: HashMap Expression Expression
     loadExprMap = HMap.fromList (zip (map (coerce . (^. A.loadExpr))
-                                          (group ^. A.loads)) 
+                                          allLoads) 
                                      (repeat varExpr))
     updateStmt :: HashSet Index -> Index -> Stmt -> Stmt
     updateStmt idxsToUpdate stmtIdx stmt = 
@@ -504,11 +532,13 @@ propInfoForMemGroup mg = do
       defStmt' = Pil.Def (Pil.DefOp pv loadExpr)
       pvExpr = C.var s $ storageExpr ^. Pil.size
   return $ PropInfo
-    { substMap = mkSubstMap pvExpr $ mg ^. A.loads
+    { substMap = mkSubstMap pvExpr allLoads
     , defStmt = defStmt'
     , defAfterIndex = view A.index <$> mg ^. A.store
     }
   where
+    allLoads :: [LoadStmt]
+    allLoads = allMemEquivGroupLoads mg
     mkSubstMap :: Expression -> [LoadStmt] -> HashMap Index ExprMap
     mkSubstMap pvExpr = foldr f HMap.empty
       where
@@ -522,7 +552,7 @@ propInfoForMemGroup mg = do
 copyPropMem_ :: [Stmt] -> Analysis [Stmt]
 copyPropMem_ xs = do
   propInfos <- mapM propInfoForMemGroup
-               . filter (not . null . view A.loads)
+               . filter (not . null . allMemEquivGroupLoads)
                $ memEquivGroups
   let defsAtBeginning :: [Stmt]
       defsAtBeginning = mapMaybe (\pi -> maybe (Just $ defStmt pi)
