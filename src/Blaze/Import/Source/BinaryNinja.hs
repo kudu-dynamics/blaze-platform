@@ -311,14 +311,18 @@ importCfg ::
   Function ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
-  IO (Cfg NodeMap)
+  IO (Maybe (Cfg NodeMap))
 importCfg func bnNodes bnEdges = do
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode func) bnNodes
-  let cfEdgesFromNodeGroups = concatMap createEdgesForNodeGroup cfNodeGroups
-      bnNodeMap = HMap.fromList $ zip bnNodes cfNodeGroups
-      cfEdgesFromBnCfg = convertEdge bnNodeMap <$> bnEdges
-      cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
-  return $ buildCfg (concat cfNodeGroups) cfEdges (Just . HMap.fromList . DList.toList $ mapEntries)
+  let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
+  case mCfNodes of
+    Nothing -> return Nothing
+    Just (cfRoot :| cfRest) -> do
+      let cfEdgesFromNodeGroups = concatMap createEdgesForNodeGroup cfNodeGroups
+          bnNodeMap = HMap.fromList $ zip bnNodes cfNodeGroups
+          cfEdgesFromBnCfg = convertEdge bnNodeMap <$> bnEdges
+          cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
+      return . Just $ buildCfg cfRoot cfRest cfEdges (Just . HMap.fromList . DList.toList $ mapEntries)
 
 instance CfgImporter BNImporter NodeMap where
   getCfg imp func = do
@@ -331,4 +335,4 @@ instance CfgImporter BNImporter NodeMap where
         bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
         bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
         bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
-        Just <$> importCfg func bnMlilBbs bnMlilBbEdges
+        importCfg func bnMlilBbs bnMlilBbEdges

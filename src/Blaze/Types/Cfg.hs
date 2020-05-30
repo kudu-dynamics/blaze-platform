@@ -4,7 +4,7 @@ module Blaze.Types.Cfg where
 
 import Blaze.Prelude
 import Blaze.Types.CallGraph (Function)
-import qualified Blaze.Types.Graph as Graph
+import qualified Blaze.Graph as Graph
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
 import Data.BinaryAnalysis (Address)
@@ -15,8 +15,6 @@ data BranchType
   | FalseBranch
   | UnconditionalBranch
   deriving (Eq, Ord, Show)
-
-type ControlFlowGraph = AlgaGraph BranchType CfNode
 
 data CfNode
   = BasicBlock
@@ -41,20 +39,35 @@ data CfEdge
       }
   deriving (Eq, Ord, Show)
 
+$(makeFields ''CfEdge)
+
+-- | A non-empty graph that consists of a strongly-connected component
+-- with a single root node (a node with no incoming edges).
+-- This is intended to be the graph representation of a CFG.
+-- A user of this API probably wants to work with the 'Cfg' type that
+-- includes additional information about the CFG.
+type ControlFlowGraph = AlgaGraph BranchType CfNode
+
+-- TODO: How to best "prove" this generates a proper ControlFlowGraph?
+mkControlFlowGraph :: CfNode -> [CfNode] -> [CfEdge] -> ControlFlowGraph
+mkControlFlowGraph root ns es =
+  Graph.addNodes (root : ns) . Graph.fromEdges $
+    (_type &&& (_src &&& _dst)) <$> es
+
 data Cfg a
   = Cfg
       { _graph :: ControlFlowGraph,
+        _root :: CfNode,
         _mapping :: Maybe a
       }
 
-buildCfg :: [CfNode] -> [CfEdge] -> Maybe a -> Cfg a
-buildCfg ns es mapping =
+buildCfg :: CfNode -> [CfNode] -> [CfEdge] -> Maybe a -> Cfg a
+buildCfg root rest es mapping =
   Cfg
     { _graph = graph,
+      _root = root,
       _mapping = mapping
     }
   where
     graph :: ControlFlowGraph
-    graph =
-      Graph.addNodes ns . Graph.fromEdges $
-        (_type &&& (_src &&& _dst)) <$> es
+    graph = mkControlFlowGraph root rest es
