@@ -12,15 +12,13 @@ module Blaze.Types.Solver
 
 import Blaze.Prelude
 
-import Data.SBV.Internals (SBV(unSBV))
+import Data.SBV.Internals (SBV (unSBV), SolverContext (..))
 import Data.SBV.Dynamic (SVal)
 
-import Data.SBV.Trans ((.&&))
 import Data.SBV.Trans as Exports hiding (Solver, SMTResult)
 import Data.SBV.Trans.Control as Exports hiding (checkSat, CheckSatResult, Sat, Unk, Unsat)
 import Blaze.Types.Pil (Expression, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
-import Data.SBV.Internals (SolverContext(..))
 import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Fail (MonadFail(fail))
 
@@ -220,7 +218,7 @@ data VarVal = VBool Bool
             | VarNotFound
             deriving (Eq, Ord, Show)
                
-data SolverCtx = SolverCtx
+newtype SolverCtx = SolverCtx
   { typeEnv :: TypeEnv }
 
 emptyCtx :: SolverCtx
@@ -236,9 +234,9 @@ emptyState :: SolverState
 emptyState = SolverState HashMap.empty HashMap.empty
 
 newtype Solver a = Solver { runSolver_ ::
-                              (ReaderT SolverCtx
-                               (StateT SolverState
-                                (SymbolicT (ExceptT SolverError IO))) a) }
+                              ReaderT SolverCtx
+                                (StateT SolverState
+                                  (SymbolicT (ExceptT SolverError IO))) a }
                    deriving ( Functor, Applicative, Monad
                             , MonadError SolverError
                             , MonadReader SolverCtx
@@ -328,7 +326,7 @@ getIntegral = \case
   _ -> throwError IntegralConversionError
   where
     r :: forall m n. (SIntegral m, SIntegral n) => SBV m -> Solver (SBV n)
-    r x = return . sFromIntegral $ x
+    r = return . sFromIntegral
 
 -- constrain :: SBool -> Solver ()
 -- constrain = liftSolverT . SBV.constrain

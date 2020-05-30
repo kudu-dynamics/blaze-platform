@@ -79,6 +79,8 @@ constructNodeGraph bv fn = do
   bbs <- BB.getBasicBlocks fn
   bbNodeMap <- getBBNodeMap bv bbs
   let bbNodes = concatMap allNodes (Map.elems bbNodeMap)
+  -- TODO: This is unnecessarily quadratic on the number of nodes instead of 
+  --       linear on the number of edges. Needs fix!
   let bbNodeEdges = concatMap getNodeListEdges . Map.elems $ bbNodeMap
   succEdges <- concatMapM (getSuccEdges bbNodeMap) bbs
   return $ case bbNodes of

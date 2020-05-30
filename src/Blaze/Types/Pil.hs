@@ -599,6 +599,7 @@ data Statement expr = Def (DefOp expr)
                     | Annotation Text
                     | EnterContext (EnterContextOp expr)
                     | ExitContext (ExitContextOp expr)
+                    | Call (CallOp expr)
                     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (Statement a)
 

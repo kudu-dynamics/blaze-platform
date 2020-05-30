@@ -28,13 +28,16 @@ dependencies:
   - bimap
   - binja
   - bv
+  - bytestring
 #  - bv-sized
   - casing
   - containers
   - data-binary-ieee754
+  - dlist
   - envy
+  - extra
   - hashable
-#  - ghc-typelits-natnormalise
+  #  - ghc-typelits-natnormalise
   - lens
   - list-t
   - mtl
@@ -97,6 +100,9 @@ library:
   - Blaze.Cfg
   - Blaze.Fir
   - Blaze.Graph
+  - Blaze.Import.CallGraph
+  - Blaze.Import.Cfg
+  - Blaze.Import.Source.BinaryNinja
   - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
@@ -123,21 +129,6 @@ include-dirs:
   - "../haskell-binja/res"
 
 executables:
-  blaze-profile:
-    main:                Spec.hs
-    source-dirs:         test
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - blaze
-    - containers
-    - binja
-    - hspec
-    - text
-
   demo:
     main: Main.hs
     source-dirs:  demo

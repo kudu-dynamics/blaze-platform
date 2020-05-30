@@ -1,35 +1,49 @@
 module Blaze.Pil.Analysis where
 
-import Blaze.Prelude hiding (group, Symbol)
+import qualified Blaze.Pil.Construct as C
+import Blaze.Prelude hiding
+  ( Symbol,
+    group,
+    pi,
+  )
 import Blaze.Types.Pil
   ( Expression (Expression),
     PilVar,
     Statement (Def),
     Stmt,
-    Symbol
+    Symbol,
   )
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis
-  ( Index,
+  ( Analysis,
+    DefLoadStmt (DefLoadStmt),
+    Index,
     LoadExpr (LoadExpr),
     LoadStmt (LoadStmt),
     MemAddr,
     MemEquivGroup (MemEquivGroup),
-    MemStmt (MemLoadStmt, MemStoreStmt),
+    MemStmt
+      ( MemDefLoadStmt,
+        MemLoadStmt,
+        MemStoreStmt
+      ),
     MemStorage (MemStorage),
-    StoreStmt (StoreStmt)
+    StoreStmt (StoreStmt),
+    runAnalysis,
+    symbolGenerator,
   )
 import qualified Blaze.Types.Pil.Analysis as A
-import qualified Blaze.Pil.Construct as C
-
+import Data.BinaryAnalysis (BitWidth)
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import Data.List (nub)
-import Data.Sequence (update, mapWithIndex)
+import Data.Sequence
+  ( mapWithIndex,
+    update,
+  )
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 
 widthToSize :: BitWidth -> Pil.OperationSize
 widthToSize (BitWidth x) = Pil.OperationSize $ x `div` 8
@@ -70,9 +84,9 @@ getVarsFromStmt s = foldr f init s
 getRefVars_ :: Stmt -> HashSet PilVar
 getRefVars_ = HSet.fromList . concatMap getVarsFromExpr_
 
--- |Get all vars references in any of the provided statements.
---  NB: Vars that are defined but not used are not considered
---  referenced.
+-- | Get all vars references in any of the provided statements.
+--   NB: Vars that are defined but not used are not considered
+--   referenced.
 getRefVars :: [Stmt] -> HashSet PilVar
 getRefVars = HSet.unions . map getRefVars_
 
@@ -92,10 +106,18 @@ substVarsInExpr f e = case e ^. Pil.op of
   (Pil.VAR_FIELD x) -> e & Pil.op .~ Pil.VAR_FIELD (x & Pil.src %~ f)
   (Pil.VAR_ALIASED x) -> e & Pil.op .~ Pil.VAR_ALIASED (x & Pil.src %~ f)
   (Pil.VAR_ALIASED_FIELD x) -> e & Pil.op .~ Pil.VAR_ALIASED_FIELD (x & Pil.src %~ f)
-  (Pil.VAR_PHI x) -> e & Pil.op .~ Pil.VAR_PHI (x & Pil.src %~ fmap f
-                                                    & Pil.dest %~ f)
-  (Pil.VAR_SPLIT x) -> e & Pil.op .~ Pil.VAR_SPLIT (x & Pil.high %~ f
-                                                        & Pil.low %~ f)
+  (Pil.VAR_PHI x) ->
+    e & Pil.op
+      .~ Pil.VAR_PHI
+        ( x & Pil.src %~ fmap f
+            & Pil.dest %~ f
+        )
+  (Pil.VAR_SPLIT x) ->
+    e & Pil.op
+      .~ Pil.VAR_SPLIT
+        ( x & Pil.high %~ f
+            & Pil.low %~ f
+        )
   _ -> e
 
 substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
@@ -128,10 +150,15 @@ substExpr f = fmap $ substExprInExpr f
 substExprs :: (Expression -> Maybe Expression) -> [Stmt] -> [Stmt]
 substExprs f = fmap (substExpr f)
 
+substExprMap :: ExprMap -> Stmt -> Stmt
+substExprMap m = flip (foldr f) $ HMap.toList m
+  where
+    f :: (Expression, Expression) -> Stmt -> Stmt
+    f (a, b) = substExpr (\x -> if x == a then Just b else Nothing)
+
 -----------------
 
 type EqMap a = HashMap a a
-
 
 addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
 addToEqMap (v1, v2) m = case HMap.lookup v2 m of
@@ -139,13 +166,13 @@ addToEqMap (v1, v2) m = case HMap.lookup v2 m of
   Just origin -> HMap.insert v1 origin m
 
 updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
-updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m
-  = addToEqMap (v1, v2) m
+updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
+  addToEqMap (v1, v2) m
 updateVarEqMap _ m = m
 
--- |Each var equivalent to another var is resolved to the 
---  earliest defined var. E.g., a = 1, b = a, c = b will
---  result in c mapping to a.
+-- | Each var equivalent to another var is resolved to the
+--   earliest defined var. E.g., a = 1, b = a, c = b will
+--   result in c mapping to a.
 getVarEqMap :: [Stmt] -> EqMap PilVar
 getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
   where
@@ -161,24 +188,25 @@ getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
 originsMap :: EqMap PilVar -> HashMap PilVar (HashSet PilVar)
 originsMap = foldr f HMap.empty . HMap.toList
   where
-    f (v1, v2) = HMap.alter g v1 where
-      g Nothing = Just $ HSet.singleton v2
-      g (Just s) = Just $ HSet.insert v2 s
+    f (v1, v2) = HMap.alter g v1
+      where
+        g Nothing = Just $ HSet.singleton v2
+        g (Just s) = Just $ HSet.insert v2 s
 
--- |Merges the mapsTo of every var in set into the origin var.
+-- | Merges the mapsTo of every var in set into the origin var.
 mergePilVars :: PilVar -> HashSet PilVar -> PilVar
-mergePilVars originVar s = originVar & Pil.mapsTo .~ x where
-  x = foldr HSet.union HSet.empty y
-  y = fmap (view Pil.mapsTo) . HSet.toList $ HSet.insert originVar s
+mergePilVars originVar s = originVar & Pil.mapsTo .~ x
+  where
+    x = foldr HSet.union HSet.empty y
+    y = fmap (view Pil.mapsTo) . HSet.toList $ HSet.insert originVar s
 
 ---- Constant Propagation
 type VarExprMap = HashMap PilVar Expression
 
-data ConstPropState
-  = ConstPropState
-      { _exprMap :: VarExprMap,
-        _stmts :: Set Stmt
-      }
+data ConstPropState = ConstPropState
+  { _exprMap :: VarExprMap,
+    _stmts :: Set Stmt
+  }
 
 constantProp :: [Stmt] -> [Stmt]
 constantProp xs =
@@ -200,7 +228,6 @@ constantProp xs =
             _ ->
               constPropState
 
-
 ---- Copy Propagation
 type ExprMap = HashMap Expression Expression
 
@@ -209,11 +236,10 @@ reduceMap m = fmap reduceKey m
   where
     reduceKey v = maybe v reduceKey (HMap.lookup v m)
 
-data CopyPropState
-  = CopyPropState
-      { _mapping :: ExprMap,
-        _copyStmts :: Set Stmt
-      }
+data CopyPropState = CopyPropState
+  { _mapping :: ExprMap,
+    _copyStmts :: Set Stmt
+  }
 
 _foldCopyPropState :: [Stmt] -> CopyPropState
 _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
@@ -231,12 +257,12 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
           _copyStmts = Set.insert stmt (_copyStmts s)
         }
 
--- |Perform copy propagation on a sequence of statements.
+-- | Perform copy propagation on a sequence of statements.
 --
--- NB: Copy propagation operates on expressions, while Def statements refer to the lhs as a PilVar.
---     We handle this by removing statements of the form var_a = var_b since all instances of var_a
---     will be replaced with var_b and only the single assignment of var_a to var_b is represented
---     as a PilVar rather than an expression wrapping a PilVar.
+--  NB: Copy propagation operates on expressions, while Def statements refer to the lhs as a PilVar.
+--      We handle this by removing statements of the form var_a = var_b since all instances of var_a
+--      will be replaced with var_b and only the single assignment of var_a to var_b is represented
+--      as a PilVar rather than an expression wrapping a PilVar.
 copyProp :: [Stmt] -> [Stmt]
 copyProp xs =
   substExprs
@@ -245,49 +271,51 @@ copyProp xs =
   where
     copyPropResult = _foldCopyPropState xs
     copyPropResult' = copyPropResult {_mapping = reduceMap (_mapping copyPropResult)}
-                            
+
 usesAddr :: MemAddr -> Stmt -> Bool
 usesAddr addr stmt = case stmt of
-  Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD loadOp)}} 
-    -> (loadOp ^. Pil.src) == coerce addr
-  Pil.Store storeOp 
-    -> ((storeOp ^. Pil.addr) :: Expression) == coerce addr
+  Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
+    (loadOp ^. Pil.src) == coerce addr
+  Pil.Store storeOp ->
+    ((storeOp ^. Pil.addr) :: Expression) == coerce addr
   _ -> False
 
 usesStorage :: MemStorage -> Stmt -> Bool
 usesStorage storage stmt = case stmt of
-  Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} -> 
+  Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
     loadStorage == storage
-      where
-        loadStorage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
+    where
+      loadStorage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
   Pil.Store storeOp ->
     storeStorage == storage
-      where
-        storeStorage = mkMemStorage (storeOp ^. Pil.addr) (sizeToWidth $ storeOp ^. (Pil.value . Pil.size))
+    where
+      storeStorage = mkMemStorage (storeOp ^. Pil.addr) (sizeToWidth $ storeOp ^. (Pil.value . Pil.size))
   _ -> False
 
 getAddr :: MemStmt -> MemAddr
-getAddr memStmt = case memStmt of
-  MemStoreStmt storeStmt -> storeStmt ^. (A.storage . A.start)
-  MemLoadStmt loadStmt -> loadStmt ^. (A.storage . A.start)
+getAddr = \case
+  MemStoreStmt storeStmt -> storeStmt ^. A.storage . A.start
+  MemDefLoadStmt loadStmt -> loadStmt ^. A.loadStmt . A.storage . A.start
+  MemLoadStmt x -> x ^. A.storage . A.start
 
 getStorage :: MemStmt -> MemStorage
-getStorage memStmt = case memStmt of
-  MemStoreStmt storeStmt -> storeStmt ^. A.storage
-  MemLoadStmt loadStmt -> loadStmt ^. A.storage
+getStorage = \case
+  MemStoreStmt x -> x ^. A.storage
+  MemDefLoadStmt x -> x ^. A.loadStmt . A.storage
+  MemLoadStmt x -> x ^. A.storage
 
--- |Helper function for recursively finding loads. 
--- NB: this implementation does not recurse on load expressions.
+-- | Helper function for recursively finding loads.
+--  NB: this implementation does not recurse on load expressions.
 _findLoads :: Expression -> [LoadExpr]
 _findLoads e = case e ^. Pil.op of
   Pil.LOAD op -> LoadExpr e : _findLoads (op ^. Pil.src)
   x -> concatMap _findLoads x
 
--- |Find all loads in a statement. 
--- In practice, in BNIL (MLIL SSA), only Def statements contain a Load and Loads are not nested
--- inside of any other expression.
--- I.e., when processing PIL from MLIL SSA we would expect this function to only ever return
--- a list with a single item.
+-- | Find all loads in a statement.
+--  In practice, in BNIL (MLIL SSA), only Def statements contain a Load and Loads are not nested
+--  inside of any other expression.
+--  I.e., when processing PIL from MLIL SSA we would expect this function to only ever return
+--  a list with a single item.
 findLoads :: Stmt -> [LoadExpr]
 findLoads s = case s of
   (Pil.Def op) -> _findLoads (op ^. Pil.value)
@@ -314,11 +342,11 @@ memSubst' valMap stmt =
     mkMapping valMap' stmt' = HMap.fromList $ updateWithSize . first coerce <$> constLoadsWithText valMap' stmt'
       where
         updateWithSize :: (Expression, Text) -> (Expression, Expression)
-        updateWithSize (load, txt) = (load, C.constStr txt (load ^. Pil.size)) 
+        updateWithSize (load, txt) = (load, C.constStr txt (load ^. Pil.size))
 
--- |Substitute memory loads of constant pointers
--- to constant values with those constant values.
--- For now, only supporting string values.
+-- | Substitute memory loads of constant pointers
+--  to constant values with those constant values.
+--  For now, only supporting string values.
 memSubst :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 memSubst valmap = fmap (memSubst' valmap)
 
@@ -326,113 +354,158 @@ mkStoreStmt :: Index -> Stmt -> Maybe StoreStmt
 mkStoreStmt idx s = case s of
   Pil.Store storeOp ->
     Just $ StoreStmt s storeOp storage idx
-      where
-        storage = mkMemStorage (storeOp ^. Pil.addr) (sizeToWidth $ storeOp ^. (Pil.value . Pil.size))
+    where
+      storage = mkMemStorage (storeOp ^. Pil.addr) (sizeToWidth $ storeOp ^. (Pil.value . Pil.size))
   _ -> Nothing
 
-mkLoadStmt :: Index -> Stmt -> Maybe LoadStmt
-mkLoadStmt idx s = case s of
-  Pil.Def Pil.DefOp {_value = expr@Pil.Expression {_op = (Pil.LOAD loadOp)}} ->
-    Just $ LoadStmt s (LoadExpr expr) storage idx
-      where
-        storage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
+-- | A Def Load statement is "def x = [y]" (load is not nested)
+mkDefLoadStmt :: Index -> Stmt -> Maybe DefLoadStmt
+mkDefLoadStmt idx s = case s of
+  Pil.Def (Pil.DefOp pv expr@Pil.Expression {_op = (Pil.LOAD loadOp)}) ->
+    Just . DefLoadStmt pv $ LoadStmt s (LoadExpr expr) storage idx
+    where
+      storage = mkMemStorage (loadOp ^. Pil.src) (sizeToWidth $ expr ^. Pil.size)
   _ -> Nothing
 
--- Create a MemStmt
-mkMemStmt :: Index -> Stmt -> Maybe MemStmt
+loadExprToLoadStmt :: Index -> Stmt -> LoadExpr -> Maybe LoadStmt
+loadExprToLoadStmt idx s x = case x ^. A.expr . Pil.op of
+  Pil.LOAD (Pil.LoadOp src') -> Just $ LoadStmt s x mem idx
+    where
+      mem = MemStorage src' . fromIntegral . (* 8) $ x ^. A.expr . Pil.size
+  _ -> Nothing
+
+-- | A statement that is not a DefLoad statement, but has nested loads.
+--  Could include a Store stmt.
+mkNestedLoadStmts :: Index -> Stmt -> [LoadStmt]
+mkNestedLoadStmts idx s = loadExprToLoadStmt idx s `mapMaybe` findLoads s
+
+-- | Creates MemStmts.
+-- a statement can have multiple loads and will generate one memstmt for each load
+mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
 mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
-    MemLoadStmt <$> mkLoadStmt idx s
-  Pil.Store _ -> MemStoreStmt <$> mkStoreStmt idx s
-  _ -> Nothing
+    (: []) . MemDefLoadStmt <$> mkDefLoadStmt idx s
+  Pil.Store _ -> do
+    let nested = MemLoadStmt <$> mkNestedLoadStmts idx s
+    ds <- MemStoreStmt <$> mkStoreStmt idx s
+    Just $ nested <> [ds]
+  _ -> case mkNestedLoadStmts idx s of
+    [] -> Nothing
+    xs -> Just $ MemLoadStmt <$> xs
 
--- |Finds memory statements. Update this function if the definition of memory
--- statements changes.
+-- | Finds memory statements. Update this function if the definition of memory
+--  statements changes.
 findMemStmts :: [Stmt] -> [MemStmt]
-findMemStmts = mapMaybe (uncurry mkMemStmt) . indexed
+findMemStmts = concat . mapMaybe (uncurry mkMemStmt) . indexed
 
-mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [LoadStmt] -> MemEquivGroup
-mkMemEquivGroup storeStmt storage loadStmts = 
+mkMemEquivGroup :: Maybe StoreStmt -> MemStorage -> [DefLoadStmt] -> [LoadStmt] -> MemEquivGroup
+mkMemEquivGroup storeStmt storage defLoadStmts nestedLoadStmts =
   MemEquivGroup
     { _memEquivGroupStore = storeStmt,
       _memEquivGroupStorage = storage,
-      _memEquivGroupLoads = loadStmts}
+      _memEquivGroupDefLoads = defLoadStmts,
+      _memEquivGroupLoads = nestedLoadStmts
+    }
 
 mkMemStorage :: MemAddr -> BitWidth -> MemStorage
-mkMemStorage addr width = 
-  MemStorage 
+mkMemStorage addr width =
+  MemStorage
     { _memStorageStart = addr,
-      _memStorageWidth = width}
+      _memStorageWidth = width
+    }
 
--- |Given a memory address and list of memory statements, build up
--- groups of statements that refer to the same value.
+-- | Given a memory address and list of memory statements, build up
+--  groups of statements that refer to the same value.
 --
--- NB: Assumes all memory statements refer to the given memory address.
+--  NB: Assumes all memory statements refer to the given memory address.
 findMemEquivGroupsForStorage :: MemStorage -> [MemStmt] -> [MemEquivGroup]
-findMemEquivGroupsForStorage storage (x:xs) = reverse groups
+findMemEquivGroupsForStorage storage (x : xs) = reverse groups
   where
+    initGroup :: MemEquivGroup
     initGroup = case x of
       MemStoreStmt s ->
-        mkMemEquivGroup (Just s) storage []
+        mkMemEquivGroup (Just s) storage [] []
+      MemDefLoadStmt s ->
+        mkMemEquivGroup Nothing storage [s] []
       MemLoadStmt s ->
-        mkMemEquivGroup Nothing storage [s]
+        mkMemEquivGroup Nothing storage [] [s]
+    groups :: [MemEquivGroup]
     groups = foldl' f [initGroup] xs
+    f :: [MemEquivGroup] -> MemStmt -> [MemEquivGroup]
     f gs stmt = case stmt of
-      MemStoreStmt storeStmt -> g : gs
+      MemStoreStmt s -> g : gs
         where
-          g = mkMemEquivGroup (Just storeStmt) storage []
-      MemLoadStmt loadStmt -> updatedGroup : tailSafe gs
+          g = mkMemEquivGroup (Just s) storage [] []
+      MemDefLoadStmt s -> updatedGroup : tailSafe gs
         where
           currGroup = head gs
-          updatedGroup = currGroup & A.loads %~ (loadStmt:)
+          updatedGroup = currGroup & A.defLoads %~ (s :)
+      MemLoadStmt s -> updatedGroup : tailSafe gs
+        where
+          currGroup = head gs
+          updatedGroup = currGroup & A.loads %~ (s :)
 findMemEquivGroupsForStorage _ [] = []
 
--- |Find equivalent variables that are defined by loading from the same symbolic address
--- and the same memory state—at least for that address.
--- We assume that LOADs only occur in a DEF statement and are not nested.
--- We also assume that STOREs do not include a LOAD expression in the stored value expression.
+-- | Find equivalent variables that are defined by loading from the same symbolic address
+--  and the same memory state—at least for that address.
+--  We assume that LOADs only occur in a DEF statement and are not nested.
+--  We also assume that STOREs do not include a LOAD expression in the stored value expression.
 findMemEquivGroups :: [Stmt] -> [MemEquivGroup]
 findMemEquivGroups stmts = groups
   where
     memStmts = findMemStmts stmts
     memStores = nub $ fmap getStorage memStmts
-    memStmtsByStorage = do memStorage <- memStores
-                           return $
-                              do memStmt <- memStmts
-                                 guard (memStorage == getStorage memStmt)
-                                 return memStmt
+    memStmtsByStorage = do
+      memStorage <- memStores
+      return $
+        do
+          memStmt <- memStmts
+          guard (memStorage == getStorage memStmt)
+          return memStmt
     groups :: [MemEquivGroup]
     groups = concatMap (uncurry findMemEquivGroupsForStorage) $ zip memStores memStmtsByStorage
 
--- |Update a sequence of statements to a new sequence of statements where
--- the memory statements referenced by the group have been resolved such that
--- the possible Store statement has been replaced with a Def and all Loads
--- now refer to a new PilVar. If the MemEquivGroup does not include a Store,
--- no Def will be emitted but the Loads will still refer to a common, new PilVar
+allMemEquivGroupLoads :: MemEquivGroup -> [LoadStmt]
+allMemEquivGroupLoads g =
+  (view A.loadStmt <$> g ^. A.defLoads)
+    <> g ^. A.loads
+
+-- | Update a sequence of statements to a new sequence of statements where
+--  the memory statements referenced by the group have been resolved such that
+--  the possible Store statement has been replaced with a Def and all Loads
+--  now refer to a new PilVar. If the MemEquivGroup does not include a Store,
+--  no Def will be emitted but the Loads will still refer to a common, new PilVar
 resolveMemGroup :: MemEquivGroup -> Symbol -> Seq Stmt -> Seq Stmt
-resolveMemGroup group name xs = 
+resolveMemGroup group name xs =
   case group ^. A.store of
     Nothing ->
       mapWithIndex (updateStmt loadIdxs) xs
     Just storeStmt ->
       mapWithIndex (updateStmt loadIdxs) xs'
-        where
-          xs' = replaceStore storeStmt name xs
+      where
+        xs' = replaceStore storeStmt name xs
   where
+    allLoads :: [LoadStmt]
+    allLoads = allMemEquivGroupLoads group
     loadIdxs :: HashSet Index
-    loadIdxs = HSet.fromList . fmap (^. A.index) . (^. A.loads) $ group
+    loadIdxs = HSet.fromList . fmap (^. A.index) $ allLoads
     varExpr :: Expression
     varExpr = C.var name $ widthToSize (group ^. (A.storage . A.width))
     loadExprMap :: HashMap Expression Expression
-    loadExprMap = HMap.fromList (zip (map (coerce . (^. A.loadExpr))
-                                          (group ^. A.loads)) 
-                                     (repeat varExpr))
+    loadExprMap =
+      HMap.fromList
+        ( zip
+            ( map
+                (coerce . (^. A.loadExpr))
+                allLoads
+            )
+            (repeat varExpr)
+        )
     updateStmt :: HashSet Index -> Index -> Stmt -> Stmt
-    updateStmt idxsToUpdate stmtIdx stmt = 
-      if HSet.member stmtIdx idxsToUpdate then
-        substExpr (`HMap.lookup` loadExprMap) stmt
-      else 
-        stmt
+    updateStmt idxsToUpdate stmtIdx stmt =
+      if HSet.member stmtIdx idxsToUpdate
+        then substExpr (`HMap.lookup` loadExprMap) stmt
+        else stmt
 
 -- | The groups need to be sorted in order by the index of the store statement.
 resolveMemGroups :: [MemEquivGroup] -> [Stmt] -> [Stmt]
@@ -440,28 +513,12 @@ resolveMemGroups groups stmts = toList result
   where
     stmts' :: Seq Stmt
     stmts' = DSeq.fromList stmts
-
     names :: [Symbol]
     names = symbolGenerator (HSet.map (^. Pil.symbol) $ getAllVars stmts)
-
     result :: Seq Stmt
     result = foldr f stmts' (zip groups names)
-
     f :: (MemEquivGroup, Symbol) -> Seq Stmt -> Seq Stmt
     f (group, symbol) = resolveMemGroup group symbol
-
--- TODO: Make this better.
--- |Generate variable names.
-symbolGenerator :: HashSet Symbol -> [Symbol]
-symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
-  where
-    letters :: String
-    letters = ['a'..'z']
-
-    names :: [Symbol]
-    names = [Text.pack [a, b, c] | a <- letters, 
-                                   b <- letters,
-                                   c <- letters]
 
 replaceStore :: StoreStmt -> Symbol -> Seq Stmt -> Seq Stmt
 replaceStore store symbol = update storeIdx varDef
@@ -471,30 +528,112 @@ replaceStore store symbol = update storeIdx varDef
     func = Nothing -- TODO
     ctxIndex = Nothing -- TODO
     mapsTo = HSet.empty -- TODO
-    varDef = Pil.Def (Pil.DefOp
-                      { _var = Pil.PilVar symbol func ctxIndex mapsTo,
-                        _value = storedVal})
+    varDef =
+      Pil.Def
+        ( Pil.DefOp
+            { _var = Pil.PilVar symbol func ctxIndex mapsTo,
+              _value = storedVal
+            }
+        )
 
 memoryTransform :: [Stmt] -> [Stmt]
 memoryTransform xs =
   resolveMemGroups memGroups xs
-    where
-      memGroups = findMemEquivGroups xs
-
--- |Copy propagation via memory. Finds and simplifies variables that are copied
--- through symbolic memory addresses that are identified to be equivalent.
--- This is done by constructing store-load chains similar to def-use chains.
-copyPropMem :: [Stmt] -> [Stmt]
-copyPropMem xs = substExprs (\v -> HMap.lookup v (_mapping propResult)) xs
   where
-    _memEquivGroups = findMemEquivGroups xs
-    propResult = foldr f (CopyPropState HMap.empty Set.empty) xs
+    memGroups = findMemEquivGroups xs
+
+data PropInfo = PropInfo
+  { substMap :: HashMap Index ExprMap,
+    defStmt :: Stmt,
+    defAfterIndex :: Maybe Index
+  }
+
+propInfoForMemGroup :: MemEquivGroup -> Analysis PropInfo
+propInfoForMemGroup mg = do
+  s <- A.newSym
+  let pv = C.pilVar s
+      storageExpr = mg ^. A.storage . A.start
+      storageWidth = fromIntegral . (`div` 8) $ mg ^. A.storage . A.width
+      loadExpr = C.load storageExpr storageWidth
+      defStmt' = Pil.Def (Pil.DefOp pv loadExpr)
+      pvExpr = C.var s $ storageExpr ^. Pil.size
+  return $
+    PropInfo
+      { substMap = mkSubstMap pvExpr allLoads,
+        defStmt = defStmt',
+        defAfterIndex = view A.index <$> mg ^. A.store
+      }
+  where
+    allLoads :: [LoadStmt]
+    allLoads = allMemEquivGroupLoads mg
+    mkSubstMap :: Expression -> [LoadStmt] -> HashMap Index ExprMap
+    mkSubstMap pvExpr = foldr f HMap.empty
       where
-        f _stmt propState =
-          propState
+        f lstmt = HMap.alter g (lstmt ^. A.index)
+          where
+            lexpr = lstmt ^. A.loadExpr . A.expr
+            g Nothing = Just $ HMap.fromList [(lexpr, pvExpr)]
+            g (Just m) = Just $ HMap.insert lexpr pvExpr m
+
+-- | Creates defs for each memgroup load
+copyPropMem_ :: [Stmt] -> Analysis [Stmt]
+copyPropMem_ xs = do
+  propInfos <-
+    mapM propInfoForMemGroup
+      . filter (not . null . allMemEquivGroupLoads)
+      $ memEquivGroups
+  let defsAtBeginning :: [Stmt]
+      defsAtBeginning =
+        mapMaybe
+          ( \pi ->
+              maybe
+                (Just $ defStmt pi)
+                (const Nothing)
+                $ defAfterIndex pi
+          )
+          propInfos
+      defAfterMap :: HashMap Index (HashSet Stmt)
+      defAfterMap =
+        foldr (HMap.unionWith (<>)) HMap.empty
+          . fmap
+            ( \pi ->
+                maybe
+                  HMap.empty
+                  ( flip HMap.singleton
+                      . HSet.singleton
+                      $ defStmt pi
+                  )
+                  $ defAfterIndex pi
+            )
+          $ propInfos
+      allSubstsPerIndex :: HashMap Index ExprMap
+      allSubstsPerIndex =
+        foldr (HMap.unionWith HMap.union) HMap.empty
+          . fmap substMap
+          $ propInfos
+      substAndInsertDefs :: (Index, Stmt) -> [Stmt] -> [Stmt]
+      substAndInsertDefs (ix, stmt) ys = newStmt : newDefs <> ys
+        where
+          newDefs = maybe [] HSet.toList $ HMap.lookup ix defAfterMap
+          newStmt =
+            maybe stmt (`substExprMap` stmt) $
+              HMap.lookup ix allSubstsPerIndex
+
+  return $ defsAtBeginning <> foldr substAndInsertDefs [] (indexed xs)
+  where
+    memEquivGroups :: [MemEquivGroup]
+    memEquivGroups = findMemEquivGroups xs
+
+-- | Copy propagation via memory. Finds and simplifies variables that are copied
+--  through symbolic memory addresses that are identified to be equivalent.
+--  This is done by constructing store-load chains similar to def-use chains.
+copyPropMem :: [Stmt] -> [Stmt]
+copyPropMem xs = runAnalysis (copyPropMem_ xs) usedSyms
+  where
+    usedSyms = HSet.map (^. Pil.symbol) $ getAllVars xs
 
 simplify :: [Stmt] -> [Stmt]
 simplify = copyProp . constantProp
 
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
-simplifyMem valMap =  memoryTransform . memSubst valMap
+simplifyMem valMap = memoryTransform . memSubst valMap

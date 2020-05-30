@@ -2,22 +2,24 @@ module Blaze.Search where
 
 import Blaze.Prelude hiding (succ, pred, toList)
 
-import qualified Prelude as P
+import Binja.Core (InstructionIndex)
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
-import Binja.Core (InstructionIndex)
-
 import qualified Blaze.Path as Path
-import Blaze.Types.Path (Path, Node, AbstractCallNode)
-import Blaze.Types.Graph (Graph)
+import Blaze.Pretty (Pretty, pretty)
+import qualified Blaze.Types.CallGraph as CG
+import Blaze.Types.CallGraph (CallGraph)
 import qualified Blaze.Types.Function as BF
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Graph as G
-import Blaze.Pretty (Pretty, pretty)
-
+import Blaze.Types.Path (AbstractCallNode, Node, Path)
+import Data.BinaryAnalysis (Address)
+import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Set as Set
+import qualified Prelude as P
+
 
 type F = MLILSSAFunction
 
@@ -142,13 +144,15 @@ allCombos (xs:xss) = do
 
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: forall g p. (Graph () Function g, Path p, Ord p)
-               => g
+searchBetween_ :: forall p. (Path p, Ord p)
+               => HashMap Address CG.Function
+               -> HashMap Address Function
+               -> CallGraph
                -> Map Function [p]
                -> Function -> InstructionIndex MLILSSAFunction
                -> Function -> InstructionIndex MLILSSAFunction
                -> [p]
-searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
+searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = endPaths
   | otherwise = results
   where
@@ -175,20 +179,24 @@ searchBetween_ cfg fpaths fn1 ix1 fn2 ix2
     fpaths' = Map.insert fn2 endPaths $
       if fn1 == fn2 then fpaths else Map.insert fn1 startPaths fpaths
 
+    -- TODO: The conversion from CG.Function to Function will be removed once
+    --       refactoring of BN types out of Blaze proper is complete.
     callPaths :: [[Function]]
-    callPaths = G.findSimplePaths fn1 fn2 cfg
+    callPaths = fromMaybe [[]] mBnPaths
+      where 
+        fns :: Maybe (CG.Function, CG.Function)
+        fns = (,) <$> HMap.lookup (fn1 ^. Func.start) cgfuncs
+          <*> HMap.lookup (fn2 ^. Func.start) cgfuncs
+        mCgPaths :: Maybe [[CG.Function]]
+        mCgPaths = (\(x, y) -> G.findSimplePaths x y cg) <$> fns
+        mBnPaths :: Maybe [[Function]]
+        mBnPaths = (fmap . mapMaybe) ((`HMap.lookup` bnfuncs) . (^. CG.address)) <$> mCgPaths
     
     callPathsAsPairs :: [[(Function, Function)]]
     callPathsAsPairs = pairs <$> callPaths
 
     allCallPairs :: Set (Function, Function)
     allCallPairs = Set.fromList . join $ callPathsAsPairs
-
-    -- callPairCache :: Map (Function, Function) [PathWithCall p]
-    -- callPairCache = Map.fromList $ do
-    --   pair@(caller, callee) <- Set.toList allCallPairs
-    --   path' <- maybe [] identity $ Map.lookup caller fpaths'
-    --   return (pair, pathsWithCallTo callee path')
 
     callPairCache :: Map (Function, Function) [PathWithCall p]
     callPairCache = fmap Set.toList . foldr f Map.empty $ do

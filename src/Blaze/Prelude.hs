@@ -155,17 +155,3 @@ instance ArithOverflow (SInt 128) where
   bvMulOFast = l2 bvMulOFast
   bvDivO = l2 bvDivO
   bvNegO = bvNegO . unSBV
-
-
-newtype ByteWidth = ByteWidth Word64
-  deriving (Eq, Ord, Read, Show, Generic, Enum, Real, Integral, Num)
-
-instance Hashable ByteWidth
-
-newtype BitWidth = BitWidth Word64
-  deriving (Eq, Ord, Read, Show, Generic, Enum, Real, Integral, Num)
-
-instance Hashable BitWidth
-
-toBitWidth :: ByteWidth -> BitWidth
-toBitWidth (ByteWidth n) = BitWidth (8*n)
