@@ -20,18 +20,19 @@ data MemEquivGroup = MemEquivGroup
     -- There may be multiple LoadStmt instances for a single
     -- statement if that statement includes multiple matching
     -- load expressions.
-    -- def x [load]
+    -- E.g.: def x [load]
     _memEquivGroupDefLoads :: [DefLoadStmt],
-    -- any stmt with nested load
-    -- if there are n loads in a single stmt, there will be n LoadStmts
-    _memEquivGroupNestedLoads :: [LoadStmt]
+    -- Any stmt with nested load, excluding Def-Load statements, but
+    -- including store statements.
+    -- If there are n loads in a single stmt, there will be n LoadStmts.
+    _memEquivGroupLoads :: [LoadStmt]
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable MemEquivGroup
 
 -- TODO: Index should really be unsigned, but Haskell idiom
---       seems to be to just always use signed ints
+--       seems to be to just always use signed ints.
 type Index = Int
 
 type MemAddr = Expression
@@ -74,7 +75,8 @@ instance Hashable DefLoadStmt
 
 data MemStmt
   = MemStoreStmt StoreStmt
-  | MemNestedLoadStmt LoadStmt
+  -- MemLoadStmt is any non-Def-Load statement containing a load
+  | MemLoadStmt LoadStmt
   | MemDefLoadStmt DefLoadStmt
   deriving (Eq, Ord, Show, Generic)
 

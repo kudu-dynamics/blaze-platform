@@ -24,7 +24,7 @@ import Blaze.Types.Pil.Analysis
     MemEquivGroup (MemEquivGroup),
     MemStmt
       ( MemDefLoadStmt,
-        MemNestedLoadStmt,
+        MemLoadStmt,
         MemStoreStmt
       ),
     MemStorage (MemStorage),
@@ -296,13 +296,13 @@ getAddr :: MemStmt -> MemAddr
 getAddr = \case
   MemStoreStmt storeStmt -> storeStmt ^. A.storage . A.start
   MemDefLoadStmt loadStmt -> loadStmt ^. A.loadStmt . A.storage . A.start
-  MemNestedLoadStmt x -> x ^. A.storage . A.start
+  MemLoadStmt x -> x ^. A.storage . A.start
 
 getStorage :: MemStmt -> MemStorage
 getStorage = \case
   MemStoreStmt x -> x ^. A.storage
   MemDefLoadStmt x -> x ^. A.loadStmt . A.storage
-  MemNestedLoadStmt x -> x ^. A.storage
+  MemLoadStmt x -> x ^. A.storage
 
 -- | Helper function for recursively finding loads.
 --  NB: this implementation does not recurse on load expressions.
@@ -386,12 +386,12 @@ mkMemStmt idx s = case s of
   Pil.Def Pil.DefOp {_value = Pil.Expression {_op = (Pil.LOAD _)}} ->
     (: []) . MemDefLoadStmt <$> mkDefLoadStmt idx s
   Pil.Store _ -> do
-    let nested = MemNestedLoadStmt <$> mkNestedLoadStmts idx s
+    let nested = MemLoadStmt <$> mkNestedLoadStmts idx s
     ds <- MemStoreStmt <$> mkStoreStmt idx s
     Just $ nested <> [ds]
   _ -> case mkNestedLoadStmts idx s of
     [] -> Nothing
-    xs -> Just $ MemNestedLoadStmt <$> xs
+    xs -> Just $ MemLoadStmt <$> xs
 
 -- | Finds memory statements. Update this function if the definition of memory
 --  statements changes.
@@ -404,7 +404,7 @@ mkMemEquivGroup storeStmt storage defLoadStmts nestedLoadStmts =
     { _memEquivGroupStore = storeStmt,
       _memEquivGroupStorage = storage,
       _memEquivGroupDefLoads = defLoadStmts,
-      _memEquivGroupNestedLoads = nestedLoadStmts
+      _memEquivGroupLoads = nestedLoadStmts
     }
 
 mkMemStorage :: MemAddr -> BitWidth -> MemStorage
@@ -427,7 +427,7 @@ findMemEquivGroupsForStorage storage (x : xs) = reverse groups
         mkMemEquivGroup (Just s) storage [] []
       MemDefLoadStmt s ->
         mkMemEquivGroup Nothing storage [s] []
-      MemNestedLoadStmt s ->
+      MemLoadStmt s ->
         mkMemEquivGroup Nothing storage [] [s]
     groups :: [MemEquivGroup]
     groups = foldl' f [initGroup] xs
@@ -440,10 +440,10 @@ findMemEquivGroupsForStorage storage (x : xs) = reverse groups
         where
           currGroup = head gs
           updatedGroup = currGroup & A.defLoads %~ (s :)
-      MemNestedLoadStmt s -> updatedGroup : tailSafe gs
+      MemLoadStmt s -> updatedGroup : tailSafe gs
         where
           currGroup = head gs
-          updatedGroup = currGroup & A.nestedLoads %~ (s :)
+          updatedGroup = currGroup & A.loads %~ (s :)
 findMemEquivGroupsForStorage _ [] = []
 
 -- | Find equivalent variables that are defined by loading from the same symbolic address
@@ -468,7 +468,7 @@ findMemEquivGroups stmts = groups
 allMemEquivGroupLoads :: MemEquivGroup -> [LoadStmt]
 allMemEquivGroupLoads g =
   (view A.loadStmt <$> g ^. A.defLoads)
-    <> g ^. A.nestedLoads
+    <> g ^. A.loads
 
 -- | Update a sequence of statements to a new sequence of statements where
 --  the memory statements referenced by the group have been resolved such that
