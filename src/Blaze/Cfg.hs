@@ -9,6 +9,7 @@ import Blaze.Prelude
 import Blaze.Types.Cfg as Exports
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
+import qualified Data.HashSet as Hs
 import qualified Data.IntMap.Strict as Im
 import Data.Set as Set
 
@@ -40,20 +41,31 @@ dltGraphFromCfg cfg =
     dltMap :: DltMap
     dltMap = buildNodeMap cfg
 
-domHelper :: (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) -> Cfg a -> [(CfNode, [CfNode])]
+domHelper :: (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) -> Cfg a -> HashMap CfNode (HashSet CfNode)
 domHelper f cfg =
-  bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
-    where 
-      dltRooted :: Dlt.Rooted
-      dltMap :: DltMap
-      (dltRooted, dltMap) = dltGraphFromCfg cfg
+  Hm.fromList . ((Hs.fromList <$>) <$>) $ domList
+  where
+    dltRooted :: Dlt.Rooted
+    dltMap :: DltMap
+    (dltRooted, dltMap) = dltGraphFromCfg cfg
+    domList :: [(CfNode, [CfNode])]
+    domList = bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
 
 -- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
 -- to find dominators. The result is converted back to CfNodes before being returned.
 -- Per dom-lt, the complexity is:
 -- O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
-getDominators :: Cfg a -> [(CfNode, [CfNode])]
-getDominators = domHelper Dlt.dom
+getDominators :: Cfg a -> Dominators
+getDominators = Dominators . domHelper Dlt.dom
 
-getPostDominators :: Cfg a -> [(CfNode, [CfNode])]
-getPostDominators = domHelper Dlt.pdom
+getPostDominators :: Cfg a -> PostDominators
+getPostDominators = PostDominators . domHelper Dlt.pdom
+
+-- |Check if an edge is a back edge using graph dominators.
+-- We assume the dominators include the nodes referenced in the edge.
+-- If that assumption is wrong, isBackEdge defaults to False.
+isBackEdge :: Dominators -> CfEdge -> Bool
+isBackEdge doms edge =
+  case Hm.lookup (edge ^. src) doms of
+    Nothing -> False
+    (Just domNodes) -> _

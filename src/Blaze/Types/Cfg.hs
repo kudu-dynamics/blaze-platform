@@ -41,6 +41,10 @@ data CfEdge
 
 $(makeFields ''CfEdge)
 
+newtype Dominators = Dominators (HashMap CfNode (HashSet CfNode))
+
+newtype PostDominators = PostDominators (HashMap CfNode (HashSet CfNode))
+
 -- | A non-empty graph that consists of a strongly-connected component
 -- with a single root node (a node with no incoming edges).
 -- This is intended to be the graph representation of a CFG.
