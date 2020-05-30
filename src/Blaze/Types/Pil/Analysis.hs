@@ -112,7 +112,7 @@ symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
                                    b <- letters,
                                    c <- letters]
 
-data AnalysisState = AnalysisState
+newtype AnalysisState = AnalysisState
                    { _analysisStateNewSymbols :: [Symbol]
                    } deriving (Eq, Ord, Read, Show)
 
