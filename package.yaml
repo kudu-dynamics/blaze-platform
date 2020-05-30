@@ -34,6 +34,7 @@ dependencies:
   - containers
   - data-binary-ieee754
   - dlist
+  - dom-lt
   - envy
   - extra
 #  - ghc-typelits-natnormalise
