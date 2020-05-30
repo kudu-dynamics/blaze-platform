@@ -16,7 +16,6 @@ import Blaze.Types.Pil
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis
   ( Analysis,
-    BitWidth,
     DefLoadStmt (DefLoadStmt),
     Index,
     LoadExpr (LoadExpr),
@@ -34,6 +33,7 @@ import Blaze.Types.Pil.Analysis
     symbolGenerator,
   )
 import qualified Blaze.Types.Pil.Analysis as A
+import Data.BinaryAnalysis (BitWidth)
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet

@@ -138,6 +138,13 @@ instance Disp Pil.Stmt where
       where
         exitCtx = disp $ op ^. Pil.leavingCtx
         retCtx = disp $ op ^. Pil.returningToCtx
+    (Pil.Call c) -> case c ^. Pil.name of
+      (Just name) -> Text.pack $ printf "call (%s) %s" name params
+      Nothing -> Text.pack $ printf "call (Nothing) (%s) %s" dest params
+      where
+        dest = disp $ c ^. Pil.dest
+        params :: Text
+        params = show $ fmap disp $ c ^. Pil.params
 
 instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = case exprOp of
