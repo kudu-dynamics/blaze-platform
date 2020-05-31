@@ -5,16 +5,20 @@ module Blaze.Types.Cfg where
 import Blaze.Prelude
 import Blaze.Types.CallGraph (Function)
 import qualified Blaze.Graph as Graph
+import Blaze.Graph (Graph)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
 import Data.BinaryAnalysis (Address)
+import Prelude (error)
 
 -- TODO: Consider adding more depending on what is being represented.
 data BranchType
   = TrueBranch
   | FalseBranch
   | UnconditionalBranch
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+
+instance Hashable BranchType
 
 data CfNode
   = BasicBlock
@@ -35,11 +39,13 @@ data CfEdge
   = CfEdge
       { _src :: CfNode,
         _dst :: CfNode,
-        _type :: BranchType
+        _branchType :: BranchType
       }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
-$(makeFields ''CfEdge)
+instance Hashable CfEdge
+
+$(makeFieldsNoPrefix ''CfEdge)
 
 newtype Dominators = Dominators (HashMap CfNode (HashSet CfNode))
 
@@ -56,7 +62,7 @@ type ControlFlowGraph = AlgaGraph BranchType CfNode
 mkControlFlowGraph :: CfNode -> [CfNode] -> [CfEdge] -> ControlFlowGraph
 mkControlFlowGraph root ns es =
   Graph.addNodes (root : ns) . Graph.fromEdges $
-    (_type &&& (_src &&& _dst)) <$> es
+    (_branchType &&& (_src &&& _dst)) <$> es
 
 data Cfg a
   = Cfg
@@ -75,3 +81,20 @@ buildCfg root rest es mapping =
   where
     graph :: ControlFlowGraph
     graph = mkControlFlowGraph root rest es
+
+-- TODO: Separate graph construction from graph use
+instance Graph BranchType CfNode (Cfg a) where
+  empty = error "The empty function is unsupported for CFGs."
+  fromNode _ = error "Use buildCfg to construct a CFG."
+  fromEdges _ = error "Use buildCfg to construct a CFG."
+  succs node = Graph.succs node . _graph
+  preds node = Graph.preds node . _graph
+  nodes = Graph.nodes . _graph 
+  edges = Graph.edges . _graph
+  getEdgeLabel edge = Graph.getEdgeLabel edge . _graph
+  setEdgeLabel label edge cfg = cfg { _graph = Graph.setEdgeLabel label edge . _graph $ cfg }
+  removeEdge edge cfg = cfg { _graph = Graph.removeEdge edge . _graph $ cfg }
+  removeNode node cfg = cfg { _graph = Graph.removeNode node . _graph $ cfg }
+  addNodes nodes cfg = cfg { _graph = Graph.addNodes nodes . _graph $ cfg }
+  addEdge lblEdge cfg = cfg { _graph = Graph.addEdge lblEdge . _graph $ cfg }
+  hasNode node = Graph.hasNode node . _graph
