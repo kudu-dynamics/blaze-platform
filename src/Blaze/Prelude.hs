@@ -130,6 +130,15 @@ twaddleUUID diff' uuid =
   where
     (w1, w2, w3, w4) = UUID.toWords uuid
 
+-- | 'unfoldWhileM' adds the elements from the input list to the output list 
+-- while the predicate is true. Taken from luqui's answer on stackoverflow here:
+-- https://stackoverflow.com/questions/4404351/how-to-takewhile-elements-in-a-list-wrapped-in-a-monad
+unfoldWhileM :: Monad m => (a -> Bool) -> m a -> m [a]
+unfoldWhileM p act = do
+  x <- act
+  if p x
+    then (x :) <$> unfoldWhileM p act
+    else return []
 --------------
 
 l2 :: (SVal -> SVal -> (SBool, SBool)) -> SBV a -> SBV a -> (SBool, SBool)

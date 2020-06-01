@@ -15,6 +15,7 @@ import Blaze.Types.VTable
     VTContext (VTContext, _bv, _reader, _width),
     VTable (VTable, _parents, _topOffset, _typeInfo, _vFunctions, _vptrAddress),
   )
+import Data.Text.Encoding (decodeUtf8)
 import Data.BinaryAnalysis (Address (Address), AddressWidth (AddressWidth))
 import Data.Text (pack)
 import qualified Data.ByteString as BS
@@ -71,8 +72,8 @@ readName_ ctx addr = do
   liftIO $ seekBinaryReader readr $ fromIntegral addr
   str <-
     liftIO $
-      takeWhileM_
-        (/= Just 0)
+      unfoldWhileM
+        (\x -> isJust x && x /= Just 0)
         (readAndReturnByteString readr)
   return $ Just $ decodeUtf8 $ BS.pack $ fromJust <$> str
   where
@@ -82,7 +83,6 @@ readName_ ctx addr = do
       char <- read8 br
       seekBinaryReader br $ fromIntegral (currentPosition + 1)
       return char
-
 
 getTypeInfo_ :: Address -> VTable.Ctx (Maybe VTable.TypeInfo)
 getTypeInfo_ vptr = do
@@ -104,7 +104,7 @@ getVirtualFunctions_ initVptr = do
   liftIO $ seekBinaryReader readr $ fromIntegral initVptr
   fs <-
     liftIO $
-      takeWhileM_
+      unfoldWhileM
         (/= Nothing)
         (getFunctionAndUpdateReader (ctx ^. VTable.bv) readr (ctx ^. VTable.width))
   let tmp = fromJust <$> fs
@@ -120,12 +120,6 @@ getVirtualFunctions_ initVptr = do
       seekBinaryReader br $ currentPosition + bitW
       getFunctionStartingAt bv Nothing $ (Address . fromJust) fAddr
 
-takeWhileM_ :: (a -> Bool) -> IO a -> IO [a]
-takeWhileM_ p act = do
-  x <- act
-  if p x
-    then (x :) <$> takeWhileM_ p act
-    else return []
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
 createVTable_ vptr = do
@@ -160,7 +154,7 @@ getVTable bv addr = do
   let vtable = createVTable_ addr
   runReaderT vtable initContext
 
--- currently this just checks for an array of function pointers, not a vtable
+-- | the 'getVTableStores' function checks for an array of function pointers, not a vtable
 getVTableStores :: BN.BNBinaryView -> [Pil.Stmt] -> IO [(Pil.Stmt, Address)]
 getVTableStores bv stmts = filterM (isVtable bv . snd) storeConst
   where
