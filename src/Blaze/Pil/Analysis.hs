@@ -46,10 +46,10 @@ import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
 
 widthToSize :: BitWidth -> Pil.OperationSize
-widthToSize x = Pil.OperationSize $ x `div` 8
+widthToSize x = Pil.OperationSize $ toByteWidth x
 
 sizeToWidth :: Pil.OperationSize -> BitWidth
-sizeToWidth (Pil.OperationSize x) = x * 8
+sizeToWidth (Pil.OperationSize x) = toBitWidth x
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]

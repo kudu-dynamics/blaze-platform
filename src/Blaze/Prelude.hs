@@ -32,6 +32,13 @@ import qualified Data.Text.Lazy as L (Text)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
+import Data.BinaryAnalysis as Exports (Address(Address),
+                                       AddressWidth(AddressWidth),
+                                       toBitWidth,
+                                       toByteWidth,
+                                       BitWidth(BitWidth),
+                                       ByteWidth(ByteWidth)
+                                      )
 import Data.Data as Exports
 import Data.UUID as Exports (UUID)
 import Data.HashMap.Strict as Exports (HashMap)
