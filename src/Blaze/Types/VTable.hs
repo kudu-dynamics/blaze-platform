@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Blaze.Types.VTable
-  (module Blaze.Types.VTable) where
+module Blaze.Types.VTable where
   
 
 import Binja.Core (BNBinaryReader, BNBinaryView)

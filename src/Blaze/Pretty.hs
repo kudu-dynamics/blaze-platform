@@ -1,30 +1,29 @@
 module Blaze.Pretty
-  ( Pretty( pretty )
-  , prettyPrint
-  , pp
-  , PStmts (PStmts)
-  , prettyStmts
-  ) where
+  ( Pretty (pretty),
+    prettyPrint,
+    pp,
+    PStmts (PStmts),
+    prettyStmts,
+  )
+where
 
-import Protolude hiding (Symbol, sym, const)
-
-import Text.Printf
-import qualified Numeric
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import Binja.Core (InstructionIndex(InstructionIndex))
-import qualified Data.Text as Text
-import Data.Coerce (coerce)
-import Data.BinaryAnalysis (Address(Address))
-
-import qualified Binja.MLIL as MLIL
+import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
+import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-
-import qualified Blaze.Types.Pil as Pil
 import Blaze.Pil.Display (Symbol)
-
+import qualified Blaze.Types.Pil as Pil
 import Control.Lens hiding (op)
+import Data.BinaryAnalysis
+  ( Address (Address),
+    ByteWidth (ByteWidth),
+  )
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Numeric
+import Protolude hiding (Symbol, const, sym)
+import Text.Printf
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -37,7 +36,6 @@ import Control.Lens hiding (op)
 
 -- instance Pretty' () Int where
 --   pretty' n = show (n + 1)
-
 
 class Pretty x where
   pretty :: x -> Text
@@ -55,19 +53,21 @@ instance Pretty Address where
   pretty (Address x) = showHex x
 
 instance Pretty a => Pretty [a] where
-  pretty ys = "[" <> f ys <> "]" where
-    f [] = ""
-    f [x] = pretty x
-    f (x:xs) = pretty x <> ", " <> f xs
+  pretty ys = "[" <> f ys <> "]"
+    where
+      f [] = ""
+      f [x] = pretty x
+      f (x : xs) = pretty x <> ", " <> f xs
 
 instance (Pretty k, Pretty v) => Pretty (Map k v) where
   pretty m = "Map: " <> pretty (Map.toList m)
 
 instance Pretty a => Pretty (Set a) where
-  pretty ys = "#{" <> f (Set.toList ys) <> "}" where
-    f [] = ""
-    f [x] = pretty x
-    f (x:xs) = pretty x <> ", " <> f xs
+  pretty ys = "#{" <> f (Set.toList ys) <> "}"
+    where
+      f [] = ""
+      f [x] = pretty x
+      f (x : xs) = pretty x <> ", " <> f xs
 
 instance Pretty (MLIL.Expression a) where
   pretty _ = "(TODO: MLIL Expression)"
@@ -105,7 +105,7 @@ instance Pretty Binja.Function.Function where
     where
       name = f ^. Binja.Function.name
       start :: Word64
-      start = coerce $ f ^. Binja.Function.start
+      (Address (ByteWidth start)) = f ^. Binja.Function.start
 
 instance Pretty Pil.SimpleCtx where
   pretty ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
@@ -114,7 +114,6 @@ instance Pretty Pil.SimpleCtx where
       func = maybe "Nothing" pretty (ctx ^. Pil.func)
       idx :: Text
       idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
-
 
 prettyBinop ::
   ( Pil.HasLeft a Pil.Expression,
@@ -248,7 +247,7 @@ instance Pretty Pil.Expression where
     -- TODO: Add field offset
     (Pil.VAR_ALIASED_FIELD op) -> prettyField op
     (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (pretty (op ^. Pil.dest)) srcs
-      where 
+      where
         srcs :: Text
         srcs = show (fmap pretty (op ^. Pil.src))
     (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
@@ -262,7 +261,7 @@ instance Pretty Pil.Expression where
     (Pil.CALL op) -> case op ^. Pil.name of
       (Just name) -> Text.pack $ printf "call %s %s %s" name dest params
       Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest params
-      where 
+      where
         dest = pretty (op ^. Pil.dest)
         params :: Text
         params = show (fmap pretty (op ^. Pil.params))
@@ -292,10 +291,10 @@ newtype PStmts = PStmts [Pil.Stmt]
 instance Pretty PStmts where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
 
-prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m()
+prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts
 
--- |Pretty print to IO.
+-- | Pretty print to IO.
 prettyPrint :: (MonadIO m, Pretty a) => a -> m ()
 prettyPrint = putText . pretty
 
