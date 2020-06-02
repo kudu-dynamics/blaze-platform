@@ -18,7 +18,7 @@ data VTContext
 
 data VTable
   = VTable
-      { _topOffset :: Maybe Word64,
+      { _topOffset :: Maybe Bytes,
         _typeInfo :: Maybe TypeInfo,
         _vptrAddress :: Address,
         _vFunctions :: [Function],

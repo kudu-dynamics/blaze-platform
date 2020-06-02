@@ -40,15 +40,15 @@ createTypeInfo_ (Address typeInfoPtr)
     helperClassPtr <- liftIO $
       seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) typeInfoPtr >>= \case
         Nothing -> return Nothing
-        Just p -> return $ Just $ (Address . fromIntegral) p
+        Just p -> return . Just . Address . Bytes $ p
     name <- liftIO $
-      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + bitW) >>= \case
+      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + toBytes bitW) >>= \case
         Nothing -> return Nothing
-        Just p -> readName_ ctx $ (Address . fromIntegral) p
-    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * bitW)
+        Just p -> readName_ ctx . Address . Bytes $ p
+    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * toBytes bitW)
     parentTypeInfo <- case parentTypeInfoPtr of
       Nothing -> return Nothing
-      Just p -> createTypeInfo_ p
+      Just p -> createTypeInfo_ . Address . Bytes $ p
     return $
       Just
         ( TypeInfo
@@ -62,7 +62,7 @@ createTypeInfo_ (Address typeInfoPtr)
     seekAndRead br width addr = do
       seekBinaryReader br addr
       case width of
-        (AddressWidth 8) -> read64 br
+        (AddressWidth 64) -> read64 br
         _ -> return Nothing
 
 readName_ :: VTContext -> Address -> IO (Maybe Text)
@@ -113,11 +113,11 @@ getVirtualFunctions_ initVptr = do
     getFunctionAndUpdateReader bv br width = do
       currentPosition <- getReaderPosition br
       fAddr <- case width of
-        (AddressWidth 8) -> read64 br
+        (AddressWidth 64) -> read64 br
         _ -> return Nothing
       let (AddressWidth bitW) = width
-      seekBinaryReader br $ currentPosition + bitW
-      getFunctionStartingAt bv Nothing $ (Address . fromJust) fAddr
+      seekBinaryReader br $ currentPosition + toBytes bitW
+      maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) $ fAddr
 
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
