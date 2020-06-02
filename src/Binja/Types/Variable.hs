@@ -7,10 +7,10 @@ import Binja.Prelude
 import Binja.C.Pointers (BNType)
 import Binja.C.Enums (BNTypeClass, BNVariableSourceType)
 
-newtype TypeWidth = TypeWidth Word64
+newtype TypeWidth = TypeWidth Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
-newtype TypeAlignment = TypeAlignment Word64
+newtype TypeAlignment = TypeAlignment Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
 data VarType = VarType

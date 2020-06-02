@@ -13,7 +13,6 @@ module Binja.Function
 import Binja.Prelude hiding (onException, handle)
 
 import qualified Data.Text as Text
-import Data.BinaryAnalysis (Address)
 
 import qualified Binja.C.Main as BN
 import Binja.C.Pointers

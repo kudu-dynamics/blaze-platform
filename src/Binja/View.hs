@@ -12,8 +12,6 @@ import Binja.C.Enums as BNEnums
 import Binja.Types.Symbol (BNNameSpace)
 import Binja.C.Pointers (BNSymbol)
 
-import Data.BinaryAnalysis (Address, AddressWidth(AddressWidth))
-
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import Data.HashMap.Strict (HashMap)
@@ -34,7 +32,7 @@ readByte bv offset = do
   (Just val) <- BN.read8 reader
   return val
 
-readBytes :: BNBinaryView -> Address -> Word64 -> IO [Word8]
+readBytes :: BNBinaryView -> Address -> Bytes -> IO [Word8]
 readBytes bv offset numBytes = do
   reader <- getDefaultReader bv
   BN.seekBinaryReader reader $ fromIntegral offset

@@ -10,39 +10,51 @@ module Binja.Prelude
   , pprint
   ) where
 
-import           Prelude         as Exports        ( String
-                                                   , head
-                                                   , id
-                                                   , (!!)
-                                                   )
+import           Prelude                   as Exports        ( (!!)
+                                                             , String
+                                                             , head
+                                                             , id
+                                                             )
 
-import qualified Data.Text.Lazy as L (Text)
-
-import Text.Pretty.Simple as PP
-import Binja.Types.ClassyFields as Exports ()
-import Data.Data as Exports
---import Data.Typeable as Exports
-import           Control.Lens    as Exports        ( (%~)
-                                                   , (.~)
-                                                   , (?~)
-                                                   , (^.)
-                                                   , (^?)
-                                                   , Iso'
-                                                   , Lens'
-                                                   , iso
-                                                   , lens
-                                                   , makeClassy
-                                                   , makeClassyPrisms
-                                                   , makeFields
-                                                   , makeFieldsNoPrefix
-                                                   , makeLenses
-                                                   , makePrisms
-                                                   , use
-                                                   , view
-                                                   )
-import           Data.Maybe      as Exports        ( fromJust )
-import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
-import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
+import           Binja.Types.ClassyFields  as Exports        ()
+import           Control.Lens              as Exports        ( (%~)
+                                                             , (.~)
+                                                             , (?~)
+                                                             , (^.)
+                                                             , (^?)
+                                                             , Iso'
+                                                             , Lens'
+                                                             , iso
+                                                             , lens
+                                                             , makeClassy
+                                                             , makeClassyPrisms
+                                                             , makeFields
+                                                             , makeFieldsNoPrefix
+                                                             , makeLenses
+                                                             , makePrisms
+                                                             , use
+                                                             , view
+                                                             )
+import           Control.Monad.Trans.Maybe as Exports        ( MaybeT
+                                                             , runMaybeT
+                                                             )
+import           Data.BinaryAnalysis       as Exports        ( Address( Address )
+                                                             , AddressWidth( AddressWidth )
+                                                             , Bits( Bits )
+                                                             , Bytes( Bytes )
+                                                             , toBits
+                                                             , toBytes
+                                                             )
+import           Data.Data                 as Exports
+import           Data.Maybe                as Exports        ( fromJust )
+import qualified Data.Text.Lazy            as L              ( Text )
+import           Protolude                 as Exports hiding ( Fixity
+                                                             , Bits
+                                                             , Infix
+                                                             , Prefix
+                                                             , head
+                                                             )
+import           Text.Pretty.Simple        as PP
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

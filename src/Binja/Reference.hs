@@ -5,8 +5,6 @@ module Binja.Reference
 
 import Binja.Prelude
 
-import Data.BinaryAnalysis (Address)
-
 import Binja.Types.Reference as Exports
 import Binja.Function (createFunction)
 import qualified Binja.Architecture as Architecture

@@ -11,8 +11,6 @@ import Foreign.Storable
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
 
-import Data.BinaryAnalysis (Address)
-
 import Binja.C.Enums
 import Binja.C.Pointers
 import Binja.C.Structs ()
@@ -82,7 +80,7 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-{#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `Word64' #}
+{#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' fromIntegral #}
 
 ---- Stream reader
 
@@ -94,7 +92,7 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNSetBinaryReaderEndianness as setBinaryReaderEndianness {withPtr* `BNBinaryReader', enumToIntegral `BNEndianness'} -> `()' #}
 
-{#fun unsafe BNReadData as readData' {withPtr* `BNBinaryReader', castPtr `List Word8', `Word64'} -> `Bool' toBool #}
+{#fun unsafe BNReadData as readData' {withPtr* `BNBinaryReader', castPtr `List Word8', fromIntegral `Bytes'} -> `Bool' toBool #}
 
 {#fun unsafe BNRead8 as read8' {withPtr* `BNBinaryReader', alloca- `Word8' peekIntConv*} -> `Bool' toBool #}
 
@@ -116,11 +114,11 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNReadBE64 as readBE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNGetReaderPosition as getReaderPosition {withPtr* `BNBinaryReader'} -> `Word64' #}
+{#fun unsafe BNGetReaderPosition as getReaderPosition {withPtr* `BNBinaryReader'} -> `Bytes' fromIntegral #}
 
-{#fun unsafe BNSeekBinaryReader as seekBinaryReader {withPtr* `BNBinaryReader', `Word64'} -> `()' #}
+{#fun unsafe BNSeekBinaryReader as seekBinaryReader {withPtr* `BNBinaryReader', fromIntegral `Bytes'} -> `()' #}
 
-{#fun unsafe BNSeekBinaryReader as seekBinaryReaderRelative {withPtr* `BNBinaryReader', `Word64'} -> `()' #}
+{#fun unsafe BNSeekBinaryReaderRelative as seekBinaryReaderRelative {withPtr* `BNBinaryReader', fromIntegral `Bytes'} -> `()' #}
 
 {#fun unsafe BNIsEndOfFile as isEndOfFile {withPtr* `BNBinaryReader'} -> `Bool' toBool #}
 

@@ -4,8 +4,6 @@ module Binja.Types.Reference where
 
 import Binja.Prelude
 
-import Data.BinaryAnalysis (Address)
-
 import Binja.Types.Architecture (Architecture)
 import Binja.Types.Function (Function)
 import Binja.C.Pointers (BNArchitecture, BNFunction)

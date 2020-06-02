@@ -5,8 +5,6 @@ import Binja.Prelude hiding (reader)
 import Foreign.Ptr
 import Foreign.Marshal.Array (allocaArray, peekArray)
 
-import Data.BinaryAnalysis (Address)
-
 import Binja.C.Bindings
 import Binja.C.Util
 import Binja.C.Types
@@ -109,7 +107,7 @@ getBasicBlockDominators bb isPost =
   getBasicBlockDominators' bb isPost
   >>= manifestArrayWithFreeSize (newBasicBlockReference <=< noFinPtrConv) freeBasicBlockList
 
-readData :: BNBinaryReader -> Word64 -> IO (Maybe [Word8])
+readData :: BNBinaryReader -> Bytes -> IO (Maybe [Word8])
 readData reader len =
   allocaArray (fromIntegral len) converter
     where
