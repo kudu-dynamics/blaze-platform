@@ -16,7 +16,7 @@ import qualified Blaze.Types.Pil as Pil
 import Control.Lens hiding (op)
 import Data.BinaryAnalysis
   ( Address (Address),
-    ByteWidth (ByteWidth),
+    Bytes (Bytes),
   )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -105,7 +105,7 @@ instance Pretty Binja.Function.Function where
     where
       name = f ^. Binja.Function.name
       start :: Word64
-      (Address (ByteWidth start)) = f ^. Binja.Function.start
+      (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Pretty Pil.SimpleCtx where
   pretty ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
