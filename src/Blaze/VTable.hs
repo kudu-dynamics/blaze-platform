@@ -15,7 +15,6 @@ import Blaze.Types.VTable
     VTContext (VTContext, _bv, _reader, _width),
     VTable (VTable, _parents, _topOffset, _typeInfo, _vFunctions, _vptrAddress),
   )
-import Data.Text.Encoding (decodeUtf8)
 import Data.Text (pack)
 import qualified Data.ByteString as BS
 
@@ -114,7 +113,7 @@ getVirtualFunctions_ initVptr = do
         _ -> return Nothing
       let (AddressWidth bitW) = width
       seekBinaryReader br $ currentPosition + toBytes bitW
-      maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) $ fAddr
+      maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) fAddr
 
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable

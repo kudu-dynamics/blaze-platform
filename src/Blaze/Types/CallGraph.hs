@@ -4,7 +4,7 @@ module Blaze.Types.CallGraph where
 
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Data.BinaryAnalysis (Address, Symbol)
+import Data.BinaryAnalysis (Symbol)
 
 -- TODO: Consider adding information about call sites as edge metadata
 type CallGraph = AlgaGraph () Function

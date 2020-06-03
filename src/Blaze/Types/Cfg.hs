@@ -7,7 +7,6 @@ import Blaze.Types.CallGraph (Function)
 import qualified Blaze.Types.Graph as Graph
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
-import Data.BinaryAnalysis (Address)
 
 -- TODO: Consider adding more depending on what is being represented.
 data BranchType
