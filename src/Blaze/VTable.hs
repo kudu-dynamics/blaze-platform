@@ -44,7 +44,7 @@ createTypeInfo_ typeInfoPtr
         Just p -> return $ Just $ (Address . fromIntegral) p
     name <- liftIO $
       seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + bitW) >>= \case
-        Nothing -> return Nothing
+        Nothing -> return $ pack ""
         Just p -> readName_ ctx $ (Address . fromIntegral) p
     parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * bitW)
     parentTypeInfo <- case parentTypeInfoPtr of
@@ -54,7 +54,7 @@ createTypeInfo_ typeInfoPtr
       Just
         ( TypeInfo
             { _helperClass = helperClassPtr,
-              _name = name,
+              _name = Just name,
               _parentsTypeInfo = parentTypeInfo
             }
         )
@@ -66,23 +66,22 @@ createTypeInfo_ typeInfoPtr
         (AddressWidth 8) -> read64 br
         _ -> return Nothing
 
-readName_ :: VTContext -> Address -> IO (Maybe Text)
+readName_ :: VTContext -> Address -> IO Text
 readName_ ctx addr = do
   let readr = ctx ^. VTable.reader
-  liftIO $ seekBinaryReader readr $ fromIntegral addr
-  str <-
-    liftIO $
-      unfoldWhileM
-        (\x -> isJust x && x /= Just 0)
-        (readAndReturnByteString readr)
-  return $ Just $ decodeUtf8 $ BS.pack $ fromJust <$> str
+  seekBinaryReader readr $ fromIntegral addr
+  str <- unfoldWhileJustM (readAndReturnByteString readr)
+  return $ decodeUtf8 $ BS.pack str
   where
     readAndReturnByteString :: BNBinaryReader -> IO (Maybe Word8)
     readAndReturnByteString br = do
       currentPosition <- getReaderPosition br
       char <- read8 br
       seekBinaryReader br $ fromIntegral (currentPosition + 1)
-      return char
+      case char of
+        Just (0 :: Word8) -> return Nothing
+        Nothing -> return Nothing
+        Just p -> return $ Just p
 
 getTypeInfo_ :: Address -> VTable.Ctx (Maybe VTable.TypeInfo)
 getTypeInfo_ vptr = do
@@ -96,7 +95,13 @@ getTypeInfo_ vptr = do
   case ptrToTypeInfo of
     Nothing -> return Nothing
     Just p -> createTypeInfo_ p
-
+-- unfoldWhileM :: Monad m => (a -> m (Maybe b)) -> m a -> m [b]
+-- unfoldWhileM p act = do
+--   x <- act
+--   y <- p x 
+--   case y of
+--     Just z -> (z: ) <$> unfoldWhileM p act
+--     _ -> return []
 getVirtualFunctions_ :: Address -> VTable.Ctx [Function]
 getVirtualFunctions_ initVptr = do
   ctx <- ask
@@ -104,11 +109,9 @@ getVirtualFunctions_ initVptr = do
   liftIO $ seekBinaryReader readr $ fromIntegral initVptr
   fs <-
     liftIO $
-      unfoldWhileM
-        (/= Nothing)
+      unfoldWhileJustM
         (getFunctionAndUpdateReader (ctx ^. VTable.bv) readr (ctx ^. VTable.width))
-  let tmp = fromJust <$> fs
-  liftIO $ traverse (convertFunction (ctx ^. VTable.bv)) tmp
+  liftIO $ traverse (convertFunction (ctx ^. VTable.bv)) fs
   where
     getFunctionAndUpdateReader :: BNBinaryView -> BNBinaryReader -> AddressWidth -> IO (Maybe BF.Function)
     getFunctionAndUpdateReader bv br width = do
@@ -118,7 +121,9 @@ getVirtualFunctions_ initVptr = do
         _ -> return Nothing
       let (AddressWidth bitW) = width
       seekBinaryReader br $ currentPosition + bitW
-      getFunctionStartingAt bv Nothing $ (Address . fromJust) fAddr
+      case fAddr of
+        Just addr -> getFunctionStartingAt bv Nothing $ Address addr
+        _ -> return Nothing
 
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
