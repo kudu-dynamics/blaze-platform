@@ -16,24 +16,23 @@ import Blaze.Types.VTable
     VTable (VTable, _parents, _topOffset, _typeInfo, _vFunctions, _vptrAddress),
   )
 import Data.Text.Encoding (decodeUtf8)
-import Data.BinaryAnalysis (Address (Address), AddressWidth (AddressWidth))
 import Data.Text (pack)
 import qualified Data.ByteString as BS
 
-getTopOffset_ :: Address -> VTable.Ctx (Maybe Word64)
+getTopOffset_ :: Address -> VTable.Ctx (Maybe Bytes)
 getTopOffset_ vptr = do
   ctx <- ask
   let (AddressWidth bitW) = ctx ^. VTable.width
   liftIO $ seekBinaryReader (ctx ^. VTable.reader) (fromIntegral $ vptr - toAddress 2 * fromIntegral bitW)
   case ctx ^. VTable.width of
-    (AddressWidth 8) -> liftIO $ read64 (ctx ^. VTable.reader)
+    (AddressWidth 8) -> fmap (fmap Bytes) . liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
   where
     toAddress :: Integer -> Address
     toAddress = Address . fromIntegral
 
-createTypeInfo_ :: Word64 -> VTable.Ctx (Maybe VTable.TypeInfo)
-createTypeInfo_ typeInfoPtr
+createTypeInfo_ :: Address -> VTable.Ctx (Maybe VTable.TypeInfo)
+createTypeInfo_ (Address typeInfoPtr)
   | typeInfoPtr == 0 = return Nothing
   | otherwise = do
     ctx <- ask
@@ -41,15 +40,15 @@ createTypeInfo_ typeInfoPtr
     helperClassPtr <- liftIO $
       seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) typeInfoPtr >>= \case
         Nothing -> return Nothing
-        Just p -> return $ Just $ (Address . fromIntegral) p
+        Just p -> return . Just . Address . Bytes $ p
     name <- liftIO $
-      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + bitW) >>= \case
+      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + toBytes bitW) >>= \case
         Nothing -> return $ pack ""
-        Just p -> readName_ ctx $ (Address . fromIntegral) p
-    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * bitW)
+        Just p -> readName_ ctx . Address . Bytes $ p
+    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * toBytes bitW)
     parentTypeInfo <- case parentTypeInfoPtr of
       Nothing -> return Nothing
-      Just p -> createTypeInfo_ p
+      Just p -> createTypeInfo_ . Address . Bytes $ p
     return $
       Just
         ( TypeInfo
@@ -59,11 +58,11 @@ createTypeInfo_ typeInfoPtr
             }
         )
   where
-    seekAndRead :: BNBinaryReader -> AddressWidth -> Word64 -> IO (Maybe Word64)
+    seekAndRead :: BNBinaryReader -> AddressWidth -> Bytes -> IO (Maybe Word64)
     seekAndRead br width addr = do
       seekBinaryReader br addr
       case width of
-        (AddressWidth 8) -> read64 br
+        (AddressWidth 64) -> read64 br
         _ -> return Nothing
 
 readName_ :: VTContext -> Address -> IO Text
@@ -88,20 +87,14 @@ getTypeInfo_ vptr = do
   ctx <- ask
   let readr = ctx ^. VTable.reader
   let (AddressWidth bitW) = ctx ^. VTable.width
-  liftIO $ seekBinaryReader readr $ fromIntegral vptr - bitW
+  liftIO $ seekBinaryReader readr $ fromIntegral vptr - toBytes bitW
   ptrToTypeInfo <- case ctx ^. VTable.width of
     (AddressWidth 8) -> liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
   case ptrToTypeInfo of
     Nothing -> return Nothing
-    Just p -> createTypeInfo_ p
--- unfoldWhileM :: Monad m => (a -> m (Maybe b)) -> m a -> m [b]
--- unfoldWhileM p act = do
---   x <- act
---   y <- p x 
---   case y of
---     Just z -> (z: ) <$> unfoldWhileM p act
---     _ -> return []
+    Just p -> createTypeInfo_ (Address $ Bytes p)
+
 getVirtualFunctions_ :: Address -> VTable.Ctx [Function]
 getVirtualFunctions_ initVptr = do
   ctx <- ask
@@ -117,13 +110,11 @@ getVirtualFunctions_ initVptr = do
     getFunctionAndUpdateReader bv br width = do
       currentPosition <- getReaderPosition br
       fAddr <- case width of
-        (AddressWidth 8) -> read64 br
+        (AddressWidth 64) -> read64 br
         _ -> return Nothing
       let (AddressWidth bitW) = width
-      seekBinaryReader br $ currentPosition + bitW
-      case fAddr of
-        Just addr -> getFunctionStartingAt bv Nothing $ Address addr
-        _ -> return Nothing
+      seekBinaryReader br $ currentPosition + toBytes bitW
+      maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) $ fAddr
 
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable

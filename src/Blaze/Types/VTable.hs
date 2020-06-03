@@ -1,13 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Blaze.Types.VTable
-  (module Blaze.Types.VTable) where
+module Blaze.Types.VTable where
   
 
 import Binja.Core (BNBinaryReader, BNBinaryView)
 import Blaze.CallGraph (Function)
 import Blaze.Prelude
-import Data.BinaryAnalysis (Address, AddressWidth)
 
 type Ctx = ReaderT VTContext IO
 
@@ -20,7 +18,7 @@ data VTContext
 
 data VTable
   = VTable
-      { _topOffset :: Maybe Word64,
+      { _topOffset :: Maybe Bytes,
         _typeInfo :: Maybe TypeInfo,
         _vptrAddress :: Address,
         _vFunctions :: [Function],

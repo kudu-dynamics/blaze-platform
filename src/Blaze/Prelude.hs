@@ -1,5 +1,5 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Blaze.Prelude
@@ -24,53 +24,66 @@ module Blaze.Prelude
   ) where
 
 --import qualified Prelude as P
-import           Prelude         as Exports        ( String
-                                                   , head
-                                                   , (!!)
-                                                   )
 
+--import Data.Typeable as Exports
+
+import Control.Concurrent.Async as Exports (mapConcurrently)
+import Control.Lens as Exports
+  ( (%=),
+    (%~),
+    (.=),
+    (.~),
+    (?~),
+    Iso',
+    Lens',
+    (^.),
+    (^?),
+    iso,
+    lens,
+    makeClassy,
+    makeClassyPrisms,
+    makeFields,
+    makeFieldsNoPrefix,
+    makeLenses,
+    makePrisms,
+    use,
+    view,
+  )
+import Control.Monad.Trans.Class as Exports (MonadTrans)
+import Control.Monad.Trans.Maybe as Exports (MaybeT, runMaybeT)
+import Data.BinaryAnalysis as Exports
+  ( Address (Address),
+    AddressWidth (AddressWidth),
+    Bits (Bits),
+    Bytes (Bytes),
+    toBits,
+    toBytes,
+  )
+import Data.Data as Exports
+import Data.HashMap.Strict as Exports (HashMap)
+import Data.HashSet as Exports (HashSet)
+import Data.Maybe as Exports (fromJust)
+import Data.SBV.Internals (SBV (SBV, unSBV), SVal)
+import Data.SBV.Tools.Overflow (ArithOverflow (bvAddO, bvDivO, bvMulO, bvMulOFast, bvNegO, bvSubO))
+import Data.SBV.Trans (SBool, SInt, SWord)
+import Data.String.Conversions as Exports (cs)
 import qualified Data.Text.Lazy as L (Text)
+import Data.UUID as Exports (UUID)
+import qualified Data.UUID as UUID
+import Protolude as Exports hiding (Bits, Fixity, Infix, Prefix, head)
+import Streamly as Exports
+  ( IsStream,
+    asyncly,
+  )
+import qualified Streamly.Prelude
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
-import Data.Data as Exports
-import Data.UUID as Exports (UUID)
-import Data.HashMap.Strict as Exports (HashMap)
-import Data.HashSet as Exports (HashSet)
-import qualified Data.UUID as UUID
---import Data.Typeable as Exports
-import           Control.Lens    as Exports        ( (%~)
-                                                   , (.~)
-                                                   , (.=)
-                                                   , (%=)
-                                                   , (?~)
-                                                   , (^.)
-                                                   , (^?)
-                                                   , Iso'
-                                                   , Lens'
-                                                   , iso
-                                                   , lens
-                                                   , makeClassy
-                                                   , makeClassyPrisms
-                                                   , makeFields
-                                                   , makeFieldsNoPrefix
-                                                   , makeLenses
-                                                   , makePrisms
-                                                   , use
-                                                   , view
-                                                   )
-import Data.String.Conversions as Exports ( cs )
-import           Data.Maybe      as Exports        ( fromJust )
-import           Protolude       as Exports hiding ( head, Infix, Prefix, Fixity )
-import Control.Monad.Trans.Maybe as Exports (runMaybeT, MaybeT)
-import Control.Monad.Trans.Class as Exports (MonadTrans)
-import Control.Concurrent.Async as Exports (mapConcurrently)
-import Streamly as Exports ( IsStream
-                           , asyncly )
-import qualified Streamly.Prelude
-import Data.SBV.Tools.Overflow (ArithOverflow(bvAddO, bvSubO, bvMulO, bvMulOFast, bvDivO, bvNegO))
-import Data.SBV.Internals (SBV(SBV, unSBV), SVal)
-import Data.SBV.Trans (SWord, SInt, SBool)
+import Prelude as Exports
+  ( (!!),
+    String,
+    head,
+  )
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 
@@ -119,7 +132,7 @@ pairs :: [a] -> [(a, a)]
 pairs xs = zip xs $ drop 1 xs
 
 indexed :: [a] -> [(Int, a)]
-indexed = zip [0..]
+indexed = zip [0 ..]
 
 -- hardcore debug
 hdebug :: b -> IO () -> b
