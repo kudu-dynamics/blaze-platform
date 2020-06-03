@@ -9,6 +9,7 @@ import Blaze.Prelude
 import Blaze.Types.Cfg hiding (src, dst, branchType)
 import qualified Blaze.Types.Cfg as T
 import qualified Blaze.Types.Cfg as Exports
+import Blaze.Types.Cfg.Loop (BackEdge (BackEdge))
 import Data.Coerce (coerce)
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
@@ -83,23 +84,3 @@ getDominators = Dominators . domHelper Dlt.dom
 
 getPostDominators :: Cfg a -> PostDominators
 getPostDominators = PostDominators . domHelper Dlt.pdom
-
--- |Check if an edge is a back edge using graph dominators.
--- We assume the dominators include the nodes referenced in the edge.
--- If that assumption is wrong, isBackEdge defaults to False.
-isBackEdge :: Dominators -> CfEdge -> Bool
-isBackEdge domMap edge =
-  case Hm.lookup (edge ^. T.src) (coerce domMap) of
-    Nothing -> False
-    (Just domNodes) -> Hs.member (edge ^. T.dst) domNodes
-
-fromGraphEdge :: (BranchType, (CfNode, CfNode)) -> CfEdge
-fromGraphEdge (bType, (srcNode, dstNode)) = CfEdge srcNode dstNode bType
-
-getBackEdges :: Cfg a -> [CfEdge]
-getBackEdges cfg =
-  [e | e <- fromGraphEdge <$> G.edges cfg,
-       isBackEdge doms e]
-    where
-      doms :: Dominators
-      doms = getDominators cfg

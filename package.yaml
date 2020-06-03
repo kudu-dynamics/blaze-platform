@@ -98,7 +98,9 @@ library:
   exposed-modules:
   - Blaze.CallGraph
   - Blaze.Cfg
+  - Blaze.Cfg.Loop
   - Blaze.Fir
+  - Blaze.Function
   - Blaze.Graph
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
@@ -113,15 +115,18 @@ library:
   - Blaze.Pil.Path
   - Blaze.Pretty
   - Blaze.Solver
+  - Blaze.Types.Cfg
+  - Blaze.Types.Cfg.Loop
   - Blaze.Types.Fir
+  - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Solver
   - Blaze.Search
-  - Blaze.Function
-  - Blaze.Types.Function
+
+
 
 include-dirs:
   - "src"

@@ -82,6 +82,7 @@ buildCfg root rest es mapping =
     graph :: ControlFlowGraph
     graph = mkControlFlowGraph root rest es
 
+-- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use
 instance Graph BranchType CfNode (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
