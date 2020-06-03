@@ -4,10 +4,10 @@ import qualified Binja.Core as BN
 import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, read64, read8, seekBinaryReader)
 import qualified Binja.Function as BF
 import Binja.Function (getFunctionStartingAt)
-import Binja.View (getDefaultReader, getAddressSize)
+import Binja.View (getAddressSize, getDefaultReader)
 import Blaze.CallGraph (Function)
-import Blaze.Prelude
 import Blaze.Import.Source.BinaryNinja (convertFunction)
+import Blaze.Prelude
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.VTable as VTable
 import Blaze.Types.VTable
@@ -15,9 +15,8 @@ import Blaze.Types.VTable
     VTContext (VTContext, _bv, _reader, _width),
     VTable (VTable, _parents, _topOffset, _typeInfo, _vFunctions, _vptrAddress),
   )
-import Data.Text.Encoding (decodeUtf8)
-import Data.Text (pack)
 import qualified Data.ByteString as BS
+import Data.Text (pack)
 
 getTopOffset_ :: Address -> VTable.Ctx (Maybe Bytes)
 getTopOffset_ vptr = do
@@ -43,7 +42,7 @@ createTypeInfo_ (Address typeInfoPtr)
         Just p -> return . Just . Address . Bytes $ p
     name <- liftIO $
       seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + toBytes bitW) >>= \case
-        Nothing -> return Nothing
+        Nothing -> return $ pack ""
         Just p -> readName_ ctx . Address . Bytes $ p
     parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * toBytes bitW)
     parentTypeInfo <- case parentTypeInfoPtr of
@@ -53,7 +52,7 @@ createTypeInfo_ (Address typeInfoPtr)
       Just
         ( TypeInfo
             { _helperClass = helperClassPtr,
-              _name = name,
+              _name = Just name,
               _parentsTypeInfo = parentTypeInfo
             }
         )
@@ -65,23 +64,22 @@ createTypeInfo_ (Address typeInfoPtr)
         (AddressWidth 64) -> read64 br
         _ -> return Nothing
 
-readName_ :: VTContext -> Address -> IO (Maybe Text)
+readName_ :: VTContext -> Address -> IO Text
 readName_ ctx addr = do
   let readr = ctx ^. VTable.reader
-  liftIO $ seekBinaryReader readr $ fromIntegral addr
-  str <-
-    liftIO $
-      unfoldWhileM
-        (\x -> isJust x && x /= Just 0)
-        (readAndReturnByteString readr)
-  return $ Just $ decodeUtf8 $ BS.pack $ fromJust <$> str
+  seekBinaryReader readr $ fromIntegral addr
+  str <- unfoldWhileJustM (readAndReturnByteString readr)
+  return $ decodeUtf8 $ BS.pack str
   where
     readAndReturnByteString :: BNBinaryReader -> IO (Maybe Word8)
     readAndReturnByteString br = do
       currentPosition <- getReaderPosition br
       char <- read8 br
       seekBinaryReader br $ fromIntegral (currentPosition + 1)
-      return char
+      case char of
+        Just (0 :: Word8) -> return Nothing
+        Nothing -> return Nothing
+        Just p -> return $ Just p
 
 getTypeInfo_ :: Address -> VTable.Ctx (Maybe VTable.TypeInfo)
 getTypeInfo_ vptr = do
@@ -103,11 +101,9 @@ getVirtualFunctions_ initVptr = do
   liftIO $ seekBinaryReader readr $ fromIntegral initVptr
   fs <-
     liftIO $
-      unfoldWhileM
-        (/= Nothing)
+      unfoldWhileJustM
         (getFunctionAndUpdateReader (ctx ^. VTable.bv) readr (ctx ^. VTable.width))
-  let tmp = fromJust <$> fs
-  liftIO $ traverse (convertFunction (ctx ^. VTable.bv)) tmp
+  liftIO $ traverse (convertFunction (ctx ^. VTable.bv)) fs
   where
     getFunctionAndUpdateReader :: BNBinaryView -> BNBinaryReader -> AddressWidth -> IO (Maybe BF.Function)
     getFunctionAndUpdateReader bv br width = do
@@ -117,8 +113,7 @@ getVirtualFunctions_ initVptr = do
         _ -> return Nothing
       let (AddressWidth bitW) = width
       seekBinaryReader br $ currentPosition + toBytes bitW
-      maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) $ fAddr
-
+      maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) fAddr
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
 createVTable_ vptr = do

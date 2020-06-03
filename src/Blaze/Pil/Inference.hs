@@ -162,7 +162,7 @@ getExprType env x = case x ^. op of
     pointerRet = Just $ TPtr $ PtrType sz (TObs [])
     bitvecRet = Just $ TBitVec $ BitVecType sz
     floatRet = Just $ TFloat $ FloatType sz
-    stringRet = Just $ TString
+    stringRet = Just TString
     intRet = Just . TInt $ IntType sz True
     uintRet = Just . TInt $ IntType sz False
 
@@ -209,7 +209,7 @@ ssasToType ssas = case HashSet.toList uniques of
   where
     uniques = HashSet.fromList ts
     ts :: [Type]
-    ts = mapMaybe (mlilTypeToPilType <=< (view $ MLIL.var . V.varType)) ssas
+    ts = mapMaybe (mlilTypeToPilType <=< view (MLIL.var . V.varType)) ssas
 
 pilVarToType :: PilVar -> Type
 pilVarToType = ssasToType . fmap (view var) . HashSet.toList . view mapsTo

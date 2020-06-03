@@ -205,7 +205,7 @@ pathFromBasicBlockList bv g = fmap (fromList . concat) . traverse f . mpairs
   where
     f :: (BasicBlock F, Maybe (BasicBlock F)) -> IO [Node]
     f (bb, Nothing) = convertBasicBlockToNodeList bv bb
-    f (bb, (Just bbnext)) = do
+    f (bb, Just bbnext) = do
       nodes <- convertBasicBlockToNodeList bv bb
       mcond <- case G.getEdgeLabel (bb, bbnext) g of
         Nothing -> return Nothing

@@ -16,7 +16,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Solver
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.List as SList
-import Data.SBV (SWord, SInt, fromSized, toSized)
 import GHC.TypeNats
 
 add :: (SIntegral a) => SBV a -> SBV a -> SBV a

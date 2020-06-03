@@ -21,7 +21,6 @@ import qualified Binja.Function as Func
 import Blaze.Pil (convertInstrs)
 import qualified Blaze.Pil.Path as BPP
 import qualified Blaze.Types.Pil as Pil
-import Data.BinaryAnalysis (Address)
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
 getDestOp CallInstruction{_dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'
