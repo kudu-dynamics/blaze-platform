@@ -4,10 +4,10 @@ import qualified Binja.Core as BN
 import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, read64, read8, seekBinaryReader)
 import qualified Binja.Function as BF
 import Binja.Function (getFunctionStartingAt)
-import Binja.View (getDefaultReader, getAddressSize)
+import Binja.View (getAddressSize, getDefaultReader)
 import Blaze.CallGraph (Function)
-import Blaze.Prelude
 import Blaze.Import.Source.BinaryNinja (convertFunction)
+import Blaze.Prelude
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.VTable as VTable
 import Blaze.Types.VTable
@@ -15,8 +15,8 @@ import Blaze.Types.VTable
     VTContext (VTContext, _bv, _reader, _width),
     VTable (VTable, _parents, _topOffset, _typeInfo, _vFunctions, _vptrAddress),
   )
-import Data.Text (pack)
 import qualified Data.ByteString as BS
+import Data.Text (pack)
 
 getTopOffset_ :: Address -> VTable.Ctx (Maybe Bytes)
 getTopOffset_ vptr = do
@@ -114,7 +114,6 @@ getVirtualFunctions_ initVptr = do
       let (AddressWidth bitW) = width
       seekBinaryReader br $ currentPosition + toBytes bitW
       maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) fAddr
-
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
 createVTable_ vptr = do
