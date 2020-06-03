@@ -23,6 +23,8 @@ import qualified Blaze.Pil.Analysis as Analysis
 import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
 
+type BitWidth = Bits
+type ByteWidth = Bytes
 
 charSize :: BitWidth
 charSize = 8

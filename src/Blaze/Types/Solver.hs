@@ -15,7 +15,7 @@ import Blaze.Prelude
 import Data.SBV.Internals (SBV (unSBV), SolverContext (..))
 import Data.SBV.Dynamic (SVal)
 
-import Data.SBV.Trans as Exports hiding (Solver, SMTResult)
+import Data.SBV.Trans as Exports hiding (Solver, SMTResult, Bits)
 import Data.SBV.Trans.Control as Exports hiding (checkSat, CheckSatResult, Sat, Unk, Unsat)
 import Blaze.Types.Pil (Expression, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
@@ -297,7 +297,7 @@ getSolutions m = do
   xs <- mapM (\ (pv, x) -> (pv,) <$> getSolution x) $ HashMap.toList m
   return $ HashMap.fromList xs
 
-getIntegralWidth :: SymExpr -> Solver BitWidth
+getIntegralWidth :: SymExpr -> Solver Bits
 getIntegralWidth = \case
   (SymWord8 _) -> return 8
   (SymWord16 _) -> return 16

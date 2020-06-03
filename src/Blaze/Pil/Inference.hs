@@ -14,6 +14,9 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as Analysis
 
+type BitWidth = Bits
+type ByteWidth = Bytes
+
 data UnificationError = UWidth
                       | USign
                       | UPtrSigned
