@@ -35,7 +35,6 @@ import Blaze.Types.Pil
   )
 
 import qualified Blaze.Types.Pil as Pil
-import Data.BinaryAnalysis (Address (Address))
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 

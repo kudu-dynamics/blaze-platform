@@ -10,7 +10,6 @@ import Blaze.Types.Pil
     Symbol,
   )
 import qualified Blaze.Types.Pil as Pil
-import Data.BinaryAnalysis (BitWidth)
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
@@ -39,7 +38,7 @@ type MemAddr = Expression
 
 data MemStorage = MemStorage
   { _memStorageStart :: MemAddr,
-    _memStorageWidth :: BitWidth
+    _memStorageWidth :: Bits
   }
   deriving (Eq, Ord, Show, Generic)
 

@@ -13,7 +13,6 @@ import qualified Blaze.Types.Function as BF
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Path (AbstractCallNode, Node, Path)
-import Data.BinaryAnalysis (Address)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map as Map
 import Data.Map ((!))
