@@ -68,8 +68,15 @@ data BNBoolWithConfidence = BNBoolWithConfidence
   , _confidence :: Confidence
   } deriving (Eq, Ord, Show)
 
+data BNParameterVariablesWithConfidence = BNParameterVariablesWithConfidence
+  { _vars :: [BNVariable]
+  , _varCount :: Word64
+  , _confidence :: Confidence
+  } deriving (Eq, Ord, Show)
+
 $(makeFieldsNoPrefix ''VarType)
 $(makeFieldsNoPrefix ''Variable)
 $(makeFieldsNoPrefix ''BNVariable)
 $(makeFieldsNoPrefix ''BNTypeWithConfidence)
 $(makeFieldsNoPrefix ''BNBoolWithConfidence)
+$(makeFieldsNoPrefix ''BNParameterVariablesWithConfidence)

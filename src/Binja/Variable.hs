@@ -7,12 +7,14 @@
 module Binja.Variable
   ( module Exports
   , getVariableFromIdentifier
+  , getFunctionParameterVariables
   ) where
 
 import           Binja.Prelude                   hiding ( handle )
 
 import qualified Data.Text            as Text
 import qualified Binja.C.Main         as BN
+import Binja.C.Helpers ( getFunctionParameterVariables' )
 import qualified Binja.Function       as Func
 import           Binja.Types.Function
 import           Binja.Types.Variable as Exports
@@ -42,8 +44,10 @@ getVarType vtc = case vtc ^. bnType of
                             }
 
 getVariableFromIdentifier :: Function -> VariableIdentifier -> IO Variable
-getVariableFromIdentifier fn vid = do
-  bnvar <- BN.fromVariableIdentifier vid
+getVariableFromIdentifier fn vid = BN.fromVariableIdentifier vid >>= fromBNVariable fn
+
+fromBNVariable :: Function -> BNVariable -> IO Variable
+fromBNVariable fn bnvar = do
   vname <- BN.getVariableName fptr bnvar
   vtc <- BN.getVariableType fptr bnvar
   mvt <- getVarType vtc
@@ -55,3 +59,11 @@ getVariableFromIdentifier fn vid = do
                     }
   where
     fptr = fn ^. Func.handle
+
+
+getFunctionParameterVariables :: Function -> IO [Variable]
+getFunctionParameterVariables fn = do
+  r <- getFunctionParameterVariables' $ fn ^. Func.handle
+  traverse (fromBNVariable fn) $ r ^. vars
+  
+  

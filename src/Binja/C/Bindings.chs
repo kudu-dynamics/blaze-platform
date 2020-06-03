@@ -151,6 +151,13 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNGetAnalysisFunction as getGetAnalysisFunction {withPtr* `BNBinaryView', withPtr* `BNPlatform', fromIntegral `Address'} -> `Maybe BNFunction' nilable* #}
 
+#c
+void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesWithConfidence* t) { *t = BNGetFunctionParameterVariables(func); }
+#endc
+
+{#fun unsafe wrapBNGetFunctionParameterVariables as wrapBNGetFunctionParameterVariables {withPtr* `BNFunction', castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
+
+{#fun unsafe BNFreeParameterVariables as freeParameterVariables {castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
 
 ---- symbols
 

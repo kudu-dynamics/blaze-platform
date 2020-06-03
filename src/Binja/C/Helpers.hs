@@ -15,7 +15,8 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource)
 import Binja.Types.StringReference (BNStringReference)
 import Binja.C.Structs ()
-
+import Foreign.Storable (peek)
+import Foreign.Marshal.Alloc (alloca)
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
@@ -75,6 +76,15 @@ fromVariableIdentifier vid =
 getVariableType :: BNFunction -> BNVariable -> IO BNTypeWithConfidence
 getVariableType fn var' =
   allocAndPeek $ wrapBNGetVariableType fn var'
+
+getFunctionParameterVariables' :: BNFunction -> IO BNParameterVariablesWithConfidence
+getFunctionParameterVariables' fn = alloca $ \ptr -> do
+  wrapBNGetFunctionParameterVariables fn ptr
+  r <- peek ptr
+  freeParameterVariables (castPtr ptr)
+  return r
+  
+  
 
 getChildType :: BNType -> IO BNTypeWithConfidence
 getChildType = allocAndPeek . wrapBNGetChildType

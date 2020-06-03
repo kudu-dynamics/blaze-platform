@@ -9,14 +9,14 @@ import qualified Prelude as P
 
 import Binja.C.Util
 import Binja.Types.MLIL
-import Binja.Types.Variable (BNVariable(BNVariable), BNTypeWithConfidence(BNTypeWithConfidence), BNBoolWithConfidence(BNBoolWithConfidence))
+import Binja.Types.Variable (BNVariable(BNVariable), BNTypeWithConfidence(BNTypeWithConfidence), BNBoolWithConfidence(BNBoolWithConfidence)
+                            , BNParameterVariablesWithConfidence(BNParameterVariablesWithConfidence))
 import qualified Binja.Types.Variable as Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
 import Binja.Types.StringReference (BNStringReference(BNStringReference))
 import qualified Binja.Types.StringReference as StrRef
 import qualified Binja.Types.Symbol as Sym
 import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
-
 import Foreign.Ptr
 import Foreign.Marshal.Array
 import Foreign.C.String (peekCString, withCString, CString)
@@ -108,3 +108,15 @@ instance Storable BNNameSpace where
     withCStringArray (x ^. Sym.name) ({#set BNNameSpace->name #} p)
     withCString (T.unpack (x ^. Sym.join)) ({#set BNNameSpace->join #} p)
     {#set BNNameSpace->nameCount #} p (fromIntegral $ x ^. Sym.nameCount)
+
+
+instance Storable BNParameterVariablesWithConfidence where
+  sizeOf _ = {#sizeof BNParameterVariablesWithConfidence#}
+  alignment _ = {#alignof BNParameterVariablesWithConfidence#}
+  peek p = do
+    count <- fromIntegral <$> ({#get BNParameterVariablesWithConfidence->count #} p)
+    vars <- ({#get BNParameterVariablesWithConfidence->vars #} p)
+            >>= peekArray count . castPtr
+    confidence <- liftM fromIntegral ({#get BNParameterVariablesWithConfidence->confidence #} p)
+    return $ BNParameterVariablesWithConfidence vars (fromIntegral count) confidence
+  poke _ _ = P.error "BNParameterVariablesWithConfidence 'poke' not implemented"
