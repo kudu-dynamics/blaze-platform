@@ -9,8 +9,6 @@ import Blaze.Prelude
 import Blaze.Pretty (Pretty, pretty)
 import Binja.Function (Function, MLILSSAFunction)
 
-import Data.BinaryAnalysis (Address)
-
 type F = MLILSSAFunction
 
 data CallOperation = CALL (MLIL.CallOp (MLIL.Expression F))

@@ -45,7 +45,7 @@ import Blaze.Types.Cfg
   )
 import Control.Monad.Extra (mapMaybeM)
 import Control.Monad.Trans.Writer.Lazy (WriterT, runWriterT, tell)
-import Data.BinaryAnalysis (Address, Symbol (Symbol, _symbolName, _symbolRawName))
+import Data.BinaryAnalysis (Symbol (Symbol, _symbolName, _symbolRawName))
 import Data.DList (DList)
 import qualified Data.DList as DList
 import qualified Data.HashMap.Strict as HMap

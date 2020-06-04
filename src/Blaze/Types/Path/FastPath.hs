@@ -27,7 +27,7 @@ instance Path FastPath where
   -- still slow, and used for equality...
   toList p = case firstAndLastNode p of
     Nothing -> []
-    Just (x,_) -> x:(getRest $ Path.succ x g)
+    Just (x,_) -> x : getRest (Path.succ x g)
       where
         g = path p
         getRest Nothing = []

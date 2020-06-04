@@ -33,7 +33,6 @@ import Blaze.Types.Pil.Analysis
     symbolGenerator,
   )
 import qualified Blaze.Types.Pil.Analysis as A
-import Data.BinaryAnalysis (BitWidth)
 import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
@@ -45,11 +44,11 @@ import Data.Sequence
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
 
-widthToSize :: BitWidth -> Pil.OperationSize
-widthToSize x = Pil.OperationSize $ x `div` 8
+widthToSize :: Bits -> Pil.OperationSize
+widthToSize x = Pil.OperationSize $ toBytes x
 
-sizeToWidth :: Pil.OperationSize -> BitWidth
-sizeToWidth (Pil.OperationSize x) = x * 8
+sizeToWidth :: Pil.OperationSize -> Bits
+sizeToWidth (Pil.OperationSize x) = toBits x
 
 getDefinedVars_ :: Stmt -> [PilVar]
 getDefinedVars_ (Def d) = [d ^. Pil.var]
@@ -407,7 +406,7 @@ mkMemEquivGroup storeStmt storage defLoadStmts nestedLoadStmts =
       _memEquivGroupLoads = nestedLoadStmts
     }
 
-mkMemStorage :: MemAddr -> BitWidth -> MemStorage
+mkMemStorage :: MemAddr -> Bits -> MemStorage
 mkMemStorage addr width =
   MemStorage
     { _memStorageStart = addr,
