@@ -69,7 +69,7 @@ makeSymVar pv pt = case pt of
   where
     err = throwError . SymVarConversionError pv pt
 
-    createWord :: ByteWidth -> Solver SymExpr
+    createWord :: Bytes -> Solver SymExpr
     createWord 1 = SymWord8 <$> exists nm
     createWord 2 = SymWord16 <$> exists nm
     createWord 4 = SymWord32 <$> exists nm
@@ -77,7 +77,7 @@ makeSymVar pv pt = case pt of
     createWord 16 = SymWord128 <$> exists nm
     createWord n = err $ UnrecognizedWordWidth (fromIntegral n)
 
-    createInt :: ByteWidth -> Solver SymExpr
+    createInt :: Bytes -> Solver SymExpr
     createInt 1 = SymInt8 <$> exists nm
     createInt 2 = SymInt16 <$> exists nm
     createInt 4 = SymInt32 <$> exists nm

@@ -329,7 +329,7 @@ handleVarSplit et pvHigh pvLow = do
 
 extract' :: Pil.Type -> Int64 -> SymExpr -> Solver SymExpr
 extract' et bytePos x = do
-  let bitPos = BitWidth . fromIntegral $ bytePos * 8
+  let bitPos = Bits . fromIntegral $ bytePos * 8
   (extractedWidth, extractedSignedness) <- maybe (throwError $ UnexpectedReturnType_ "extract'1") return
     $ (,) <$> Pil.getTypeBitWidth et <*> Pil.getSignedness et
   totalWidth <- getIntegralWidth x

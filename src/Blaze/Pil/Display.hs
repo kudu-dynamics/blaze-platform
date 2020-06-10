@@ -9,6 +9,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Binja.Function
 import qualified Binja.Variable
 import qualified Binja.MLIL
+import qualified Data.HashMap.Strict as HMap
 
 type Symbol = Text
 
@@ -261,6 +262,12 @@ instance Disp Pil.Expression where
  
 instance Disp [Pil.Stmt] where
   disp = Text.intercalate "\n" . fmap disp
+
+instance (Disp a, Disp b) => Disp (a, b) where
+  disp (a, b) = "(" <> disp a <> ", " <> disp b <> ")"
+
+instance (Disp a, Disp b) => Disp (HashMap a b) where
+  disp = Text.intercalate "\n" . fmap disp . HMap.toList
 
 pdisp :: (MonadIO m, Disp a) => a -> m ()
 pdisp = putText . disp
