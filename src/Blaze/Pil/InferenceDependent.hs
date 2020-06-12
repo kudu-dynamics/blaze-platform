@@ -38,12 +38,15 @@ data PilType t = TArray { len :: t, elemType :: t }
                | TFloat { bitWidth :: t }
                | TBitVector { bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
-               | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'
+               | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'?
                                   t -- type
                          )
                | TBottom
                | TFunction { ret :: t, params :: [t] }
 
+               -- class constraint
+               | THasWidth t
+               
                -- type level values for some dependent-type action
                | TVBitWidth BitWidth
                | TVLength Word64
@@ -213,7 +216,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   Pil.ADD_OVERFLOW x -> integralBinOp Nothing x
 
   -- TODO: pointer type is the type of variable in x
-  Pil.ADDRESS_OF x -> retPointer
+  Pil.ADDRESS_OF _ -> retPointer
     -- must change AddressOf to use PilVars instead of Variable
 
   -- TODO: variable in x is record. type of var at field offset
@@ -247,8 +250,8 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
                                 ( SType . TVLength . fromIntegral . Text.length
                                   $ x ^. Pil.value )
                                 ( SType TChar ))]
-  Pil.DIVS x -> integralBinOp (Just True) x
-  Pil.DIVS_DP x -> integralBinOp (Just True) x
+  Pil.DIVS x -> integralBinOpSP (Just True) x
+  Pil.DIVS_DP x -> integralBinOpDP (Just True) x
   Pil.DIVU x -> integralBinOp (Just False) x
   Pil.DIVU_DP x -> integralBinOp (Just False) x
   Pil.FABS x -> floatUnOp x
@@ -287,17 +290,32 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   Pil.LOAD x -> do
     ptrWidth <- SVar <$> newSym
     ptrType <- SVar <$> newSym
-    return [ ( x ^. Pil.load . info . sym, SType $ TPointer ptrWidth ptrType )
+    return [ ( x ^. Pil.src . info . sym, SType $ TPointer ptrWidth ptrType )
            -- TODO: would be nice to spec that r has width sz'
            , ( r, ptrType )
+           , ( r, SType $ THasWidth sz' )
            ]
 
+  -- TODO: Move this to LOAD [x + const] where const is field and x is ptr to struct
+  -- Pil.LOAD_STRUCT x -> do
+  --   ptrWidth <- SVar <$> newSym
+  --   ptrType <- SVar <$> newSym
+  --   fieldType <- SVar <$> newSym
+  --   let recType = SType . TRecord . HashMap.fromList $
+  --                 [ ( fromIntegral $ x ^. Pil.offset
+  --                   , fieldType ) ]
+  --   return [ ( x ^. Pil.src . info . sym
+  --            , SType . TPointer ptrWidth recType )
+  --          -- TODO: would be nice to spec that r has width sz'
+  --          , ( r, fieldType )
+  --          ]
 
---   -- LOAD_STRUCT _ -> bitvecRet
---   LOW_PART _ -> bitvecRet
+  -- should _x have any influence on the type of r?
+  Pil.LOW_PART _x -> return [(r, SType $ THasWidth sz')]
+
   Pil.LSL x -> integralFirstArgIsReturn x
   Pil.LSR x -> integralFirstArgIsReturn x
---   MODS _ -> intRet
+  Pil.MODS _ -> undefined
 --   MODS_DP _ -> intRet
 --   MODU _ -> uintRet
 --   MODU_DP _ -> uintRet
@@ -342,7 +360,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   _ -> throwError UnhandledExpr
   where
     sz' = SType $ TVBitWidth sz
-
+    sz2x' = SType . TVBitWidth $ sz * 2
     getBoolRet = SType . TInt sz' . SVar <$> newSym
   
     retBool = do
@@ -364,6 +382,19 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       return [ (r, SType (TInt sz' signednessType))
              , (r, SVar $ x ^. Pil.left . info . sym)
              , (r, SVar $ x ^. Pil.right . info . sym)
+             ]
+
+    -- first arg is double-precision of second and return
+    -- signedness of args can apparently be anything
+    integralBinOpDP :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
+    integralBinOpDP rSignedness x = do
+      retSignednessType <- case mSignedness of
+        Nothing -> SVar <$> newSym
+        Just b -> return . SType . TVSign $ b
+      return [ (r, SType (TInt sz' signednessType))
+             , (x ^. Pil.left . info . sym, SType $ TInt sz2x' )
+             , (r, SVar $ x ^. Pil.right . info . sym)
+             
              ]
 
     integralBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
