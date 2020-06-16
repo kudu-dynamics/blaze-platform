@@ -250,10 +250,10 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
                                 ( SType . TVLength . fromIntegral . Text.length
                                   $ x ^. Pil.value )
                                 ( SType TChar ))]
-  Pil.DIVS x -> integralBinOpSP (Just True) x
+  Pil.DIVS x -> integralBinOp (Just True) x
   Pil.DIVS_DP x -> integralBinOpDP (Just True) x
   Pil.DIVU x -> integralBinOp (Just False) x
-  Pil.DIVU_DP x -> integralBinOp (Just False) x
+  Pil.DIVU_DP x -> integralBinOpDP (Just False) x
   Pil.FABS x -> floatUnOp x
   Pil.FADD x -> floatBinOp x
   Pil.FCMP_E x -> floatBinOpReturnsBool x
@@ -291,7 +291,6 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     ptrWidth <- SVar <$> newSym
     ptrType <- SVar <$> newSym
     return [ ( x ^. Pil.src . info . sym, SType $ TPointer ptrWidth ptrType )
-           -- TODO: would be nice to spec that r has width sz'
            , ( r, ptrType )
            , ( r, SType $ THasWidth sz' )
            ]
@@ -387,15 +386,15 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     -- first arg is double-precision of second and return
     -- signedness of args can apparently be anything
     integralBinOpDP :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
-    integralBinOpDP rSignedness x = do
+    integralBinOpDP mSignedness x = do
       retSignednessType <- case mSignedness of
         Nothing -> SVar <$> newSym
         Just b -> return . SType . TVSign $ b
-      return [ (r, SType (TInt sz' signednessType))
-             , (x ^. Pil.left . info . sym, SType $ TInt sz2x' )
+      return [ (r, SType (TInt sz' retSignednessType))
+             , (x ^. Pil.left . info . sym, SType $ TInt sz2x' retSignednessType)
              , (r, SVar $ x ^. Pil.right . info . sym)
-             
              ]
+
 
     integralBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
                              => x -> m [(Sym, SymType)]
