@@ -67,5 +67,6 @@ instance Hashable MLILSSAFunction where
 
 $(makeFieldsNoPrefix ''Function)
 $(makeFieldsNoPrefix ''LLILFunction)
+$(makeFieldsNoPrefix ''LLILSSAFunction)
 $(makeFieldsNoPrefix ''MLILFunction)
 $(makeFieldsNoPrefix ''MLILSSAFunction)

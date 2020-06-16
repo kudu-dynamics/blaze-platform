@@ -1,5 +1,6 @@
 module Binja.Function
   ( module Exports
+  , convertFunction
   , createFunction
   , getFunctions
   , getLLILFunction
@@ -8,6 +9,8 @@ module Binja.Function
   , getMLILSSAFunction
   , getFunctionStartingAt
   , getFunctionDataBinaryView
+  , FromFunction(fromFunction)
+  , ToFunction(toFunction)
   ) where
 
 import Binja.Prelude hiding (onException, handle)
@@ -18,13 +21,19 @@ import qualified Binja.C.Main as BN
 import Binja.C.Pointers
 import Binja.Types.Function as Exports
 
+createFunction :: FromFunction fun => BNFunction -> IO fun
+createFunction ptr = do
+  fn <- Function ptr
+        <$> (Text.pack <$> BN.getFunctionName ptr)
+        <*> BN.getFunctionStart ptr
+  fromFunction fn
 
-createFunction :: BNFunction -> IO Function
-createFunction ptr = Function ptr
-                     <$> (Text.pack <$> BN.getFunctionName ptr)
-                     <*> BN.getFunctionStart ptr
+convertFunction :: (ToFunction a, FromFunction b)
+                => a -> IO b
+convertFunction = fromFunction . toFunction
 
-getFunctions :: BNBinaryView -> IO [Function]
+
+getFunctions :: FromFunction fun => BNBinaryView -> IO [fun]
 getFunctions bv = BN.getFunctions bv >>= traverse createFunction
 
 getLLILFunction :: Function -> IO LLILFunction
@@ -47,6 +56,46 @@ getMLILSSAFunction fn = MLILSSAFunction
   <$> (BN.getFunctionMediumLevelIL (fn ^. handle)  >>= BN.getMediumLevelILSSAForm)
   <*> pure fn
 
+
+class FromFunction fun where
+  fromFunction :: Function -> IO fun
+
+class ToFunction fun where
+  toFunction :: fun -> Function
+
+instance FromFunction Function where
+  fromFunction = pure
+
+instance FromFunction LLILFunction where
+  fromFunction = getLLILFunction
+
+instance FromFunction LLILSSAFunction where
+  fromFunction = getLLILSSAFunction
+
+instance FromFunction MLILFunction where
+  fromFunction = getMLILFunction
+
+instance FromFunction MLILSSAFunction where
+  fromFunction = getMLILSSAFunction
+
+--------------
+
+instance ToFunction Function where
+  toFunction = identity
+
+instance ToFunction LLILFunction where
+  toFunction = view func
+
+instance ToFunction LLILSSAFunction where
+  toFunction = view func
+
+instance ToFunction MLILFunction where
+  toFunction = view func
+
+instance ToFunction MLILSSAFunction where
+  toFunction = view func
+
+
 getFunctionStartingAt :: BNBinaryView -> Maybe BNPlatform -> Address -> IO (Maybe Function)
 getFunctionStartingAt bv mplat addr = do
   plat <- maybe (BN.getDefaultPlatform bv) return mplat
@@ -56,3 +105,8 @@ getFunctionStartingAt bv mplat addr = do
 
 getFunctionDataBinaryView :: Function -> IO BNBinaryView
 getFunctionDataBinaryView = BN.getFunctionData . view handle
+
+
+-- convertFunction :: (ToFunction a, FromFunction b)
+--                 -> 
+
