@@ -144,7 +144,7 @@ executables:
     - binja
     - hspec
     - text
-  find_mlil:
+  find_mlil_ssa:
     main: Main.hs
     source-dirs:  app/find_mlil
     ghc-options:
