@@ -11,7 +11,6 @@ import qualified Binja.Function as Func
 import Binja.MLIL (Instruction)
 import qualified Binja.MLIL as MLIL
 import qualified Data.Text as Text
-import System.IO.Unsafe (unsafePerformIO)
 
 type F = MLILSSAFunction
 
