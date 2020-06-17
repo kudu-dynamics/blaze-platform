@@ -216,6 +216,7 @@ data Operation expr
     | MEM_PHI (MemPhiOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
+$(makePrisms ''Operation)
 
 $(makeFields ''NopOp)
 $(makeFields ''SetVarOp)

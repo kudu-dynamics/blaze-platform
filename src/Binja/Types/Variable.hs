@@ -27,16 +27,16 @@ data VarType = VarType
   } deriving (Eq, Ord, Show)
 
 newtype VariableIdentifier = VariableIdentifier Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
 newtype VariableIndex = VariableIndex Word32
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
 newtype VariableStorage = VariableStorage Int64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
 newtype Confidence = Confidence Word8
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
 data BNVariable = BNVariable
   { _sourceType :: BNVariableSourceType
