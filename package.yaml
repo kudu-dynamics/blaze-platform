@@ -121,6 +121,7 @@ library:
   - Blaze.Search
   - Blaze.Function
   - Blaze.Types.Function
+  - Blaze.Util.MLIL
 
 include-dirs:
   - "src"
@@ -142,7 +143,23 @@ executables:
     - binja
     - hspec
     - text
+  find_mlil_ssa:
+    main: Main.hs
+    source-dirs:  app/find_mlil
+    ghc-options:
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - hspec
+    - text
 
+    
 benchmarks:
   call-graph-benchmark:
     main:                CallGraph.hs
