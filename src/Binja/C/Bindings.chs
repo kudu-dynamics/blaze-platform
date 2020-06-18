@@ -42,7 +42,7 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNSaveToFilename as saveToFilename {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
 
-{#fun unsafe BNCreateDatabase as createDatabase {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
+{#fun unsafe BNCreateDatabase as createDatabase {withPtr* `BNBinaryView', `String', `Bool'} -> `Bool' toBool #}
 
 {#fun unsafe BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
 
