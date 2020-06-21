@@ -105,7 +105,6 @@ library:
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
   - Blaze.Import.Source.BinaryNinja
-  - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
@@ -113,7 +112,9 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
   - Blaze.Pil.Path
+  - Blaze.Prelude
   - Blaze.Pretty
+  - Blaze.Search
   - Blaze.Solver
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
@@ -125,9 +126,7 @@ library:
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Solver
-  - Blaze.Search
-
-
+  - Blaze.Util.MLIL
 
 include-dirs:
   - "src"
@@ -149,7 +148,23 @@ executables:
     - binja
     - hspec
     - text
+  find_mlil_ssa:
+    main: Main.hs
+    source-dirs:  app/find_mlil
+    ghc-options:
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - hspec
+    - text
 
+    
 benchmarks:
   call-graph-benchmark:
     main:                CallGraph.hs
