@@ -115,6 +115,7 @@ library:
   - Blaze.Pil.Path
   - Blaze.Pretty
   - Blaze.Solver
+  - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
   - Blaze.Types.Cfg.Loop
   - Blaze.Types.Fir
