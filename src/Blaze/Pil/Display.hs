@@ -159,7 +159,6 @@ instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = case exprOp of
     (Pil.ADC op) -> dispBinop "adc" op size
     (Pil.ADD op) -> dispBinop "add" op size
-    (Pil.ADDRESS_OF_FIELD op) -> dispUnop "fieldAddr" op size
     (Pil.ADD_OVERFLOW op) -> dispBinop "addOf" op size
     (Pil.AND op) -> dispBinop "and" op size
     (Pil.ASR op) -> dispBinop "asr" op size

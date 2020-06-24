@@ -179,7 +179,6 @@ instance Pretty Pil.Expression where
   pretty (Pil.Expression _ exprOp) = case exprOp of
     (Pil.ADC op) -> prettyBinop "adc" op
     (Pil.ADD op) -> prettyBinop "add" op
-    (Pil.ADDRESS_OF_FIELD op) -> Text.pack $ printf "&(%s)" (Text.unpack $ prettyField op)
     (Pil.ADD_OVERFLOW op) -> prettyBinop "addOf" op
     (Pil.AND op) -> prettyBinop "and" op
     (Pil.ASR op) -> prettyBinop "asr" op

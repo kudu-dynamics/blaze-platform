@@ -59,8 +59,6 @@ getExprType env x = case x ^. op of
   ADC n -> inheritIntRet n
   ADD n -> inheritIntRet n
   ADD_OVERFLOW n -> inheritIntRet n
-  ADDRESS_OF _ -> pointerRet
-  ADDRESS_OF_FIELD _ -> pointerRet
   AND _ -> bitvecRet
   ASR _ -> bitvecRet
   BOOL_TO_INT _ -> uintRet
@@ -136,8 +134,6 @@ getExprType env x = case x ^. op of
   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
   UNIMPL _ -> bitvecRet -- should this be unknown?
   VAR n -> typeEnvLookup (n ^. src) env
-  VAR_ALIASED _ -> bitvecRet
-  VAR_ALIASED_FIELD _ -> bitvecRet
   VAR_FIELD _ -> bitvecRet
   VAR_SPLIT _ -> bitvecRet
   XOR _ -> bitvecRet

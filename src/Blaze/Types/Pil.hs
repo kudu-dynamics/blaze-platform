@@ -11,7 +11,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              , AddOp(AddOp)
                              , AddOverflowOp
-                             , AddressOfFieldOp(AddressOfFieldOp)
                              , AndOp(AndOp)
                              , AsrOp(AsrOp)
                              , BoolToIntOp(BoolToIntOp)
@@ -225,7 +224,6 @@ instance Hashable Expression
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
-    | ADDRESS_OF_FIELD (AddressOfFieldOp expr)
     | ADD_OVERFLOW (AddOverflowOp expr)
     | AND (AndOp expr)
     | ASR (AsrOp expr)
