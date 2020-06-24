@@ -25,7 +25,9 @@ class Graph e n g | g -> e n where
   addNodes :: [n] -> g -> g
   addEdge :: (e, (n, n)) -> g -> g
   hasNode :: n -> g -> Bool
-
+  transpose :: g -> g
+  bfs :: [n] -> g -> [[n]]
+  subgraph :: (n -> Bool) -> g -> g
 
 findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
 findNonRepeatPaths' seen start' g = do

@@ -15,8 +15,7 @@ import Binja.Function (MLILSSAFunction)
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Graph
-import qualified Blaze.Types.Graph as Exports
+import Blaze.Types.Graph as Exports
 import qualified Data.Set as Set
 
 type F = MLILSSAFunction

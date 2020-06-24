@@ -2,13 +2,12 @@
 
 module Blaze.Types.Cfg where
 
-import Blaze.Prelude
-import Blaze.Types.CallGraph (Function)
 import qualified Blaze.Graph as Graph
 import Blaze.Graph (Graph)
+import Blaze.Prelude hiding (pred)
+import Blaze.Types.CallGraph (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
-import Data.BinaryAnalysis (Address)
 import Prelude (error)
 
 -- TODO: Consider adding more depending on what is being represented.
@@ -70,6 +69,7 @@ data Cfg a
         _root :: CfNode,
         _mapping :: Maybe a
       }
+  deriving (Eq, Show)
 
 buildCfg :: CfNode -> [CfNode] -> [CfEdge] -> Maybe a -> Cfg a
 buildCfg root rest es mapping =
@@ -83,19 +83,24 @@ buildCfg root rest es mapping =
     graph = mkControlFlowGraph root rest es
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
--- TODO: Separate graph construction from graph use
+-- TODO: Separate graph construction from graph use and/or graph algorithms
 instance Graph BranchType CfNode (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use buildCfg to construct a CFG."
   fromEdges _ = error "Use buildCfg to construct a CFG."
   succs node = Graph.succs node . _graph
   preds node = Graph.preds node . _graph
-  nodes = Graph.nodes . _graph 
+  nodes = Graph.nodes . _graph
   edges = Graph.edges . _graph
   getEdgeLabel edge = Graph.getEdgeLabel edge . _graph
-  setEdgeLabel label edge cfg = cfg { _graph = Graph.setEdgeLabel label edge . _graph $ cfg }
-  removeEdge edge cfg = cfg { _graph = Graph.removeEdge edge . _graph $ cfg }
-  removeNode node cfg = cfg { _graph = Graph.removeNode node . _graph $ cfg }
-  addNodes nodes cfg = cfg { _graph = Graph.addNodes nodes . _graph $ cfg }
-  addEdge lblEdge cfg = cfg { _graph = Graph.addEdge lblEdge . _graph $ cfg }
+  setEdgeLabel label edge cfg = cfg {_graph = Graph.setEdgeLabel label edge . _graph $ cfg}
+  removeEdge edge cfg = cfg {_graph = Graph.removeEdge edge . _graph $ cfg}
+  removeNode node cfg = cfg {_graph = Graph.removeNode node . _graph $ cfg}
+  addNodes nodes cfg = cfg {_graph = Graph.addNodes nodes . _graph $ cfg}
+  addEdge lblEdge cfg = cfg {_graph = Graph.addEdge lblEdge . _graph $ cfg}
   hasNode node = Graph.hasNode node . _graph
+  transpose cfg = cfg {_graph = Graph.transpose . _graph $ cfg}
+  bfs startNodes cfg = Graph.bfs startNodes . _graph $ cfg
+
+  -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?
+  subgraph pred cfg = cfg {_graph = Graph.subgraph pred . _graph $ cfg}

@@ -6,11 +6,7 @@ where
 
 import qualified Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Cfg hiding (src, dst, branchType)
-import qualified Blaze.Types.Cfg as T
-import qualified Blaze.Types.Cfg as Exports
-import Blaze.Types.Cfg.Loop (BackEdge (BackEdge))
-import Data.Coerce (coerce)
+import Blaze.Types.Cfg as Exports hiding (branchType, dst, src)
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
 import qualified Data.HashSet as Hs
@@ -26,20 +22,20 @@ buildNodeMap cfg =
   Im.fromList $ zip [0 ..] (Set.toList . G.nodes . _graph $ cfg)
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
-buildAdjMap ns = 
+buildAdjMap ns =
   foldl' mergeEdges initialAdjMap
-    where
-      initialAdjMap :: IntMap [Dlt.Node]
-      initialAdjMap = Im.fromList $ (, []) <$> ns
-      mergeEdges :: IntMap [Dlt.Node] -> Dlt.Edge -> IntMap [Dlt.Node]
-      mergeEdges acc e =
-        Im.adjust (snd e : ) (fst e) acc
+  where
+    initialAdjMap :: IntMap [Dlt.Node]
+    initialAdjMap = Im.fromList $ (,[]) <$> ns
+    mergeEdges :: IntMap [Dlt.Node] -> Dlt.Edge -> IntMap [Dlt.Node]
+    mergeEdges acc e =
+      Im.adjust (snd e :) (fst e) acc
 
--- |Build a graph for use with Data.Graph.Dom for finding dominators
--- and post-dominators. 
--- Note that we use unchecked HashMap lookups (!) as we know the
--- entries must be present. That is, we know there is a corresponding 
--- Int for every CfNode.
+-- | Build a graph for use with Data.Graph.Dom for finding dominators
+--  and post-dominators.
+--  Note that we use unchecked HashMap lookups (!) as we know the
+--  entries must be present. That is, we know there is a corresponding
+--  Int for every CfNode.
 buildDltGraph :: Cfg a -> DltMap -> Dlt.Rooted
 buildDltGraph cfg dltMap =
   -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
