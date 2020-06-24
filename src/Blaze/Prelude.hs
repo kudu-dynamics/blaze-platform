@@ -58,6 +58,10 @@ import Data.BinaryAnalysis as Exports
     Bytes (Bytes),
     toBits,
     toBytes,
+    BitOffset (BitOffset),
+    ByteOffset (ByteOffset),
+    toBitOffset,
+    toByteOffset
   )
 import Data.Data as Exports
 import Data.HashMap.Strict as Exports (HashMap)

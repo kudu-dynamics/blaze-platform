@@ -9,6 +9,10 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Binja.Function
 import qualified Binja.Variable
 import qualified Binja.MLIL
+import Data.BinaryAnalysis as Exports
+  ( ByteOffset (ByteOffset)
+  )
+
 
 type Symbol = Text
 
@@ -71,6 +75,11 @@ dispVar sym op sz = Text.pack $ printf "%s \"%s\" %s" sym src $ disp sz
   where
     src = disp (op ^. Pil.src)
 
+paren :: Text -> Text
+paren t = "(" <> t <> ")"
+
+(<->) :: Text -> Text -> Text
+(<->) a b = a <> " " <> b
 
 class Disp a where
   disp :: a -> Text
@@ -124,7 +133,7 @@ instance Disp Pil.Stmt where
       where
         addr = disp $ op ^. Pil.addr
         val = disp $ op ^. Pil.value
-    Pil.UnimplInstr -> "unimplInstr"
+    Pil.UnimplInstr t -> Text.pack $ printf "unimplInstr (\"%s\")" t
     (Pil.UnimplMem op) -> Text.pack $ printf "unimplMem (%s)" src
       where
         src = disp $ op ^. Pil.src
@@ -150,7 +159,6 @@ instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = case exprOp of
     (Pil.ADC op) -> dispBinop "adc" op size
     (Pil.ADD op) -> dispBinop "add" op size
-    (Pil.ADDRESS_OF op) -> dispUnop "addr" op size
     (Pil.ADDRESS_OF_FIELD op) -> dispUnop "fieldAddr" op size
     (Pil.ADD_OVERFLOW op) -> dispBinop "addOf" op size
     (Pil.AND op) -> dispBinop "and" op size
@@ -184,6 +192,9 @@ instance Disp Pil.Expression where
     (Pil.FCMP_O op) -> dispBinop "fcmpO" op size
     (Pil.FCMP_UO op) -> dispBinop "fcmpUO" op size
     (Pil.FDIV op) -> dispBinop "fdiv" op size
+    (Pil.FIELD_ADDR op) -> "fieldAddr"
+      <-> paren (disp $ op ^. Pil.baseAddr)
+      <-> paren (disp $ op ^. Pil.offset)
     (Pil.FLOAT_CONST op) -> dispConst "float" op size
     (Pil.FLOAT_CONV op) -> dispUnop "floatConv" op size
     (Pil.FLOAT_TO_INT op) -> dispUnop "floatToInt" op size
@@ -218,13 +229,11 @@ instance Disp Pil.Expression where
     -- TODO: Need to add carry
     (Pil.RRC op) -> dispBinop "rrc" op size
     (Pil.SBB op) -> dispBinop "sbb" op size
+    (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. Pil.src)
     (Pil.SUB op) -> dispBinop "sub" op size
     (Pil.SX op) -> dispUnop "sx" op size
     (Pil.TEST_BIT op) -> dispBinop "testBit" op size
-    (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
-    (Pil.VAR_ALIASED op) -> dispVar "varAliased" op size
-    -- TODO: Add field offset
-    (Pil.VAR_ALIASED_FIELD op) -> dispField "varAliasedField" op size
+    (Pil.UNIMPL t) -> "unimpl" <-> paren t
     (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (disp (op ^. Pil.dest)) srcs
       where 
         srcs :: Text
@@ -258,7 +267,14 @@ instance Disp Pil.Expression where
 --       fname = maybe "<Unknown Function>" identity
 --               . fmap (view Func.name) $ ctx ^. Pil.func
 --       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxIndex
- 
+
+instance Disp Pil.StackOffset where
+  disp x = "stackOffset " <> show (x ^. Pil.offset)
+           <> " (" <> disp (x ^. Pil.ctx) <> ")"
+
+instance Disp ByteOffset where
+  disp (ByteOffset x) = "byteOffset " <> show x
+
 instance Disp [Pil.Stmt] where
   disp = Text.intercalate "\n" . fmap disp
 

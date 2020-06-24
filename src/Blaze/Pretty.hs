@@ -17,6 +17,7 @@ import Control.Lens hiding (op)
 import Data.BinaryAnalysis
   ( Address (Address),
     Bytes (Bytes),
+    ByteOffset (ByteOffset),
   )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -24,6 +25,7 @@ import qualified Data.Text as Text
 import qualified Numeric
 import Protolude hiding (Symbol, const, sym)
 import Text.Printf
+import Blaze.Pil.Display (disp)
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -154,6 +156,12 @@ prettyVar op = Text.pack $ printf "%s" src
   where
     src = pretty (op ^. Pil.src)
 
+paren :: Text -> Text
+paren t = "(" <> t <> ")"
+
+(<->) :: Text -> Text -> Text
+(<->) a b = a <> " " <> b
+
 prettyField ::
   ( Pil.HasSrc a b,
     Pretty b,
@@ -171,7 +179,6 @@ instance Pretty Pil.Expression where
   pretty (Pil.Expression _ exprOp) = case exprOp of
     (Pil.ADC op) -> prettyBinop "adc" op
     (Pil.ADD op) -> prettyBinop "add" op
-    (Pil.ADDRESS_OF op) -> prettyUnop "&" op
     (Pil.ADDRESS_OF_FIELD op) -> Text.pack $ printf "&(%s)" (Text.unpack $ prettyField op)
     (Pil.ADD_OVERFLOW op) -> prettyBinop "addOf" op
     (Pil.AND op) -> prettyBinop "and" op
@@ -205,6 +212,9 @@ instance Pretty Pil.Expression where
     (Pil.FCMP_O op) -> prettyBinop "fcmpO" op
     (Pil.FCMP_UO op) -> prettyBinop "fcmpUO" op
     (Pil.FDIV op) -> prettyBinop "fdiv" op
+    (Pil.FIELD_ADDR op) -> "fieldAddr"
+      <-> paren (disp $ op ^. Pil.baseAddr)
+      <-> paren (disp $ op ^. Pil.offset)
     (Pil.FLOAT_CONST op) -> prettyConst op
     (Pil.FLOAT_CONV op) -> prettyUnop "floatConv" op
     (Pil.FLOAT_TO_INT op) -> prettyUnop "floatToInt" op
@@ -239,13 +249,11 @@ instance Pretty Pil.Expression where
     -- TODO: Need to add carry
     (Pil.RRC op) -> prettyBinop "rrc" op
     (Pil.SBB op) -> prettyBinop "sbb" op
+    (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. Pil.src)
     (Pil.SUB op) -> prettyBinop "sub" op
     (Pil.SX op) -> prettyUnop "sx" op
     (Pil.TEST_BIT op) -> prettyBinop "testBit" op
     (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
-    (Pil.VAR_ALIASED op) -> prettyVar op
-    -- TODO: Add field offset
-    (Pil.VAR_ALIASED_FIELD op) -> prettyField op
     (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (pretty (op ^. Pil.dest)) srcs
       where
         srcs :: Text
@@ -277,7 +285,7 @@ instance Pretty Pil.Stmt where
     (Pil.Def x) -> Text.pack $ printf "%s = %s" (pretty $ x ^. Pil.var) (pretty $ x ^. Pil.value)
     (Pil.Constraint x) -> Text.pack $ printf "?: %s" (pretty $ x ^. Pil.condition)
     (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. Pil.addr) (pretty $ x ^. Pil.value)
-    Pil.UnimplInstr -> "Unimplemented Instruction"
+    Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> t <> "\")"
     (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. Pil.src)
     Pil.Undef -> "Undefined"
     Pil.Nop -> "Nop"
@@ -290,6 +298,10 @@ newtype PStmts = PStmts [Pil.Stmt]
 
 instance Pretty PStmts where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
+
+instance Pretty Pil.StackOffset where
+  pretty x = "stackOffset " <> show (x ^. Pil.offset)
+           <> " (" <> pretty (x ^. Pil.ctx) <> ")"
 
 prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts
