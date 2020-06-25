@@ -1,183 +1,187 @@
 {-# LANGUAGE TemplateHaskell #-}
+
 module Blaze.Types.Pil
-  ( module Exports
-  , module Blaze.Types.Pil
-  ) where
+  ( module Exports,
+    module Blaze.Types.Pil,
+  )
+where
 
-import Blaze.Prelude hiding (Symbol, Type)
-
-import qualified Data.HashMap.Strict as HashMap
-
-import Binja.MLIL as Exports ( AdcOp(AdcOp)
-                             , AddOp(AddOp)
-                             , AddOverflowOp
-                             , AddressOfFieldOp(AddressOfFieldOp)
-                             , AddressOfOp(AddressOfOp)
-                             , AndOp(AndOp)
-                             , AsrOp(AsrOp)
-                             , BoolToIntOp(BoolToIntOp)
-                             , BpOp(BpOp)
-                             , CallOutputOp(CallOutputOp)
-                             , CallOutputSSAOp(CallOutputSSAOp)
-                             , CallParamOp(CallParamOp)
-                             , CallParamSSAOp(CallParamSSAOp)
-                             , CallSSAOp(CallSSAOp)
-                             , CallUntypedOp(CallUntypedOp)
-                             , CallUntypedSSAOp(CallUntypedSSAOp)
-                             , CeilOp(CeilOp)
-                             , CmpEOp(CmpEOp)
-                             , CmpNeOp(CmpNeOp)
-                             , CmpSgeOp(CmpSgeOp)
-                             , CmpSgtOp(CmpSgtOp)
-                             , CmpSleOp(CmpSleOp)
-                             , CmpSltOp(CmpSltOp)
-                             , CmpUgeOp(CmpUgeOp)
-                             , CmpUgtOp(CmpUgtOp)
-                             , CmpUleOp(CmpUleOp)
-                             , CmpUltOp(CmpUltOp)
-                             , ConstOp(ConstOp)
-                             , ConstPtrOp(ConstPtrOp)
-                             , DivsDpOp(DivsDpOp)
-                             , DivsOp(DivsOp)
-                             , DivuDpOp(DivuDpOp)
-                             , DivuOp(DivuOp)
-                             , ExternPtrOp(ExternPtrOp)
-                             , FabsOp(FabsOp)
-                             , FaddOp(FaddOp)
-                             , FcmpEOp(FcmpEOp)
-                             , FcmpGeOp(FcmpGeOp)
-                             , FcmpGtOp(FcmpGtOp)
-                             , FcmpLeOp(FcmpLeOp)
-                             , FcmpLtOp(FcmpLtOp)
-                             , FcmpNeOp(FcmpNeOp)
-                             , FcmpOOp(FcmpOOp)
-                             , FcmpUoOp(FcmpUoOp)
-                             , FdivOp(FdivOp)
-                             , FloatConstOp(FloatConstOp)
-                             , FloatConvOp(FloatConvOp)
-                             , FloatToIntOp(FloatToIntOp)
-                             , FloorOp(FloorOp)
-                             , FmulOp(FmulOp)
-                             , FnegOp(FnegOp)
-                             , FreeVarSlotOp(FreeVarSlotOp)
-                             , FreeVarSlotSSAOp(FreeVarSlotSSAOp)
-                             , FsqrtOp(FsqrtOp)
-                             , FsubOp(FsubOp)
-                             , FtruncOp(FtruncOp)
-                             , GotoOp(GotoOp)
-                             , IfOp(IfOp)
-                             , ImportOp(ImportOp)
-                             , IntToFloatOp(IntToFloatOp)
-                             , IntrinsicOp(IntrinsicOp)
-                             , IntrinsicSSAOp(IntrinsicSSAOp)
-                             , JumpOp(JumpOp)
-                             , JumpToOp(JumpToOp)
-                             , LoadOp(LoadOp)
-                             , LoadSSAOp(LoadSSAOp)
-                             , LoadStructOp(LoadStructOp)
-                             , LoadStructSSAOp(LoadStructSSAOp)
-                             , LowPartOp(LowPartOp)
-                             , LslOp(LslOp)
-                             , LsrOp(LsrOp)
-                             , MemPhiOp(MemPhiOp)
-                             , ModsDpOp(ModsDpOp)
-                             , ModsOp(ModsOp)
-                             , ModuDpOp(ModuDpOp)
-                             , ModuOp(ModuOp)
-                             , MulOp(MulOp)
-                             , MulsDpOp(MulsDpOp)
-                             , MuluDpOp(MuluDpOp)
-                             , NegOp(NegOp)
-                             , NoretOp(NoretOp)
-                             , NotOp(NotOp) --TODO: do this for every xOp...
-                             , OrOp(OrOp)
-                             , RetHintOp(RetHintOp)
-                             , RetOp(RetOp)
-                             , RlcOp(RlcOp)
-                             , RolOp(RolOp)
-                             , RorOp(RorOp)
-                             , RoundToIntOp(RoundToIntOp)
-                             , RrcOp(RrcOp)
-                             , SbbOp(SbbOp)
-                             , SetVarAliasedFieldOp(SetVarAliasedFieldOp)
-                             , SetVarAliasedOp(SetVarAliasedOp)
-                             , SetVarFieldOp(SetVarFieldOp)
-                             , SetVarOp(SetVarOp)
-                             , SetVarSSAFieldOp(SetVarSSAFieldOp)
-                             , SetVarSSAOp(SetVarSSAOp)
-                             , SetVarSplitOp(SetVarSplitOp)
-                             , SetVarSplitSSAOp(SetVarSplitSSAOp)
-                             , StoreStructOp(StoreStructOp)
-                             , StoreStructSSAOp(StoreStructSSAOp)
-                             , SubOp(SubOp)
-                             , SxOp(SxOp)
-                             , SyscallOp(SyscallOp)
-                             , SyscallSSAOp(SyscallSSAOp)
-                             , SyscallUntypedOp(SyscallUntypedOp)
-                             , SyscallUntypedSSAOp(SyscallUntypedSSAOp)
-                             , TailcallOp(TailcallOp)
-                             , TailcallSSAOp(TailcallSSAOp)
-                             , TailcallUntypedOp(TailcallUntypedOp)
-                             , TailcallUntypedSSAOp(TailcallUntypedSSAOp)
-                             , TestBitOp(TestBitOp)
-                             , TrapOp(TrapOp)
-                             , UndefOp(UndefOp)
-                             , UnimplOp(UnimplOp)
-                             , XorOp(XorOp)
-                             , ZxOp(ZxOp)
-                             , OperationSize(OperationSize)
-                             , SSAVariable
-                             , HasSize
-                             , HasOp
-                             , HasCarry
-                             , HasCondition
-                             , HasConstant
-                             , HasDest
-                             , HasFunc
-                             , HasLeft
-                             , HasOffset
-                             , HasParams
-                             , HasRight
-                             , HasVar
-                             , HasSrc
-                             , HasHigh
-                             , HasLow
-                             , index
-                             , func
-                             , operation
-                             , sourceOperand
-                             , size
-                             , operands
-                             , address
-                             , exprIndex
-                             , opData
-                             , op
-                             , var
-                             , version
-                             , dest
-                             , src
-                             , offset
-                             , high
-                             , low
-                             , constant
-                             , left
-                             , right
-                             , carry
-                             , targets
-                             , params
-                             , output
-                             , stack
-                             , condition
-                             , true
-                             , false
-                             , vector
-                             , intrinsic
-                             , prev
-                             , src_memory
-                             , dest_memory
-                             )
+--TODO: do this for every xOp...
 
 import Binja.Function (Function)
+import Binja.MLIL as Exports
+  ( AdcOp (AdcOp),
+    AddOp (AddOp),
+    AddOverflowOp,
+    AddressOfFieldOp (AddressOfFieldOp),
+    AddressOfOp (AddressOfOp),
+    AndOp (AndOp),
+    AsrOp (AsrOp),
+    BoolToIntOp (BoolToIntOp),
+    BpOp (BpOp),
+    CallOutputOp (CallOutputOp),
+    CallOutputSSAOp (CallOutputSSAOp),
+    CallParamOp (CallParamOp),
+    CallParamSSAOp (CallParamSSAOp),
+    CallSSAOp (CallSSAOp),
+    CallUntypedOp (CallUntypedOp),
+    CallUntypedSSAOp (CallUntypedSSAOp),
+    CeilOp (CeilOp),
+    CmpEOp (CmpEOp),
+    CmpNeOp (CmpNeOp),
+    CmpSgeOp (CmpSgeOp),
+    CmpSgtOp (CmpSgtOp),
+    CmpSleOp (CmpSleOp),
+    CmpSltOp (CmpSltOp),
+    CmpUgeOp (CmpUgeOp),
+    CmpUgtOp (CmpUgtOp),
+    CmpUleOp (CmpUleOp),
+    CmpUltOp (CmpUltOp),
+    ConstOp (ConstOp),
+    ConstPtrOp (ConstPtrOp),
+    DivsDpOp (DivsDpOp),
+    DivsOp (DivsOp),
+    DivuDpOp (DivuDpOp),
+    DivuOp (DivuOp),
+    ExternPtrOp (ExternPtrOp),
+    FabsOp (FabsOp),
+    FaddOp (FaddOp),
+    FcmpEOp (FcmpEOp),
+    FcmpGeOp (FcmpGeOp),
+    FcmpGtOp (FcmpGtOp),
+    FcmpLeOp (FcmpLeOp),
+    FcmpLtOp (FcmpLtOp),
+    FcmpNeOp (FcmpNeOp),
+    FcmpOOp (FcmpOOp),
+    FcmpUoOp (FcmpUoOp),
+    FdivOp (FdivOp),
+    FloatConstOp (FloatConstOp),
+    FloatConvOp (FloatConvOp),
+    FloatToIntOp (FloatToIntOp),
+    FloorOp (FloorOp),
+    FmulOp (FmulOp),
+    FnegOp (FnegOp),
+    FreeVarSlotOp (FreeVarSlotOp),
+    FreeVarSlotSSAOp (FreeVarSlotSSAOp),
+    FsqrtOp (FsqrtOp),
+    FsubOp (FsubOp),
+    FtruncOp (FtruncOp),
+    GotoOp (GotoOp),
+    HasCarry,
+    HasCondition,
+    HasConstant,
+    HasDest,
+    HasFunc,
+    HasHigh,
+    HasLeft,
+    HasLow,
+    HasOffset,
+    HasOp,
+    HasParams,
+    HasRight,
+    HasSize,
+    HasSrc,
+    HasVar,
+    IfOp (IfOp),
+    ImportOp (ImportOp),
+    IntToFloatOp (IntToFloatOp),
+    IntrinsicOp (IntrinsicOp),
+    IntrinsicSSAOp (IntrinsicSSAOp),
+    JumpOp (JumpOp),
+    JumpToOp (JumpToOp),
+    LoadOp (LoadOp),
+    LoadSSAOp (LoadSSAOp),
+    LoadStructOp (LoadStructOp),
+    LoadStructSSAOp (LoadStructSSAOp),
+    LowPartOp (LowPartOp),
+    LslOp (LslOp),
+    LsrOp (LsrOp),
+    MemPhiOp (MemPhiOp),
+    ModsDpOp (ModsDpOp),
+    ModsOp (ModsOp),
+    ModuDpOp (ModuDpOp),
+    ModuOp (ModuOp),
+    MulOp (MulOp),
+    MulsDpOp (MulsDpOp),
+    MuluDpOp (MuluDpOp),
+    NegOp (NegOp),
+    NoretOp (NoretOp),
+    NotOp (NotOp),
+    OperationSize (OperationSize),
+    OrOp (OrOp),
+    RetHintOp (RetHintOp),
+    RetOp (RetOp),
+    RlcOp (RlcOp),
+    RolOp (RolOp),
+    RorOp (RorOp),
+    RoundToIntOp (RoundToIntOp),
+    RrcOp (RrcOp),
+    SSAVariable,
+    SbbOp (SbbOp),
+    SetVarAliasedFieldOp (SetVarAliasedFieldOp),
+    SetVarAliasedOp (SetVarAliasedOp),
+    SetVarFieldOp (SetVarFieldOp),
+    SetVarOp (SetVarOp),
+    SetVarSSAFieldOp (SetVarSSAFieldOp),
+    SetVarSSAOp (SetVarSSAOp),
+    SetVarSplitOp (SetVarSplitOp),
+    SetVarSplitSSAOp (SetVarSplitSSAOp),
+    StoreStructOp (StoreStructOp),
+    StoreStructSSAOp (StoreStructSSAOp),
+    SubOp (SubOp),
+    SxOp (SxOp),
+    SyscallOp (SyscallOp),
+    SyscallSSAOp (SyscallSSAOp),
+    SyscallUntypedOp (SyscallUntypedOp),
+    SyscallUntypedSSAOp (SyscallUntypedSSAOp),
+    TailcallOp (TailcallOp),
+    TailcallSSAOp (TailcallSSAOp),
+    TailcallUntypedOp (TailcallUntypedOp),
+    TailcallUntypedSSAOp (TailcallUntypedSSAOp),
+    TestBitOp (TestBitOp),
+    TrapOp (TrapOp),
+    UndefOp (UndefOp),
+    UnimplOp (UnimplOp),
+    XorOp (XorOp),
+    ZxOp (ZxOp),
+    address,
+    carry,
+    condition,
+    constant,
+    dest,
+    dest_memory,
+    exprIndex,
+    false,
+    func,
+    high,
+    index,
+    intrinsic,
+    left,
+    low,
+    offset,
+    op,
+    opData,
+    operands,
+    operation,
+    output,
+    params,
+    prev,
+    right,
+    size,
+    sourceOperand,
+    src,
+    src_memory,
+    stack,
+    targets,
+    true,
+    var,
+    vector,
+    version,
+  )
+import Blaze.Prelude hiding (Symbol, Type)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty (NonEmpty)
 
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Num, Generic)
@@ -196,7 +200,11 @@ data PilVar = PilVar
 instance Hashable PilVar
 
 data ConverterCtx = ConverterCtx
-  { _ctxIndexCounter :: Maybe CtxIndex
+  -- TODO: Move context ID management to own type wrapped in a Maybe?
+  { _ctxMaxIdx :: CtxIndex
+  -- The current context should be on the top of the stack.
+  -- I.e., the stack should never be empty.
+  , _ctxStack :: NonEmpty Ctx
   , _ctx :: Ctx
   } deriving (Eq, Ord, Show, Generic)
 
@@ -522,7 +530,6 @@ data Ctx = Ctx
   { _func :: Maybe Function
   , _ctxIndex :: Maybe CtxIndex
   , _definedVars :: HashSet PilVar
-  , _typeEnv :: TypeEnv
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable Ctx
 

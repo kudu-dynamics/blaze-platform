@@ -35,6 +35,7 @@ import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx 
 import qualified Blaze.Types.Pil      as Pil
 import qualified Data.HashMap.Strict  as HMap
 import qualified Data.HashSet         as HSet
+import qualified Data.List.NonEmpty   as NE
 
 -- convert path to [Pil]
 
@@ -48,24 +49,40 @@ maybeUpdateCtx fn = do
 
 enterNewCtx :: Maybe Function -> Converter ()
 enterNewCtx fn = do
-  Pil.ctxIndexCounter %= incIndex
-  i <- use Pil.ctxIndexCounter
-  Pil.ctx %= newCtx i
+  Pil.ctxMaxIdx %= incIndex
+  i <- use Pil.ctxMaxIdx
+  outerCtx <- use Pil.ctx
+  let innerCtx = newCtx i outerCtx
+  Pil.ctx %= innerCtx
+  pushCtx innerCtx
   where
+    newCtx :: CtxIndex -> Ctx -> Ctx
     newCtx i ctx = ctx & Pil.func .~ fn
                        & Pil.ctxIndex .~ i
-    incIndex :: Maybe CtxIndex -> Maybe CtxIndex
-    incIndex Nothing = Just 0
-    incIndex (Just n) = Just (n + 1)
+    incIndex :: CtxIndex -> CtxIndex
+    incIndex = (+ 1)
+    pushCtx :: ConverterCtx -> Converter ()
+    pushCtx ctx = Pil.ctxStack %= NE.cons ctx
 
 retCtxTo :: Maybe Function -> Converter ()
 retCtxTo fn = do
-  Pil.ctxIndexCounter %= liftA (subtract 1)
-  i <- use Pil.ctxIndexCounter
-  Pil.ctx %= newCtx i
+  _innerCtx <- popCtx
+  outerCtx <- peekCtx
+  Pil.ctx .= outerCtx
   where
+    newCtx :: CtxIndex -> Ctx -> Ctx
     newCtx i ctx = ctx & Pil.func .~ fn
                        & Pil.ctxIndex .~ i
+    popCtx :: Converter ConverterCtx
+    popCtx = do
+      stack <- use Pil.ctxStack
+      let (_innerCtx, mStack) = NE.uncons stack
+      return 
+        (case mStack of 
+          Just stack' -> stack'
+          Nothing -> error "The converter stack should never be empty.")
+    peekCtx :: Converter ConverterCtx
+    peekCtx = head $ use Pil.ctxStack
 
 getSimpleCtx :: Converter SimpleCtx
 getSimpleCtx = do
