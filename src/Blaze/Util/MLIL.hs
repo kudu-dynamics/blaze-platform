@@ -117,7 +117,17 @@ matchSetVarAliasedWithNonStackVar (MLIL.SET_VAR_ALIASED x) =
   /= StackVariableSourceType
 matchSetVarAliasedWithNonStackVar _ = False
 
+-- found some in 
 matchVarFieldWithNonZeroOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchVarFieldWithNonZeroOffset (MLIL.VAR_SSA_FIELD x) =
   x ^. MLIL.offset /= 0
 matchVarFieldWithNonZeroOffset _ = False
+
+
+-- found 0 in , , ls, kill
+matchSetVarFieldWhereVarHasNoWidth :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchSetVarFieldWhereVarHasNoWidth (MLIL.SET_VAR_SSA_FIELD x) =
+  isNothing $ x ^. MLIL.prev . MLIL.src . MLIL.var . Var.varType
+matchSetVarFieldWhereVarHasNoWidth _ = False
+
+

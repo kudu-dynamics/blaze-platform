@@ -176,7 +176,6 @@ import Binja.MLIL as Exports ( AdcOp(AdcOp)
                              )
 
 import Binja.Function (Function)
-import Binja.Variable (VariableStorage)
 
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Num, Generic)
@@ -307,6 +306,7 @@ data ExprOp expr
     | ConstStr (ConstStrOp expr)
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
     | FIELD_ADDR (FieldAddrOp expr)
+    | UPDATE_VAR (UpdateVarOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ExprOp a)
@@ -414,6 +414,14 @@ data FieldAddrOp expr = FieldAddrOp
     , _offset :: ByteOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (FieldAddrOp a)
+
+{- HLINT ignore UpdateVarOp -}
+data UpdateVarOp expr = UpdateVarOp
+    { _dest :: PilVar
+    , _offset :: ByteOffset
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (UpdateVarOp a)
 
 -----------------------
 --- types
@@ -606,6 +614,7 @@ $(makeFields ''VarSplitOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)
+$(makeFieldsNoPrefix ''UpdateVarOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)

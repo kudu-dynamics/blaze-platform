@@ -1,18 +1,12 @@
 module Blaze.Pil.Display where
 
+import qualified Binja.Function
+import qualified Binja.MLIL
+import qualified Binja.Variable
+import Blaze.Prelude hiding (Symbol, const, sym)
+import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
 import Text.Printf
-
-import Blaze.Prelude hiding (Symbol, sym, const)
-import qualified Blaze.Types.Pil as Pil
-
-import qualified Binja.Function
-import qualified Binja.Variable
-import qualified Binja.MLIL
-import Data.BinaryAnalysis as Exports
-  ( ByteOffset (ByteOffset)
-  )
-
 
 type Symbol = Text
 
@@ -191,9 +185,10 @@ instance Disp Pil.Expression where
     (Pil.FCMP_O op) -> dispBinop "fcmpO" op size
     (Pil.FCMP_UO op) -> dispBinop "fcmpUO" op size
     (Pil.FDIV op) -> dispBinop "fdiv" op size
-    (Pil.FIELD_ADDR op) -> "fieldAddr"
-      <-> paren (disp $ op ^. Pil.baseAddr)
-      <-> paren (disp $ op ^. Pil.offset)
+    (Pil.FIELD_ADDR op) ->
+      "fieldAddr"
+        <-> paren (disp $ op ^. Pil.baseAddr)
+        <-> paren (disp $ op ^. Pil.offset)
     (Pil.FLOAT_CONST op) -> dispConst "float" op size
     (Pil.FLOAT_CONV op) -> dispUnop "floatConv" op size
     (Pil.FLOAT_TO_INT op) -> dispUnop "floatToInt" op size
@@ -233,8 +228,13 @@ instance Disp Pil.Expression where
     (Pil.SX op) -> dispUnop "sx" op size
     (Pil.TEST_BIT op) -> dispBinop "testBit" op size
     (Pil.UNIMPL t) -> "unimpl" <-> paren t
+    (Pil.UPDATE_VAR op) ->
+      "updateVar"
+        <-> paren (disp $ op ^. Pil.dest)
+        <-> paren (disp $ op ^. Pil.offset)
+        <-> paren (disp $ op ^. Pil.src)
     (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (disp (op ^. Pil.dest)) srcs
-      where 
+      where
         srcs :: Text
         srcs = show (fmap disp (op ^. Pil.src))
     (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s %s" (disp (op ^. Pil.high)) (disp (op ^. Pil.low)) (disp size)
@@ -248,7 +248,7 @@ instance Disp Pil.Expression where
     (Pil.CALL op) -> case op ^. Pil.name of
       (Just name) -> Text.pack $ printf "call %s %s %s" name dest params
       Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest params
-      where 
+      where
         dest = disp (op ^. Pil.dest)
         params :: Text
         params = show (fmap disp (op ^. Pil.params))
@@ -258,8 +258,8 @@ instance Disp Pil.Expression where
     -- TODO: Should ConstStr also use const rather than value as field name?
     (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. Pil.value
     (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. Pil.src)) (op ^. Pil.offset)
-    
--- TODO: Replace existing instances with these or remove them    
+
+-- TODO: Replace existing instances with these or remove them
 -- instance Disp Pil.SimpleCtx where
 --   disp ctx = "< " <> fname <> i <> " >"
 --     where
@@ -268,8 +268,11 @@ instance Disp Pil.Expression where
 --       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxIndex
 
 instance Disp Pil.StackOffset where
-  disp x = "stackOffset " <> show (x ^. Pil.offset)
-           <> " (" <> disp (x ^. Pil.ctx) <> ")"
+  disp x =
+    "stackOffset " <> show (x ^. Pil.offset)
+      <> " ("
+      <> disp (x ^. Pil.ctx)
+      <> ")"
 
 instance Disp ByteOffset where
   disp (ByteOffset x) = "byteOffset " <> show x

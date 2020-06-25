@@ -93,6 +93,7 @@ getExprType env x = case x ^. op of
   FCMP_NE _ -> boolRet
   FCMP_UO _ -> boolRet
   FDIV _ -> floatRet
+  FIELD_ADDR _ -> unknown
   FLOAT_CONST _ -> floatRet
   FLOAT_CONV _ -> floatRet
   FLOAT_TO_INT _ -> intRet
@@ -126,6 +127,7 @@ getExprType env x = case x ^. op of
   RRC _ -> bitvecRet
   SBB n -> inheritIntRet n
   -- STORAGE _ -> unknown
+  STACK_LOCAL_ADDR _ -> unknown
   StrCmp _ -> intRet
   StrNCmp _ -> intRet
   MemCmp _ -> intRet
@@ -133,6 +135,7 @@ getExprType env x = case x ^. op of
   SX n -> inheritIntUnary $ n ^. src
   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
   UNIMPL _ -> bitvecRet -- should this be unknown?
+  UPDATE_VAR _ -> unknown
   VAR n -> typeEnvLookup (n ^. src) env
   VAR_FIELD _ -> bitvecRet
   VAR_SPLIT _ -> bitvecRet

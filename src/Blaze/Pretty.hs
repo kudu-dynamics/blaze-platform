@@ -11,13 +11,13 @@ import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display (Symbol)
+import Blaze.Pil.Display (Symbol, disp)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens hiding (op)
 import Data.BinaryAnalysis
   ( Address (Address),
+    ByteOffset,
     Bytes (Bytes),
-    ByteOffset (ByteOffset),
   )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -25,7 +25,6 @@ import qualified Data.Text as Text
 import qualified Numeric
 import Protolude hiding (Symbol, const, sym)
 import Text.Printf
-import Blaze.Pil.Display (disp)
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -211,9 +210,10 @@ instance Pretty Pil.Expression where
     (Pil.FCMP_O op) -> prettyBinop "fcmpO" op
     (Pil.FCMP_UO op) -> prettyBinop "fcmpUO" op
     (Pil.FDIV op) -> prettyBinop "fdiv" op
-    (Pil.FIELD_ADDR op) -> "fieldAddr"
-      <-> paren (disp $ op ^. Pil.baseAddr)
-      <-> paren (disp $ op ^. Pil.offset)
+    (Pil.FIELD_ADDR op) ->
+      "fieldAddr"
+        <-> paren (disp $ op ^. Pil.baseAddr)
+        <-> paren (disp $ op ^. Pil.offset)
     (Pil.FLOAT_CONST op) -> prettyConst op
     (Pil.FLOAT_CONV op) -> prettyUnop "floatConv" op
     (Pil.FLOAT_TO_INT op) -> prettyUnop "floatToInt" op
@@ -253,7 +253,12 @@ instance Pretty Pil.Expression where
     (Pil.SX op) -> prettyUnop "sx" op
     (Pil.TEST_BIT op) -> prettyBinop "testBit" op
     (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
-    (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (pretty (op ^. Pil.dest)) srcs
+    (Pil.UPDATE_VAR op) ->
+      "updateVar"
+        <-> paren (pretty $ op ^. Pil.dest)
+        <-> paren (pretty $ op ^. Pil.offset)
+        <-> paren (pretty $ op ^. Pil.src)
+    (Pil.VAR_PHI op) -> Text.pack $ printf "2%s <- %s" (pretty (op ^. Pil.dest)) srcs
       where
         srcs :: Text
         srcs = show (fmap pretty (op ^. Pil.src))
@@ -298,9 +303,15 @@ newtype PStmts = PStmts [Pil.Stmt]
 instance Pretty PStmts where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
 
+instance Pretty ByteOffset where
+  pretty = disp
+
 instance Pretty Pil.StackOffset where
-  pretty x = "stackOffset " <> show (x ^. Pil.offset)
-           <> " (" <> pretty (x ^. Pil.ctx) <> ")"
+  pretty x =
+    "stackOffset " <> show (x ^. Pil.offset)
+      <> " ("
+      <> pretty (x ^. Pil.ctx)
+      <> ")"
 
 prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts
