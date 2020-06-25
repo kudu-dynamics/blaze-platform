@@ -41,17 +41,17 @@ import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
 --binja's default size is 0
---but that seems like it would mess up
+--but that seems like it would mess up arithmetic
+--with size 8, it will be easy to cast to smaller width if needed
 defaultStackLocalAddrSize :: Pil.OperationSize
 defaultStackLocalAddrSize = 8
 
-varToStackLocalAddr :: Ctx -> Variable -> Maybe Expression
-varToStackLocalAddr ctx v = case v ^. Variable.sourceType of
-  StackVariableSourceType -> Just . Expression defaultStackLocalAddrSize
-    . Pil.STACK_LOCAL_ADDR . Pil.StackLocalAddrOp
-    $  Pil.StackOffset (Pil.toSimpleCtx ctx)
-    (fromIntegral $ v ^. Variable.storage)
-  _ -> Nothing
+varToStackLocalAddr :: Ctx -> Variable -> Expression
+varToStackLocalAddr ctx v = Expression defaultStackLocalAddrSize
+  . Pil.STACK_LOCAL_ADDR . Pil.StackLocalAddrOp
+  .  Pil.StackOffset (Pil.toSimpleCtx ctx)
+  . fromIntegral $ v ^. Variable.storage
+  -- should we throw an error if (v ^. Variable.sourceType /= StackVariableSourceType)?
 
 typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
@@ -67,14 +67,10 @@ convertExpr ctx expr = case expr ^. MLIL.op of
   (MLIL.ADC x) -> mkExpr . Pil.ADC $ f x
   (MLIL.ADD x) -> mkExpr . Pil.ADD $ f x
 
-  (MLIL.ADDRESS_OF x) -> case varToStackLocalAddr ctx (x ^. MLIL.src) of
-    Nothing -> mkExpr . Pil.UNIMPL $ "ADDRESS_OF with non-Stack variable"
-    Just v -> v
-
-  (MLIL.ADDRESS_OF_FIELD x) -> case varToStackLocalAddr ctx (x ^. MLIL.src) of
-    Nothing -> mkExpr . Pil.UNIMPL $ "ADDRESS_OF_FIELD with non-Stack variable"
-    Just v -> mkExpr . Pil.FIELD_ADDR . Pil.FieldAddrOp v
-                               . fromIntegral $ x ^. MLIL.offset
+  (MLIL.ADDRESS_OF x) -> varToStackLocalAddr ctx (x ^. MLIL.src)
+  (MLIL.ADDRESS_OF_FIELD x) -> mkExpr . Pil.FIELD_ADDR
+    . Pil.FieldAddrOp (varToStackLocalAddr ctx $ x ^. MLIL.src)
+    . fromIntegral $ x ^. MLIL.offset
 
   (MLIL.ADD_OVERFLOW x) -> mkExpr . Pil.ADD_OVERFLOW $ f x
   (MLIL.AND x) -> mkExpr . Pil.AND $ f x
@@ -122,9 +118,9 @@ convertExpr ctx expr = case expr ^. MLIL.op of
   (MLIL.LOAD x) -> mkExpr . Pil.LOAD $ f x
   (MLIL.LOAD_SSA x) -> mkExpr . Pil.LOAD . Pil.LoadOp . convertExpr ctx $ x ^. MLIL.src
   (MLIL.LOAD_STRUCT x) -> mkExpr . Pil.LOAD . Pil.LoadOp
-    $ addConstToExpr (convertExpr ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
+    $ mkFieldOffsetExprAddr (convertExpr ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
   (MLIL.LOAD_STRUCT_SSA x) -> mkExpr . Pil.LOAD . Pil.LoadOp
-    $ addConstToExpr (convertExpr ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
+    $ mkFieldOffsetExprAddr (convertExpr ctx $ x ^. MLIL.src) (x ^. MLIL.offset)
   (MLIL.LOW_PART x) -> mkExpr . Pil.LOW_PART $ f x
   (MLIL.LSL x) -> mkExpr . Pil.LSL $ f x
   (MLIL.LSR x) -> mkExpr . Pil.LSR $ f x
@@ -149,14 +145,13 @@ convertExpr ctx expr = case expr ^. MLIL.op of
   (MLIL.TEST_BIT x) -> mkExpr . Pil.TEST_BIT $ f x
   MLIL.UNIMPL -> mkExpr $ Pil.UNIMPL "UNIMPL"
 --    (MLIL.VAR x) -> VarOp expr)
-  (MLIL.VAR_ALIASED x) -> case varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var) of
-    Nothing -> mkExpr . Pil.UNIMPL $ "VAR_ALIASED with non-Stack variable"
-    Just addrExpr -> mkExpr . Pil.LOAD . Pil.LoadOp $ addrExpr
-  (MLIL.VAR_ALIASED_FIELD x) -> case varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var) of
-    Nothing -> mkExpr . Pil.UNIMPL $ "VAR_ALIASED_FIELD with non-Stack variable"
-    Just addrExpr -> mkExpr . Pil.LOAD . Pil.LoadOp . mkFieldOffsetExprAddr addrExpr
-                     $ x ^. MLIL.offset
-                     
+  (MLIL.VAR_ALIASED x) -> mkExpr . Pil.LOAD . Pil.LoadOp $ addrExpr
+    where
+      addrExpr = varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var)
+  (MLIL.VAR_ALIASED_FIELD x) -> mkExpr . Pil.LOAD . Pil.LoadOp
+    . mkFieldOffsetExprAddr addrExpr $ x ^. MLIL.offset
+    where
+      addrExpr = varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var)
 --    (MLIL.VAR_FIELD x) -> VarFieldOp expr)
   (MLIL.VAR_PHI x) -> mkExpr . Pil.VAR_PHI
     $ Pil.VarPhiOp (convertToPilVar ctx $ x ^. MLIL.dest) (fmap (convertToPilVar ctx) $ x ^. MLIL.src)
@@ -300,12 +295,6 @@ convertToPilVar ctx v = PilVar
   (ctx ^. Pil.ctxIndex)
   (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
 
-addConstToExpr :: Expression -> Int64 -> Expression
-addConstToExpr expr@(Expression size _) n = Expression size addOp
-  where
-    addOp = Pil.ADD $ Pil.AddOp expr const'
-    const' = Expression size . Pil.CONST $ Pil.ConstOp n
-
 convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
 convertInstrOp op' = do
   ctx <- use Pil.ctx
@@ -345,16 +334,14 @@ convertInstrOp op' = do
         lowExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr 0
 
     -- note: prev.src and prev.dest are the same except memory ssa version
-    (MLIL.SET_VAR_ALIASED x) -> case varToStackLocalAddr ctx (x ^. MLIL.prev . MLIL.src . MLIL.var) of
-      Nothing -> return [UnimplInstr "SET_VAR_ALIASED for non-stack var"]
-      Just addrExpr -> return [Store $ StoreOp addrExpr expr]
-        where
-          expr = convertExpr ctx (x ^. MLIL.src)
+    (MLIL.SET_VAR_ALIASED x) -> return [Store $ StoreOp addrExpr expr]
+      where
+        addrExpr = varToStackLocalAddr ctx (x ^. MLIL.prev . MLIL.src . MLIL.var)
+        expr = convertExpr ctx (x ^. MLIL.src)
 
-    (MLIL.SET_VAR_ALIASED_FIELD x) -> case varToStackLocalAddr ctx (x ^. MLIL.prev . MLIL.src . MLIL.var) of
-      Nothing -> return [Pil.UnimplInstr $ "SET_VAR_ALIASED_FIELD with non-Stack variable"]
-      Just addrExpr -> return [ Store $ StoreOp destAddrExpr srcExpr ]
+    (MLIL.SET_VAR_ALIASED_FIELD x) -> return [ Store $ StoreOp destAddrExpr srcExpr ]
         where
+          addrExpr = varToStackLocalAddr ctx (x ^. MLIL.prev . MLIL.src . MLIL.var)
           destAddrExpr = mkFieldOffsetExprAddr addrExpr
                          $ x ^. MLIL.offset
           srcExpr = convertExpr ctx (x ^. MLIL.src)
@@ -364,7 +351,8 @@ convertInstrOp op' = do
         exprDest = convertExpr ctx (x ^. MLIL.dest)
     (MLIL.STORE_STRUCT_SSA x) -> return [Store $ StoreOp exprDest exprSrc]
       where
-        exprDest = addConstToExpr (convertExpr ctx (x ^. MLIL.dest)) (x ^. MLIL.offset)
+        exprDest = mkFieldOffsetExprAddr (convertExpr ctx (x ^. MLIL.dest))
+                                         (x ^. MLIL.offset)
         exprSrc = convertExpr ctx (x ^. MLIL.src)
     (MLIL.VAR_PHI x) ->
       case latestVar of
