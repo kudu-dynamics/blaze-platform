@@ -203,32 +203,33 @@ toSymExpression (Expression sz op') = do
 --         => [XVar] -> [(XVar, ExistentialType)] -> [XVar]
 --         -> m ( [SymType] -> m [(Sym, SymType)] )
 -- funcSig existentials classBindings funcTypes = undefined
-  
+
+byteOffsetToBitWidth :: ByteOffset -> BitWidth
+byteOffsetToBitWidth n
+  -- For now, assume all offsets are positive.
+  -- negative offsets will require thinking about how to deal with a type's size
+  -- and how to check if nested records with negative fields conflict with
+  -- the parent record's other fields.
+  | n < 0 = P.error "Unexpected negative offset"
+  | otherwise = fromIntegral $ n * 8
 
 -- | Generates constraints for all syms in SymExpression.
 exprTypeConstraints :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
                     => SymExpression -> m [(Sym, SymType)]
-exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
+exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ADC x -> integralBinOp Nothing x
   Pil.ADD x -> integralBinOp Nothing x
 
   -- should this be unsigned ret because overflow is always positive?
   Pil.ADD_OVERFLOW x -> integralBinOp Nothing x
 
-  -- TODO: pointer type is the type of variable in x
-  Pil.ADDRESS_OF _ -> retPointer
-    -- must change AddressOf to use PilVars instead of Variable
+  Pil.AND x -> bitVectorBinOp x
 
-  -- TODO: variable in x is record. type of var at field offset
-  -- equals type of pointer
-  Pil.ADDRESS_OF_FIELD _ -> retPointer
---   AND _ -> bitvecRet
-
---   shift right...?
+  --   shift right...?
   Pil.ASR x -> integralFirstArgIsReturn x
 
 --   BOOL_TO_INT _ -> 
-
+  
 --   CALL _ -> unknown
   Pil.CEIL x -> floatUnOp x
   Pil.CMP_E x -> integralBinOpReturnsBool x
@@ -265,6 +266,16 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   Pil.FCMP_NE x -> floatBinOpReturnsBool x
   Pil.FCMP_UO x -> floatBinOpReturnsBool x
   Pil.FDIV x -> floatBinOp x
+
+  Pil.FIELD_ADDR x -> do
+    fieldType <- SVar <$> newSym
+    let recType = SType . TRecord . HashMap.fromList $
+          -- for now, assuming all offsets are positive...
+          [ (byteOffsetToBitWidth $ x ^. Pil.offset, fieldType) ]
+    return [ ( r, SType $ TPointer sz' fieldType )
+           , ( x ^. Pil.baseAddr . info . sym, SType $ TPointer sz' recType )
+           ]
+
   Pil.FLOAT_CONST _ -> retFloat
 
 -- TODO: should there be a link between sz of bitvec and sz of float?
@@ -295,35 +306,21 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
            , ( r, SType $ THasWidth sz' )
            ]
 
-  -- TODO: Move this to LOAD [x + const] where const is field and x is ptr to struct
-  -- Pil.LOAD_STRUCT x -> do
-  --   ptrWidth <- SVar <$> newSym
-  --   ptrType <- SVar <$> newSym
-  --   fieldType <- SVar <$> newSym
-  --   let recType = SType . TRecord . HashMap.fromList $
-  --                 [ ( fromIntegral $ x ^. Pil.offset
-  --                   , fieldType ) ]
-  --   return [ ( x ^. Pil.src . info . sym
-  --            , SType . TPointer ptrWidth recType )
-  --          -- TODO: would be nice to spec that r has width sz'
-  --          , ( r, fieldType )
-  --          ]
-
   -- should _x have any influence on the type of r?
   Pil.LOW_PART _x -> return [(r, SType $ THasWidth sz')]
 
   Pil.LSL x -> integralFirstArgIsReturn x
   Pil.LSR x -> integralFirstArgIsReturn x
-  Pil.MODS _ -> undefined
---   MODS_DP _ -> intRet
---   MODU _ -> uintRet
---   MODU_DP _ -> uintRet
---   MUL n -> inheritIntRet n
---   MULS_DP _ -> intRet
---   MULU_DP _ -> uintRet
---   NEG _ -> bitvecRet
---   NOT _ -> boolRet
---   OR _ -> bitvecRet
+  Pil.MODS x -> integralBinOp (Just True) x
+  Pil.MODS_DP x -> integralBinOpDP (Just True) x
+  Pil.MODU x -> integralBinOp (Just False) x
+  Pil.MODU_DP x -> integralBinOpDP (Just False) x
+  Pil.MUL x -> integralBinOp Nothing x
+  Pil.MULS_DP x -> integralBinOpDP (Just True) x
+  Pil.MULU_DP x -> integralBinOpDP (Just False) x
+  Pil.NEG x -> integralUnOp (Just True) x
+  Pil.NOT x -> bitVectorUnOp x
+  Pil.OR x -> bitVectorBinOp x
   Pil.RLC x -> integralFirstArgIsReturn x
   Pil.ROL x -> integralFirstArgIsReturn x
   Pil.ROR x -> integralFirstArgIsReturn x
@@ -334,19 +331,18 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
 --   StrCmp _ -> intRet
 --   StrNCmp _ -> intRet
 --   MemCmp _ -> intRet
---   SUB n -> inheritIntRet n
---   SX n -> inheritIntUnary $ n ^. src
+  Pil.SUB x -> integralBinOp Nothing x
+  Pil.SX x -> integralExtendOp x
+
 --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
 --   UNIMPL _ -> bitvecRet -- should this be unknown?
   Pil.VAR x -> do
     v <- lookupVarSym $ x ^. Pil.src
     return [(r, SVar v)]
---   VAR_ALIASED _ -> bitvecRet
---   VAR_ALIASED_FIELD _ -> bitvecRet
 --   VAR_FIELD _ -> bitvecRet
 --   VAR_SPLIT _ -> bitvecRet
---   XOR _ -> bitvecRet
---   ZX n -> inheritIntUnary $ n ^. src
+  Pil.XOR x -> bitVectorBinOp x
+  Pil.ZX x -> integralExtendOp x
 --   -- _ -> unknown
 
 --   -- the following were missing from the Clojure implementation
@@ -356,7 +352,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
 --   VAR_PHI _ -> unknown -- should be removed by analysis
 
 --   Extract _ -> bitvecRet
-  _ -> throwError UnhandledExpr
+--  _ -> throwError UnhandledExpr
   where
     sz' = SType $ TVBitWidth sz
     sz2x' = SType . TVBitWidth $ sz * 2
@@ -372,7 +368,38 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     retPointer = do
       pt <- newSym
       return [ (r, SType (TPointer sz' (SVar pt))) ]
-    
+
+    bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> m [(Sym, SymType)]
+    bitVectorUnOp x =
+      return [ (r, SType $ TBitVector  sz')
+             , (r, SVar $ x ^. Pil.src . info . sym)
+             ]
+
+    bitVectorBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => x -> m [(Sym, SymType)]
+    bitVectorBinOp x =
+      return [ (r, SType $ TBitVector sz')
+             , (r, SVar $ x ^. Pil.left . info . sym)
+             , (r, SVar $ x ^. Pil.right . info . sym)
+             ]
+
+    integralExtendOp :: (Pil.HasSrc x SymExpression) => x -> m [(Sym, SymType)]
+    integralExtendOp x = do
+      argSizeType <- SVar <$> newSym
+      signednessType <- SVar <$> newSym
+      return [ (r, SType $ TInt sz' signednessType)
+             , (x ^. Pil.src . info . sym, SType $ TInt argSizeType signednessType)
+             ]
+
+
+    integralUnOp :: (Pil.HasSrc x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
+    integralUnOp mSignedness x = do
+      signednessType <- case mSignedness of
+        Nothing -> SVar <$> newSym
+        Just b -> return . SType . TVSign $ b
+      return [ (r, SType (TInt sz' signednessType))
+             , (r, SVar $ x ^. Pil.src . info . sym)
+             ]
+
     integralBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
     integralBinOp mSignedness x = do
       signednessType <- case mSignedness of

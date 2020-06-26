@@ -124,6 +124,7 @@ library:
   - Blaze.Function
   - Blaze.Types.Function
   - Blaze.Util.MLIL
+
 include-dirs:
   - "src"
   - "../haskell-binja/res"
@@ -160,7 +161,6 @@ executables:
     - hspec
     - text
 
-    
     
 benchmarks:
   call-graph-benchmark:

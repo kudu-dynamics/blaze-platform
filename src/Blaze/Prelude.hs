@@ -48,6 +48,14 @@ import Control.Lens as Exports
     makePrisms,
     use,
     view,
+    _Just,
+    _Right,
+    _Left,
+    _1,
+    _2,
+    _3,
+    _4,
+    _5,
   )
 import Control.Monad.Trans.Class as Exports (MonadTrans)
 import Control.Monad.Trans.Maybe as Exports (MaybeT, runMaybeT)
@@ -58,6 +66,10 @@ import Data.BinaryAnalysis as Exports
     Bytes (Bytes),
     toBits,
     toBytes,
+    BitOffset (BitOffset),
+    ByteOffset (ByteOffset),
+    toBitOffset,
+    toByteOffset
   )
 import Data.Coerce as Exports (coerce)
 import Data.Data as Exports

@@ -5,9 +5,11 @@ import Blaze.Prelude
 
 import qualified Prelude as P
 import qualified Binja.Core as BN
-import Binja.Core (BNBinaryView, InstructionIndex)
+import Binja.Core ( BNBinaryView, InstructionIndex )
+import Binja.C.Enums (BNVariableSourceType(StackVariableSourceType))
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
+import qualified Binja.Variable as Var
 import Binja.MLIL (Instruction)
 import qualified Binja.MLIL as MLIL
 import qualified Data.Text as Text
@@ -52,9 +54,20 @@ getFoundInstructions bv f = do
   funcs <- Func.getFunctions bv
   concat <$> traverse (getFoundFromFunction f) funcs
 
-matchInstructionByName :: Text -> MLIL.Operation (MLIL.Expression F) -> Bool
-matchInstructionByName opName op =
-  Text.takeWhile (/= ' ') (show op) == opName
+-- convenient..
+getInstructionsWithOp :: (MLIL.Operation (MLIL.Expression F) -> Bool) -> FilePath -> IO [(Text, Int)]
+getInstructionsWithOp g binPath = do
+  ebv <- BN.getBinaryView binPath
+  case ebv of
+    Left err -> P.error . cs $ err
+    Right bv -> do
+      BN.updateAnalysisAndWait bv
+      xs <- getFoundInstructions bv g
+      return $ f <$> xs
+  where
+    f x = ( x ^. foundFunction . Func.name
+          , fromIntegral $ x ^. foundIndex
+          )
 
 -- convenience function, returns func name and statement index
 getInstructionsWithOpByName :: Text -> FilePath -> IO [(Text, Int)]
@@ -70,3 +83,50 @@ getInstructionsWithOpByName opName binPath = do
     f x = ( x ^. foundFunction . Func.name
           , fromIntegral $ x ^. foundIndex
           )
+
+-------------------
+--- queries
+
+matchInstructionByName :: Text -> MLIL.Operation (MLIL.Expression F) -> Bool
+matchInstructionByName opName op =
+  Text.takeWhile (/= ' ') (show op) == opName
+
+-- looks like ADDRESS_OF is always with a stack var
+matchNonStackAddressOf :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchNonStackAddressOf (MLIL.ADDRESS_OF x) =
+  (x ^. MLIL.src . Var.sourceType) /= StackVariableSourceType
+matchNonStackAddressOf _ = False
+
+-- args are stored at positive location
+matchNonNegativeAddressOf :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchNonNegativeAddressOf (MLIL.ADDRESS_OF x) =
+  (x ^. MLIL.src . Var.sourceType) == StackVariableSourceType
+  && (x ^. MLIL.src . Var.storage) >= 0
+matchNonNegativeAddressOf _ = False
+
+-- found 0
+matchVarAliasedWithNonStackVar :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchVarAliasedWithNonStackVar (MLIL.VAR_ALIASED x) =
+  x ^. MLIL.src . MLIL.var . Var.sourceType /= StackVariableSourceType
+matchVarAliasedWithNonStackVar _ = False
+
+-- found 0
+matchSetVarAliasedWithNonStackVar :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchSetVarAliasedWithNonStackVar (MLIL.SET_VAR_ALIASED x) =
+  x ^. MLIL.prev . MLIL.src . MLIL.var . Var.sourceType
+  /= StackVariableSourceType
+matchSetVarAliasedWithNonStackVar _ = False
+
+-- found some in 
+matchVarFieldWithNonZeroOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchVarFieldWithNonZeroOffset (MLIL.VAR_SSA_FIELD x) =
+  x ^. MLIL.offset /= 0
+matchVarFieldWithNonZeroOffset _ = False
+
+
+-- found 0 in , , ls, kill
+matchSetVarFieldWhereVarHasNoWidth :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchSetVarFieldWhereVarHasNoWidth (MLIL.SET_VAR_SSA_FIELD x) =
+  isNothing $ x ^. MLIL.prev . MLIL.src . MLIL.var . Var.varType
+matchSetVarFieldWhereVarHasNoWidth _ = False
+
