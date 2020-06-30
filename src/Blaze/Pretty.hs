@@ -11,7 +11,7 @@ import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display (Symbol, disp, paren, (<->))
+import Blaze.Pil.Display ((<->), Symbol, disp, paren)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens hiding (op)
 import Data.BinaryAnalysis
@@ -300,11 +300,11 @@ instance Pretty PStmts where
 instance Pretty ByteOffset where
   pretty = disp
 
-instance Disp Pil.StackOffset where
-  disp x =
+instance Pretty Pil.StackOffset where
+  pretty x =
     "stackOffset"
-    <-> show (x ^. Pil.offset)
-    <-> paren (disp (x ^. Pil.ctx))
+      <-> show (x ^. Pil.offset)
+      <-> paren (pretty (x ^. Pil.ctx))
 
 prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts
