@@ -380,9 +380,6 @@ solveExpr expr@(Expression _sz xop) = do
 
     (Pil.ADD x) -> lr x $ binIntegral (+)
 
-    (Pil.ADDRESS_OF _x) -> todo
-    (Pil.ADDRESS_OF_FIELD _x) -> todo
-
     (Pil.ADD_OVERFLOW x) ->
       lr x $ binIntegralToBool (\a b -> uncurry (.||) $ bvAddO a b)
           
@@ -535,8 +532,6 @@ solveExpr expr@(Expression _sz xop) = do
     (Pil.TEST_BIT x) -> lr x $ binBiIntegralToBool Op.testSBit
     (Pil.UNIMPL _) -> todo
   --  (Pil.VAR (VarOp x) -> todo
-    (Pil.VAR_ALIASED _x) -> todo
-    (Pil.VAR_ALIASED_FIELD _x) -> todo
   --  (Pil.VAR_FIELD (VarFieldOp x) -> todo
     (Pil.VAR_PHI _x) -> todo
   --  (Pil.VAR_SPLIT (VarSplitOp x) -> todo
