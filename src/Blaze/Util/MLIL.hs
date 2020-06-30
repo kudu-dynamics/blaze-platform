@@ -98,11 +98,11 @@ matchNonStackAddressOf (MLIL.ADDRESS_OF x) =
 matchNonStackAddressOf _ = False
 
 -- args are stored at positive location
-matchNonNegativeAddressOf :: MLIL.Operation (MLIL.Expression F) -> Bool
-matchNonNegativeAddressOf (MLIL.ADDRESS_OF x) =
+matchPositiveStackOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchPositiveStackOffset (MLIL.ADDRESS_OF x) =
   (x ^. MLIL.src . Var.sourceType) == StackVariableSourceType
   && (x ^. MLIL.src . Var.storage) >= 0
-matchNonNegativeAddressOf _ = False
+matchPositiveStackOffset _ = False
 
 -- found 0
 matchVarAliasedWithNonStackVar :: MLIL.Operation (MLIL.Expression F) -> Bool

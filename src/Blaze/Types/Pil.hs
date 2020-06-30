@@ -391,6 +391,7 @@ instance Hashable a => Hashable (StrNCmpOp a)
 data MemCmpOp expr = MemCmpOp
     { _left :: expr
     , _right :: expr
+    , _size :: Bytes
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (MemCmpOp a)
