@@ -11,7 +11,7 @@ import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display (Symbol, disp)
+import Blaze.Pil.Display ((<->), Symbol, disp, paren)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens hiding (op)
 import Data.BinaryAnalysis
@@ -154,12 +154,6 @@ prettyVar :: (Pil.HasSrc a Pil.PilVar) => a -> Text
 prettyVar op = Text.pack $ printf "%s" src
   where
     src = pretty (op ^. Pil.src)
-
-paren :: Text -> Text
-paren t = "(" <> t <> ")"
-
-(<->) :: Text -> Text -> Text
-(<->) a b = a <> " " <> b
 
 prettyField ::
   ( Pil.HasSrc a b,
@@ -308,10 +302,9 @@ instance Pretty ByteOffset where
 
 instance Pretty Pil.StackOffset where
   pretty x =
-    "stackOffset " <> show (x ^. Pil.offset)
-      <> " ("
-      <> pretty (x ^. Pil.ctx)
-      <> ")"
+    "stackOffset"
+      <-> show (x ^. Pil.offset)
+      <-> paren (pretty (x ^. Pil.ctx))
 
 prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts

@@ -60,7 +60,7 @@ enterNewCtx fn = do
 
 retCtxTo :: Maybe Function -> Converter ()
 retCtxTo fn = do
-  Pil.ctxIndexCounter %= liftA (subtract 1)
+  Pil.ctxIndexCounter %= fmap (subtract 1)
   i <- use Pil.ctxIndexCounter
   Pil.ctx %= newCtx i
   where

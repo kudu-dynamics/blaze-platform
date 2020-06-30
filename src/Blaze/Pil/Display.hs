@@ -270,10 +270,10 @@ instance Disp Pil.Expression where
 
 instance Disp Pil.StackOffset where
   disp x =
-    "stackOffset " <> show (x ^. Pil.offset)
-      <> " ("
-      <> disp (x ^. Pil.ctx)
-      <> ")"
+    "stackOffset"
+    <-> show (x ^. Pil.offset)
+    <-> paren (disp (x ^. Pil.ctx))
+
 
 instance Disp ByteOffset where
   disp (ByteOffset x) = "byteOffset " <> show x

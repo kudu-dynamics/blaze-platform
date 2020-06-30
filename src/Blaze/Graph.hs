@@ -14,9 +14,8 @@ import Binja.Core (InstructionIndex)
 import Binja.Function (MLILSSAFunction)
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
-import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
-import qualified Blaze.Types.Graph as Exports
+import Blaze.Types.Graph as Exports
 import qualified Data.Set as Set
 
 type F = MLILSSAFunction
@@ -42,8 +41,8 @@ collapseGotoBlocks g =
     [_] -> return g
     ns -> do
       gotos <- fmap Set.fromList . filterM isGotoNode $ ns
-      let edges = G.edges g
-      return . G.fromEdges $ foldr (f gotos) [] edges
+      let es = G.edges g
+      return . G.fromEdges $ foldr (f gotos) [] es
   where
     f gotos edge@(be, (bbSrc, bbDst)) xs
       | Set.member bbSrc gotos = xs
@@ -100,8 +99,8 @@ constructBasicBlockGraphWithoutBackEdges fn = do
       return $ G.fromNode bb
     _ -> do
       succs' <- traverse cleanSuccs bbs
-      edges <- filterM (fmap not . isBackEdge . fst) . succsToEdges $ succs'
-      return $ G.fromEdges edges
+      es <- filterM (fmap not . isBackEdge . fst) . succsToEdges $ succs'
+      return $ G.fromEdges es
   where
     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
     cleanSuccs bb =

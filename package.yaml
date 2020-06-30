@@ -34,6 +34,7 @@ dependencies:
   - containers
   - data-binary-ieee754
   - dlist
+  - dom-lt
   - envy
   - extra
   - hashable
@@ -98,12 +99,13 @@ library:
   exposed-modules:
   - Blaze.CallGraph
   - Blaze.Cfg
+  - Blaze.Cfg.Loop
   - Blaze.Fir
+  - Blaze.Function
   - Blaze.Graph
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
   - Blaze.Import.Source.BinaryNinja
-  - Blaze.Prelude
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
@@ -112,17 +114,20 @@ library:
   - Blaze.Pil.Inference
   - Blaze.Pil.Inference2
   - Blaze.Pil.Path
+  - Blaze.Prelude
   - Blaze.Pretty
+  - Blaze.Search
   - Blaze.Solver
+  - Blaze.Types.CallGraph
+  - Blaze.Types.Cfg
+  - Blaze.Types.Cfg.Loop
   - Blaze.Types.Fir
+  - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Solver
-  - Blaze.Search
-  - Blaze.Function
-  - Blaze.Types.Function
   - Blaze.Util.MLIL
 
 include-dirs:
