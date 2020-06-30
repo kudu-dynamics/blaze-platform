@@ -91,7 +91,9 @@ snipAfter pred p = case takeWhile' (not . pred) . Path.toList $ p of
 -- | Nothing if path doesn't contain instruction
 --   TODO: add funcs for dropping nodes in the Path class
 snipAfterInstruction :: Path p => InstructionIndex F -> p -> Maybe p
-snipAfterInstruction ix = snipAfter $ nodeContainsInstruction ix
+snipAfterInstruction ix p 
+  | firstNodeContainingInstruction ix p == Nothing = Nothing
+  | otherwise = snipAfter (nodeContainsInstruction ix) p
 
 
 data PathWithCall p = PathWithCall
