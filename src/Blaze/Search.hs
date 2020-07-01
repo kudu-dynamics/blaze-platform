@@ -82,10 +82,18 @@ takeWhile' p (x:xs)
 snipAfter_ :: Path p => (Node -> Bool) -> p -> p
 snipAfter_ pred = Path.fromList . takeWhile' (not . pred) . Path.toList
 
+-- | return snipped after list if predicate in list otherwise return nothing
 snipAfter :: Path p => (Node -> Bool) -> p -> Maybe p
-snipAfter pred p = case takeWhile' (not . pred) . Path.toList $ p of
-  [] -> Nothing
-  xs -> Just . Path.fromList $ xs
+snipAfter pred p = case takeWhile'' (not . pred) . Path.toList $ p of
+    Nothing -> Nothing
+    Just ls -> Just . Path.fromList $ ls
+  where
+    takeWhile'' :: Eq a => (a -> Bool) -> [a] -> Maybe [a]
+    takeWhile'' _ [] = Nothing
+    takeWhile'' pred (x:xs)
+      | pred x             = (x:) <$> takeWhile'' pred xs
+      | pred x && xs == [] = Nothing
+      | otherwise          = Just [x]
 
 
 -- | Nothing if path doesn't contain instruction
