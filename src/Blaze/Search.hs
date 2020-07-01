@@ -82,18 +82,24 @@ takeWhile' p (x:xs)
 snipAfter_ :: Path p => (Node -> Bool) -> p -> p
 snipAfter_ pred = Path.fromList . takeWhile' (not . pred) . Path.toList
 
+-- | return snipped after list if predicate in list otherwise return nothing
 snipAfter :: Path p => (Node -> Bool) -> p -> Maybe p
-snipAfter pred p = case takeWhile' (not . pred) . Path.toList $ p of
-  [] -> Nothing
-  xs -> Just . Path.fromList $ xs
+snipAfter pred p = case takeWhile'' (not . pred) . Path.toList $ p of
+    Nothing -> Nothing
+    Just ls -> Just . Path.fromList $ ls
+  where
+    takeWhile'' :: Eq a => (a -> Bool) -> [a] -> Maybe [a]
+    takeWhile'' _ [] = Nothing
+    takeWhile'' pred (x:xs)
+      | pred x             = (x:) <$> takeWhile'' pred xs
+      | pred x && xs == [] = Nothing
+      | otherwise          = Just [x]
 
 
 -- | Nothing if path doesn't contain instruction
 --   TODO: add funcs for dropping nodes in the Path class
 snipAfterInstruction :: Path p => InstructionIndex F -> p -> Maybe p
-snipAfterInstruction ix p 
-  | firstNodeContainingInstruction ix p == Nothing = Nothing
-  | otherwise = snipAfter (nodeContainsInstruction ix) p
+snipAfterInstruction ix = snipAfter $ nodeContainsInstruction ix
 
 
 data PathWithCall p = PathWithCall
