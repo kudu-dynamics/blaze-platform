@@ -44,7 +44,7 @@ data PilType t = TArray { len :: t, elemType :: t }
                | TBottom
                | TFunction { ret :: t, params :: [t] }
 
-               -- class constraint
+               -- class constraint (t should be TVBitWidth)
                | THasWidth t
                
                -- type level values for some dependent-type action
@@ -331,11 +331,23 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 --   StrCmp _ -> intRet
 --   StrNCmp _ -> intRet
 --   MemCmp _ -> intRet
+
+  -- should this somehow be linked to the type of the stack var?
+  -- its type could change every Store.
+  Pil.STACK_LOCAL_ADDR _ -> retPointer
+
   Pil.SUB x -> integralBinOp Nothing x
   Pil.SX x -> integralExtendOp x
 
 --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
 --   UNIMPL _ -> bitvecRet -- should this be unknown?
+  Pil.UPDATE_VAR x -> do
+    v <- lookupVarSym $ x ^. Pil.dest
+    -- How should src and dest be related?
+    -- Can't express that `offset + width(src) == width(dest)`
+    --  without `+` and `==` as type level operators.
+    return [ (r, SVar v) ]
+
   Pil.VAR x -> do
     v <- lookupVarSym $ x ^. Pil.src
     return [(r, SVar v)]
@@ -345,10 +357,6 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ZX x -> integralExtendOp x
 --   -- _ -> unknown
 
---   -- the following were missing from the Clojure implementation
---   -- i think because the _SSA version got renamed and replaced the nonssa
---   -- LOAD_SSA _ -> bitvecRet
---   -- LOAD_STRUCT_SSA _ -> bitvecRet
 --   VAR_PHI _ -> unknown -- should be removed by analysis
 
 --   Extract _ -> bitvecRet
@@ -531,7 +539,19 @@ stmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   exprConstraints <- getAllExprTypeConstraints symExpr
   return ( Pil.Constraint (Pil.ConstraintOp symExpr)
          , exprConstraints )
-stmtTypeConstraints _ = throwError UnhandledStmt
+stmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
+  symAddrExpr <- toSymExpression addrExpr
+  symValExpr <- toSymExpression valExpr
+  let symAddr = symAddrExpr ^. info . sym
+      symVal = symAddrExpr ^. info . sym
+  addrExprConstraints <- getAllExprTypeConstraints symAddrExpr
+  valExprConstraints <- getAllExprTypeConstraints symValExpr
+  ptrWidth <- SVar <$> newSym
+  return ( Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
+         , addrExprConstraints <> valExprConstraints
+           <> [ ( symAddr, SType $ TPointer ptrWidth (SVar symVal) ) ]
+         )
+stmtTypeConstraints s = (,[]) <$> traverse toSymExpression s
 
 
 -- TODO
@@ -596,6 +616,7 @@ instance IsType a => IsType (PilType a) where
   getTypeWidth (TBitVector w) = getTypeWidth w
   getTypeWidth (TPointer w _) = getTypeWidth w
   getTypeWidth (TRecord m) = Just $ getMinimumRecordWidth m
+  getTypeWidth (THasWidth t) = getTypeWidth t
   getTypeWidth _ = Nothing
 
   getTypeLength (TVLength n) = Just n
@@ -628,6 +649,10 @@ isTypeDescendent (TFloat _) t = case t of
   _ -> False
 isTypeDescendent (TBitVector _) t = case t of
   TBitVector _ -> True
+  -- I think these should be descendents
+  TInt _ _ -> True
+  TPointer _ _ -> True
+  TChar -> True
   TBottom -> True
   _ -> False
 isTypeDescendent (TPointer _ _) t = case t of
@@ -649,6 +674,13 @@ isTypeDescendent (TRecord _) t = case t of
   _ -> False
 isTypeDescendent TBottom t = case t of
   TBottom -> True
+  _ -> False
+isTypeDescendent (THasWidth _) t = case t of
+  THasWidth _ -> True
+  TChar -> True
+  TInt _ _ -> True
+  TFloat _ -> True
+  TPointer _ _ -> True
   _ -> False
 isTypeDescendent (TVBitWidth _) t = case t of
   TVBitWidth _ -> True
@@ -765,13 +797,14 @@ unifyWithSubsM (SType pt1) (SType pt2) =
         (TArray len2 et2)
           | len1 == len2 -> stype $ TArray len1 <$> unifyWithSubsM et1 et2
           | otherwise -> err -- array length mismatch
+        (TPointer _w et2) -> stype $ TArray len1 <$> unifyWithSubsM et1 et2
         _ -> err
       TInt w1 sign1 -> case pt2 of
-        TInt w2 sign2 -> stype $ TInt <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
-                                      <*> (guardSign =<< unifyWithSubsM sign1 sign2)
+        TInt w2 sign2 -> stype $ TInt <$> unifyBitWidth w1 w2
+                                      <*> unifySign sign1 sign2
         TPointer w2 pointeeType1 -> do
           void . unifyWithSubsM sign1 . SType $ TVSign False
-          stype $ flip TPointer pointeeType1 <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+          stype $ flip TPointer pointeeType1 <$> unifyBitWidth w1 w2
         TChar -> do
           void . unifyWithSubsM w1 . SType $ TVBitWidth charSize
           void . unifyWithSubsM sign1 . SType $ TVSign False
@@ -787,20 +820,28 @@ unifyWithSubsM (SType pt1) (SType pt2) =
         TChar -> solo TChar
         _ -> err
       TFloat w1 -> case pt2 of
-        TFloat w2 -> stype $ TFloat <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+        TFloat w2 -> stype $ TFloat <$> unifyBitWidth w1 w2
         _ -> err
       TBitVector w1 -> case pt2 of
-        TBitVector w2 -> stype $ TBitVector <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+        TBitVector w2 -> stype $ TBitVector <$> unifyBitWidth w1 w2
+        TInt w2 s -> stype $ TInt <$> unifyBitWidth w1 w2 <*> pure s
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
         TPointer w2 pointeeType2 ->
-          stype $ TPointer <$> (guardBitWidth =<< unifyWithSubsM w1 w2)
+          stype $ TPointer <$> unifyBitWidth w1 w2
                            <*> unifyWithSubsM pointeeType1 pointeeType2
         _ -> err
       TFunction ret1 params1 -> err -- don't know how to unify at the moment...
       TRecord m1 -> case pt2 of
         TRecord m2 -> stype $ TRecord <$> mergeRecords m1 m2
         TPointer _ t -> stype . fmap TRecord . mergeRecords m1 . HashMap.fromList $ [(0, t)]
+        _ -> err
+
+      THasWidth w1 -> case pt2 of
+        TChar -> unifyBitWidth w1 (SType $ TVBitWidth 8)
+        TInt w2 s -> stype $ TInt <$> unifyBitWidth w1 w2 <*> pure s
+        TFloat w2 -> stype $ TFloat <$> unifyBitWidth w1 w2
+        TPointer w2 et -> stype $ TPointer <$> unifyBitWidth w1 w2 <*> pure et
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of
@@ -825,6 +866,9 @@ unifyWithSubsM (SType pt1) (SType pt2) =
   where
     stype = (SType <$>)
     err = throwError $ IncompatibleTypes pt1 pt2
+
+    unifyBitWidth w1 w2 = guardBitWidth =<< unifyWithSubsM w1 w2
+    unifySign s1 s2 = guardSign =<< unifyWithSubsM s1 s2
 
     guardBitWidth x@(SVar _) = pure x
     guardBitWidth x@(SType (TVBitWidth _)) = pure x

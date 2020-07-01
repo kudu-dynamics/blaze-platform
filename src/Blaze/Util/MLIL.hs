@@ -130,3 +130,9 @@ matchSetVarFieldWhereVarHasNoWidth (MLIL.SET_VAR_SSA_FIELD x) =
   isNothing $ x ^. MLIL.prev . MLIL.src . MLIL.var . Var.varType
 matchSetVarFieldWhereVarHasNoWidth _ = False
 
+-- 0 in , , kill, ls
+matchSetVarFieldWithNegativeOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchSetVarFieldWithNegativeOffset (MLIL.SET_VAR_SSA_FIELD x) =
+  (x ^. MLIL.offset) < 0
+matchSetVarFieldWithNegativeOffset _ = False
+
