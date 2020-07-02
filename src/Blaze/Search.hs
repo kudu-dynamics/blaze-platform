@@ -82,15 +82,16 @@ takeWhile' p (x:xs)
 snipAfter_ :: Path p => (Node -> Bool) -> p -> p
 snipAfter_ pred = Path.fromList . takeWhile' (not . pred) . Path.toList
 
+-- | snips path after predicate is true, otherwise returns nothing
 snipAfter :: Path p => (Node -> Bool) -> p -> Maybe p
 snipAfter pred p = fmap Path.fromList $ takeWhile'' (not . pred) . Path.toList $ p
   where
     takeWhile'' :: Eq a => (a -> Bool) -> [a] -> Maybe [a]
     takeWhile'' _ [] = Nothing
-    takeWhile'' pred (x:xs)
-      | pred x             = (x:) <$> takeWhile'' pred xs
-      | pred x && xs == [] = Nothing
-      | otherwise          = Just [x]
+    takeWhile'' predicate (x:xs)
+      | predicate x             = (x:) <$> takeWhile'' predicate xs
+      | predicate x && xs == [] = Nothing
+      | otherwise               = Just [x]
 
 -- | Nothing if path doesn't contain instruction
 --   TODO: add funcs for dropping nodes in the Path class
