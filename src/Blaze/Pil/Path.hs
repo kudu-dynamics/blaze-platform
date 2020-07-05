@@ -29,11 +29,9 @@ import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx 
                                                    , CtxIndex
                                                    , Stmt
                                                    , Converter
-                                                   , TypeEnv( TypeEnv )
                                                    , runConverter
                                                    )
 import qualified Blaze.Types.Pil      as Pil
-import qualified Data.HashMap.Strict  as HMap
 import qualified Data.HashSet         as HSet
 import qualified Data.List.NonEmpty   as NE
 
@@ -45,15 +43,15 @@ import qualified Data.List.NonEmpty   as NE
 maybeUpdateCtx :: Function -> Converter ()
 maybeUpdateCtx fn = do
   cctx <- get
-  when (Just fn /= cctx ^. Pil.ctx . Pil.func) . enterNewCtx $ Just fn
+  when (fn /= cctx ^. Pil.ctx . Pil.func) . enterNewCtx $ fn
 
-enterNewCtx :: Maybe Function -> Converter ()
+enterNewCtx :: Function -> Converter ()
 enterNewCtx fn = do
   Pil.ctxMaxIdx %= incIndex
   i <- use Pil.ctxMaxIdx
   outerCtx <- use Pil.ctx
   let innerCtx = newCtx i outerCtx
-  Pil.ctx %= innerCtx
+  Pil.ctx .= innerCtx
   pushCtx innerCtx
   where
     newCtx :: CtxIndex -> Ctx -> Ctx
@@ -61,28 +59,28 @@ enterNewCtx fn = do
                        & Pil.ctxIndex .~ i
     incIndex :: CtxIndex -> CtxIndex
     incIndex = (+ 1)
-    pushCtx :: ConverterCtx -> Converter ()
+    pushCtx :: Ctx -> Converter ()
     pushCtx ctx = Pil.ctxStack %= NE.cons ctx
 
-retCtxTo :: Maybe Function -> Converter ()
-retCtxTo fn = do
+retCtx :: Converter ()
+retCtx = do
   _innerCtx <- popCtx
   outerCtx <- peekCtx
   Pil.ctx .= outerCtx
   where
-    newCtx :: CtxIndex -> Ctx -> Ctx
-    newCtx i ctx = ctx & Pil.func .~ fn
-                       & Pil.ctxIndex .~ i
-    popCtx :: Converter ConverterCtx
+    popCtx :: Converter Ctx
     popCtx = do
       stack <- use Pil.ctxStack
       let (_innerCtx, mStack) = NE.uncons stack
-      return 
-        (case mStack of 
-          Just stack' -> stack'
-          Nothing -> error "The converter stack should never be empty.")
-    peekCtx :: Converter ConverterCtx
-    peekCtx = head $ use Pil.ctxStack
+      case mStack of 
+        Just stack' -> do
+          Pil.ctxStack .= stack'
+          return _innerCtx
+        Nothing -> error "The converter stack should never be empty."
+    peekCtx :: Converter Ctx
+    peekCtx = do
+      stack <- use Pil.ctxStack
+      return $ NE.head stack
 
 getSimpleCtx :: Converter SimpleCtx
 getSimpleCtx = do
@@ -111,10 +109,11 @@ convertAbstractCallNode n = do
   ctx <- use Pil.ctx
   liftIO $ Pil.convertCallInstruction ctx (n ^. Path.callSite . Func.callInstr)
 
-getCallDestFunc :: CallSite -> Maybe Function
+-- TODO: Check this earlier in the conversion process? 
+getCallDestFunc :: CallSite -> Function
 getCallDestFunc x = case x ^. Func.callDest of
-  (Func.DestFunc f) -> Just f
-  _ -> Nothing
+  (Func.DestFunc f) -> f
+  _ -> error "Only calls to known functions may be expanded."
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
@@ -123,15 +122,11 @@ convertCallNode n = do
   return [ Pil.EnterContext . Pil.EnterContextOp $ sCtx ]
 
 convertRetNode :: RetNode -> Converter [Stmt]
-convertRetNode n = do
+convertRetNode _ = do
   leavingCtx <- getSimpleCtx
-  retCtxTo . Just $ n ^. Path.callSite . Func.caller
+  retCtx
   returningCtx <- getSimpleCtx
   return [ Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx ]
---   enterNewCtx $ n ^. Path.func
---   sCtx <- getSimpleCtx
---   return [Pil.EnterContext . Pil.EnterContextOp $ sCtx]
-
 
 convertNode :: Node -> Converter [Stmt]
 convertNode (SubBlock x) = convertSubBlockNode x
@@ -141,18 +136,19 @@ convertNode (Call x) = convertCallNode x
 convertNode (Ret x) = convertRetNode x
 convertNode _ = return [] -- TODO
 
-
 convertNodes :: [Node] -> Converter [Stmt]
 convertNodes = fmap concat . traverse convertNode
 
-startCtx :: Ctx
-startCtx = Ctx Nothing Nothing HSet.empty (TypeEnv HMap.empty)
+createStartCtx :: Function -> Ctx
+createStartCtx func = Ctx func 0 HSet.empty
 
-startConverterCtx :: ConverterCtx
-startConverterCtx = ConverterCtx Nothing startCtx
+createStartConverterCtx :: Function -> ConverterCtx
+createStartConverterCtx func = 
+  ConverterCtx (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx
+    where 
+      startCtx :: Ctx
+      startCtx = createStartCtx func
 
---- TODO: Keep track of ctx-index separately from Ctx
---- always increment on every new function Ctx change
-convertPath :: Path p => p -> IO [Stmt]
-convertPath =
-  fmap (concat . fst) . flip runConverter startConverterCtx . traverse convertNode . Path.toList
+convertPath :: Path p => Function -> p -> IO [Stmt]
+convertPath startFunc =
+  fmap (concat . fst) . flip runConverter (createStartConverterCtx startFunc) . traverse convertNode . Path.toList

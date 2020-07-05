@@ -109,9 +109,9 @@ instance Disp Pil.SimpleCtx where
   disp ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
     where
       func :: Text
-      func = maybe "Nothing" disp (ctx ^. Pil.func)
+      func = disp $ ctx ^. Pil.func
       idx :: Text
-      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+      idx = show $ ctx ^. Pil.ctxIndex
 
 instance Disp Pil.Stmt where
   disp stmt = case stmt of

@@ -153,8 +153,8 @@ getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> show (v ^. MLIL.version)
 convertToPilVar :: Ctx -> MLIL.SSAVariable -> PilVar
 convertToPilVar ctx v = PilVar
   (getSymbol v)
-  (ctx ^. Pil.func)
-  (ctx ^. Pil.ctxIndex)
+  (Just $ ctx ^. Pil.func)
+  (Just $ ctx ^. Pil.ctxIndex)
   (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
 
 
@@ -265,11 +265,7 @@ convertCallInstruction :: Ctx -> CallInstruction -> IO [Stmt]
 convertCallInstruction ctx c = do
   let target = fromJust (Pil.getCallDest <$> (c ^. Function.dest >>= Just . convertExpr ctx))
   let params = fmap (convertExpr ctx) $ c ^. Function.params
-  mname <-
-    maybe
-      (return Nothing)
-      (`getCallDestFunctionName` target)
-      (ctx ^. Pil.func)
+  mname <- getCallDestFunctionName (ctx ^. Pil.func) target
   let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
   return $ case c ^. Function.outputDest of
     Nothing -> []

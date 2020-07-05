@@ -111,9 +111,9 @@ instance Pretty Pil.SimpleCtx where
   pretty ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
     where
       func :: Text
-      func = maybe "Nothing" pretty (ctx ^. Pil.func)
+      func = pretty (ctx ^. Pil.func)
       idx :: Text
-      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+      idx = show (ctx ^. Pil.ctxIndex)
 
 prettyBinop ::
   ( Pil.HasLeft a Pil.Expression,

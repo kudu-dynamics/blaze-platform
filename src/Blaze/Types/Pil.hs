@@ -180,8 +180,6 @@ import Binja.MLIL as Exports
   )
 import Blaze.Prelude hiding (Symbol, Type)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.List.NonEmpty as NE
-import Data.List.NonEmpty (NonEmpty)
 
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Num, Generic)
@@ -190,6 +188,10 @@ instance Hashable CtxIndex
 
 type Symbol = Text
 
+-- Maybe is used to wrap _func and _ctxIndex since
+-- contextual information may not be available or desirable
+-- when introducing "synthetic" variables. (I.e., variables
+-- which do not correspond to variables in the source program.)
 data PilVar = PilVar
   { _symbol :: Symbol
   , _func :: Maybe Function
@@ -217,8 +219,8 @@ runConverter m s = flip runStateT s $ _runConverter m
 
 data SSAVariableRef = SSAVariableRef
   { _var :: SSAVariable
-  , _func :: Maybe Function
-  , _ctxIndex :: Maybe CtxIndex
+  , _func :: Function
+  , _ctxIndex :: CtxIndex
   } deriving (Eq, Ord, Show, Generic)
 
 instance Hashable SSAVariableRef
@@ -527,15 +529,15 @@ instance Monoid TypeEnv where
 ------
 
 data Ctx = Ctx
-  { _func :: Maybe Function
-  , _ctxIndex :: Maybe CtxIndex
+  { _func :: Function
+  , _ctxIndex :: CtxIndex
   , _definedVars :: HashSet PilVar
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable Ctx
 
 data SimpleCtx = SimpleCtx
-  { _func :: Maybe Function
-  , _ctxIndex :: Maybe CtxIndex
+  { _func :: Function
+  , _ctxIndex :: CtxIndex
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable SimpleCtx
 
