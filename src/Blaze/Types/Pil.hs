@@ -6,15 +6,10 @@ module Blaze.Types.Pil
   )
 where
 
---TODO: do this for every xOp...
-
-import Binja.Function (Function)
 import Binja.MLIL as Exports
   ( AdcOp (AdcOp),
     AddOp (AddOp),
     AddOverflowOp,
-    AddressOfFieldOp (AddressOfFieldOp),
-    AddressOfOp (AddressOfOp),
     AndOp (AndOp),
     AsrOp (AsrOp),
     BoolToIntOp (BoolToIntOp),
@@ -67,6 +62,8 @@ import Binja.MLIL as Exports
     FsubOp (FsubOp),
     FtruncOp (FtruncOp),
     GotoOp (GotoOp),
+    --TODO: do this for every xOp...
+
     HasCarry,
     HasCondition,
     HasConstant,
@@ -178,6 +175,9 @@ import Binja.MLIL as Exports
     vector,
     version,
   )
+
+import Binja.Function (Function)
+
 import Blaze.Prelude hiding (Symbol, Type)
 import qualified Data.HashMap.Strict as HashMap
 
@@ -235,8 +235,6 @@ instance Hashable Expression
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
-    | ADDRESS_OF (AddressOfOp expr)
-    | ADDRESS_OF_FIELD (AddressOfFieldOp expr)
     | ADD_OVERFLOW (AddOverflowOp expr)
     | AND (AndOp expr)
     | ASR (AsrOp expr)
@@ -304,8 +302,6 @@ data ExprOp expr
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text
-    | VAR_ALIASED (VarAliasedOp expr)
-    | VAR_ALIASED_FIELD (VarAliasedFieldOp expr)
     | VAR_PHI (VarPhiOp expr)
     | VAR_SPLIT (VarSplitOp expr)
     | VAR (VarOp expr)
@@ -320,11 +316,15 @@ data ExprOp expr
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
+    | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
+    | FIELD_ADDR (FieldAddrOp expr)
+    | UPDATE_VAR (UpdateVarOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ExprOp a)
 
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
+
 
 {- HLINT ignore VarOp -}
 data VarOp expr = VarOp
@@ -339,20 +339,6 @@ data VarFieldOp expr = VarFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarFieldOp a)
-
-{- HLINT ignore VarAliasedOp -}
-data VarAliasedOp expr = VarAliasedOp
-    { _varAliasedOpSrc :: PilVar
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarAliasedOp a)
-
-data VarAliasedFieldOp expr = VarAliasedFieldOp
-    { _varAliasedFieldOpSrc :: PilVar
-    , _varAliasedFieldOpOffset :: Int64
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarAliasedFieldOp a)
 
 data VarPhiOp expr = VarPhiOp
     { _varPhiOpDest :: PilVar
@@ -417,6 +403,7 @@ instance Hashable a => Hashable (StrNCmpOp a)
 data MemCmpOp expr = MemCmpOp
     { _left :: expr
     , _right :: expr
+    , _size :: Bytes
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (MemCmpOp a)
@@ -427,6 +414,27 @@ data ConstStrOp expr = ConstStrOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ConstStrOp a)
+
+{- HLINT ignore StackLocalAddrOp -}
+data StackLocalAddrOp expr = StackLocalAddrOp
+    { _src :: StackOffset
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (StackLocalAddrOp a)
+
+{- HLINT ignore FieldAddrOp -}
+data FieldAddrOp expr = FieldAddrOp
+    { _baseAddr :: expr
+    , _offset :: ByteOffset
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (FieldAddrOp a)
+
+{- HLINT ignore UpdateVarOp -}
+data UpdateVarOp expr = UpdateVarOp
+    { _dest :: PilVar
+    , _offset :: ByteOffset
+    , _src :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (UpdateVarOp a)
 
 -----------------------
 --- types
@@ -542,9 +550,8 @@ data SimpleCtx = SimpleCtx
 instance Hashable SimpleCtx
 
 data StackOffset = StackOffset
-  { _func :: Function
-  , _ctxIndex :: CtxIndex
-  , _offset :: Int
+  { _ctx :: SimpleCtx
+  , _offset :: ByteOffset
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable StackOffset
 
@@ -601,7 +608,7 @@ type Stmt = Statement Expression
 data Statement expr = Def (DefOp expr)
                     | Constraint (ConstraintOp expr)
                     | Store (StoreOp expr)
-                    | UnimplInstr
+                    | UnimplInstr Text
                     | UnimplMem (UnimplMemOp expr)
                     | Undef
                     | Nop
@@ -614,10 +621,12 @@ instance Hashable a => Hashable (Statement a)
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
-$(makeFields ''VarAliasedOp)
-$(makeFields ''VarAliasedFieldOp)
 $(makeFields ''VarPhiOp)
 $(makeFields ''VarSplitOp)
+
+$(makeFieldsNoPrefix ''StackLocalAddrOp)
+$(makeFieldsNoPrefix ''FieldAddrOp)
+$(makeFieldsNoPrefix ''UpdateVarOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)
@@ -651,8 +660,12 @@ $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
 
 $(makePrisms ''ExprOp)
-
+$(makePrisms ''Type)
+$(makePrisms ''Statement)
 ------------------------
+
+toSimpleCtx :: Ctx -> SimpleCtx
+toSimpleCtx x = SimpleCtx (x ^. func) (x ^. ctxIndex)
 
 
 -- gets bit width of integral type, if available

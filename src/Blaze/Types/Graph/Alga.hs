@@ -1,6 +1,6 @@
 module Blaze.Types.Graph.Alga where
 
-import Blaze.Prelude
+import Blaze.Prelude hiding (pred)
 
 import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
@@ -47,7 +47,18 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
     , edgeMap = Map.insert (n1, n2) e $ edgeMap g
     }
-  hasNode n = G.hasVertex n .adjacencyMap
+  hasNode n = G.hasVertex n . adjacencyMap
+  transpose g = g {adjacencyMap = G.transpose $ adjacencyMap g}
+  bfs startNodes g = GA.bfs startNodes . adjacencyMap $ g
+  subgraph pred g = AlgaGraph 
+    { adjacencyMap = subgraphAdjMap
+    , edgeMap = Map.restrictKeys (edgeMap g) subgraphEdges
+    }
+      where
+        subgraphAdjMap :: G.AdjacencyMap n
+        subgraphAdjMap = G.induce pred (adjacencyMap g)
+        subgraphEdges :: Set (n, n)
+        subgraphEdges = Set.fromList $ G.edgeList subgraphAdjMap
 
 demograph :: AlgaGraph () Char
 demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
