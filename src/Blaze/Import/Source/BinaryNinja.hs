@@ -52,7 +52,6 @@ import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Prelude (error)
 
 newtype BNImporter
   = BNImporter
