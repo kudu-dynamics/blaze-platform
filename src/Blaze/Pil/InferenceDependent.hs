@@ -23,6 +23,11 @@ import qualified Blaze.Pil.Analysis as Analysis
 import qualified Data.Map as Map
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Text as Text
+import qualified Data.STRef as ST
+import qualified Algebra.Graph.AdjacencyMap as G
+import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
+import qualified Algebra.Graph.NonEmpty.AdjacencyMap as NG
+import qualified Data.List.NonEmpty as NE
 
 type BitWidth = Bits
 type ByteWidth = Bytes
@@ -350,7 +355,9 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.VAR x -> do
     v <- lookupVarSym $ x ^. Pil.src
-    return [(r, SVar v)]
+    return [ (r, SVar v)
+           , (v, SType $ THasWidth sz')
+           ]
 --   VAR_FIELD _ -> bitvecRet
 --   VAR_SPLIT _ -> bitvecRet
   Pil.XOR x -> bitVectorBinOp x
@@ -543,7 +550,7 @@ stmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
   symValExpr <- toSymExpression valExpr
   let symAddr = symAddrExpr ^. info . sym
-      symVal = symAddrExpr ^. info . sym
+      symVal = symValExpr ^. info . sym
   addrExprConstraints <- getAllExprTypeConstraints symAddrExpr
   valExprConstraints <- getAllExprTypeConstraints symValExpr
   ptrWidth <- SVar <$> newSym
@@ -916,6 +923,10 @@ mergeRecords :: ( MonadError UnifyError m
              -> m (HashMap BitWidth SymType)
 mergeRecords m1 = foldM (uncurry . addFieldToRecord) m1 . HashMap.toList
 
+substitute_ :: (Sym -> Maybe SymType) -> SymType -> SymType
+substitute_ f (SVar v) = maybe (SVar v) identity $ f v
+substitute_ f (SType pt) = SType $ substitute_ f <$> pt
+
 
 -- | applies subs to sym type
 substitute' :: (Sym, SymType) -> SymType -> SymType
@@ -991,10 +1002,32 @@ unifyConstraints' (cx:cxs) sols errs =
       (cxs', sols', errs') = unifyConstraintWithAll cx cxs sols
 
 unifyConstraints :: [Constraint] -> ([Solution], [UnifyError])
-unifyConstraints cxs = unifyConstraints' cxs [] []
-
+unifyConstraints cxs = (revertCopyProppedSolution restoreMap sols, errs)
+  where
+    (cxs', restoreMap) = copyPropConstraints cxs
+    (sols, errs) = unifyConstraints' cxs' [] []
+    
 
 -------------------------
+
+-- for debugging...
+stmtsConstraints :: [Statement Expression]
+                 -> Either CheckerError ([Statement SymExpression], [Constraint], CheckerState)
+stmtsConstraints stmts = case er of
+  Left err -> Left err
+  Right (symStmts, cxs) -> Right (symStmts, cxs, s)
+  where
+    (er, s) = runChecker_ $ do
+      createVarSymMap stmts
+      (symStmts, cxs) <- foldM getStmtConstraints ([], []) stmts
+      return (symStmts, Constraint <$> cxs)
+      
+    getStmtConstraints :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> Checker ([Statement SymExpression], [(Sym, SymType)])
+    getStmtConstraints (symStmts, cxs) stmt = do
+      (sstmt, cxs') <- stmtTypeConstraints stmt
+      return ( symStmts <> [sstmt] -- maybe should use a Vector
+             , cxs' <> cxs)
+
 
 stmtSolutions :: [Statement Expression]
               -> Either CheckerError ([Statement SymExpression], [Solution], [UnifyError], CheckerState)
@@ -1035,3 +1068,106 @@ checkStmts = fmap toReport . stmtSolutions
           where
             f :: Sym -> SymType
             f sv = maybe (SVar sv) identity $ HashMap.lookup sv solutionsMap
+
+
+--- constraint copy prop
+
+getVarPair :: Constraint -> Maybe (Sym, Sym)
+getVarPair (Constraint (s1, (SVar s2))) = Just (s1, s2)
+getVarPair _ = Nothing
+
+type EqualityMap a = HashMap a (HashSet a)
+
+addVarPairToEqualityMap :: (Eq a, Hashable a)
+                        => (a, a) -> EqualityMap a -> EqualityMap a
+addVarPairToEqualityMap (v1, v2) = HashMap.unionWith HashSet.union m
+  where
+    s = HashSet.fromList [v1, v2]
+    m = HashMap.fromList [ (v1, s)
+                         , (v2, s)
+                         ]
+
+-- | [(0, {3, 1}), (1, {8})] becomes [(0, {0,1,3,8}), (1, {0,1,3,8}) ...]
+-- TODO: make this more efficient
+unionEqualityMap :: forall a. (Eq a, Hashable a) => EqualityMap a -> EqualityMap a
+unionEqualityMap m = foldr f m $ HashMap.toList m
+  where
+    f :: (a, HashSet a) -> EqualityMap a -> EqualityMap a
+    f (x, s) m' = HashMap.insert x s' . foldr (HashMap.alter g) m' $ HashSet.toList s
+      where
+        s' = HashSet.insert x s
+
+        g Nothing = Just s'
+        g (Just s'') = Just $ HashSet.union s s''
+
+varPairsToEqualityMap :: (Eq a, Hashable a, Foldable t)
+                     => t (a, a) -> EqualityMap a
+varPairsToEqualityMap = foldr f HashMap.empty
+  where
+    f (v1, v2) = HashMap.alter g v1
+      where
+        g Nothing = Just $ HashSet.singleton v2
+        g (Just s) = Just $ HashSet.insert v2 s
+
+pairsToGroups :: (Hashable a, Ord a) => [(a, a)] -> [NonEmpty a]
+pairsToGroups =
+  fmap NG.vertexList1
+  . G.vertexList
+  . GA.scc
+  . G.edges
+  . concatMap dup
+  where
+    dup (a, b) = [(a, b), (b, a)]
+
+-- | To subst many equivalent vars to one
+substMapFromGroups :: (Hashable a, Eq a) => [NonEmpty a] -> HashMap a a
+substMapFromGroups groups = HashMap.fromList $ do
+  (rep :| xs) <- groups
+  x <- xs
+  return (x, rep)
+
+restorationMapFromGroups :: (Hashable a, Eq a)
+                         => [NonEmpty a] -> HashMap a (HashSet a)
+restorationMapFromGroups groups = HashMap.fromList $ do
+  g <- groups
+  let xs = NE.toList g
+      s = HashSet.fromList xs
+  x <- xs
+  return (x, s)
+
+
+substVarsInConstraint :: HashMap Sym Sym -> Constraint -> Constraint
+substVarsInConstraint m (Constraint (v, t)) =
+  Constraint ( maybe v identity $ HashMap.lookup v m
+             , substitute_ (flip HashMap.lookup $ SVar <$> m) t)
+
+-- | returns copy-propped constraints and an equality map, which can
+--   be used after constraint solving to duplicate constraints for
+--   equal vars.
+copyPropConstraints :: [Constraint] -> ([Constraint], EqualityMap Sym)
+copyPropConstraints cxs =
+  ( substVarsInConstraint substMap <$> cxsWithoutVarVars
+  , restorationMap )
+  where
+    cxsWithoutVarVars = filter (not . isVarVar) cxs
+
+    isVarVar (Constraint (_, SVar _)) = True
+    isVarVar _ = False
+
+    groups = pairsToGroups $ mapMaybe getVarPair cxs
+
+    substMap = substMapFromGroups groups
+
+    restorationMap = restorationMapFromGroups groups
+
+
+-- | adds back in all the vars excised from copy prop
+--   i.e. [(a, b), (b, c), (c, T)] copy props to [(a, T)]
+--   this generates [(a, T), (b, T), (c, T)]
+revertCopyProppedSolution :: EqualityMap Sym -> [Solution] -> [Solution]
+revertCopyProppedSolution m = concatMap f
+  where
+    f s@(Solution (v, t)) =
+      maybe [s] (fmap (Solution . (,t)) . HashSet.toList) $ HashMap.lookup v m
+
+

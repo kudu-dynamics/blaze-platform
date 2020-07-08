@@ -38,6 +38,7 @@ import Control.Lens as Exports
     Lens',
     (^.),
     (^?),
+    (^?!),
     iso,
     lens,
     makeClassy,

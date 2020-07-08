@@ -70,6 +70,15 @@ demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
                                      , ('c', 'e')
                                      ]
 
+demograph2 :: AlgaGraph () Int
+demograph2 = fromEdges . fmap ((),) $ [ (0, 3), (3, 0)
+                                      , (0, 1), (1, 0)
+                                      , (1, 8), (8, 1)
+
+                                      , (99, 88), (88, 99)
+                                      ]
+
+
 
 toDot :: Ord n => (n -> Text) -> AlgaGraph e n -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
@@ -79,3 +88,4 @@ isAcyclic = GA.isAcyclic . adjacencyMap
 
 reachable :: Ord n => n -> AlgaGraph e n -> [n]
 reachable x = GA.reachable x . adjacencyMap
+
