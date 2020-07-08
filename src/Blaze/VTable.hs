@@ -167,7 +167,7 @@ isVtable bv addr = do
       Just ptr ->
         getSectionTypeOfAddr bv addr >>= \case
           "PROGBITS" ->
-            isJust <$> BF.getFunctionStartingAt bv Nothing ((Address . fromIntegral) ptr)
+            isJust <$> (BF.getFunctionStartingAt bv Nothing ((Address . fromIntegral) ptr) :: IO (Maybe BF.Function))
           _ -> return False
     _ -> return False
 
