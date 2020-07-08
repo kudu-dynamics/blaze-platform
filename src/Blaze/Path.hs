@@ -211,6 +211,14 @@ getConditionNode edge = case edge ^. BB.branchType of
         MLIL.IF op -> Just . ConditionNode fn isTrueBranch (op ^. MLIL.condition) <$> randomIO
         _ -> return Nothing
 
+-- convenience function
+pathFromBasicBlockStarts :: BNBinaryView -> Function -> [Address] -> IO (Maybe p)
+pathFromBasicBlockStarts bv fn starts = do
+  mlilFunc <- Func.convertFunction fn
+  g <- constructNodeGraph bv mlilFunc :: IO (AlgaGraph () Node)
+  return Nothing
+
+
 pathFromBasicBlockList ::
   (Graph (BlockEdge F) (BasicBlock F) g, Path p) =>
   BNBinaryView ->
