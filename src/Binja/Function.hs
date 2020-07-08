@@ -96,7 +96,7 @@ instance ToFunction MLILSSAFunction where
   toFunction = view func
 
 
-getFunctionStartingAt :: BNBinaryView -> Maybe BNPlatform -> Address -> IO (Maybe Function)
+getFunctionStartingAt :: FromFunction fun => BNBinaryView -> Maybe BNPlatform -> Address -> IO (Maybe fun)
 getFunctionStartingAt bv mplat addr = do
   plat <- maybe (BN.getDefaultPlatform bv) return mplat
   mfn <- BN.getGetAnalysisFunction bv plat addr
