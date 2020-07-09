@@ -28,7 +28,9 @@ import qualified Binja.Function as HFunction
 import qualified Binja.MLIL as MLIL
 import Blaze.Function (createCallSite)
 import qualified Blaze.Function as Function
-import Blaze.Graph (constructBasicBlockGraphWithoutBackEdges)
+import Blaze.Graph ( constructBasicBlockGraphWithoutBackEdges
+                   , constructBasicBlockGraph
+                   )
 import Blaze.Prelude
 import Blaze.Types.Function
   ( CallInstruction,
@@ -212,11 +214,18 @@ getConditionNode edge = case edge ^. BB.branchType of
         _ -> return Nothing
 
 -- convenience function
-pathFromBasicBlockStarts :: BNBinaryView -> Function -> [Address] -> IO (Maybe p)
+pathFromBasicBlockStarts :: Path p
+                         => BNBinaryView
+                         -> Function
+                         -> [InstructionIndex F]
+                         -> IO (Maybe p)
 pathFromBasicBlockStarts bv fn starts = do
-  mlilFunc <- Func.convertFunction fn
-  g <- constructNodeGraph bv mlilFunc :: IO (AlgaGraph () Node)
-  return Nothing
+  mlilSSAFunc <- HFunction.convertFunction fn
+  g <- constructBasicBlockGraph mlilSSAFunc :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  mbbs <- sequence <$> traverse (BB.getBasicBlockForInstruction mlilSSAFunc) starts
+  case mbbs of
+    Nothing -> return Nothing
+    Just bbs -> Just <$> pathFromBasicBlockList bv g bbs
 
 
 pathFromBasicBlockList ::

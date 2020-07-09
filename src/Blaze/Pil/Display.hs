@@ -94,7 +94,7 @@ instance Disp Pil.PilVar where
   disp v = v ^. Pil.symbol
 
 instance Disp Pil.OperationSize where
-  disp (Pil.OperationSize sz) = show sz
+  disp (Pil.OperationSize (Bytes sz)) = show sz
 
 instance Disp (Pil.CallDest Pil.Expression) where
   disp dest = case dest of
