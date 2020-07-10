@@ -113,6 +113,7 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
   - Blaze.Pil.Inference2
+  - Blaze.Pil.InferenceDependent
   - Blaze.Pil.Path
   - Blaze.Prelude
   - Blaze.Pretty
@@ -125,6 +126,7 @@ library:
   - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
+  - Blaze.Types.Path.AlgaPath
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Solver

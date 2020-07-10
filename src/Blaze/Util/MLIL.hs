@@ -10,7 +10,7 @@ import Binja.C.Enums (BNVariableSourceType(StackVariableSourceType))
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
 import qualified Binja.Variable as Var
-import Binja.MLIL (Instruction)
+import Binja.MLIL (Instruction, OperationSize)
 import qualified Binja.MLIL as MLIL
 import qualified Data.Text as Text
 
@@ -24,18 +24,25 @@ data FoundInstruction fun = FoundInstruction
 
 $(makeFieldsNoPrefix ''FoundInstruction)
 
-getOperations :: Instruction fun -> [MLIL.Operation (MLIL.Expression fun)]
-getOperations x = rootOp : foldr f [] rootOp
-  where
-    rootOp = x ^. MLIL.op
-    f y ops = y ^. MLIL.op : foldr f ops (y ^. MLIL.op)
+data OpWithSize fun = OpWithSize
+  { _size :: MLIL.OperationSize
+  , _op :: MLIL.Operation (MLIL.Expression fun)
+  } deriving (Eq, Ord, Show)
+$(makeFieldsNoPrefix ''OpWithSize)
 
-instructionContainsOp :: (MLIL.Operation (MLIL.Expression fun) -> Bool)
+
+getOperations :: forall fun. Instruction fun -> [OpWithSize fun]
+getOperations x = rootOp : foldr f [] (x ^. MLIL.op)
+  where
+    rootOp = OpWithSize (x ^. MLIL.size) (x ^. MLIL.op)
+    f y ops = (OpWithSize (x ^. MLIL.size) (y ^. MLIL.op)) : foldr f ops (y ^. MLIL.op)
+
+instructionContainsOp :: (OpWithSize fun -> Bool)
                       -> Instruction fun
                       -> Bool
 instructionContainsOp f = any f . getOperations
 
-getFoundFromFunction :: (MLIL.Operation (MLIL.Expression F) -> Bool)
+getFoundFromFunction :: (OpWithSize F -> Bool)
                      -> Function
                      -> IO [FoundInstruction F]
 getFoundFromFunction f fn = do
@@ -48,15 +55,15 @@ getFoundFromFunction f fn = do
       else Nothing
 
 getFoundInstructions :: BNBinaryView
-                     -> (MLIL.Operation (MLIL.Expression F) -> Bool)
+                     -> (OpWithSize F -> Bool)
                      -> IO [FoundInstruction F]
 getFoundInstructions bv f = do
   funcs <- Func.getFunctions bv
   concat <$> traverse (getFoundFromFunction f) funcs
 
 -- convenient..
-getInstructionsWithOp :: (MLIL.Operation (MLIL.Expression F) -> Bool) -> FilePath -> IO [(Text, Int)]
-getInstructionsWithOp g binPath = do
+getInstructionsWithOpAndSize :: (OpWithSize F -> Bool) -> FilePath -> IO [(Text, Int)]
+getInstructionsWithOpAndSize g binPath = do
   ebv <- BN.getBinaryView binPath
   case ebv of
     Left err -> P.error . cs $ err
@@ -69,6 +76,9 @@ getInstructionsWithOp g binPath = do
           , fromIntegral $ x ^. foundIndex
           )
 
+getInstructionsWithOp :: (MLIL.Operation (MLIL.Expression F) -> Bool) -> FilePath -> IO [(Text, Int)]
+getInstructionsWithOp f fp = getInstructionsWithOpAndSize (f . view op) fp
+
 -- convenience function, returns func name and statement index
 getInstructionsWithOpByName :: Text -> FilePath -> IO [(Text, Int)]
 getInstructionsWithOpByName opName binPath = do
@@ -77,7 +87,7 @@ getInstructionsWithOpByName opName binPath = do
     Left err -> P.error . cs $ err
     Right bv -> do
       BN.updateAnalysisAndWait bv
-      xs <- getFoundInstructions bv (matchInstructionByName opName)
+      xs <- getFoundInstructions bv (matchInstructionByName opName . view op)
       return $ f <$> xs
   where
     f x = ( x ^. foundFunction . Func.name
@@ -135,4 +145,20 @@ matchSetVarFieldWithNegativeOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchSetVarFieldWithNegativeOffset (MLIL.SET_VAR_SSA_FIELD x) =
   (x ^. MLIL.offset) < 0
 matchSetVarFieldWithNegativeOffset _ = False
+
+-- 16 in , of 3688 adds
+matchAddWhereArgSizesUnequal :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchAddWhereArgSizesUnequal (MLIL.ADD x) =
+  (x ^. MLIL.left . MLIL.size /= x ^. MLIL.right . MLIL.size)
+matchAddWhereArgSizesUnequal _ = False
+
+-- of 3688
+-- 2384 left == right == ret
+-- 16 left /= right
+-- 
+matchAddReturnAndFirstArgSizeUnequal :: OpWithSize F -> Bool
+matchAddReturnAndFirstArgSizeUnequal (OpWithSize sz (MLIL.ADD x)) =
+  (x ^. MLIL.right . MLIL.size /= sz) ||
+  (x ^. MLIL.left . MLIL.size /= sz)
+matchAddReturnAndFirstArgSizeUnequal _ = False
 

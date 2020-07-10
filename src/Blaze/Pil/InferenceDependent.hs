@@ -108,6 +108,12 @@ type SymTypeExpression = InfoExpression SymType
 -- | Goal is to generate statements with TypedExpressions
 type TypedExpression = InfoExpression (PilType T)
 
+data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
+                | OverlappingRecordField { recordFields :: (HashMap BitWidth SymType)
+                                         , offendingOffset :: BitWidth
+                                         }
+                deriving (Eq, Ord, Read, Show, Generic)
+
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
   { _symTypeStmts :: [Statement SymTypeExpression]
@@ -117,6 +123,7 @@ data TypeReport = TypeReport
 --  , _unresolvedStmts :: [Statement SymExpression]
   -- , _unresolvedSyms :: [(Sym, Sym)]
   -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
+  , _errors :: [UnifyError]
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
 
@@ -223,7 +230,7 @@ exprTypeConstraints :: forall m. (MonadState CheckerState m, MonadError CheckerE
                     => SymExpression -> m [(Sym, SymType)]
 exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ADC x -> integralBinOp Nothing x
-  Pil.ADD x -> integralBinOp Nothing x
+  Pil.ADD x -> integralBinOpUnrelatedArgs Nothing x
 
   -- should this be unsigned ret because overflow is always positive?
   Pil.ADD_OVERFLOW x -> integralBinOp Nothing x
@@ -234,8 +241,10 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ASR x -> integralFirstArgIsReturn x
 
 --   BOOL_TO_INT _ -> 
+
+  -- TODO get most general type for this and args:
+  Pil.CALL _ -> return [ (r, SType $ THasWidth sz') ]
   
---   CALL _ -> unknown
   Pil.CEIL x -> floatUnOp x
   Pil.CMP_E x -> integralBinOpReturnsBool x
   Pil.CMP_NE x -> integralBinOpReturnsBool x
@@ -341,7 +350,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   -- its type could change every Store.
   Pil.STACK_LOCAL_ADDR _ -> retPointer
 
-  Pil.SUB x -> integralBinOp Nothing x
+  Pil.SUB x -> integralBinOpUnrelatedArgs (Just True) x
   Pil.SX x -> integralExtendOp x
 
 --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
@@ -358,7 +367,10 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     return [ (r, SVar v)
            , (v, SType $ THasWidth sz')
            ]
---   VAR_FIELD _ -> bitvecRet
+  Pil.VAR_FIELD _ ->
+    -- TODO: can we know anything about src PilVar by looking at offset + result size?
+    return [ (r, SType $ TBitVector sz') ]
+
 --   VAR_SPLIT _ -> bitvecRet
   Pil.XOR x -> bitVectorBinOp x
   Pil.ZX x -> integralExtendOp x
@@ -367,7 +379,8 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 --   VAR_PHI _ -> unknown -- should be removed by analysis
 
 --   Extract _ -> bitvecRet
---  _ -> throwError UnhandledExpr
+  _ -> P.error . show $ op'
+    --throwError UnhandledExpr
   where
     sz' = SType $ TVBitWidth sz
     sz2x' = SType . TVBitWidth $ sz * 2
@@ -413,6 +426,20 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         Just b -> return . SType . TVSign $ b
       return [ (r, SType (TInt sz' signednessType))
              , (r, SVar $ x ^. Pil.src . info . sym)
+             ]
+
+    integralBinOpUnrelatedArgs :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
+    integralBinOpUnrelatedArgs mSignedness x = do
+      signednessType <- case mSignedness of
+        Nothing -> SVar <$> newSym
+        Just b -> return . SType . TVSign $ b
+      arg1Sign <- SVar <$> newSym
+      arg2Sign <- SVar <$> newSym
+      arg1Width <- SVar <$> newSym
+      arg2Width <- SVar <$> newSym
+      return [ (r, SType (TInt sz' signednessType))
+             , (x ^. Pil.left . info . sym, SType $ TInt arg1Width arg1Sign)
+             , (x ^. Pil.right . info . sym, SType $ TInt arg2Width arg2Sign)
              ]
 
     integralBinOp :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
@@ -747,11 +774,6 @@ newtype Solution = Solution (Sym, SymType)
   deriving (Eq, Ord, Read, Show, Generic)
 
 
-data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
-                | OverlappingRecordField { recordFields :: (HashMap BitWidth SymType)
-                                         , offendingOffset :: BitWidth
-                                         }
-                deriving (Eq, Ord, Read, Show, Generic)
 
 data UnifyWithSubsState = UnifyWithSubsState
                           { _accSubs :: [Constraint]
@@ -956,8 +978,6 @@ $(makeFieldsNoPrefix ''UnifyConstraintsResult)
 
 
 
-
-
 -- | unifies (v, t) with any (v', t') where v == v'
 -- | returns most unified type for v, plus any extra subs
 -- | (which should be appended to end of constraints list)
@@ -1002,9 +1022,9 @@ unifyConstraints' (cx:cxs) sols errs =
       (cxs', sols', errs') = unifyConstraintWithAll cx cxs sols
 
 unifyConstraints :: [Constraint] -> ([Solution], [UnifyError])
-unifyConstraints cxs = (revertCopyProppedSolution restoreMap sols, errs)
+unifyConstraints cxs = (revertVarCopiedSolution restoreMap sols, errs)
   where
-    (cxs', restoreMap) = copyPropConstraints cxs
+    (cxs', restoreMap) = varCopyConstraints cxs
     (sols, errs) = unifyConstraints' cxs' [] []
     
 
@@ -1058,6 +1078,7 @@ checkStmts = fmap toReport . stmtSolutions
     toReport (stmts, sols, errs, s) = TypeReport
       { _symTypeStmts = []
       , _varSymTypeMap = pilVarMap
+      , _errors = errs
       }
       where
         solutionsMap :: HashMap Sym SymType
@@ -1144,8 +1165,8 @@ substVarsInConstraint m (Constraint (v, t)) =
 -- | returns copy-propped constraints and an equality map, which can
 --   be used after constraint solving to duplicate constraints for
 --   equal vars.
-copyPropConstraints :: [Constraint] -> ([Constraint], EqualityMap Sym)
-copyPropConstraints cxs =
+varCopyConstraints :: [Constraint] -> ([Constraint], EqualityMap Sym)
+varCopyConstraints cxs =
   ( substVarsInConstraint substMap <$> cxsWithoutVarVars
   , restorationMap )
   where
@@ -1164,8 +1185,8 @@ copyPropConstraints cxs =
 -- | adds back in all the vars excised from copy prop
 --   i.e. [(a, b), (b, c), (c, T)] copy props to [(a, T)]
 --   this generates [(a, T), (b, T), (c, T)]
-revertCopyProppedSolution :: EqualityMap Sym -> [Solution] -> [Solution]
-revertCopyProppedSolution m = concatMap f
+revertVarCopiedSolution :: EqualityMap Sym -> [Solution] -> [Solution]
+revertVarCopiedSolution m = concatMap f
   where
     f s@(Solution (v, t)) =
       maybe [s] (fmap (Solution . (,t)) . HashSet.toList) $ HashMap.lookup v m
