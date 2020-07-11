@@ -315,7 +315,7 @@ getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
     Function.getFunctionStartingAt bv Nothing
       . Address
       . fromIntegral
-      $ op ^. Pil.constant
+      $ op ^. Pil.constant :: IO (Maybe Function)
   return $ view Function.name <$> mfn
 getCallDestFunctionName _ _ = return Nothing
 
