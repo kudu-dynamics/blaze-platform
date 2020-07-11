@@ -194,27 +194,39 @@ type Symbol = Text
 -- which do not correspond to variables in the source program.)
 data PilVar = PilVar
   { _symbol :: Symbol
-  , _func :: Maybe Function
-  , _ctxIndex :: Maybe CtxIndex
+  -- TODO: Reassess use of Maybe for func and ctxIndex. 
+  --       Currently needed when introducing synthesized PilVars
+  --       when replacing store statements. May also be useful for 
+  --       introducing arbitrary symbols used in constraints?
+  , _ctx :: Maybe Ctx
+  -- , _func :: Maybe Function
+  -- , _ctxIndex :: Maybe CtxIndex
   , _mapsTo :: HashSet SSAVariableRef
   } deriving (Eq, Ord, Show, Generic)
            
 instance Hashable PilVar
 
-data ConverterCtx = ConverterCtx
-  -- TODO: Move context ID management to own type wrapped in a Maybe?
-  { _ctxMaxIdx :: CtxIndex
-  -- The current context should be on the top of the stack.
-  -- I.e., the stack should never be empty.
-  , _ctxStack :: NonEmpty Ctx
-  , _ctx :: Ctx
-  } deriving (Eq, Ord, Show, Generic)
+data ConverterState
+  = ConverterState
+      { -- The maximum context ID used so far
+        _ctxMaxIdx :: CtxIndex,
+        -- The current context should be on the top of the stack.
+        -- I.e., the stack should never be empty.
+        _ctxStack :: NonEmpty Ctx,
+        -- The current context
+        _ctx :: Ctx,
+        -- Currently known defined PilVars for all contexts
+        -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
+        --       This could happen for synthesized PilVars with a Nothing context.
+        _definedVars :: HashSet PilVar
+      }
+  deriving (Eq, Ord, Show, Generic)
 
 -- TODO: Add map of PilVars to original vars to the state being tracked
-newtype Converter a = Converter { _runConverter :: StateT ConverterCtx IO a}
-  deriving (Functor, Applicative, Monad, MonadState ConverterCtx, MonadIO)
+newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
+  deriving (Functor, Applicative, Monad, MonadState ConverterState, MonadIO)
 
-runConverter :: Converter a -> ConverterCtx -> IO (a, ConverterCtx)
+runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
 runConverter m s = flip runStateT s $ _runConverter m
 
 data SSAVariableRef = SSAVariableRef
@@ -539,18 +551,11 @@ instance Monoid TypeEnv where
 data Ctx = Ctx
   { _func :: Function
   , _ctxIndex :: CtxIndex
-  , _definedVars :: HashSet PilVar
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable Ctx
 
-data SimpleCtx = SimpleCtx
-  { _func :: Function
-  , _ctxIndex :: CtxIndex
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable SimpleCtx
-
 data StackOffset = StackOffset
-  { _ctx :: SimpleCtx
+  { _ctx :: Ctx
   , _offset :: ByteOffset
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable StackOffset
@@ -593,13 +598,13 @@ instance Hashable a => Hashable (UnimplMemOp a)
 
 {- HLINT ignore EnterContextOp -}
 data EnterContextOp expr = EnterContextOp
-    { _ctx :: SimpleCtx
+    { _ctx :: Ctx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (EnterContextOp a)
 
 data ExitContextOp expr = ExitContextOp
-    { _leavingCtx :: SimpleCtx
-    , _returningToCtx :: SimpleCtx
+    { _leavingCtx :: Ctx
+    , _returningToCtx :: Ctx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ExitContextOp a)
 
@@ -649,8 +654,7 @@ $(makeFieldsNoPrefix ''PtrType)
 $(makeFieldsNoPrefix ''FieldType)
 $(makeFieldsNoPrefix ''StructType)
 $(makeFieldsNoPrefix ''Ctx)
-$(makeFieldsNoPrefix ''SimpleCtx)
-$(makeFieldsNoPrefix ''ConverterCtx)
+$(makeFieldsNoPrefix ''ConverterState)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
 
@@ -663,10 +667,6 @@ $(makePrisms ''ExprOp)
 $(makePrisms ''Type)
 $(makePrisms ''Statement)
 ------------------------
-
-toSimpleCtx :: Ctx -> SimpleCtx
-toSimpleCtx x = SimpleCtx (x ^. func) (x ^. ctxIndex)
-
 
 -- gets bit width of integral type, if available
 getTypeByteWidth :: Type -> Maybe Int

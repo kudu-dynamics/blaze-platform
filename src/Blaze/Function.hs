@@ -48,5 +48,5 @@ getStmtsForAllFunctions bv = concat <$> (Func.getFunctions bv >>= traverse getSt
 getStmtsForFunction :: Func.Function -> IO [Pil.Stmt]
 getStmtsForFunction fn = do
   instrs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
-  tmp <- traverse ((`Pil.runConverter` BPP.createStartConverterCtx fn) . convertInstrs) instrs
+  tmp <- traverse ((`Pil.runConverter` BPP.createStartConverterState fn) . convertInstrs) instrs
   return $ concatMap fst tmp

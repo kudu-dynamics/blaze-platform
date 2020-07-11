@@ -1,39 +1,39 @@
 module Blaze.Pil.Path where
 
-import           Blaze.Prelude
-
-import           Binja.Function                    ( Function )
-
-import qualified Binja.Function       as HFunction
-import qualified Binja.MLIL           as MLIL
-import qualified Blaze.Pil            as Pil
+import Binja.Function (Function)
+import qualified Binja.Function as HFunction
+import qualified Binja.MLIL as MLIL
+import qualified Blaze.Pil as Pil
+import Blaze.Prelude
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as Func
-import           Blaze.Types.Path                  ( AbstractCallNode
-                                                   , CallNode
-                                                   , RetNode
-                                                   , ConditionNode
-                                                   , Node( AbstractCall
-                                                         , Condition
-                                                         , SubBlock
-                                                         , Call
-                                                         , Ret
-                                                         )
-                                                   , Path
-                                                   , SubBlockNode
-                                                   )
-import qualified Blaze.Types.Path     as Path
-import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx )
-                                                   , SimpleCtx(SimpleCtx)
-                                                   , Ctx( Ctx )
-                                                   , CtxIndex
-                                                   , Stmt
-                                                   , Converter
-                                                   , runConverter
-                                                   )
-import qualified Blaze.Types.Pil      as Pil
-import qualified Data.HashSet         as HSet
-import qualified Data.List.NonEmpty   as NE
+import Blaze.Types.Path
+  ( AbstractCallNode,
+    CallNode,
+    ConditionNode,
+    Node
+      ( AbstractCall,
+        Call,
+        Condition,
+        Ret,
+        SubBlock
+      ),
+    Path,
+    RetNode,
+    SubBlockNode,
+  )
+import qualified Blaze.Types.Path as Path
+import Blaze.Types.Pil
+  ( Converter,
+    ConverterState (ConverterState),
+    Ctx (Ctx),
+    CtxIndex,
+    Stmt,
+    runConverter,
+  )
+import qualified Blaze.Types.Pil as Pil
+import qualified Data.HashSet as HSet
+import qualified Data.List.NonEmpty as NE
 
 -- convert path to [Pil]
 
@@ -50,9 +50,11 @@ enterNewCtx fn = do
   Pil.ctxMaxIdx %= incIndex
   i <- use Pil.ctxMaxIdx
   outerCtx <- use Pil.ctx
+  
   let innerCtx = newCtx i outerCtx
   Pil.ctx .= innerCtx
   pushCtx innerCtx
+
   where
     newCtx :: CtxIndex -> Ctx -> Ctx
     newCtx i ctx = ctx & Pil.func .~ fn
@@ -81,11 +83,6 @@ retCtx = do
     peekCtx = do
       stack <- use Pil.ctxStack
       return $ NE.head stack
-
-getSimpleCtx :: Converter SimpleCtx
-getSimpleCtx = do
-  ctx <- view Pil.ctx <$> get
-  return $ SimpleCtx (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex)
 
 convertSubBlockNode :: SubBlockNode -> Converter [Stmt]
 convertSubBlockNode sb = do
@@ -118,14 +115,14 @@ getCallDestFunc x = case x ^. Func.callDest of
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
   enterNewCtx . getCallDestFunc $ n ^. Path.callSite
-  sCtx <- getSimpleCtx
-  return [ Pil.EnterContext . Pil.EnterContextOp $ sCtx ]
+  ctx <- use Pil.ctx
+  return [ Pil.EnterContext . Pil.EnterContextOp $ ctx ]
 
 convertRetNode :: RetNode -> Converter [Stmt]
 convertRetNode _ = do
-  leavingCtx <- getSimpleCtx
+  leavingCtx <- use Pil.ctx
   retCtx
-  returningCtx <- getSimpleCtx
+  returningCtx <- use Pil.ctx
   return [ Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx ]
 
 convertNode :: Node -> Converter [Stmt]
@@ -140,15 +137,15 @@ convertNodes :: [Node] -> Converter [Stmt]
 convertNodes = fmap concat . traverse convertNode
 
 createStartCtx :: Function -> Ctx
-createStartCtx func = Ctx func 0 HSet.empty
+createStartCtx func = Ctx func 0
 
-createStartConverterCtx :: Function -> ConverterCtx
-createStartConverterCtx func = 
-  ConverterCtx (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx
+createStartConverterState :: Function -> ConverterState
+createStartConverterState func = 
+  ConverterState (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx HSet.empty
     where 
       startCtx :: Ctx
       startCtx = createStartCtx func
 
 convertPath :: Path p => Function -> p -> IO [Stmt]
 convertPath startFunc =
-  fmap (concat . fst) . flip runConverter (createStartConverterCtx startFunc) . traverse convertNode . Path.toList
+  fmap (concat . fst) . flip runConverter (createStartConverterState startFunc) . traverse convertNode . Path.toList

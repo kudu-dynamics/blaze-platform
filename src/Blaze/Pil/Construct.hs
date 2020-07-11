@@ -16,8 +16,7 @@ pilVar :: Symbol -> PilVar
 pilVar s =
   PilVar
     { _symbol = s,
-      _func = Nothing,
-      _ctxIndex = Nothing,
+      _ctx = Nothing,
       _mapsTo = HSet.empty
     }
 

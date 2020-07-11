@@ -108,8 +108,8 @@ instance Pretty Binja.Function.Function where
       start :: Word64
       (Address (Bytes start)) = f ^. Binja.Function.start
 
-instance Pretty Pil.SimpleCtx where
-  pretty ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
+instance Pretty Pil.Ctx where
+  pretty ctx = Text.pack $ printf "ctx (%s) %s" func idx
     where
       func :: Text
       func = pretty (ctx ^. Pil.func)

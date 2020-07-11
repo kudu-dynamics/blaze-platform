@@ -52,7 +52,7 @@ varToStackLocalAddr ctx v =
   Expression defaultStackLocalAddrSize
     . Pil.STACK_LOCAL_ADDR
     . Pil.StackLocalAddrOp
-    . Pil.StackOffset (Pil.toSimpleCtx ctx)
+    . Pil.StackOffset ctx
     . fromIntegral
     $ v ^. Variable.storage
 
@@ -192,8 +192,7 @@ getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> show (v ^. MLIL.version)
 convertToPilVar :: Ctx -> MLIL.SSAVariable -> PilVar
 convertToPilVar ctx v = PilVar
   (getSymbol v)
-  (Just $ ctx ^. Pil.func)
-  (Just $ ctx ^. Pil.ctxIndex)
+  (Just ctx)
   (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
 
 addConstToExpr :: Expression -> Int64 -> Expression
@@ -205,6 +204,7 @@ addConstToExpr expr@(Expression size _) n = Expression size addOp
 convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
 convertInstrOp op' = do
   ctx <- use Pil.ctx
+  defVars <- use Pil.definedVars
   case op' of
     (MLIL.CALL_OUTPUT_SSA _) -> return []
     (MLIL.CALL_PARAM_SSA _) -> return []
@@ -213,15 +213,15 @@ convertInstrOp op' = do
     (MLIL.CALL_SSA _) -> return []
     (MLIL.CALL_UNTYPED_SSA _) -> return []
     (MLIL.SET_VAR_SSA x) -> do
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvar
+      Pil.definedVars %= HSet.insert pvar
       return [Def $ DefOp pvar expr]
       where
         pvar = convertToPilVar ctx $ x ^. MLIL.dest
         expr = convertExpr ctx (x ^. MLIL.src)
     -- TODO: Need some way to merge with previous version and include offset
     (MLIL.SET_VAR_SSA_FIELD x) -> do
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarSrc
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarDest
+      Pil.definedVars %= HSet.insert pvarSrc
+      Pil.definedVars %= HSet.insert pvarDest
       return [Def $ DefOp pvarDest updateVarExpr]
       where
         updateVarExpr =
@@ -238,8 +238,8 @@ convertInstrOp op' = do
           maybe defaultVarSize fromIntegral $
             getVarWidth destVar <|> getVarWidth srcVar
     (MLIL.SET_VAR_SPLIT_SSA x) -> do
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarHigh
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarLow
+      Pil.definedVars %= HSet.insert pvarHigh
+      Pil.definedVars %= HSet.insert pvarLow
       return
         [ Def $ DefOp pvarHigh highExpr,
           Def $ DefOp pvarLow lowExpr
@@ -278,7 +278,7 @@ convertInstrOp op' = do
       case latestVar of
         Nothing -> return []
         Just lVar -> do
-          (Pil.ctx . Pil.definedVars) %= HSet.insert lVar
+          Pil.definedVars %= HSet.insert lVar
           return
             [ Def . DefOp pvar $
                 Expression
@@ -289,7 +289,7 @@ convertInstrOp op' = do
         pvar = convertToPilVar ctx $ x ^. MLIL.dest
         latestVar =
           headMay
-            . filter (flip HSet.member $ ctx ^. Pil.definedVars)
+            . filter (`HSet.member` defVars)
             . fmap (convertToPilVar ctx)
             . sortOn ((* (-1)) . view MLIL.version)
             $ x ^. MLIL.src

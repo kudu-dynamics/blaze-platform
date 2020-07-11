@@ -50,12 +50,12 @@ widthToSize x = Pil.OperationSize $ toBytes x
 sizeToWidth :: Pil.OperationSize -> Bits
 sizeToWidth (Pil.OperationSize x) = toBits x
 
-getDefinedVars_ :: Stmt -> [PilVar]
-getDefinedVars_ (Def d) = [d ^. Pil.var]
-getDefinedVars_ _ = []
+getDefinedVar_ :: Stmt -> [PilVar]
+getDefinedVar_ (Def d) = [d ^. Pil.var]
+getDefinedVar_ _ = []
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
-getDefinedVars = HSet.fromList . concatMap getDefinedVars_
+getDefinedVars = HSet.fromList . concatMap getDefinedVar_
 
 getVarsFromExpr_ :: Expression -> [PilVar]
 getVarsFromExpr_ e = case e ^. Pil.op of
@@ -520,13 +520,12 @@ replaceStore store symbol = update storeIdx varDef
   where
     storeIdx = store ^. A.index
     storedVal = store ^. (A.op . Pil.value)
-    func = Nothing -- TODO
-    ctxIndex = Nothing -- TODO
+    ctx = Nothing -- TODO
     mapsTo = HSet.empty -- TODO
     varDef =
       Pil.Def
         ( Pil.DefOp
-            { _var = Pil.PilVar symbol func ctxIndex mapsTo,
+            { _var = Pil.PilVar symbol ctx mapsTo,
               _value = storedVal
             }
         )
