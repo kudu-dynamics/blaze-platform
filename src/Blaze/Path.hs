@@ -279,8 +279,9 @@ pathsForAllFunctions bv = do
     g :: Function -> IO (Function, [p])
     g fn = (fn,) <$> allSimpleFunctionPaths bv fn
 
-findAbstractCallNode :: Path p => Function -> Function -> p -> [AbstractCallNode]
-findAbstractCallNode caller callee = mapMaybe f . Path.toList
+-- |Find all abstract call nodes corresponding to call sites in 'caller' to the 'callee'.
+findAbstractCallNodes :: Path p => Function -> Function -> p -> [AbstractCallNode]
+findAbstractCallNodes caller callee = mapMaybe f . Path.toList
   where
     f (AbstractCall acn)
       | (acn ^. callSite . Function.caller == caller)
@@ -288,3 +289,9 @@ findAbstractCallNode caller callee = mapMaybe f . Path.toList
         Just acn
       | otherwise = Nothing
     f _ = Nothing
+
+-- |Find the abstract call node for a specific call occurring at the provided instruction index.
+findAbstractCallNode :: Path p => Function -> InstructionIndex F -> Function -> p -> Maybe AbstractCallNode
+findAbstractCallNode caller callSiteIdx callee path =
+  headMay $ [acn | acn <- findAbstractCallNodes caller callee path,
+                   acn ^. callSite . Function.callInstr . Function.index == callSiteIdx]
