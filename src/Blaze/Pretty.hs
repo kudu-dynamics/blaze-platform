@@ -289,7 +289,7 @@ instance Pretty Pil.Stmt where
     Pil.Nop -> "Nop"
     (Pil.Annotation t) -> "Annotation: " <> t
     (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. Pil.ctx)
-    (Pil.ExitContext x) -> "<---- Leaving %s" <> pretty (x ^. Pil.leavingCtx)
+    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. Pil.leavingCtx)
     (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. Pil.dest) (pretty $ x ^. Pil.params)
 
 newtype PStmts = PStmts [Pil.Stmt]
