@@ -32,7 +32,6 @@ import Blaze.Types.Pil
     runConverter,
   )
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.HashSet as HSet
 import qualified Data.List.NonEmpty as NE
 
 -- convert path to [Pil]
@@ -104,7 +103,7 @@ convertConditionNode n = do
 convertAbstractCallNode :: AbstractCallNode -> Converter [Stmt]
 convertAbstractCallNode n = do
   ctx <- use Pil.ctx
-  liftIO $ Pil.convertCallInstruction ctx (n ^. Path.callSite . Func.callInstr)
+  Pil.convertCallInstruction ctx (n ^. Path.callSite . Func.callInstr)
 
 -- TODO: Check this earlier in the conversion process? 
 getCallDestFunc :: CallSite -> Function
@@ -141,7 +140,7 @@ createStartCtx func = Ctx func 0
 
 createStartConverterState :: Function -> ConverterState
 createStartConverterState func = 
-  ConverterState (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx HSet.empty
+  ConverterState (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx []
     where 
       startCtx :: Ctx
       startCtx = createStartCtx func

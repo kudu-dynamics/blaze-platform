@@ -218,7 +218,7 @@ data ConverterState
         -- Currently known defined PilVars for all contexts
         -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
         --       This could happen for synthesized PilVars with a Nothing context.
-        _definedVars :: HashSet PilVar
+        _definedVars :: [PilVar]
       }
   deriving (Eq, Ord, Show, Generic)
 
