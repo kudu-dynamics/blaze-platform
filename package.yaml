@@ -115,6 +115,7 @@ library:
   - Blaze.Pil.Inference2
   - Blaze.Pil.InferenceDependent
   - Blaze.Pil.Path
+  - Blaze.Types.Pil.Inference
   - Blaze.Prelude
   - Blaze.Pretty
   - Blaze.Search

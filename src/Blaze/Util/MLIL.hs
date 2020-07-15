@@ -35,7 +35,7 @@ getOperations :: forall fun. Instruction fun -> [OpWithSize fun]
 getOperations x = rootOp : foldr f [] (x ^. MLIL.op)
   where
     rootOp = OpWithSize (x ^. MLIL.size) (x ^. MLIL.op)
-    f y ops = (OpWithSize (x ^. MLIL.size) (y ^. MLIL.op)) : foldr f ops (y ^. MLIL.op)
+    f y ops = (OpWithSize (y ^. MLIL.size) (y ^. MLIL.op)) : foldr f ops (y ^. MLIL.op)
 
 instructionContainsOp :: (OpWithSize fun -> Bool)
                       -> Instruction fun
@@ -152,13 +152,16 @@ matchAddWhereArgSizesUnequal (MLIL.ADD x) =
   (x ^. MLIL.left . MLIL.size /= x ^. MLIL.right . MLIL.size)
 matchAddWhereArgSizesUnequal _ = False
 
--- of 3688
--- 2384 left == right == ret
--- 16 left /= right
--- 
+-- the only time !(size ret == size arg1 == size arg2) is when an arg is ADDRESS_OF
+-- which binja thinks is size 0. but we convert it to the arch address size in PIL
 matchAddReturnAndFirstArgSizeUnequal :: OpWithSize F -> Bool
 matchAddReturnAndFirstArgSizeUnequal (OpWithSize sz (MLIL.ADD x)) =
   (x ^. MLIL.right . MLIL.size /= sz) ||
   (x ^. MLIL.left . MLIL.size /= sz)
 matchAddReturnAndFirstArgSizeUnequal _ = False
+
+
+matchLoadWithSub :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchLoadWithSub (MLIL.LOAD (MLIL.LoadOp (MLIL.Expression _ _ _ (MLIL.SUB _)))) = True
+matchLoadWithSub _ = False
 

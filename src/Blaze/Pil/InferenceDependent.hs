@@ -28,133 +28,18 @@ import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
 import qualified Algebra.Graph.NonEmpty.AdjacencyMap as NG
 import qualified Data.List.NonEmpty as NE
-
-type BitWidth = Bits
-type ByteWidth = Bytes
-
-charSize :: BitWidth
-charSize = 8
-
--- NOTE: I got rid of non-concrete types, like TNumber,
---       but for function signatures they should be added back in
-data PilType t = TArray { len :: t, elemType :: t }
-               | TChar
-               | TInt { bitWidth :: t, signed :: t }
-               | TFloat { bitWidth :: t }
-               | TBitVector { bitWidth :: t }
-               | TPointer { bitWidth :: t, pointeeType :: t }
-               | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'?
-                                  t -- type
-                         )
-               | TBottom
-               | TFunction { ret :: t, params :: [t] }
-
-               -- class constraint (t should be TVBitWidth)
-               | THasWidth t
-               
-               -- type level values for some dependent-type action
-               | TVBitWidth BitWidth
-               | TVLength Word64
-               | TVSign Bool
-               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
-
-data T = T (PilType T)
-  deriving (Eq, Ord, Read, Show)
+import Blaze.Types.Pil.Inference
 
 unT :: T -> PilType T
 unT (T pt) = pt
 
-newtype Sym = Sym Int
-            deriving (Eq, Ord, Read, Show, Generic)
-
-instance Hashable Sym
-
-data SymType = SVar Sym
-             | SType (PilType SymType)
-             deriving (Eq, Ord, Read, Show, Generic)
-
-
--- XVars are existential vars used for function sigs
-type XVar = Text
-data ExistentialType = XVar Text
-                     | XType (PilType ExistentialType)
-                     deriving (Eq, Ord, Read, Show, Generic)
-
-data CheckerError = CannotFindPilVarInVarSymMap PilVar
-                  | CannotFindSymInSymMap
-                  | UnhandledExpr
-                  | UnhandledStmt
-  deriving (Eq, Ord, Show)
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
 
-data InfoExpression a = InfoExpression
-  { _info :: a
-  , _op :: ExprOp (InfoExpression a)
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-$(makeFieldsNoPrefix ''InfoExpression)
 
-data SymInfo = SymInfo
-  { _size :: BitWidth
-  , _sym :: Sym
-  } deriving (Eq, Ord, Show, Generic)
-$(makeFieldsNoPrefix ''SymInfo)
-
-type SymExpression = InfoExpression SymInfo
-
-type SymTypeExpression = InfoExpression SymType
-
--- | Goal is to generate statements with TypedExpressions
-type TypedExpression = InfoExpression (PilType T)
-
-data UnifyError = IncompatibleTypes (PilType SymType) (PilType SymType)
-                | OverlappingRecordField { recordFields :: (HashMap BitWidth SymType)
-                                         , offendingOffset :: BitWidth
-                                         }
-                deriving (Eq, Ord, Read, Show, Generic)
-
--- | The final report of the type checker, which contains types and errors.
-data TypeReport = TypeReport
-  { _symTypeStmts :: [Statement SymTypeExpression]
---  , _typedStmts :: [Statement TypedExpression]
-  , _varSymTypeMap :: HashMap PilVar SymType
---  , _varTypeMap :: HashMap PilVar (PilType T)
---  , _unresolvedStmts :: [Statement SymExpression]
-  -- , _unresolvedSyms :: [(Sym, Sym)]
-  -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
-  , _errors :: [UnifyError]
-  } deriving (Eq, Ord, Show, Generic)
-$(makeFieldsNoPrefix ''TypeReport)
-
-
--- | The "Checker" monad is actually currently just used to generate symbols and
---   constraints for every expression and var. it should be renamed
-data CheckerState = CheckerState
-  { _currentSym :: Sym
-  , _symMap :: HashMap Sym SymExpression
-  , _varSymMap :: HashMap PilVar Sym
-  } deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''CheckerState)
-
-emptyCheckerState :: CheckerState
-emptyCheckerState = CheckerState (Sym 0) HashMap.empty HashMap.empty
-
-newtype Checker a = Checker
-  { _runChecker :: ExceptT CheckerError (StateT CheckerState Identity) a }
-  deriving ( Functor
-           , Applicative
-           , Monad
-           , MonadError CheckerError
-           , MonadState CheckerState
-           )
-
-runChecker :: Checker a -> CheckerState -> (Either CheckerError a, CheckerState)
-runChecker m ss = runIdentity . flip runStateT ss . runExceptT . _runChecker $ m
-
-runChecker_ :: Checker a -> (Either CheckerError a, CheckerState)
-runChecker_ m = runChecker m emptyCheckerState
+mapMeta :: (meta -> meta') -> WithMeta meta a -> WithMeta meta' a
+mapMeta f (WithMeta meta x) = WithMeta (f meta) x
 
 -- | get pilvar's cooresponding Sym from state
 lookupVarSym :: (MonadState CheckerState m, MonadError CheckerError m)
@@ -206,15 +91,6 @@ toSymExpression (Expression sz op') = do
   return sexpr
 
 
--- maybe TODO: make a function for succinctly writing PIL expr op constraint generators
-
--- example for signed-greater-than
--- funcSig ["a", "b"] [(a, 
-
--- funcSig :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
---         => [XVar] -> [(XVar, ExistentialType)] -> [XVar]
---         -> m ( [SymType] -> m [(Sym, SymType)] )
--- funcSig existentials classBindings funcTypes = undefined
 
 byteOffsetToBitWidth :: ByteOffset -> BitWidth
 byteOffsetToBitWidth n
@@ -229,11 +105,11 @@ byteOffsetToBitWidth n
 exprTypeConstraints :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
                     => SymExpression -> m [(Sym, SymType)]
 exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
-  Pil.ADC x -> integralBinOp Nothing x
-  Pil.ADD x -> integralBinOpUnrelatedArgs Nothing x
+  Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
 
   -- should this be unsigned ret because overflow is always positive?
-  Pil.ADD_OVERFLOW x -> integralBinOp Nothing x
+  Pil.ADD_OVERFLOW x -> integralBinOpFirstArgIsReturn Nothing True x
 
   Pil.AND x -> bitVectorBinOp x
 
@@ -265,9 +141,9 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
                                 ( SType . TVLength . fromIntegral . Text.length
                                   $ x ^. Pil.value )
                                 ( SType TChar ))]
-  Pil.DIVS x -> integralBinOp (Just True) x
+  Pil.DIVS x -> integralBinOpFirstArgIsReturn (Just True) False x
   Pil.DIVS_DP x -> integralBinOpDP (Just True) x
-  Pil.DIVU x -> integralBinOp (Just False) x
+  Pil.DIVU x -> integralBinOpFirstArgIsReturn (Just False) False x
   Pil.DIVU_DP x -> integralBinOpDP (Just False) x
   Pil.FABS x -> floatUnOp x
   Pil.FADD x -> floatBinOp x
@@ -325,11 +201,11 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.LSL x -> integralFirstArgIsReturn x
   Pil.LSR x -> integralFirstArgIsReturn x
-  Pil.MODS x -> integralBinOp (Just True) x
+  Pil.MODS x -> integralBinOpFirstArgIsReturn (Just True) False x
   Pil.MODS_DP x -> integralBinOpDP (Just True) x
-  Pil.MODU x -> integralBinOp (Just False) x
+  Pil.MODU x -> integralBinOpFirstArgIsReturn (Just False) False x
   Pil.MODU_DP x -> integralBinOpDP (Just False) x
-  Pil.MUL x -> integralBinOp Nothing x
+  Pil.MUL x -> integralBinOpFirstArgIsReturn Nothing True x
   Pil.MULS_DP x -> integralBinOpDP (Just True) x
   Pil.MULU_DP x -> integralBinOpDP (Just False) x
   Pil.NEG x -> integralUnOp (Just True) x
@@ -350,7 +226,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   -- its type could change every Store.
   Pil.STACK_LOCAL_ADDR _ -> retPointer
 
-  Pil.SUB x -> integralBinOpUnrelatedArgs (Just True) x
+  Pil.SUB x -> integralBinOpFirstArgIsReturn (Just True) True x
   Pil.SX x -> integralExtendOp x
 
 --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
@@ -371,7 +247,9 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
     return [ (r, SType $ TBitVector sz') ]
 
+  -- each arg is 1/2 size of return arg?
 --   VAR_SPLIT _ -> bitvecRet
+
   Pil.XOR x -> bitVectorBinOp x
   Pil.ZX x -> integralExtendOp x
 --   -- _ -> unknown
@@ -427,6 +305,21 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       return [ (r, SType (TInt sz' signednessType))
              , (r, SVar $ x ^. Pil.src . info . sym)
              ]
+
+    integralBinOpFirstArgIsReturn :: ( Pil.HasLeft x SymExpression
+                                     , Pil.HasRight x SymExpression)
+                                  => Maybe Bool -> Bool -> x -> m [(Sym, SymType)]
+    integralBinOpFirstArgIsReturn mSignedness secondArgSameWidth x = do
+      signednessType <- case mSignedness of
+        Nothing -> SVar <$> newSym
+        Just b -> return . SType . TVSign $ b
+      arg2Sign <- SVar <$> newSym
+      secondArgWidth <- bool (SVar <$> newSym) (return sz') secondArgSameWidth
+      return [ (r, SType (TInt sz' signednessType))
+             , (r, SVar $ x ^. Pil.left . info . sym)
+             , (x ^. Pil.right . info . sym, SType $ TInt secondArgWidth arg2Sign)
+             ]
+
 
     integralBinOpUnrelatedArgs :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression) => Maybe Bool -> x -> m [(Sym, SymType)]
     integralBinOpUnrelatedArgs mSignedness x = do
@@ -543,6 +436,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
                , SType $ TInt shifterWidth shifterSign )
              , ( r, n )
              ]
+
 
 
 -- | recursively generates type constraints for all expr sym's in SymExpression
@@ -764,42 +658,6 @@ secondRangeContainsFirst (start, end) (start', end') =
 
 ---------- unification and constraint solving ----------------------
 
-data Constraint = Constraint (Sym, SymType)
-  deriving (Eq, Ord, Read, Show, Generic)
-
--- | solutions should be the "final unification" for any sym.
--- | complex types might still contain SVars subject to substitution
--- | but the type structure shouldn't change.
-newtype Solution = Solution (Sym, SymType)
-  deriving (Eq, Ord, Read, Show, Generic)
-
-
-
-data UnifyWithSubsState = UnifyWithSubsState
-                          { _accSubs :: [Constraint]
-                            -- , _solutions :: [(Sym, SymType)]
-                             -- , _errors :: [UnifyError]
-                          } deriving (Eq, Ord, Read, Show)
-$(makeFieldsNoPrefix ''UnifyWithSubsState)
-
-data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
-                               , _errors :: [UnifyError]
-                               } deriving (Eq, Ord, Read, Show)
-$(makeFieldsNoPrefix ''UnifyResult)
-
--- | monad just used for unifyWithSubs function and its helpers
-newtype UnifyWithSubs a = UnifyWithSubs { _runUnifyWithSubs :: ExceptT UnifyError (StateT UnifyWithSubsState Identity) a }
-  deriving ( Functor
-           , Applicative
-           , Monad
-           , MonadError UnifyError
-           , MonadState UnifyWithSubsState
-           )
-
-runUnifyWithSubs :: UnifyWithSubs a -> UnifyWithSubsState -> (Either UnifyError a, UnifyWithSubsState)
-runUnifyWithSubs m s = runIdentity . flip runStateT s . runExceptT . _runUnifyWithSubs $ m
-
-
 addSubs :: MonadState UnifyWithSubsState m => [Constraint] -> m ()
 addSubs subs = accSubs %= (<> subs)
 
@@ -814,7 +672,8 @@ unifyWithSubsM :: ( MonadError UnifyError m
                   , MonadState UnifyWithSubsState m
                   )
                => SymType -> SymType -> m SymType
-unifyWithSubsM (SVar a) (SVar b) = addSubs [Constraint (b, SVar a)] >> pure (SVar a)
+unifyWithSubsM (SVar a) (SVar b) = addSubs [Constraint (b, SVar a)]
+                                           >> pure (SVar a)
 unifyWithSubsM (SVar a) (SType pt) = addSubs [Constraint (a, SType pt)] >> pure (SType pt)
 unifyWithSubsM a@(SType _) b@(SVar _) = unifyWithSubsM b a
 unifyWithSubsM (SType pt1) (SType pt2) =
@@ -867,6 +726,7 @@ unifyWithSubsM (SType pt1) (SType pt2) =
         _ -> err
 
       THasWidth w1 -> case pt2 of
+        THasWidth w2 -> unifyBitWidth w1 w2
         TChar -> unifyBitWidth w1 (SType $ TVBitWidth 8)
         TInt w2 s -> stype $ TInt <$> unifyBitWidth w1 w2 <*> pure s
         TFloat w2 -> stype $ TFloat <$> unifyBitWidth w1 w2
@@ -968,29 +828,22 @@ instance Substitute Solution where
   substitute (Solution (v, t)) (Solution (v', t')) =
     Solution . (v',) $ substitute' (v, t) t'
 
-
-data UnifyConstraintsResult = UnifyConstraintsResult
-  { _constraints :: [(Sym, SymType)]
-  , _solutions :: [(Sym, SymType)]
-  , _errors :: [UnifyError]
-  } deriving (Eq, Ord, Read, Show)
-$(makeFieldsNoPrefix ''UnifyConstraintsResult)
-
-
-
 -- | unifies (v, t) with any (v', t') where v == v'
 -- | returns most unified type for v, plus any extra subs
 -- | (which should be appended to end of constraints list)
 getMostUnifiedConstraintAndSubs :: Constraint
                                 -> [Constraint]
-                                -> (Solution, [Constraint], [UnifyError])
+                                -> (Solution, [Constraint], [WithMeta Sym UnifyError])
 getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], []) cxs
   where
     f (Constraint (cv, ct)) ((Solution (sv, st)), newConstraints, errs)
       | cv /= sv = (Solution (sv, st), (Constraint (cv,ct)):newConstraints, errs)
       | otherwise = let (er, subs) = unifyWithSubs st ct in
           case er of
-            Left uerr -> (Solution (sv, st), subs <> newConstraints, uerr:errs)
+            Left uerr -> ( Solution (sv, st)
+                         , subs <> newConstraints
+                         , (WithMeta cv uerr):errs
+                         )
             Right ut -> (Solution (sv, ut), subs <> newConstraints, errs)
 
 
@@ -1001,7 +854,7 @@ getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], 
 unifyConstraintWithAll :: Constraint
                        -> [Constraint]
                        -> [Solution]
-                       -> ([Constraint], [Solution], [UnifyError])
+                       -> ([Constraint], [Solution], [WithMeta Sym UnifyError])
 unifyConstraintWithAll cx cxs sols  =
   ( substitute sol <$> constraintsWithSubs
   , sol : (substitute sol <$> sols)
@@ -1013,16 +866,22 @@ unifyConstraintWithAll cx cxs sols  =
 
 unifyConstraints' :: [Constraint]
                   -> [Solution]
-                  -> [UnifyError]
-                  -> ([Solution], [UnifyError])
+                  -> [WithMeta Sym UnifyError]
+                  -> ([Solution], [WithMeta Sym UnifyError])
 unifyConstraints' [] sols errs = (sols, errs)
 unifyConstraints' (cx:cxs) sols errs =
   unifyConstraints' cxs' sols' (errs <> errs')
   where
       (cxs', sols', errs') = unifyConstraintWithAll cx cxs sols
 
-unifyConstraints :: [Constraint] -> ([Solution], [UnifyError])
-unifyConstraints cxs = (revertVarCopiedSolution restoreMap sols, errs)
+unifyConstraints :: [Constraint] -> ( [Solution]
+                                    , [WithMeta Sym UnifyError]
+                                    , VarEqMap
+                                    )
+unifyConstraints cxs = ( revertVarCopiedSolution restoreMap sols
+                       , errs
+                       , restoreMap
+                       )
   where
     (cxs', restoreMap) = varCopyConstraints cxs
     (sols, errs) = unifyConstraints' cxs' [] []
@@ -1050,12 +909,17 @@ stmtsConstraints stmts = case er of
 
 
 stmtSolutions :: [Statement Expression]
-              -> Either CheckerError ([Statement SymExpression], [Solution], [UnifyError], CheckerState)
+              -> Either CheckerError ( [Statement SymExpression]
+                                     , [Solution]
+                                     , [WithMeta Sym UnifyError]
+                                     , CheckerState
+                                     , VarEqMap
+                                     )
 stmtSolutions stmts = case er of
   Left err -> Left err
-  Right (symStmts, cxs) -> Right (symStmts, sols, errs, s)
+  Right (symStmts, cxs) -> Right (symStmts, sols, errs, s, eqMap)
     where
-      (sols, errs) = unifyConstraints cxs
+      (sols, errs, eqMap) = unifyConstraints cxs
   where
     (er, s) = runChecker_ $ do
       createVarSymMap stmts
@@ -1073,11 +937,18 @@ stmtSolutions stmts = case er of
 checkStmts :: [Statement Expression] -> Either CheckerError TypeReport
 checkStmts = fmap toReport . stmtSolutions
   where
-    toReport :: ([Statement SymExpression], [Solution], [UnifyError], CheckerState)
+    toReport :: ( [Statement SymExpression]
+                , [Solution]
+                , [WithMeta Sym UnifyError]
+                , CheckerState
+                , VarEqMap
+                )
              -> TypeReport
-    toReport (stmts, sols, errs, s) = TypeReport
+    toReport (stmts, sols, errs, s, eqMap) = TypeReport
       { _symTypeStmts = []
+      , _symStmts = stmts
       , _varSymTypeMap = pilVarMap
+      , _varEqMap = eqMap
       , _errors = errs
       }
       where
@@ -1096,8 +967,6 @@ checkStmts = fmap toReport . stmtSolutions
 getVarPair :: Constraint -> Maybe (Sym, Sym)
 getVarPair (Constraint (s1, (SVar s2))) = Just (s1, s2)
 getVarPair _ = Nothing
-
-type EqualityMap a = HashMap a (HashSet a)
 
 addVarPairToEqualityMap :: (Eq a, Hashable a)
                         => (a, a) -> EqualityMap a -> EqualityMap a
