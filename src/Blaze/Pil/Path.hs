@@ -1,8 +1,9 @@
 module Blaze.Pil.Path where
 
 import Binja.Function (Function)
-import qualified Binja.Function as HFunction
+import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
+import qualified Binja.Variable as BNVar
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude
 import Blaze.Types.Function (CallSite)
@@ -87,7 +88,7 @@ convertSubBlockNode :: SubBlockNode -> Converter [Stmt]
 convertSubBlockNode sb = do
   maybeUpdateCtx $ sb ^. Path.func
   instrs <- liftIO $ do
-    mlilFunc <- HFunction.getMLILSSAFunction $ sb ^. Path.func
+    mlilFunc <- BNFunc.getMLILSSAFunction $ sb ^. Path.func
     mapM (MLIL.instruction mlilFunc) [(sb ^. Path.start) .. (sb ^. Path.end - 1)]
   Pil.convertInstrs instrs
 
@@ -111,10 +112,18 @@ getCallDestFunc x = case x ^. Func.callDest of
   (Func.DestFunc f) -> f
   _ -> error "Only calls to known functions may be expanded."
 
+paramArgDef :: BNVar.Variable -> Pil.Expression -> Converter Stmt
+paramArgDef param arg = _
+
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
-  enterNewCtx . getCallDestFunc $ n ^. Path.callSite
+  let destFunc = getCallDestFunc $ n ^. Path.callSite
+  enterNewCtx destFunc
   ctx <- use Pil.ctx
+  params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
+  let callInstr = n ^. (Path.callSite . Func.callInstr)
+      argExprs = Pil.convertExpr ctx <$> callInstr ^. Func.params
+      defs = zipWith paramArgDef params argExprs
   return [ Pil.EnterContext . Pil.EnterContextOp $ ctx ]
 
 convertRetNode :: RetNode -> Converter [Stmt]

@@ -151,20 +151,6 @@ isBackEdge be = case be ^. BB.target of
 
 type Condition = Pil.Expression
 
-data CallCombo = CallCombo
-  { callNode :: CallNode,
-    abstractPathNode :: AbstractPathNode,
-    retNode :: RetNode
-  }
-  deriving (Eq, Ord, Show)
-
-callCombo :: Function -> CallSite -> IO CallCombo
-callCombo fn cs' = do
-  call <- CallNode fn cs' <$> randomIO
-  ret <- RetNode fn cs' <$> randomIO
-  apn <- AbstractPathNode fn (Call call) (Ret ret) <$> randomIO
-  return $ CallCombo call apn ret
-
 data SpanItem a b
   = SpanSpan (a, a)
   | SpanBreak b

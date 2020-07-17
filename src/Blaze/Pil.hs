@@ -328,6 +328,7 @@ convertCallInstruction ctx c = do
   mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
   let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
   case c ^. Function.outputDest of
+    -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
     Nothing -> return []
     Just [] -> return [Call $ CallOp target mname params]
     Just (dest : _) -> do
