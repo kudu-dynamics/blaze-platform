@@ -4,6 +4,8 @@ module Blaze.Function
   , isDirectCall
   , getStmtsForFunction
   , getStmtsForAllFunctions
+  , getIndirectCallsInFunction
+  , getIndirectCallSites
   ) where
 
 import Binja.Core (BNBinaryView)
@@ -21,6 +23,8 @@ import qualified Binja.Function as Func
 import Blaze.Pil (convertInstrs)
 import qualified Blaze.Pil.Path as BPP
 import qualified Blaze.Types.Pil as Pil
+import Data.BinaryAnalysis (Address)
+
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
 getDestOp CallInstruction{_dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'
@@ -29,6 +33,7 @@ getDestOp _ = Nothing
 isDirectCall :: CallInstruction -> Bool
 isDirectCall c = case getDestOp c of
   Just (MLIL.CONST_PTR _) -> True
+  Just (MLIL.IMPORT _) -> True
   _ -> False
 
 createCallSite :: BNBinaryView -> Function -> CallInstruction -> IO CallSite
@@ -50,3 +55,25 @@ getStmtsForFunction fn = do
   instrs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
   tmp <- traverse ((`Pil.runConverter` BPP.startConverterCtx) . convertInstrs) instrs
   return $ concatMap fst tmp
+
+getCallsInFunction :: Func.Function -> IO [CallInstruction]
+getCallsInFunction fn = do
+  bbs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks
+  concat <$> traverse callsPerBB bbs
+  where
+    callsPerBB bb = mapMaybe toCallInstruction <$> MLIL.fromBasicBlock bb
+
+getIndirectCallsInFunction :: Func.Function -> IO [CallInstruction]
+getIndirectCallsInFunction fn = do
+  calls <- getCallsInFunction fn
+  return $ filter (not . isDirectCall) calls
+
+getIndirectCallSites :: [Func.Function] -> IO [(Func.Function, CallInstruction)]
+getIndirectCallSites fns = do
+  indirectCalls <- traverse getIndirectCallsInFunction fns
+  return . getTupleList $ zip fns indirectCalls
+  where
+    getTupleList :: [(Func.Function, [CallInstruction])] -> [(Func.Function, CallInstruction)]
+    getTupleList = concat <$> map (uncurry createTuple)
+    createTuple fn (i:is) = [(fn, i)] <> createTuple fn is
+    createTuple _ [] = []

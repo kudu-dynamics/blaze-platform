@@ -27,3 +27,4 @@ cabal.project.local~
 .DS_Store
 .ghcid
 *.lock
+res/extra_bins

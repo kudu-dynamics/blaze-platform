@@ -6,6 +6,7 @@ import           Binja.Function                    ( Function )
 
 import qualified Binja.Function       as HFunction
 import qualified Binja.MLIL           as MLIL
+import qualified Binja.Variable       as Variable
 import qualified Blaze.Pil            as Pil
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as Func
@@ -101,9 +102,22 @@ getCallDestFunc x = case x ^. Func.callDest of
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
+  callerCtx <- use Pil.ctx
   enterNewCtx . getCallDestFunc $ n ^. Path.callSite
+  calleeCtx <- use Pil.ctx
+  vars <- case getCallDestFunc $ n ^. Path.callSite of
+    Just d -> liftIO $ Variable.getFunctionParameterVariables d
+    _ -> return []
+  let mlilSsaVars = Pil.convertToPilVar calleeCtx . convertToMlilSsaVar <$> vars
+      paramExprs = Pil.convertExpr callerCtx <$> n ^. (Path.callSite . Func.callInstr . Func.params)
+      defs = [Pil.Def $ Pil.DefOp pvar expr | (pvar, expr) <- zip mlilSsaVars paramExprs]
   sCtx <- getSimpleCtx
-  return [ Pil.EnterContext . Pil.EnterContextOp $ sCtx ]
+  return $ [ Pil.EnterContext . Pil.EnterContextOp $ sCtx ] <> defs
+  where
+    -- assumes that first version of args is the right one to link up to
+    -- todo: verify or rework
+    convertToMlilSsaVar :: Variable.Variable -> MLIL.SSAVariable
+    convertToMlilSsaVar v = MLIL.SSAVariable v 0
 
 convertRetNode :: RetNode -> Converter [Stmt]
 convertRetNode n = do
