@@ -262,10 +262,6 @@ dispExprOp exprOp size = case exprOp of
   (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. Pil.value
   (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. Pil.src)) (op ^. Pil.offset)
 
-instance Disp (PI.InfoExpression PI.SymInfo) where
-  disp (PI.InfoExpression (PI.SymInfo bitwidth (PI.Sym n)) op) =
-    show n <> ":" <> paren (dispExprOp op (coerce $ bitwidth * 8))
-
 instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = dispExprOp exprOp size
 

@@ -37,10 +37,6 @@ unT (T pt) = pt
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
 
-
-mapMeta :: (meta -> meta') -> WithMeta meta a -> WithMeta meta' a
-mapMeta f (WithMeta meta x) = WithMeta (f meta) x
-
 -- | get pilvar's cooresponding Sym from state
 lookupVarSym :: (MonadState CheckerState m, MonadError CheckerError m)
              => PilVar -> m Sym
@@ -254,8 +250,6 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ZX x -> integralExtendOp x
 --   -- _ -> unknown
 
---   VAR_PHI _ -> unknown -- should be removed by analysis
-
 --   Extract _ -> bitvecRet
   _ -> P.error . show $ op'
     --throwError UnhandledExpr
@@ -277,7 +271,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
     bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> m [(Sym, SymType)]
     bitVectorUnOp x =
-      return [ (r, SType $ TBitVector  sz')
+      return [ (r, SType $ TBitVector sz')
              , (r, SVar $ x ^. Pil.src . info . sym)
              ]
 
@@ -680,7 +674,7 @@ unifyWithSubsM (SType pt1) (SType pt2) =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
     (False, True) -> unifyWithSubsM (SType pt2) (SType pt1)
-    _ -> case pt1 of
+    _ -> contextualizeUnifyError $ case pt1 of
       TArray len1 et1 -> case pt2 of
         (TArray len2 et2)
           | len1 == len2 -> stype $ TArray len1 <$> unifyWithSubsM et1 et2
@@ -713,6 +707,7 @@ unifyWithSubsM (SType pt1) (SType pt2) =
       TBitVector w1 -> case pt2 of
         TBitVector w2 -> stype $ TBitVector <$> unifyBitWidth w1 w2
         TInt w2 s -> stype $ TInt <$> unifyBitWidth w1 w2 <*> pure s
+        TChar -> unifyBitWidth w1 (SType $ TVBitWidth 8) >> return (SType TChar)
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
         TPointer w2 pointeeType2 ->
@@ -726,8 +721,8 @@ unifyWithSubsM (SType pt1) (SType pt2) =
         _ -> err
 
       THasWidth w1 -> case pt2 of
-        THasWidth w2 -> unifyBitWidth w1 w2
-        TChar -> unifyBitWidth w1 (SType $ TVBitWidth 8)
+        THasWidth w2 -> SType . THasWidth <$> unifyBitWidth w1 w2
+        TChar -> unifyBitWidth w1 (SType $ TVBitWidth 8) >> return (SType TChar)
         TInt w2 s -> stype $ TInt <$> unifyBitWidth w1 w2 <*> pure s
         TFloat w2 -> stype $ TFloat <$> unifyBitWidth w1 w2
         TPointer w2 et -> stype $ TPointer <$> unifyBitWidth w1 w2 <*> pure et
@@ -753,6 +748,8 @@ unifyWithSubsM (SType pt1) (SType pt2) =
 
       _ -> err
   where
+    contextualizeUnifyError m = catchError m $ throwError . UnifyError pt1 pt2
+      
     stype = (SType <$>)
     err = throwError $ IncompatibleTypes pt1 pt2
 
@@ -833,16 +830,16 @@ instance Substitute Solution where
 -- | (which should be appended to end of constraints list)
 getMostUnifiedConstraintAndSubs :: Constraint
                                 -> [Constraint]
-                                -> (Solution, [Constraint], [WithMeta Sym UnifyError])
+                                -> (Solution, [Constraint], [UnifyConstraintsError])
 getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], []) cxs
   where
     f (Constraint (cv, ct)) ((Solution (sv, st)), newConstraints, errs)
       | cv /= sv = (Solution (sv, st), (Constraint (cv,ct)):newConstraints, errs)
       | otherwise = let (er, subs) = unifyWithSubs st ct in
           case er of
-            Left uerr -> ( Solution (sv, st)
+            Left uerr -> ( Solution (sv, SType TBottom) -- type error
                          , subs <> newConstraints
-                         , (WithMeta cv uerr):errs
+                         , (UnifyConstraintsError cv uerr):errs
                          )
             Right ut -> (Solution (sv, ut), subs <> newConstraints, errs)
 
@@ -854,7 +851,7 @@ getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], 
 unifyConstraintWithAll :: Constraint
                        -> [Constraint]
                        -> [Solution]
-                       -> ([Constraint], [Solution], [WithMeta Sym UnifyError])
+                       -> ([Constraint], [Solution], [UnifyConstraintsError])
 unifyConstraintWithAll cx cxs sols  =
   ( substitute sol <$> constraintsWithSubs
   , sol : (substitute sol <$> sols)
@@ -866,16 +863,17 @@ unifyConstraintWithAll cx cxs sols  =
 
 unifyConstraints' :: [Constraint]
                   -> [Solution]
-                  -> [WithMeta Sym UnifyError]
-                  -> ([Solution], [WithMeta Sym UnifyError])
+                  -> [UnifyConstraintsError]
+                  -> ([Solution], [UnifyConstraintsError])
 unifyConstraints' [] sols errs = (sols, errs)
 unifyConstraints' (cx:cxs) sols errs =
   unifyConstraints' cxs' sols' (errs <> errs')
   where
       (cxs', sols', errs') = unifyConstraintWithAll cx cxs sols
 
+
 unifyConstraints :: [Constraint] -> ( [Solution]
-                                    , [WithMeta Sym UnifyError]
+                                    , [UnifyConstraintsError]
                                     , VarEqMap
                                     )
 unifyConstraints cxs = ( revertVarCopiedSolution restoreMap sols
@@ -911,7 +909,7 @@ stmtsConstraints stmts = case er of
 stmtSolutions :: [Statement Expression]
               -> Either CheckerError ( [Statement SymExpression]
                                      , [Solution]
-                                     , [WithMeta Sym UnifyError]
+                                     , [UnifyConstraintsError]
                                      , CheckerState
                                      , VarEqMap
                                      )
@@ -939,19 +937,28 @@ checkStmts = fmap toReport . stmtSolutions
   where
     toReport :: ( [Statement SymExpression]
                 , [Solution]
-                , [WithMeta Sym UnifyError]
+                , [UnifyConstraintsError]
                 , CheckerState
                 , VarEqMap
                 )
              -> TypeReport
     toReport (stmts, sols, errs, s, eqMap) = TypeReport
-      { _symTypeStmts = []
+      { _symTypeStmts = fmap (fmap fillTypesInStmt) stmts
       , _symStmts = stmts
+      , _varSymMap = s ^. varSymMap
       , _varSymTypeMap = pilVarMap
       , _varEqMap = eqMap
       , _errors = errs
       }
       where
+        fillTypesInStmt :: InfoExpression SymInfo
+                        -> InfoExpression (SymInfo, Maybe SymType)
+        fillTypesInStmt x = InfoExpression
+          ( x ^. info
+          , HashMap.lookup (x ^. info . sym) solutionsMap
+          )
+          (fmap fillTypesInStmt $ x ^. op)
+
         solutionsMap :: HashMap Sym SymType
         solutionsMap = HashMap.fromList . fmap coerce $ sols
 
