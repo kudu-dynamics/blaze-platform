@@ -243,8 +243,14 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
     return [ (r, SType $ TBitVector sz') ]
 
-  -- each arg is 1/2 size of return arg?
---   VAR_SPLIT _ -> bitvecRet
+  -- binja is wrong about the size of VarSplit.
+  Pil.VAR_SPLIT x -> do
+    low <- lookupVarSym $ x ^. Pil.low
+    high <- lookupVarSym $ x ^. Pil.high
+    return [ (r, SType $ TBitVector sz2x')
+           , (low, SType $ TBitVector sz')
+           , (high, SType $ TBitVector sz')
+           ]
 
   Pil.XOR x -> bitVectorBinOp x
   Pil.ZX x -> integralExtendOp x
@@ -572,6 +578,7 @@ isTypeDescendent (TFloat _) t = case t of
 isTypeDescendent (TBitVector _) t = case t of
   TBitVector _ -> True
   -- I think these should be descendents
+  TFloat _ -> True
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
@@ -706,6 +713,7 @@ unifyWithSubsM (SType pt1) (SType pt2) =
         _ -> err
       TBitVector w1 -> case pt2 of
         TBitVector w2 -> stype $ TBitVector <$> unifyBitWidth w1 w2
+        TFloat w2 -> stype $ TFloat <$> unifyBitWidth w1 w2
         TInt w2 s -> stype $ TInt <$> unifyBitWidth w1 w2 <*> pure s
         TChar -> unifyBitWidth w1 (SType $ TVBitWidth 8) >> return (SType TChar)
         _ -> err

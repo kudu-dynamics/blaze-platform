@@ -165,3 +165,13 @@ matchLoadWithSub :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchLoadWithSub (MLIL.LOAD (MLIL.LoadOp (MLIL.Expression _ _ _ (MLIL.SUB _)))) = True
 matchLoadWithSub _ = False
 
+
+matchUnevenVarSplit :: OpWithSize F -> Bool
+matchUnevenVarSplit (OpWithSize sz (MLIL.VAR_SPLIT_SSA (MLIL.VarSplitSSAOp v1 v2))) = 
+  maybe True not $ do
+    w1 <- getWidth v1
+    w2 <- getWidth v2
+    return $ w1 == w2 && (2 * w1 == coerce sz)
+  where
+    getWidth v = v ^? MLIL.var . Var.varType . _Just . Var.width
+matchUnevenVarSplit _ = False
