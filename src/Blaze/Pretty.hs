@@ -28,6 +28,7 @@ import Text.Printf
 import qualified Blaze.Types.Pil.Inference as PI
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -127,7 +128,7 @@ prettyBinop ::
   Symbol ->
   a ->
   Text
-prettyBinop sym op = Text.pack $ printf "%s (%s) (%s)" left sym right
+prettyBinop sym op = Text.pack $ printf "%s (%s) (%s)" sym left right
   where
     left = pretty (op ^. Pil.left)
     right = pretty (op ^. Pil.right)
@@ -349,7 +350,11 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TPointer bitWidth pointeeType -> "Pointer" <-> pretty bitWidth
                                         <-> paren (pretty pointeeType)
     PI.TRecord _m -> "Record" -- TODO fields
-    PI.TBottom -> "Bottom"
+    PI.TBottom s -> "Bottom" <-> ids
+      where
+        ids = case HashSet.toList s of
+          [x] -> pretty x
+          xs -> pretty xs
     PI.TFunction _ret _params -> "Func"
 
     PI.THasWidth t -> "HasWidth " <-> pretty t

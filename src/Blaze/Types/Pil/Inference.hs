@@ -16,6 +16,12 @@ type ByteWidth = Bytes
 charSize :: BitWidth
 charSize = 8
 
+data Sym = Sym Int
+         deriving (Eq, Ord, Read, Show, Generic)
+
+instance Hashable Sym
+
+
 -- NOTE: I got rid of non-concrete types, like TNumber,
 --       but for function signatures they should be added back in
 data PilType t = TArray { len :: t, elemType :: t }
@@ -27,7 +33,8 @@ data PilType t = TArray { len :: t, elemType :: t }
                | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'?
                                   t -- type
                          )
-               | TBottom
+               -- Bottom is labeled with error info
+               | TBottom { symId :: HashSet Sym }
                | TFunction { ret :: t, params :: [t] }
 
                -- class constraint (t should be TVBitWidth)
@@ -46,10 +53,6 @@ data T = T (PilType T)
 unT :: T -> PilType T
 unT (T pt) = pt
 
-data Sym = Sym Int
-         deriving (Eq, Ord, Read, Show, Generic)
-
-instance Hashable Sym
 
 data SymType = SVar Sym
              | SType (PilType SymType)
@@ -180,6 +183,7 @@ data UnifyWithSubsState = UnifyWithSubsState
                           { _accSubs :: [Constraint]
                             -- , _solutions :: [(Sym, SymType)]
                              -- , _errors :: [UnifyError]
+                          , _eqMap :: HashMap Sym (HashSet Sym)
                           } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyWithSubsState)
 

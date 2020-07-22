@@ -563,17 +563,17 @@ instance IsType a => IsType (PilType a) where
 isTypeDescendent :: PilType a -> PilType a -> Bool
 isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TFloat _) t = case t of
   TFloat _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TBitVector _) t = case t of
   TBitVector _ -> True
@@ -582,27 +582,27 @@ isTypeDescendent (TBitVector _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TPointer _ _) t = case t of
   TPointer _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent TChar t = case t of
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
   TPointer _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
-isTypeDescendent TBottom t = case t of
-  TBottom -> True
+isTypeDescendent (TBottom _) t = case t of
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (THasWidth _) t = case t of
   THasWidth _ -> True
@@ -610,15 +610,19 @@ isTypeDescendent (THasWidth _) t = case t of
   TInt _ _ -> True
   TFloat _ -> True
   TPointer _ _ -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVBitWidth _) t = case t of
   TVBitWidth _ -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVLength _) t = case t of
   TVLength _ -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVSign _) t = case t of
   TVSign _ -> True
+  TBottom _ -> True
   _ -> False
 
 
@@ -665,7 +669,7 @@ addSubs subs = accSubs %= (<> subs)
 
 unifyWithSubs :: SymType -> SymType -> (Either UnifyError SymType, [Constraint])
 unifyWithSubs t1 t2 =
-  let (er, ustate) = runUnifyWithSubs (unifyWithSubsM t1 t2) (UnifyWithSubsState []) in
+  let (er, ustate) = runUnifyWithSubs (unifyWithSubsM t1 t2) (UnifyWithSubsState [] HashMap.empty) in
     (er, ustate ^. accSubs)
 
 -- | returns unification to most specific and saves substitutions in state
@@ -677,6 +681,9 @@ unifyWithSubsM (SVar a) (SVar b) = addSubs [Constraint (b, SVar a)]
                                            >> pure (SVar a)
 unifyWithSubsM (SVar a) (SType pt) = addSubs [Constraint (a, SType pt)] >> pure (SType pt)
 unifyWithSubsM a@(SType _) b@(SVar _) = unifyWithSubsM b a
+unifyWithSubsM (SType (TBottom s1)) (SType (TBottom s2)) = return . SType . TBottom $ s1 <> s1
+unifyWithSubsM (SType (TBottom s)) _ = return . SType . TBottom $ s
+unifyWithSubsM _ (SType (TBottom s)) = return . SType . TBottom $ s
 unifyWithSubsM (SType pt1) (SType pt2) =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
@@ -845,7 +852,8 @@ getMostUnifiedConstraintAndSubs (Constraint cx) cxs = foldr f (Solution cx, [], 
       | cv /= sv = (Solution (sv, st), (Constraint (cv,ct)):newConstraints, errs)
       | otherwise = let (er, subs) = unifyWithSubs st ct in
           case er of
-            Left uerr -> ( Solution (sv, SType TBottom) -- type error
+            Left uerr -> ( Solution (sv
+                                    , SType . TBottom $ HashSet.singleton cv)
                          , subs <> newConstraints
                          , (UnifyConstraintsError cv uerr):errs
                          )
