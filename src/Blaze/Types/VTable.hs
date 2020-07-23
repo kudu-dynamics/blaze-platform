@@ -9,7 +9,6 @@ import Blaze.Prelude
 
 type Ctx = ReaderT VTContext IO
 
-
 data VTContext
   = VTContext
     { _width :: AddressWidth,
@@ -25,9 +24,7 @@ data VTable
         _vFunctions :: [Function],
         _parents :: Maybe [VTable]
       }
-  deriving (Eq, Ord, Show, Generic)
-
-instance Hashable VTable
+  deriving (Eq, Ord, Show)
 
 data TypeInfo
   = TypeInfo
@@ -35,9 +32,7 @@ data TypeInfo
         _name :: Maybe Text,
         _parentsTypeInfo :: Maybe TypeInfo
       }
-  deriving (Eq, Ord, Show, Generic)
-
-instance Hashable TypeInfo
+  deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''VTable)
 $(makeFieldsNoPrefix ''TypeInfo)

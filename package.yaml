@@ -105,7 +105,6 @@ library:
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
   - Blaze.Import.Source.BinaryNinja
-  - Blaze.IndirectCallResolution
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
@@ -124,13 +123,10 @@ library:
   - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
-  - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Solver
-  - Blaze.Types.VTable
   - Blaze.Util.MLIL
-  - Blaze.VTable
 
 include-dirs:
   - "src"

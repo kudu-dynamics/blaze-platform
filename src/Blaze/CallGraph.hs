@@ -1,7 +1,6 @@
 module Blaze.CallGraph
   ( module Exports,
     getCallGraph,
-    getUndirectedCallGraph
   )
 where
 
@@ -13,12 +12,6 @@ import qualified Streamly.Prelude as S
 
 getCallGraph :: CallGraphImporter a => a -> [Function] -> IO CallGraph
 getCallGraph = getCallGraphStreaming
-
-getUndirectedCallGraph :: CallGraph -> CallGraph
-getUndirectedCallGraph cg = G.addNodes (toList $ G.nodes cg) . G.fromEdges . fmap ((),) $ edges <> map inverseEdge edges
-  where
-    edges = snd <$> G.edges cg
-    inverseEdge (a,b) = (b,a)
 
 getCallGraphStreaming :: CallGraphImporter a => a -> [Function] -> IO CallGraph
 getCallGraphStreaming importer funcs = do
@@ -35,3 +28,4 @@ getCallGraphEdges imp funcs = do
   callee <- S.fromList funcs
   callSite <- liftListIO $ getCallSites imp callee
   S.yield (callSite ^. caller, callee)
+

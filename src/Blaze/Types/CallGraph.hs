@@ -34,4 +34,5 @@ newtype CallDest
   deriving (Eq, Ord, Show)
 
 $(makeFields ''Function)
+
 $(makeFields ''CallSite)

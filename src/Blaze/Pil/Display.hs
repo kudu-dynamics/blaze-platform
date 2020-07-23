@@ -6,7 +6,6 @@ import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
-import qualified Data.HashMap.Strict as HMap
 import Text.Printf
 
 type Symbol = Text
@@ -281,13 +280,5 @@ instance Disp ByteOffset where
 instance Disp [Pil.Stmt] where
   disp = Text.intercalate "\n" . fmap disp
 
-instance (Disp a, Disp b) => Disp (HashMap a b) where
-  disp = Text.intercalate "\n" . fmap disp . HMap.toList
-
-instance (Disp a, Disp b) => Disp (a, b) where
-  disp (x,y) = "(" <> disp x <> ", " <> disp y <> ")"
-
 pdisp :: (MonadIO m, Disp a) => a -> m ()
 pdisp = putText . disp
-
-
