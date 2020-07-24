@@ -22,9 +22,9 @@ getTopOffset_ :: Address -> VTable.Ctx (Maybe Bytes)
 getTopOffset_ vptr = do
   ctx <- ask
   let (AddressWidth bitW) = ctx ^. VTable.width
-  liftIO $ seekBinaryReader (ctx ^. VTable.reader) (fromIntegral $ vptr - toAddress 2 * fromIntegral bitW)
+  liftIO $ seekBinaryReader (ctx ^. VTable.reader) (fromIntegral $ vptr - toAddress 2 * (fromIntegral . toBytes) bitW)
   case ctx ^. VTable.width of
-    (AddressWidth 8) -> fmap (fmap Bytes) . liftIO $ read64 (ctx ^. VTable.reader)
+    (AddressWidth 64) -> fmap (fmap Bytes) . liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
   where
     toAddress :: Integer -> Address
@@ -88,7 +88,7 @@ getTypeInfo_ vptr = do
   let (AddressWidth bitW) = ctx ^. VTable.width
   liftIO $ seekBinaryReader readr $ fromIntegral vptr - toBytes bitW
   ptrToTypeInfo <- case ctx ^. VTable.width of
-    (AddressWidth 8) -> liftIO $ read64 (ctx ^. VTable.reader)
+    (AddressWidth 64) -> liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
   case ptrToTypeInfo of
     Nothing -> return Nothing
@@ -162,7 +162,7 @@ isVtable bv addr = do
   readr <- getDefaultReader bv
   BN.seekBinaryReader readr $ fromIntegral addr
   getAddressSize bv >>= \case
-    (AddressWidth 8) -> BN.read64 readr >>= \case
+    (AddressWidth 64) -> BN.read64 readr >>= \case
       Nothing -> return False
       Just ptr ->
         getSectionTypeOfAddr bv addr >>= \case
