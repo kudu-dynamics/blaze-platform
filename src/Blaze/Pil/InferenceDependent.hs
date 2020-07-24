@@ -226,7 +226,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.SX x -> integralExtendOp x
 
 --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
---   UNIMPL _ -> bitvecRet -- should this be unknown?
+  Pil.UNIMPL _ -> return [ (r, SType $ TBitVector sz' ) ]
   Pil.UPDATE_VAR x -> do
     v <- lookupVarSym $ x ^. Pil.dest
     -- How should src and dest be related?
@@ -662,6 +662,8 @@ secondRangeContainsFirst (start, end) (start', end') =
 
 
 ---------- unification and constraint solving ----------------------
+
+
 
 addSubs :: MonadState UnifyWithSubsState m => [Constraint] -> m ()
 addSubs subs = accSubs %= (<> subs)

@@ -7,6 +7,7 @@ import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
+import qualified Data.HashMap.Strict as HMap
 import Text.Printf
 import qualified Blaze.Types.Pil.Inference as PI
 
@@ -295,3 +296,5 @@ instance (Disp a, Disp b) => Disp (HashMap a b) where
 
 pdisp :: (MonadIO m, Disp a) => a -> m ()
 pdisp = putText . disp
+
+

@@ -8,6 +8,7 @@ import Blaze.Types.Pil ( ExprOp
                        )
 -- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
 
 type BitWidth = Bits
@@ -26,9 +27,9 @@ instance Hashable Sym
 --       but for function signatures they should be added back in
 data PilType t = TArray { len :: t, elemType :: t }
                | TChar
-               | TInt { bitWidth :: t, signed :: t }
+               | TInt { classVar :: Sym, bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }
-               | TBitVector { bitWidth :: t }
+               | TBitVector { classVar :: Sym, bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
                | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'?
                                   t -- type
@@ -183,9 +184,39 @@ data UnifyWithSubsState = UnifyWithSubsState
                           { _accSubs :: [Constraint]
                             -- , _solutions :: [(Sym, SymType)]
                              -- , _errors :: [UnifyError]
-                          , _eqMap :: HashMap Sym (HashSet Sym)
+
+                          -- this is a map of syms to their "original" sym
+                          -- like if you add (a, b), (b, c)
+                          -- it should store a | b  -> c
+                          , _originMap :: HashMap Sym Sym
                           } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyWithSubsState)
+
+-- | Creates a map of "origins" that vars are equal to.
+-- The "origin" for vars remains the same, i.e. if you add (a, b)
+-- to a map where multiple vars map to `a`, it just adds (b, a) to map
+-- instead of adding (a, b) and updating all the `a`s to `b`.
+addToOriginMap :: Sym -> Sym -> HashMap Sym Sym -> HashMap Sym Sym
+addToOriginMap a b m =
+  case ((a,) <$> HashMap.lookup b m) <|> ((b,) <$> HashMap.lookup a m) of
+    Nothing -> HashMap.insert a b (HashMap.insert b b m)
+    Just (c, d)
+      | c == d -> m
+      | otherwise -> HashMap.insert c d m
+
+addVarEq :: MonadState UnifyWithSubsState m => Sym -> Sym -> m ()
+addVarEq a b = originMap %= addToOriginMap a b
+
+originMapToGroupMap :: HashMap Sym Sym -> HashMap Sym (HashSet Sym) 
+originMapToGroupMap = foldr f HashMap.empty . HashMap.toList
+  where
+    f (a, b) m = HashMap.alter g b m
+      where
+        g Nothing = Just $ HashSet.singleton a
+        g (Just s) = Just $ HashSet.insert a s
+
+originMapToGroups :: HashMap Sym Sym -> HashSet (HashSet Sym)
+originMapToGroups = HashSet.fromList . HashMap.elems . originMapToGroupMap
 
 data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
                                , _errors :: [UnifyError]
