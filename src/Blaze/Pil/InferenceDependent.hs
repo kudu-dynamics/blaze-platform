@@ -664,7 +664,6 @@ secondRangeContainsFirst (start, end) (start', end') =
 ---------- unification and constraint solving ----------------------
 
 
-
 addSubs :: MonadState UnifyWithSubsState m => [Constraint] -> m ()
 addSubs subs = accSubs %= (<> subs)
 
@@ -697,8 +696,8 @@ unifyWithSubsM (SType pt1) (SType pt2) =
           | otherwise -> err -- array length mismatch
         (TPointer _w et2) -> stype $ TArray len1 <$> unifyWithSubsM et1 et2
         _ -> err
-      TInt w1 sign1 -> case pt2 of
-        TInt w2 sign2 -> stype $ TInt <$> unifyBitWidth w1 w2
+      TInt _ w1 sign1 -> case pt2 of
+        TInt _ w2 sign2 -> stype $ TInt <$> unifyBitWidth w1 w2
                                       <*> unifySign sign1 sign2
         TPointer w2 pointeeType1 -> do
           void . unifyWithSubsM sign1 . SType $ TVSign False
