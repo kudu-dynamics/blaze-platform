@@ -5,6 +5,7 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
 import qualified Blaze.Pil as Pil
+import qualified Blaze.Pil.Construct as P
 import Blaze.Prelude
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as Func
@@ -33,6 +34,8 @@ import Blaze.Types.Pil
     runConverter,
   )
 import qualified Blaze.Types.Pil as Pil
+import Data.Coerce (coerce)
+import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 
 -- convert path to [Pil]
@@ -112,8 +115,19 @@ getCallDestFunc x = case x ^. Func.callDest of
   (Func.DestFunc f) -> f
   _ -> error "Only calls to known functions may be expanded."
 
-paramArgDef :: BNVar.Variable -> Pil.Expression -> Converter Stmt
-paramArgDef param arg = _
+paramArgDef :: Pil.Symbol -> Pil.Expression -> Converter Stmt
+paramArgDef param arg = do
+  ctx <- use Pil.ctx
+  -- TODO: Sort out use of mapsTo when defining the PilVar
+  let pilVar = Pil.PilVar param (Just ctx) HS.empty
+  return $ Pil.Def (Pil.DefOp pilVar arg)
+
+createParamSymbol :: Int -> BNVar.Variable -> Pil.Symbol
+createParamSymbol version var =
+  coerce name <> "#" <> show version
+    where
+      name :: Text
+      name = var ^. BNVar.name
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
@@ -123,8 +137,9 @@ convertCallNode n = do
   params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
   let callInstr = n ^. (Path.callSite . Func.callInstr)
       argExprs = Pil.convertExpr ctx <$> callInstr ^. Func.params
-      defs = zipWith paramArgDef params argExprs
-  return [ Pil.EnterContext . Pil.EnterContextOp $ ctx ]
+      paramSyms = createParamSymbol 0 <$> params
+  defs <- zipWithM paramArgDef paramSyms argExprs
+  return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
 
 convertRetNode :: RetNode -> Converter [Stmt]
 convertRetNode _ = do
