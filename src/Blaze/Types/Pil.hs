@@ -194,13 +194,14 @@ type Symbol = Text
 -- which do not correspond to variables in the source program.)
 data PilVar = PilVar
   { _symbol :: Symbol
-  -- TODO: Reassess use of Maybe for func and ctxIndex. 
+  -- TODO: Reassess use of Maybe for ctx. 
   --       Currently needed when introducing synthesized PilVars
   --       when replacing store statements. May also be useful for 
   --       introducing arbitrary symbols used in constraints?
+  --       Another option is to explicitly use a default context
+  --       Related to this is having Blaze.Pil.Construct functions
+  --       play nice with context management.
   , _ctx :: Maybe Ctx
-  -- , _func :: Maybe Function
-  -- , _ctxIndex :: Maybe CtxIndex
   , _mapsTo :: HashSet SSAVariableRef
   } deriving (Eq, Ord, Show, Generic)
            
