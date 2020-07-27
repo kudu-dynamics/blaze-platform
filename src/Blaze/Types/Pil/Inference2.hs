@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Blaze.Types.Pil.Inference where
+module Blaze.Types.Pil.Inference2 where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import Blaze.Types.Pil ( ExprOp
@@ -23,8 +23,6 @@ data Sym = Sym Int
 instance Hashable Sym
 
 
--- NOTE: I got rid of non-concrete types, like TNumber,
---       but for function signatures they should be added back in
 data PilType t = TArray { len :: t, elemType :: t }
                | TChar
                | TInt { bitWidth :: t, signed :: t }
@@ -37,11 +35,7 @@ data PilType t = TArray { len :: t, elemType :: t }
                -- Bottom is labeled with error info
                | TBottom { symId :: HashSet Sym }
                | TFunction { ret :: t, params :: [t] }
-
-               -- class constraint (t should be TVBitWidth)
-               -- maybe should just be BitVector?
-               | THasWidth t
-               
+              
                -- type level values for some dependent-type action
                | TVBitWidth BitWidth
                | TVLength Word64
@@ -56,7 +50,7 @@ unT (T pt) = pt
 
 
 data SymType = SVar Sym
-             | SType (PilType SymType)
+             | SType (PilType Sym)
              deriving (Eq, Ord, Read, Show, Generic)
 
 -- XVars are existential vars used for function sigs
@@ -65,7 +59,7 @@ data ExistentialType = XVar Text
                      | XType (PilType ExistentialType)
                      deriving (Eq, Ord, Read, Show, Generic)
 
-data CheckerError = CannotFindPilVarInVarSymMap PilVar
+data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
                   | CannotFindSymInSymMap
                   | UnhandledExpr
                   | UnhandledStmt
@@ -92,9 +86,9 @@ type SymTypeExpression = InfoExpression SymType
 -- | Goal is to generate statements with TypedExpressions
 type TypedExpression = InfoExpression (PilType T)
 
-data UnifyError = UnifyError (PilType SymType) (PilType SymType) UnifyError
-                | IncompatibleTypes (PilType SymType) (PilType SymType)
-                | OverlappingRecordField { recordFields :: (HashMap BitWidth SymType)
+data UnifyError = UnifyError (PilType Sym) (PilType Sym) UnifyError
+                | IncompatibleTypes (PilType Sym) (PilType Sym)
+                | OverlappingRecordField { recordFields :: (HashMap BitWidth Sym)
                                          , offendingOffset :: BitWidth
                                          }
                 deriving (Eq, Ord, Read, Show, Generic)
@@ -132,33 +126,33 @@ data TypeReport = TypeReport
 $(makeFieldsNoPrefix ''TypeReport)
 
 
--- | The "Checker" monad is actually currently just used to generate symbols and
+-- | The "ConstraintGen" monad is actually currently just used to generate symbols and
 --   constraints for every expression and var. it should be renamed
-data CheckerState = CheckerState
+data ConstraintGenState = ConstraintGenState
   { _currentSym :: Sym
   , _symMap :: HashMap Sym SymExpression
   , _varSymMap :: HashMap PilVar Sym
   } deriving (Eq, Ord, Show)
 
-$(makeFieldsNoPrefix ''CheckerState)
+$(makeFieldsNoPrefix ''ConstraintGenState)
 
-emptyCheckerState :: CheckerState
-emptyCheckerState = CheckerState (Sym 0) HashMap.empty HashMap.empty
+emptyConstraintGenState :: ConstraintGenState
+emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty
 
-newtype Checker a = Checker
-  { _runChecker :: ExceptT CheckerError (StateT CheckerState Identity) a }
+newtype ConstraintGen a = ConstraintGen
+  { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }
   deriving ( Functor
            , Applicative
            , Monad
-           , MonadError CheckerError
-           , MonadState CheckerState
+           , MonadError ConstraintGenError
+           , MonadState ConstraintGenState
            )
 
-runChecker :: Checker a -> CheckerState -> (Either CheckerError a, CheckerState)
-runChecker m ss = runIdentity . flip runStateT ss . runExceptT . _runChecker $ m
+runConstraintGen :: ConstraintGen a -> ConstraintGenState -> (Either ConstraintGenError a, ConstraintGenState)
+runConstraintGen m ss = runIdentity . flip runStateT ss . runExceptT . _runConstraintGen $ m
 
-runChecker_ :: Checker a -> (Either CheckerError a, CheckerState)
-runChecker_ m = runChecker m emptyCheckerState
+runConstraintGen_ :: ConstraintGen a -> (Either ConstraintGenError a, ConstraintGenState)
+runConstraintGen_ m = runConstraintGen m emptyConstraintGenState
 
 
 ---------- unification and constraint solving ----------------------
@@ -176,36 +170,41 @@ newtype Constraint = Constraint (Sym, SymType)
 -- | complex types might still contain SVars subject to substitution
 -- | but the type structure shouldn't change.
 
-newtype Solution = Solution (Sym, SymType)
+newtype Solution = Solution (Sym, PilType Sym)
   deriving (Eq, Ord, Show, Generic)
 
 
-data UnifyWithSubsState = UnifyWithSubsState
-                          { _accSubs :: [Constraint]
-                            -- , _solutions :: [(Sym, SymType)]
-                             -- , _errors :: [UnifyError]
-
-                          -- this is a map of syms to their "original" sym
-                          -- like if you add (a, b), (b, c)
-                          -- it should store a | b  -> c
-                          , _originMap :: HashMap Sym Sym
-                          } deriving (Eq, Ord, Show)
-$(makeFieldsNoPrefix ''UnifyWithSubsState)
+data UnifyState = UnifyState
+                  { _constraints :: [Constraint]
+                  , _solutions :: HashMap Sym (PilType Sym)
+                  , _errors :: [UnifyError]
+                            
+                  -- this is a map of syms to their "original" sym
+                  -- like if you add (a, b), (b, c)
+                  -- it should store a | b  -> c
+                  , _originMap :: HashMap Sym Sym
+                  } deriving (Eq, Ord, Show)
+$(makeFieldsNoPrefix ''UnifyState)
 
 -- | Creates a map of "origins" that vars are equal to.
 -- The "origin" for vars remains the same, i.e. if you add (a, b)
 -- to a map where multiple vars map to `a`, it just adds (b, a) to map
 -- instead of adding (a, b) and updating all the `a`s to `b`.
-addToOriginMap :: Sym -> Sym -> HashMap Sym Sym -> HashMap Sym Sym
+-- returns updated map and "origin" var that 'a' and 'b' are pointing to
+addToOriginMap :: Sym -> Sym -> HashMap Sym Sym -> (Sym, HashMap Sym Sym)
 addToOriginMap a b m =
   case ((a,) <$> HashMap.lookup b m) <|> ((b,) <$> HashMap.lookup a m) of
-    Nothing -> HashMap.insert a b (HashMap.insert b b m)
+    Nothing -> (b, HashMap.insert a b (HashMap.insert b b m))
     Just (c, d)
-      | c == d -> m
-      | otherwise -> HashMap.insert c d m
+      | c == d -> (d, m)
+      | otherwise -> (d, HashMap.insert c d m)
 
-addVarEq :: MonadState UnifyWithSubsState m => Sym -> Sym -> m ()
-addVarEq a b = originMap %= addToOriginMap a b
+addVarEq :: MonadState UnifyState m => Sym -> Sym -> m Sym
+addVarEq a b = do
+  m <- use originMap
+  let (v, m') = addToOriginMap a b m
+  originMap .= m'
+  return v
 
 originMapToGroupMap :: HashMap Sym Sym -> HashMap Sym (HashSet Sym) 
 originMapToGroupMap = foldr f HashMap.empty . HashMap.toList
@@ -224,16 +223,16 @@ data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
 $(makeFieldsNoPrefix ''UnifyResult)
 
 -- | monad just used for unifyWithSubs function and its helpers
-newtype UnifyWithSubs a = UnifyWithSubs { _runUnifyWithSubs :: ExceptT UnifyError (StateT UnifyWithSubsState Identity) a }
+newtype Unify a = Unify { _runUnify :: ExceptT UnifyError (StateT UnifyState Identity) a }
   deriving ( Functor
            , Applicative
            , Monad
            , MonadError UnifyError
-           , MonadState UnifyWithSubsState
+           , MonadState UnifyState
            )
 
-runUnifyWithSubs :: UnifyWithSubs a -> UnifyWithSubsState -> (Either UnifyError a, UnifyWithSubsState)
-runUnifyWithSubs m s = runIdentity . flip runStateT s . runExceptT . _runUnifyWithSubs $ m
+runUnify :: Unify a -> UnifyState -> (Either UnifyError a, UnifyState)
+runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
 
 data UnifyConstraintsResult = UnifyConstraintsResult
   { _constraints :: [(Sym, SymType)]
