@@ -55,9 +55,12 @@ updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 
 -- | Unifies constraint with all other constraints and solutions in state.
 unifyConstraint :: Constraint -> Unify ()
-unifyConstraint (Constraint (a, (SVar b)))
-  | a == b = return ()  -- redundant constraint
-  | otherwise = do
+unifyConstraint cx = do
+  omap <- use originMap
+  case varSubst omap cx of
+    (Constraint (a, (SVar b))) 
+      | a == b -> return ()  -- redundant constraint
+      | otherwise -> do
       c <- addVarEq a b
       let subMap = HashMap.fromList [(a, c), (b, c)]
       constraints %= fmap (varSubst subMap)
@@ -75,10 +78,20 @@ unifyConstraint (Constraint (a, (SVar b)))
 
         -- in this case, both 'a' and 'b' have solutions.
         -- they must be unified, deleted and replaced with new solution at 'c'
+        -- though really one of them is 'c' if the sols were constructed correctly
         (Just t1, Just t2) -> do
           t <- unifyPilTypes t1 t2
           solutions %= HashMap.insert c t . HashMap.delete a . HashMap.delete b
-          
+
+-- look up 'a' in solutions map and unify it with existing solution for 'a'
+unifyConstraint (Constraint (a, (SType t))) = do
+  sols <- use solutions
+  case HashMap.lookup a sols of
+    Nothing -> solutions %= HashMap.insert a t
+    Just t' -> do
+      t'' <- unifyPilTypes t t'
+      solutions %= HashMap.insert a t''
+
         
 
 
@@ -90,4 +103,4 @@ unifyConstraint (Constraint (a, (SVar b)))
 --   undefined
 
 unifyPilTypes :: PilType Sym -> PilType Sym -> Unify (PilType Sym)
-unifyPilTypes = undefined
+unifyPilTypes pt1 pt2 = return pt1 -- TODO 

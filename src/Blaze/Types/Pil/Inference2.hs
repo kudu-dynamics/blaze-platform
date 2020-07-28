@@ -176,7 +176,10 @@ newtype Solution = Solution (Sym, PilType Sym)
 
 data UnifyState = UnifyState
                   { _constraints :: [Constraint]
+
+                  -- solution key syms should all be origins in originMap
                   , _solutions :: HashMap Sym (PilType Sym)
+
                   , _errors :: [UnifyError]
                             
                   -- this is a map of syms to their "original" sym
@@ -186,25 +189,43 @@ data UnifyState = UnifyState
                   } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyState)
 
+addConstraint :: MonadState UnifyState m => Constraint -> m ()
+addConstraint cx = constraints %= (cx:)
+
 -- | Creates a map of "origins" that vars are equal to.
 -- The "origin" for vars remains the same, i.e. if you add (a, b)
 -- to a map where multiple vars map to `a`, it just adds (b, a) to map
 -- instead of adding (a, b) and updating all the `a`s to `b`.
 -- returns updated map and "origin" var that 'a' and 'b' are pointing to
-addToOriginMap :: Sym -> Sym -> HashMap Sym Sym -> (Sym, HashMap Sym Sym)
-addToOriginMap a b m =
-  case ((a,) <$> HashMap.lookup b m) <|> ((b,) <$> HashMap.lookup a m) of
-    Nothing -> (b, HashMap.insert a b (HashMap.insert b b m))
-    Just (c, d)
-      | c == d -> (d, m)
-      | otherwise -> (d, HashMap.insert c d m)
+addToOriginMap :: Sym -> Sym -> HashMap Sym Sym -> (Sym, Maybe Sym, HashMap Sym Sym)
+addToOriginMap a b m = case (HashMap.lookup a m, HashMap.lookup b m) of
+  (Nothing, Nothing) -> (b, Nothing, HashMap.insert a b (HashMap.insert b b m))
+  (Just c, Nothing) -> (c, Nothing, HashMap.insert b c m)
+  (Nothing, Just c) -> (c, Nothing, HashMap.insert a c m)
+  (Just c, Just d)
+    | c == d -> (c, Nothing, m)
+    | otherwise -> (d, Just c, fmap (\x -> if x == c then d else x) m)
 
+-- | Adds new var equality, returning the origin sym.
+-- If the equality merges two groups, it picks the origin associated
+-- with the second symbol and changes the origins of the first group to
+-- the second origin. It also removes the solution associated with the
+-- first origin and adds it as constraint to be later merged as solution.
 addVarEq :: MonadState UnifyState m => Sym -> Sym -> m Sym
 addVarEq a b = do
   m <- use originMap
-  let (v, m') = addToOriginMap a b m
+  let (v, mr, m') = addToOriginMap a b m
+  case mr of
+    Nothing -> return ()
+    Just retired -> do
+      sols <- use solutions
+      case HashMap.lookup retired sols of
+        Nothing -> return ()
+        Just rt -> do
+          addConstraint $ Constraint (v, SType rt)
+          solutions %= HashMap.delete retired
   originMap .= m'
-  return v
+  return (v)
 
 originMapToGroupMap :: HashMap Sym Sym -> HashMap Sym (HashSet Sym) 
 originMapToGroupMap = foldr f HashMap.empty . HashMap.toList
