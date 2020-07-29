@@ -43,6 +43,7 @@ import Data.Sequence
   )
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
+import Data.BinaryAnalysis (Bytes(Bytes))
 
 widthToSize :: Bits -> Pil.OperationSize
 widthToSize x = Pil.OperationSize $ toBytes x
