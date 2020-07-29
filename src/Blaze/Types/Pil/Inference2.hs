@@ -33,7 +33,7 @@ data PilType t = TArray { len :: t, elemType :: t }
                                   t -- type
                          )
                -- Bottom is labeled with error info
-               | TBottom { symId :: HashSet Sym }
+               | TBottom
                | TFunction { ret :: t, params :: [t] }
               
                -- type level values for some dependent-type action
@@ -189,6 +189,7 @@ data UnifyState = UnifyState
                   } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyState)
 
+
 addConstraint :: MonadState UnifyState m => Constraint -> m ()
 addConstraint cx = constraints %= (cx:)
 
@@ -217,13 +218,13 @@ addVarEq a b = do
   let (v, mr, m') = addToOriginMap a b m
   case mr of
     Nothing -> return ()
-    Just retired -> do
+    Just retiredSym -> do
       sols <- use solutions
-      case HashMap.lookup retired sols of
+      case HashMap.lookup retiredSym sols of
         Nothing -> return ()
         Just rt -> do
-          addConstraint $ Constraint (v, SType rt)
-          solutions %= HashMap.delete retired
+          addConstraint $ Constraint (retiredSym, SType rt)
+          solutions %= HashMap.delete retiredSym
   originMap .= m'
   return (v)
 
@@ -254,6 +255,13 @@ newtype Unify a = Unify { _runUnify :: ExceptT UnifyError (StateT UnifyState Ide
 
 runUnify :: Unify a -> UnifyState -> (Either UnifyError a, UnifyState)
 runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
+
+popConstraint :: Unify (Maybe Constraint)
+popConstraint = use constraints >>= \case
+  [] -> return Nothing
+  (cx:cxs) -> do
+    constraints .= cxs
+    return $ Just cx
 
 data UnifyConstraintsResult = UnifyConstraintsResult
   { _constraints :: [(Sym, SymType)]
