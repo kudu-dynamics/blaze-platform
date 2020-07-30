@@ -180,3 +180,6 @@ getStringRefs :: BNBinaryView -> IO [BNStringReference]
 getStringRefs bv =
   getStrings' bv
   >>= manifestArrayWithFree return freeStringReferenceList
+
+createDatabase :: BNBinaryView -> FilePath -> IO Bool
+createDatabase bv fp = createSaveSettings >>= createDatabase' bv fp

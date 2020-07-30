@@ -232,7 +232,7 @@ executables:
       - '"-with-rtsopts=-A256m -n16m"'
     dependencies:
       - base
-      - binja
+      # - binja
   gen-mlil-op-modules:
     main: Main.hs
     source-dirs: app/gen-mlil-op-modules

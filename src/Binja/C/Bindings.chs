@@ -42,7 +42,9 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNSaveToFilename as saveToFilename {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
 
-{#fun unsafe BNCreateDatabase as createDatabase {withPtr* `BNBinaryView', `String', `Bool'} -> `Bool' toBool #}
+{#fun unsafe BNCreateSaveSettings as createSaveSettings {} -> `BNSaveSettings' safePtr* #}
+
+{#fun unsafe BNCreateDatabase as createDatabase' {withPtr* `BNBinaryView', `String', withPtr* `BNSaveSettings'} -> `Bool' toBool #}
 
 {#fun unsafe BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
 
@@ -80,7 +82,10 @@ import Binja.Types.Symbol (BNNameSpace)
 
 {#fun unsafe BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-{#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' fromIntegral #}
+bytesToAddressWidth :: Integral a => a -> AddressWidth
+bytesToAddressWidth = fromIntegral . (*8)
+
+{#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' bytesToAddressWidth #}
 
 ---- Stream reader
 

@@ -55,7 +55,7 @@ getBestViewType bv = do
 saveBndb :: BNBinaryView -> FilePath -> IO Bool
 saveBndb bv fp = getFileForView bv
   >>= flip getFileViewOfType "Raw"
-  >>= maybe (return False) (\p -> createDatabase p fp False)
+  >>= maybe (return False) (\p -> createDatabase p fp)
 
 getBinaryView :: FilePath -> IO (Either Text BNBinaryView)
 getBinaryView fp = runExceptT $ do
