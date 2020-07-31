@@ -163,7 +163,6 @@ unifyPilTypes pt1 pt2 =
       TArray len1 et1 -> case pt2 of
         (TArray len2 et2) ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
-        (TPointer _w et2) -> TArray len1 <$> addVarEq et1 et2
         _ -> err
       TInt w1 sign1 -> case pt2 of
         TInt w2 sign2 -> TInt <$> addVarEq w1 w2
@@ -195,8 +194,14 @@ unifyPilTypes pt1 pt2 =
         TPointer w2 pointeeType2 ->
           TPointer <$> addVarEq w1 w2
                    <*> addVarEq pointeeType1 pointeeType2
+        TArray len1 et2 -> TArray len1 <$> addVarEq pointeeType1 et2
+
         _ -> err
       TFunction ret1 params1 -> err -- don't know how to unify at the moment...
+        -- need map of FuncArg(name,address,arg#/ret) -> most general type
+        -- in state
+
+
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> mergeRecords m1 m2
         TPointer _ t -> fmap TRecord . mergeRecords m1 . HashMap.fromList $ [(0, t)]
