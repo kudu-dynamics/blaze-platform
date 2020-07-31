@@ -135,7 +135,7 @@ createParamSymbol version var =
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
-  let destFunc =set getCallDestFunc $ n ^. Path.callSite
+  let destFunc = getCallDestFunc $ n ^. Path.callSite
   enterNewCtx destFunc
   ctx <- use Pil.ctx
   mPrevCtx <- peekPrevCtx
