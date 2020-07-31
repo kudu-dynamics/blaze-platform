@@ -32,7 +32,6 @@ import Blaze.Graph (constructBasicBlockGraphWithoutBackEdges)
 import Blaze.Prelude
 import Blaze.Types.Function
   ( CallInstruction,
-    CallSite,
     toCallInstruction,
   )
 import Blaze.Types.Graph (Graph)

@@ -5,7 +5,6 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
 import qualified Blaze.Pil as Pil
-import qualified Blaze.Pil.Construct as P
 import Blaze.Prelude
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as Func
@@ -20,11 +19,11 @@ import Blaze.Types.Path
         Ret,
         SubBlock
       ),
-    Path,
     RetNode,
     SubBlockNode,
   )
 import qualified Blaze.Types.Path as Path
+import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil
   ( Converter,
     ConverterState (ConverterState),
@@ -87,6 +86,11 @@ retCtx = do
       stack <- use Pil.ctxStack
       return $ NE.head stack
 
+peekPrevCtx :: Converter (Maybe Ctx)
+peekPrevCtx = do
+  stack <- use Pil.ctxStack
+  return $ headMay . NE.tail $ stack
+
 convertSubBlockNode :: SubBlockNode -> Converter [Stmt]
 convertSubBlockNode sb = do
   maybeUpdateCtx $ sb ^. Path.func
@@ -131,12 +135,16 @@ createParamSymbol version var =
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
-  let destFunc = getCallDestFunc $ n ^. Path.callSite
+  let destFunc =set getCallDestFunc $ n ^. Path.callSite
   enterNewCtx destFunc
   ctx <- use Pil.ctx
+  mPrevCtx <- peekPrevCtx
+  let prevCtx = case mPrevCtx of 
+                  Nothing -> error "No previous context found."
+                  Just prevCtx_ -> prevCtx_
   params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
   let callInstr = n ^. (Path.callSite . Func.callInstr)
-      argExprs = Pil.convertExpr ctx <$> callInstr ^. Func.params
+      argExprs = Pil.convertExpr prevCtx <$> callInstr ^. Func.params
       paramSyms = createParamSymbol 0 <$> params
   defs <- zipWithM paramArgDef paramSyms argExprs
   return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
@@ -162,13 +170,13 @@ convertNodes = fmap concat . traverse convertNode
 createStartCtx :: Function -> Ctx
 createStartCtx func = Ctx func 0
 
-createStartConverterState :: Function -> ConverterState
-createStartConverterState func = 
-  ConverterState (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx []
+createStartConverterState :: AlgaPath -> Function -> ConverterState
+createStartConverterState path func = 
+  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx []
     where 
       startCtx :: Ctx
       startCtx = createStartCtx func
 
-convertPath :: Path p => Function -> p -> IO [Stmt]
-convertPath startFunc =
-  fmap (concat . fst) . flip runConverter (createStartConverterState startFunc) . traverse convertNode . Path.toList
+convertPath :: Function -> AlgaPath -> IO [Stmt]
+convertPath startFunc path =
+  fmap (concat . fst) . flip runConverter (createStartConverterState path startFunc) . traverse convertNode . Path.toList $ path

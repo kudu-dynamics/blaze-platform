@@ -179,6 +179,7 @@ import Binja.MLIL as Exports
 import Binja.Function (Function)
 
 import Blaze.Prelude hiding (Symbol, Type)
+import Blaze.Types.Path.AlgaPath (AlgaPath)
 import qualified Data.HashMap.Strict as HashMap
 
 newtype CtxIndex = CtxIndex Int
@@ -209,7 +210,9 @@ instance Hashable PilVar
 
 data ConverterState
   = ConverterState
-      { -- The maximum context ID used so far
+      { -- The path being converted
+        _path :: AlgaPath,
+        -- The maximum context ID used so far
         _ctxMaxIdx :: CtxIndex,
         -- The current context should be on the top of the stack.
         -- I.e., the stack should never be empty.
