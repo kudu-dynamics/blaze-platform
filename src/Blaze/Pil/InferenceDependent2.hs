@@ -235,6 +235,10 @@ unifyPilTypes pt1 pt2 =
     err = throwError $ IncompatibleTypes pt1 pt2
     
 
+flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
+flatToDeepSyms = undefined
+
+
 -- | Merges field offset maps.
 -- TODO: can't just constrain two syms at same offset to be equal and unify
 -- because it might be something like [(0, Word64), (0, Word32)] which is maybe ok.
