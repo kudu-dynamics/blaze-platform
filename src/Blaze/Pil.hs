@@ -329,9 +329,8 @@ convertCallInstruction ctx c = do
   let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
   case c ^. Function.outputDest of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
-    Nothing -> return []
-    Just [] -> return [Call $ CallOp target mname params]
-    Just (dest : _) -> do
+    [] -> return [Call $ CallOp target mname params]
+    (dest : _) -> do
       let dest' = convertToPilVar ctx dest
       Pil.definedVars %= (dest' :)
       return [Def $ DefOp dest' callExpr]

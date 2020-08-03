@@ -149,11 +149,34 @@ convertCallNode n = do
   defs <- zipWithM paramArgDef paramSyms argExprs
   return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
 
+getRetVals_ :: SubBlockNode -> Converter [Pil.Expression]
+getRetVals_ node = do
+  ctx <- use Pil.ctx
+  mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction $ node ^. Path.func
+  lastInstr <- liftIO $ MLIL.instruction mlilFunc $ node ^. Path.end
+  return $ case lastInstr ^? (MLIL.op . MLIL._RET) of
+              (Just retOp) ->
+                Pil.convertExpr ctx <$> retOp ^. MLIL.src
+              Nothing -> 
+                error "Missing required return instruction."
+
+getRetVals :: RetNode -> Converter [Pil.Expression]
+getRetVals retNode = do
+  path <- use Pil.path
+  case (Path.pred (Ret retNode) path) >>= (^? Path._SubBlock)  of
+          (Just prevNode) -> do
+            getRetVals_ prevNode
+          Nothing -> 
+            error "RetNode not preceded by a SubBlockNode."
+
 convertRetNode :: RetNode -> Converter [Stmt]
-convertRetNode _ = do
+convertRetNode node = do
   leavingCtx <- use Pil.ctx
+  retVals <- getRetVals node
   retCtx
   returningCtx <- use Pil.ctx
+  let resultSyms = node ^. Path.callSite . Func.callInstr . Func.outputDest
+  defs <- zipWithM resultDef resultSyms retVals
   return [ Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx ]
 
 convertNode :: Node -> Converter [Stmt]

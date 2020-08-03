@@ -124,7 +124,7 @@ data AbstractCallNode = AbstractCallNode
   , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
-
+$(makePrisms ''Node)
 $(makeFieldsNoPrefix ''SubBlockNode)
 $(makeFieldsNoPrefix ''ConditionNode)
 $(makeFieldsNoPrefix ''CallNode)
