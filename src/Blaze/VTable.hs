@@ -1,11 +1,11 @@
 module Blaze.VTable where
 
 import qualified Binja.Core as BN
-import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, read64, read8, seekBinaryReader)
+import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, read64, read8, seekBinaryReader, getViewAddressSize)
 import qualified Binja.Function as BF
 import Binja.Function (getFunctionStartingAt)
 import qualified Binja.Reference as BR
-import Binja.View (getAddressSize, getDefaultReader)
+import Binja.View (getDefaultReader)
 import Blaze.CallGraph (Function)
 import Blaze.Function (getStmtsForFunction)
 import Blaze.Import.Source.BinaryNinja (convertFunction)
@@ -134,7 +134,7 @@ createVTable_ vptr = do
 
 initialVTContext_ :: BNBinaryView -> IO VTContext
 initialVTContext_ bv = do
-  width <- getAddressSize bv
+  width <- getViewAddressSize bv
   readr <- getDefaultReader bv
   return
     ( VTContext
@@ -171,7 +171,7 @@ isVtable :: BN.BNBinaryView -> Address -> IO Bool
 isVtable bv addr = do
   readr <- getDefaultReader bv
   BN.seekBinaryReader readr $ fromIntegral addr
-  getAddressSize bv >>= \case
+  getViewAddressSize bv >>= \case
     (AddressWidth 64) -> BN.read64 readr >>= \case
       Nothing -> return False
       Just ptr -> isJust <$> (BF.getFunctionStartingAt bv Nothing . Address . fromIntegral $ ptr :: IO (Maybe BF.Function))
