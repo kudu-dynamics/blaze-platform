@@ -115,6 +115,7 @@ library:
   - Blaze.Pil.Inference
   - Blaze.Pil.Inference2
   - Blaze.Pil.InferenceDependent
+  - Blaze.Pil.InferenceDependent2
   - Blaze.Pil.Path
   - Blaze.Types.Pil.Inference
   - Blaze.Prelude
@@ -132,6 +133,7 @@ library:
   - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
+  - Blaze.Types.Pil.Inference2
   - Blaze.Types.Solver
   - Blaze.Types.VTable
   - Blaze.Util.MLIL

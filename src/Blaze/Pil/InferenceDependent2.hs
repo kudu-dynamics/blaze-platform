@@ -42,6 +42,10 @@ instance VarSubst Sym where
 instance VarSubst a => VarSubst (PilType a) where
   varSubst m = fmap (varSubst m)
 
+instance VarSubst FlatSymType where
+  varSubst m (FSVar v) = FSVar $ varSubst m v
+  varSubst m (FSType t) = FSType $ varSubst m t
+
 instance VarSubst SymType where
   varSubst m (SVar v) = SVar $ varSubst m v
   varSubst m (SType t) = SType $ varSubst m t
@@ -58,7 +62,7 @@ unifyConstraint :: Constraint -> Unify ()
 unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
   omap <- use originMap
   case varSubst omap cx of
-    (Constraint (a, (SVar b))) 
+    (Constraint (a, (FSVar b)))
       | a == b -> return ()  -- redundant constraint
       | otherwise -> do
           c <- addVarEq a b
@@ -68,7 +72,7 @@ unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
           solutions %= fmap (varSubst subMap)
 
     -- look up 'a' in solutions map and unify it with existing solution for 'a'
-    (Constraint (a, (SType t))) -> do
+    (Constraint (a, (FSType t))) -> do
       -- TODO: occurs check here? (error if 'a' is used in 't')
       -- maybe we don't need occurs check since it's flat, hence "lazy"
       -- if unification fails with infinite loop, look here...
@@ -168,11 +172,11 @@ unifyPilTypes pt1 pt2 =
         TInt w2 sign2 -> TInt <$> addVarEq w1 w2
                               <*> addVarEq sign1 sign2
         TPointer w2 pointeeType1 -> do
-          addConstraint $ Constraint (sign1, SType $ TVSign False)
+          addConstraint $ Constraint (sign1, FSType $ TVSign False)
           flip TPointer pointeeType1 <$> addVarEq w1 w2
         TChar -> do
-          addConstraint $ Constraint (w1, SType $ TVBitWidth charSize)
-          addConstraint $ Constraint (sign1, SType $ TVSign False)
+          addConstraint $ Constraint (w1, FSType $ TVBitWidth charSize)
+          addConstraint $ Constraint (sign1, FSType $ TVSign False)
           return TChar
         _ -> err
 
@@ -187,7 +191,7 @@ unifyPilTypes pt1 pt2 =
         TFloat w2 -> TFloat <$> addVarEq w1 w2
         TInt w2 s -> TInt <$> addVarEq w1 w2 <*> pure s
         TChar -> do
-          addConstraint $ Constraint (w1, SType $ TVBitWidth 8)
+          addConstraint $ Constraint (w1, FSType $ TVBitWidth 8)
           return TChar
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
@@ -203,8 +207,8 @@ unifyPilTypes pt1 pt2 =
 
 
       TRecord m1 -> case pt2 of
-        TRecord m2 -> TRecord <$> mergeRecords m1 m2
-        TPointer _ t -> fmap TRecord . mergeRecords m1 . HashMap.fromList $ [(0, t)]
+        TRecord m2 -> TRecord <$> unifyRecords m1 m2
+        TPointer _ t -> fmap TRecord . unifyRecords m1 . HashMap.fromList $ [(0, t)]
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of
@@ -231,9 +235,14 @@ unifyPilTypes pt1 pt2 =
     err = throwError $ IncompatibleTypes pt1 pt2
     
 
-
-mergeRecords :: HashMap BitWidth Sym
+-- | Merges field offset maps.
+-- TODO: can't just constrain two syms at same offset to be equal and unify
+-- because it might be something like [(0, Word64), (0, Word32)] which is maybe ok.
+-- maybe there should be different types of constraints, like Contains,
+-- or MostGeneral (for function args)
+-- or just different list in state to keep record Field constraints.
+unifyRecords :: HashMap BitWidth Sym
              -> HashMap BitWidth Sym
              -> Unify (HashMap BitWidth Sym)
-mergeRecords = undefined
+unifyRecords a b = undefined
 

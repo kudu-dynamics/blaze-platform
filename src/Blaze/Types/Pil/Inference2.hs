@@ -48,10 +48,18 @@ data T = T (PilType T)
 unT :: T -> PilType T
 unT (T pt) = pt
 
-
 data SymType = SVar Sym
-             | SType (PilType Sym)
-             deriving (Eq, Ord, Read, Show, Generic)
+             | SType (PilType SymType)
+               deriving (Eq, Ord, Read, Show, Generic)
+
+data FlatSymType = FSVar Sym
+                 | FSType (PilType Sym)
+               deriving (Eq, Ord, Read, Show, Generic)
+
+data DeepSymType = DSVar Sym
+                 | DSRecursive Sym (PilType DeepSymType)
+                 | DSType (PilType DeepSymType)
+               deriving (Eq, Ord, Read, Show, Generic)
 
 -- XVars are existential vars used for function sigs
 type XVar = Text
@@ -80,8 +88,6 @@ data SymInfo = SymInfo
 $(makeFieldsNoPrefix ''SymInfo)
 
 type SymExpression = InfoExpression SymInfo
-
-type SymTypeExpression = InfoExpression SymType
 
 -- | Goal is to generate statements with TypedExpressions
 type TypedExpression = InfoExpression (PilType T)
@@ -112,10 +118,10 @@ type VarEqMap = EqualityMap Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { _symTypeStmts :: [Statement (InfoExpression (SymInfo, Maybe SymType))]
+  { _symTypeStmts :: [Statement (InfoExpression (SymInfo, Maybe FlatSymType))]
   , _symStmts :: [Statement SymExpression]
   --  , _typedStmts :: [Statement TypedExpression]
-  , _varSymTypeMap :: HashMap PilVar SymType
+  , _varSymTypeMap :: HashMap PilVar FlatSymType
   , _varSymMap :: HashMap PilVar Sym
 --  , _unresolvedStmts :: [Statement SymExpression]
   -- , _unresolvedSyms :: [(Sym, Sym)]
@@ -126,8 +132,6 @@ data TypeReport = TypeReport
 $(makeFieldsNoPrefix ''TypeReport)
 
 
--- | The "ConstraintGen" monad is actually currently just used to generate symbols and
---   constraints for every expression and var. it should be renamed
 data ConstraintGenState = ConstraintGenState
   { _currentSym :: Sym
   , _symMap :: HashMap Sym SymExpression
@@ -163,7 +167,7 @@ data ConstraintMeta = ConstraintMeta
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''ConstraintMeta)
 
-newtype Constraint = Constraint (Sym, SymType)
+newtype Constraint = Constraint (Sym, FlatSymType)
   deriving (Eq, Ord, Show, Generic)
 
 -- | solutions should be the "final unification" for any sym.
@@ -223,7 +227,7 @@ addVarEq a b = do
       case HashMap.lookup retiredSym sols of
         Nothing -> return ()
         Just rt -> do
-          addConstraint $ Constraint (retiredSym, SType rt)
+          addConstraint $ Constraint (retiredSym, FSType rt)
           solutions %= HashMap.delete retiredSym
   originMap .= m'
   return (v)
@@ -239,7 +243,7 @@ originMapToGroupMap = foldr f HashMap.empty . HashMap.toList
 originMapToGroups :: HashMap Sym Sym -> HashSet (HashSet Sym)
 originMapToGroups = HashSet.fromList . HashMap.elems . originMapToGroupMap
 
-data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
+data UnifyResult = UnifyResult { _solutions :: [(Sym, FlatSymType)]
                                , _errors :: [UnifyError]
                                } deriving (Eq, Ord, Read, Show)
 $(makeFieldsNoPrefix ''UnifyResult)
@@ -262,12 +266,5 @@ popConstraint = use constraints >>= \case
   (cx:cxs) -> do
     constraints .= cxs
     return $ Just cx
-
-data UnifyConstraintsResult = UnifyConstraintsResult
-  { _constraints :: [(Sym, SymType)]
-  , _solutions :: [(Sym, SymType)]
-  , _errors :: [UnifyError]
-  } deriving (Eq, Ord, Read, Show)
-$(makeFieldsNoPrefix ''UnifyConstraintsResult)
 
 
