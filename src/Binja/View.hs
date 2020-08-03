@@ -77,8 +77,3 @@ getStringAtAddress bv addr = do
 getSymbolAtAddress :: BNBinaryView -> Address -> Maybe BNNameSpace -> IO (Maybe BNSymbol)
 getSymbolAtAddress bv addr =
   BN.getSymbolByAddress bv (coerce addr)
-
-getAddressSize :: BNBinaryView -> IO AddressWidth
-getAddressSize bv = do
-  addrSize <- BN.getViewAddressSize bv
-  return $ (AddressWidth . (*) 8 . fromIntegral) addrSize
