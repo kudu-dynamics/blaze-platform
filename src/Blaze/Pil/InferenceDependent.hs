@@ -99,7 +99,7 @@ byteOffsetToBitWidth n
 
 -- | Generates constraints for all syms in SymExpression.
 exprTypeConstraints :: forall m. (MonadState CheckerState m, MonadError CheckerError m)
-                    => SymExpression -> m [(Sym, SymType)]
+                    => SymExpression -> ConstraintGen [(Sym, SymType)]
 exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
   Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x

@@ -49,12 +49,8 @@ unT :: T -> PilType T
 unT (T pt) = pt
 
 data SymType = SVar Sym
-             | SType (PilType SymType)
-               deriving (Eq, Ord, Read, Show, Generic)
-
-data FlatSymType = FSVar Sym
-                 | FSType (PilType Sym)
-               deriving (Eq, Ord, Read, Show, Generic)
+             | SType (PilType Sym)
+             deriving (Eq, Ord, Read, Show, Generic)
 
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
@@ -118,10 +114,10 @@ type VarEqMap = EqualityMap Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { _symTypeStmts :: [Statement (InfoExpression (SymInfo, Maybe FlatSymType))]
+  { _symTypeStmts :: [Statement (InfoExpression (SymInfo, Maybe SymType))]
   , _symStmts :: [Statement SymExpression]
   --  , _typedStmts :: [Statement TypedExpression]
-  , _varSymTypeMap :: HashMap PilVar FlatSymType
+  , _varSymTypeMap :: HashMap PilVar SymType
   , _varSymMap :: HashMap PilVar Sym
 --  , _unresolvedStmts :: [Statement SymExpression]
   -- , _unresolvedSyms :: [(Sym, Sym)]
@@ -131,6 +127,9 @@ data TypeReport = TypeReport
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
 
+
+--------------------------------------------------------------
+------ Constraint generation phase ---------------------------
 
 data ConstraintGenState = ConstraintGenState
   { _currentSym :: Sym
@@ -158,7 +157,7 @@ runConstraintGen m ss = runIdentity . flip runStateT ss . runExceptT . _runConst
 runConstraintGen_ :: ConstraintGen a -> (Either ConstraintGenError a, ConstraintGenState)
 runConstraintGen_ m = runConstraintGen m emptyConstraintGenState
 
-
+--------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
 
 data ConstraintMeta = ConstraintMeta
@@ -167,7 +166,7 @@ data ConstraintMeta = ConstraintMeta
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''ConstraintMeta)
 
-newtype Constraint = Constraint (Sym, FlatSymType)
+newtype Constraint = Constraint (Sym, SymType)
   deriving (Eq, Ord, Show, Generic)
 
 -- | solutions should be the "final unification" for any sym.
@@ -227,7 +226,7 @@ addVarEq a b = do
       case HashMap.lookup retiredSym sols of
         Nothing -> return ()
         Just rt -> do
-          addConstraint $ Constraint (retiredSym, FSType rt)
+          addConstraint $ Constraint (retiredSym, SType rt)
           solutions %= HashMap.delete retiredSym
   originMap .= m'
   return (v)
@@ -243,7 +242,7 @@ originMapToGroupMap = foldr f HashMap.empty . HashMap.toList
 originMapToGroups :: HashMap Sym Sym -> HashSet (HashSet Sym)
 originMapToGroups = HashSet.fromList . HashMap.elems . originMapToGroupMap
 
-data UnifyResult = UnifyResult { _solutions :: [(Sym, FlatSymType)]
+data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
                                , _errors :: [UnifyError]
                                } deriving (Eq, Ord, Read, Show)
 $(makeFieldsNoPrefix ''UnifyResult)
