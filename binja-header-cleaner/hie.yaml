@@ -1,0 +1,5 @@
+cradle: {stack}
+
+dependencies:
+  - stack.yaml
+  - package.yaml

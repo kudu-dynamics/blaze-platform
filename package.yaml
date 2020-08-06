@@ -23,7 +23,6 @@ dependencies:
   - attoparsec
   - base
   - binary-analysis
-  - binja-header-cleaner
   - bytestring
   - casing
   - containers
@@ -73,7 +72,8 @@ library:
   - -j
   - -O2
   extra-libraries: binaryninjacore
-  source-dirs: src
+  source-dirs:
+    - src
   exposed-modules:
   - Binja.Architecture
   - Binja.Core
@@ -218,24 +218,11 @@ library:
   - Binja.Types.MLIL.Op.MemPhiOp
 
 executables:
-  gen-clean-binja-header:
-    main: Main.hs
-    source-dirs: app/clean
-    ghc-options:
-      - -Wall
-      - -Wcompat
-      - -Wincomplete-record-updates
-      - -Wincomplete-uni-patterns
-      - -Wredundant-constraints
-      - -j
-      - -rtsopts
-      - '"-with-rtsopts=-A256m -n16m"'
-    dependencies:
-      - base
-      # - binja
   gen-mlil-op-modules:
     main: Main.hs
-    source-dirs: app/gen-mlil-op-modules
+    source-dirs:
+      - app/gen-mlil-op-modules
+      - binja-header-cleaner/src
     ghc-options:
       - -Wall
       - -Wincomplete-record-updates

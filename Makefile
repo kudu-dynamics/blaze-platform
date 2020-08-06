@@ -5,4 +5,4 @@ build:
 	stack build
 
 header:
-	stack run gen-clean-binja-header ${BLAZE_BINJA_API}/binaryninjacore.h
+	cd binja-header-cleaner && stack run ${BLAZE_BINJA_API}/binaryninjacore.h ../res/binaryninjacore.h
