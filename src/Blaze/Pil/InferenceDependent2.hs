@@ -658,7 +658,13 @@ unifyPilTypes pt1 pt2 =
     err = throwError $ IncompatibleTypes pt1 pt2
     
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
-flatToDeepSyms = undefined
+flatToDeepSyms = fmap parseF
+  where
+    substSym :: Sym -> DeepSymType
+    substSym = undefined
+    parseF :: PilType Sym -> DeepSymType
+    parseF = undefined
+
 
 
 -- | Merges field offset maps.
