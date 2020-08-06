@@ -57,6 +57,17 @@ data DeepSymType = DSVar Sym
                  | DSType (PilType DeepSymType)
                deriving (Eq, Ord, Read, Show, Generic)
 
+
+newtype Constraint = Constraint (Sym, SymType)
+  deriving (Eq, Ord, Show, Generic)
+
+-- | solutions should be the "final unification" for any sym.
+-- | complex types might still contain SVars subject to substitution
+-- | but the type structure shouldn't change.
+
+newtype Solution = Solution (Sym, PilType Sym)
+  deriving (Eq, Ord, Show, Generic)
+
 -- XVars are existential vars used for function sigs
 type XVar = Text
 data ExistentialType = XVar Text
@@ -64,10 +75,10 @@ data ExistentialType = XVar Text
                      deriving (Eq, Ord, Read, Show, Generic)
 
 data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
-                  | CannotFindSymInSymMap
-                  | UnhandledExpr
-                  | UnhandledStmt
-  deriving (Eq, Ord, Show)
+                        | CannotFindSymInSymMap
+                        | UnhandledExpr
+                        | UnhandledStmt
+                        deriving (Eq, Ord, Show)
 
 data InfoExpression a = InfoExpression
   { _info :: a
@@ -135,12 +146,13 @@ data ConstraintGenState = ConstraintGenState
   { _currentSym :: Sym
   , _symMap :: HashMap Sym SymExpression
   , _varSymMap :: HashMap PilVar Sym
+  , _constraints :: [Constraint]
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''ConstraintGenState)
 
 emptyConstraintGenState :: ConstraintGenState
-emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty
+emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty []
 
 newtype ConstraintGen a = ConstraintGen
   { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }
@@ -166,17 +178,6 @@ data ConstraintMeta = ConstraintMeta
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''ConstraintMeta)
 
-newtype Constraint = Constraint (Sym, SymType)
-  deriving (Eq, Ord, Show, Generic)
-
--- | solutions should be the "final unification" for any sym.
--- | complex types might still contain SVars subject to substitution
--- | but the type structure shouldn't change.
-
-newtype Solution = Solution (Sym, PilType Sym)
-  deriving (Eq, Ord, Show, Generic)
-
-
 data UnifyState = UnifyState
                   { _constraints :: [Constraint]
 
@@ -193,9 +194,21 @@ data UnifyState = UnifyState
 $(makeFieldsNoPrefix ''UnifyState)
 
 
-addConstraint :: MonadState UnifyState m => Constraint -> m ()
+addConstraint :: (HasConstraints s [Constraint], MonadState s m)
+              => Constraint -> m ()
 addConstraint cx = constraints %= (cx:)
 
+addConstraint_ :: (HasConstraints s [Constraint], MonadState s m)
+               => (Sym, SymType) -> m ()
+addConstraint_ cx = constraints %= (Constraint cx :)
+
+addConstraints :: (HasConstraints s [Constraint], MonadState s m)
+               => [Constraint] -> m ()
+addConstraints = mapM_ addConstraint
+
+addConstraints_ :: (HasConstraints s [Constraint], MonadState s m)
+                => [(Sym, SymType)] -> m ()
+addConstraints_ = mapM_ addConstraint_
 
 data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
                                , _errors :: [UnifyError]

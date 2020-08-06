@@ -84,9 +84,10 @@ byteOffsetToBitWidth n
   | otherwise = fromIntegral $ n * 8
 
 
--- | Generates constraints for all syms in SymExpression.
-exprTypeConstraints :: SymExpression -> ConstraintGen [(Sym, SymType)]
-exprTypeConstraints = undefined
+-- | Generates constraints for all syms in SymExpression and adds them to state.
+-- does NOT recurse down sub-expressions like addAllExprTypeConstraints
+addExprTypeConstraints :: SymExpression -> ConstraintGen ()
+addExprTypeConstraints = undefined
 -- exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 --   Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
 --   Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
@@ -456,15 +457,13 @@ exprTypeConstraints = undefined
 --              , ( r, n )
 --              ]
 
--- | recursively generates type constraints for all expr sym's in SymExpression
-getAllExprTypeConstraints :: SymExpression -> ConstraintGen [(Sym, SymType)]
-getAllExprTypeConstraints x@(InfoExpression (SymInfo _ _thisExprSym) op') = do
-  constraintsForThisExpr <- exprTypeConstraints x
-  constraintsForChildren <- foldM f  [] op'
-  return $ constraintsForThisExpr <> constraintsForChildren
-  where
-    f :: [(Sym, SymType)] -> SymExpression -> ConstraintGen [(Sym, SymType)]
-    f cxs sexpr = (<> cxs) <$> getAllExprTypeConstraints sexpr
+-- | Recursively adds type constraints for all expr sym's in SymExpression,
+-- including nested syms.
+addAllExprTypeConstraints :: SymExpression -> ConstraintGen ()
+addAllExprTypeConstraints x@(InfoExpression (SymInfo _ _thisExprSym) op') = do
+  addExprTypeConstraints x
+  mapM_ addAllExprTypeConstraints op'
+
 
 -- | converts expression to SymExpression (assigns symbols to all exprs), including itself
 --   adds each new sym/expr pair to CheckerState
@@ -478,33 +477,30 @@ toSymExpression (Expression sz op') = do
   return sexpr
 
 
--- | get all rules for a stmt
---   create `Statement SymExpression`
-stmtTypeConstraints :: Statement Expression
-                    -> ConstraintGen (Statement SymExpression, [(Sym, SymType)])
-stmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
+-- | get all rules for a stmt, including subexpressions
+-- and add them to state
+-- also create a `Statement SymExpression`
+addStmtTypeConstraints :: Statement Expression
+                       -> ConstraintGen (Statement SymExpression)
+addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. info . sym
   pvSym <- lookupVarSym pv
-  exprConstraints <- getAllExprTypeConstraints symExpr
-  return ( Pil.Def (Pil.DefOp pv symExpr)
-         , [ (pvSym, SVar exprSym) ]
-           <> exprConstraints )
-stmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
+  addAllExprTypeConstraints symExpr
+  addConstraint_ (pvSym, SVar exprSym)
+  return $ Pil.Def (Pil.DefOp pv symExpr)
+addStmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   symExpr <- toSymExpression expr
-  exprConstraints <- getAllExprTypeConstraints symExpr
-  return ( Pil.Constraint (Pil.ConstraintOp symExpr)
-         , exprConstraints )
-stmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
+  addAllExprTypeConstraints symExpr
+  return $ Pil.Constraint (Pil.ConstraintOp symExpr)
+addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
   symValExpr <- toSymExpression valExpr
   let symAddr = symAddrExpr ^. info . sym
       symVal = symValExpr ^. info . sym
-  addrExprConstraints <- getAllExprTypeConstraints symAddrExpr
-  valExprConstraints <- getAllExprTypeConstraints symValExpr
+  addAllExprTypeConstraints symAddrExpr
+  addAllExprTypeConstraints symValExpr
   ptrWidth <- newSym
-  return ( Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
-         , addrExprConstraints <> valExprConstraints
-           <> [ ( symAddr, SType $ TPointer ptrWidth symVal ) ]
-         )
-stmtTypeConstraints s = (,[]) <$> traverse toSymExpression s
+  addConstraint_ ( symAddr, SType $ TPointer ptrWidth symVal ) 
+  return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
+addStmtTypeConstraints s = traverse toSymExpression s

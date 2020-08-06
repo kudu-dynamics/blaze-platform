@@ -2,38 +2,18 @@
 module Blaze.Pil.InferenceDependent where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import qualified Prelude as P
-import Blaze.Types.Pil ( Expression(Expression)
-                       , ExprOp
-                       , OperationSize
+import Blaze.Types.Pil ( Expression
                        , Statement
                        , PilVar
                        )
-import qualified Blaze.Types.Pil as Pil
-import qualified Data.Map as Map
--- import Data.HashMap.Strict (HashMap)
-import qualified Binja.Variable as V
-import qualified Binja.C.Enums as E
-import qualified Binja.MLIL as MLIL
--- import Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
--- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Blaze.Pil.Analysis as Analysis
-import qualified Data.Map as Map
-import System.IO.Unsafe (unsafePerformIO)
-import qualified Data.Text as Text
-import qualified Data.STRef as ST
-import qualified Algebra.Graph.AdjacencyMap as G
-import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
-import qualified Algebra.Graph.NonEmpty.AdjacencyMap as NG
-import qualified Data.List.NonEmpty as NE
 import Blaze.Types.Pil.Checker
 import Blaze.Pil.Checker.Constraints ( createVarSymMap
-                                     , stmtTypeConstraints
+                                     , addStmtTypeConstraints
                                      )
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
+
 
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
 flatToDeepSyms m = fmap f m
@@ -54,26 +34,17 @@ unifyConstraints cxs = snd $ runUnify unify initialState
                               , _originMap = HashMap.empty
                               }
 
-
 -- for debugging...
 stmtsConstraints :: [Statement Expression]
                  -> Either ConstraintGenError ( [Statement SymExpression]
-                                              , [Constraint]
                                               , ConstraintGenState )
-stmtsConstraints stmts = case er of
+stmtsConstraints stmts' = case er of
   Left err -> Left err
-  Right (symStmts, cxs) -> Right (symStmts, cxs, s)
+  Right symStmts' -> Right (symStmts', s)
   where
     (er, s) = runConstraintGen_ $ do
-      createVarSymMap stmts
-      (symStmts, cxs) <- foldM getStmtConstraints ([], []) stmts
-      return (symStmts, Constraint <$> cxs)
-      
-    getStmtConstraints :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> ConstraintGen ([Statement SymExpression], [(Sym, SymType)])
-    getStmtConstraints (symStmts, cxs) stmt = do
-      (sstmt, cxs') <- stmtTypeConstraints stmt
-      return ( symStmts <> [sstmt] -- maybe should use a Vector
-             , cxs' <> cxs)
+      createVarSymMap stmts'
+      mapM addStmtTypeConstraints stmts'
 
 
 stmtSolutions :: [Statement Expression]
@@ -81,24 +52,20 @@ stmtSolutions :: [Statement Expression]
                                            , ConstraintGenState
                                            , UnifyState
                                            )
-stmtSolutions stmts = case er of
+stmtSolutions stmts' = case er of
   Left err -> Left err
-  Right (symStmts, cxs) -> Right (symStmts, gst, unifyConstraints cxs)
+  Right symStmts' -> Right ( symStmts'
+                           , gst
+                           , unifyConstraints cxs)
   where
+    cxs = gst ^. constraints
     (er, gst) = runConstraintGen_ $ do
-      createVarSymMap stmts
-      (symStmts, cxs) <- foldM getStmtConstraints ([], []) stmts
-      return (symStmts, Constraint <$> cxs)
-      
-    getStmtConstraints :: ([Statement SymExpression], [(Sym, SymType)]) -> Statement Expression -> ConstraintGen ([Statement SymExpression], [(Sym, SymType)])
-    getStmtConstraints (symStmts, cxs) stmt = do
-      (sstmt, cxs') <- stmtTypeConstraints stmt
-      return ( symStmts <> [sstmt] -- maybe should use a Vector
-             , cxs' <> cxs)
+      createVarSymMap stmts'
+      mapM addStmtTypeConstraints stmts'
 
 -- | main function to type check / infer statements
 --   currently only returning types of pilvars in stmts for testing.
-checkStmts :: [Statement Expression] -> Either ConstraintGenState TypeReport
+checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
 checkStmts = fmap toReport . stmtSolutions
   where
     toReport :: ( [Statement SymExpression]
@@ -106,9 +73,9 @@ checkStmts = fmap toReport . stmtSolutions
                 , UnifyState
                 )
              -> TypeReport
-    toReport (stmts, s, unSt) = TypeReport
-      { _symTypeStmts = fmap (fmap fillTypesInStmt) stmts
-      , _symStmts = stmts
+    toReport (stmts', s, unSt) = TypeReport
+      { _symTypeStmts = fmap (fmap fillTypesInStmt) stmts'
+      , _symStmts = stmts'
       , _varSymMap = s ^. varSymMap
       , _varSymTypeMap = pilVarMap
       , _varEqMap = originMapToGroupMap eqMap
