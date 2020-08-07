@@ -1,3 +1,0 @@
-[submodule "lib/binja-header-cleaner"]
-	path = lib/binja-header-cleaner
-	url = ssh://git@:2222/blaze/binja-header-cleaner.git
