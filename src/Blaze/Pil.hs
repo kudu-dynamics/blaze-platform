@@ -3,7 +3,7 @@ module Blaze.Pil where
 import Binja.Function (Function)
 import qualified Binja.Function as Function
 import qualified Binja.MLIL as MLIL
-import qualified Binja.Variable as Variable
+import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
 import Blaze.Prelude hiding
   ( Symbol,
@@ -54,12 +54,12 @@ varToStackLocalAddr ctx v =
     . Pil.StackLocalAddrOp
     . Pil.StackOffset ctx
     . fromIntegral
-    $ v ^. Variable.storage
+    $ v ^. BNVar.storage
 
--- should we throw an error if (v ^. Variable.sourceType /= StackVariableSourceType)?
+-- should we throw an error if (v ^. BNVar.sourceType /= StackVariableSourceType)?
 
-typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
-typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
+typeWidthToOperationSize :: BNVar.TypeWidth -> MLIL.OperationSize
+typeWidthToOperationSize (BNVar.TypeWidth n) = MLIL.OperationSize n
 
 mkFieldOffsetExprAddr :: Pil.Expression -> Int64 -> Pil.Expression
 mkFieldOffsetExprAddr addrExpr offset =
@@ -187,7 +187,7 @@ convertExpr ctx expr = case expr ^. MLIL.op of
     mkExpr = Expression (expr ^. Pil.size)
 
 getSymbol :: MLIL.SSAVariable -> Symbol
-getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> show (v ^. MLIL.version)
+getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
 
 convertToPilVar :: Ctx -> MLIL.SSAVariable -> PilVar
 convertToPilVar ctx v = PilVar
@@ -235,7 +235,7 @@ convertInstrOp op' = do
         pvarSrc = convertToPilVar ctx srcVar
         off = fromIntegral $ x ^. MLIL.offset
         chunkExpr = convertExpr ctx (x ^. MLIL.src)
-        getVarWidth v = v ^? MLIL.var . Variable.varType . _Just . Variable.width
+        getVarWidth v = v ^? MLIL.var . BNVar.varType . _Just . BNVar.width
         varSize =
           maybe defaultVarSize fromIntegral $
             getVarWidth destVar <|> getVarWidth srcVar
@@ -284,7 +284,7 @@ convertInstrOp op' = do
           return
             [ Def . DefOp pvar $
                 Expression
-                  (typeWidthToOperationSize $ vt ^. Variable.width)
+                  (typeWidthToOperationSize $ vt ^. BNVar.width)
                   (Pil.VAR $ Pil.VarOp lVar)
             ]
       where
@@ -294,7 +294,7 @@ convertInstrOp op' = do
             . HSet.fromList
             . fmap (convertToPilVar ctx)
             $ x ^. MLIL.src
-        vt = fromJust $ x ^. MLIL.dest . MLIL.var . Variable.varType
+        vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
     MLIL.UNIMPL -> return [UnimplInstr "UNIMPL"]
     (MLIL.UNIMPL_MEM x) -> return [UnimplMem $ UnimplMemOp expr]
       where
@@ -324,16 +324,21 @@ getCallDestFunctionName _ _ = return Nothing
 convertCallInstruction :: Ctx -> CallInstruction -> Pil.Converter [Stmt]
 convertCallInstruction ctx c = do
   let target = fromJust (Pil.getCallDest <$> (c ^. Function.dest >>= Just . convertExpr ctx))
-  let params = fmap (convertExpr ctx) $ c ^. Function.params
+      params = fmap (convertExpr ctx) $ c ^. Function.params
   mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
+  -- The size of a function call is always 0 according to BN. Need to look at result var types to get
+  -- actual size. This is done below when handling the case for a return value.
   let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
   case c ^. Function.outputDest of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
     [] -> return [Call $ CallOp target mname params]
     (dest : _) -> do
       let dest' = convertToPilVar ctx dest
+          -- TODO: Make this safe. We currently bail if there's no type provided.
+          resultSize = fromJust $ dest ^? MLIL.var . BNVar.varType . _Just . BNVar.width
+          opSize = Pil.OperationSize $ fromIntegral resultSize
       Pil.definedVars %= (dest' :)
-      return [Def $ DefOp dest' callExpr]
+      return [Def $ DefOp dest' (callExpr & Pil.size .~ opSize)]
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. Pil.dest of
