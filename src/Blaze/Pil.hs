@@ -34,6 +34,7 @@ import Blaze.Types.Pil
     UnimplMemOp (UnimplMemOp),
   )
 import qualified Blaze.Types.Pil as Pil
+import Control.Lens ((^?!))
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
@@ -335,7 +336,7 @@ convertCallInstruction ctx c = do
     (dest : _) -> do
       let dest' = convertToPilVar ctx dest
           -- TODO: Make this safe. We currently bail if there's no type provided.
-          resultSize = fromJust $ dest ^? MLIL.var . BNVar.varType . _Just . BNVar.width
+          resultSize = dest ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
           opSize = Pil.OperationSize $ fromIntegral resultSize
       Pil.definedVars %= (dest' :)
       return [Def $ DefOp dest' (callExpr & Pil.size .~ opSize)]

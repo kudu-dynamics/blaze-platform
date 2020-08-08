@@ -166,8 +166,8 @@ getRetVals_ node = do
 getRetVals :: RetNode -> Converter [Pil.Expression]
 getRetVals retNode = do
   path <- use Pil.path
-  case (Path.pred (Ret retNode) path) >>= (^? Path._SubBlock) of
-    (Just prevNode) -> do
+  case Path.pred (Ret retNode) path >>= (^? Path._SubBlock) of
+    (Just prevNode) ->
       getRetVals_ prevNode
     Nothing ->
       error "RetNode not preceded by a SubBlockNode."
@@ -182,7 +182,7 @@ convertRetNode node = do
         Pil.convertToPilVar returningCtx
           <$> node ^. Path.callSite . Func.callInstr . Func.outputDest
   let defs = zipWith defPilVar resultVars retVals
-  return $ (Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx) : defs
+  return $ Pil.ExitContext (Pil.ExitContextOp leavingCtx returningCtx) : defs
 
 convertNode :: Node -> Converter [Stmt]
 convertNode (SubBlock x) = convertSubBlockNode x
