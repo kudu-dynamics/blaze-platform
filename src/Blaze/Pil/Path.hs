@@ -5,7 +5,7 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
 import qualified Blaze.Pil as Pil
-import Blaze.Prelude
+import Blaze.Prelude hiding (sym)
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Path
@@ -119,12 +119,15 @@ getCallDestFunc x = case x ^. Func.callDest of
   (Func.DestFunc f) -> f
   _ -> error "Only calls to known functions may be expanded."
 
-paramArgDef :: Pil.Symbol -> Pil.Expression -> Converter Stmt
-paramArgDef param arg = do
+defSymbol :: Pil.Symbol -> Pil.Expression -> Converter Stmt
+defSymbol sym expr = do
   ctx <- use Pil.ctx
   -- TODO: Sort out use of mapsTo when defining the PilVar
-  let pilVar = Pil.PilVar param (Just ctx) HS.empty
-  return $ Pil.Def (Pil.DefOp pilVar arg)
+  let pilVar = Pil.PilVar sym (Just ctx) HS.empty
+  return $ Pil.Def (Pil.DefOp pilVar expr)
+
+defPilVar :: Pil.PilVar -> Pil.Expression -> Stmt
+defPilVar pilVar expr = Pil.Def (Pil.DefOp pilVar expr)
 
 createParamSymbol :: Int -> BNVar.Variable -> Pil.Symbol
 createParamSymbol version var =
@@ -146,28 +149,28 @@ convertCallNode n = do
   let callInstr = n ^. (Path.callSite . Func.callInstr)
       argExprs = Pil.convertExpr prevCtx <$> callInstr ^. Func.params
       paramSyms = createParamSymbol 0 <$> params
-  defs <- zipWithM paramArgDef paramSyms argExprs
+  defs <- zipWithM defSymbol paramSyms argExprs
   return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
 
 getRetVals_ :: SubBlockNode -> Converter [Pil.Expression]
 getRetVals_ node = do
   ctx <- use Pil.ctx
   mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction $ node ^. Path.func
-  lastInstr <- liftIO $ MLIL.instruction mlilFunc $ node ^. Path.end
+  lastInstr <- liftIO $ MLIL.instruction mlilFunc $ node ^. Path.end - 1
   return $ case lastInstr ^? (MLIL.op . MLIL._RET) of
-              (Just retOp) ->
-                Pil.convertExpr ctx <$> retOp ^. MLIL.src
-              Nothing -> 
-                error "Missing required return instruction."
+    (Just retOp) ->
+      Pil.convertExpr ctx <$> retOp ^. MLIL.src
+    Nothing ->
+      error "Missing required return instruction."
 
 getRetVals :: RetNode -> Converter [Pil.Expression]
 getRetVals retNode = do
   path <- use Pil.path
-  case (Path.pred (Ret retNode) path) >>= (^? Path._SubBlock)  of
-          (Just prevNode) -> do
-            getRetVals_ prevNode
-          Nothing -> 
-            error "RetNode not preceded by a SubBlockNode."
+  case (Path.pred (Ret retNode) path) >>= (^? Path._SubBlock) of
+    (Just prevNode) -> do
+      getRetVals_ prevNode
+    Nothing ->
+      error "RetNode not preceded by a SubBlockNode."
 
 convertRetNode :: RetNode -> Converter [Stmt]
 convertRetNode node = do
@@ -175,9 +178,11 @@ convertRetNode node = do
   retVals <- getRetVals node
   retCtx
   returningCtx <- use Pil.ctx
-  let resultSyms = node ^. Path.callSite . Func.callInstr . Func.outputDest
-  defs <- zipWithM resultDef resultSyms retVals
-  return [ Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx ]
+  let resultVars =
+        Pil.convertToPilVar returningCtx
+          <$> node ^. Path.callSite . Func.callInstr . Func.outputDest
+  let defs = zipWith defPilVar resultVars retVals
+  return $ (Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx) : defs
 
 convertNode :: Node -> Converter [Stmt]
 convertNode (SubBlock x) = convertSubBlockNode x
