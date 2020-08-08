@@ -87,10 +87,9 @@ byteOffsetToBitWidth n
 -- | Generates constraints for all syms in SymExpression and adds them to state.
 -- does NOT recurse down sub-expressions like addAllExprTypeConstraints
 addExprTypeConstraints :: SymExpression -> ConstraintGen ()
-addExprTypeConstraints = undefined
--- exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
---   Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
---   Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
+addExprTypeConstraints (InfoExpression (SymInfo opSize r) op') = case op' of
+  Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
 
 --   -- should this be unsigned ret because overflow is always positive?
 --   Pil.ADD_OVERFLOW x -> integralBinOpFirstArgIsReturn Nothing True x
@@ -242,220 +241,239 @@ addExprTypeConstraints = undefined
 
 --   Pil.XOR x -> bitVectorBinOp x
 --   Pil.ZX x -> integralExtendOp x
--- --   -- _ -> unknown
+--   -- _ -> unknown
 
--- --   Extract _ -> bitvecRet
---   _ -> P.error . show $ op'
---     --throwError UnhandledExpr
---   where
---     sz' = SType $ TVBitWidth sz
---     sz2x' = SType . TVBitWidth $ sz * 2
---     getBoolRet = SType . TInt sz' . SVar <$> newSym
+--   Extract _ -> bitvecRet
+  _ -> P.error . show $ op'
+    --throwError UnhandledExpr
+  where
+    mkSzVar = do
+      s <- newSym
+      addConstraint_ (s, SType $ TVBitWidth opSize)
+      return s
+
+    mkSz2xVar = do
+      s <- newSym
+      addConstraint_ (s, SType . TVBitWidth $ opSize * 2)
+      return s
+
+    argLeft :: Pil.HasLeft x SymExpression => x -> Sym
+    argLeft = view $ Pil.left . info . sym
+    
+    argRight :: Pil.HasRight x SymExpression => x -> Sym
+    argRight = view $ Pil.right . info . sym
+
+    argSrc :: Pil.HasSrc x SymExpression => x -> Sym
+    argSrc = view $ Pil.src . info . sym
+
+
+
+    -- getBoolRet = SType . TInt sz' . SVar <$> newSym
   
---     retBool = do
---       b <- getBoolRet
---       return [(r, b)]
+    -- retBool = do
+    --   b <- getBoolRet
+    --   return [(r, b)]
 
---     retFloat :: ConstraintGen [(Sym, SymType)]
---     retFloat = return [ (r, SType $ TFloat sz') ]
+    -- retFloat :: ConstraintGen [(Sym, SymType)]
+    -- retFloat = return [ (r, SType $ TFloat sz') ]
 
---     retPointer = do
---       pt <- newSym
---       return [ (r, SType (TPointer sz' (SVar pt))) ]
+    -- retPointer = do
+    --   pt <- newSym
+    --   return [ (r, SType (TPointer sz' (SVar pt))) ]
 
---     bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, SymType)]
---     bitVectorUnOp x =
---       return [ (r, SType $ TBitVector sz')
---              , (r, SVar $ x ^. Pil.src . info . sym)
---              ]
+    -- bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, SymType)]
+    -- bitVectorUnOp x =
+    --   return [ (r, SType $ TBitVector sz')
+    --          , (r, SVar $ x ^. Pil.src . info . sym)
+    --          ]
 
---     bitVectorBinOp :: ( Pil.HasLeft x SymExpression
---                       , Pil.HasRight x SymExpression)
---                    => x -> ConstraintGen [(Sym, SymType)]
---     bitVectorBinOp x =
---       return [ (r, SType $ TBitVector sz')
---              , (r, SVar $ x ^. Pil.left . info . sym)
---              , (r, SVar $ x ^. Pil.right . info . sym)
---              ]
+    -- bitVectorBinOp :: ( Pil.HasLeft x SymExpression
+    --                   , Pil.HasRight x SymExpression)
+    --                => x -> ConstraintGen [(Sym, SymType)]
+    -- bitVectorBinOp x =
+    --   return [ (r, SType $ TBitVector sz')
+    --          , (r, SVar $ x ^. Pil.left . info . sym)
+    --          , (r, SVar $ x ^. Pil.right . info . sym)
+    --          ]
 
---     integralExtendOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, SymType)]
---     integralExtendOp x = do
---       argSizeType <- SVar <$> newSym
---       signednessType <- SVar <$> newSym
---       return [ (r, SType $ TInt sz' signednessType)
---              , (x ^. Pil.src . info . sym, SType $ TInt argSizeType signednessType)
---              ]
-
-
---     integralUnOp :: (Pil.HasSrc x SymExpression)
---                  => Maybe Bool
---                  -> x
---                  -> ConstraintGen [(Sym, SymType)]
---     integralUnOp mSignedness x = do
---       signednessType <- case mSignedness of
---         Nothing -> SVar <$> newSym
---         Just b -> return . SType . TVSign $ b
---       return [ (r, SType (TInt sz' signednessType))
---              , (r, SVar $ x ^. Pil.src . info . sym)
---              ]
-
---     integralBinOpFirstArgIsReturn :: ( Pil.HasLeft x SymExpression
---                                      , Pil.HasRight x SymExpression)
---                                   => Maybe Bool -> Bool -> x
---                                   -> ConstraintGen [(Sym, SymType)]
---     integralBinOpFirstArgIsReturn mSignedness secondArgSameWidth x = do
---       signednessType <- case mSignedness of
---         Nothing -> SVar <$> newSym
---         Just b -> return . SType . TVSign $ b
---       arg2Sign <- SVar <$> newSym
---       secondArgWidth <- bool (SVar <$> newSym) (return sz') secondArgSameWidth
---       return [ (r, SType (TInt sz' signednessType))
---              , (r, SVar $ x ^. Pil.left . info . sym)
---              , (x ^. Pil.right . info . sym, SType $ TInt secondArgWidth arg2Sign)
---              ]
+    -- integralExtendOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, SymType)]
+    -- integralExtendOp x = do
+    --   argSizeType <- SVar <$> newSym
+    --   signednessType <- SVar <$> newSym
+    --   return [ (r, SType $ TInt sz' signednessType)
+    --          , (x ^. Pil.src . info . sym, SType $ TInt argSizeType signednessType)
+    --          ]
 
 
---     integralBinOpUnrelatedArgs :: ( Pil.HasLeft x SymExpression
---                                   , Pil.HasRight x SymExpression)
---                                => Maybe Bool
---                                -> x
---                                -> ConstraintGen [(Sym, SymType)]
---     integralBinOpUnrelatedArgs mSignedness x = do
---       signednessType <- case mSignedness of
---         Nothing -> SVar <$> newSym
---         Just b -> return . SType . TVSign $ b
---       arg1Sign <- SVar <$> newSym
---       arg2Sign <- SVar <$> newSym
---       arg1Width <- SVar <$> newSym
---       arg2Width <- SVar <$> newSym
---       return [ (r, SType (TInt sz' signednessType))
---              , (x ^. Pil.left . info . sym, SType $ TInt arg1Width arg1Sign)
---              , (x ^. Pil.right . info . sym, SType $ TInt arg2Width arg2Sign)
---              ]
+    -- integralUnOp :: (Pil.HasSrc x SymExpression)
+    --              => Maybe Bool
+    --              -> x
+    --              -> ConstraintGen [(Sym, SymType)]
+    -- integralUnOp mSignedness x = do
+    --   signednessType <- case mSignedness of
+    --     Nothing -> SVar <$> newSym
+    --     Just b -> return . SType . TVSign $ b
+    --   return [ (r, SType (TInt sz' signednessType))
+    --          , (r, SVar $ x ^. Pil.src . info . sym)
+    --          ]
 
---     integralBinOp :: ( Pil.HasLeft x SymExpression
---                      , Pil.HasRight x SymExpression)
---                   => Maybe Bool
---                   -> x
---                   -> ConstraintGen [(Sym, SymType)]
---     integralBinOp mSignedness x = do
---       signednessType <- case mSignedness of
---         Nothing -> SVar <$> newSym
---         Just b -> return . SType . TVSign $ b
---       return [ (r, SType (TInt sz' signednessType))
---              , (r, SVar $ x ^. Pil.left . info . sym)
---              , (r, SVar $ x ^. Pil.right . info . sym)
---              ]
-
---     -- first arg is double-precision of second and return
---     -- signedness of args can apparently be anything
---     integralBinOpDP :: ( Pil.HasLeft x SymExpression
---                        , Pil.HasRight x SymExpression)
---                     => Maybe Bool
---                     -> x
---                     -> ConstraintGen [(Sym, SymType)]
---     integralBinOpDP mSignedness x = do
---       retSignednessType <- case mSignedness of
---         Nothing -> SVar <$> newSym
---         Just b -> return . SType . TVSign $ b
---       return [ (r, SType (TInt sz' retSignednessType))
---              , (x ^. Pil.left . info . sym, SType $ TInt sz2x' retSignednessType)
---              , (r, SVar $ x ^. Pil.right . info . sym)
---              ]
+    integralBinOpFirstArgIsReturn :: ( Pil.HasLeft x SymExpression
+                                     , Pil.HasRight x SymExpression)
+                                  => Maybe Bool -> Bool -> x
+                                  -> ConstraintGen ()
+    integralBinOpFirstArgIsReturn mSignedness secondArgSameWidth x = do
+      retSign <- newSym
+      maybe (return ()) (addConstraint_ . (retSign,) . SType . TVSign) mSignedness
+      arg2Sign <- newSym
+      sz <- mkSzVar
+      secondArgWidth <- bool newSym (return sz) secondArgSameWidth
+      addConstraints_ [ (r, SType (TInt sz retSign))
+                      , (r, SVar $ argLeft x)
+                      , (argRight x, SType $ TInt secondArgWidth arg2Sign)
+                      ]
 
 
---     integralBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
---                                 , Pil.HasRight x SymExpression ) 
---                              => x
---                              -> ConstraintGen [(Sym, SymType)]
---     integralBinOpReturnsBool x = do
---       b <- getBoolRet
---       argWidthSym <- newSym
---       argSignSym <- newSym
---       let argType = SType (TInt (SVar argWidthSym) (SVar argSignSym))
---       return [ ( r, b )
---              , ( x ^. Pil.left . info . sym, argType )
---              , ( x ^. Pil.right . info . sym, argType )
---              ]
+    -- integralBinOpUnrelatedArgs :: ( Pil.HasLeft x SymExpression
+    --                               , Pil.HasRight x SymExpression)
+    --                            => Maybe Bool
+    --                            -> x
+    --                            -> ConstraintGen [(Sym, SymType)]
+    -- integralBinOpUnrelatedArgs mSignedness x = do
+    --   signednessType <- case mSignedness of
+    --     Nothing -> SVar <$> newSym
+    --     Just b -> return . SType . TVSign $ b
+    --   arg1Sign <- SVar <$> newSym
+    --   arg2Sign <- SVar <$> newSym
+    --   arg1Width <- SVar <$> newSym
+    --   arg2Width <- SVar <$> newSym
+    --   return [ (r, SType (TInt sz' signednessType))
+    --          , (x ^. Pil.left . info . sym, SType $ TInt arg1Width arg1Sign)
+    --          , (x ^. Pil.right . info . sym, SType $ TInt arg2Width arg2Sign)
+    --          ]
 
---     signedBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
---                               , Pil.HasRight x SymExpression )
---                            => Bool
---                            -> x
---                            -> ConstraintGen [(Sym, SymType)]
---     signedBinOpReturnsBool isSignedBool x = do
---       b <- getBoolRet
---       argWidthSym <- newSym
---       return [ (r, b)
---              , (x ^. Pil.left . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign isSignedBool)))
---              , (x ^. Pil.right . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign isSignedBool)))
---              ]
+    -- integralBinOp :: ( Pil.HasLeft x SymExpression
+    --                  , Pil.HasRight x SymExpression)
+    --               => Maybe Bool
+    --               -> x
+    --               -> ConstraintGen [(Sym, SymType)]
+    -- integralBinOp mSignedness x = do
+    --   signednessType <- case mSignedness of
+    --     Nothing -> SVar <$> newSym
+    --     Just b -> return . SType . TVSign $ b
+    --   return [ (r, SType (TInt sz' signednessType))
+    --          , (r, SVar $ x ^. Pil.left . info . sym)
+    --          , (r, SVar $ x ^. Pil.right . info . sym)
+    --          ]
 
---     intToFloat :: (Pil.HasSrc x SymExpression)
---                => x
---                -> ConstraintGen [(Sym, SymType)]
---     intToFloat x = do
---       intWidth <- SVar <$> newSym
---       intSign <- SVar <$> newSym
---       return [ ( x ^. Pil.src . info . sym, SType $ TInt intWidth intSign )
---              , ( r, SType $ TFloat sz' )
---              ]
+    -- -- first arg is double-precision of second and return
+    -- -- signedness of args can apparently be anything
+    -- integralBinOpDP :: ( Pil.HasLeft x SymExpression
+    --                    , Pil.HasRight x SymExpression)
+    --                 => Maybe Bool
+    --                 -> x
+    --                 -> ConstraintGen [(Sym, SymType)]
+    -- integralBinOpDP mSignedness x = do
+    --   retSignednessType <- case mSignedness of
+    --     Nothing -> SVar <$> newSym
+    --     Just b -> return . SType . TVSign $ b
+    --   return [ (r, SType (TInt sz' retSignednessType))
+    --          , (x ^. Pil.left . info . sym, SType $ TInt sz2x' retSignednessType)
+    --          , (r, SVar $ x ^. Pil.right . info . sym)
+    --          ]
 
 
---     floatToInt :: (Pil.HasSrc x SymExpression)
---                => x
---                -> ConstraintGen [(Sym, SymType)]
---     floatToInt x = do
---       floatWidth <- SVar <$> newSym
---       intSign <- SVar <$> newSym
---       return [ ( x ^. Pil.src . info . sym, SType $ TFloat floatWidth )
---              , ( r, SType $ TInt sz' intSign )
---              ]
+    -- integralBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
+    --                             , Pil.HasRight x SymExpression ) 
+    --                          => x
+    --                          -> ConstraintGen [(Sym, SymType)]
+    -- integralBinOpReturnsBool x = do
+    --   b <- getBoolRet
+    --   argWidthSym <- newSym
+    --   argSignSym <- newSym
+    --   let argType = SType (TInt (SVar argWidthSym) (SVar argSignSym))
+    --   return [ ( r, b )
+    --          , ( x ^. Pil.left . info . sym, argType )
+    --          , ( x ^. Pil.right . info . sym, argType )
+    --          ]
 
---     floatBinOp :: ( Pil.HasLeft x SymExpression
---                   , Pil.HasRight x SymExpression )
---                => x
---                -> ConstraintGen [(Sym, SymType)]
---     floatBinOp x = do
---       return [ (r, SType (TFloat sz'))
---              , (r, SVar $ x ^. Pil.left . info . sym)
---              , (r, SVar $ x ^. Pil.right . info . sym)
---              ]
+    -- signedBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
+    --                           , Pil.HasRight x SymExpression )
+    --                        => Bool
+    --                        -> x
+    --                        -> ConstraintGen [(Sym, SymType)]
+    -- signedBinOpReturnsBool isSignedBool x = do
+    --   b <- getBoolRet
+    --   argWidthSym <- newSym
+    --   return [ (r, b)
+    --          , (x ^. Pil.left . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign isSignedBool)))
+    --          , (x ^. Pil.right . info . sym, SType (TInt (SVar argWidthSym) (SType $ TVSign isSignedBool)))
+    --          ]
 
---     floatUnOp :: (Pil.HasSrc x SymExpression)
---               => x
---               -> m [(Sym, SymType)]
---     floatUnOp x = do
---       return [ (r, SType (TFloat sz'))
---              , (r, SVar $ x ^. Pil.src . info . sym)
---              ]
+    -- intToFloat :: (Pil.HasSrc x SymExpression)
+    --            => x
+    --            -> ConstraintGen [(Sym, SymType)]
+    -- intToFloat x = do
+    --   intWidth <- SVar <$> newSym
+    --   intSign <- SVar <$> newSym
+    --   return [ ( x ^. Pil.src . info . sym, SType $ TInt intWidth intSign )
+    --          , ( r, SType $ TFloat sz' )
+    --          ]
 
---     floatBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
---                           => x
---                           -> ConstraintGen [(Sym, SymType)]
---     floatBinOpReturnsBool x = do
---       b <- getBoolRet
---       argWidthSym <- newSym
---       let argType = SType (TFloat $ SVar argWidthSym)
---       return [ ( r, b )
---              , ( x ^. Pil.left . info . sym, argType )
---              , ( x ^. Pil.right . info . sym, argType )
---              ]
 
---     integralFirstArgIsReturn :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
---                              => x
---                              -> ConstraintGen [(Sym, SymType)]
---     integralFirstArgIsReturn x = do
---       intWidth <- SVar <$> newSym
---       shifterWidth <- SVar <$> newSym
---       intSign <- SVar <$> newSym
---       shifterSign <- SVar <$> newSym
---       let n = SType $ TInt intWidth intSign
---       return [ ( x ^. Pil.left . info . sym, n )
---              , ( x ^. Pil.right . info . sym
---                , SType $ TInt shifterWidth shifterSign )
---              , ( r, n )
---              ]
+    -- floatToInt :: (Pil.HasSrc x SymExpression)
+    --            => x
+    --            -> ConstraintGen [(Sym, SymType)]
+    -- floatToInt x = do
+    --   floatWidth <- SVar <$> newSym
+    --   intSign <- SVar <$> newSym
+    --   return [ ( x ^. Pil.src . info . sym, SType $ TFloat floatWidth )
+    --          , ( r, SType $ TInt sz' intSign )
+    --          ]
+
+    -- floatBinOp :: ( Pil.HasLeft x SymExpression
+    --               , Pil.HasRight x SymExpression )
+    --            => x
+    --            -> ConstraintGen [(Sym, SymType)]
+    -- floatBinOp x = do
+    --   return [ (r, SType (TFloat sz'))
+    --          , (r, SVar $ x ^. Pil.left . info . sym)
+    --          , (r, SVar $ x ^. Pil.right . info . sym)
+    --          ]
+
+    -- floatUnOp :: (Pil.HasSrc x SymExpression)
+    --           => x
+    --           -> m [(Sym, SymType)]
+    -- floatUnOp x = do
+    --   return [ (r, SType (TFloat sz'))
+    --          , (r, SVar $ x ^. Pil.src . info . sym)
+    --          ]
+
+    -- floatBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
+    --                       => x
+    --                       -> ConstraintGen [(Sym, SymType)]
+    -- floatBinOpReturnsBool x = do
+    --   b <- getBoolRet
+    --   argWidthSym <- newSym
+    --   let argType = SType (TFloat $ SVar argWidthSym)
+    --   return [ ( r, b )
+    --          , ( x ^. Pil.left . info . sym, argType )
+    --          , ( x ^. Pil.right . info . sym, argType )
+    --          ]
+
+    -- integralFirstArgIsReturn :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
+    --                          => x
+    --                          -> ConstraintGen [(Sym, SymType)]
+    -- integralFirstArgIsReturn x = do
+    --   intWidth <- SVar <$> newSym
+    --   shifterWidth <- SVar <$> newSym
+    --   intSign <- SVar <$> newSym
+    --   shifterSign <- SVar <$> newSym
+    --   let n = SType $ TInt intWidth intSign
+    --   return [ ( x ^. Pil.left . info . sym, n )
+    --          , ( x ^. Pil.right . info . sym
+    --            , SType $ TInt shifterWidth shifterSign )
+    --          , ( r, n )
+    --          ]
 
 -- | Recursively adds type constraints for all expr sym's in SymExpression,
 -- including nested syms.
