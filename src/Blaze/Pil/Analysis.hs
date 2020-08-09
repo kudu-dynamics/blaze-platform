@@ -50,12 +50,12 @@ widthToSize x = Pil.OperationSize $ toBytes x
 sizeToWidth :: Pil.OperationSize -> Bits
 sizeToWidth (Pil.OperationSize x) = toBits x
 
-getDefinedVar_ :: Stmt -> [PilVar]
-getDefinedVar_ (Def d) = [d ^. Pil.var]
-getDefinedVar_ _ = []
+getDefinedVar_ :: Stmt -> Maybe PilVar
+getDefinedVar_ (Def d) = Just $ d ^. Pil.var
+getDefinedVar_ _ = Nothing
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
-getDefinedVars = HSet.fromList . concatMap getDefinedVar_
+getDefinedVars = HSet.fromList . mapMaybe getDefinedVar_
 
 getVarsFromExpr_ :: Expression -> [PilVar]
 getVarsFromExpr_ e = case e ^. Pil.op of
