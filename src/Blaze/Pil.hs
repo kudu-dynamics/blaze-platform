@@ -336,8 +336,9 @@ convertCallInstruction ctx c = do
     (dest : _) -> do
       let dest' = convertToPilVar ctx dest
           -- TODO: Make this safe. We currently bail if there's no type provided.
+          --       Change MediumLevelILInsutrction._size to be Maybe OperationSize
           resultSize = dest ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
-          opSize = Pil.OperationSize $ fromIntegral resultSize
+          opSize = typeWidthToOperationSize resultSize
       Pil.definedVars %= (dest' :)
       return [Def $ DefOp dest' (callExpr & Pil.size .~ opSize)]
 
