@@ -26,16 +26,14 @@ import qualified Data.Text as Text
 import qualified Binja.Function as Func
 import qualified Blaze.Solver.Op as Op
 
-add5 :: SWord16 -> SWord16
-add5 n = n + 5
-
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. Pil.symbol
-  <> maybe "" (("@"<>) . view Func.name) (pv ^. Pil.func)
-  <> maybe "" (("."<>) . show . f) (pv ^. Pil.ctxIndex)
+  <> maybe "" (("@"<>) . view (Pil.func . Func.name)) mCtx
+  <> maybe "" (("."<>) . show . f . view Pil.ctxIndex) mCtx
   where
     f (Pil.CtxIndex n) = n
-
+    mCtx :: Maybe Pil.Ctx
+    mCtx = pv ^. Pil.ctx
 
 makeSymVar :: PilVar -> Pil.Type -> Solver SymExpr
 makeSymVar pv pt = case pt of

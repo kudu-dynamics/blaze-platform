@@ -10,8 +10,8 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import qualified Binja.Reference as Ref
 import qualified Binja.View
-import Blaze.Function (CallInstruction, toCallInstruction)
-import qualified Blaze.Function as Func
+import Blaze.Types.Function (CallInstruction, toCallInstruction)
+import qualified Blaze.Types.Function as Func
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (getCfg))
 import Blaze.Prelude hiding (Symbol)
@@ -52,7 +52,6 @@ import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Prelude (error)
 
 newtype BNImporter
   = BNImporter

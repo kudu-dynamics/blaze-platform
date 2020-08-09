@@ -3,7 +3,7 @@ module Blaze.Pil where
 import Binja.Function (Function)
 import qualified Binja.Function as Function
 import qualified Binja.MLIL as MLIL
-import qualified Binja.Variable as Variable
+import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
 import Blaze.Prelude hiding
   ( Symbol,
@@ -34,6 +34,7 @@ import Blaze.Types.Pil
     UnimplMemOp (UnimplMemOp),
   )
 import qualified Blaze.Types.Pil as Pil
+import Control.Lens ((^?!))
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
@@ -52,14 +53,14 @@ varToStackLocalAddr ctx v =
   Expression defaultStackLocalAddrSize
     . Pil.STACK_LOCAL_ADDR
     . Pil.StackLocalAddrOp
-    . Pil.StackOffset (Pil.toSimpleCtx ctx)
+    . Pil.StackOffset ctx
     . fromIntegral
-    $ v ^. Variable.storage
+    $ v ^. BNVar.storage
 
--- should we throw an error if (v ^. Variable.sourceType /= StackVariableSourceType)?
+-- should we throw an error if (v ^. BNVar.sourceType /= StackVariableSourceType)?
 
-typeWidthToOperationSize :: Variable.TypeWidth -> MLIL.OperationSize
-typeWidthToOperationSize (Variable.TypeWidth n) = MLIL.OperationSize n
+typeWidthToOperationSize :: BNVar.TypeWidth -> MLIL.OperationSize
+typeWidthToOperationSize (BNVar.TypeWidth n) = MLIL.OperationSize n
 
 mkFieldOffsetExprAddr :: Pil.Expression -> Int64 -> Pil.Expression
 mkFieldOffsetExprAddr addrExpr offset =
@@ -187,36 +188,43 @@ convertExpr ctx expr = case expr ^. MLIL.op of
     mkExpr = Expression (expr ^. Pil.size)
 
 getSymbol :: MLIL.SSAVariable -> Symbol
-getSymbol v = (v ^. MLIL.var . Variable.name) <> "#" <> show (v ^. MLIL.version)
+getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
 
 convertToPilVar :: Ctx -> MLIL.SSAVariable -> PilVar
-convertToPilVar ctx v =
-  PilVar
-    (getSymbol v)
-    (ctx ^. Pil.func)
-    (ctx ^. Pil.ctxIndex)
-    (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
+convertToPilVar ctx v = PilVar
+  (getSymbol v)
+  (Just ctx)
+  (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
+
+addConstToExpr :: Expression -> Int64 -> Expression
+addConstToExpr expr@(Expression size _) n = Expression size addOp
+  where
+    addOp = Pil.ADD $ Pil.AddOp expr const'
+    const' = Expression size . Pil.CONST $ Pil.ConstOp n
+
+-- |Find the first candidate var in the list.
+-- The list contains vars cons'd on as they are encountered in processing a path.
+-- The var last defined is at the head of the list.
+-- If none of the candidate vars appear in the list, return 'Nothing'.
+getLastDefined :: [PilVar] -> HashSet PilVar -> Maybe PilVar
+getLastDefined orderedVars candidateVars =
+  headMay [v | v <- orderedVars, HSet.member v candidateVars]
 
 convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
 convertInstrOp op' = do
   ctx <- use Pil.ctx
+  defVars <- use Pil.definedVars
   case op' of
-    (MLIL.CALL_OUTPUT_SSA _) -> return []
-    (MLIL.CALL_PARAM_SSA _) -> return []
-    -- TODO
-    -- output field points to CallOutputSSA
-    (MLIL.CALL_SSA _) -> return []
-    (MLIL.CALL_UNTYPED_SSA _) -> return []
     (MLIL.SET_VAR_SSA x) -> do
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvar
+      Pil.definedVars %= (pvar :)
       return [Def $ DefOp pvar expr]
       where
         pvar = convertToPilVar ctx $ x ^. MLIL.dest
         expr = convertExpr ctx (x ^. MLIL.src)
     -- TODO: Need some way to merge with previous version and include offset
     (MLIL.SET_VAR_SSA_FIELD x) -> do
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarSrc
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarDest
+      Pil.definedVars %= (pvarSrc :)
+      Pil.definedVars %= (pvarDest :)
       return [Def $ DefOp pvarDest updateVarExpr]
       where
         updateVarExpr =
@@ -228,13 +236,13 @@ convertInstrOp op' = do
         pvarSrc = convertToPilVar ctx srcVar
         off = fromIntegral $ x ^. MLIL.offset
         chunkExpr = convertExpr ctx (x ^. MLIL.src)
-        getVarWidth v = v ^? MLIL.var . Variable.varType . _Just . Variable.width
+        getVarWidth v = v ^? MLIL.var . BNVar.varType . _Just . BNVar.width
         varSize =
           maybe defaultVarSize fromIntegral $
             getVarWidth destVar <|> getVarWidth srcVar
     (MLIL.SET_VAR_SPLIT_SSA x) -> do
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarHigh
-      (Pil.ctx . Pil.definedVars) %= HSet.insert pvarLow
+      Pil.definedVars %= (pvarHigh :)
+      Pil.definedVars %= (pvarLow :)
       return
         [ Def $ DefOp pvarHigh highExpr,
           Def $ DefOp pvarLow lowExpr
@@ -273,22 +281,21 @@ convertInstrOp op' = do
       case latestVar of
         Nothing -> return []
         Just lVar -> do
-          (Pil.ctx . Pil.definedVars) %= HSet.insert lVar
+          Pil.definedVars %= (lVar :)
           return
             [ Def . DefOp pvar $
                 Expression
-                  (typeWidthToOperationSize $ vt ^. Variable.width)
+                  (typeWidthToOperationSize $ vt ^. BNVar.width)
                   (Pil.VAR $ Pil.VarOp lVar)
             ]
       where
         pvar = convertToPilVar ctx $ x ^. MLIL.dest
         latestVar =
-          headMay
-            . filter (flip HSet.member $ ctx ^. Pil.definedVars)
+            getLastDefined defVars
+            . HSet.fromList
             . fmap (convertToPilVar ctx)
-            . sortOn ((* (-1)) . view MLIL.version)
             $ x ^. MLIL.src
-        vt = fromJust $ x ^. MLIL.dest . MLIL.var . Variable.varType
+        vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
     MLIL.UNIMPL -> return [UnimplInstr "UNIMPL"]
     (MLIL.UNIMPL_MEM x) -> return [UnimplMem $ UnimplMemOp expr]
       where
@@ -314,20 +321,26 @@ getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
   return $ view Function.name <$> mfn
 getCallDestFunctionName _ _ = return Nothing
 
-convertCallInstruction :: Ctx -> CallInstruction -> IO [Stmt]
+-- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
+convertCallInstruction :: Ctx -> CallInstruction -> Pil.Converter [Stmt]
 convertCallInstruction ctx c = do
   let target = fromJust (Pil.getCallDest <$> (c ^. Function.dest >>= Just . convertExpr ctx))
-  let params = fmap (convertExpr ctx) $ c ^. Function.params
-  mname <-
-    maybe
-      (return Nothing)
-      (`getCallDestFunctionName` target)
-      (ctx ^. Pil.func)
+      params = fmap (convertExpr ctx) $ c ^. Function.params
+  mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
+  -- The size of a function call is always 0 according to BN. Need to look at result var types to get
+  -- actual size. This is done below when handling the case for a return value.
   let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
-  return $ case c ^. Function.outputDest of
-    Nothing -> []
-    Just [] -> [Call $ CallOp target mname params]
-    Just (dest : _) -> [Def $ DefOp (convertToPilVar ctx dest) callExpr]
+  case c ^. Function.outputDest of
+    -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
+    [] -> return [Call $ CallOp target mname params]
+    (dest : _) -> do
+      let dest' = convertToPilVar ctx dest
+          -- TODO: Make this safe. We currently bail if there's no type provided.
+          --       Change MediumLevelILInsutrction._size to be Maybe OperationSize
+          resultSize = dest ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
+          opSize = typeWidthToOperationSize resultSize
+      Pil.definedVars %= (dest' :)
+      return [Def $ DefOp dest' (callExpr & Pil.size .~ opSize)]
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. Pil.dest of

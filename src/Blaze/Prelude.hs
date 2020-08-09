@@ -95,6 +95,7 @@ import Prelude as Exports
   ( (!!),
     String,
     head,
+    error,
   )
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)

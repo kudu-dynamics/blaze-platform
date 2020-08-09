@@ -12,18 +12,16 @@ import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
 import Blaze.Pil.Display ((<->), Symbol, disp, paren)
+import Blaze.Prelude hiding (Symbol, sym, const)
+import qualified Blaze.Types.Path.AlgaPath as AlgaPath
+import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Pil as Pil
-import Control.Lens hiding (op)
-import Data.BinaryAnalysis
-  ( Address (Address),
-    ByteOffset,
-    Bytes (Bytes),
-  )
+import qualified Blaze.Types.Function as Func
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Numeric
-import Protolude hiding (Symbol, const, sym)
 import Text.Printf
 
 -- TODO: make pretty return a monad instead of text,
@@ -108,13 +106,13 @@ instance Pretty Binja.Function.Function where
       start :: Word64
       (Address (Bytes start)) = f ^. Binja.Function.start
 
-instance Pretty Pil.SimpleCtx where
-  pretty ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
+instance Pretty Pil.Ctx where
+  pretty ctx = Text.pack $ printf "ctx (%s) %s" func idx
     where
       func :: Text
-      func = maybe "Nothing" pretty (ctx ^. Pil.func)
+      func = pretty (ctx ^. Pil.func)
       idx :: Text
-      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+      idx = show (ctx ^. Pil.ctxIndex)
 
 prettyBinop ::
   ( Pil.HasLeft a Pil.Expression,
@@ -289,7 +287,7 @@ instance Pretty Pil.Stmt where
     Pil.Nop -> "Nop"
     (Pil.Annotation t) -> "Annotation: " <> t
     (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. Pil.ctx)
-    (Pil.ExitContext x) -> "<---- Leaving %s" <> pretty (x ^. Pil.leavingCtx)
+    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. Pil.leavingCtx)
     (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. Pil.dest) (pretty $ x ^. Pil.params)
 
 newtype PStmts = PStmts [Pil.Stmt]
@@ -305,6 +303,49 @@ instance Pretty Pil.StackOffset where
     "stackOffset"
       <-> show (x ^. Pil.offset)
       <-> paren (pretty (x ^. Pil.ctx))
+
+--- Function
+instance Pretty Func.DestCollOpt where
+  pretty (Func.DestCollAddr x) = pretty x
+  pretty (Func.DestCollExpr x) = pretty x
+
+instance Pretty Func.CallDest where
+  pretty (Func.DestAddr x) = pretty x
+  pretty (Func.DestFunc x) = pretty x
+  pretty (Func.DestExpr x) = pretty x
+  pretty (Func.DestColl x) = pretty x
+
+instance Pretty Func.CallSite where
+  pretty x = pretty (x ^. Func.caller) <> " -> "
+             <> pretty (x ^. Func.callDest)
+
+--- Path
+instance Pretty Path.Node where
+  pretty (Path.SubBlock x) =
+    Path.brack (pretty (x ^. Path.start) <> "-" <> pretty (x ^. Path.end - 1)) <> " : SubBlock"
+  pretty (Path.Call x) =
+    "-------Expanding call: " <> pretty (x ^. Path.callSite)
+  pretty (Path.Ret x) =
+    "-------Returning to " <> pretty (x ^. Path.func) <> " from " <> pretty (x ^. Path.callSite . Func.callDest)
+  pretty (Path.AbstractCall x) =
+    Path.brack (pretty $ x ^. Path.callSite . Func.callInstr . Func.index)
+    <> " : "
+    <> pretty (x ^. Path.callSite)
+  pretty (Path.AbstractPath _) = "AbstractPath"
+  pretty (Path.Condition x) =
+    "Condition: " <> bool "NOT " "" (x ^. Path.trueOrFalseBranch)
+    <> pretty (x ^. Path.condition)
+
+--- AlgaPath
+instance Pretty AlgaPath.AlgaPath where
+  pretty p = case uncons (Path.toList p) of
+    Nothing -> ""
+    Just (x, xs) ->
+      "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
+        <> f (x : xs)
+    where
+      f [] = ""
+      f (x : xs) = pretty x <> "\n" <> f xs
 
 prettyStmts :: (MonadIO m) => [Pil.Stmt] -> m ()
 prettyStmts = prettyPrint . PStmts

@@ -8,7 +8,6 @@ import Blaze.Prelude hiding (pred)
 import Blaze.Types.CallGraph (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
-import Prelude (error)
 
 -- TODO: Consider adding more depending on what is being represented.
 data BranchType
