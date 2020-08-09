@@ -166,6 +166,9 @@ convertExpr ctx expr = case expr ^. MLIL.op of
     where
       addrExpr = varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var)
   --    (MLIL.VAR_FIELD x) -> VarFieldOp expr)
+  -- TODO: VAR_PHI refers to previously defined vars. We should be referencing those rather than assuming
+  --       the source PilVars share the same context. When only functions define contexts, this assumption
+  --       should be safe. But it won't be if other program constructs have defined contexts (e.g., loop iterations).
   (MLIL.VAR_PHI x) ->
     mkExpr . Pil.VAR_PHI $
       Pil.VarPhiOp (convertToPilVar ctx $ x ^. MLIL.dest) (fmap (convertToPilVar ctx) $ x ^. MLIL.src)
