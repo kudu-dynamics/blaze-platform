@@ -40,10 +40,10 @@ updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 
 -- | Unifies constraint with all other constraints and solutions in state.
 unifyConstraint :: Constraint -> Unify ()
-unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
+unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
   omap <- use originMap
   case varSubst omap cx of
-    (Constraint (a, (SVar b)))
+    (Constraint i a (SVar b))
       | a == b -> return ()  -- redundant constraint
       | otherwise -> do
           c <- addVarEq a b
@@ -53,7 +53,7 @@ unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
           solutions %= fmap (varSubst subMap)
 
     -- look up 'a' in solutions map and unify it with existing solution for 'a'
-    (Constraint (a, (SType t))) -> do
+    (Constraint i a ((SType t))) -> do
       -- TODO: occurs check here? (error if 'a' is used in 't')
       -- maybe we don't need occurs check since it's flat, hence "lazy"
       -- if unification fails with infinite loop, look here...
@@ -63,8 +63,9 @@ unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
           originMap %= HashMap.insert preSubstSym a
           solutions %= HashMap.insert a t
         Just t' -> do
+          currentStmt .= i
           t'' <- catchError (unifyPilTypes t t') $ \err -> do
-            errors %= ((UnifyConstraintsError a err):)
+            errors %= ((UnifyConstraintsError i a err):)
             return (TBottom a)
           solutions %= HashMap.insert a t''
 
@@ -150,11 +151,11 @@ unifyPilTypes pt1 pt2 =
         TInt w2 sign2 -> TInt <$> addVarEq w1 w2
                               <*> addVarEq sign1 sign2
         TPointer w2 pointeeType1 -> do
-          addConstraint $ Constraint (sign1, SType $ TVSign False)
+          addConstraint_ sign1 . SType $ TVSign False
           flip TPointer pointeeType1 <$> addVarEq w1 w2
         TChar -> do
-          addConstraint $ Constraint (w1, SType $ TVBitWidth charSize)
-          addConstraint $ Constraint (sign1, SType $ TVSign False)
+          addConstraint_ w1 . SType $ TVBitWidth charSize
+          addConstraint_ sign1 . SType $ TVSign False
           return TChar
         _ -> err
 
@@ -170,7 +171,7 @@ unifyPilTypes pt1 pt2 =
         TInt w2 s -> TInt <$> addVarEq w1 w2 <*> pure s
         TPointer w2 pt -> TPointer <$> addVarEq w1 w2 <*> pure pt
         TChar -> do
-          addConstraint $ Constraint (w1, SType $ TVBitWidth 8)
+          addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of

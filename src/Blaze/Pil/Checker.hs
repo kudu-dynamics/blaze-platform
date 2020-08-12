@@ -58,11 +58,15 @@ stmtSolutions stmts' = case er of
                            , gst
                            , ust)
   where
+    indexedStmts = zip [0..] stmts'
     ust = unifyConstraints cxs
     cxs = gst ^. constraints
     (er, gst) = runConstraintGen_ $ do
       createVarSymMap stmts'
-      mapM addStmtTypeConstraints stmts'
+      mapM (\(i, s) -> do
+               currentStmt .= i
+               addStmtTypeConstraints s)
+        indexedStmts
 
 -- | main function to type check / infer statements
 --   currently only returning types of pilvars in stmts for testing.
@@ -80,7 +84,7 @@ checkStmts = fmap toReport . stmtSolutions
       -- done: varSymTypeMap, varSymMap
       -- NA: varEqMap (map of origins to equals); probably can remove
       --     if everything else is an origin var.
-      { _symTypeStmts = fmap (fmap fillTypesInStmt) stmts'
+      { _symTypeStmts = zip [0..] $ fmap (fmap fillTypesInStmt) stmts'
       , _symStmts = stmts'
       , _varSymMap = originsVarSymMap
       , _varSymTypeMap = pilVarMap

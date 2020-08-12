@@ -63,8 +63,11 @@ data DeepSymType = DSVar Sym
                deriving (Eq, Ord, Read, Show, Generic)
 
 
-newtype Constraint = Constraint (Sym, SymType)
-  deriving (Eq, Ord, Show, Generic)
+data Constraint = Constraint
+  { _stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
+  , _sym ::Sym
+  , _symType :: SymType
+  } deriving (Eq, Ord, Show, Generic)
 
 -- | solutions should be the "final unification" for any sym.
 -- | complex types might still contain SVars subject to substitution
@@ -112,7 +115,10 @@ data UnifyError = UnifyError (PilType Sym) (PilType Sym) UnifyError
                 deriving (Eq, Ord, Read, Show, Generic)
 
 data UnifyConstraintsError = UnifyConstraintsError
-                           { _sym :: Sym
+                           { _stmtOrigin  :: Int
+                           --index in list of pil stmts for now
+
+                           , _sym :: Sym
                            , _error :: UnifyError
                            } deriving (Eq, Ord, Read, Show, Generic)
 $(makeFieldsNoPrefix ''UnifyConstraintsError)
@@ -130,7 +136,7 @@ type VarEqMap = EqualityMap Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { _symTypeStmts :: [Statement (InfoExpression (SymInfo, Maybe DeepSymType))]
+  { _symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
   , _symStmts :: [Statement SymExpression]
   --  , _typedStmts :: [Statement TypedExpression]
   , _varSymTypeMap :: HashMap PilVar DeepSymType
@@ -152,12 +158,13 @@ data ConstraintGenState = ConstraintGenState
   , _symMap :: HashMap Sym SymExpression
   , _varSymMap :: HashMap PilVar Sym
   , _constraints :: [Constraint]
+  , _currentStmt :: Int
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''ConstraintGenState)
 
 emptyConstraintGenState :: ConstraintGenState
-emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty []
+emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty [] 0
 
 newtype ConstraintGen a = ConstraintGen
   { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }
@@ -190,11 +197,12 @@ data UnifyState = UnifyState
                   , _solutions :: HashMap Sym (PilType Sym)
 
                   , _errors :: [UnifyConstraintsError]
-                            
+
                   -- this is a map of syms to their "original" sym
                   -- like if you add (a, b), (b, c)
                   -- it should store a | b  -> c
                   , _originMap :: HashMap Sym Sym
+                  , _currentStmt :: Int
                   } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyState)
 
@@ -203,15 +211,21 @@ addConstraint :: (HasConstraints s [Constraint], MonadState s m)
               => Constraint -> m ()
 addConstraint cx = constraints %= (cx:)
 
-addConstraint_ :: (HasConstraints s [Constraint], MonadState s m)
+addConstraint_ :: ( HasConstraints s [Constraint]
+                  , HasCurrentStmt s Int
+                  , MonadState s m)
                => Sym -> SymType -> m ()
-addConstraint_ s st = constraints %= (Constraint (s, st) :)
+addConstraint_ s st = do
+  i <- use currentStmt
+  constraints %= (Constraint i s st :)
 
 addConstraints :: (HasConstraints s [Constraint], MonadState s m)
                => [Constraint] -> m ()
 addConstraints = mapM_ addConstraint
 
-addConstraints_ :: (HasConstraints s [Constraint], MonadState s m)
+addConstraints_ :: ( HasConstraints s [Constraint]
+                   , HasCurrentStmt s Int
+                   , MonadState s m)
                 => [(Sym, SymType)] -> m ()
 addConstraints_ = mapM_ $ uncurry addConstraint_
 
@@ -258,7 +272,7 @@ instance VarSubst DeepSymType where
   varSubst m (DSRecursive s t) = DSRecursive (varSubst m s) (varSubst m t)
 
 instance VarSubst Constraint where
-  varSubst m (Constraint (v, t)) = Constraint (varSubst m v, varSubst m t)
+  varSubst m (Constraint i v t) = Constraint i (varSubst m v) (varSubst m t)
 
 instance VarSubst a => VarSubst (Statement a) where
   varSubst m = fmap (varSubst m)

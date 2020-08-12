@@ -886,6 +886,7 @@ toSymExpression (Expression sz op') = do
 -- | get all rules for a stmt, including subexpressions
 -- and add them to state
 -- also create a `Statement SymExpression`
+-- make sure to set the `currentStmt` index before calling this
 addStmtTypeConstraints :: Statement Expression
                        -> ConstraintGen (Statement SymExpression)
 addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do

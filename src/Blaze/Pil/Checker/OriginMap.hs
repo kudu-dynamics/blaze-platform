@@ -36,7 +36,7 @@ addVarEq a b = do
       case HashMap.lookup retiredSym sols of
         Nothing -> return ()
         Just rt -> do
-          addConstraint $ Constraint (retiredSym, SType rt)
+          addConstraint_ retiredSym $ SType rt
           solutions %= HashMap.delete retiredSym
   originMap .= m'
   return (v)
