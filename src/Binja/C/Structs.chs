@@ -67,7 +67,9 @@ instance Storable BNBoolWithConfidence where
   sizeOf _ = {#sizeof BNBoolWithConfidence#}
   alignment _ = {#alignof BNBoolWithConfidence#}
   peek p = BNBoolWithConfidence
-    <$> ({#get BNBoolWithConfidence->value #} p)
+    -- TODO: Revert to using the get pragma once C2HS bool member support has been fixed.
+    --       I.e., use: <$> ({#get BNBoolWithConfidence->value #} p)
+    <$> ((\ptr -> do {C2HSImp.toBool `fmap` (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)}) p)
     <*> liftM fromIntegral ({#get BNBoolWithConfidence->confidence #} p)
   poke _ _ = P.error "BNBoolWithConfidence 'poke' not implemented"
 
