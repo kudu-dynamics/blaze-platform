@@ -47,6 +47,7 @@ import Control.Lens as Exports
     makeFieldsNoPrefix,
     makeLenses,
     makePrisms,
+    over,
     use,
     view,
     _Just,
@@ -97,6 +98,7 @@ import Prelude as Exports
   ( (!!),
     String,
     head,
+    error,
   )
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)

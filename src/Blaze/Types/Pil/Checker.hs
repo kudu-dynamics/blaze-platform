@@ -33,7 +33,7 @@ data PilType t = TArray { len :: t, elemType :: t }
                                   t -- type
                          )
                -- Bottom is labeled with error info
-               | TBottom
+               | TBottom Sym
                | TFunction { ret :: t, params :: [t] }
               
                -- type level values for some dependent-type action
@@ -51,6 +51,11 @@ unT (T pt) = pt
 data SymType = SVar Sym
              | SType (PilType Sym)
              deriving (Eq, Ord, Read, Show, Generic)
+
+data ConstraintSymType = CSVar Sym
+                       | CSType (PilType ConstraintSymType)
+                       deriving (Eq, Ord, Read, Show, Generic)
+
 
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
@@ -199,8 +204,8 @@ addConstraint :: (HasConstraints s [Constraint], MonadState s m)
 addConstraint cx = constraints %= (cx:)
 
 addConstraint_ :: (HasConstraints s [Constraint], MonadState s m)
-               => (Sym, SymType) -> m ()
-addConstraint_ cx = constraints %= (Constraint cx :)
+               => Sym -> SymType -> m ()
+addConstraint_ s st = constraints %= (Constraint (s, st) :)
 
 addConstraints :: (HasConstraints s [Constraint], MonadState s m)
                => [Constraint] -> m ()
@@ -208,7 +213,7 @@ addConstraints = mapM_ addConstraint
 
 addConstraints_ :: (HasConstraints s [Constraint], MonadState s m)
                 => [(Sym, SymType)] -> m ()
-addConstraints_ = mapM_ addConstraint_
+addConstraints_ = mapM_ $ uncurry addConstraint_
 
 data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
                                , _errors :: [UnifyError]
@@ -235,3 +240,47 @@ popConstraint = use constraints >>= \case
     return $ Just cx
 
 
+class VarSubst a where
+  varSubst :: HashMap Sym Sym -> a -> a
+
+instance VarSubst Sym where
+  varSubst m v = maybe v identity $ HashMap.lookup v m
+
+instance VarSubst SymType where
+  varSubst m (SVar v) = SVar $ varSubst m v
+  varSubst m (SType t) = SType $ varSubst m t
+
+-- shouldn't really need to do this because DeepSymTypes are constructed
+-- using the `Solutions` map, which already should only have origin vars
+instance VarSubst DeepSymType where
+  varSubst m (DSVar v) = DSVar $ varSubst m v
+  varSubst m (DSType t) = DSType $ varSubst m t
+  varSubst m (DSRecursive s t) = DSRecursive (varSubst m s) (varSubst m t)
+
+instance VarSubst Constraint where
+  varSubst m (Constraint (v, t)) = Constraint (varSubst m v, varSubst m t)
+
+instance VarSubst a => VarSubst (Statement a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst (PilType a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst (InfoExpression a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst [a] where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst SymInfo where
+  varSubst m (SymInfo sz s) = SymInfo sz (varSubst m s)
+
+instance VarSubst UnifyError where
+  varSubst m (UnifyError pt1 pt2 uerr) =
+    UnifyError (varSubst m pt1) (varSubst m pt2) (varSubst m uerr)
+  varSubst m (IncompatibleTypes pt1 pt2) =
+    IncompatibleTypes (varSubst m pt1) (varSubst m pt2)
+  varSubst m (OverlappingRecordField fields off) =
+    OverlappingRecordField (fmap (varSubst m) fields) off
+  
+    

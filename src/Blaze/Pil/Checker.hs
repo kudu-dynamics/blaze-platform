@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Blaze.Pil.InferenceDependent where
+module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import Blaze.Types.Pil ( Expression
@@ -54,10 +54,11 @@ stmtSolutions :: [Statement Expression]
                                            )
 stmtSolutions stmts' = case er of
   Left err -> Left err
-  Right symStmts' -> Right ( symStmts'
+  Right symStmts' -> Right ( fmap (varSubst $ ust ^. originMap) symStmts'
                            , gst
-                           , unifyConstraints cxs)
+                           , ust)
   where
+    ust = unifyConstraints cxs
     cxs = gst ^. constraints
     (er, gst) = runConstraintGen_ $ do
       createVarSymMap stmts'
@@ -74,14 +75,20 @@ checkStmts = fmap toReport . stmtSolutions
                 )
              -> TypeReport
     toReport (stmts', s, unSt) = TypeReport
+      --TODO: make sure EVERY sym var in all of these is an ORIGIN sym var
+      -- todo: symTypeStmts, symStmts, errs
+      -- done: varSymTypeMap, varSymMap
+      -- NA: varEqMap (map of origins to equals); probably can remove
+      --     if everything else is an origin var.
       { _symTypeStmts = fmap (fmap fillTypesInStmt) stmts'
       , _symStmts = stmts'
-      , _varSymMap = s ^. varSymMap
+      , _varSymMap = originsVarSymMap
       , _varSymTypeMap = pilVarMap
       , _varEqMap = originMapToGroupMap eqMap
       , _errors = errs
       }
       where
+        originsVarSymMap = varSubst eqMap <$> s ^. varSymMap
         sols :: HashMap Sym (PilType Sym)
         sols = unSt ^. solutions
         errs = unSt ^. errors
@@ -98,7 +105,7 @@ checkStmts = fmap toReport . stmtSolutions
           (fmap fillTypesInStmt $ x ^. op)
 
         pilVarMap :: HashMap PilVar DeepSymType
-        pilVarMap = fmap f $ s ^. varSymMap
+        pilVarMap = fmap f originsVarSymMap
           where
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols

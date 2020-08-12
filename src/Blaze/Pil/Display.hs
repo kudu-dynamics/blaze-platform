@@ -112,13 +112,13 @@ instance Disp Binja.Function.Function where
       start :: Text
       start = show $ f ^. Binja.Function.start
 
-instance Disp Pil.SimpleCtx where
+instance Disp Pil.Ctx where
   disp ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
     where
       func :: Text
-      func = maybe "Nothing" disp (ctx ^. Pil.func)
+      func = disp $ ctx ^. Pil.func
       idx :: Text
-      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+      idx = show $ ctx ^. Pil.ctxIndex
 
 instance Disp a => Disp (Pil.Statement a) where
   disp stmt = case stmt of

@@ -13,19 +13,18 @@ import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
 import Blaze.Pil.Display ((<->), Symbol, disp, paren)
+import Blaze.Prelude hiding (Symbol, sym, const)
+import qualified Blaze.Types.Path.AlgaPath as AlgaPath
+import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Pil as Pil
-import Control.Lens hiding (op)
-import Data.BinaryAnalysis
-  ( Address (Address),
-    ByteOffset,
-    Bytes (Bytes),
-  )
+import qualified Blaze.Types.Function as Func
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Numeric
 import Text.Printf
-import qualified Blaze.Types.Pil.Inference as PI
+import qualified Blaze.Types.Pil.Checker as PI
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -112,13 +111,13 @@ instance Pretty Binja.Function.Function where
       start :: Word64
       (Address (Bytes start)) = f ^. Binja.Function.start
 
-instance Pretty Pil.SimpleCtx where
-  pretty ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
+instance Pretty Pil.Ctx where
+  pretty ctx = Text.pack $ printf "ctx (%s) %s" func idx
     where
       func :: Text
-      func = maybe "Nothing" pretty (ctx ^. Pil.func)
+      func = pretty (ctx ^. Pil.func)
       idx :: Text
-      idx = maybe "Nothing" show (ctx ^. Pil.ctxIndex)
+      idx = show (ctx ^. Pil.ctxIndex)
 
 prettyBinop ::
   ( Pretty b,
@@ -287,10 +286,22 @@ instance Pretty PI.SymType where
   pretty (PI.SVar s) = pretty s
   pretty (PI.SType t) = pretty t
 
+instance Pretty PI.DeepSymType where
+  pretty (PI.DSVar s) = pretty s
+  pretty (PI.DSType t) = pretty t
+  pretty (PI.DSRecursive s dst) = paren ("Rec" <-> pretty s <> ":" <-> pretty dst)
+
 instance Pretty PI.Sym where
   pretty (PI.Sym n) = "s" <> show n
 
 instance Pretty (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
+  pretty (PI.InfoExpression ((PI.SymInfo bitwidth s), mstype) op) =
+--    "{" <> pretty s <> "}" <->
+    prettyExprOp op (coerce $ bitwidth * 8) <->
+    "::" <->
+    paren (pretty s <-> "|" <-> maybe "Unknown" pretty mstype)
+
+instance Pretty (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) where
   pretty (PI.InfoExpression ((PI.SymInfo bitwidth s), mstype) op) =
 --    "{" <> pretty s <> "}" <->
     prettyExprOp op (coerce $ bitwidth * 8) <->
@@ -322,7 +333,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
     Pil.Nop -> "Nop"
     (Pil.Annotation t) -> "Annotation: " <> t
     (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. Pil.ctx)
-    (Pil.ExitContext x) -> "<---- Leaving %s" <> pretty (x ^. Pil.leavingCtx)
+    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. Pil.leavingCtx)
     (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. Pil.dest) (pretty $ x ^. Pil.params)
 
 newtype PStmts a = PStmts [Pil.Statement a]
@@ -339,7 +350,6 @@ instance Pretty Pil.StackOffset where
       <-> show (x ^. Pil.offset)
       <-> paren (pretty (x ^. Pil.ctx))
 
-  
 instance Pretty t => Pretty (PI.PilType t) where
   pretty = \case
     PI.TArray len elemType -> "Array" <-> pretty len <-> pretty elemType
@@ -350,18 +360,55 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TPointer bitWidth pointeeType -> "Pointer" <-> pretty bitWidth
                                         <-> paren (pretty pointeeType)
     PI.TRecord _m -> "Record" -- TODO fields
-    PI.TBottom s -> "Bottom" <-> ids
-      where
-        ids = case HashSet.toList s of
-          [x] -> pretty x
-          xs -> pretty xs
+    PI.TBottom s -> paren $ "Bottom" <-> pretty s
     PI.TFunction _ret _params -> "Func"
-
-    PI.THasWidth t -> "HasWidth " <-> pretty t
 
     PI.TVBitWidth (Bits bitWidth) -> show bitWidth <> "w"
     PI.TVLength n -> show n
     PI.TVSign b -> if b then "Signed" else "Unsigned"
+
+--- Function
+instance Pretty Func.DestCollOpt where
+  pretty (Func.DestCollAddr x) = pretty x
+  pretty (Func.DestCollExpr x) = pretty x
+
+instance Pretty Func.CallDest where
+  pretty (Func.DestAddr x) = pretty x
+  pretty (Func.DestFunc x) = pretty x
+  pretty (Func.DestExpr x) = pretty x
+  pretty (Func.DestColl x) = pretty x
+
+instance Pretty Func.CallSite where
+  pretty x = pretty (x ^. Func.caller) <> " -> "
+             <> pretty (x ^. Func.callDest)
+
+--- Path
+instance Pretty Path.Node where
+  pretty (Path.SubBlock x) =
+    Path.brack (pretty (x ^. Path.start) <> "-" <> pretty (x ^. Path.end - 1)) <> " : SubBlock"
+  pretty (Path.Call x) =
+    "-------Expanding call: " <> pretty (x ^. Path.callSite)
+  pretty (Path.Ret x) =
+    "-------Returning to " <> pretty (x ^. Path.func) <> " from " <> pretty (x ^. Path.callSite . Func.callDest)
+  pretty (Path.AbstractCall x) =
+    Path.brack (pretty $ x ^. Path.callSite . Func.callInstr . Func.index)
+    <> " : "
+    <> pretty (x ^. Path.callSite)
+  pretty (Path.AbstractPath _) = "AbstractPath"
+  pretty (Path.Condition x) =
+    "Condition: " <> bool "NOT " "" (x ^. Path.trueOrFalseBranch)
+    <> pretty (x ^. Path.condition)
+
+--- AlgaPath
+instance Pretty AlgaPath.AlgaPath where
+  pretty p = case uncons (Path.toList p) of
+    Nothing -> ""
+    Just (x, xs) ->
+      "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
+        <> f (x : xs)
+    where
+      f [] = ""
+      f (x : xs) = pretty x <> "\n" <> f xs
 
 prettyStmts :: (MonadIO m, Pretty a) => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts

@@ -1,41 +1,41 @@
 module Blaze.Pil.Path where
 
-import           Blaze.Prelude
-
-import           Binja.Function                    ( Function )
-
-import qualified Binja.Function       as HFunction
-import qualified Binja.MLIL           as MLIL
-import qualified Binja.Variable       as Variable
-import qualified Blaze.Pil            as Pil
+import Binja.Function (Function)
+import qualified Binja.Function as BNFunc
+import qualified Binja.MLIL as MLIL
+import qualified Binja.Variable as BNVar
+import qualified Blaze.Pil as Pil
+import Blaze.Prelude hiding (sym)
 import Blaze.Types.Function (CallSite)
 import qualified Blaze.Types.Function as Func
-import           Blaze.Types.Path                  ( AbstractCallNode
-                                                   , CallNode
-                                                   , RetNode
-                                                   , ConditionNode
-                                                   , Node( AbstractCall
-                                                         , Condition
-                                                         , SubBlock
-                                                         , Call
-                                                         , Ret
-                                                         )
-                                                   , Path
-                                                   , SubBlockNode
-                                                   )
-import qualified Blaze.Types.Path     as Path
-import           Blaze.Types.Pil                   ( ConverterCtx( ConverterCtx )
-                                                   , SimpleCtx(SimpleCtx)
-                                                   , Ctx( Ctx )
-                                                   , CtxIndex
-                                                   , Stmt
-                                                   , Converter
-                                                   , TypeEnv( TypeEnv )
-                                                   , runConverter
-                                                   )
-import qualified Blaze.Types.Pil      as Pil
-import qualified Data.HashMap.Strict  as HMap
-import qualified Data.HashSet         as HSet
+import Blaze.Types.Path
+  ( AbstractCallNode,
+    CallNode,
+    ConditionNode,
+    Node
+      ( AbstractCall,
+        Call,
+        Condition,
+        Ret,
+        SubBlock
+      ),
+    RetNode,
+    SubBlockNode,
+  )
+import qualified Blaze.Types.Path as Path
+import Blaze.Types.Path.AlgaPath (AlgaPath)
+import Blaze.Types.Pil
+  ( Converter,
+    ConverterState (ConverterState),
+    Ctx (Ctx),
+    CtxIndex,
+    Stmt,
+    runConverter,
+  )
+import qualified Blaze.Types.Pil as Pil
+import Data.Coerce (coerce)
+import qualified Data.HashSet as HS
+import qualified Data.List.NonEmpty as NE
 
 -- convert path to [Pil]
 
@@ -45,39 +45,57 @@ import qualified Data.HashSet         as HSet
 maybeUpdateCtx :: Function -> Converter ()
 maybeUpdateCtx fn = do
   cctx <- get
-  when (Just fn /= cctx ^. Pil.ctx . Pil.func) . enterNewCtx $ Just fn
+  when (fn /= cctx ^. Pil.ctx . Pil.func) . enterNewCtx $ fn
 
-enterNewCtx :: Maybe Function -> Converter ()
+enterNewCtx :: Function -> Converter ()
 enterNewCtx fn = do
-  Pil.ctxIndexCounter %= incIndex
-  i <- use Pil.ctxIndexCounter
-  Pil.ctx %= newCtx i
+  Pil.ctxMaxIdx %= incIndex
+  i <- use Pil.ctxMaxIdx
+  outerCtx <- use Pil.ctx
+  
+  let innerCtx = newCtx i outerCtx
+  Pil.ctx .= innerCtx
+  pushCtx innerCtx
+
   where
+    newCtx :: CtxIndex -> Ctx -> Ctx
     newCtx i ctx = ctx & Pil.func .~ fn
                        & Pil.ctxIndex .~ i
-    incIndex :: Maybe CtxIndex -> Maybe CtxIndex
-    incIndex Nothing = Just 0
-    incIndex (Just n) = Just (n + 1)
+    incIndex :: CtxIndex -> CtxIndex
+    incIndex = (+ 1)
+    pushCtx :: Ctx -> Converter ()
+    pushCtx ctx = Pil.ctxStack %= NE.cons ctx
 
-retCtxTo :: Maybe Function -> Converter ()
-retCtxTo fn = do
-  Pil.ctxIndexCounter %= fmap (subtract 1)
-  i <- use Pil.ctxIndexCounter
-  Pil.ctx %= newCtx i
+retCtx :: Converter ()
+retCtx = do
+  _innerCtx <- popCtx
+  outerCtx <- peekCtx
+  Pil.ctx .= outerCtx
   where
-    newCtx i ctx = ctx & Pil.func .~ fn
-                       & Pil.ctxIndex .~ i
+    popCtx :: Converter Ctx
+    popCtx = do
+      stack <- use Pil.ctxStack
+      let (_innerCtx, mStack) = NE.uncons stack
+      case mStack of 
+        Just stack' -> do
+          Pil.ctxStack .= stack'
+          return _innerCtx
+        Nothing -> error "The converter stack should never be empty."
+    peekCtx :: Converter Ctx
+    peekCtx = do
+      stack <- use Pil.ctxStack
+      return $ NE.head stack
 
-getSimpleCtx :: Converter SimpleCtx
-getSimpleCtx = do
-  ctx <- view Pil.ctx <$> get
-  return $ SimpleCtx (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex)
+peekPrevCtx :: Converter (Maybe Ctx)
+peekPrevCtx = do
+  stack <- use Pil.ctxStack
+  return $ headMay . NE.tail $ stack
 
 convertSubBlockNode :: SubBlockNode -> Converter [Stmt]
 convertSubBlockNode sb = do
   maybeUpdateCtx $ sb ^. Path.func
   instrs <- liftIO $ do
-    mlilFunc <- HFunction.getMLILSSAFunction $ sb ^. Path.func
+    mlilFunc <- BNFunc.getMLILSSAFunction $ sb ^. Path.func
     mapM (MLIL.instruction mlilFunc) [(sb ^. Path.start) .. (sb ^. Path.end - 1)]
   Pil.convertInstrs instrs
 
@@ -93,42 +111,78 @@ convertConditionNode n = do
 convertAbstractCallNode :: AbstractCallNode -> Converter [Stmt]
 convertAbstractCallNode n = do
   ctx <- use Pil.ctx
-  liftIO $ Pil.convertCallInstruction ctx (n ^. Path.callSite . Func.callInstr)
+  Pil.convertCallInstruction ctx (n ^. Path.callSite . Func.callInstr)
 
-getCallDestFunc :: CallSite -> Maybe Function
+-- TODO: Check this earlier in the conversion process? 
+getCallDestFunc :: CallSite -> Function
 getCallDestFunc x = case x ^. Func.callDest of
-  (Func.DestFunc f) -> Just f
-  _ -> Nothing
+  (Func.DestFunc f) -> f
+  _ -> error "Only calls to known functions may be expanded."
+
+defSymbol :: Pil.Symbol -> Pil.Expression -> Converter Stmt
+defSymbol sym expr = do
+  ctx <- use Pil.ctx
+  -- TODO: Sort out use of mapsTo when defining the PilVar
+  let pilVar = Pil.PilVar sym (Just ctx) HS.empty
+  return $ Pil.Def (Pil.DefOp pilVar expr)
+
+defPilVar :: Pil.PilVar -> Pil.Expression -> Stmt
+defPilVar pilVar expr = Pil.Def (Pil.DefOp pilVar expr)
+
+createParamSymbol :: Int -> BNVar.Variable -> Pil.Symbol
+createParamSymbol version var =
+  coerce name <> "#" <> show version
+    where
+      name :: Text
+      name = var ^. BNVar.name
 
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
-  callerCtx <- use Pil.ctx
-  enterNewCtx . getCallDestFunc $ n ^. Path.callSite
-  calleeCtx <- use Pil.ctx
-  vars <- case getCallDestFunc $ n ^. Path.callSite of
-    Just d -> liftIO $ Variable.getFunctionParameterVariables d
-    _ -> return []
-  let mlilSsaVars = Pil.convertToPilVar calleeCtx . convertToMlilSsaVar <$> vars
-      paramExprs = Pil.convertExpr callerCtx <$> n ^. (Path.callSite . Func.callInstr . Func.params)
-      defs = [Pil.Def $ Pil.DefOp pvar expr | (pvar, expr) <- zip mlilSsaVars paramExprs]
-  sCtx <- getSimpleCtx
-  return $ [ Pil.EnterContext . Pil.EnterContextOp $ sCtx ] <> defs
-  where
-    -- assumes that first version of args is the right one to link up to
-    -- todo: verify or rework
-    convertToMlilSsaVar :: Variable.Variable -> MLIL.SSAVariable
-    convertToMlilSsaVar v = MLIL.SSAVariable v 0
+  let destFunc = getCallDestFunc $ n ^. Path.callSite
+  enterNewCtx destFunc
+  ctx <- use Pil.ctx
+  mPrevCtx <- peekPrevCtx
+  let prevCtx = case mPrevCtx of 
+                  Nothing -> error "No previous context found."
+                  Just prevCtx_ -> prevCtx_
+  params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
+  let callInstr = n ^. (Path.callSite . Func.callInstr)
+      argExprs = Pil.convertExpr prevCtx <$> callInstr ^. Func.params
+      paramSyms = createParamSymbol 0 <$> params
+  defs <- zipWithM defSymbol paramSyms argExprs
+  return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
+
+getRetVals_ :: SubBlockNode -> Converter [Pil.Expression]
+getRetVals_ node = do
+  ctx <- use Pil.ctx
+  mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction $ node ^. Path.func
+  lastInstr <- liftIO $ MLIL.instruction mlilFunc $ node ^. Path.end - 1
+  return $ case lastInstr ^? (MLIL.op . MLIL._RET) of
+    (Just retOp) ->
+      Pil.convertExpr ctx <$> retOp ^. MLIL.src
+    Nothing ->
+      error "Missing required return instruction."
+
+getRetVals :: RetNode -> Converter [Pil.Expression]
+getRetVals retNode = do
+  path <- use Pil.path
+  case Path.pred (Ret retNode) path >>= (^? Path._SubBlock) of
+    (Just prevNode) ->
+      getRetVals_ prevNode
+    Nothing ->
+      error "RetNode not preceded by a SubBlockNode."
 
 convertRetNode :: RetNode -> Converter [Stmt]
-convertRetNode n = do
-  leavingCtx <- getSimpleCtx
-  retCtxTo . Just $ n ^. Path.callSite . Func.caller
-  returningCtx <- getSimpleCtx
-  return [ Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningCtx ]
---   enterNewCtx $ n ^. Path.func
---   sCtx <- getSimpleCtx
---   return [Pil.EnterContext . Pil.EnterContextOp $ sCtx]
-
+convertRetNode node = do
+  leavingCtx <- use Pil.ctx
+  retVals <- getRetVals node
+  retCtx
+  returningCtx <- use Pil.ctx
+  let resultVars =
+        Pil.convertToPilVar returningCtx
+          <$> node ^. Path.callSite . Func.callInstr . Func.outputDest
+  let defs = zipWith defPilVar resultVars retVals
+  return $ Pil.ExitContext (Pil.ExitContextOp leavingCtx returningCtx) : defs
 
 convertNode :: Node -> Converter [Stmt]
 convertNode (SubBlock x) = convertSubBlockNode x
@@ -138,18 +192,19 @@ convertNode (Call x) = convertCallNode x
 convertNode (Ret x) = convertRetNode x
 convertNode _ = return [] -- TODO
 
-
 convertNodes :: [Node] -> Converter [Stmt]
 convertNodes = fmap concat . traverse convertNode
 
-startCtx :: Ctx
-startCtx = Ctx Nothing Nothing HSet.empty (TypeEnv HMap.empty)
+createStartCtx :: Function -> Ctx
+createStartCtx func = Ctx func 0
 
-startConverterCtx :: ConverterCtx
-startConverterCtx = ConverterCtx Nothing startCtx
+createStartConverterState :: AlgaPath -> Function -> ConverterState
+createStartConverterState path func = 
+  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx []
+    where 
+      startCtx :: Ctx
+      startCtx = createStartCtx func
 
---- TODO: Keep track of ctx-index separately from Ctx
---- always increment on every new function Ctx change
-convertPath :: Path p => p -> IO [Stmt]
-convertPath =
-  fmap (concat . fst) . flip runConverter startConverterCtx . traverse convertNode . Path.toList
+convertPath :: Function -> AlgaPath -> IO [Stmt]
+convertPath startFunc path =
+  fmap (concat . fst) . flip runConverter (createStartConverterState path startFunc) . traverse convertNode . Path.toList $ path

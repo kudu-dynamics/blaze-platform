@@ -34,22 +34,6 @@ import Blaze.Types.Pil.Checker
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
 
-class VarSubst a where
-  varSubst :: HashMap Sym Sym -> a -> a
-
-instance VarSubst Sym where
-  varSubst m v = maybe v identity $ HashMap.lookup v m
-
-instance VarSubst a => VarSubst (PilType a) where
-  varSubst m = fmap (varSubst m)
-
-instance VarSubst SymType where
-  varSubst m (SVar v) = SVar $ varSubst m v
-  varSubst m (SType t) = SType $ varSubst m t
-
-instance VarSubst Constraint where
-  varSubst m (Constraint (v, t)) = Constraint (varSubst m v, varSubst m t)
-
 -- | Swaps first key with second in map. 
 updateSolKey :: (Hashable k, Eq k) => k -> k -> v -> HashMap k v -> HashMap k v
 updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
@@ -81,7 +65,7 @@ unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
         Just t' -> do
           t'' <- catchError (unifyPilTypes t t') $ \err -> do
             errors %= ((UnifyConstraintsError a err):)
-            return TBottom
+            return (TBottom a)
           solutions %= HashMap.insert a t''
 
 
@@ -93,17 +77,17 @@ unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
 isTypeDescendent :: PilType a -> PilType a -> Bool
 isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TFloat _) t = case t of
   TFloat _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TBitVector _) t = case t of
   TBitVector _ -> True
@@ -112,46 +96,47 @@ isTypeDescendent (TBitVector _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TPointer _ _) t = case t of
   TPointer _ _ -> True
   TArray _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent TChar t = case t of
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
   TPointer _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
-isTypeDescendent TBottom t = case t of
-  TBottom -> True
+isTypeDescendent (TBottom _) t = case t of
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVBitWidth _) t = case t of
   TVBitWidth _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVLength _) t = case t of
   TVLength _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVSign _) t = case t of
   TVSign _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 
 
 unifyPilTypes :: PilType Sym -> PilType Sym -> Unify (PilType Sym)
-unifyPilTypes TBottom _ = return TBottom
-unifyPilTypes _ TBottom = return TBottom
+-- if there are two TBottoms with different syms, they will be eq'd later in originsMap
+unifyPilTypes (TBottom s) _ = return $ TBottom s 
+unifyPilTypes _ (TBottom s) = return $ TBottom s
 unifyPilTypes pt1 pt2 =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
@@ -183,6 +168,7 @@ unifyPilTypes pt1 pt2 =
         TBitVector w2 -> TBitVector <$> addVarEq w1 w2
         TFloat w2 -> TFloat <$> addVarEq w1 w2
         TInt w2 s -> TInt <$> addVarEq w1 w2 <*> pure s
+        TPointer w2 pt -> TPointer <$> addVarEq w1 w2 <*> pure pt
         TChar -> do
           addConstraint $ Constraint (w1, SType $ TVBitWidth 8)
           return TChar

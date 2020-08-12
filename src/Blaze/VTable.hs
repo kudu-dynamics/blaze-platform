@@ -7,7 +7,6 @@ import Binja.Function (getFunctionStartingAt)
 import qualified Binja.Reference as BR
 import Binja.View (getDefaultReader)
 import Blaze.CallGraph (Function)
-import Blaze.Function (getStmtsForFunction)
 import Blaze.Import.Source.BinaryNinja (convertFunction)
 import Blaze.Prelude
 import qualified Blaze.Types.Pil as Pil
@@ -43,10 +42,10 @@ createTypeInfo_ (Address typeInfoPtr)
         Nothing -> return Nothing
         Just p -> return . Just . Address . Bytes $ p
     name <- liftIO $
-      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + (toBytes bitW)) >>= \case
+      seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + toBytes bitW) >>= \case
         Nothing -> return $ pack ""
         Just p -> readName_ ctx . Address . Bytes $ p
-    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * (toBytes bitW))
+    parentTypeInfoPtr <- liftIO $ seekAndRead (ctx ^. VTable.reader) (ctx ^. VTable.width) (typeInfoPtr + 2 * toBytes bitW)
     parentTypeInfo <- case parentTypeInfoPtr of
       Nothing -> return Nothing
       Just p -> createTypeInfo_ . Address . Bytes $ p
@@ -88,7 +87,7 @@ getTypeInfo_ vptr = do
   ctx <- ask
   let readr = ctx ^. VTable.reader
   let (AddressWidth bitW) = ctx ^. VTable.width
-  liftIO $ seekBinaryReader readr $ fromIntegral vptr - (toBytes bitW)
+  liftIO $ seekBinaryReader readr $ fromIntegral vptr - toBytes bitW
   ptrToTypeInfo <- case ctx ^. VTable.width of
     (AddressWidth 64) -> liftIO $ read64 (ctx ^. VTable.reader)
     _ -> return Nothing
@@ -114,7 +113,7 @@ getVirtualFunctions_ initVptr = do
         (AddressWidth (Bits 64)) -> read64 br
         _ -> return Nothing
       let (AddressWidth bitW) = width
-      seekBinaryReader br $ currentPosition + (toBytes bitW)
+      seekBinaryReader br $ currentPosition + toBytes bitW
       maybe (return Nothing) (getFunctionStartingAt bv Nothing . Address . Bytes) fAddr
 
 createVTable_ :: Address -> VTable.Ctx VTable.VTable
