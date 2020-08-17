@@ -1,17 +1,10 @@
-# Hinja
-
-Tool to generate Haskell and Idris bindings and datatypes for binaryninja core.
-
-Strategy:
-* clean binaryninjacore.h file so language-c can parse it (needed by c2hs)
-* use language-c parser to generate records for Structs, function declarations (enum modules can already be generated using ParseEnums)
+# Blaze
 
 
 # Quick Start Guide
 
-Welcome to blaze! Below are the things you'll need to get started. This is assuming you are running a Ubuntu/Debian system, otherwise
+Welcome to Blaze! Below are the things you'll need to get started. This is assuming you are running a Ubuntu/Debian system, otherwise
 modifications will need to be made.
-
 
 ## Haskell
 
@@ -31,12 +24,12 @@ modifications will need to be made.
 4. You're next step depends on your development environment. To use hie with Vscode simply go to the plugin store, search the full name, and install hie.
 
 
-## Binja
+## Haskell bindings for Binary Ninja
 1. Install Binja. You'll need a license.
 2. to your ~/.profile add `export BINJA_PLUGINS=<path-to-binja-plugin-folder>`
 
 
-## z3
+## Z3
 1. Get z3 with `https://github.com/Z3Prover/z3.git`
 2. run `./configure; mkdir build`
 3. run `cd build; make`, then `make install`
