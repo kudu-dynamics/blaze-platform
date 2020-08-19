@@ -7,6 +7,7 @@ import Blaze.Types.Pil ( Expression
                        , PilVar
                        )
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker
 import Blaze.Pil.Checker.Constraints ( createVarSymMap
                                      , addStmtTypeConstraints
@@ -16,13 +17,46 @@ import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
 
 
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
-flatToDeepSyms m = fmap f m
+flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
   where
-    f :: PilType Sym -> DeepSymType
-    f = DSType . fmap g
+    substSym :: HashSet Sym -> Sym -> DeepSymType
+    substSym hs s = case HashMap.lookup s flatSymHm of
+      Nothing -> DSVar s
+      Just v -> parseF hs s v
+    substSymRecurse :: HashSet Sym -> Sym -> Sym -> DeepSymType
+    substSymRecurse hs og s = case (s == og) of
+      True -> DSVar s
+      False -> case HashMap.lookup s flatSymHm of
+        Nothing -> DSVar s
+        Just v -> parseFRecurse hs s v
+    parseFRecurse :: HashSet Sym -> Sym -> PilType Sym -> DeepSymType
+    parseFRecurse sSyms sym' ptS = case HashSet.member sym' sSyms of
+      True -> DSVar sym'
+      False -> DSType $ fmap (substSymRecurse (HashSet.insert sym' sSyms) sym') ptS
+    parseF :: HashSet Sym -> Sym -> PilType Sym -> DeepSymType
+    parseF sSyms sym' ptS = case HashSet.member sym' sSyms of
+      True -> DSVar sym'
+      -- TODO: bubble up seen syms of children with DeepSymType rather than
+      -- calling subSyms at every level
+      False -> case HashSet.member sym' $ subSyms HashSet.empty flatSymHm sym' of
+        True -> DSRecursive sym' $ fmap (substSymRecurse (HashSet.insert sym' sSyms) sym') ptS
+        False -> DSType $ fmap (substSym $ HashSet.insert sym' sSyms) ptS
 
-    g :: Sym -> DeepSymType
-    g s = maybe (DSVar s) f $ HashMap.lookup s m
+subSyms :: HashSet Sym -> HashMap Sym (PilType Sym) -> Sym -> HashSet Sym
+subSyms sSyms hm s = case HashSet.member s sSyms of
+  True -> HashSet.fromList [s]
+  False -> case HashMap.lookup s hm of
+    Nothing -> HashSet.empty
+    Just v -> HashSet.unions . map (subSyms (HashSet.insert s sSyms) hm) $ foldr (:) [] v
+    
+-- flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
+-- flatToDeepSyms m = fmap f m
+--   where
+--     f :: PilType Sym -> DeepSymType
+--     f = DSType . fmap g
+
+--     g :: Sym -> DeepSymType
+--     g s = maybe (DSVar s) f $ HashMap.lookup s m
 
 
 unifyConstraints :: [Constraint] -> UnifyState

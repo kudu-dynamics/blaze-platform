@@ -4,6 +4,7 @@ module Blaze.Pretty
     pp,
     PStmts (PStmts),
     prettyStmts,
+    prettyIndexedStmts,
   )
 where
 
@@ -338,8 +339,15 @@ instance Pretty a => Pretty (Pil.Statement a) where
 
 newtype PStmts a = PStmts [Pil.Statement a]
 
+newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
+
 instance Pretty a => Pretty (PStmts a) where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
+
+instance Pretty a => Pretty (PIndexedStmts a) where
+  pretty (PIndexedStmts stmts) = Text.intercalate "\n" . fmap f $ stmts
+    where
+      f (i, stmt) = show i <> ":" <-> pretty stmt
 
 instance Pretty ByteOffset where
   pretty = disp
@@ -412,6 +420,10 @@ instance Pretty AlgaPath.AlgaPath where
 
 prettyStmts :: (MonadIO m, Pretty a) => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts
+
+prettyIndexedStmts :: (MonadIO m, Pretty a) => [(Int, Pil.Statement a)] -> m ()
+prettyIndexedStmts = prettyPrint . PIndexedStmts
+
 
 -- | Pretty print to IO.
 prettyPrint :: (MonadIO m, Pretty a) => a -> m ()

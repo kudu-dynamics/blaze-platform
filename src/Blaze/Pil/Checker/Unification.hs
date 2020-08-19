@@ -232,9 +232,9 @@ unify = popConstraint >>= \case
 -- maybe there should be different types of constraints, like Contains,
 -- or MostGeneral (for function args)
 -- or just different list in state to keep record Field constraints.
-unifyRecords :: HashMap BitWidth Sym
-             -> HashMap BitWidth Sym
-             -> Unify (HashMap BitWidth Sym)
+unifyRecords :: HashMap BitOffset Sym
+             -> HashMap BitOffset Sym
+             -> Unify (HashMap BitOffset Sym)
 unifyRecords a b = undefined
 
 

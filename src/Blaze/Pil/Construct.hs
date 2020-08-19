@@ -94,6 +94,9 @@ varField :: Pil.Symbol -> Int64 -> Pil.OperationSize -> Expression
 varField sym offset size =
   mkExpr size (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset)
 
+fieldAddr :: Expression -> ByteOffset -> Pil.OperationSize -> Expression
+fieldAddr baseAddr offset size =
+  mkExpr size (Pil.FIELD_ADDR $ Pil.FieldAddrOp baseAddr offset)
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt

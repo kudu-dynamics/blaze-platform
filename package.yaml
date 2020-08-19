@@ -59,7 +59,7 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
-
+#  - wl-pprint-extras
 
 default-extensions:
   - BangPatterns

@@ -29,7 +29,8 @@ data PilType t = TArray { len :: t, elemType :: t }
                | TFloat { bitWidth :: t }
                | TBitVector { bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
-               | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'?
+               | TRecord (HashMap BitOffset -- todo: change bitwidth to 't'?
+                           -- TODO: change bitwidth to signed offset
                                   t -- type
                          )
                -- Bottom is labeled with error info
