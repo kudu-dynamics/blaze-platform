@@ -22,6 +22,13 @@ data Sym = Sym Int
 
 instance Hashable Sym
 
+data Tags = TagDirty
+          | TagSanitized
+          | TagAllocedMemory
+          | TagFreedMemory
+          | TagNullPtr
+          | TagNonNull
+          deriving (Eq, Ord, Read, Show, Generic)
 
 data PilType t = TArray { len :: t, elemType :: t }
                | TChar
@@ -41,6 +48,8 @@ data PilType t = TArray { len :: t, elemType :: t }
                | TVBitWidth BitWidth
                | TVLength Word64
                | TVSign Bool
+               
+--               | TTagged t
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
 data T = T (PilType T)
