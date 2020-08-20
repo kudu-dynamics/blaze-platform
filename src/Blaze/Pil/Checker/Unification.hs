@@ -38,19 +38,28 @@ import Blaze.Types.Pil.Checker
 updateSolKey :: (Hashable k, Eq k) => k -> k -> v -> HashMap k v -> HashMap k v
 updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 
+-- | Applies originMap substitutions to solution types.
+substSolutions :: Unify ()
+substSolutions = do
+  omap <- use originMap
+  solutions %= fmap (varSubst omap)
+
+
 -- | Unifies constraint with all other constraints and solutions in state.
 unifyConstraint :: Constraint -> Unify ()
 unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
   omap <- use originMap
   case varSubst omap cx of
-    (Constraint i a (SVar b))
+    (Constraint _ a (SVar b))
       | a == b -> return ()  -- redundant constraint
-      | otherwise -> do
-          c <- addVarEq a b
+      | otherwise -> void $ addVarEq a b
+
           -- Do we actually need to subst with updated omap until
           -- all constraints are unified?
-          let subMap = HashMap.fromList [(a, c), (b, c)]
-          solutions %= fmap (varSubst subMap)
+          -- Note: tests pass with this commented out and substSolutions called after
+          -- so it should probably get removed
+          -- let subMap = HashMap.fromList [(a, c), (b, c)]
+          -- solutions %= fmap (varSubst subMap)
 
     -- look up 'a' in solutions map and unify it with existing solution for 'a'
     (Constraint i a ((SType t))) -> do
@@ -60,7 +69,14 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
       sols <- use solutions
       case HashMap.lookup a sols of
         Nothing -> do
+
+          -- why? is this only needed when preSubstSym == a?
           originMap %= HashMap.insert preSubstSym a
+
+          -- BUG: some var eq gets added to vareqmap and solutions aren't updated
+          -- when (a /= preSubstSym)
+          --   $ solutions %= fmap (varSubst . HashMap.fromList $ [(preSubstSym, a)])
+
           solutions %= HashMap.insert a t
         Just t' -> do
           currentStmt .= i
@@ -217,9 +233,11 @@ unifyPilTypes pt1 pt2 =
 
 -- hopefully this will never get into an infinite loop
 unify :: Unify ()
-unify = popConstraint >>= \case
-  Nothing -> return ()
-  Just cx -> unifyConstraint cx >> unify 
+unify = unifyLoop >> substSolutions
+  where
+    unifyLoop = popConstraint >>= \case
+      Nothing -> return ()
+      Just cx -> unifyConstraint cx >> unifyLoop
 
 
 
@@ -232,10 +250,20 @@ unify = popConstraint >>= \case
 -- maybe there should be different types of constraints, like Contains,
 -- or MostGeneral (for function args)
 -- or just different list in state to keep record Field constraints.
+
+-- | Merges field offset maps. Currently just unifies fields at identical offsets
+-- doesn't look for overlapping widths.
 unifyRecords :: HashMap BitOffset Sym
              -> HashMap BitOffset Sym
              -> Unify (HashMap BitOffset Sym)
-unifyRecords a b = undefined
+unifyRecords a = foldM f a . HashMap.toList
+  where
+    f :: HashMap BitOffset Sym -> (BitOffset, Sym) -> Unify (HashMap BitOffset Sym)
+    f m (boff, s) = case HashMap.lookup boff m of
+      Nothing -> return $ HashMap.insert boff s m
+      Just s2 -> do
+        addConstraint_ s2 (SVar s)
+        return m
 
 
 

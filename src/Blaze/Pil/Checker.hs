@@ -66,6 +66,7 @@ unifyConstraints cxs = snd $ runUnify unify initialState
                               , _solutions = HashMap.empty
                               , _errors = []
                               , _originMap = HashMap.empty
+                              , _currentStmt = 0
                               }
 
 -- for debugging...
@@ -124,6 +125,8 @@ checkStmts = fmap toReport . stmtSolutions
       , _varSymTypeMap = pilVarMap
       , _varEqMap = originMapToGroupMap eqMap
       , _errors = errs
+      , _flatSolutions = sols
+      , _solutions = deepSols
       }
       where
         originsVarSymMap = varSubst eqMap <$> s ^. varSymMap

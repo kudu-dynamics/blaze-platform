@@ -147,6 +147,8 @@ data TypeReport = TypeReport
   -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
   , _varEqMap :: VarEqMap
   , _errors :: [UnifyConstraintsError]
+  , _flatSolutions :: HashMap Sym (PilType Sym)
+  , _solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
 
