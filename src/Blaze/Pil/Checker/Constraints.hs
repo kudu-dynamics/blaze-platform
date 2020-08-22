@@ -255,11 +255,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   where
     sz' = CSType $ TVBitWidth sz
     sz2x' = CSType . TVBitWidth $ sz * 2
-    getBoolRet = CSType . TInt sz' . CSVar <$> newSym
-  
-    retBool = do
-      b <- getBoolRet
-      return [(r, b)]
+    getBoolRet = return $ CSType TBool -- TODO: doesn't need to be a monad anymore...
 
     retFloat :: ConstraintGen [(Sym, ConstraintSymType)]
     retFloat = return [ (r, CSType $ TFloat sz') ]

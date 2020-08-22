@@ -96,6 +96,10 @@ isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
   TBottom _ -> True
   _ -> False
+isTypeDescendent TBool t = case t of
+  TBool -> True
+  TBottom _ -> True
+  _ -> False
 isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
@@ -162,6 +166,9 @@ unifyPilTypes pt1 pt2 =
       TArray len1 et1 -> case pt2 of
         (TArray len2 et2) ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
+        _ -> err
+      TBool -> case pt2 of
+        TBool -> return TBool
         _ -> err
       TInt w1 sign1 -> case pt2 of
         TInt w2 sign2 -> TInt <$> addVarEq w1 w2

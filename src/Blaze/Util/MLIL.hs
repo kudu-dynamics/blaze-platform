@@ -209,3 +209,8 @@ matchUnevenVarSplit (OpWithSize sz (MLIL.VAR_SPLIT_SSA (MLIL.VarSplitSSAOp v1 v2
   where
     getWidth v = v ^? MLIL.var . Var.varType . _Just . Var.width
 matchUnevenVarSplit _ = False
+
+
+matchAnd :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchAnd (MLIL.AND _) = True
+matchAnd _ = False

@@ -59,7 +59,6 @@ dependencies:
   - unordered-containers
   - uuid
   - vector
-#  - wl-pprint-extras
 
 default-extensions:
   - BangPatterns
@@ -124,6 +123,7 @@ library:
   - Blaze.Pretty
   - Blaze.Search
   - Blaze.Solver
+  - Blaze.Solver2
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
   - Blaze.Types.Cfg.Loop
@@ -138,6 +138,7 @@ library:
   - Blaze.Types.Pil.Checker
   - Blaze.Types.Pil.Inference2
   - Blaze.Types.Solver
+  - Blaze.Types.Solver2
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
   - Blaze.VTable

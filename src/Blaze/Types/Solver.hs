@@ -12,7 +12,7 @@ module Blaze.Types.Solver
 
 import Blaze.Prelude
 
-import Data.SBV.Internals (SBV (unSBV), SolverContext (..))
+import Data.SBV.Internals (SBV (unSBV), SolverContext (..), modelAssocs)
 import Data.SBV.Dynamic (SVal)
 
 import Data.SBV.Trans as Exports hiding (Solver, SMTResult, Bits)
