@@ -631,3 +631,57 @@ simplify = copyProp . constantProp
 
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
+
+parseFieldAddrLoad :: Expression -> Maybe Expression
+parseFieldAddrLoad expr =
+  case expr ^. Pil.op of
+    Pil.LOAD (Pil.LoadOp inner) ->
+        outerWrapper <$> parseFieldAddr inner
+      where 
+        outerWrapper :: Pil.Expression -> Pil.Expression
+        outerWrapper innerExpr = 
+          Pil.Expression 
+            (expr ^. Pil.size)
+            (Pil.LOAD (Pil.LoadOp innerExpr))
+    _ -> Nothing
+
+parseFieldAddr :: Expression -> Maybe Expression
+parseFieldAddr expr =
+  case expr ^. Pil.op of
+    Pil.ADD
+      ( Pil.AddOp
+          base@(Pil.Expression _ (Pil.VAR _))
+          (Pil.Expression _ (Pil.CONST offset))
+        ) ->
+      Just $
+        Pil.Expression
+          (expr ^. Pil.size)
+          (Pil.FIELD_ADDR (Pil.FieldAddrOp base (ByteOffset (offset ^. Pil.constant))))
+    Pil.ADD
+      ( Pil.AddOp
+          (Pil.Expression _ (Pil.CONST offset))
+          base@(Pil.Expression _ (Pil.VAR _))
+        ) ->
+      Just $
+        Pil.Expression
+          (expr ^. Pil.size)
+          (Pil.FIELD_ADDR (Pil.FieldAddrOp base (ByteOffset (offset ^. Pil.constant))))
+    _ ->
+      Nothing
+
+substFieldAddr :: Stmt -> Stmt
+substFieldAddr stmt =
+  case stmt of 
+    Pil.Def (Pil.DefOp var value) ->
+      Pil.Def (Pil.DefOp var $ substExprInExpr parseFieldAddrLoad value)
+    Pil.Store (Pil.StoreOp addr value) ->
+      Pil.Store (Pil.StoreOp (substExprInExpr parseFieldAddr addr)
+                             (substExprInExpr parseFieldAddrLoad value))
+    Pil.Constraint (Pil.ConstraintOp cond) ->
+      Pil.Constraint (Pil.ConstraintOp $ substExprInExpr parseFieldAddrLoad cond)
+    Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) ->
+      Pil.Call (callOp & Pil.dest .~ Pil.CallExpr (substExprInExpr parseFieldAddrLoad expr))
+    _ -> stmt
+
+substFields :: [Stmt] -> [Stmt]
+substFields = fmap substFieldAddr
