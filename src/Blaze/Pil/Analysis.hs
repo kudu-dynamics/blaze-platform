@@ -693,6 +693,5 @@ substFieldAddr stmt =
       Pil.Call (callOp & Pil.dest .~ Pil.CallExpr (substExprInExpr parseFieldAddrLoad expr))
     _ -> stmt
 
--- TODO: Add support for constant pointer bases.
 substFields :: [Stmt] -> [Stmt]
 substFields = fmap substFieldAddr
