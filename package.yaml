@@ -60,7 +60,6 @@ dependencies:
   - uuid
   - vector
 
-
 default-extensions:
   - BangPatterns
   - DeriveDataTypeable
@@ -110,11 +109,13 @@ library:
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
+  - Blaze.Pil.Checker
+  - Blaze.Pil.Checker.Constraints
+  - Blaze.Pil.Checker.Unification
+  - Blaze.Pil.Checker.OriginMap
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Pil.Inference
-  - Blaze.Pil.Inference2
-  - Blaze.Pil.InferenceDependent
   - Blaze.Pil.InferenceDependent2
   - Blaze.Pil.Path
   - Blaze.Types.Pil.Inference
@@ -122,6 +123,7 @@ library:
   - Blaze.Pretty
   - Blaze.Search
   - Blaze.Solver
+  - Blaze.Solver2
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
   - Blaze.Types.Cfg.Loop
@@ -133,8 +135,10 @@ library:
   - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
+  - Blaze.Types.Pil.Checker
   - Blaze.Types.Pil.Inference2
   - Blaze.Types.Solver
+  - Blaze.Types.Solver2
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
   - Blaze.VTable

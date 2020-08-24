@@ -8,10 +8,8 @@ import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.MLIL as MLIL
 
 import Blaze.Types.Function (CallSite)
-import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
-import Blaze.Pretty (Pretty, pretty)
 
 import qualified Data.Set as Set
 import qualified Prelude as P
@@ -126,7 +124,7 @@ data AbstractCallNode = AbstractCallNode
   , _uuid :: UUID
   } deriving (Eq, Ord, Show)
 
-
+$(makePrisms ''Node)
 $(makeFieldsNoPrefix ''SubBlockNode)
 $(makeFieldsNoPrefix ''ConditionNode)
 $(makeFieldsNoPrefix ''CallNode)
@@ -154,29 +152,11 @@ getNodeFunc (AbstractCall x) = x ^. func
 getNodeFunc (AbstractPath x) = x ^. func
 getNodeFunc (Condition x) = x ^. func
 
-
-instance Pretty Node where
-  pretty (SubBlock x) =
-    brack (pretty (x ^. start) <> "-" <> pretty (x ^. end - 1)) <> " : SubBlock"
-  pretty (Call x) =
-    "-------Expanding call: " <> pretty (x ^. callSite)
-  pretty (Ret x) =
-    "-------Returning to " <> pretty (x ^. func) <> " from " <> pretty (x ^. callSite . BFunc.callDest)
-  pretty (AbstractCall x) =
-    brack (pretty $ x ^. callSite . BFunc.callInstr . BFunc.index)
-    <> " : "
-    <> pretty (x ^. callSite)
-  pretty (AbstractPath _) = "AbstractPath"
-  pretty (Condition x) =
-    "Condition: " <> bool "NOT " "" (x ^. trueOrFalseBranch)
-    <> pretty (x ^. condition)
-
 callTwaddle :: Word32
 callTwaddle = 999
 
 retTwaddle :: Word32
 retTwaddle = 500
-
 
 instance (Graph () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
@@ -261,8 +241,6 @@ instance (Graph () Node g) => Path (PathGraph g) where
   contains = G.hasNode
 
   -- snipAfter n p = maybe G.empty identity $ do
-    
-    
 
 startFunction :: Path p => p -> Maybe Function
 startFunction p = do

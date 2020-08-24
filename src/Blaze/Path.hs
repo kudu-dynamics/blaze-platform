@@ -34,7 +34,6 @@ import Blaze.Graph ( constructBasicBlockGraphWithoutBackEdges
 import Blaze.Prelude
 import Blaze.Types.Function
   ( CallInstruction,
-    CallSite,
     toCallInstruction,
   )
 import Blaze.Types.Graph (Graph)
@@ -152,20 +151,6 @@ isBackEdge be = case be ^. BB.target of
     src = be ^. BB.src
 
 type Condition = Pil.Expression
-
-data CallCombo = CallCombo
-  { callNode :: CallNode,
-    abstractPathNode :: AbstractPathNode,
-    retNode :: RetNode
-  }
-  deriving (Eq, Ord, Show)
-
-callCombo :: Function -> CallSite -> IO CallCombo
-callCombo fn cs' = do
-  call <- CallNode fn cs' <$> randomIO
-  ret <- RetNode fn cs' <$> randomIO
-  apn <- AbstractPathNode fn (Call call) (Ret ret) <$> randomIO
-  return $ CallCombo call apn ret
 
 data SpanItem a b
   = SpanSpan (a, a)
@@ -296,8 +281,9 @@ pathsForAllFunctions bv = do
     g :: Function -> IO (Function, [p])
     g fn = (fn,) <$> allSimpleFunctionPaths bv fn
 
-findAbstractCallNode :: Path p => Function -> Function -> p -> [AbstractCallNode]
-findAbstractCallNode caller callee = mapMaybe f . Path.toList
+-- |Find all abstract call nodes corresponding to call sites in 'caller' to the 'callee'.
+findAbstractCallNodes :: Path p => Function -> Function -> p -> [AbstractCallNode]
+findAbstractCallNodes caller callee = mapMaybe f . Path.toList
   where
     f (AbstractCall acn)
       | (acn ^. callSite . Function.caller == caller)
@@ -305,3 +291,9 @@ findAbstractCallNode caller callee = mapMaybe f . Path.toList
         Just acn
       | otherwise = Nothing
     f _ = Nothing
+
+-- |Find the abstract call node for a specific call occurring at the provided instruction index.
+findAbstractCallNode :: Path p => Function -> InstructionIndex F -> Function -> p -> Maybe AbstractCallNode
+findAbstractCallNode caller callSiteIdx callee path =
+  headMay $ [acn | acn <- findAbstractCallNodes caller callee path,
+                   acn ^. callSite . Function.callInstr . Function.index == callSiteIdx]

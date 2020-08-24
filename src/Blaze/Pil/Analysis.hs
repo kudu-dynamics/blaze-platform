@@ -43,7 +43,6 @@ import Data.Sequence
   )
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
-import Data.BinaryAnalysis (Bytes(Bytes))
 
 widthToSize :: Bits -> Pil.OperationSize
 widthToSize x = Pil.OperationSize $ toBytes x
@@ -51,12 +50,12 @@ widthToSize x = Pil.OperationSize $ toBytes x
 sizeToWidth :: Pil.OperationSize -> Bits
 sizeToWidth (Pil.OperationSize x) = toBits x
 
-getDefinedVars_ :: Stmt -> [PilVar]
-getDefinedVars_ (Def d) = [d ^. Pil.var]
-getDefinedVars_ _ = []
+getDefinedVar_ :: Stmt -> Maybe PilVar
+getDefinedVar_ (Def d) = Just $ d ^. Pil.var
+getDefinedVar_ _ = Nothing
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
-getDefinedVars = HSet.fromList . concatMap getDefinedVars_
+getDefinedVars = HSet.fromList . mapMaybe getDefinedVar_
 
 getVarsFromExpr_ :: Expression -> [PilVar]
 getVarsFromExpr_ e = case e ^. Pil.op of
@@ -522,13 +521,12 @@ replaceStore store symbol = update storeIdx varDef
   where
     storeIdx = store ^. A.index
     storedVal = store ^. (A.op . Pil.value)
-    func = Nothing -- TODO
-    ctxIndex = Nothing -- TODO
+    ctx = Nothing -- TODO
     mapsTo = HSet.empty -- TODO
     varDef =
       Pil.Def
         ( Pil.DefOp
-            { _var = Pil.PilVar symbol func ctxIndex mapsTo,
+            { _var = Pil.PilVar symbol ctx mapsTo,
               _value = storedVal
             }
         )

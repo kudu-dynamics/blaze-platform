@@ -34,54 +34,55 @@ import Blaze.Types.Pil.Checker
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
 
-class VarSubst a where
-  varSubst :: HashMap Sym Sym -> a -> a
-
-instance VarSubst Sym where
-  varSubst m v = maybe v identity $ HashMap.lookup v m
-
-instance VarSubst a => VarSubst (PilType a) where
-  varSubst m = fmap (varSubst m)
-
-instance VarSubst SymType where
-  varSubst m (SVar v) = SVar $ varSubst m v
-  varSubst m (SType t) = SType $ varSubst m t
-
-instance VarSubst Constraint where
-  varSubst m (Constraint (v, t)) = Constraint (varSubst m v, varSubst m t)
-
 -- | Swaps first key with second in map. 
 updateSolKey :: (Hashable k, Eq k) => k -> k -> v -> HashMap k v -> HashMap k v
 updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 
+-- | Applies originMap substitutions to solution types.
+substSolutions :: Unify ()
+substSolutions = do
+  omap <- use originMap
+  solutions %= fmap (varSubst omap)
+
+
 -- | Unifies constraint with all other constraints and solutions in state.
 unifyConstraint :: Constraint -> Unify ()
-unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
+unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
   omap <- use originMap
   case varSubst omap cx of
-    (Constraint (a, (SVar b)))
+    (Constraint _ a (SVar b))
       | a == b -> return ()  -- redundant constraint
-      | otherwise -> do
-          c <- addVarEq a b
+      | otherwise -> void $ addVarEq a b
+
           -- Do we actually need to subst with updated omap until
           -- all constraints are unified?
-          let subMap = HashMap.fromList [(a, c), (b, c)]
-          solutions %= fmap (varSubst subMap)
+          -- Note: tests pass with this commented out and substSolutions called after
+          -- so it should probably get removed
+          -- let subMap = HashMap.fromList [(a, c), (b, c)]
+          -- solutions %= fmap (varSubst subMap)
 
     -- look up 'a' in solutions map and unify it with existing solution for 'a'
-    (Constraint (a, (SType t))) -> do
+    (Constraint i a ((SType t))) -> do
       -- TODO: occurs check here? (error if 'a' is used in 't')
       -- maybe we don't need occurs check since it's flat, hence "lazy"
       -- if unification fails with infinite loop, look here...
       sols <- use solutions
       case HashMap.lookup a sols of
         Nothing -> do
+
+          -- why? is this only needed when preSubstSym == a?
           originMap %= HashMap.insert preSubstSym a
+
+          -- BUG: some var eq gets added to vareqmap and solutions aren't updated
+          -- when (a /= preSubstSym)
+          --   $ solutions %= fmap (varSubst . HashMap.fromList $ [(preSubstSym, a)])
+
           solutions %= HashMap.insert a t
         Just t' -> do
+          currentStmt .= i
           t'' <- catchError (unifyPilTypes t t') $ \err -> do
-            errors %= ((UnifyConstraintsError a err):)
-            return TBottom
+            errors %= ((UnifyConstraintsError i a err):)
+            return (TBottom a)
           solutions %= HashMap.insert a t''
 
 
@@ -93,17 +94,21 @@ unifyConstraint cx@(Constraint (preSubstSym, _preSubstType)) = do
 isTypeDescendent :: PilType a -> PilType a -> Bool
 isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
+  _ -> False
+isTypeDescendent TBool t = case t of
+  TBool -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TFloat _) t = case t of
   TFloat _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TBitVector _) t = case t of
   TBitVector _ -> True
@@ -112,46 +117,47 @@ isTypeDescendent (TBitVector _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TPointer _ _) t = case t of
   TPointer _ _ -> True
   TArray _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent TChar t = case t of
   TChar -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
   TPointer _ _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
-isTypeDescendent TBottom t = case t of
-  TBottom -> True
+isTypeDescendent (TBottom _) t = case t of
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVBitWidth _) t = case t of
   TVBitWidth _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVLength _) t = case t of
   TVLength _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 isTypeDescendent (TVSign _) t = case t of
   TVSign _ -> True
-  TBottom -> True
+  TBottom _ -> True
   _ -> False
 
 
 unifyPilTypes :: PilType Sym -> PilType Sym -> Unify (PilType Sym)
-unifyPilTypes TBottom _ = return TBottom
-unifyPilTypes _ TBottom = return TBottom
+-- if there are two TBottoms with different syms, they will be eq'd later in originsMap
+unifyPilTypes (TBottom s) _ = return $ TBottom s 
+unifyPilTypes _ (TBottom s) = return $ TBottom s
 unifyPilTypes pt1 pt2 =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
@@ -161,15 +167,18 @@ unifyPilTypes pt1 pt2 =
         (TArray len2 et2) ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
         _ -> err
+      TBool -> case pt2 of
+        TBool -> return TBool
+        _ -> err
       TInt w1 sign1 -> case pt2 of
         TInt w2 sign2 -> TInt <$> addVarEq w1 w2
                               <*> addVarEq sign1 sign2
         TPointer w2 pointeeType1 -> do
-          addConstraint $ Constraint (sign1, SType $ TVSign False)
+          addConstraint_ sign1 . SType $ TVSign False
           flip TPointer pointeeType1 <$> addVarEq w1 w2
         TChar -> do
-          addConstraint $ Constraint (w1, SType $ TVBitWidth charSize)
-          addConstraint $ Constraint (sign1, SType $ TVSign False)
+          addConstraint_ w1 . SType $ TVBitWidth charSize
+          addConstraint_ sign1 . SType $ TVSign False
           return TChar
         _ -> err
 
@@ -183,8 +192,9 @@ unifyPilTypes pt1 pt2 =
         TBitVector w2 -> TBitVector <$> addVarEq w1 w2
         TFloat w2 -> TFloat <$> addVarEq w1 w2
         TInt w2 s -> TInt <$> addVarEq w1 w2 <*> pure s
+        TPointer w2 pt -> TPointer <$> addVarEq w1 w2 <*> pure pt
         TChar -> do
-          addConstraint $ Constraint (w1, SType $ TVBitWidth 8)
+          addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
@@ -230,9 +240,11 @@ unifyPilTypes pt1 pt2 =
 
 -- hopefully this will never get into an infinite loop
 unify :: Unify ()
-unify = popConstraint >>= \case
-  Nothing -> return ()
-  Just cx -> unifyConstraint cx >> unify 
+unify = unifyLoop >> substSolutions
+  where
+    unifyLoop = popConstraint >>= \case
+      Nothing -> return ()
+      Just cx -> unifyConstraint cx >> unifyLoop
 
 
 
@@ -245,10 +257,20 @@ unify = popConstraint >>= \case
 -- maybe there should be different types of constraints, like Contains,
 -- or MostGeneral (for function args)
 -- or just different list in state to keep record Field constraints.
-unifyRecords :: HashMap BitWidth Sym
-             -> HashMap BitWidth Sym
-             -> Unify (HashMap BitWidth Sym)
-unifyRecords a b = undefined
+
+-- | Merges field offset maps. Currently just unifies fields at identical offsets
+-- doesn't look for overlapping widths.
+unifyRecords :: HashMap BitOffset Sym
+             -> HashMap BitOffset Sym
+             -> Unify (HashMap BitOffset Sym)
+unifyRecords a = foldM f a . HashMap.toList
+  where
+    f :: HashMap BitOffset Sym -> (BitOffset, Sym) -> Unify (HashMap BitOffset Sym)
+    f m (boff, s) = case HashMap.lookup boff m of
+      Nothing -> return $ HashMap.insert boff s m
+      Just s2 -> do
+        addConstraint_ s2 (SVar s)
+        return m
 
 
 

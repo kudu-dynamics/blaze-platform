@@ -22,24 +22,35 @@ data Sym = Sym Int
 
 instance Hashable Sym
 
+data TypeTag = TagDirty
+             | TagSanitized
+             | TagAllocedMemory
+             | TagFreedMemory
+             | TagNullPtr
+             | TagNonNull
+             deriving (Eq, Ord, Read, Show, Generic)
 
 data PilType t = TArray { len :: t, elemType :: t }
+               | TBool
                | TChar
                | TInt { bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }
                | TBitVector { bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
-               | TRecord (HashMap BitWidth -- todo: change bitwidth to 't'?
+               | TRecord (HashMap BitOffset -- todo: change bitwidth to 't'?
+                           -- TODO: change bitwidth to signed offset
                                   t -- type
                          )
                -- Bottom is labeled with error info
-               | TBottom
+               | TBottom Sym
                | TFunction { ret :: t, params :: [t] }
               
                -- type level values for some dependent-type action
                | TVBitWidth BitWidth
                | TVLength Word64
                | TVSign Bool
+               
+               -- | TTagged (HashSet TypeTag) t
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
 data T = T (PilType T)
@@ -52,14 +63,22 @@ data SymType = SVar Sym
              | SType (PilType Sym)
              deriving (Eq, Ord, Read, Show, Generic)
 
+data ConstraintSymType = CSVar Sym
+                       | CSType (PilType ConstraintSymType)
+                       deriving (Eq, Ord, Read, Show, Generic)
+
+
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
                  | DSType (PilType DeepSymType)
                deriving (Eq, Ord, Read, Show, Generic)
 
 
-newtype Constraint = Constraint (Sym, SymType)
-  deriving (Eq, Ord, Show, Generic)
+data Constraint = Constraint
+  { _stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
+  , _sym ::Sym
+  , _symType :: SymType
+  } deriving (Eq, Ord, Show, Generic)
 
 -- | solutions should be the "final unification" for any sym.
 -- | complex types might still contain SVars subject to substitution
@@ -107,7 +126,10 @@ data UnifyError = UnifyError (PilType Sym) (PilType Sym) UnifyError
                 deriving (Eq, Ord, Read, Show, Generic)
 
 data UnifyConstraintsError = UnifyConstraintsError
-                           { _sym :: Sym
+                           { _stmtOrigin  :: Int
+                           --index in list of pil stmts for now
+
+                           , _sym :: Sym
                            , _error :: UnifyError
                            } deriving (Eq, Ord, Read, Show, Generic)
 $(makeFieldsNoPrefix ''UnifyConstraintsError)
@@ -125,7 +147,7 @@ type VarEqMap = EqualityMap Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { _symTypeStmts :: [Statement (InfoExpression (SymInfo, Maybe DeepSymType))]
+  { _symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
   , _symStmts :: [Statement SymExpression]
   --  , _typedStmts :: [Statement TypedExpression]
   , _varSymTypeMap :: HashMap PilVar DeepSymType
@@ -135,6 +157,8 @@ data TypeReport = TypeReport
   -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
   , _varEqMap :: VarEqMap
   , _errors :: [UnifyConstraintsError]
+  , _flatSolutions :: HashMap Sym (PilType Sym)
+  , _solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
 
@@ -147,12 +171,13 @@ data ConstraintGenState = ConstraintGenState
   , _symMap :: HashMap Sym SymExpression
   , _varSymMap :: HashMap PilVar Sym
   , _constraints :: [Constraint]
+  , _currentStmt :: Int
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''ConstraintGenState)
 
 emptyConstraintGenState :: ConstraintGenState
-emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty []
+emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty [] 0
 
 newtype ConstraintGen a = ConstraintGen
   { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }
@@ -185,11 +210,12 @@ data UnifyState = UnifyState
                   , _solutions :: HashMap Sym (PilType Sym)
 
                   , _errors :: [UnifyConstraintsError]
-                            
+
                   -- this is a map of syms to their "original" sym
                   -- like if you add (a, b), (b, c)
                   -- it should store a | b  -> c
                   , _originMap :: HashMap Sym Sym
+                  , _currentStmt :: Int
                   } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyState)
 
@@ -198,17 +224,23 @@ addConstraint :: (HasConstraints s [Constraint], MonadState s m)
               => Constraint -> m ()
 addConstraint cx = constraints %= (cx:)
 
-addConstraint_ :: (HasConstraints s [Constraint], MonadState s m)
-               => (Sym, SymType) -> m ()
-addConstraint_ cx = constraints %= (Constraint cx :)
+addConstraint_ :: ( HasConstraints s [Constraint]
+                  , HasCurrentStmt s Int
+                  , MonadState s m)
+               => Sym -> SymType -> m ()
+addConstraint_ s st = do
+  i <- use currentStmt
+  constraints %= (Constraint i s st :)
 
 addConstraints :: (HasConstraints s [Constraint], MonadState s m)
                => [Constraint] -> m ()
 addConstraints = mapM_ addConstraint
 
-addConstraints_ :: (HasConstraints s [Constraint], MonadState s m)
+addConstraints_ :: ( HasConstraints s [Constraint]
+                   , HasCurrentStmt s Int
+                   , MonadState s m)
                 => [(Sym, SymType)] -> m ()
-addConstraints_ = mapM_ addConstraint_
+addConstraints_ = mapM_ $ uncurry addConstraint_
 
 data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
                                , _errors :: [UnifyError]
@@ -235,3 +267,47 @@ popConstraint = use constraints >>= \case
     return $ Just cx
 
 
+class VarSubst a where
+  varSubst :: HashMap Sym Sym -> a -> a
+
+instance VarSubst Sym where
+  varSubst m v = maybe v identity $ HashMap.lookup v m
+
+instance VarSubst SymType where
+  varSubst m (SVar v) = SVar $ varSubst m v
+  varSubst m (SType t) = SType $ varSubst m t
+
+-- shouldn't really need to do this because DeepSymTypes are constructed
+-- using the `Solutions` map, which already should only have origin vars
+instance VarSubst DeepSymType where
+  varSubst m (DSVar v) = DSVar $ varSubst m v
+  varSubst m (DSType t) = DSType $ varSubst m t
+  varSubst m (DSRecursive s t) = DSRecursive (varSubst m s) (varSubst m t)
+
+instance VarSubst Constraint where
+  varSubst m (Constraint i v t) = Constraint i (varSubst m v) (varSubst m t)
+
+instance VarSubst a => VarSubst (Statement a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst (PilType a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst (InfoExpression a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst [a] where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst SymInfo where
+  varSubst m (SymInfo sz s) = SymInfo sz (varSubst m s)
+
+instance VarSubst UnifyError where
+  varSubst m (UnifyError pt1 pt2 uerr) =
+    UnifyError (varSubst m pt1) (varSubst m pt2) (varSubst m uerr)
+  varSubst m (IncompatibleTypes pt1 pt2) =
+    IncompatibleTypes (varSubst m pt1) (varSubst m pt2)
+  varSubst m (OverlappingRecordField fields off) =
+    OverlappingRecordField (fmap (varSubst m) fields) off
+  
+    

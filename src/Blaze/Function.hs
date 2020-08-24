@@ -20,10 +20,12 @@ import Blaze.Types.Function as Exports
 import qualified Data.Set as Set
 import qualified Binja.BasicBlock as BB
 import qualified Binja.Function as Func
+import qualified Blaze.Graph as G
+import Blaze.Types.Path (PathGraph (PathGraph))
+import Blaze.Types.Path.AlgaPath (AlgaPath (AlgaPath))
 import Blaze.Pil (convertInstrs)
 import qualified Blaze.Pil.Path as BPP
 import qualified Blaze.Types.Pil as Pil
-import Data.BinaryAnalysis (Address)
 
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
@@ -53,7 +55,13 @@ getStmtsForAllFunctions bv = concat <$> (Func.getFunctions bv >>= traverse getSt
 getStmtsForFunction :: Func.Function -> IO [Pil.Stmt]
 getStmtsForFunction fn = do
   instrs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
-  tmp <- traverse ((`Pil.runConverter` BPP.startConverterCtx) . convertInstrs) instrs
+  -- TODO: Using an empty path since we don't actually have a path. 
+  --       How should we refactor this so we can use the same converter/importer 
+  --       machinery to import arbitrary instructions?
+  --       I.e., the path is only needed when expanding function calls, not 
+  --       importing a single function.
+  let path = AlgaPath (PathGraph G.empty)
+  tmp <- traverse ((`Pil.runConverter` BPP.createStartConverterState path fn) . convertInstrs) instrs
   return $ concatMap fst tmp
 
 getCallsInFunction :: Func.Function -> IO [CallInstruction]

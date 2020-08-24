@@ -160,10 +160,44 @@ matchAddReturnAndFirstArgSizeUnequal (OpWithSize sz (MLIL.ADD x)) =
   (x ^. MLIL.left . MLIL.size /= sz)
 matchAddReturnAndFirstArgSizeUnequal _ = False
 
-
+-- 0 in , 0 in 
+-- BUT! There are a bunch that ADD a negative const...
 matchLoadWithSub :: MLIL.Operation (MLIL.Expression F) -> Bool
-matchLoadWithSub (MLIL.LOAD (MLIL.LoadOp (MLIL.Expression _ _ _ (MLIL.SUB _)))) = True
+matchLoadWithSub (MLIL.LOAD_SSA (MLIL.LoadSSAOp (MLIL.Expression _ _ _ (MLIL.SUB _)) _)) = True
 matchLoadWithSub _ = False
+
+-- 226 in 
+-- 44 in 
+matchLoadWithAddNegativeConst :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchLoadWithAddNegativeConst (MLIL.LOAD_SSA
+                       (MLIL.LoadSSAOp
+                        (MLIL.Expression _ _ _
+                         (MLIL.ADD
+                          (MLIL.AddOp
+                           (MLIL.Expression _ _ _
+                            (MLIL.VAR_SSA _))
+                           (MLIL.Expression _ _ _
+                            (MLIL.CONST (MLIL.ConstOp n))))))
+                         _))
+  | n < 0 = True
+  | otherwise = False
+matchLoadWithAddNegativeConst _ = False
+
+
+-- 419 in 
+-- 818 in 
+matchLoadWithAddConst :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchLoadWithAddConst (MLIL.LOAD_SSA
+                       (MLIL.LoadSSAOp
+                        (MLIL.Expression _ _ _
+                         (MLIL.ADD
+                          (MLIL.AddOp
+                           (MLIL.Expression _ _ _
+                            (MLIL.VAR_SSA _))
+                           (MLIL.Expression _ _ _
+                            (MLIL.CONST _)))))
+                         _)) = True
+matchLoadWithAddConst _ = False
 
 
 matchUnevenVarSplit :: OpWithSize F -> Bool
@@ -175,3 +209,8 @@ matchUnevenVarSplit (OpWithSize sz (MLIL.VAR_SPLIT_SSA (MLIL.VarSplitSSAOp v1 v2
   where
     getWidth v = v ^? MLIL.var . Var.varType . _Just . Var.width
 matchUnevenVarSplit _ = False
+
+
+matchAnd :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchAnd (MLIL.AND _) = True
+matchAnd _ = False
