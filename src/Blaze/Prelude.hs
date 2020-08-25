@@ -7,6 +7,7 @@ module Blaze.Prelude
   , Streaming
   , StreamingIO
   , PPrint(PPrint)
+  , catchEither
   , liftListM
   , liftListIO
   , liftEitherIO
@@ -127,6 +128,9 @@ liftEitherM = ExceptT
 liftEither :: (MonadError e m) => Either e a -> m a
 liftEither (Left e) = throwError e
 liftEither (Right x) = return x
+
+catchEither :: MonadError e m => m a -> m (Either e a)
+catchEither m = catchError (Right <$> m) $ return . Left
 
 liftEitherIO :: (MonadError e m, MonadIO m) => IO (Either e a) -> m a
 liftEitherIO m = liftIO m >>= liftEither
