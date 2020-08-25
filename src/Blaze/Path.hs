@@ -155,6 +155,7 @@ data SpanItem a b
   | SpanBreak b
   deriving (Show)
 
+{- HLINT ignore "Use list comprehension" -}
 -- assumes [a] is sorted without duplicates and forall a in [a], a < hi
 getSpanList :: Integral a => (b -> a) -> a -> a -> [b] -> [SpanItem a b]
 {- HLINT ignore "Use list comprehension" -}

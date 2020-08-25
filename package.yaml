@@ -167,6 +167,21 @@ executables:
     - binja
     - hspec
     - text
+  const_test:
+    main: Main.hs
+    source-dirs:  app/const_test
+    ghc-options:
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - hspec
+    - text
 
     
 benchmarks:
