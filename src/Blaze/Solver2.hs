@@ -212,7 +212,7 @@ test2 = do
 
 -------------------------------
 
-guardBool :: SVal -> Solver ()
+guardBool :: HasKind a => a -> Solver ()
 guardBool x = case k of
   KBool -> return ()
   _ -> throwError $ GuardError "guardBool" [k] "Not Bool"
@@ -226,7 +226,8 @@ guardIntegral x = case k of
   where
     k = kindOf x
 
-guardIntegralFirstWidthNotSmaller :: SVal -> SVal -> Solver ()
+guardIntegralFirstWidthNotSmaller :: (HasKind a, HasKind b)
+                                  => a -> b -> Solver ()
 guardIntegralFirstWidthNotSmaller x y = case (kx, ky) of
   (KBounded _ w1, KBounded _ w2)
     | w1 >= w2 -> return ()
@@ -239,6 +240,14 @@ guardIntegralFirstWidthNotSmaller x y = case (kx, ky) of
   where
     kx = kindOf x
     ky = kindOf y
+
+lookupVarSym :: PilVar -> Solver SVal
+lookupVarSym pv = do
+  vm <- use varMap
+  maybe err return $ HashMap.lookup pv vm
+  where
+    err = throwError . ErrorMessage
+          $ "lookupVarSym failed for var '" <> pilVarName pv <> "'"
 
 -- | Creates SVal that represents expression.
 --   This type of InfoExpression is in a TypeReport
@@ -382,11 +391,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --     --  without `+` and `==` as type level operators.
 --     return [ (r, CSVar v) ]
 
---   Pil.VAR x -> do
---     v <- lookupVarSym $ x ^. Pil.src
---     return [ (r, CSVar v)
---            , (v, CSType $ TBitVector sz')
---            ]
+  Pil.VAR x -> lookupVarSym $ x ^. Pil.src
 --   Pil.VAR_FIELD _ ->
 --     -- TODO: can we know anything about src PilVar by looking at offset + result size?
 --     return [ (r, CSType $ TBitVector sz') ]
