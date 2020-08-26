@@ -79,16 +79,18 @@ deepSymTypeToKind t = case t of
     err :: forall a. Text -> Solver a
     err msg = throwError . DeepSymTypeConversionError t $ msg
 
-makeSymVar :: Maybe Text -> DeepSymType -> Solver SVal
-makeSymVar nm dst = do
-  k <- deepSymTypeToKind dst
-  SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (cs <$> nm)
+makeSymVar :: Maybe Text -> Kind -> Solver SVal
+makeSymVar nm k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (cs <$> nm)
+
+makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
+makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm
+
 
 declarePilVars :: Solver ()
 declarePilVars = ask >>= mapM_ f . HashMap.toList . typeEnv
   where
     f (pv, dst) = do
-      sval <- makeSymVar (Just nm) dst
+      sval <- makeSymVarOfType (Just nm) dst
       varNames %= HashMap.insert pv nm
       varMap %= HashMap.insert pv sval
       where
@@ -217,7 +219,7 @@ guardBool x = case k of
   where
     k = kindOf x
 
-guardIntegral :: SVal -> Solver ()
+guardIntegral :: HasKind a => a -> Solver ()
 guardIntegral x = case k of
   KBounded _ _ -> return ()
   _ -> throwError $ GuardError "guardIntegral" [k] "Not integral"
@@ -272,7 +274,12 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --   Pil.CMP_UGT x -> signedBinOpReturnsBool False x
 --   Pil.CMP_ULE x -> signedBinOpReturnsBool False x
 --   Pil.CMP_ULT x -> signedBinOpReturnsBool False x
---   Pil.CONST _ -> return [(r, CSType $ TBitVector sz')]
+  Pil.CONST x -> do
+    dst <- getDst
+    k <- deepSymTypeToKind dst
+    guardIntegral k
+    return . svInteger k . fromIntegral $ x ^. Pil.constant
+
 --   Pil.CONST_PTR _ -> retPointer
 --   Pil.ConstStr x -> return [(r, CSType $ TArray
 --                                 ( CSType . TVLength . fromIntegral . Text.length
@@ -399,14 +406,18 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 
 -- --   Extract _ -> bitvecRet
 --   _ -> P.error . show $ op'
-  _ -> P.error "unhandled"
+  _ -> throwError . ErrorMessage $ "unhandled PIL op: "
+       <> Text.takeWhile (/= ' ') (show op)
   where
     fallbackAsFreeVar :: Solver SVal
     fallbackAsFreeVar = case mdst of
       Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"
-      Just dst -> catchError (makeSymVar Nothing dst) $ \e ->
+      Just dst -> catchError (makeSymVarOfType Nothing dst) $ \e ->
           throwError $ ExprError xsym e
 
+    getDst :: Solver DeepSymType
+    getDst = maybe e return mdst
+      where e = throwError . ErrorMessage $ "missing DeepSymType"
 
     warn :: SolverError -> Solver ()
     warn e = errors %= (e :)

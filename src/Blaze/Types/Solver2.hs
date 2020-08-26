@@ -25,6 +25,7 @@ import Data.SBV.Trans as Exports (SymbolicT
                                  
                                  )
 import Data.SBV.Trans.Control as Exports (ExtractIO)
+import qualified Data.SBV.Trans.Control as Q
 import Blaze.Types.Pil (Expression, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Types.Pil as Pil
@@ -56,7 +57,7 @@ type StmtIndex = Int
 
 type DSTExpression = Ch.InfoExpression (SymInfo, Maybe DeepSymType)
 
-data SolverError = DeepSymTypeConversionError { dst :: DeepSymType, msg ::  Text }
+data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg ::  Text }
                  | StmtError { stmtIndex :: Int, stmtErr :: SolverError }
                  | ExprError { exprSym :: Sym, exprErr :: SolverError}
                  | GuardError { name :: Text, kinds :: [SBV.Kind], msg :: Text }
@@ -196,17 +197,20 @@ instance SolverContext Solver where
 --     f :: SymbolicT IO (Either SolverError a) -> IO (Either SolverError b)
 --     f m = undefined -- impossible?
 
-runSolver :: (forall m. ExtractIO m => SymbolicT m a -> m b)
-          -> (SolverState, SolverCtx)
-          -> Solver a
-          -> IO (Either SolverError b)
-runSolver unwrapper (st, ctx) =
-  runExceptT . unwrapper . flip evalStateT st . flip runReaderT ctx . runSolverMonad_
+runSolverWith :: SMTConfig
+              -> Solver a
+              -> (SolverState, SolverCtx)
+              -> IO (Either SolverError (a, SolverState))
+runSolverWith solverCfg m (st, ctx) = runExceptT
+  . runSMTWith solverCfg
+  . flip runStateT st
+  . flip runReaderT ctx
+  . runSolverMonad_ $ m
 
-runSolver_ :: (forall m. ExtractIO m => SymbolicT m a -> m b)
-          -> Solver a
-          -> IO (Either SolverError b)
-runSolver_ unwrapper = runSolver unwrapper (emptyState, emptyCtx)
+runSolverWith_ :: SMTConfig
+               -> Solver a
+               -> IO (Either SolverError (a, SolverState))
+runSolverWith_ solverCfg = flip (runSolverWith solverCfg) (emptyState, emptyCtx)
 
 
 data SolverResult = Unsat
@@ -216,26 +220,40 @@ data SolverResult = Unsat
 
 -- (Right (SBV.SatResult (SBV.Satisfiable _ r))) <- runSolver_ (SBV.satWith z3) test
 
-checkSatWith :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
-checkSatWith cfg m = do
-  r <- runSolver_ (SBV.satWith cfg) m
-  case r of
-    Left err -> return $ Left err
-    Right (SBV.SatResult sr) -> return . Right $ case sr of
-      SBV.Satisfiable _ model -> Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
-      SBV.Unsatisfiable _ _ -> Unsat
-      _ -> Unk
+-- checkSatWith :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
+-- checkSatWith cfg m = do
+--   r <- runSolver_ (SBV.satWith cfg) m
+--   case r of
+--     Left err -> return $ Left err
+--     Right (SBV.SatResult sr) -> return . Right $ case sr of
+--       SBV.Satisfiable _ model -> Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+--       SBV.Unsatisfiable _ _ -> Unsat
+--       _ -> Unk
 
--- data SolutionResult = SUnsat
---                     | SUnk
---                     | SSat (HashMap PilVar VarVal)
---                     deriving (Eq, Ord, Show)
+
+querySolverResult :: Solver SolverResult
+querySolverResult = do
+  liftSymbolicT . Q.query $ do
+    csat <- Q.checkSat
+    case csat of
+      Q.Unsat -> return Unsat
+      Q.Unk -> return Unk
+      Q.Sat -> do
+        model <- Q.getModel
+        return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+        
+
+checkSatWith :: SMTConfig -> Solver () -> (SolverState, SolverCtx) -> IO (Either SolverError (SolverResult, SolverState))
+checkSatWith cfg m s = runSolverWith cfg (m >> querySolverResult) s
+
+checkSatWith_ :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
+checkSatWith_ cfg m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx)
+
 
 stmtError :: SolverError -> Solver a
 stmtError e = do
   si <- use currentStmtIndex
   throwError $ StmtError si e
-
 
 liftSymbolicT :: SymbolicT (ExceptT SolverError IO) a -> Solver a
 liftSymbolicT = Solver . lift . lift
