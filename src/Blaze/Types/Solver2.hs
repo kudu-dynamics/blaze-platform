@@ -25,21 +25,52 @@ import Data.SBV.Trans as Exports (SymbolicT
                                  
                                  )
 import Data.SBV.Trans.Control as Exports (ExtractIO)
+import qualified Data.SBV.Trans.Control as Q
 import Blaze.Types.Pil (Expression, PilVar, TypeEnv)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Fail (MonadFail(fail))
-import Blaze.Types.Pil.Checker (DeepSymType)
+import Blaze.Types.Pil.Checker (DeepSymType, Sym, SymInfo)
+import qualified Blaze.Types.Pil.Checker as Ch
 
 type StmtIndex = Int
 
+-- data ExpressionError = ExpressionError
+--   { _currentExprSym :: Sym
+--   , _errorType :: Text
+--   } deriving (Eq, Ord, Read, Show)
+-- $(makeFieldsNoPrefix ''SolverError)
+
+-- data StatementError = StatementError
+--   { _currentStmtIndex :: Int
+--   , _currentExprSym :: Maybe Sym
+--   , _errorType :: Text
+--   } deriving (Eq, Ord, Read, Show)
+-- $(makeFieldsNoPrefix ''SolverError)
 
 
-data SolverError = SolverError
-  { _currentStmtIndex :: Int
-  , _errorType :: Text
-  } deriving (Eq, Ord, Read, Show)
-$(makeFieldsNoPrefix ''SolverError)
+-- data ExpressionError = ExpressionError Sym Text
+--   deriving (Eq, Ord, Read, Show, Generic)
+
+-- data ExpressionError = ExpressionError Sym Text
+--   deriving (Eq, Ord, Read, Show, Generic)
+
+type DSTExpression = Ch.InfoExpression (SymInfo, Maybe DeepSymType)
+
+data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg ::  Text }
+                 | StmtError { stmtIndex :: Int, stmtErr :: SolverError }
+                 | ExprError { exprSym :: Sym, exprErr :: SolverError}
+                 | GuardError { name :: Text, kinds :: [SBV.Kind], msg :: Text }
+                 | AlternativeEmpty
+                 | ErrorMessage Text
+  deriving (Eq, Ord, Show, Generic)
+
+-- data SolverError = SolverError
+--   { _currentStmtIndex :: Int
+--   , _currentExprSym :: Maybe Sym
+--   , _errorType :: Text
+--   } deriving (Eq, Ord, Read, Show)
+-- $(makeFieldsNoPrefix ''SolverError)
 
 class SameType a b where
   sameType :: a -> b -> Bool
@@ -94,6 +125,7 @@ emptyCtx = SolverCtx mempty
 
 data SolverState = SolverState
   { _varMap :: HashMap PilVar SVal
+  , _varNames :: HashMap PilVar Text
   , _mem :: HashMap Expression SVal
   , _currentStmtIndex :: Int
   , _errors :: [SolverError]
@@ -101,7 +133,7 @@ data SolverState = SolverState
 $(makeFieldsNoPrefix ''SolverState)
 
 emptyState :: SolverState
-emptyState = SolverState HashMap.empty HashMap.empty 0 []
+emptyState = SolverState HashMap.empty HashMap.empty HashMap.empty 0 []
 
 -- newtype Solver a = Solver { runSolverMonad_ ::
 --                               ReaderT SolverCtx
@@ -131,14 +163,17 @@ newtype Solver a = Solver { runSolverMonad_ ::
                             , MonadSymbolic
                             )
 
-solverError :: Text -> Solver a
-solverError msg = do
-  ix <- use currentStmtIndex
-  throwError . SolverError ix $ cs msg
+-- stmtError :: Text -> Solver a
+-- stmtError msg = do
+--   ix <- use currentStmtIndex
+--   throwError . SolverError ix Nothing $ cs msg
 
+instance Alternative Solver where
+  empty = throwError AlternativeEmpty
+  (<|>) a b = catchError a $ const b
 
 instance MonadFail Solver where
-  fail = solverError . cs
+  fail = throwError . ErrorMessage . cs
 
 instance SolverContext Solver where
   constrain = liftSymbolicT . constrain
@@ -162,17 +197,20 @@ instance SolverContext Solver where
 --     f :: SymbolicT IO (Either SolverError a) -> IO (Either SolverError b)
 --     f m = undefined -- impossible?
 
-runSolver :: (forall m. ExtractIO m => SymbolicT m a -> m b)
-          -> (SolverState, SolverCtx)
-          -> Solver a
-          -> IO (Either SolverError b)
-runSolver unwrapper (st, ctx) =
-  runExceptT . unwrapper . flip evalStateT st . flip runReaderT ctx . runSolverMonad_
+runSolverWith :: SMTConfig
+              -> Solver a
+              -> (SolverState, SolverCtx)
+              -> IO (Either SolverError (a, SolverState))
+runSolverWith solverCfg m (st, ctx) = runExceptT
+  . runSMTWith solverCfg
+  . flip runStateT st
+  . flip runReaderT ctx
+  . runSolverMonad_ $ m
 
-runSolver_ :: (forall m. ExtractIO m => SymbolicT m a -> m b)
-          -> Solver a
-          -> IO (Either SolverError b)
-runSolver_ unwrapper = runSolver unwrapper (emptyState, emptyCtx)
+runSolverWith_ :: SMTConfig
+               -> Solver a
+               -> IO (Either SolverError (a, SolverState))
+runSolverWith_ solverCfg = flip (runSolverWith solverCfg) (emptyState, emptyCtx)
 
 
 data SolverResult = Unsat
@@ -182,20 +220,40 @@ data SolverResult = Unsat
 
 -- (Right (SBV.SatResult (SBV.Satisfiable _ r))) <- runSolver_ (SBV.satWith z3) test
 
-checkSatWith :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
-checkSatWith cfg m = do
-  r <- runSolver_ (SBV.satWith cfg) m
-  case r of
-    Left err -> return $ Left err
-    Right (SBV.SatResult sr) -> return . Right $ case sr of
-      SBV.Satisfiable _ model -> Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
-      SBV.Unsatisfiable _ _ -> Unsat
-      _ -> Unk
+-- checkSatWith :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
+-- checkSatWith cfg m = do
+--   r <- runSolver_ (SBV.satWith cfg) m
+--   case r of
+--     Left err -> return $ Left err
+--     Right (SBV.SatResult sr) -> return . Right $ case sr of
+--       SBV.Satisfiable _ model -> Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+--       SBV.Unsatisfiable _ _ -> Unsat
+--       _ -> Unk
 
--- data SolutionResult = SUnsat
---                     | SUnk
---                     | SSat (HashMap PilVar VarVal)
---                     deriving (Eq, Ord, Show)
+
+querySolverResult :: Solver SolverResult
+querySolverResult = do
+  liftSymbolicT . Q.query $ do
+    csat <- Q.checkSat
+    case csat of
+      Q.Unsat -> return Unsat
+      Q.Unk -> return Unk
+      Q.Sat -> do
+        model <- Q.getModel
+        return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+        
+
+checkSatWith :: SMTConfig -> Solver () -> (SolverState, SolverCtx) -> IO (Either SolverError (SolverResult, SolverState))
+checkSatWith cfg m s = runSolverWith cfg (m >> querySolverResult) s
+
+checkSatWith_ :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
+checkSatWith_ cfg m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx)
+
+
+stmtError :: SolverError -> Solver a
+stmtError e = do
+  si <- use currentStmtIndex
+  throwError $ StmtError si e
 
 liftSymbolicT :: SymbolicT (ExceptT SolverError IO) a -> Solver a
 liftSymbolicT = Solver . lift . lift
