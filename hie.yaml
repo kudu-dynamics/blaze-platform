@@ -6,3 +6,5 @@ cradle:
       component: "blaze:test:blaze-test"
     - path: "demo/"
       component: "blaze:exe:demo"
+    - path: "app/const_test"
+      component: "blaze:exe:const_test"
