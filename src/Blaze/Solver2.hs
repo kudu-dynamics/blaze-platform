@@ -137,28 +137,62 @@ pilSub a b = a `svMinus` b'
   where
     b' = matchSign a (matchBoundedWidth a b)
 
-
-toSFloat' :: SVal -> SBV.SFloat
-toSFloat' x = case kindOf x of
-  KFloat -> SBV x
-  _ -> P.error "toSFloat: x is not KFloat kind"
-
 pilCeil :: SVal -> SVal
 pilCeil x = case kindOf x of
   KFloat -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardPositive $ toSFloat' x
   _ -> P.error "pilCeil: x is not a KFloat"
-  where
-    toSFloat' :: SVal -> SBV.SFloat
-    toSFloat' x = case kindOf x of
-      KFloat -> SBV x
-      _ -> P.error "toSFloat: x is not KFloat kind"
 
+pilFloor :: SVal -> SVal
+pilFloor x = case kindOf x of
+  KFloat -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardNegative $ toSFloat' x
+  _ -> P.error "pilFloor: x is not a KFloat"
 
+pilFAdd :: SVal -> SVal -> SVal
+pilFAdd a b = case (kindOf a, kindOf b) of
+  (KFloat, KFloat) -> unSBV $ SBV.fpAdd 
+                                SBV.sRoundNearestTiesToAway
+                                (toSFloat' a)
+                                (toSFloat' b)
+  _ -> P.error "pilFAdd: one or both arguments are not KFloat"
+
+pilFDiv :: SVal -> SVal -> SVal
+pilFDiv a b = case (kindOf a, kindOf b) of
+  (KFloat, KFloat) -> unSBV $ SBV.fpDiv 
+                                SBV.sRoundNearestTiesToAway
+                                (toSFloat' a)
+                                (toSFloat' b)
+  _ -> P.error "pilFDiv: one or both arguments are not KFloat"
+
+pilRol :: SVal -> SVal -> SVal
+pilRol a b = a `svRotateLeft` b
+
+pilLowPart :: SVal -> SVal -> SVal
+pilLowPart src sz = case (kindOf src, kindOf sz) of
+  (KBounded _ w0, KBounded _ w1) -> src `svAnd` mask
+    where
+      w1' = fromIntegral w1
+      w0' = fromIntegral w0
+      mask = svShiftRight ones diff
+      diff = srcSize `svMinus` szInBits
+      szInBits = sz `svTimes` (constWord (Bits w1') 8)
+      srcSize = constWord (Bits w1') (toInteger w0)
+      ones = svNot (constWord (Bits w0') 0) 
+  _ -> P.error "pilLowPart: one or both arguments are not KBounded"
+
+-- pilStrNCmp :: [SVal] -> [SVal] -> SVal -> SVal
+-- pilStrNCmp str0 str1 n = 
+
+-- svSelect
+      -- mask (svInteger (KBounded True w1') 0) = constInt 0 0
 -- for cmp's flags are set, (nothing?) done on vars
 
 -- binOpFirstArgMatchesReturnType :: (SVal -> SVal -> SVal) -> SVal -> SVal -> Solver
 --sRoundTowardPositive
 -- -- add :: SVal -> SVal -> Symbolic SVal
+toSFloat' :: SVal -> SBV.SFloat
+toSFloat' x = case kindOf x of
+  KFloat -> SBV x
+  _ -> P.error "toSFloat: x is not KFloat kind"
 
 toSBool' :: SVal -> SBool
 toSBool' x = case kindOf x of

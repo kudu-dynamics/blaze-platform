@@ -285,7 +285,7 @@ data ExprOp expr
     | FDIV (FdivOp expr) -- 
     | FLOAT_CONST (FloatConstOp expr)
     | FLOAT_CONV (FloatConvOp expr)
-    | FLOAT_TO_INT (FloatToIntOp expr)
+    | FLOAT_TO_INT (FloatToIntOp expr) --
     | FLOOR (FloorOp expr) -- 
     | FMUL (FmulOp expr)
     | FNEG (FnegOp expr)
@@ -328,8 +328,8 @@ data ExprOp expr
     | CALL (CallOp expr)
 
     | Extract (ExtractOp expr) -- 
-    | StrCmp (StrCmpOp expr)
-    | StrNCmp (StrNCmpOp expr)
+    | StrCmp (StrCmpOp expr) 
+    | StrNCmp (StrNCmpOp expr) -- 
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
