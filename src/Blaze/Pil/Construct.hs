@@ -90,13 +90,13 @@ strcmp = binOp Pil.StrCmp Pil.StrCmpOp
 load :: Expression -> OperationSize -> Expression
 load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
 
-varField :: Pil.Symbol -> Int64 -> Pil.OperationSize -> Expression
+varField :: Pil.Symbol -> Int64 -> OperationSize -> Expression
 varField sym offset size =
   mkExpr size (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset)
 
-fieldAddr :: Expression -> ByteOffset -> Pil.OperationSize -> Expression
-fieldAddr baseAddr offset size =
-  mkExpr size (Pil.FIELD_ADDR $ Pil.FieldAddrOp baseAddr offset)
+field :: Pil.Expression -> ByteOffset -> OperationSize -> Expression
+field base offset size = 
+  mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt

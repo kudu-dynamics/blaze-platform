@@ -219,7 +219,8 @@ data ConverterState
         _ctxStack :: NonEmpty Ctx,
         -- The current context
         _ctx :: Ctx,
-        -- Currently known defined PilVars for all contexts
+        -- Currently known defined PilVars for all contexts.
+        -- This is assumed to be ordered by most recently defined first.
         -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
         --       This could happen for synthesized PilVars with a Nothing context.
         _definedVars :: [PilVar]

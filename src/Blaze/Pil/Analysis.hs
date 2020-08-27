@@ -7,7 +7,10 @@ import Blaze.Prelude hiding
     pi,
   )
 import Blaze.Types.Pil
-  ( Expression (Expression),
+  ( AddOp,
+    Expression (Expression),
+    ExprOp,
+    OperationSize,
     PilVar,
     Statement (Def),
     Stmt,
@@ -632,3 +635,64 @@ simplify = copyProp . constantProp
 
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
+
+parseFieldAddrLoad :: Expression -> Maybe Expression
+parseFieldAddrLoad expr =
+  case expr ^. Pil.op of
+    Pil.LOAD (Pil.LoadOp inner) ->
+      outerWrapper <$> parseFieldAddr inner
+      where
+        outerWrapper :: Pil.Expression -> Pil.Expression
+        outerWrapper innerExpr =
+          Pil.Expression
+            (expr ^. Pil.size)
+            (Pil.LOAD (Pil.LoadOp innerExpr))
+    _ -> Nothing
+
+parseFieldAddr :: Expression -> Maybe Expression
+parseFieldAddr expr =
+  case expr ^. Pil.op of
+    -- Case where there is a const on the right
+    Pil.ADD addOp@(Pil.AddOp _left Pil.Expression {_op = (Pil.CONST _)}) ->
+      Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+        <$> ( Pil.FieldAddrOp
+                <$> base addOp (^. Pil.left) <*> offset addOp (^. Pil.right)
+            )
+    -- Case where there is a const on the left
+    Pil.ADD addOp@(Pil.AddOp Pil.Expression {_op = (Pil.CONST _)} _right) ->
+      Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+        <$> ( Pil.FieldAddrOp
+                <$> base addOp (^. Pil.right) <*> offset addOp (^. Pil.left)
+            )
+    _ -> Nothing
+  where
+    baseOp :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe (ExprOp Expression)
+    baseOp addOp getExpr =
+      Pil.VAR <$> getExpr addOp ^? Pil.op . Pil._VAR
+        <|> Pil.CONST_PTR <$> getExpr addOp ^? Pil.op . Pil._CONST_PTR
+    baseSize :: AddOp Expression -> (AddOp Expression -> Expression) -> OperationSize
+    baseSize addOp getExpr = getExpr addOp ^. Pil.size
+    base :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe Expression
+    base addOp getExpr = Pil.Expression (baseSize addOp getExpr) <$> baseOp addOp getExpr
+    offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
+    offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
+
+substFieldAddr :: Stmt -> Stmt
+substFieldAddr stmt =
+  case stmt of
+    Pil.Def (Pil.DefOp var value) ->
+      Pil.Def (Pil.DefOp var $ substExprInExpr parseFieldAddrLoad value)
+    Pil.Store (Pil.StoreOp addr value) ->
+      Pil.Store
+        ( Pil.StoreOp
+            (substExprInExpr parseFieldAddr addr)
+            (substExprInExpr parseFieldAddrLoad value)
+        )
+    Pil.Constraint (Pil.ConstraintOp cond) ->
+      Pil.Constraint (Pil.ConstraintOp $ substExprInExpr parseFieldAddrLoad cond)
+    Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) ->
+      Pil.Call (callOp & Pil.dest .~ Pil.CallExpr (substExprInExpr parseFieldAddrLoad expr))
+    _ -> stmt
+
+substFields :: [Stmt] -> [Stmt]
+substFields = fmap substFieldAddr

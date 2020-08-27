@@ -166,9 +166,6 @@ convertExpr ctx expr = case expr ^. MLIL.op of
     where
       addrExpr = varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var)
   --    (MLIL.VAR_FIELD x) -> VarFieldOp expr)
-  (MLIL.VAR_PHI x) ->
-    mkExpr . Pil.VAR_PHI $
-      Pil.VarPhiOp (convertToPilVar ctx $ x ^. MLIL.dest) (fmap (convertToPilVar ctx) $ x ^. MLIL.src)
   --    (MLIL.VAR_SPLIT x) -> VarSplitOp expr)
   (MLIL.VAR_SPLIT_SSA x) ->
     mkExpr . Pil.VAR_SPLIT $
@@ -277,6 +274,9 @@ convertInstrOp op' = do
             (convertExpr ctx (x ^. MLIL.dest))
             (x ^. MLIL.offset)
         exprSrc = convertExpr ctx (x ^. MLIL.src)
+    -- TODO: How should we organize handling path-sensitive vs -insensitive conversions of phi nodes?
+    --       Consider introducing a PIL phi instruction here and using Pil.Analysis to resolve for paths during simplification
+    --       phase.
     (MLIL.VAR_PHI x) ->
       case latestVar of
         Nothing -> return []
@@ -290,11 +290,8 @@ convertInstrOp op' = do
             ]
       where
         pvar = convertToPilVar ctx $ x ^. MLIL.dest
-        latestVar =
-            getLastDefined defVars
-            . HSet.fromList
-            . fmap (convertToPilVar ctx)
-            $ x ^. MLIL.src
+        srcVars = HSet.fromList . fmap (convertToPilVar ctx) $ x ^. MLIL.src
+        latestVar = getLastDefined defVars srcVars
         vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
     MLIL.UNIMPL -> return [UnimplInstr "UNIMPL"]
     (MLIL.UNIMPL_MEM x) -> return [UnimplMem $ UnimplMemOp expr]
