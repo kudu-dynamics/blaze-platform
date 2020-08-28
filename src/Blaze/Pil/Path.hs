@@ -200,7 +200,7 @@ createStartCtx func = Ctx func 0
 
 createStartConverterState :: AlgaPath -> Function -> ConverterState
 createStartConverterState path func = 
-  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx []
+  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx [] Pil.knownFuncDefs
     where 
       startCtx :: Ctx
       startCtx = createStartCtx func

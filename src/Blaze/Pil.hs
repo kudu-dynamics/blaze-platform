@@ -1,16 +1,26 @@
 module Blaze.Pil where
 
 import Binja.Function (Function)
-import qualified Binja.Function as Function
+import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
+import Blaze.Pil.Analysis (getAllSyms)
+import Blaze.Types.Pil.Analysis (symbolGenerator)
 import Blaze.Prelude hiding
   ( Symbol,
     Type,
   )
-import Blaze.Types.Function (CallInstruction)
-import qualified Blaze.Types.Function as Function
+import Blaze.Types.Function
+  ( Access (In, Out),
+    CallInstruction,
+    FuncInfo,
+    FuncParamInfo (FuncParamInfo, FuncVarArgInfo),
+    ParamInfo (ParamInfo),
+    ResultInfo (ResultInfo),
+    mkFuncInfo,
+  )
+import qualified Blaze.Types.Function as Func
 import Blaze.Types.Pil
   ( CallDest,
     CallOp (CallOp),
@@ -35,6 +45,7 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens ((^?!))
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
@@ -309,25 +320,49 @@ convertInstrs = concatMapM convertInstr
 
 getCallDestFunctionName :: Function -> CallDest expr -> IO (Maybe Text)
 getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
-  bv <- Function.getFunctionDataBinaryView ctxfn
+  bv <- BNFunc.getFunctionDataBinaryView ctxfn
   mfn <-
-    Function.getFunctionStartingAt bv Nothing
+    BNFunc.getFunctionStartingAt bv Nothing
       . Address
       . fromIntegral
       $ op ^. Pil.constant :: IO (Maybe Function)
-  return $ view Function.name <$> mfn
+  return $ view BNFunc.name <$> (mfn :: Maybe Function)
 getCallDestFunctionName _ _ = return Nothing
+
+-- |Generate store statements that correspond to any arguments used 
+-- for output for a called function.
+genCallOutputStores :: [FuncParamInfo] -> [Expression] -> [Stmt]
+genCallOutputStores paramInfos params =
+  uncurry mkStore <$> zip outArgs exprVars
+  where
+    maybeOutParam :: FuncParamInfo -> Expression -> Maybe Expression
+    maybeOutParam pInfo expr = do
+      access <- pInfo ^? Func._FuncParamInfo . Func.access
+      if access == Func.Out
+        then return expr
+        else Nothing
+    outArgs :: [Expression]
+    outArgs = mapMaybe (uncurry maybeOutParam) . zip paramInfos $ params
+    mkStore :: Expression -> PilVar -> Stmt
+    mkStore argExpr freeVar =
+      Pil.Store $
+        Pil.StoreOp
+          argExpr
+          (Expression (argExpr ^. Pil.size) (Pil.VAR (Pil.VarOp freeVar)))
+    -- TODO: Need to actually find the used defined vars and exclude them
+    exprVars :: [PilVar]
+    exprVars = (\x -> PilVar x Nothing HSet.empty) <$> symbolGenerator (getAllSyms [])
 
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
 convertCallInstruction :: Ctx -> CallInstruction -> Pil.Converter [Stmt]
 convertCallInstruction ctx c = do
-  let target = fromJust (Pil.getCallDest <$> (c ^. Function.dest >>= Just . convertExpr ctx))
-      params = fmap (convertExpr ctx) $ c ^. Function.params
+  let target = fromJust (Pil.getCallDest <$> (c ^. Func.dest >>= Just . convertExpr ctx))
+      params = fmap (convertExpr ctx) $ c ^. Func.params
   mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get
   -- actual size. This is done below when handling the case for a return value.
-  let callExpr = Expression (c ^. Function.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Function.params
-  case c ^. Function.outputDest of
+  let callExpr = Expression (c ^. Func.size) . Pil.CALL . Pil.CallOp target mname . fmap (convertExpr ctx) $ c ^. Func.params
+  case c ^. Func.outputDest of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
     [] -> return [Call $ CallOp target mname params]
     (dest : _) -> do
@@ -343,3 +378,16 @@ isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. Pil.dest of
   (Pil.CallConstPtr _) -> True
   _ -> False
+
+knownFuncDefs :: HashMap Text FuncInfo
+knownFuncDefs =
+  HM.fromList
+    [ ( "asprintf",
+        mkFuncInfo "asprintf" "asprintf"
+          [ FuncParamInfo $ ParamInfo "ret" Out,
+            FuncParamInfo $ ParamInfo "fmt" In,
+            FuncVarArgInfo
+          ]
+          (ResultInfo "result")
+      )
+    ]

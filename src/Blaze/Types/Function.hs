@@ -5,7 +5,8 @@ module Blaze.Types.Function where
 import Binja.Core (InstructionIndex)
 import Binja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Binja.MLIL as MLIL
-import Blaze.Prelude
+import Blaze.Prelude hiding (Symbol)
+import Data.BinaryAnalysis (Symbol (Symbol))
 import Binja.Function (Function, MLILSSAFunction)
 
 type F = MLILSSAFunction
@@ -116,6 +117,54 @@ data CallSite = CallSite
 --   { _address :: Address
 --   , _index :: InstructionIndex F
 --   , _}
+
+data Access = In | Out | InOut | Unknown
+  deriving (Enum, Eq, Show, Generic)
+  deriving anyclass Hashable
+
+data ParamInfo
+  = ParamInfo
+      { _name :: Text,
+        _access :: Access
+      }
+  deriving (Eq, Show, Generic)
+  deriving anyclass Hashable
+
+data FuncParamInfo
+  = FuncParamInfo ParamInfo
+  | FuncVarArgInfo
+  deriving (Eq, Show, Generic)
+  deriving anyclass Hashable
+
+newtype ResultInfo
+  = ResultInfo
+      {_name :: Text}
+  deriving (Eq, Show, Generic)
+  deriving anyclass Hashable
+
+-- | Describe basic information about a function.
+-- Because this describe known functions, we are matching
+-- according to symbol. This will work for C, but not C++.
+-- Can try matching according to simple name from Symbol and
+-- parameter list.
+data FuncInfo
+  = FuncInfo
+      { _name :: Symbol,
+        _params :: [FuncParamInfo],
+        _result :: ResultInfo
+      }
+  deriving (Eq, Show, Generic)
+  deriving anyclass Hashable
+
+mkFuncInfo :: Text -> Text -> [FuncParamInfo] -> ResultInfo -> FuncInfo
+mkFuncInfo name rawName =
+  FuncInfo (Symbol name rawName)
+
+$(makePrisms ''Access)
+$(makePrisms ''FuncParamInfo)
+$(makeFieldsNoPrefix ''ParamInfo)
+$(makeFieldsNoPrefix ''ResultInfo)
+$(makeFieldsNoPrefix ''FuncInfo)
 
 $(makeFieldsNoPrefix ''CallInstruction)
 $(makeFieldsNoPrefix ''CallSite)
