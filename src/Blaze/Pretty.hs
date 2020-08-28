@@ -8,13 +8,12 @@ module Blaze.Pretty
   )
 where
 
-import Blaze.Prelude hiding (Symbol, const, sym)
+import Blaze.Prelude hiding (Symbol, const, sym, bracket)
 import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display ((<->), Symbol, disp, paren)
-import Blaze.Prelude hiding (Symbol, sym, const)
+import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas)
 import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Pil as Pil
@@ -28,7 +27,6 @@ import Text.Printf
 import qualified Blaze.Types.Pil.Checker as PI
 
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -174,7 +172,7 @@ prettyField op = Text.pack $ printf "%s[%s]" src offset
     offset = show (op ^. Pil.offset)
 
 prettyExprOp :: Pretty a => (Pil.ExprOp a) -> Pil.OperationSize -> Text
-prettyExprOp exprOp size = case exprOp of
+prettyExprOp exprOp _size = case exprOp of
   (Pil.ADC op) -> prettyBinop "adc" op
   (Pil.ADD op) -> prettyBinop "add" op
   (Pil.ADD_OVERFLOW op) -> prettyBinop "addOf" op
@@ -275,7 +273,7 @@ prettyExprOp exprOp size = case exprOp of
     where
       dest = pretty (op ^. Pil.dest)
       params :: Text
-      params = show (fmap pretty (op ^. Pil.params))
+      params = asList (fmap pretty (op ^. Pil.params))
   (Pil.StrCmp op) -> prettyBinop "strcmp" op
   (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s" (op ^. Pil.len) (pretty (op ^. Pil.left)) (pretty (op ^. Pil.right))
   (Pil.MemCmp op) -> prettyBinop "memcmp" op
@@ -361,13 +359,17 @@ instance Pretty Pil.StackOffset where
 instance Pretty t => Pretty (PI.PilType t) where
   pretty = \case
     PI.TArray len elemType -> "Array" <-> pretty len <-> pretty elemType
+--    PI.TZeroField pt -> "ZeroField" <-> paren (pretty pt)
+    PI.TBool -> "Bool"
     PI.TChar -> "Char"
     PI.TInt bitWidth signed -> "Int" <-> pretty bitWidth <-> pretty signed
     PI.TFloat bitWidth -> "Float" <-> pretty bitWidth
     PI.TBitVector bitWidth -> "BitVector" <-> pretty bitWidth
     PI.TPointer bitWidth pointeeType -> "Pointer" <-> pretty bitWidth
                                         <-> paren (pretty pointeeType)
-    PI.TRecord _m -> "Record" -- TODO fields
+    PI.TRecord m -> "Record" <-> asList (fmap rfield $ HashMap.toList m)
+      where
+        rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
     PI.TBottom s -> paren $ "Bottom" <-> pretty s
     PI.TFunction _ret _params -> "Func"
 

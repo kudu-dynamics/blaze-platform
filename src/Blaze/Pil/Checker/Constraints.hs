@@ -185,6 +185,27 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
            , ( r, CSType $ TBitVector sz' )
            ]
 
+
+    -- case x ^. Pil.src . op of
+    --   Pil.FIELD_ADDR y -> do
+    --     ptrWidth <- CSVar <$> newSym
+    --     let fieldAddrPtrSym = x ^. Pil.src . info . sym
+    --         ptrType = CSType . TRecord $ HashMap.fromList [( byteOffsetToBitOffset $ y ^. Pil.offset
+    --                                                        , fieldType)]
+    --     return [ ( fieldAddrPtrSym, CSType $ TPointer ptrWidth ptrType )
+    --            , ( r, fieldType )
+    --            , ( r, CSType $ TBitVector sz' )
+    --            ]
+
+    --   _ -> do
+    --     ptrWidth <- CSVar <$> newSym
+    --     fieldType <- CSVar <$> newSym
+    --     let ptrType = CSType $ TZeroField fieldType
+    --     return [ ( x ^. Pil.src . info . sym, CSType $ TPointer ptrWidth ptrType )
+    --            , ( r, fieldType )
+    --            , ( r, CSType $ TBitVector sz' )
+    --            ]
+
   -- should _x have any influence on the type of r?
   Pil.LOW_PART _x -> return [(r, CSType $ TBitVector sz')]
 
@@ -198,7 +219,13 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.MULS_DP x -> integralBinOpDP (Just True) x
   Pil.MULU_DP x -> integralBinOpDP (Just False) x
   Pil.NEG x -> integralUnOp (Just True) x
-  Pil.NOT x -> bitVectorUnOp x
+
+  -- NOT is either Bool -> Bool or BitVec -> BitVec
+  -- but no way to express that without typeclasses
+  -- so it's just constrained as `a -> a`
+  Pil.NOT x -> return [(r, CSVar $ x ^. Pil.src . info . sym)]
+    -- bitVectorUnOp x
+
   Pil.OR x -> bitVectorBinOp x
   Pil.RLC x -> integralFirstArgIsReturn x
   Pil.ROL x -> integralFirstArgIsReturn x
@@ -500,7 +527,9 @@ addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   return $ Pil.Def (Pil.DefOp pv symExpr)
 addStmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   symExpr <- toSymExpression expr
+  let exprSym = symExpr ^. info . sym
   addAllExprTypeConstraints symExpr
+  addConstraint_ exprSym $ SType TBool
   return $ Pil.Constraint (Pil.ConstraintOp symExpr)
 addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
@@ -512,4 +541,16 @@ addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   ptrWidth <- newSym
   addConstraint_ symAddr . SType $ TPointer ptrWidth symVal
   return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
+
+
+  -- symAddrExpr <- toSymExpression addrExpr
+  -- symValExpr <- toSymExpression valExpr
+  -- let symAddr = symAddrExpr ^. info . sym
+  --     symVal = symValExpr ^. info . sym
+  -- addAllExprTypeConstraints symAddrExpr
+  -- addAllExprTypeConstraints symValExpr
+  -- ptrWidth <- newSym
+  -- addConstraint' (symAddr, CSType $ TPointer (CSVar ptrWidth)
+  --                          (CSType . TZeroField . CSVar $ symVal))
+  -- return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
 addStmtTypeConstraints s = traverse toSymExpression s

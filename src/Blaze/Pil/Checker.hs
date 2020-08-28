@@ -16,6 +16,13 @@ import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
 
 
+-- removeZeroFields :: DeepSymType -> DeepSymType
+-- removeZeroFields (DSVar s) = DSVar s
+-- removeZeroFields (DSRecursive s (TZeroFIeld dst)) = dst
+-- removeZeroFields (DSRecursive s pt) = DSRecursive s $ removeZeroFields <$> pt
+-- removeZeroFields (DSType (TZeroFIeld dst)) = dst
+-- removeZeroFields (DSType pt) = DSType $ removeZeroFields <$> pt
+
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
 flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
   where
@@ -132,7 +139,9 @@ checkStmts = fmap toReport . stmtSolutions
         originsVarSymMap = varSubst eqMap <$> s ^. varSymMap
         sols :: HashMap Sym (PilType Sym)
         sols = unSt ^. solutions
-        errs = unSt ^. errors
+        errs = fmap f <$> unSt ^. errors
+          where
+            f s' = maybe (DSVar s') identity $ HashMap.lookup s' deepSols
         eqMap = unSt ^. originMap
         deepSols = flatToDeepSyms sols
         fillTypesInStmt :: InfoExpression SymInfo
