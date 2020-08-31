@@ -94,47 +94,60 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
 isTypeDescendent :: PilType a -> PilType a -> Bool
 isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
+-- isTypeDescendent (TFirstOf _ _) t = case t of
+--   TFirstOf _ _ -> True
+--   TBottom -> True
+--   _ -> False
 isTypeDescendent TBool t = case t of
   TBool -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TFloat _) t = case t of
   TFloat _ -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TBitVector _) t = case t of
   TBitVector _ -> True
   -- I think these should be descendents
-  TFloat _ -> True
+  -- TFloat _ -> True
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
+  TBool -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TPointer _ _) t = case t of
   TPointer _ _ -> True
   TArray _ _ -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent TChar t = case t of
   TChar -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
+  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
-  TPointer _ _ -> True
+  TFirstOf _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TBottom _) t = case t of
@@ -163,9 +176,17 @@ unifyPilTypes pt1 pt2 =
     (False, False) -> err
     (False, True) -> unifyPilTypes pt2 pt1
     _ -> case pt1 of
+      -- TFirstOf ft bt -> case pt2 of
+      --   TFirstOf ft' bt' -> TZeroField <$> addVarEq ft ft' <*> addVarEq bt bt'
+        -- TArray alen et -> TArray alen <$> addVarEq t et
+        -- TRecord fields -> fmap TRecord . unifyRecords fields
+        --                   $ HashMap.fromList [(0, t)]
+        -- _ -> err
+        
       TArray len1 et1 -> case pt2 of
-        (TArray len2 et2) ->
+        TArray len2 et2 ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
+        -- TFirstOf ft bt -> 
         _ -> err
       TBool -> case pt2 of
         TBool -> return TBool
@@ -196,6 +217,7 @@ unifyPilTypes pt1 pt2 =
         TChar -> do
           addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
+        TBool -> return TBool
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
         TPointer w2 pointeeType2 ->
@@ -211,7 +233,7 @@ unifyPilTypes pt1 pt2 =
 
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
-        TPointer _ t -> fmap TRecord . unifyRecords m1 . HashMap.fromList $ [(0, t)]
+        -- TFirstOf t -> fmap TRecord . unifyRecords m1 . HashMap.fromList $ [(0, t)]
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of

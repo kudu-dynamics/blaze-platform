@@ -4,12 +4,10 @@ import qualified Binja.Function
 import qualified Binja.MLIL
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable
-import Blaze.Prelude hiding (Symbol, const, sym)
+import Blaze.Prelude hiding (Symbol, const, sym, bracket)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
-import qualified Data.HashMap.Strict as HMap
 import Text.Printf
-import qualified Blaze.Types.Pil.Inference as PI
 
 type Symbol = Text
 
@@ -75,6 +73,15 @@ dispVar sym op sz = Text.pack $ printf "%s \"%s\" %s" sym src $ disp sz
 
 paren :: Text -> Text
 paren t = "(" <> t <> ")"
+
+bracket :: Text -> Text
+bracket t = "[" <> t <> "]"
+
+commas :: [Text] -> Text
+commas = Text.intercalate ", "
+
+asList :: [Text] -> Text
+asList = bracket . commas
 
 (<->) :: Text -> Text -> Text
 (<->) a b = a <> " " <> b

@@ -8,7 +8,6 @@ import Blaze.Types.Pil ( ExprOp
                        )
 -- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 
 
 type BitWidth = Bits
@@ -30,17 +29,22 @@ data TypeTag = TagDirty
              | TagNonNull
              deriving (Eq, Ord, Read, Show, Generic)
 
-data PilType t = TArray { len :: t, elemType :: t }
-               | TBool
+data PilType t = TBool
                | TChar
                | TInt { bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }
                | TBitVector { bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
+
+               | TArray { len :: t, elemType :: t }
                | TRecord (HashMap BitOffset -- todo: change bitwidth to 't'?
                            -- TODO: change bitwidth to signed offset
                                   t -- type
                          )
+
+               | TFirstOf t
+               -- first record field or array index, or itself
+               
                -- Bottom is labeled with error info
                | TBottom Sym
                | TFunction { ret :: t, params :: [t] }
@@ -118,20 +122,20 @@ type SymExpression = InfoExpression SymInfo
 -- | Goal is to generate statements with TypedExpressions
 type TypedExpression = InfoExpression (PilType T)
 
-data UnifyError = UnifyError (PilType Sym) (PilType Sym) UnifyError
-                | IncompatibleTypes (PilType Sym) (PilType Sym)
-                | OverlappingRecordField { recordFields :: (HashMap BitWidth Sym)
-                                         , offendingOffset :: BitWidth
-                                         }
-                deriving (Eq, Ord, Read, Show, Generic)
+data UnifyError t = UnifyError (PilType t) (PilType t) (UnifyError t)
+                  | IncompatibleTypes (PilType t) (PilType t)
+                  | OverlappingRecordField { recordFields :: (HashMap BitWidth t)
+                                           , offendingOffset :: BitWidth
+                                           }
+                  deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
 
-data UnifyConstraintsError = UnifyConstraintsError
-                           { _stmtOrigin  :: Int
-                           --index in list of pil stmts for now
+data UnifyConstraintsError t = UnifyConstraintsError
+                               { _stmtOrigin  :: Int
+                               --index in list of pil stmts for now
 
-                           , _sym :: Sym
-                           , _error :: UnifyError
-                           } deriving (Eq, Ord, Read, Show, Generic)
+                               , _sym :: Sym
+                               , _error :: UnifyError t
+                               } deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
 $(makeFieldsNoPrefix ''UnifyConstraintsError)
 
 -- kind of pointless, I guess... could just be a tuple
@@ -156,7 +160,7 @@ data TypeReport = TypeReport
   -- , _unresolvedSyms :: [(Sym, Sym)]
   -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
   , _varEqMap :: VarEqMap
-  , _errors :: [UnifyConstraintsError]
+  , _errors :: [UnifyConstraintsError DeepSymType]
   , _flatSolutions :: HashMap Sym (PilType Sym)
   , _solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
@@ -209,7 +213,7 @@ data UnifyState = UnifyState
                   -- solution key syms should all be origins in originMap
                   , _solutions :: HashMap Sym (PilType Sym)
 
-                  , _errors :: [UnifyConstraintsError]
+                  , _errors :: [UnifyConstraintsError Sym]
 
                   -- this is a map of syms to their "original" sym
                   -- like if you add (a, b), (b, c)
@@ -243,20 +247,20 @@ addConstraints_ :: ( HasConstraints s [Constraint]
 addConstraints_ = mapM_ $ uncurry addConstraint_
 
 data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
-                               , _errors :: [UnifyError]
+                               , _errors :: [UnifyError Sym]
                                } deriving (Eq, Ord, Read, Show)
 $(makeFieldsNoPrefix ''UnifyResult)
 
 -- | monad just used for unifyWithSubs function and its helpers
-newtype Unify a = Unify { _runUnify :: ExceptT UnifyError (StateT UnifyState Identity) a }
+newtype Unify a = Unify { _runUnify :: ExceptT (UnifyError Sym) (StateT UnifyState Identity) a }
   deriving ( Functor
            , Applicative
            , Monad
-           , MonadError UnifyError
+           , MonadError (UnifyError Sym)
            , MonadState UnifyState
            )
 
-runUnify :: Unify a -> UnifyState -> (Either UnifyError a, UnifyState)
+runUnify :: Unify a -> UnifyState -> (Either (UnifyError Sym) a, UnifyState)
 runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
 
 popConstraint :: Unify (Maybe Constraint)
@@ -302,12 +306,11 @@ instance VarSubst a => VarSubst [a] where
 instance VarSubst SymInfo where
   varSubst m (SymInfo sz s) = SymInfo sz (varSubst m s)
 
-instance VarSubst UnifyError where
+instance VarSubst a => VarSubst (UnifyError a) where
   varSubst m (UnifyError pt1 pt2 uerr) =
     UnifyError (varSubst m pt1) (varSubst m pt2) (varSubst m uerr)
   varSubst m (IncompatibleTypes pt1 pt2) =
     IncompatibleTypes (varSubst m pt1) (varSubst m pt2)
   varSubst m (OverlappingRecordField fields off) =
     OverlappingRecordField (fmap (varSubst m) fields) off
-  
-    
+
