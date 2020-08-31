@@ -13,11 +13,13 @@ import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas)
+import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas, asMultilineList)
 import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as Func
+import qualified Blaze.Types.Graph as G
+import Blaze.Types.Graph.Alga (AlgaGraph)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -25,6 +27,7 @@ import qualified Data.Text as Text
 import qualified Numeric
 import Text.Printf
 import qualified Blaze.Types.Pil.Checker as PI
+import qualified Blaze.CallGraph as Cg
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -420,12 +423,20 @@ instance Pretty AlgaPath.AlgaPath where
       f [] = ""
       f (x : xs) = pretty x <> "\n" <> f xs
 
+
+instance Pretty Cg.Function where
+  pretty (Cg.Function _ name _addr) = name -- <> "@" <> showHex addr
+
+instance Pretty (AlgaGraph () Cg.Function) where
+  pretty = asMultilineList . fmap (ptup . snd) . G.edges
+    where
+      ptup (a, b) = paren $ pretty a <-> "->" <-> pretty b
+
 prettyStmts :: (MonadIO m, Pretty a) => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts
 
 prettyIndexedStmts :: (MonadIO m, Pretty a) => [(Int, Pil.Statement a)] -> m ()
 prettyIndexedStmts = prettyPrint . PIndexedStmts
-
 
 -- | Pretty print to IO.
 prettyPrint :: (MonadIO m, Pretty a) => a -> m ()

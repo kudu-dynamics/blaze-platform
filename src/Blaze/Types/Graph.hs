@@ -2,6 +2,7 @@ module Blaze.Types.Graph where
 
 import Blaze.Prelude
 
+import qualified Prelude as P
 import qualified Data.Set as Set
 import qualified Data.Map.Lazy as Map
 import Data.Map.Lazy ((!))
@@ -29,14 +30,39 @@ class Graph e n g | g -> e n where
   bfs :: [n] -> g -> [[n]]
   subgraph :: (n -> Bool) -> g -> g
 
+-- findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
+-- findNonRepeatPaths' seen start' g = fmap (start':) $ do
+--   succ' <- Set.toList $ succs start' g `Set.difference` seen
+--   if succ' == end'
+--     then return [succ']
+--     else findNonRepeatPaths' (Set.insert succ' seen) succ' end' g
+
+-- findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
+-- findNonRepeatPaths' seen start' g = fmap (start':) $ do
+--   succ' <- Set.toList $ succs start' g `Set.difference` seen
+--   P.error $ show . length $ findNonRepeatPaths' (Set.insert succ' seen) succ' g
+--   return [succ']
+
+
 findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
-findNonRepeatPaths' seen start' g = do
-  succ' <- Set.toList $ succs start' g `Set.difference` seen
-  path <- findNonRepeatPaths' (Set.insert succ' seen) succ' g
-  return $ succ':path
+findNonRepeatPaths' seen start' g = case ((start' :) <$> succsPaths) of
+  [] -> [[start']]
+  xs -> xs
+  where
+    succs' = Set.toList $ succs start' g `Set.difference` seen
+
+    succsPaths = concatMap (\s -> findNonRepeatPaths' (Set.insert s seen) s g) succs'
 
 findNonRepeatPaths :: (Graph e n g, Ord n) => n -> g -> [[n]]
-findNonRepeatPaths = findNonRepeatPaths' Set.empty
+findNonRepeatPaths start' = findNonRepeatPaths' (Set.singleton start') start'
+
+-- | finds all paths up until a repeat or a node with no succs
+findAllNonRepeatPaths :: (Graph e node g, Ord node) => g -> [[node]]
+findAllNonRepeatPaths g 
+  | length (nodes g) == 1 = [Set.toList $ nodes g]
+  | otherwise = do
+      src <- Set.toList $ sources g
+      findNonRepeatPaths src g
 
 findSimplePaths' :: (Graph e n g, Ord n) => Set n -> n -> n -> g -> [[n]]
 findSimplePaths' seen start' end' g = fmap (start':) $ do
