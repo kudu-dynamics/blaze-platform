@@ -16,6 +16,8 @@ import Blaze.Types.Pil ( Expression( Expression )
                        , TypeEnv(TypeEnv)
                        , HasLeft
                        , HasRight
+                       , HasCarry
+                       , Statement
                        )
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -23,7 +25,18 @@ import Blaze.Types.Solver2
 import qualified Blaze.Pil.Analysis as A
 import Data.SBV.Tools.Overflow (ArithOverflow, bvAddO)
 import qualified Data.SBV.Trans as SBV
-import Data.SBV.Trans ((.==), (./=), (.>), (.>=), (.<), (.<=), (.&&), (.||), (.~|), (.=>))
+import Data.SBV.Trans ( (.==)
+                      , (./=)
+                      , (.>)
+                      , (.>=)
+                      , (.<)
+                      , (.<=)
+                      , (.&&)
+                      , (.||)
+                      , (.~|)
+                      , (.=>)
+                      , (#)
+                      )
 import qualified Data.SBV.Trans.Control as SBV
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
@@ -32,6 +45,7 @@ import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Types.Pil.Checker (DeepSymType, SymInfo(SymInfo), InfoExpression(InfoExpression))
 --import Data.SBV.Core.Data (SBV(SBV, unSBV))
 import Data.SBV.Internals (SBV(SBV), unSBV)
+import GHC.TypeNats
 
 
 pilVarName :: PilVar -> Text
@@ -229,6 +243,23 @@ pilLowPart src sz = case (kindOf src, kindOf sz) of
       ones = svNot (constWord (Bits w0') 0) 
   _ -> P.error "pilLowPart: one or both arguments are not KBounded"
 
+
+-- rotateLeftWithCarry :: SBV (bv a) -> SBV b -> SBV c
+--                      -> SBV (bv a)
+-- rotateLeftWithCarry n rot carry = 
+--   SBV.bvDrop (Proxy @1) $ SBV.sRotateLeft (carryBit # n) rot
+--   where
+--     carryBit :: SBV (bv 1)
+--     carryBit = SBV.fromBitsLE [SBV.lsb carry]
+
+-- rotateRightWithCarry :: SBV (bv a) -> SBV b -> SBV c
+--                      -> SBV (bv a)
+-- rotateRightWithCarry n rot carry = 
+--   SBV.bvTake (Proxy @32) $ SBV.sRotateRight (n # carryBit) rot
+--   where
+--     carryBit :: SBV (bv 1)
+--     carryBit = SBV.fromBitsLE [SBV.lsb carry]
+
 -- pilStrNCmp :: [SVal] -> [SVal] -> SVal -> SVal
 -- pilStrNCmp str0 str1 n = 
 
@@ -251,6 +282,11 @@ toSBool' x = case kindOf x of
 
 toSBool :: SVal -> Solver SBool
 toSBool x = guardBool x >> return (SBV x)
+
+-- toSIntegral' :: SVal -> SBV.SInteger
+-- toSIntegral' x = case kindOf x of
+--   KBounded _ _ -> SBV x
+--   _ -> P.error "toSIntegral': x is not KBounded kind"
 
 -- toSFloat :: SVal -> SFloat
 -- toSFloat x = case kindOf x of
@@ -325,38 +361,39 @@ lookupVarSym pv = do
     err = throwError . ErrorMessage
           $ "lookupVarSym failed for var '" <> pilVarName pv <> "'"
 
+solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver SVal
+solveStmt (Pil.Def x') = do
+  pv <- lookupVarSym $ x' ^. Pil.var
+  expr <- solveExpr $ x' ^. Pil.value
+  case (kindOf pv, kindOf expr) of
+    (KBounded _ _, KBounded _ _) -> return . unSBV $ (SBV pv) .== (SBV expr)
+    _ -> P.error "kind of pv and expr are different"
+solveStmt (Pil.Constraint x') = solveExpr $ x' ^. Pil.condition
+-- solveStmt (Pil.Store x') =
+-- solveStmt (Pil.Load x') = 
+    
 -- | Creates SVal that represents expression.
 --   This type of InfoExpression is in a TypeReport
 solveExpr :: DSTExpression -> Solver SVal
 -- solveExpr (Ch.InfoExpression ((Ch.SymInfo _ xsym), Nothing) _) = \
 --   solverError $ "No type for sym " <> show xsym
 solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
---   Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADC x -> binOpWithCarry x $ \a b c -> a `svPlus` b `svPlus` c
   Pil.ADD x -> integralBinOpFirstArgIsReturn x pilAdd
-
 --   -- should this be unsigned ret because overflow is always positive?
---   Pil.ADD_OVERFLOW x -> integralBinOpFirstArgIsReturn Nothing True x
-
+  Pil.ADD_OVERFLOW x -> integralBinOpFirstArgIsReturn x $ \a b -> unSBV $ uncurry (.||) $ bvAddO a b
   Pil.AND x -> bitVectorBinOp x svAnd
--- with a bitvector we just want them to be equal width, and if they are not extend the second arg to the first
-
---   --   shift right...?
---   Pil.ASR x -> integralFirstArgIsReturn x
-
+  Pil.ASR x -> integralFirstArgIsReturn x svShiftLeft
 -- --   BOOL_TO_INT _ -> 
-
 --   -- TODO get most general type for this and args:
 --   Pil.CALL _ -> return [ (r, CSType $ TBitVector sz') ]
-  
   Pil.CEIL x -> floatUnOp x pilCeil
   Pil.CMP_E x -> integralBinOpFirstArgIsReturn x pilCmpE
   Pil.CMP_NE x -> integralBinOpFirstArgIsReturn x $ \a b -> a `svNotEqual` b
-
   Pil.CMP_SGE x -> signedBinOpReturnsBool x svGreaterEq
   Pil.CMP_SGT x -> signedBinOpReturnsBool x svGreaterThan
   Pil.CMP_SLE x -> signedBinOpReturnsBool x svLessEq
   Pil.CMP_SLT x -> signedBinOpReturnsBool x svLessThan
-  -- UNSIGNED
   Pil.CMP_UGE x -> signedBinOpReturnsBool x svGreaterEq
   Pil.CMP_UGT x -> signedBinOpReturnsBool x svGreaterThan
   Pil.CMP_ULE x -> signedBinOpReturnsBool x svLessEq
@@ -366,16 +403,19 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     k <- deepSymTypeToKind dst
     guardIntegral k
     return . svInteger k . fromIntegral $ x ^. Pil.constant
-
---   Pil.CONST_PTR _ -> retPointer
+  Pil.CONST_PTR x -> do
+    dst <- getDst
+    k <- deepSymTypeToKind dst
+    guardIntegral k
+    return . svInteger k . fromIntegral $ x ^. Pil.constant
 --   Pil.ConstStr x -> return [(r, CSType $ TArray
 --                                 ( CSType . TVLength . fromIntegral . Text.length
 --                                   $ x ^. Pil.value )
 --                                 ( CSType TChar ))]
   Pil.DIVS x -> integralBinOpFirstArgIsReturn x svDivide
---   Pil.DIVS_DP x -> integralBinOpDP (Just True) x
+  Pil.DIVS_DP x -> integralBinOpDP x svDivide 
   Pil.DIVU x -> integralBinOpFirstArgIsReturn x svDivide
---   Pil.DIVU_DP x -> integralBinOpDP (Just False) x
+  Pil.DIVU_DP x -> integralBinOpDP x svDivide
   Pil.FABS x -> floatUnOp x $ unSBV . SBV.fpAbs . toSFloat'
   Pil.FADD x -> floatBinOp x pilFAdd
   Pil.FDIV x -> floatBinOp x pilFDiv
@@ -387,7 +427,6 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.FCMP_O x -> floatBinOp x $ \a b -> unSBV $ (SBV.fpIsNaN $ toSFloat' a) .~| (SBV.fpIsNaN $ toSFloat' b)
   Pil.FCMP_NE x -> floatBinOp x $ \a b -> unSBV $ (toSFloat' a) ./= (toSFloat' b)
   Pil.FCMP_UO x -> floatBinOp x $ \a b -> unSBV $ (SBV.fpIsNaN $ toSFloat' a) .|| (SBV.fpIsNaN $ toSFloat' b)
-
 --   Pil.FIELD_ADDR x -> do
 --     fieldType <- CSVar <$> newSym
 --     let recType = CSType . TRecord . HashMap.fromList $
@@ -396,29 +435,23 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --     return [ ( r, CSType $ TPointer sz' fieldType )
 --            , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' recType )
 --            ]
-
   Pil.FLOAT_CONST x -> return . svDouble $ x ^. Pil.constant
+  -- Pil.FLOAT_CONV x -> return . svDouble $ x ^. Pil.constant
 
--- -- TODO: should there be a link between sz of bitvec and sz of float?
---   Pil.FLOAT_CONV x -> do
---     bvWidth <- CSVar <$> newSym
---     return [ ( x ^. Pil.src . info . sym, CSType $ TBitVector bvWidth )
---            , ( r, CSType $ TFloat sz' )
---            ]
---   Pil.FLOAT_TO_INT x -> floatToInt x
+  Pil.FLOAT_TO_INT x -> floatUnOp x $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
   Pil.FLOOR x -> floatUnOp x pilFloor
   Pil.FMUL x -> floatBinOp x $ \a b -> unSBV $ SBV.fpMul SBV.sRoundNearestTiesToAway (toSFloat' a) (toSFloat' b)
   Pil.FNEG x -> floatUnOp x $ unSBV . SBV.fpNeg . toSFloat'
   Pil.FSQRT x -> floatUnOp x $ unSBV . SBV.fpSqrt SBV.sRoundNearestTiesToAway . toSFloat'
   Pil.FTRUNC x -> floatUnOp x $ unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardZero . toSFloat'
   Pil.FSUB x -> floatBinOp x $ \a b -> unSBV $ SBV.fpSub SBV.sRoundNearestTiesToAway (toSFloat' a) (toSFloat' b)
-
--- --   what does IMPORT do?
--- --   assuming it just casts an Int to a pointer
---   Pil.IMPORT _ -> retPointer
-
+  Pil.IMPORT x -> do
+    dst <- getDst
+    k <- deepSymTypeToKind dst
+    guardIntegral k
+    let (KBounded _ w) = kindOf k
+    return . svInteger (KBounded False w) . fromIntegral $ x ^. Pil.constant
 --   Pil.INT_TO_FLOAT x -> intToFloat x
-
 --   Pil.LOAD x -> do
 --     ptrWidth <- CSVar <$> newSym
 --     ptrType <- CSVar <$> newSym
@@ -426,40 +459,41 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --            , ( r, ptrType )
 --            , ( r, CSType $ TBitVector sz' )
 --            ]
-
 --   -- should _x have any influence on the type of r?
-  -- Pil.LOW_PART x -> integralBinOpFirstArgIsReturn x pilLowPart
-
+  -- Pil.LOW_PART x -> integralUnOp x pilLowPart
   Pil.LSL x -> integralFirstArgIsReturn x svShiftLeft
   Pil.LSR x -> integralFirstArgIsReturn x svShiftRight
   Pil.MODS x -> integralBinOpFirstArgIsReturn x svRem
---   Pil.MODS_DP x -> integralBinOpDP (Just True) x
---   Pil.MODU x -> integralBinOpFirstArgIsReturn (Just False) False x
---   Pil.MODU_DP x -> integralBinOpDP (Just False) x
+  Pil.MODS_DP x -> integralBinOpDP x svRem
+  Pil.MODU x -> integralBinOpFirstArgIsReturn x svRem
+  Pil.MODU_DP x -> integralBinOpDP x svRem
   Pil.MUL x -> integralBinOpFirstArgIsReturn x svTimes
---   Pil.MULS_DP x -> integralBinOpDP (Just True) x
---   Pil.MULU_DP x -> integralBinOpDP (Just False) x
+  Pil.MULS_DP x -> integralBinOpDP x svTimes
+  Pil.MULU_DP x -> integralBinOpDP x svTimes
   Pil.NEG x -> integralUnOp x svUNeg
   Pil.NOT x -> bitVectorUnOp x svNot
-      -- polymorphic both boolean and bitwise
   Pil.OR x -> bitVectorBinOp x svOr
 --   Pil.RLC x -> integralFirstArgIsReturn x
-  -- rotateleft
   Pil.ROL x -> integralFirstArgIsReturn x svRotateLeft
-  -- rotateright
   Pil.ROR x -> integralFirstArgIsReturn x svRotateRight
 --   Pil.ROUND_TO_INT x -> floatToInt x
---   Pil.RRC x -> integralFirstArgIsReturn x
+  -- Pil.RRC x -> binOpWithCarry x $ \n rot c -> unSBV $ rotateRightWithCarry 
+  --                                                           (toSIntegral' n)
+  --                                                           (toSIntegral' rot)
+  --                                                           (toSIntegral' c)
 --   Pil.SBB x -> signedBinOpReturnsBool True x
 -- --   -- STORAGE _ -> unknown
 -- --   StrCmp _ -> intRet
 -- --   StrNCmp _ -> intRet
 -- --   MemCmp _ -> intRet
-
 --   -- should this somehow be linked to the type of the stack var?
 --   -- its type could change every Store.
 --   Pil.STACK_LOCAL_ADDR _ -> retPointer
-
+-- rotateRightWithCarry n rot carry = 
+--   bvTake (Proxy @a) $ sRotateRight (n # carryBit) rot
+--   where
+--     carryBit :: SBV (bv 1)
+--     carryBit = fromBitsLE [lsb carry]
   Pil.SUB x -> integralBinOpFirstArgIsReturn x pilSub
 --   Pil.SX x -> integralExtendOp x
 
@@ -566,6 +600,12 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       lx <- solveExpr (x ^. Pil.src)
       return $ f lx
 
+    integralBinOpDP :: ( Pil.HasLeft x DSTExpression
+                  , Pil.HasRight x DSTExpression )
+               => x
+               -> (SVal -> SVal -> SVal) -> Solver SVal
+    integralBinOpDP = bitVectorBinOp
+
     bitVectorBinOp :: ( Pil.HasLeft x DSTExpression
                   , Pil.HasRight x DSTExpression )
                => x
@@ -575,5 +615,14 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       rx <- solveExpr (x ^. Pil.right)
       return $ f lx rx
 
-
+    binOpWithCarry :: ( HasLeft x DSTExpression
+             , HasRight x DSTExpression
+             , HasCarry x DSTExpression)
+          => x
+          -> (SVal -> SVal -> SVal -> SVal) -> Solver SVal
+    binOpWithCarry x f = do
+      a <- solveExpr (x ^. Pil.left)
+      b <- solveExpr (x ^. Pil.right)
+      c <- solveExpr (x ^. Pil.carry)
+      return $ f a b c
     --guardintegralsigned
