@@ -206,6 +206,11 @@ unifyPilTypes pt1 pt2 =
       TChar -> case pt2 of
         TChar -> return TChar
         _ -> err
+
+      -- TQueryChar -> case pt2 of
+      --   TQueryChar -> return TQueryChar
+      --   _ -> err
+      
       TFloat w1 -> case pt2 of
         TFloat w2 -> TFloat <$> addVarEq w1 w2
         _ -> err
@@ -214,9 +219,11 @@ unifyPilTypes pt1 pt2 =
         TFloat w2 -> TFloat <$> addVarEq w1 w2
         TInt w2 s -> TInt <$> addVarEq w1 w2 <*> pure s
         TPointer w2 pt -> TPointer <$> addVarEq w1 w2 <*> pure pt
+
         TChar -> do
           addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
+
         TBool -> return TBool
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of

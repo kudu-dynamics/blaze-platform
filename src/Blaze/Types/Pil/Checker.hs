@@ -31,10 +31,14 @@ data TypeTag = TagDirty
 
 data PilType t = TBool
                | TChar
+--               | TQueryChar
+               
                | TInt { bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }
                | TBitVector { bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
+
+--               | TCString { len :: t }
 
                | TArray { len :: t, elemType :: t }
                | TRecord (HashMap BitOffset -- todo: change bitwidth to 't'?
