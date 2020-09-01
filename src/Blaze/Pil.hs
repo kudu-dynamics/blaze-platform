@@ -312,6 +312,10 @@ convertInstrOp op' = do
           pvar <- convertToPilVarAndLog $ x ^. MLIL.dest
           let vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
           Pil.definedVars %= (pvar :)
+          -- TODO: This _should_ be redundant. If a PilVar is in the defined list, it should also be 
+          --       in the used vars set. Consider removing and/or finding a better way to enforce
+          --       this expectation.
+          Pil.usedVars %= HSet.insert lVar
           return
             [ Def . DefOp pvar $
                 Expression
