@@ -155,13 +155,13 @@ newtype Solver a = Solver { runSolverMonad_ ::
                               ReaderT SolverCtx
                                 (StateT SolverState
                                  (SymbolicT (ExceptT SolverError IO))) a }
-                   deriving ( Functor, Applicative, Monad
-                            , MonadError SolverError
-                            , MonadReader SolverCtx
-                            , MonadState SolverState
-                            , MonadIO
-                            , MonadSymbolic
-                            )
+                   deriving newtype ( Functor, Applicative, Monad
+                                    , MonadError SolverError
+                                    , MonadReader SolverCtx
+                                    , MonadState SolverState
+                                    , MonadIO
+                                    , MonadSymbolic
+                                    )
 
 -- stmtError :: Text -> Solver a
 -- stmtError msg = do

@@ -62,11 +62,13 @@ dependencies:
 
 default-extensions:
   - BangPatterns
+  - DeriveAnyClass
   - DeriveDataTypeable
   - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
   - DeriveTraversable
+  - DerivingStrategies
   - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances

@@ -147,7 +147,7 @@ isTypeDescendent (TFunction _ _) t = case t of
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
-  TFirstOf _ -> True
+  -- TFirstOf _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TBottom _) t = case t of

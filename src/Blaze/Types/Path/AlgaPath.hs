@@ -8,7 +8,8 @@ import qualified Blaze.Types.Path as Path
 import qualified Prelude as P
 
 newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
-  deriving (Graph () Node, Path, Ord)
+  deriving Ord
+  deriving newtype (Graph () Node, Path)
 
 -- converts to list because for some reason two identical graphs aren't equal
 -- TODO: this is bad, because toList is slow for AlgaPath

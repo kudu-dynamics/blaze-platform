@@ -10,6 +10,7 @@ import Blaze.Types.Pil
     Symbol,
   )
 import qualified Blaze.Types.Pil as Pil
+
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
@@ -95,19 +96,6 @@ newtype ConstLoadExpr
 
 instance Hashable ConstLoadExpr
 
--- TODO: Make this better.
-
--- | Generate variable names.
-symbolGenerator :: HashSet Symbol -> [Symbol]
-symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
-  where
-    letters :: String
-    letters = ['a' .. 'z']
-    names :: [Symbol]
-    names =
-      [ Text.pack [a, b, c] | a <- letters, b <- letters, c <- letters
-      ]
-
 newtype AnalysisState = AnalysisState
   { _analysisStateNewSymbols :: [Symbol]
   }
@@ -116,9 +104,9 @@ newtype AnalysisState = AnalysisState
 $(makeFields ''AnalysisState)
 
 newtype Analysis a = Analysis {_runAnalysis :: State AnalysisState a}
-  deriving
-    ( Functor,
-      Applicative,
+  deriving (Functor)
+  deriving newtype
+    ( Applicative,
       Monad,
       MonadState AnalysisState
     )
@@ -136,6 +124,18 @@ runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
       AnalysisState
         { _analysisStateNewSymbols = symbolGenerator usedSymbols
         }
+
+-- TODO: Make this better.
+-- | Generate variable names.
+symbolGenerator :: HashSet Symbol -> [Symbol]
+symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
+  where
+    letters :: String
+    letters = ['a' .. 'z']
+    names :: [Symbol]
+    names =
+      [ Text.pack [a, b, c] | a <- letters, b <- letters, c <- letters
+      ]
 
 $(makeFields ''StoreStmt)
 $(makeFields ''LoadStmt)

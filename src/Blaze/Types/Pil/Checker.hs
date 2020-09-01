@@ -42,7 +42,7 @@ data PilType t = TBool
                                   t -- type
                          )
 
-               | TFirstOf t
+               -- | TFirstOf t
                -- first record field or array index, or itself
                
                -- Bottom is labeled with error info
@@ -185,12 +185,12 @@ emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty
 
 newtype ConstraintGen a = ConstraintGen
   { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }
-  deriving ( Functor
-           , Applicative
-           , Monad
-           , MonadError ConstraintGenError
-           , MonadState ConstraintGenState
-           )
+  deriving newtype ( Functor
+                   , Applicative
+                   , Monad
+                   , MonadError ConstraintGenError
+                   , MonadState ConstraintGenState
+                   )
 
 runConstraintGen :: ConstraintGen a -> ConstraintGenState -> (Either ConstraintGenError a, ConstraintGenState)
 runConstraintGen m ss = runIdentity . flip runStateT ss . runExceptT . _runConstraintGen $ m
@@ -253,12 +253,12 @@ $(makeFieldsNoPrefix ''UnifyResult)
 
 -- | monad just used for unifyWithSubs function and its helpers
 newtype Unify a = Unify { _runUnify :: ExceptT (UnifyError Sym) (StateT UnifyState Identity) a }
-  deriving ( Functor
-           , Applicative
-           , Monad
-           , MonadError (UnifyError Sym)
-           , MonadState UnifyState
-           )
+  deriving newtype ( Functor
+                   , Applicative
+                   , Monad
+                   , MonadError (UnifyError Sym)
+                   , MonadState UnifyState
+                   )
 
 runUnify :: Unify a -> UnifyState -> (Either (UnifyError Sym) a, UnifyState)
 runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
