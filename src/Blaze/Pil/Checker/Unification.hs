@@ -110,6 +110,7 @@ isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
+  TQueryChar -> True
   -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
@@ -125,6 +126,7 @@ isTypeDescendent (TBitVector _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
+  TQueryChar -> True
   TBool -> True
   -- TFirstOf _ _ -> True
   TBottom _ -> True
@@ -137,6 +139,11 @@ isTypeDescendent (TPointer _ _) t = case t of
   _ -> False
 isTypeDescendent TChar t = case t of
   TChar -> True
+  -- TFirstOf _ _ -> True
+  TBottom _ -> True
+  _ -> False
+isTypeDescendent TQueryChar t = case t of
+  TQueryChar -> True
   -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
@@ -201,15 +208,20 @@ unifyPilTypes pt1 pt2 =
           addConstraint_ w1 . SType $ TVBitWidth charSize
           addConstraint_ sign1 . SType $ TVSign False
           return TChar
+        TQueryChar -> do
+          addConstraint_ w1 . SType $ TVBitWidth charSize
+          addConstraint_ sign1 . SType $ TVSign False
+          return TQueryChar
+
         _ -> err
 
       TChar -> case pt2 of
         TChar -> return TChar
         _ -> err
 
-      -- TQueryChar -> case pt2 of
-      --   TQueryChar -> return TQueryChar
-      --   _ -> err
+      TQueryChar -> case pt2 of
+        TQueryChar -> return TQueryChar
+        _ -> err
       
       TFloat w1 -> case pt2 of
         TFloat w2 -> TFloat <$> addVarEq w1 w2
@@ -223,6 +235,11 @@ unifyPilTypes pt1 pt2 =
         TChar -> do
           addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
+
+        TQueryChar -> do
+          addConstraint_ w1 . SType $ TVBitWidth 8
+          return TQueryChar
+
 
         TBool -> return TBool
         _ -> err
