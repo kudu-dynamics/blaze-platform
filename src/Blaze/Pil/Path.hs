@@ -174,9 +174,7 @@ convertRetNode node = do
   retVals <- getRetVals node
   retCtx
   returningCtx <- use Pil.ctx
-  let resultVars =
-        Pil.convertToPilVar returningCtx
-          <$> node ^. Path.callSite . Func.callInstr . Func.outputDest
+  resultVars <- traverse Pil.convertToPilVarAndLog (node ^. Path.callSite . Func.callInstr . Func.outputDest)
   let defs = zipWith defPilVar resultVars retVals
   return $ Pil.ExitContext (Pil.ExitContextOp leavingCtx returningCtx) : defs
 
