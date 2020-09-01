@@ -9,7 +9,7 @@ where
 import Binja.MLIL as Exports
   ( AdcOp (AdcOp),
     AddOp (AddOp),
-    AddOverflowOp,
+    AddOverflowOp (AddOverflowOp),
     AndOp (AndOp),
     AsrOp (AsrOp),
     BoolToIntOp (BoolToIntOp),
