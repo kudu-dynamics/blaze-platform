@@ -233,17 +233,26 @@ $(makeFieldsNoPrefix ''SolverState)
 emptyState :: SolverState
 emptyState = SolverState HashMap.empty HashMap.empty
 
-newtype Solver a = Solver { runSolver_ ::
-                              ReaderT SolverCtx
-                                (StateT SolverState
-                                  (SymbolicT (ExceptT SolverError IO))) a }
-                   deriving ( Functor, Applicative, Monad
-                            , MonadError SolverError
-                            , MonadReader SolverCtx
-                            , MonadState SolverState
-                            , MonadIO
-                            , MonadSymbolic
-                            )
+newtype Solver a
+  = Solver
+      { runSolver_ ::
+          ReaderT SolverCtx
+            ( StateT SolverState
+                (SymbolicT (ExceptT SolverError IO))
+            )
+            a
+      }
+  deriving (Functor)
+  deriving newtype
+    ( Applicative,
+      Monad,
+      MonadError SolverError,
+      MonadReader SolverCtx,
+      MonadState SolverState,
+      MonadIO,
+      MonadSymbolic
+    )
+
 instance MonadFail Solver where
   fail = throwError . SolverError . cs
 

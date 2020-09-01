@@ -238,6 +238,12 @@ simplePathsFromNodeGraph ::
   [p]
 simplePathsFromNodeGraph = fmap fromList . G.findAllSimplePaths
 
+nonRepeatPathsFromNodeGraph ::
+  (Graph () Node g, Path p) =>
+  g ->
+  [p]
+nonRepeatPathsFromNodeGraph = fmap fromList . G.findAllNonRepeatPaths
+
 simplePathsFromBasicBlockGraph ::
   (Graph (BlockEdge F) (BasicBlock F) g, Path p) =>
   BNBinaryView ->
@@ -251,6 +257,14 @@ allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
   ng <- constructNodeGraph bv mlilFn :: IO (AlgaGraph () Node)
   return $ simplePathsFromNodeGraph ng
+
+allNonRepeatFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
+allNonRepeatFunctionPaths bv fn = do
+  mlilFn <- HFunction.getMLILSSAFunction fn
+  ng <- constructNodeGraph bv mlilFn :: IO (AlgaGraph () Node)
+  return $ nonRepeatPathsFromNodeGraph ng
+
+
 
 -- allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
 -- allSimpleFunctionPaths bv fn = do

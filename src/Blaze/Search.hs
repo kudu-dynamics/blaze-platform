@@ -65,9 +65,10 @@ getAbstractCallNodesToFunction fn = mapMaybe f . Path.toList
     f _ = Nothing
 
 -- | Nothing if path doesn't contain instruction
-snipBeforeInstruction :: Path p => InstructionIndex F -> p -> Maybe p
+snipBeforeInstruction :: (Pretty p, Path p) => InstructionIndex F -> p -> Maybe p
 snipBeforeInstruction ix p = case dropWhile (not . nodeContainsInstruction ix) $ Path.toList p of
-  [] -> Nothing
+  [] -> P.error . cs $ pretty p
+    -- Nothing
   xs -> Just $ Path.fromList xs
 
 
@@ -148,7 +149,7 @@ allCombos (xs:xss) = do
 
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: forall p. (Path p, Ord p)
+searchBetween_ :: forall p. (Path p, Ord p, Pretty p)
                => HashMap Address CG.Function
                -> HashMap Address Function
                -> CallGraph
@@ -160,9 +161,18 @@ searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = endPaths
   | otherwise = results
   where
+    lookupPair m k = case Map.lookup k m of
+      Nothing -> P.error . cs . pshow
+        $ ( fmap (fmap pretty) callPaths
+          , fmap (\(a, b) -> (pretty a, pretty b)) $ Set.toList allCallPairs
+          , k
+          , length startPaths
+          )
+      Just x -> x
+
     results = do
       cp <- callPathsAsPairs
-      pwcCallPath <- allCombos $ (callPairCache !) <$> cp
+      pwcCallPath <- allCombos $ (callPairCache `lookupPair`) <$> cp
       case uncons pwcCallPath of
         Nothing -> []
         Just (x, xs) -> do
@@ -173,7 +183,11 @@ searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
           case cond of
             Nothing -> P.error "Tried to join PathWithCall that didn't have AbstractCallNode as last"
             Just (ip, lac) -> return $ Path.expandLast ip lac
+
+    -- TODO: shouldn't startPaths and endPaths remove duplicates,
+    -- which might occur after snip removed unique part?
     startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
+
     endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
       if fn1 == fn2 then Just startPaths else Map.lookup fn2 fpaths
 

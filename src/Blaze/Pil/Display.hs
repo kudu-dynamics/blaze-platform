@@ -83,6 +83,9 @@ commas = Text.intercalate ", "
 asList :: [Text] -> Text
 asList = bracket . commas
 
+asMultilineList :: [Text] -> Text
+asMultilineList = bracket . Text.cons ' ' . Text.intercalate "\n, "
+
 (<->) :: Text -> Text -> Text
 (<->) a b = a <> " " <> b
 

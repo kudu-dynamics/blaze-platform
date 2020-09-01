@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Blaze.Pil.Analysis where
 
 import qualified Blaze.Pil.Construct as C
@@ -99,6 +101,9 @@ getFreeVars xs = HSet.difference allVars defined
 
 getAllVars :: [Stmt] -> HashSet PilVar
 getAllVars xs = HSet.unions $ fmap ($ xs) [getRefVars, getDefinedVars]
+
+getAllSyms :: [Stmt] -> HashSet Symbol
+getAllSyms = HSet.map (^. Pil.symbol) . getAllVars
 
 ---- Var -> Var substitution
 substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
@@ -513,7 +518,7 @@ resolveMemGroups groups stmts = toList result
     stmts' :: Seq Stmt
     stmts' = DSeq.fromList stmts
     names :: [Symbol]
-    names = symbolGenerator (HSet.map (^. Pil.symbol) $ getAllVars stmts)
+    names = symbolGenerator $ getAllSyms stmts
     result :: Seq Stmt
     result = foldr f stmts' (zip groups names)
     f :: (MemEquivGroup, Symbol) -> Seq Stmt -> Seq Stmt
@@ -676,6 +681,23 @@ parseFieldAddr expr =
     base addOp getExpr = Pil.Expression (baseSize addOp getExpr) <$> baseOp addOp getExpr
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
+
+-- parseFieldAddr' :: Expression -> Maybe Expression
+-- parseFieldAddr' expr =
+--   -- (parseConst (view Pil.right)) >> replaceVar (view Pil.left) <|> (parseConst (view Pil.left)) >> replaceVar (view Pil.right)
+--   preview (Pil.op . Pil._ADD) expr >>= parseConst Pil.left >> replaceVar Pil.right expr
+--     where
+--       parseConst :: Lens' (AddOp Expression) Expression -> AddOp Expression -> Maybe Int64
+--       parseConst getConstExpr x =
+--         x ^? getConstExpr . Pil.op . Pil._CONST . Pil.constant
+--       -- replaceVar :: Lens' (AddOp Expression) Expression -> Expression -> Maybe Expression
+--       replaceVar :: Lens' (AddOp Expression) Expression -> Expression -> Maybe Expression
+--       replaceVar getOtherExpr expr' =
+--         (expr (Pil.op .~)) <$> 
+--         (expr' ^? getOtherExpr . Pil.op . Pil._VAR) >> Pil.FieldAddrOp (expr' ^. getOtherExpr) offset 
+--           <|> (expr' ^? getOtherExpr . Pil.op . Pil._CONST_PTR) >> Pil.FieldAddrOp (expr' ^. getOtherExpr) offset
+--       offset :: ByteOffset
+--       offset = ByteOffset 8
 
 substFieldAddr :: Stmt -> Stmt
 substFieldAddr stmt =
