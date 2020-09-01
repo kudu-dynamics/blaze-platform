@@ -8,7 +8,6 @@ module Blaze.Solver2 where
 
 import Blaze.Prelude hiding (zero)
 import qualified Prelude as P
-
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil ( Expression( Expression )
                        , Stmt
@@ -353,6 +352,11 @@ guardIntegralFirstWidthNotSmaller x y = case (kx, ky) of
     kx = kindOf x
     ky = kindOf y
 
+guardSameKind :: (HasKind a, HasKind b) => a -> b -> Solver ()
+guardSameKind x y = case kindOf x == kindOf y of
+  True -> return ()
+  _ -> throwError . ErrorMessage $ "guardSameKind: Not same kind"
+
 lookupVarSym :: PilVar -> Solver SVal
 lookupVarSym pv = do
   vm <- use varMap
@@ -361,16 +365,29 @@ lookupVarSym pv = do
     err = throwError . ErrorMessage
           $ "lookupVarSym failed for var '" <> pilVarName pv <> "'"
 
+bitsToOperationSize :: Bits -> Pil.OperationSize
+bitsToOperationSize = Pil.OperationSize . (`div` 8) . fromIntegral
+
+dstToExpr :: DSTExpression -> Expression
+dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. Ch.size) $ dstToExpr <$> op
+
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver SVal
-solveStmt (Pil.Def x') = do
-  pv <- lookupVarSym $ x' ^. Pil.var
-  expr <- solveExpr $ x' ^. Pil.value
-  case (kindOf pv, kindOf expr) of
-    (KBounded _ _, KBounded _ _) -> return . unSBV $ (SBV pv) .== (SBV expr)
-    _ -> P.error "kind of pv and expr are different"
-solveStmt (Pil.Constraint x') = solveExpr $ x' ^. Pil.condition
--- solveStmt (Pil.Store x') =
--- solveStmt (Pil.Load x') = 
+solveStmt  = \case
+  Pil.Def x' -> do
+    pv <- lookupVarSym $ x' ^. Pil.var
+    expr <- solveExpr $ x' ^. Pil.value
+    guardSameKind pv expr
+    return $ pv `svEqual` expr
+  Pil.Constraint x' -> solveExpr $ x' ^. Pil.condition
+  Pil.Store x' -> do
+    state <- get
+    let m = _mem state
+        exprAddr = dstToExpr $ x' ^. Pil.addr
+    sValue <- solveExpr $ x' ^. Pil.value
+    put (state { _mem = HashMap.insert exprAddr sValue m })
+    return svTrue
+  _ -> throwError . ErrorMessage $ "Unimplemented Op"
+
     
 -- | Creates SVal that represents expression.
 --   This type of InfoExpression is in a TypeReport
@@ -452,13 +469,17 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     let (KBounded _ w) = kindOf k
     return . svInteger (KBounded False w) . fromIntegral $ x ^. Pil.constant
 --   Pil.INT_TO_FLOAT x -> intToFloat x
---   Pil.LOAD x -> do
---     ptrWidth <- CSVar <$> newSym
---     ptrType <- CSVar <$> newSym
---     return [ ( x ^. Pil.src . info . sym, CSType $ TPointer ptrWidth ptrType )
---            , ( r, ptrType )
---            , ( r, CSType $ TBitVector sz' )
---            ]
+  Pil.LOAD x -> do
+    state <- get
+    let m = _mem state
+        key = dstToExpr $ x ^. Pil.src
+    maybe (createFreeVar key m state) return $ HashMap.lookup key m
+    where
+      createFreeVar k m s = do
+        freeVar <- fallbackAsFreeVar
+        put (s { _mem = HashMap.insert k freeVar m })
+        return freeVar
+
 --   -- should _x have any influence on the type of r?
   -- Pil.LOW_PART x -> integralUnOp x pilLowPart
   Pil.LSL x -> integralFirstArgIsReturn x svShiftLeft
