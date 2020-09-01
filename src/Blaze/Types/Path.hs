@@ -59,7 +59,7 @@ mkLastIsAbstractCall p = do
 newtype PathGraph g = PathGraph g
   deriving (Eq, Ord, Show)
 
-deriving instance (Graph () Node g) => Graph () Node (PathGraph g)
+deriving newtype instance (Graph () Node g) => Graph () Node (PathGraph g)
 
 -- expandAbstractCall :: Path p => AbstractCallNode -> p -> p -> p
 -- expandAbstractCall = expandAbstractCall_ True

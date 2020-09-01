@@ -178,12 +178,14 @@ import Binja.MLIL as Exports
 
 import Binja.Function (Function)
 
+import Blaze.Types.Function (FuncInfo)
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import qualified Data.HashMap.Strict as HashMap
 
 newtype CtxIndex = CtxIndex Int
-  deriving (Eq, Ord, Show, Num, Generic)
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype Num
 
 instance Hashable CtxIndex
 
@@ -223,13 +225,20 @@ data ConverterState
         -- This is assumed to be ordered by most recently defined first.
         -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
         --       This could happen for synthesized PilVars with a Nothing context.
-        _definedVars :: [PilVar]
+        _definedVars :: [PilVar],
+        -- All PilVars referenced for all contexts.
+        -- This differs from _definedVars, as order is not preserved and referenced, 
+        -- but undefined, PilVars are included
+        _usedVars :: HashSet PilVar,
+        -- Map of known functions with parameter access information
+        _knownFuncs :: HashMap Text FuncInfo
       }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Show, Generic)
 
 -- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
-  deriving (Functor, Applicative, Monad, MonadState ConverterState, MonadIO)
+  deriving (Functor) 
+  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
 
 runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
 runConverter m s = flip runStateT s $ _runConverter m

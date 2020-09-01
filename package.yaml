@@ -62,11 +62,13 @@ dependencies:
 
 default-extensions:
   - BangPatterns
+  - DeriveAnyClass
   - DeriveDataTypeable
   - DeriveFoldable
   - DeriveFunctor
   - DeriveGeneric
   - DeriveTraversable
+  - DerivingStrategies
   - DuplicateRecordFields
   - FlexibleContexts
   - FlexibleInstances
@@ -111,6 +113,7 @@ library:
   - Blaze.Pil.Analysis
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
+  - Blaze.Pil.Function
   - Blaze.Pil.Inference
   - Blaze.Pil.Path
   - Blaze.Prelude
@@ -127,6 +130,7 @@ library:
   - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
+  - Blaze.Types.Pil.Function
   - Blaze.Types.Solver
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
