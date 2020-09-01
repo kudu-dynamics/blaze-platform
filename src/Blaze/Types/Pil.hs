@@ -226,6 +226,10 @@ data ConverterState
         -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
         --       This could happen for synthesized PilVars with a Nothing context.
         _definedVars :: [PilVar],
+        -- All PilVars referenced for all contexts.
+        -- This differs from _definedVars, as order is not preserved and referenced, 
+        -- but undefined, PilVars are included
+        _usedVars :: HashSet PilVar,
         -- Map of known functions with parameter access information
         _knownFuncs :: HashMap Text FuncInfo
       }

@@ -101,8 +101,7 @@ convertSubBlockNode sb = do
 
 convertConditionNode :: ConditionNode -> Converter [Stmt]
 convertConditionNode n = do
-  ctx <- use Pil.ctx
-  let expr = Pil.convertExpr ctx $ n ^. Path.condition
+  expr <- Pil.convertExpr $ n ^. Path.condition
   return . (:[]) . Pil.Constraint . Pil.ConstraintOp $
     if n ^. Path.trueOrFalseBranch
     then expr
@@ -139,27 +138,24 @@ createParamSymbol version var =
 convertCallNode :: CallNode -> Converter [Stmt]
 convertCallNode n = do
   let destFunc = getCallDestFunc $ n ^. Path.callSite
+      callInstr = n ^. (Path.callSite . Func.callInstr)
+  -- The argument expressions should be converted in the caller's context.
+  -- Convert before entering the new callee's context.
+  argExprs <- traverse Pil.convertExpr (callInstr ^. Func.params)
   enterNewCtx destFunc
   ctx <- use Pil.ctx
-  mPrevCtx <- peekPrevCtx
-  let prevCtx = case mPrevCtx of 
-                  Nothing -> error "No previous context found."
-                  Just prevCtx_ -> prevCtx_
   params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
-  let callInstr = n ^. (Path.callSite . Func.callInstr)
-      argExprs = Pil.convertExpr prevCtx <$> callInstr ^. Func.params
-      paramSyms = createParamSymbol 0 <$> params
+  let paramSyms = createParamSymbol 0 <$> params
   defs <- zipWithM defSymbol paramSyms argExprs
   return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
 
 getRetVals_ :: SubBlockNode -> Converter [Pil.Expression]
 getRetVals_ node = do
-  ctx <- use Pil.ctx
   mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction $ node ^. Path.func
   lastInstr <- liftIO $ MLIL.instruction mlilFunc $ node ^. Path.end - 1
-  return $ case lastInstr ^? (MLIL.op . MLIL._RET) of
+  case lastInstr ^? (MLIL.op . MLIL._RET) of
     (Just retOp) ->
-      Pil.convertExpr ctx <$> retOp ^. MLIL.src
+      traverse Pil.convertExpr (retOp ^. MLIL.src)
     Nothing ->
       error "Missing required return instruction."
 
@@ -200,7 +196,7 @@ createStartCtx func = Ctx func 0
 
 createStartConverterState :: AlgaPath -> Function -> ConverterState
 createStartConverterState path func = 
-  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx [] Pil.knownFuncDefs
+  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx [] HS.empty Pil.knownFuncDefs
     where 
       startCtx :: Ctx
       startCtx = createStartCtx func
