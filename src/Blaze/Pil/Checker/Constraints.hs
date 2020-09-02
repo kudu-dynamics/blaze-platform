@@ -31,6 +31,37 @@ import qualified Data.List.NonEmpty as NE
 import Blaze.Types.Pil.Checker
 
 
+constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
+constrainStandardFunc ret sz (Pil.CallOp _ Nothing _) = return Nothing
+constrainStandardFunc ret sz (Pil.CallOp _ (Just name) cparams) = case name of
+  "fgets" -> case cparams of
+    [s, size', stream] -> do
+      sizeSz <- CSVar <$> newSym
+      let ptrWidth = sz'
+      return . Just $
+        [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
+        , ( size' ^. info . sym, CSType . TInt sizeSz . CSType $ TVSign True )
+        , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
+        , ( ret, CSType $ TPointer ptrWidth (CSType TChar) )
+        ]
+    _ -> return Nothing --TODO : add warning about malformed fgets params
+  "asprintf" -> case cparams of
+    (strp:fmt:_) -> do
+      ptrWidth <- CSVar <$> newSym
+      let ptr = CSType . TPointer ptrWidth
+      return . Just $
+        [ ( strp ^. info . sym, ptr . ptr $ CSType TChar )
+        , ( fmt ^. info . sym, ptr $ CSType TChar )
+        , ( ret, CSType $ TInt sz' (CSType $ TVSign True) )
+        ]
+    _ -> return Nothing --TODO : add warning about malformed fgets params
+  
+  
+  _ -> return Nothing
+
+  where
+    sz' = CSType $ TVBitWidth sz
+
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------
 
@@ -110,7 +141,9 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 --   BOOL_TO_INT _ -> 
 
   -- TODO get most general type for this and args:
-  Pil.CALL _ -> return [ (r, CSType $ TBitVector sz') ]
+  Pil.CALL x -> do
+    mxs <- constrainStandardFunc r sz x
+    maybe (return [ (r, CSType $ TBitVector sz') ]) return mxs
   
   Pil.CEIL x -> floatUnOp x
   Pil.CMP_E x -> integralBinOpReturnsBool x
