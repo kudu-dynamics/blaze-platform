@@ -159,16 +159,34 @@ signExtend targetWidth bv = case kindOf bv of
       ext  = svIte (msb bv) ones zero
   _ -> P.error "signExtend: bv must be Bounded kind"
 
--- signExtend :: SVal -> SVal -> SVal
--- signExtend tw bv = case kindOf bv of
---   (KBounded s w) -> svIte (tw `svGreaterEq` w) (svJoin ext bv) bv
---     | otherwise -> P.error "signExtend: target width less than bitvec width"
---     where
---       tw = fromIntegral targetWidth
---       zero = svInteger (KBounded s $ tw `svMinus` (constWord 32 w) 0
---       ones = svNot zero
---       ext  = svIte (msb bv) ones zero
---   _ -> P.error "signExtend: bv must be Bounded kind"
+signExtendSVal :: SVal -> SVal -> SVal
+signExtendSVal tw bv = case kindOf bv of
+  (KBounded s w) -> svIte (tw `svGreaterEq` (constWord 32 $ toInteger w)) (svJoin ext bv) bv
+    where
+      -- subtract an additional 1 off since we are zero inclusive in createExtendBuf
+      extWidth = tw `svMinus` (constWord 32 $ toInteger w) `svMinus` constWord 32 1
+      zeros = buf
+      ones = svNot buf
+      ext = svIte (msb bv) ones zeros
+      buf = createExtendBuf extWidth
+      createExtendBuf :: SVal -> SVal
+      createExtendBuf width = svIte (width `svEqual` constWord 32 0) 
+                                      (constInt 1 0) 
+                                      $ svJoin (createExtendBuf $ width `svMinus` constWord 32 1) $ constInt 1 0
+  _ -> P.error "signExtend: bv must be Bounded kind"
+
+zeroExtendSVal :: SVal -> SVal -> SVal
+zeroExtendSVal tw bv = case kindOf bv of
+  (KBounded s w) -> svIte (tw `svGreaterEq` (constWord 32 $ toInteger w)) (svJoin buf bv) bv
+    where
+      extWidth = tw `svMinus` (constWord 32 $ toInteger w) `svMinus` constWord 32 1
+      zeros = buf
+      buf = createExtendBuf extWidth
+      createExtendBuf :: SVal -> SVal
+      createExtendBuf width = svIte (width `svEqual` constWord 32 0)
+                                      (constWord 1 0)
+                                      $ svJoin (createExtendBuf $ width `svMinus` constWord 32 1) $ constWord 1 0
+  _ -> P.error "signExtend: bv must be Bounded kind"
 
 -- | Extends b to match a's width.
 -- | requires: width a >= width b
@@ -240,16 +258,13 @@ pilFDiv a b = case (kindOf a, kindOf b) of
 pilRol :: SVal -> SVal -> SVal
 pilRol a b = a `svRotateLeft` b
 
-pilLowPart :: SVal -> SVal -> SVal
-pilLowPart src sz = case (kindOf src, kindOf sz) of
-  (KBounded _ w0, KBounded _ w1) -> src `svAnd` mask
+pilLowPart :: SVal -> SVal
+pilLowPart src = case kindOf src of
+  KBounded _ w0 -> src `svAnd` mask
     where
-      w1' = fromIntegral w1
+      w1' = w0' `div` 2
       w0' = fromIntegral w0
-      mask = svShiftRight ones diff
-      diff = srcSize `svMinus` szInBits
-      szInBits = sz `svTimes` (constWord (Bits w1') 8)
-      srcSize = constWord (Bits w1') (toInteger w0)
+      mask = svShiftRight ones $ constWord (Bits w0') $ toInteger w1'
       ones = svNot (constWord (Bits w0') 0) 
   _ -> P.error "pilLowPart: one or both arguments are not KBounded"
 
@@ -413,6 +428,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 -- --   BOOL_TO_INT _ -> 
 --   -- TODO get most general type for this and args:
 --   Pil.CALL _ -> return [ (r, CSType $ TBitVector sz') ]
+-- leave for now ^. potentially stub these out
   Pil.CEIL x -> floatUnOp x pilCeil
   Pil.CMP_E x -> integralBinOpFirstArgIsReturn x pilCmpE
   Pil.CMP_NE x -> integralBinOpFirstArgIsReturn x $ \a b -> a `svNotEqual` b
@@ -454,6 +470,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.FCMP_NE x -> floatBinOp x $ \a b -> unSBV $ (toSFloat' a) ./= (toSFloat' b)
   Pil.FCMP_UO x -> floatBinOp x $ \a b -> unSBV $ (SBV.fpIsNaN $ toSFloat' a) .|| (SBV.fpIsNaN $ toSFloat' b)
 --   Pil.FIELD_ADDR x -> do
+  -- base pointer + offset -- specialized ptr. 
 --     fieldType <- CSVar <$> newSym
 --     let recType = CSType . TRecord . HashMap.fromList $
 --           -- for now, assuming all offsets are positive...
@@ -482,15 +499,15 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     state <- get
     let m = _mem state
         key = dstToExpr $ x ^. Pil.src
-    maybe (createFreeVar key m) return $ HashMap.lookup key m
+    maybe (createFreeVar key) return $ HashMap.lookup key m
     where
-      createFreeVar k m = do
+      createFreeVar k = do
         freeVar <- fallbackAsFreeVar
         modify (\s -> s { _mem = HashMap.insert k freeVar $ s ^. mem } )
         return freeVar
 
 --   -- should _x have any influence on the type of r?
-  -- Pil.LOW_PART x -> integralUnOp x pilLowPart
+  Pil.LOW_PART x -> integralUnOp x pilLowPart
   Pil.LSL x -> integralFirstArgIsReturn x svShiftLeft
   Pil.LSR x -> integralFirstArgIsReturn x svShiftRight
   Pil.MODS x -> integralBinOpFirstArgIsReturn x svRem
@@ -521,10 +538,18 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --   Pil.STACK_LOCAL_ADDR _ -> retPointer
 
   Pil.SUB x -> integralBinOpFirstArgIsReturn x pilSub
-  -- Pil.SX x -> bitVectorUnOp x $ unSBV . SBV.signExtend . SBV
+  -- TODO: SX and ZX, target width should be dynamically resolved from binary. 
+  --        SX and ZX extend to architecture's pointer size
+  Pil.SX x -> bitVectorUnOp x (signExtendSVal $ constWord 32 64)
 
 -- --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
---   Pil.UNIMPL _ -> return [ (r, CSType $ TBitVector sz' ) ]
+  Pil.TEST_BIT x -> bitVectorBinOp x $ \a b -> case kindOf a of
+    KBounded _ w -> (a `svAnd` (svExp (constWord (Bits w') 2) b)) `svGreaterThan` constWord (Bits w') 0
+      where
+        w' = fromIntegral w
+    _ -> svFalse
+    
+  Pil.UNIMPL _ -> return svTrue
 --   Pil.UPDATE_VAR x -> do
 --     v <- lookupVarSym $ x ^. Pil.dest
 --     -- How should src and dest be related?
@@ -534,11 +559,15 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 
   Pil.VAR x -> lookupVarSym $ x ^. Pil.src
 --   Pil.VAR_FIELD _ ->
+  -- pull out lower 32 bits of 64 bit register; access part of a variable
 --     -- TODO: can we know anything about src PilVar by looking at offset + result size?
 --     return [ (r, CSType $ TBitVector sz') ]
 
 --   -- binja is wrong about the size of VarSplit.
 --   Pil.VAR_SPLIT x -> do
+  -- joining two 32 bit ints to create a 64 bit
+  -- clojure src code has these as well
+
 --     low <- lookupVarSym $ x ^. Pil.low
 --     high <- lookupVarSym $ x ^. Pil.high
 --     return [ (r, CSType $ TBitVector sz2x')
@@ -547,7 +576,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --            ]
 
   Pil.XOR x -> bitVectorBinOp x svXOr
-  -- Pil.ZX x -> bitVectorUnOp x $ unSBV . SBV.zeroExtend . SBV
+  Pil.ZX x -> bitVectorUnOp x (zeroExtendSVal $ constWord 32 64)
 -- --   -- _ -> unknown
 -- $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
 -- --   Extract _ -> bitvecRet
