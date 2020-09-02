@@ -6,7 +6,7 @@
 
 module Blaze.Solver2 where
 
-import Blaze.Prelude hiding (zero)
+import Blaze.Prelude hiding (zero, natVal)
 import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil ( Expression( Expression )
@@ -158,6 +158,17 @@ signExtend targetWidth bv = case kindOf bv of
       ones = svNot zero
       ext  = svIte (msb bv) ones zero
   _ -> P.error "signExtend: bv must be Bounded kind"
+
+-- signExtend :: SVal -> SVal -> SVal
+-- signExtend tw bv = case kindOf bv of
+--   (KBounded s w) -> svIte (tw `svGreaterEq` w) (svJoin ext bv) bv
+--     | otherwise -> P.error "signExtend: target width less than bitvec width"
+--     where
+--       tw = fromIntegral targetWidth
+--       zero = svInteger (KBounded s $ tw `svMinus` (constWord 32 w) 0
+--       ones = svNot zero
+--       ext  = svIte (msb bv) ones zero
+--   _ -> P.error "signExtend: bv must be Bounded kind"
 
 -- | Extends b to match a's width.
 -- | requires: width a >= width b
@@ -380,11 +391,9 @@ solveStmt  = \case
     return $ pv `svEqual` expr
   Pil.Constraint x' -> solveExpr $ x' ^. Pil.condition
   Pil.Store x' -> do
-    state <- get
-    let m = _mem state
-        exprAddr = dstToExpr $ x' ^. Pil.addr
+    let exprAddr = dstToExpr $ x' ^. Pil.addr
     sValue <- solveExpr $ x' ^. Pil.value
-    put (state { _mem = HashMap.insert exprAddr sValue m })
+    modify (\s -> s { _mem = HashMap.insert exprAddr sValue $ s ^. mem } )
     return svTrue
   _ -> throwError . ErrorMessage $ "Unimplemented Op"
 
@@ -468,16 +477,16 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     guardIntegral k
     let (KBounded _ w) = kindOf k
     return . svInteger (KBounded False w) . fromIntegral $ x ^. Pil.constant
---   Pil.INT_TO_FLOAT x -> intToFloat x
+  -- Pil.INT_TO_FLOAT x -> integralUnOp x $ svFromIntegral KFloat
   Pil.LOAD x -> do
     state <- get
     let m = _mem state
         key = dstToExpr $ x ^. Pil.src
-    maybe (createFreeVar key m state) return $ HashMap.lookup key m
+    maybe (createFreeVar key m) return $ HashMap.lookup key m
     where
-      createFreeVar k m s = do
+      createFreeVar k m = do
         freeVar <- fallbackAsFreeVar
-        put (s { _mem = HashMap.insert k freeVar m })
+        modify (\s -> s { _mem = HashMap.insert k freeVar $ s ^. mem } )
         return freeVar
 
 --   -- should _x have any influence on the type of r?
@@ -510,13 +519,9 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --   -- should this somehow be linked to the type of the stack var?
 --   -- its type could change every Store.
 --   Pil.STACK_LOCAL_ADDR _ -> retPointer
--- rotateRightWithCarry n rot carry = 
---   bvTake (Proxy @a) $ sRotateRight (n # carryBit) rot
---   where
---     carryBit :: SBV (bv 1)
---     carryBit = fromBitsLE [lsb carry]
+
   Pil.SUB x -> integralBinOpFirstArgIsReturn x pilSub
---   Pil.SX x -> integralExtendOp x
+  -- Pil.SX x -> bitVectorUnOp x $ unSBV . SBV.signExtend . SBV
 
 -- --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
 --   Pil.UNIMPL _ -> return [ (r, CSType $ TBitVector sz' ) ]
@@ -542,9 +547,9 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --            ]
 
   Pil.XOR x -> bitVectorBinOp x svXOr
---   Pil.ZX x -> integralExtendOp x
+  -- Pil.ZX x -> bitVectorUnOp x $ unSBV . SBV.zeroExtend . SBV
 -- --   -- _ -> unknown
-
+-- $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
 -- --   Extract _ -> bitvecRet
         -- expr offset sz --> expr 0 sz -> takes low sz of expr
 --   _ -> P.error . show $ op'
