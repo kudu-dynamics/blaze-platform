@@ -8,6 +8,7 @@ import Blaze.Types.Pil ( Expression(Expression)
                        , OperationSize
                        , Statement
                        , PilVar
+                       , StackOffset
                        )
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Map as Map
@@ -55,7 +56,8 @@ constrainStandardFunc ret sz (Pil.CallOp _ (Just name) cparams) = case name of
         , ( ret, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
-  
+
+
   
   _ -> return Nothing
 
@@ -64,6 +66,16 @@ constrainStandardFunc ret sz (Pil.CallOp _ (Just name) cparams) = case name of
 
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------
+
+getStackOffsetSym :: StackOffset -> ConstraintGen Sym
+getStackOffsetSym k = do
+  m <- use stackAddrSymMap
+  case HashMap.lookup k m of
+    Nothing -> do
+      s <- newSym
+      stackAddrSymMap %= HashMap.insert k s
+      return s
+    Just s -> return s
 
 addVarSym :: PilVar -> Sym -> ConstraintGen ()
 addVarSym pv sym' = varSymMap %= HashMap.insert pv sym'
@@ -273,7 +285,9 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   -- should this somehow be linked to the type of the stack var?
   -- its type could change every Store.
-  Pil.STACK_LOCAL_ADDR _ -> retPointer
+  Pil.STACK_LOCAL_ADDR x -> do
+    s <- getStackOffsetSym $ x ^. Pil.stackOffset
+    return [ (r, CSType $ TPointer sz' (CSVar s)) ]
 
   Pil.SUB x -> integralBinOpFirstArgIsReturn (Just True) True x
   Pil.SX x -> integralExtendOp x

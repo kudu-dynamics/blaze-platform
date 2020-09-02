@@ -237,7 +237,7 @@ dispExprOp exprOp size = case exprOp of
   -- TODO: Need to add carry
   (Pil.RRC op) -> dispBinop "rrc" op size
   (Pil.SBB op) -> dispBinop "sbb" op size
-  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. Pil.src)
+  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. Pil.stackOffset)
   (Pil.SUB op) -> dispBinop "sub" op size
   (Pil.SX op) -> dispUnop "sx" op size
   (Pil.TEST_BIT op) -> dispBinop "testBit" op size

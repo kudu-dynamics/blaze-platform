@@ -101,7 +101,7 @@ stmtSolutions stmts' = case er of
                            , ust)
   where
     indexedStmts = zip [0..] stmts'
-    ust = unifyConstraints cxs
+    ust = unifyConstraints (reverse cxs)
     cxs = gst ^. constraints
     (er, gst) = runConstraintGen_ $ do
       createVarSymMap stmts'

@@ -297,6 +297,15 @@ pathsForAllFunctions bv = do
     g :: Function -> IO (Function, [p])
     g fn = (fn,) <$> allSimpleFunctionPaths bv fn
 
+nonRepeatPathsForAllFunctions :: forall p. Path p => BNBinaryView -> IO (Map Function [p])
+nonRepeatPathsForAllFunctions bv = do
+  fns <- HFunction.getFunctions bv
+  Map.fromList <$> traverse g fns
+  where
+    g :: Function -> IO (Function, [p])
+    g fn = (fn,) <$> allNonRepeatFunctionPaths bv fn
+
+
 -- |Find all abstract call nodes corresponding to call sites in 'caller' to the 'callee'.
 findAbstractCallNodes :: Path p => Function -> Function -> p -> [AbstractCallNode]
 findAbstractCallNodes caller callee = mapMaybe f . Path.toList

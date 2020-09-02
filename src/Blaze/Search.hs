@@ -140,8 +140,10 @@ cartesian xs ys = do
 -- -- | allCombos [[1 2 3] [4 5] [6]] = [[1 4 6] [1 5 6] [2 4 6] [2 5 6] [3..]]
 allCombos :: [[a]] -> [[a]]
 allCombos [] = []
-allCombos [x] = [x]
-allCombos [x, y] = cartesian x y
+allCombos [xs] = do
+  x <- xs
+  return [x]
+allCombos [xs, ys] = cartesian xs ys
 allCombos (xs:xss) = do
   x <- xs
   ys <- allCombos xss

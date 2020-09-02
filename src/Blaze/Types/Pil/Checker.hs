@@ -5,6 +5,7 @@ import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import Blaze.Types.Pil ( ExprOp
                        , Statement
                        , PilVar
+                       , StackOffset
                        )
 -- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -180,12 +181,13 @@ data ConstraintGenState = ConstraintGenState
   , _varSymMap :: HashMap PilVar Sym
   , _constraints :: [Constraint]
   , _currentStmt :: Int
+  , _stackAddrSymMap :: HashMap StackOffset Sym
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''ConstraintGenState)
 
 emptyConstraintGenState :: ConstraintGenState
-emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty [] 0
+emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty [] 0 HashMap.empty
 
 newtype ConstraintGen a = ConstraintGen
   { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }

@@ -443,7 +443,7 @@ instance Hashable a => Hashable (ConstStrOp a)
 
 {- HLINT ignore StackLocalAddrOp -}
 data StackLocalAddrOp expr = StackLocalAddrOp
-    { _src :: StackOffset
+    { _stackOffset :: StackOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (StackLocalAddrOp a)
 

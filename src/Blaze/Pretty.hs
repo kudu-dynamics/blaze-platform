@@ -248,7 +248,7 @@ prettyExprOp exprOp _size = case exprOp of
   -- TODO: Need to add carry
   (Pil.RRC op) -> prettyBinop "rrc" op
   (Pil.SBB op) -> prettyBinop "sbb" op
-  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (pretty $ op ^. Pil.src)
+  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (pretty $ op ^. Pil.stackOffset)
   (Pil.SUB op) -> prettyBinop "sub" op
   (Pil.SX op) -> prettyUnop "sx" op
   (Pil.TEST_BIT op) -> prettyBinop "testBit" op
@@ -365,6 +365,7 @@ instance Pretty t => Pretty (PI.PilType t) where
 --    PI.TZeroField pt -> "ZeroField" <-> paren (pretty pt)
     PI.TBool -> "Bool"
     PI.TChar -> "Char"
+    PI.TQueryChar -> "QueryChar"
     PI.TInt bitWidth signed -> "Int" <-> pretty bitWidth <-> pretty signed
     PI.TFloat bitWidth -> "Float" <-> pretty bitWidth
     PI.TBitVector bitWidth -> "BitVector" <-> pretty bitWidth
@@ -403,14 +404,17 @@ instance Pretty Path.Node where
     "-------Expanding call: " <> pretty (x ^. Path.callSite)
   pretty (Path.Ret x) =
     "-------Returning to " <> pretty (x ^. Path.func) <> " from " <> pretty (x ^. Path.callSite . Func.callDest)
-  pretty (Path.AbstractCall x) =
-    Path.brack (pretty $ x ^. Path.callSite . Func.callInstr . Func.index)
-    <> " : "
-    <> pretty (x ^. Path.callSite)
+  pretty (Path.AbstractCall x) = pretty x
   pretty (Path.AbstractPath _) = "AbstractPath"
   pretty (Path.Condition x) =
     "Condition: " <> bool "NOT " "" (x ^. Path.trueOrFalseBranch)
     <> pretty (x ^. Path.condition)
+
+instance Pretty Path.AbstractCallNode where
+  pretty x = Path.brack (pretty $ x ^. Path.callSite . Func.callInstr . Func.index)
+    <> " : "
+    <> pretty (x ^. Path.callSite)
+
 
 --- AlgaPath
 instance Pretty AlgaPath.AlgaPath where
