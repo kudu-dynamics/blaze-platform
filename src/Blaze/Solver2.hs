@@ -268,33 +268,12 @@ pilLowPart src = case kindOf src of
       ones = svNot (constWord (Bits w0') 0) 
   _ -> P.error "pilLowPart: one or both arguments are not KBounded"
 
+-- with carry works like regular rotate with carry appended to the end
+rotateWithCarry :: (SVal -> SVal -> SVal) -> SVal -> SVal -> SVal -> SVal
+rotateWithCarry f src rot c = case kindOf src of
+  KBounded _ w -> svExtract w 1 $ f (svJoin src c) rot
+  _ -> P.error "rotateWithCarry: src is not KBounded"
 
--- rotateLeftWithCarry :: SBV (bv a) -> SBV b -> SBV c
---                      -> SBV (bv a)
--- rotateLeftWithCarry n rot carry = 
---   SBV.bvDrop (Proxy @1) $ SBV.sRotateLeft (carryBit # n) rot
---   where
---     carryBit :: SBV (bv 1)
---     carryBit = SBV.fromBitsLE [SBV.lsb carry]
-
--- rotateRightWithCarry :: SBV (bv a) -> SBV b -> SBV c
---                      -> SBV (bv a)
--- rotateRightWithCarry n rot carry = 
---   SBV.bvTake (Proxy @32) $ SBV.sRotateRight (n # carryBit) rot
---   where
---     carryBit :: SBV (bv 1)
---     carryBit = SBV.fromBitsLE [SBV.lsb carry]
-
--- pilStrNCmp :: [SVal] -> [SVal] -> SVal -> SVal
--- pilStrNCmp str0 str1 n = 
-
--- svSelect
-      -- mask (svInteger (KBounded True w1') 0) = constInt 0 0
--- for cmp's flags are set, (nothing?) done on vars
-
--- binOpFirstArgMatchesReturnType :: (SVal -> SVal -> SVal) -> SVal -> SVal -> Solver
---sRoundTowardPositive
--- -- add :: SVal -> SVal -> Symbolic SVal
 toSFloat' :: SVal -> SBV.SDouble
 toSFloat' x = case kindOf x of
   KDouble -> SBV x
@@ -308,21 +287,8 @@ toSBool' x = case kindOf x of
 toSBool :: SVal -> Solver SBool
 toSBool x = guardBool x >> return (SBV x)
 
--- toSIntegral' :: SVal -> SBV.SInteger
--- toSIntegral' x = case kindOf x of
---   KBounded _ _ -> SBV x
---   _ -> P.error "toSIntegral': x is not KBounded kind"
-
--- toSFloat :: SVal -> SFloat
--- toSFloat x = case kindOf x of
---   KDouble -> SBV x
---   _ -> solverError "toSFloat: x is not KDouble kind"
---   SBV.sRoundTowardPositive
-
 constrain :: SVal -> Solver ()
 constrain x = toSBool x >>= SBV.constrain
-
--- constrainSVal :: SVal -> Solver
 
 newSymVar :: Text -> Kind -> Solver SVal
 newSymVar name k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (Just $ cs name)
@@ -397,22 +363,21 @@ bitsToOperationSize = Pil.OperationSize . (`div` 8) . fromIntegral
 dstToExpr :: DSTExpression -> Expression
 dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. Ch.size) $ dstToExpr <$> op
 
-solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver SVal
-solveStmt  = \case
-  Pil.Def x' -> do
-    pv <- lookupVarSym $ x' ^. Pil.var
-    expr <- solveExpr $ x' ^. Pil.value
+solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver ()
+solveStmt = \case
+  Pil.Def x -> do
+    pv <- lookupVarSym $ x ^. Pil.var
+    expr <- solveExpr $ x ^. Pil.value
     guardSameKind pv expr
-    return $ pv `svEqual` expr
-  Pil.Constraint x' -> solveExpr $ x' ^. Pil.condition
-  Pil.Store x' -> do
-    let exprAddr = dstToExpr $ x' ^. Pil.addr
-    sValue <- solveExpr $ x' ^. Pil.value
+    constrain $ pv `svEqual` expr
+  Pil.Constraint x -> solveExpr (x ^. Pil.condition) >>= constrain
+  Pil.Store x -> do
+    let exprAddr = dstToExpr $ x ^. Pil.addr
+    sValue <- solveExpr $ x ^. Pil.value
     modify (\s -> s { _mem = HashMap.insert exprAddr sValue $ s ^. mem } )
-    return svTrue
-  _ -> throwError . ErrorMessage $ "Unimplemented Op"
+    return ()
+  _ -> return ()
 
-    
 -- | Creates SVal that represents expression.
 --   This type of InfoExpression is in a TypeReport
 solveExpr :: DSTExpression -> Solver SVal
@@ -481,7 +446,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.FLOAT_CONST x -> return . svDouble $ x ^. Pil.constant
   -- Pil.FLOAT_CONV x -> return . svDouble $ x ^. Pil.constant
 
-  Pil.FLOAT_TO_INT x -> floatUnOp x $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
+  -- Pil.FLOAT_TO_INT x -> floatUnOp x $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
   Pil.FLOOR x -> floatUnOp x pilFloor
   Pil.FMUL x -> floatBinOp x $ \a b -> unSBV $ SBV.fpMul SBV.sRoundNearestTiesToAway (toSFloat' a) (toSFloat' b)
   Pil.FNEG x -> floatUnOp x $ unSBV . SBV.fpNeg . toSFloat'
@@ -496,8 +461,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     return . svInteger (KBounded False w) . fromIntegral $ x ^. Pil.constant
   -- Pil.INT_TO_FLOAT x -> integralUnOp x $ svFromIntegral KFloat
   Pil.LOAD x -> do
-    state <- get
-    let m = _mem state
+    st <- get
+    let m = _mem st
         key = dstToExpr $ x ^. Pil.src
     maybe (createFreeVar key) return $ HashMap.lookup key m
     where
@@ -520,15 +485,12 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.NEG x -> integralUnOp x svUNeg
   Pil.NOT x -> bitVectorUnOp x svNot
   Pil.OR x -> bitVectorBinOp x svOr
---   Pil.RLC x -> integralFirstArgIsReturn x
+  Pil.RLC x -> rotateBinOpWithCarry x $ rotateWithCarry svRotateLeft
   Pil.ROL x -> integralFirstArgIsReturn x svRotateLeft
   Pil.ROR x -> integralFirstArgIsReturn x svRotateRight
 --   Pil.ROUND_TO_INT x -> floatToInt x
-  -- Pil.RRC x -> binOpWithCarry x $ \n rot c -> unSBV $ rotateRightWithCarry 
-  --                                                           (toSIntegral' n)
-  --                                                           (toSIntegral' rot)
-  --                                                           (toSIntegral' c)
---   Pil.SBB x -> signedBinOpReturnsBool True x
+  Pil.RRC x -> rotateBinOpWithCarry x $ rotateWithCarry svRotateRight
+  Pil.SBB x -> binOpWithCarry x $ \a b c -> a `svMinus` b `svMinus` c
 -- --   -- STORAGE _ -> unknown
 -- --   StrCmp _ -> intRet
 -- --   StrNCmp _ -> intRet
@@ -541,14 +503,12 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   -- TODO: SX and ZX, target width should be dynamically resolved from binary. 
   --        SX and ZX extend to architecture's pointer size
   Pil.SX x -> bitVectorUnOp x (signExtendSVal $ constWord 32 64)
-
--- --   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
   Pil.TEST_BIT x -> bitVectorBinOp x $ \a b -> case kindOf a of
     KBounded _ w -> (a `svAnd` (svExp (constWord (Bits w') 2) b)) `svGreaterThan` constWord (Bits w') 0
       where
         w' = fromIntegral w
     _ -> svFalse
-    
+
   Pil.UNIMPL _ -> return svTrue
 --   Pil.UPDATE_VAR x -> do
 --     v <- lookupVarSym $ x ^. Pil.dest
@@ -577,11 +537,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 
   Pil.XOR x -> bitVectorBinOp x svXOr
   Pil.ZX x -> bitVectorUnOp x (zeroExtendSVal $ constWord 32 64)
--- --   -- _ -> unknown
--- $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
 -- --   Extract _ -> bitvecRet
         -- expr offset sz --> expr 0 sz -> takes low sz of expr
---   _ -> P.error . show $ op'
   _ -> throwError . ErrorMessage $ "unhandled PIL op: "
        <> Text.takeWhile (/= ' ') (show op)
   where
@@ -679,5 +636,18 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       a <- solveExpr (x ^. Pil.left)
       b <- solveExpr (x ^. Pil.right)
       c <- solveExpr (x ^. Pil.carry)
+      let b' = matchSign a (matchBoundedWidth a b)
+          c' = matchSign a (matchBoundedWidth a c)
+      return $ f a b' c'
+
+
+    rotateBinOpWithCarry :: ( HasLeft x DSTExpression
+             , HasRight x DSTExpression
+             , HasCarry x DSTExpression)
+          => x
+          -> (SVal -> SVal -> SVal -> SVal) -> Solver SVal
+    rotateBinOpWithCarry x f = do
+      a <- solveExpr (x ^. Pil.left)
+      b <- solveExpr (x ^. Pil.right)
+      c <- solveExpr (x ^. Pil.carry)
       return $ f a b c
-    --guardintegralsigned
