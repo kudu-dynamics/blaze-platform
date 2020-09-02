@@ -4,7 +4,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Blaze.Solver2 where
+module Blaze.Solver2
+  ( module Blaze.Solver2
+  , module Exports ) where
 
 import Blaze.Prelude hiding (zero, natVal)
 import qualified Prelude as P
@@ -20,9 +22,11 @@ import Blaze.Types.Pil ( Expression( Expression )
                        )
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import qualified Blaze.Pil.Analysis as Analysis
 import Blaze.Types.Solver2
 import qualified Blaze.Pil.Analysis as A
 import Data.SBV.Tools.Overflow (ArithOverflow, bvAddO)
+import qualified Data.SBV.Trans as Exports (z3, cvc4)
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.Trans ( (.==)
                       , (./=)
@@ -39,8 +43,13 @@ import Data.SBV.Trans ( (.==)
 import qualified Data.SBV.Trans.Control as SBV
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
+import Binja.Function (Function)
+import Blaze.Types.Path (Path)
+import Blaze.Types.Path.AlgaPath (AlgaPath)
+import qualified Blaze.Pil.Path as Path
 import Data.SBV.Dynamic as D hiding (Solver)
 import qualified Blaze.Types.Pil.Checker as Ch
+import qualified Blaze.Pil.Checker as Ch
 import Blaze.Types.Pil.Checker (DeepSymType, SymInfo(SymInfo), InfoExpression(InfoExpression))
 --import Data.SBV.Core.Data (SBV(SBV, unSBV))
 import Data.SBV.Internals (SBV(SBV), unSBV)
@@ -397,20 +406,21 @@ bitsToOperationSize = Pil.OperationSize . (`div` 8) . fromIntegral
 dstToExpr :: DSTExpression -> Expression
 dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. Ch.size) $ dstToExpr <$> op
 
-solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver SVal
-solveStmt  = \case
-  Pil.Def x' -> do
-    pv <- lookupVarSym $ x' ^. Pil.var
-    expr <- solveExpr $ x' ^. Pil.value
+solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver ()
+solveStmt = \case
+  Pil.Def x -> do
+    pv <- lookupVarSym $ x ^. Pil.var
+    expr <- solveExpr $ x ^. Pil.value
     guardSameKind pv expr
-    return $ pv `svEqual` expr
-  Pil.Constraint x' -> solveExpr $ x' ^. Pil.condition
-  Pil.Store x' -> do
-    let exprAddr = dstToExpr $ x' ^. Pil.addr
-    sValue <- solveExpr $ x' ^. Pil.value
+    constrain $ pv `svEqual` expr
+  Pil.Constraint x -> solveExpr (x ^. Pil.condition) >>= constrain
+  Pil.Store x -> do
+    let exprAddr = dstToExpr $ x ^. Pil.addr
+    sValue <- solveExpr $ x ^. Pil.value
     modify (\s -> s { _mem = HashMap.insert exprAddr sValue $ s ^. mem } )
-    return svTrue
-  _ -> throwError . ErrorMessage $ "Unimplemented Op"
+    return ()
+  _ -> return ()
+
 
     
 -- | Creates SVal that represents expression.
@@ -582,7 +592,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 -- --   Extract _ -> bitvecRet
         -- expr offset sz --> expr 0 sz -> takes low sz of expr
 --   _ -> P.error . show $ op'
-  _ -> throwError . ErrorMessage $ "unhandled PIL op: "
+  _ -> catchFallbackAndWarn $ throwError . ErrorMessage $ "unhandled PIL op: "
        <> Text.takeWhile (/= ' ') (show op)
   where
     fallbackAsFreeVar :: Solver SVal
@@ -681,3 +691,64 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       c <- solveExpr (x ^. Pil.carry)
       return $ f a b c
     --guardintegralsigned
+
+solveTypedStmtsWith :: SMTConfig
+                    -> HashMap PilVar DeepSymType
+                    -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+                    -> IO (Either SolverError SolverReport)
+solveTypedStmtsWith solverCfg vartypes stmts = do
+  er <- runSolverWith solverCfg run (emptyState, SolverCtx vartypes)
+  return $ toSolverReport <$> er
+  where
+    toSolverReport :: (SolverResult, SolverState) -> SolverReport
+    toSolverReport (r, s) = SolverReport r (s ^. errors)
+    run = declarePilVars >> mapM_ f stmts >> querySolverResult
+    f (ix, stmt) = do
+      currentStmtIndex .= ix
+      solveStmt stmt
+
+-- | runs type checker first, then solver
+solveStmtsWith :: SMTConfig
+               -> [Statement Expression]
+               -> IO (Either
+                      (Either
+                       Ch.ConstraintGenError
+                       (SolverError, Ch.TypeReport))
+                      (SolverReport, Ch.TypeReport))
+solveStmtsWith solverCfg stmts = do
+  -- should essential analysis steps be included here?
+  -- let stmts' = Analysis.substFields stmts
+  let er = Ch.checkStmts stmts
+  case er of
+    Left e -> return $ Left (Left e)
+    Right tr -> solveTypedStmtsWith solverCfg (tr ^. Ch.varSymTypeMap) (tr ^. Ch.symTypeStmts) >>= \case
+      Left e -> return $ Left (Right (e, tr))
+      Right sr -> return $ Right (sr, tr)
+
+-- | convenience function for checking statements.
+-- any errors in Type Checker or Solver result in Unk
+-- warnings are ignored
+solveStmtsWith_ :: SMTConfig
+                -> [Statement Expression]
+                -> IO (SolverResult)
+solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
+  Left _ -> return Unk
+  Right (r, _) -> return $ r ^. result
+
+solvePathWith :: SMTConfig -> Function -> AlgaPath
+              -> IO (Either
+                     (Either
+                      Ch.ConstraintGenError
+                      (SolverError, Ch.TypeReport))
+                     (SolverReport, Ch.TypeReport))
+solvePathWith solverCfg startFunc p = do
+  stmts <- Path.convertPath startFunc p
+  let stmts' = Analysis.substFields $ stmts
+  solveStmtsWith solverCfg stmts'
+
+
+solvePathWith_ :: SMTConfig -> Function -> AlgaPath -> IO (SolverResult)
+solvePathWith_ solverCfg startFunc p = do
+  stmts <- Path.convertPath startFunc p
+  let stmts' = Analysis.substFields $ stmts
+  solveStmtsWith_ solverCfg stmts'

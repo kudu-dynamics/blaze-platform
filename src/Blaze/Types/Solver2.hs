@@ -16,7 +16,7 @@ import Blaze.Prelude
 import Data.SBV.Internals (SBV (unSBV), SolverContext (..), modelAssocs)
 import Data.SBV.Dynamic (SVal, CV)
 import qualified Data.SBV.Trans as SBV
-import Data.SBV.Trans as Exports (SymbolicT
+import Data.SBV.Trans as Exports ( SymbolicT
                                  , MonadSymbolic
                                  , SMTConfig
                                  , SBool
@@ -307,4 +307,11 @@ liftSymbolicT = Solver . lift . lift
 --   where
 --     r :: forall m n. (SIntegral m, SIntegral n) => SBV m -> Solver (SBV n)
 --     r = return . sFromIntegral
+
+data SolverReport = SolverReport
+  { _result :: SolverResult
+  , _warnings :: [SolverError]
+  } deriving (Eq, Ord, Show, Generic)
+  
+$(makeFieldsNoPrefix ''SolverReport)
 
