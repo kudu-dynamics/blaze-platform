@@ -269,6 +269,28 @@ pilRol :: SVal -> SVal -> SVal
 pilRol a b = a `svRotateLeft` b
 
 -- updateBitvec :: BitOffset -> Bits -> SVal -> SVal -> SVal
+-- updateBitvec boff bwidth dest src = case (kindOf dest, kindOf src)
+--   highPart' `svJoin` src `svJoin` lowPart'
+--   where
+--     k = 
+--     highPart' = highPart 
+--     lowPart' = undefined
+
+--     off = fromIntegral boff
+--     w = fromIntegral bwidth
+
+-- TODO: guard that n is greater than 0
+-- and that w is big enough
+lowPart :: Bits -> SVal -> SVal
+lowPart n src = case kindOf src of
+  KBounded _ _w -> svExtract (fromIntegral n - 1) 0 src
+  _ -> P.error "lowPart: src must be KBounded"
+
+highPart :: Bits -> SVal -> SVal
+highPart n src = case kindOf src of
+  KBounded _ w -> svExtract (w - 1) (w - fromIntegral n) src
+  _ -> P.error "lowPart: src must be KBounded"
+
 
 pilLowPart :: SVal -> SVal
 pilLowPart src = case kindOf src of
@@ -382,12 +404,20 @@ bitsToOperationSize = Pil.OperationSize . (`div` 8) . fromIntegral
 dstToExpr :: DSTExpression -> Expression
 dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. Ch.size) $ dstToExpr <$> op
 
+catchAndWarn :: Solver () -> Solver ()
+catchAndWarn m = catchError m $ \e -> do  
+  si <- use currentStmtIndex
+  warn $ StmtError si e
+
+warn :: SolverError -> Solver ()
+warn e = errors %= (e :)
+
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver ()
 solveStmt = \case
   Pil.Def x -> do
     pv <- lookupVarSym $ x ^. Pil.var
     expr <- solveExpr $ x ^. Pil.value
-    guardSameKind pv expr
+    catchAndWarn $ guardSameKind pv expr
     constrain $ pv `svEqual` expr
   Pil.Constraint x -> solveExpr (x ^. Pil.condition) >>= constrain
   Pil.Store x -> do
@@ -566,10 +596,11 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 
   -- binja is wrong about the size of VarSplit.
   -- this should really be called VAR_JOIN
-  Pil.VAR_SPLIT x -> do    
+  Pil.VAR_SPLIT x -> catchFallbackAndWarn $ do    
     low <- lookupVarSym $ x ^. Pil.low
     high <- lookupVarSym $ x ^. Pil.high
-    guardSameKind low high
+    guardIntegral low
+    guardIntegral high
     return $ svJoin high low
 
   Pil.XOR x -> bitVectorBinOp x svXOr
@@ -588,9 +619,6 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     getDst :: Solver DeepSymType
     getDst = maybe e return mdst
       where e = throwError . ErrorMessage $ "missing DeepSymType"
-
-    warn :: SolverError -> Solver ()
-    warn e = errors %= (e :)
 
     catchFallbackAndWarn :: Solver SVal -> Solver SVal
     catchFallbackAndWarn m = catchError m $ \e -> do  
