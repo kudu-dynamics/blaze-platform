@@ -381,6 +381,20 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TVLength n -> show n
     PI.TVSign b -> if b then "Signed" else "Unsigned"
 
+--- CallGraph
+instance Pretty Cg.Function where
+  pretty (Cg.Function _ name _addr) = name -- <> "@" <> showHex addr
+
+instance Pretty Cg.CallDest where
+  pretty (Cg.DestFunc x) = pretty x
+
+instance Pretty Cg.CallSite where
+  pretty x =
+    pretty (x ^. Cg.caller) 
+      <> "@" <> pretty (x ^. Cg.address)
+      <> " -> " <> pretty (x ^. Cg.dest)
+
+
 --- Function
 instance Pretty Func.DestCollOpt where
   pretty (Func.DestCollAddr x) = pretty x
@@ -426,10 +440,6 @@ instance Pretty AlgaPath.AlgaPath where
     where
       f [] = ""
       f (x : xs) = pretty x <> "\n" <> f xs
-
-
-instance Pretty Cg.Function where
-  pretty (Cg.Function _ name _addr) = name -- <> "@" <> showHex addr
 
 instance Pretty (AlgaGraph () Cg.Function) where
   pretty = asMultilineList . fmap (ptup . snd) . G.edges
