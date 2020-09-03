@@ -54,7 +54,7 @@ dispConst sym op sz = Text.pack $ printf "%s %s %s" sym const (disp sz)
 dispField ::
   ( Pil.HasSrc a b,
     Disp b,
-    Pil.HasOffset a Int64
+    Pil.HasOffset a ByteOffset
   ) =>
   Symbol ->
   a ->

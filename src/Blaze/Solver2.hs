@@ -268,6 +268,8 @@ pilFDiv a b = case (kindOf a, kindOf b) of
 pilRol :: SVal -> SVal -> SVal
 pilRol a b = a `svRotateLeft` b
 
+-- updateBitvec :: BitOffset -> Bits -> SVal -> SVal -> SVal
+
 pilLowPart :: SVal -> SVal
 pilLowPart src = case kindOf src of
   KBounded _ w0 -> src `svAnd` mask
@@ -339,6 +341,13 @@ guardIntegral x = case k of
   where
     k = kindOf x
 
+guardFloat :: HasKind a => a -> Solver ()
+guardFloat x = case k of
+  KDouble -> return ()
+  _ -> throwError $ GuardError "guardFloat" [k] "Not Double"
+  where
+    k = kindOf x
+
 guardIntegralFirstWidthNotSmaller :: (HasKind a, HasKind b)
                                   => a -> b -> Solver ()
 guardIntegralFirstWidthNotSmaller x y = case (kx, ky) of
@@ -396,10 +405,10 @@ solveExpr :: DSTExpression -> Solver SVal
 --   solverError $ "No type for sym " <> show xsym
 solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.ADC x -> binOpWithCarry x $ \a b c -> a `svPlus` b `svPlus` c
-  Pil.ADD x -> integralBinOpFirstArgIsReturn x pilAdd
+  Pil.ADD x -> integralBinOpFirstArgIsReturn x svPlus
 --   -- should this be unsigned ret because overflow is always positive?
   Pil.ADD_OVERFLOW x -> integralBinOpFirstArgIsReturn x $ \a b -> unSBV $ uncurry (.||) $ bvAddO a b
-  Pil.AND x -> bitVectorBinOp x svAnd
+  Pil.AND x -> integralBinOpFirstArgIsReturn x svAnd
   Pil.ASR x -> integralFirstArgIsReturn x svShiftLeft
 -- --   BOOL_TO_INT _ -> 
 --   -- TODO get most general type for this and args:
@@ -494,8 +503,16 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.MULS_DP x -> integralBinOpDP x svTimes
   Pil.MULU_DP x -> integralBinOpDP x svTimes
   Pil.NEG x -> integralUnOp x svUNeg
-  Pil.NOT x -> bitVectorUnOp x svNot
-  Pil.OR x -> bitVectorBinOp x svOr
+
+  Pil.NOT x -> catchFallbackAndWarn $ do
+    y <- solveExpr $ x ^. Pil.src
+    let k = kindOf y
+    case k of
+      KBool -> return $ unSBV . SBV.sNot . toSBool' $ y
+      (KBounded _ _) -> return $ svNot y
+      _ -> throwError . ErrorMessage $ "NOT expecting Bool or Integral, got " <> show k
+
+  Pil.OR x -> integralBinOpFirstArgIsReturn x svOr
   Pil.RLC x -> rotateBinOpWithCarry x $ rotateWithCarry svRotateLeft
   Pil.ROL x -> integralFirstArgIsReturn x svRotateLeft
   Pil.ROR x -> integralFirstArgIsReturn x svRotateRight
@@ -511,43 +528,52 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 --   Pil.STACK_LOCAL_ADDR _ -> retPointer
 
   Pil.SUB x -> integralBinOpFirstArgIsReturn x pilSub
-  -- TODO: SX and ZX, target width should be dynamically resolved from binary. 
-  --        SX and ZX extend to architecture's pointer size
-  Pil.SX x -> bitVectorUnOp x (signExtendSVal $ constWord 32 64)
+
+  Pil.SX x -> bitVectorUnOp x (signExtend sz)
+
+  -- TODO: should this return Bool?
   Pil.TEST_BIT x -> bitVectorBinOp x $ \a b -> case kindOf a of
     KBounded _ w -> (a `svAnd` (svExp (constWord (Bits w') 2) b)) `svGreaterThan` constWord (Bits w') 0
       where
         w' = fromIntegral w
+    -- TODO: Throw error if not KBounded
     _ -> svFalse
 
   Pil.UNIMPL _ -> return svTrue
---   Pil.UPDATE_VAR x -> do
---     v <- lookupVarSym $ x ^. Pil.dest
---     -- How should src and dest be related?
---     -- Can't express that `offset + width(src) == width(dest)`
---     --  without `+` and `==` as type level operators.
---     return [ (r, CSVar v) ]
+
+  -- Pil.UPDATE_VAR x -> do
+  --   v <- lookupVarSym $ x ^. Pil.dest
+    
+  --   -- How should src and dest be related?
+  --   -- Can't express that `offset + width(src) == width(dest)`
+  --   --  without `+` and `==` as type level operators.
+  --   return [ (r, CSVar v) ]
 
   Pil.VAR x -> lookupVarSym $ x ^. Pil.src
---   Pil.VAR_FIELD _ ->
-  -- pull out lower 32 bits of 64 bit register; access part of a variable
+
+  -- TODO: add VAR_FIELD test
+  -- also, maybe convert the offset to bits?
+  Pil.VAR_FIELD x -> do
+    v <- lookupVarSym $ x ^. Pil.src
+    return $ svExtract (off + w - 1) off v 
+    where
+      off = fromIntegral . toBitOffset $ x ^. Pil.offset
+      w = fromIntegral sz
+
+    -- pull out lower 32 bits of 64 bit register; access part of a variable
 --     -- TODO: can we know anything about src PilVar by looking at offset + result size?
 --     return [ (r, CSType $ TBitVector sz') ]
 
---   -- binja is wrong about the size of VarSplit.
---   Pil.VAR_SPLIT x -> do
-  -- joining two 32 bit ints to create a 64 bit
-  -- clojure src code has these as well
-
---     low <- lookupVarSym $ x ^. Pil.low
---     high <- lookupVarSym $ x ^. Pil.high
---     return [ (r, CSType $ TBitVector sz2x')
---            , (low, CSType $ TBitVector sz')
---            , (high, CSType $ TBitVector sz')
---            ]
+  -- binja is wrong about the size of VarSplit.
+  -- this should really be called VAR_JOIN
+  Pil.VAR_SPLIT x -> do    
+    low <- lookupVarSym $ x ^. Pil.low
+    high <- lookupVarSym $ x ^. Pil.high
+    guardSameKind low high
+    return $ svJoin high low
 
   Pil.XOR x -> bitVectorBinOp x svXOr
-  Pil.ZX x -> bitVectorUnOp x (zeroExtendSVal $ constWord 32 64)
+  Pil.ZX x -> bitVectorUnOp x (zeroExtend sz)
 -- --   Extract _ -> bitvecRet
         -- expr offset sz --> expr 0 sz -> takes low sz of expr
   _ -> catchFallbackAndWarn $ throwError . ErrorMessage $ "unhandled PIL op: "
@@ -582,7 +608,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       return $ f lx rx
 
     integralFirstArgIsReturn :: ( Pil.HasLeft x DSTExpression
-                                     , Pil.HasRight x DSTExpression)
+                                , Pil.HasRight x DSTExpression)
                                   => x -> (SVal -> SVal -> SVal) -> Solver SVal
     integralFirstArgIsReturn = integralBinOpFirstArgIsReturn
 
@@ -594,7 +620,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
       guardIntegralFirstWidthNotSmaller lx rx
-      return $ f lx rx
+      let rx' = matchSign lx (matchBoundedWidth lx rx)
+      return $ f lx rx'
 
 
     floatBinOp :: ( Pil.HasLeft x DSTExpression
@@ -604,23 +631,29 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     floatBinOp x f = catchFallbackAndWarn $ do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
+      guardFloat lx
+      guardFloat rx
       return $ f lx rx
 
     bitVectorUnOp :: Pil.HasSrc x DSTExpression
                => x
                -> (SVal -> SVal) -> Solver SVal
-    bitVectorUnOp = floatUnOp
+    bitVectorUnOp = integralUnOp
 
     integralUnOp :: Pil.HasSrc x DSTExpression
                => x
                -> (SVal -> SVal) -> Solver SVal
-    integralUnOp = floatUnOp
+    integralUnOp x f = catchFallbackAndWarn $ do
+      lx <- solveExpr (x ^. Pil.src)
+      guardIntegral lx
+      return $ f lx
 
     floatUnOp :: Pil.HasSrc x DSTExpression
                => x
                -> (SVal -> SVal) -> Solver SVal
     floatUnOp x f = catchFallbackAndWarn $ do
       lx <- solveExpr (x ^. Pil.src)
+      guardFloat lx
       return $ f lx
 
     integralBinOpDP :: ( Pil.HasLeft x DSTExpression
@@ -629,6 +662,17 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
                -> (SVal -> SVal -> SVal) -> Solver SVal
     integralBinOpDP = bitVectorBinOp
 
+    binOpSameType :: ( Pil.HasLeft x DSTExpression
+                     , Pil.HasRight x DSTExpression )
+                  => x
+                  -> (SVal -> SVal -> SVal) -> Solver SVal
+    binOpSameType x f = catchFallbackAndWarn $ do
+      lx <- solveExpr (x ^. Pil.left)
+      rx <- solveExpr (x ^. Pil.right)
+      guardSameKind lx rx
+      return $ f lx rx
+
+
     bitVectorBinOp :: ( Pil.HasLeft x DSTExpression
                   , Pil.HasRight x DSTExpression )
                => x
@@ -636,6 +680,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     bitVectorBinOp x f = catchFallbackAndWarn $ do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
+      guardIntegral lx
+      guardIntegral rx      
       return $ f lx rx
 
     binOpWithCarry :: ( HasLeft x DSTExpression
@@ -647,6 +693,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       a <- solveExpr (x ^. Pil.left)
       b <- solveExpr (x ^. Pil.right)
       c <- solveExpr (x ^. Pil.carry)
+      guardIntegralFirstWidthNotSmaller a b
+      guardIntegralFirstWidthNotSmaller a c
       let b' = matchSign a (matchBoundedWidth a b)
           c' = matchSign a (matchBoundedWidth a c)
       return $ f a b' c'

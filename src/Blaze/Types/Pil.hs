@@ -361,7 +361,7 @@ instance Hashable a => Hashable (VarOp a)
 
 data VarFieldOp expr = VarFieldOp
     { _varFieldOpSrc :: PilVar
-    , _varFieldOpOffset :: Int64
+    , _varFieldOpOffset :: ByteOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarFieldOp a)

@@ -214,3 +214,9 @@ matchUnevenVarSplit _ = False
 matchAnd :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchAnd (MLIL.AND _) = True
 matchAnd _ = False
+
+
+-- 0 found
+matchTestBit :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchTestBit (MLIL.TEST_BIT _) = True
+matchTestBit _ = False

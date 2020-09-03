@@ -296,7 +296,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.SUB x -> integralBinOpFirstArgIsReturn (Just True) True x
   Pil.SX x -> integralExtendOp x
 
---   TEST_BIT _ -> boolRet -- ? tests if bit in int is on or off
+  Pil.TEST_BIT _ -> retBool -- ? tests if bit in int is on or off
   Pil.UNIMPL _ -> return [ (r, CSType $ TBitVector sz' ) ]
   Pil.UPDATE_VAR x -> do
     v <- lookupVarSym $ x ^. Pil.dest
@@ -334,6 +334,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     sz' = CSType $ TVBitWidth sz
     sz2x' = CSType . TVBitWidth $ sz * 2
     getBoolRet = return $ CSType TBool -- TODO: doesn't need to be a monad anymore...
+    retBool = return [ (r, CSType TBool) ]
 
     retFloat :: ConstraintGen [(Sym, ConstraintSymType)]
     retFloat = return [ (r, CSType $ TFloat sz') ]

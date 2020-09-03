@@ -192,7 +192,7 @@ convertExpr expr = do
     (MLIL.VAR_SSA_FIELD x) -> do
       srcVar <- convertToPilVarAndLog $ x ^. MLIL.src
       return $ mkExpr . Pil.VAR_FIELD $
-        Pil.VarFieldOp srcVar (x ^. MLIL.offset)
+        Pil.VarFieldOp srcVar (ByteOffset $ x ^. MLIL.offset)
     (MLIL.XOR x) -> mkExpr . Pil.XOR <$> f x
     (MLIL.ZX x) -> mkExpr . Pil.ZX <$> f x
     x -> return $ mkExpr . Pil.UNIMPL $ Text.take 20 (show x) <> "..."
