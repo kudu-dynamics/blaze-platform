@@ -155,7 +155,11 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   -- TODO get most general type for this and args:
   Pil.CALL x -> do
     mxs <- constrainStandardFunc r sz x
+    -- should it always return additional bitvec constraint for ret?
     maybe (return [ (r, CSType $ TBitVector sz') ]) return mxs
+
+    -- this one always includes bitvec width constraint on ret
+    -- ((r, CSType $ TBitVector sz') :) <$> maybe (return []) return mxs
   
   Pil.CEIL x -> floatUnOp x
   Pil.CMP_E x -> integralBinOpReturnsBool x
