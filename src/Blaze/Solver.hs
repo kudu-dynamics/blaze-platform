@@ -564,9 +564,9 @@ solveExpr expr@(Expression _sz xop) = do
       v <- lookupPilVar (x ^. Pil.src) 
       bool (error UnexpectedArgType) (return v) $ sameType v et
 
-    (Pil.VAR_FIELD x) -> do
-      v <- lookupPilVar (x ^. Pil.src)
-      mapError $ Op.extract' et (x ^. Pil.offset) v
+    -- (Pil.VAR_FIELD x) -> do
+    --   v <- lookupPilVar (x ^. Pil.src)
+    --   mapError $ Op.extract' et (x ^. Pil.offset) v
       
     (Pil.XOR x) -> lr x $ binIntegral xor
     
