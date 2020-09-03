@@ -164,7 +164,7 @@ prettyVar op = Text.pack $ printf "%s" src
 prettyField ::
   ( Pil.HasSrc a b,
     Pretty b,
-    Pil.HasOffset a Int64
+    Pil.HasOffset a ByteOffset
   ) =>
   a ->
   Text
