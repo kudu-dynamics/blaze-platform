@@ -268,17 +268,23 @@ pilFDiv a b = case (kindOf a, kindOf b) of
 pilRol :: SVal -> SVal -> SVal
 pilRol a b = a `svRotateLeft` b
 
--- updateBitvec :: BitOffset -> Bits -> SVal -> SVal -> SVal
--- updateBitvec boff bwidth dest src = case (kindOf dest, kindOf src)
---   highPart' `svJoin` src `svJoin` lowPart'
---   where
---     k = 
---     highPart' = highPart 
---     lowPart' = undefined
-
---     off = fromIntegral boff
---     w = fromIntegral bwidth
-
+-- TODO: convert SVals to unsigned.
+-- the svJoin gets messed up if these are signed
+updateBitVec :: BitOffset -> SVal -> SVal -> SVal
+updateBitVec boff src dest = case (kindOf dest, kindOf src) of
+  (KBounded destSign wdest, KBounded _ wsrc)
+    | wsrc + off > wdest -> P.error "updateBitVec: src width + offset must be less than dest width"
+    | otherwise -> bool svUnsign svSign destSign
+                   $ destHighPart `svJoin` src' `svJoin` destLowPart
+    where
+      dest' = svUnsign dest
+      src' = svUnsign src
+      destHighPart = highPart (fromIntegral $ wdest - (off + wsrc)) dest'
+      destLowPart = lowPart (fromIntegral boff) dest'
+      off = fromIntegral boff
+  _ -> P.error "updateBitVec: both args must be KBounded"
+  
+  
 -- TODO: guard that n is greater than 0
 -- and that w is big enough
 lowPart :: Bits -> SVal -> SVal
@@ -286,6 +292,8 @@ lowPart n src = case kindOf src of
   KBounded _ _w -> svExtract (fromIntegral n - 1) 0 src
   _ -> P.error "lowPart: src must be KBounded"
 
+-- TODO: guard that n is greater than 0
+-- and that w is big enough
 highPart :: Bits -> SVal -> SVal
 highPart n src = case kindOf src of
   KBounded _ w -> svExtract (w - 1) (w - fromIntegral n) src
@@ -522,7 +530,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
         return freeVar
 
 --   -- should _x have any influence on the type of r?
-  Pil.LOW_PART x -> integralUnOp x pilLowPart
+  Pil.LOW_PART x -> integralUnOp x (lowPart sz)
   Pil.LSL x -> integralFirstArgIsReturn x svShiftLeft
   Pil.LSR x -> integralFirstArgIsReturn x svShiftRight
   Pil.MODS x -> integralBinOpFirstArgIsReturn x svRem
@@ -571,8 +579,13 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 
   Pil.UNIMPL _ -> return svTrue
 
-  -- Pil.UPDATE_VAR x -> do
-  --   v <- lookupVarSym $ x ^. Pil.dest
+  Pil.UPDATE_VAR x -> catchFallbackAndWarn $ do
+    dest <- lookupVarSym $ x ^. Pil.dest
+    src <- solveExpr $ x ^. Pil.src
+    guardIntegral dest
+    guardIntegral src
+    --TODO: convert dest and src to unsigned and convert them back if needed
+    return $ updateBitVec (toBitOffset $ x ^. Pil.offset) src dest
     
   --   -- How should src and dest be related?
   --   -- Can't express that `offset + width(src) == width(dest)`
