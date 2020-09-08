@@ -13,6 +13,7 @@ import qualified Binja.Variable as Var
 import Binja.MLIL (Instruction, OperationSize)
 import qualified Binja.MLIL as MLIL
 import qualified Data.Text as Text
+import Blaze.Pretty (showHex)
 
 type F = MLILSSAFunction
 
@@ -73,6 +74,7 @@ getInstructionsWithOpAndSize g binPath = do
       return $ f <$> xs
   where
     f x = ( x ^. foundFunction . Func.name
+            <> " @ " <> showHex (x ^. foundFunction . Func.start)
           , fromIntegral $ x ^. foundIndex
           )
 
@@ -220,3 +222,24 @@ matchAnd _ = False
 matchTestBit :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchTestBit (MLIL.TEST_BIT _) = True
 matchTestBit _ = False
+
+
+-- found 0
+matchSBB :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchSBB (MLIL.SBB _) = True
+matchSBB _ = False
+
+-- found 10 ADC's in , 10 which had these attributes
+matchADC :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchADC (MLIL.ADC x) =
+  ( x ^. MLIL.left . MLIL.size == x ^. MLIL.right . MLIL.size )
+  && ( x ^. MLIL.carry . MLIL.size == 0 )
+matchADC _ = False
+
+-- found 10 in  -- only ADCs
+matchOpWithCarry :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchOpWithCarry (MLIL.ADC _) = True
+matchOpWithCarry (MLIL.SBB _) = True
+matchOpWithCarry (MLIL.RLC _) = True
+matchOpWithCarry (MLIL.RRC _) = True
+matchOpWithCarry _ = False

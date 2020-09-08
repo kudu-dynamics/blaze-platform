@@ -44,7 +44,6 @@ import Blaze.Types.Pil
     UnimplMemOp (UnimplMemOp),
   )
 import qualified Blaze.Types.Pil as Pil
-import Control.Lens ((^?!))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text

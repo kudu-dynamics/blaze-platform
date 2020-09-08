@@ -2,32 +2,7 @@
 module Blaze.Pil.Checker.Unification where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import qualified Prelude as P
-import Blaze.Types.Pil ( Expression(Expression)
-                       , ExprOp
-                       , OperationSize
-                       , Statement
-                       , PilVar
-                       )
-import qualified Blaze.Types.Pil as Pil
-import qualified Data.Map as Map
--- import Data.HashMap.Strict (HashMap)
-import qualified Binja.Variable as V
-import qualified Binja.C.Enums as E
-import qualified Binja.MLIL as MLIL
--- import Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
--- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Blaze.Pil.Analysis as Analysis
-import qualified Data.Map as Map
-import System.IO.Unsafe (unsafePerformIO)
-import qualified Data.Text as Text
-import qualified Data.STRef as ST
-import qualified Algebra.Graph.AdjacencyMap as G
-import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
-import qualified Algebra.Graph.NonEmpty.AdjacencyMap as NG
-import qualified Data.List.NonEmpty as NE
 import Blaze.Pil.Checker.OriginMap (addVarEq)
 import Blaze.Types.Pil.Checker
 
@@ -94,29 +69,21 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
 isTypeDescendent :: PilType a -> PilType a -> Bool
 isTypeDescendent (TArray _ _) t = case t of
   TArray _ _ -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
--- isTypeDescendent (TFirstOf _ _) t = case t of
---   TFirstOf _ _ -> True
---   TBottom -> True
---   _ -> False
 isTypeDescendent TBool t = case t of
   TBool -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TQueryChar -> True
-  -- TFirstOf _ _ -> True
+  -- TQueryChar -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TFloat _) t = case t of
   TFloat _ -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TBitVector _) t = case t of
@@ -126,35 +93,30 @@ isTypeDescendent (TBitVector _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  TQueryChar -> True
+  -- TQueryChar -> True
   TBool -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TPointer _ _) t = case t of
   TPointer _ _ -> True
   TArray _ _ -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent TChar t = case t of
   TChar -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent TQueryChar t = case t of
-  TQueryChar -> True
-  -- TFirstOf _ _ -> True
-  TBottom _ -> True
-  _ -> False
+-- isTypeDescendent TQueryChar t = case t of
+--   TQueryChar -> True
+--   -- TFirstOf _ _ -> True
+--   TBottom _ -> True
+--   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
-  -- TFirstOf _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
-  -- TFirstOf _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TBottom _) t = case t of
@@ -208,10 +170,10 @@ unifyPilTypes pt1 pt2 =
           addConstraint_ w1 . SType $ TVBitWidth charSize
           addConstraint_ sign1 . SType $ TVSign False
           return TChar
-        TQueryChar -> do
-          addConstraint_ w1 . SType $ TVBitWidth charSize
-          addConstraint_ sign1 . SType $ TVSign False
-          return TQueryChar
+        -- TQueryChar -> do
+        --   addConstraint_ w1 . SType $ TVBitWidth charSize
+        --   addConstraint_ sign1 . SType $ TVSign False
+        --   return TQueryChar
 
         _ -> err
 
@@ -219,9 +181,9 @@ unifyPilTypes pt1 pt2 =
         TChar -> return TChar
         _ -> err
 
-      TQueryChar -> case pt2 of
-        TQueryChar -> return TQueryChar
-        _ -> err
+      -- TQueryChar -> case pt2 of
+      --   TQueryChar -> return TQueryChar
+      --   _ -> err
       
       TFloat w1 -> case pt2 of
         TFloat w2 -> TFloat <$> addVarEq w1 w2
@@ -236,9 +198,9 @@ unifyPilTypes pt1 pt2 =
           addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
 
-        TQueryChar -> do
-          addConstraint_ w1 . SType $ TVBitWidth 8
-          return TQueryChar
+        -- TQueryChar -> do
+        --   addConstraint_ w1 . SType $ TVBitWidth 8
+        --   return TQueryChar
 
 
         TBool -> return TBool
@@ -250,7 +212,7 @@ unifyPilTypes pt1 pt2 =
         TArray len1 et2 -> TArray len1 <$> addVarEq pointeeType1 et2
 
         _ -> err
-      TFunction ret1 params1 -> err -- don't know how to unify at the moment...
+      TFunction _ret1 _params1 -> err -- don't know how to unify at the moment...
         -- need map of FuncArg(name,address,arg#/ret) -> most general type
         -- in state
 

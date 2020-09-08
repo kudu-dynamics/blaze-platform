@@ -32,7 +32,7 @@ data TypeTag = TagDirty
 
 data PilType t = TBool
                | TChar
-               | TQueryChar
+               -- | TQueryChar
                
                | TInt { bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }

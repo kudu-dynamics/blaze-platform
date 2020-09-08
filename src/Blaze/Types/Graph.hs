@@ -2,7 +2,6 @@ module Blaze.Types.Graph where
 
 import Blaze.Prelude
 
-import qualified Prelude as P
 import qualified Data.Set as Set
 import qualified Data.Map.Lazy as Map
 import Data.Map.Lazy ((!))

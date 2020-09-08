@@ -5,6 +5,7 @@ module Blaze.Pretty
     PStmts (PStmts),
     prettyStmts,
     prettyIndexedStmts,
+    showHex,
   )
 where
 
@@ -365,7 +366,7 @@ instance Pretty t => Pretty (PI.PilType t) where
 --    PI.TZeroField pt -> "ZeroField" <-> paren (pretty pt)
     PI.TBool -> "Bool"
     PI.TChar -> "Char"
-    PI.TQueryChar -> "QueryChar"
+    -- PI.TQueryChar -> "QueryChar"
     PI.TInt bitWidth signed -> "Int" <-> pretty bitWidth <-> pretty signed
     PI.TFloat bitWidth -> "Float" <-> pretty bitWidth
     PI.TBitVector bitWidth -> "BitVector" <-> pretty bitWidth

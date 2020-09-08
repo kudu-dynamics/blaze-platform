@@ -4,37 +4,21 @@ module Blaze.Pil.Checker.Constraints where
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Prelude as P
 import Blaze.Types.Pil ( Expression(Expression)
-                       , ExprOp
-                       , OperationSize
                        , Statement
                        , PilVar
                        , StackOffset
                        )
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.Map as Map
--- import Data.HashMap.Strict (HashMap)
-import qualified Binja.Variable as V
-import qualified Binja.C.Enums as E
-import qualified Binja.MLIL as MLIL
--- import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
--- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as Analysis
-import qualified Data.Map as Map
-import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Text as Text
-import qualified Data.STRef as ST
-import qualified Algebra.Graph.AdjacencyMap as G
-import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
-import qualified Algebra.Graph.NonEmpty.AdjacencyMap as NG
-import qualified Data.List.NonEmpty as NE
 import Blaze.Types.Pil.Checker
 
 
 constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
-constrainStandardFunc ret sz (Pil.CallOp _ Nothing _) = return Nothing
-constrainStandardFunc ret sz (Pil.CallOp _ (Just name) cparams) = case name of
+constrainStandardFunc _r _sz (Pil.CallOp _ Nothing _) = return Nothing
+constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
   "fgets" -> case cparams of
     [s, size', stream] -> do
       sizeSz <- CSVar <$> newSym
@@ -43,7 +27,7 @@ constrainStandardFunc ret sz (Pil.CallOp _ (Just name) cparams) = case name of
         [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
         , ( size' ^. info . sym, CSType . TInt sizeSz . CSType $ TVSign True )
         , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
-        , ( ret, CSType $ TPointer ptrWidth (CSType TChar) )
+        , ( r, CSType $ TPointer ptrWidth (CSType TChar) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
   "asprintf" -> case cparams of
@@ -53,7 +37,7 @@ constrainStandardFunc ret sz (Pil.CallOp _ (Just name) cparams) = case name of
       return . Just $
         [ ( strp ^. info . sym, ptr . ptr $ CSType TChar )
         , ( fmt ^. info . sym, ptr $ CSType TChar )
-        , ( ret, CSType $ TInt sz' (CSType $ TVSign True) )
+        , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
 
@@ -82,12 +66,11 @@ addVarSym pv sym' = varSymMap %= HashMap.insert pv sym'
 
 -- | Create mapping of each PilVar to a symbol
 createVarSymMap :: [Statement Expression] -> ConstraintGen ()
-createVarSymMap stmts = do
-  let vars = Analysis.getAllVars stmts
+createVarSymMap stmts' = do
+  let vars = Analysis.getAllVars stmts'
   mapM_ f $ HashSet.toList vars
   where
     f var = newSym >>= addVarSym var
-
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
@@ -139,7 +122,8 @@ addConstraint' (s, CSType t) = do
 -- TODO: Convert this to use regular ConstraintSymType and add constraints directly
 exprTypeConstraints :: SymExpression -> ConstraintGen [(Sym, ConstraintSymType)]
 exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
-  Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADC x -> (<>) <$> integralBinOpFirstArgIsReturn Nothing True x
+                    <*> carryConstraint x
   Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
 
   -- should this be unsigned ret because overflow is always positive?
@@ -276,12 +260,17 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     -- bitVectorUnOp x
 
   Pil.OR x -> bitVectorBinOp x
-  Pil.RLC x -> integralFirstArgIsReturn x
+  Pil.RLC x -> (<>) <$> integralFirstArgIsReturn x
+                    <*> carryConstraint x
+  
   Pil.ROL x -> integralFirstArgIsReturn x
   Pil.ROR x -> integralFirstArgIsReturn x
   Pil.ROUND_TO_INT x -> floatToInt x
-  Pil.RRC x -> integralFirstArgIsReturn x
-  Pil.SBB x -> signedBinOpReturnsBool True x
+  Pil.RRC x -> (<>) <$> integralFirstArgIsReturn x
+                    <*> carryConstraint x
+
+  Pil.SBB x -> (<>) <$> integralBinOpFirstArgIsReturn (Just True) True x
+                    <*> carryConstraint x
 --   -- STORAGE _ -> unknown
 --   StrCmp _ -> intRet
 --   StrNCmp _ -> intRet
@@ -343,11 +332,16 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       pt <- newSym
       return [ (r, CSType (TPointer sz' (CSVar pt))) ]
 
-    bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, ConstraintSymType)]
-    bitVectorUnOp x =
-      return [ (r, CSType $ TBitVector sz')
-             , (r, CSVar $ x ^. Pil.src . info . sym)
-             ]
+    carryConstraint :: (Pil.HasCarry x SymExpression) => x -> ConstraintGen [(Sym, ConstraintSymType)]
+    carryConstraint x =
+      return [ (x ^. Pil.carry . info . sym, CSType $ TBool) ]
+
+
+    -- bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, ConstraintSymType)]
+    -- bitVectorUnOp x =
+    --   return [ (r, CSType $ TBitVector sz')
+    --          , (r, CSVar $ x ^. Pil.src . info . sym)
+    --          ]
 
     bitVectorBinOp :: ( Pil.HasLeft x SymExpression
                       , Pil.HasRight x SymExpression)
@@ -395,37 +389,37 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
              ]
 
 
-    integralBinOpUnrelatedArgs :: ( Pil.HasLeft x SymExpression
-                                  , Pil.HasRight x SymExpression)
-                               => Maybe Bool
-                               -> x
-                               -> ConstraintGen [(Sym, ConstraintSymType)]
-    integralBinOpUnrelatedArgs mSignedness x = do
-      signednessType <- case mSignedness of
-        Nothing -> CSVar <$> newSym
-        Just b -> return . CSType . TVSign $ b
-      arg1Sign <- CSVar <$> newSym
-      arg2Sign <- CSVar <$> newSym
-      arg1Width <- CSVar <$> newSym
-      arg2Width <- CSVar <$> newSym
-      return [ (r, CSType (TInt sz' signednessType))
-             , (x ^. Pil.left . info . sym, CSType $ TInt arg1Width arg1Sign)
-             , (x ^. Pil.right . info . sym, CSType $ TInt arg2Width arg2Sign)
-             ]
+    -- integralBinOpUnrelatedArgs :: ( Pil.HasLeft x SymExpression
+    --                               , Pil.HasRight x SymExpression)
+    --                            => Maybe Bool
+    --                            -> x
+    --                            -> ConstraintGen [(Sym, ConstraintSymType)]
+    -- integralBinOpUnrelatedArgs mSignedness x = do
+    --   signednessType <- case mSignedness of
+    --     Nothing -> CSVar <$> newSym
+    --     Just b -> return . CSType . TVSign $ b
+    --   arg1Sign <- CSVar <$> newSym
+    --   arg2Sign <- CSVar <$> newSym
+    --   arg1Width <- CSVar <$> newSym
+    --   arg2Width <- CSVar <$> newSym
+    --   return [ (r, CSType (TInt sz' signednessType))
+    --          , (x ^. Pil.left . info . sym, CSType $ TInt arg1Width arg1Sign)
+    --          , (x ^. Pil.right . info . sym, CSType $ TInt arg2Width arg2Sign)
+    --          ]
 
-    integralBinOp :: ( Pil.HasLeft x SymExpression
-                     , Pil.HasRight x SymExpression)
-                  => Maybe Bool
-                  -> x
-                  -> ConstraintGen [(Sym, ConstraintSymType)]
-    integralBinOp mSignedness x = do
-      signednessType <- case mSignedness of
-        Nothing -> CSVar <$> newSym
-        Just b -> return . CSType . TVSign $ b
-      return [ (r, CSType (TInt sz' signednessType))
-             , (r, CSVar $ x ^. Pil.left . info . sym)
-             , (r, CSVar $ x ^. Pil.right . info . sym)
-             ]
+    -- integralBinOp :: ( Pil.HasLeft x SymExpression
+    --                  , Pil.HasRight x SymExpression)
+    --               => Maybe Bool
+    --               -> x
+    --               -> ConstraintGen [(Sym, ConstraintSymType)]
+    -- integralBinOp mSignedness x = do
+    --   signednessType <- case mSignedness of
+    --     Nothing -> CSVar <$> newSym
+    --     Just b -> return . CSType . TVSign $ b
+    --   return [ (r, CSType (TInt sz' signednessType))
+    --          , (r, CSVar $ x ^. Pil.left . info . sym)
+    --          , (r, CSVar $ x ^. Pil.right . info . sym)
+    --          ]
 
     -- first arg is double-precision of second and return
     -- signedness of args can apparently be anything

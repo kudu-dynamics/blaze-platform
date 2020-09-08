@@ -12,21 +12,17 @@ module Blaze.Solver2
 import Blaze.Prelude hiding (zero, natVal)
 import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil ( Expression( Expression )
-                       , Stmt
+import Blaze.Types.Pil ( Expression
                        , PilVar
-                       , TypeEnv(TypeEnv)
                        , HasLeft
                        , HasRight
                        , HasCarry
                        , Statement
                        )
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 import qualified Blaze.Pil.Analysis as Analysis
 import Blaze.Types.Solver2
-import qualified Blaze.Pil.Analysis as A
-import Data.SBV.Tools.Overflow (ArithOverflow, bvAddO)
+import Data.SBV.Tools.Overflow (bvAddO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.Trans ( (.==)
@@ -35,26 +31,19 @@ import Data.SBV.Trans ( (.==)
                       , (.>=)
                       , (.<)
                       , (.<=)
-                      , (.&&)
                       , (.||)
                       , (.~|)
-                      , (.=>)
-                      , (#)
                       )
-import qualified Data.SBV.Trans.Control as SBV
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
 import Binja.Function (Function)
-import Blaze.Types.Path (Path)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import qualified Blaze.Pil.Path as Path
 import Data.SBV.Dynamic as D hiding (Solver)
 import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
-import Blaze.Types.Pil.Checker (DeepSymType, SymInfo(SymInfo), InfoExpression(InfoExpression))
---import Data.SBV.Core.Data (SBV(SBV, unSBV))
+import Blaze.Types.Pil.Checker ( DeepSymType )
 import Data.SBV.Internals (SBV(SBV), unSBV)
-import GHC.TypeNats
 
 
 pilVarName :: PilVar -> Text
@@ -101,7 +90,7 @@ deepSymTypeToKind t = case t of
     getSigned bads = err $ "Can't get signed of: " <> show bads
 
     err :: forall a. Text -> Solver a
-    err msg = throwError . DeepSymTypeConversionError t $ msg
+    err = throwError . DeepSymTypeConversionError t
 
 makeSymVar :: Maybe Text -> Kind -> Solver SVal
 makeSymVar nm k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (cs <$> nm)
@@ -171,7 +160,7 @@ signExtend targetWidth bv = case kindOf bv of
 
 signExtendSVal :: SVal -> SVal -> SVal
 signExtendSVal tw bv = case kindOf bv of
-  (KBounded s w) -> svIte (tw `svGreaterEq` (constWord 32 $ toInteger w)) (svJoin ext bv) bv
+  (KBounded _s w) -> svIte (tw `svGreaterEq` (constWord 32 $ toInteger w)) (svJoin ext bv) bv
     where
       -- subtract an additional 1 off since we are zero inclusive in createExtendBuf
       extWidth = tw `svMinus` (constWord 32 $ toInteger w) `svMinus` constWord 32 1
@@ -187,10 +176,9 @@ signExtendSVal tw bv = case kindOf bv of
 
 zeroExtendSVal :: SVal -> SVal -> SVal
 zeroExtendSVal tw bv = case kindOf bv of
-  (KBounded s w) -> svIte (tw `svGreaterEq` (constWord 32 $ toInteger w)) (svJoin buf bv) bv
+  (KBounded _s w) -> svIte (tw `svGreaterEq` (constWord 32 $ toInteger w)) (svJoin buf bv) bv
     where
       extWidth = tw `svMinus` (constWord 32 $ toInteger w) `svMinus` constWord 32 1
-      zeros = buf
       buf = createExtendBuf extWidth
       createExtendBuf :: SVal -> SVal
       createExtendBuf width = svIte (width `svEqual` constWord 32 0)
@@ -228,11 +216,12 @@ pilAdd a b = a `svPlus` b'
 
 pilCmpE :: SVal -> SVal -> SVal
 pilCmpE a b = case (kindOf a, kindOf b) of
-  (KBounded _ w0, KBounded _ _) -> svGreaterEq (constWord (Bits w0') (toInteger 0)) absDiff
+  (KBounded _ w0, KBounded _ _) -> svGreaterEq (constWord (Bits w0') 0) absDiff
     where
       w0' = fromIntegral w0
-      absDiff = svAbs diff
-      diff = (a `svMinus` b)
+      absDiff = svAbs diff'
+      diff' = (a `svMinus` b)
+  _ -> P.error "pilCmpE: both args should be KBounded kind"
 
 pilSub :: SVal -> SVal -> SVal
 pilSub a b = a `svMinus` b'
@@ -284,7 +273,7 @@ updateBitVec boff src dest = case (kindOf dest, kindOf src) of
       off = fromIntegral boff
   _ -> P.error "updateBitVec: both args must be KBounded"
   
-  
+
 -- TODO: guard that n is greater than 0
 -- and that w is big enough
 lowPart :: Bits -> SVal -> SVal
@@ -299,16 +288,6 @@ highPart n src = case kindOf src of
   KBounded _ w -> svExtract (w - 1) (w - fromIntegral n) src
   _ -> P.error "lowPart: src must be KBounded"
 
-
-pilLowPart :: SVal -> SVal
-pilLowPart src = case kindOf src of
-  KBounded _ w0 -> src `svAnd` mask
-    where
-      w1' = w0' `div` 2
-      w0' = fromIntegral w0
-      mask = svShiftRight ones $ constWord (Bits w0') $ toInteger w1'
-      ones = svNot (constWord (Bits w0') 0) 
-  _ -> P.error "pilLowPart: one or both arguments are not KBounded"
 
 -- with carry works like regular rotate with carry appended to the end
 rotateWithCarry :: (SVal -> SVal -> SVal) -> SVal -> SVal -> SVal -> SVal
@@ -329,14 +308,18 @@ toSBool' x = case kindOf x of
 toSBool :: SVal -> Solver SBool
 toSBool x = guardBool x >> return (SBV x)
 
+-- converts bool to 0 or 1 integral of Kind k
+boolToInt :: Kind -> SVal -> Solver SVal
+boolToInt (KBounded s w) b = do
+  guardBool b
+  return $ svIte b (svInteger (KBounded s w) 1) (svInteger (KBounded s w) 0)
+boolToInt t _ = throwError . ErrorMessage $ "boolToInt expected KBounded, got " <> show t
+
 constrain :: SVal -> Solver ()
 constrain x = toSBool x >>= SBV.constrain
 
 newSymVar :: Text -> Kind -> Solver SVal
-newSymVar name k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (Just $ cs name)
- 
---   PTInt w -> SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing (D.KBounded True w) (Just . cs $ nm)
---   PTWord w -> SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing (D.KBounded False w) (Just . cs $ nm)
+newSymVar name' k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (Just $ cs name')
 
 test :: Solver ()
 test = do
@@ -441,17 +424,26 @@ solveStmt = \case
 solveExpr :: DSTExpression -> Solver SVal
 -- solveExpr (Ch.InfoExpression ((Ch.SymInfo _ xsym), Nothing) _) = \
 --   solverError $ "No type for sym " <> show xsym
-solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
+solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAndWarn $ case op of
   Pil.ADC x -> binOpWithCarry x $ \a b c -> a `svPlus` b `svPlus` c
   Pil.ADD x -> integralBinOpFirstArgIsReturn x svPlus
 --   -- should this be unsigned ret because overflow is always positive?
   Pil.ADD_OVERFLOW x -> integralBinOpFirstArgIsReturn x $ \a b -> unSBV $ uncurry (.||) $ bvAddO a b
   Pil.AND x -> integralBinOpFirstArgIsReturn x svAnd
   Pil.ASR x -> integralFirstArgIsReturn x svShiftLeft
--- --   BOOL_TO_INT _ -> 
---   -- TODO get most general type for this and args:
+  Pil.BOOL_TO_INT x -> do
+    b <- solveExpr $ x ^. Pil.src
+    guardBool b
+    getRetKind >>= \case
+      (KBounded s w) -> return $
+        svIte b (svInteger (KBounded s w) 1) (svInteger (KBounded s w) 0)
+      t -> throwError . ErrorMessage $ "BOOL_TO_INT expected KBounded, got " <> show t
+    
+    
+
+  -- TODO: stub standard libs here
 --   Pil.CALL _ -> return [ (r, CSType $ TBitVector sz') ]
--- leave for now ^. potentially stub these out
+
   Pil.CEIL x -> floatUnOp x pilCeil
   Pil.CMP_E x -> integralBinOpFirstArgIsReturn x pilCmpE
   Pil.CMP_NE x -> integralBinOpFirstArgIsReturn x $ \a b -> a `svNotEqual` b
@@ -473,10 +465,9 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     k <- deepSymTypeToKind dst
     guardIntegral k
     return . svInteger k . fromIntegral $ x ^. Pil.constant
---   Pil.ConstStr x -> return [(r, CSType $ TArray
---                                 ( CSType . TVLength . fromIntegral . Text.length
---                                   $ x ^. Pil.value )
---                                 ( CSType TChar ))]
+
+  Pil.ConstStr x -> return . unSBV $ SBV.literal (cs $ x ^. Pil.value :: String)
+
   Pil.DIVS x -> integralBinOpFirstArgIsReturn x svDivide
   Pil.DIVS_DP x -> integralBinOpDP x svDivide 
   Pil.DIVU x -> integralBinOpFirstArgIsReturn x svDivide
@@ -492,32 +483,79 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.FCMP_O x -> floatBinOp x $ \a b -> unSBV $ (SBV.fpIsNaN $ toSFloat' a) .~| (SBV.fpIsNaN $ toSFloat' b)
   Pil.FCMP_NE x -> floatBinOp x $ \a b -> unSBV $ (toSFloat' a) ./= (toSFloat' b)
   Pil.FCMP_UO x -> floatBinOp x $ \a b -> unSBV $ (SBV.fpIsNaN $ toSFloat' a) .|| (SBV.fpIsNaN $ toSFloat' b)
---   Pil.FIELD_ADDR x -> do
-  -- base pointer + offset -- specialized ptr. 
---     fieldType <- CSVar <$> newSym
---     let recType = CSType . TRecord . HashMap.fromList $
---           -- for now, assuming all offsets are positive...
---           [ (byteOffsetToBitOffset $ x ^. Pil.offset, fieldType) ]
---     return [ ( r, CSType $ TPointer sz' fieldType )
---            , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' recType )
---            ]
-  Pil.FLOAT_CONST x -> return . svDouble $ x ^. Pil.constant
-  -- Pil.FLOAT_CONV x -> return . svDouble $ x ^. Pil.constant
 
-  -- Pil.FLOAT_TO_INT x -> floatUnOp x $ unSBV . SBV.sDoubleAsSWord64 . toSFloat'
+  -- TODO: a FIELD_ADDR should only be used inside a LOAD or Store, and hence
+  -- should never be "solved". But maybe field addrs could be added to?
+--   Pil.FIELD_ADDR x -> do
+
+  Pil.FLOAT_CONST x -> return . svDouble $ x ^. Pil.constant
+
+  Pil.FLOAT_CONV x -> do
+    y <- solveExpr $ x ^. Pil.src
+    case kindOf y of
+      (KBounded False 32) -> return
+        . unSBV
+        . SBV.toSDouble SBV.sRoundNearestTiesToAway
+        . SBV.sWord32AsSFloat
+        . SBV $ y
+      (KBounded False 64) -> return
+        . unSBV
+        . SBV.sWord64AsSDouble
+        . SBV $ y
+
+      k -> throwError . ErrorMessage
+           $ "FLOAT_CONV expecting Unsigned integral of 32 or 64 bit width, got"
+           <> show k
+
+  Pil.FLOAT_TO_INT x -> do
+    k <- getRetKind
+    y <- solveExpr $ x ^. Pil.src
+    guardFloat y
+    case k of
+      (KBounded False 64) -> unSBV <$> (f y :: Solver SBV.SWord64)
+      (KBounded False 32) -> unSBV <$> (f y :: Solver SBV.SWord32)
+      (KBounded False 16) -> unSBV <$> (f y :: Solver SBV.SWord16)
+      (KBounded False 8) -> unSBV <$> (f y :: Solver SBV.SWord8)
+
+      (KBounded True 64) -> unSBV <$> (f y :: Solver SBV.SInt64)
+      (KBounded True 32) -> unSBV <$> (f y :: Solver SBV.SInt32)
+      (KBounded True 16) -> unSBV <$> (f y :: Solver SBV.SInt16)
+      (KBounded True 8) -> unSBV <$> (f y :: Solver SBV.SInt8)
+      _ -> throwError . ErrorMessage
+           $ "FLOAT_TO_INT: unsupported return type: " <> show k
+      where
+        f :: forall a. (SBV.IEEEFloatConvertible a) => SVal -> Solver (SBV a)
+        f = return . SBV.fromSDouble SBV.sRoundNearestTiesToAway . SBV
+
   Pil.FLOOR x -> floatUnOp x pilFloor
   Pil.FMUL x -> floatBinOp x $ \a b -> unSBV $ SBV.fpMul SBV.sRoundNearestTiesToAway (toSFloat' a) (toSFloat' b)
   Pil.FNEG x -> floatUnOp x $ unSBV . SBV.fpNeg . toSFloat'
   Pil.FSQRT x -> floatUnOp x $ unSBV . SBV.fpSqrt SBV.sRoundNearestTiesToAway . toSFloat'
   Pil.FTRUNC x -> floatUnOp x $ unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardZero . toSFloat'
   Pil.FSUB x -> floatBinOp x $ \a b -> unSBV $ SBV.fpSub SBV.sRoundNearestTiesToAway (toSFloat' a) (toSFloat' b)
-  Pil.IMPORT x -> do
-    dst <- getDst
-    k <- deepSymTypeToKind dst
-    guardIntegral k
-    let (KBounded _ w) = kindOf k
-    return . svInteger (KBounded False w) . fromIntegral $ x ^. Pil.constant
-  -- Pil.INT_TO_FLOAT x -> integralUnOp x $ svFromIntegral KFloat
+  Pil.IMPORT x -> return
+    . svInteger (KBounded False $ fromIntegral sz)
+    . fromIntegral
+    $ x ^. Pil.constant
+
+  Pil.INT_TO_FLOAT x -> do
+    y <- solveExpr $ x ^. Pil.src
+    let rm = SBV.sRoundNearestTiesToAway
+        f :: forall a. SBV.IEEEFloatConvertible a => SBV a -> Solver SVal
+        f = return . unSBV . SBV.toSDouble rm
+    case kindOf y of
+      (KBounded True 8) -> f (SBV y :: SBV.SInt8)
+      (KBounded True 16) -> f (SBV y :: SBV.SInt16)
+      (KBounded True 32) -> f (SBV y :: SBV.SInt32)
+      (KBounded True 64) -> f (SBV y :: SBV.SInt64)
+
+      (KBounded False 8) -> f (SBV y :: SBV.SWord8)
+      (KBounded False 16) -> f (SBV y :: SBV.SWord16)
+      (KBounded False 32) -> f (SBV y :: SBV.SWord32)
+      (KBounded False 64) -> f (SBV y :: SBV.SWord64)
+      k -> throwError . ErrorMessage
+           $ "INT_TO_FLOAT: unsupported return type: " <> show k
+
   Pil.LOAD x -> do
     st <- get
     let m = _mem st
@@ -542,7 +580,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.MULU_DP x -> integralBinOpDP x svTimes
   Pil.NEG x -> integralUnOp x svUNeg
 
-  Pil.NOT x -> catchFallbackAndWarn $ do
+  Pil.NOT x -> do
     y <- solveExpr $ x ^. Pil.src
     let k = kindOf y
     case k of
@@ -579,7 +617,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
 
   Pil.UNIMPL _ -> return svTrue
 
-  Pil.UPDATE_VAR x -> catchFallbackAndWarn $ do
+  Pil.UPDATE_VAR x -> do
     dest <- lookupVarSym $ x ^. Pil.dest
     src <- solveExpr $ x ^. Pil.src
     guardIntegral dest
@@ -603,13 +641,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       off = fromIntegral . toBitOffset $ x ^. Pil.offset
       w = fromIntegral sz
 
-    -- pull out lower 32 bits of 64 bit register; access part of a variable
---     -- TODO: can we know anything about src PilVar by looking at offset + result size?
---     return [ (r, CSType $ TBitVector sz') ]
-
-  -- binja is wrong about the size of VarSplit.
   -- this should really be called VAR_JOIN
-  Pil.VAR_SPLIT x -> catchFallbackAndWarn $ do    
+  Pil.VAR_SPLIT x -> do    
     low <- lookupVarSym $ x ^. Pil.low
     high <- lookupVarSym $ x ^. Pil.high
     guardIntegral low
@@ -620,7 +653,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
   Pil.ZX x -> bitVectorUnOp x (zeroExtend sz)
 -- --   Extract _ -> bitvecRet
         -- expr offset sz --> expr 0 sz -> takes low sz of expr
-  _ -> catchFallbackAndWarn $ throwError . ErrorMessage $ "unhandled PIL op: "
+  _ -> throwError . ErrorMessage $ "unhandled PIL op: "
        <> Text.takeWhile (/= ' ') (show op)
   where
     fallbackAsFreeVar :: Solver SVal
@@ -633,6 +666,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     getDst = maybe e return mdst
       where e = throwError . ErrorMessage $ "missing DeepSymType"
 
+    getRetKind = getDst >>= deepSymTypeToKind
+
     catchFallbackAndWarn :: Solver SVal -> Solver SVal
     catchFallbackAndWarn m = catchError m $ \e -> do  
       si <- use currentStmtIndex
@@ -642,10 +677,10 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     signedBinOpReturnsBool :: ( Pil.HasLeft x DSTExpression
                               , Pil.HasRight x DSTExpression)
                               => x -> (SVal -> SVal -> SVal) -> Solver SVal
-    signedBinOpReturnsBool x f = catchFallbackAndWarn $ do
+    signedBinOpReturnsBool x f = do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
-      guardIntegralFirstWidthNotSmaller lx rx
+      guardSameKind lx rx
       return $ f lx rx
 
     integralFirstArgIsReturn :: ( Pil.HasLeft x DSTExpression
@@ -657,7 +692,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     integralBinOpFirstArgIsReturn :: ( Pil.HasLeft x DSTExpression
                                      , Pil.HasRight x DSTExpression)
                                   => x -> (SVal -> SVal -> SVal) -> Solver SVal
-    integralBinOpFirstArgIsReturn x f = catchFallbackAndWarn $ do
+    integralBinOpFirstArgIsReturn x f = do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
       guardIntegralFirstWidthNotSmaller lx rx
@@ -669,7 +704,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
                   , Pil.HasRight x DSTExpression )
                => x
                -> (SVal -> SVal -> SVal) -> Solver SVal
-    floatBinOp x f = catchFallbackAndWarn $ do
+    floatBinOp x f = do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
       guardFloat lx
@@ -684,7 +719,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     integralUnOp :: Pil.HasSrc x DSTExpression
                => x
                -> (SVal -> SVal) -> Solver SVal
-    integralUnOp x f = catchFallbackAndWarn $ do
+    integralUnOp x f = do
       lx <- solveExpr (x ^. Pil.src)
       guardIntegral lx
       return $ f lx
@@ -692,7 +727,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
     floatUnOp :: Pil.HasSrc x DSTExpression
                => x
                -> (SVal -> SVal) -> Solver SVal
-    floatUnOp x f = catchFallbackAndWarn $ do
+    floatUnOp x f = do
       lx <- solveExpr (x ^. Pil.src)
       guardFloat lx
       return $ f lx
@@ -707,7 +742,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
                      , Pil.HasRight x DSTExpression )
                   => x
                   -> (SVal -> SVal -> SVal) -> Solver SVal
-    binOpSameType x f = catchFallbackAndWarn $ do
+    binOpSameType x f = do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
       guardSameKind lx rx
@@ -718,7 +753,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
                   , Pil.HasRight x DSTExpression )
                => x
                -> (SVal -> SVal -> SVal) -> Solver SVal
-    bitVectorBinOp x f = catchFallbackAndWarn $ do
+    bitVectorBinOp x f = do
       lx <- solveExpr (x ^. Pil.left)
       rx <- solveExpr (x ^. Pil.right)
       guardIntegral lx
@@ -735,10 +770,10 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = case op of
       b <- solveExpr (x ^. Pil.right)
       c <- solveExpr (x ^. Pil.carry)
       guardIntegralFirstWidthNotSmaller a b
-      guardIntegralFirstWidthNotSmaller a c
+      cAsInt <- boolToInt (kindOf a) c
+      
       let b' = matchSign a (matchBoundedWidth a b)
-          c' = matchSign a (matchBoundedWidth a c)
-      return $ f a b' c'
+      return $ f a b' cAsInt
 
 
     rotateBinOpWithCarry :: ( HasLeft x DSTExpression

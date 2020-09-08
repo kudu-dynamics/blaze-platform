@@ -38,7 +38,6 @@ import Blaze.Types.Pil.Analysis
     symbolGenerator,
   )
 import qualified Blaze.Types.Pil.Analysis as A
-import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import Data.List (nub)
