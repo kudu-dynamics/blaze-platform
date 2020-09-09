@@ -243,3 +243,8 @@ matchOpWithCarry (MLIL.SBB _) = True
 matchOpWithCarry (MLIL.RLC _) = True
 matchOpWithCarry (MLIL.RRC _) = True
 matchOpWithCarry _ = False
+
+matchAddOverflow :: MLIL.Operation (MLIL.Expression F) -> Bool
+matchAddOverflow (MLIL.ADD_OVERFLOW _) = True
+matchAddOverflow _ = False
+
