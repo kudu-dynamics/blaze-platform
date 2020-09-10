@@ -17,6 +17,7 @@ import Binja.Types.StringReference (BNStringReference(BNStringReference))
 import qualified Binja.Types.StringReference as StrRef
 import qualified Binja.Types.Symbol as Sym
 import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
+import Binja.Types.TypeLibrary (BNQualifiedNameAndType(BNQualifiedNameAndType), BNFunctionParameter(BNFunctionParameter))
 import Foreign.Ptr
 import Foreign.Marshal.Array
 import Foreign.C.String (peekCString, withCString, CString)
@@ -122,3 +123,33 @@ instance Storable BNParameterVariablesWithConfidence where
     confidence <- liftM fromIntegral ({#get BNParameterVariablesWithConfidence->confidence #} p)
     return $ BNParameterVariablesWithConfidence vars (fromIntegral count) confidence
   poke _ _ = P.error "BNParameterVariablesWithConfidence 'poke' not implemented"
+
+
+instance Storable BNQualifiedNameAndType where
+  sizeOf _ = {#sizeof BNQualifiedNameAndType#}
+  alignment _ = {#alignof BNQualifiedNameAndType#}
+  peek p = do
+    count <- fromIntegral <$> ({#get BNQualifiedName->nameCount #} p)
+    name <- ({#get BNQualifiedName->name #} p) >>= peekArray count >>= convertCStrings
+    join <- ({#get BNQualifiedName->join #} p) >>= (fmap T.pack . peekCString)
+    t <- ({#get BNQualifiedNameAndType->type #} p >>= nilable . castPtr) 
+    return $ BNQualifiedNameAndType name join (fromIntegral count) t
+      where
+        convertCStrings :: [CString] -> IO [Text]
+        convertCStrings cStrs = traverse (fmap T.pack . peekCString) cStrs
+  poke _ _ = P.error "BNQualifiedNameAndType 'poke' not implemented"
+
+instance Storable BNFunctionParameter where
+  sizeOf _ = {#sizeof BNFunctionParameter#}
+  alignment _ = {#alignof BNFunctionParameter#}
+  peek p = do
+    name <- ({#get BNFunctionParameter->name #} p) >>= (fmap T.pack . peekCString)
+    fpType <- ({#get BNFunctionParameter->type #} p >>= nilable . castPtr)
+    typeConfidence <- liftM fromIntegral ({#get BNFunctionParameter->typeConfidence #} p)
+    -- defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
+    -- defaultLocation <- ((\ptr -> C2HSImp.toBool <$> (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)) p)
+    -- sourceType <- liftM (toEnum . fromIntegral) ({#get BNVariable->type #} p)
+    -- index <- liftM fromIntegral ({#get BNVariable->index #} p)
+    -- storage <- liftM fromIntegral ({#get BNVariable->storage #} p)
+    return $ BNFunctionParameter name fpType typeConfidence Nothing Nothing Nothing Nothing
+  poke _ _ = P.error "BNFunctionParameter 'poke' not implemented"

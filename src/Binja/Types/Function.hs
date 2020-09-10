@@ -5,6 +5,7 @@ module Binja.Types.Function where
 import Binja.Prelude hiding (handle)
 
 import Binja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
+import Binja.Types.Variable (Variable, VarType)
 
 
 -- TODO: Add a symbol field

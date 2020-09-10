@@ -109,4 +109,3 @@ getFunctionDataBinaryView = BN.getFunctionData . view handle
 
 -- convertFunction :: (ToFunction a, FromFunction b)
 --                 -> 
-

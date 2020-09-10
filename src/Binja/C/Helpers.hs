@@ -14,6 +14,7 @@ import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource)
 import Binja.Types.StringReference (BNStringReference)
+import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 import Binja.C.Structs ()
 import Foreign.Storable (peek)
 import Foreign.Marshal.Alloc (alloca)
@@ -44,6 +45,35 @@ getSectionsAt :: BNBinaryView -> Address -> IO [BNSection]
 getSectionsAt bv addr =
   getSectionsAt' bv addr
   >>= manifestArrayWithFreeSize (newSectionReference <=< noFinPtrConv) freeSectionList
+
+getBinaryViewTypeLibraries :: BNBinaryView -> IO [BNTypeLibrary]
+getBinaryViewTypeLibraries bv = getBinaryViewTypeLibraries' bv 
+                                  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
+
+getPlatformTypeLibraries :: BNPlatform -> IO [BNTypeLibrary]
+getPlatformTypeLibraries p = getPlatformTypeLibraries' p 
+                                  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
+
+loadTypeLibraryFromFile :: String -> IO BNTypeLibrary
+loadTypeLibraryFromFile p = loadTypeLibraryFromFile' p >>= newTypeLibraryReference
+
+getTypeLibraryNamedTypes :: BNTypeLibrary -> IO [BNQualifiedNameAndType]
+getTypeLibraryNamedTypes tl = getTypeLibraryNamedTypes' tl >>= manifestArrayWithFree return freeQualifiedNameAndType
+
+getTypeLibraryNamedObjects :: BNTypeLibrary -> IO [BNQualifiedNameAndType]
+getTypeLibraryNamedObjects tl = getTypeLibraryNamedObjects' tl >>= manifestArrayWithFree return freeQualifiedNameAndType
+
+getPlatformFunctions :: BNPlatform -> IO [BNQualifiedNameAndType]
+getPlatformFunctions pl = getPlatformFunctions' pl >>= manifestArrayWithFree return freeQualifiedNameAndType
+
+getPlatformTypes :: BNPlatform -> IO [BNQualifiedNameAndType]
+getPlatformTypes pl = getPlatformTypes' pl >>= manifestArrayWithFree return freeQualifiedNameAndType
+
+getPlatformVariables :: BNPlatform -> IO [BNQualifiedNameAndType]
+getPlatformVariables pl = getPlatformVariables' pl >>= manifestArrayWithFree return freeQualifiedNameAndType
+
+getTypeParameters :: BNType -> IO [BNFunctionParameter]
+getTypeParameters t = getTypeParameters' t >>= manifestArrayWithFreeSize return freeTypeParameterList
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =
@@ -84,8 +114,6 @@ getFunctionParameterVariables' fn = alloca $ \ptr -> do
   freeParameterVariables (castPtr ptr)
   return r
   
-  
-
 getChildType :: BNType -> IO BNTypeWithConfidence
 getChildType = allocAndPeek . wrapBNGetChildType
 
