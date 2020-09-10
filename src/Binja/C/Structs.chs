@@ -18,6 +18,7 @@ import qualified Binja.Types.StringReference as StrRef
 import qualified Binja.Types.Symbol as Sym
 import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
 import Binja.Types.TypeLibrary (BNQualifiedNameAndType(BNQualifiedNameAndType), BNFunctionParameter(BNFunctionParameter))
+
 import Foreign.Ptr
 import Foreign.Marshal.Array
 import Foreign.C.String (peekCString, withCString, CString)

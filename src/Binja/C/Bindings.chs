@@ -373,3 +373,5 @@ instance Storable BNReferenceSource where
 {#fun unsafe BNGetTypeParameters as getTypeParameters' {withPtr* `BNType', alloca- `CSize' peekIntConv*} -> `List BNFunctionParameter' castPtr #}
 
 {#fun unsafe BNFreeTypeParameterList as freeTypeParameterList {castPtr `List BNFunctionParameter', `Word64'} -> `()' #}
+
+{#fun unsafe BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
