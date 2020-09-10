@@ -248,3 +248,12 @@ matchAddOverflow :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchAddOverflow (MLIL.ADD_OVERFLOW _) = True
 matchAddOverflow _ = False
 
+
+matchDoublePrecisionOp :: MLIL.Operation (MLIL.Expression F) -> Bool
+-- matchDoublePrecisionOp (MLIL.MULU_DP _) = True
+-- matchDoublePrecisionOp (MLIL.MULS_DP _) = True
+matchDoublePrecisionOp (MLIL.DIVU_DP _) = True
+matchDoublePrecisionOp (MLIL.DIVS_DP _) = True
+matchDoublePrecisionOp (MLIL.MODU_DP _) = True
+matchDoublePrecisionOp (MLIL.MODS_DP _) = True
+matchDoublePrecisionOp _ = False

@@ -134,7 +134,10 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   --   shift right...?
   Pil.ASR x -> integralFirstArgIsReturn x
 
---   BOOL_TO_INT _ -> 
+  Pil.BOOL_TO_INT x -> return
+    [ (r, CSType $ TBitVector sz')
+    , (x ^. Pil.src . info . sym, CSType $ TBool)
+                          ]
 
   -- TODO get most general type for this and args:
   Pil.CALL x -> do
@@ -164,9 +167,9 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
                                   $ x ^. Pil.value )
                                 ( CSType TChar ))]
   Pil.DIVS x -> integralBinOpFirstArgIsReturn (Just True) False x
-  Pil.DIVS_DP x -> integralBinOpDP (Just True) x
+  Pil.DIVS_DP x -> divOrModDP True x
   Pil.DIVU x -> integralBinOpFirstArgIsReturn (Just False) False x
-  Pil.DIVU_DP x -> integralBinOpDP (Just False) x
+  Pil.DIVU_DP x -> divOrModDP False x
   Pil.FABS x -> floatUnOp x
   Pil.FADD x -> floatBinOp x
   Pil.FCMP_E x -> floatBinOpReturnsBool x
@@ -245,12 +248,12 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.LSL x -> integralFirstArgIsReturn x
   Pil.LSR x -> integralFirstArgIsReturn x
   Pil.MODS x -> integralBinOpFirstArgIsReturn (Just True) False x
-  Pil.MODS_DP x -> integralBinOpDP (Just True) x
+  Pil.MODS_DP x -> divOrModDP True x
   Pil.MODU x -> integralBinOpFirstArgIsReturn (Just False) False x
-  Pil.MODU_DP x -> integralBinOpDP (Just False) x
+  Pil.MODU_DP x -> divOrModDP False x
   Pil.MUL x -> integralBinOpFirstArgIsReturn Nothing True x
-  Pil.MULS_DP x -> integralBinOpDP (Just True) x
-  Pil.MULU_DP x -> integralBinOpDP (Just False) x
+  Pil.MULS_DP x -> mulDP True x
+  Pil.MULU_DP x -> mulDP False x
   Pil.NEG x -> integralUnOp (Just True) x
 
   -- NOT is either Bool -> Bool or BitVec -> BitVec
@@ -303,13 +306,12 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
     return [ (r, CSType $ TBitVector sz') ]
 
-  -- binja is wrong about the size of VarSplit.
   Pil.VAR_SPLIT x -> do
     low <- lookupVarSym $ x ^. Pil.low
     high <- lookupVarSym $ x ^. Pil.high
-    return [ (r, CSType $ TBitVector sz2x')
-           , (low, CSType $ TBitVector sz')
-           , (high, CSType $ TBitVector sz')
+    return [ (r, CSType $ TBitVector sz')
+           , (low, CSType $ TBitVector halfsz')
+           , (high, CSType $ TBitVector halfsz')
            ]
 
   Pil.XOR x -> bitVectorBinOp x
@@ -321,6 +323,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     --throwError UnhandledExpr
   where
     sz' = CSType $ TVBitWidth sz
+    halfsz' = CSType . TVBitWidth $ sz `div` 2
     sz2x' = CSType . TVBitWidth $ sz * 2
     getBoolRet = return $ CSType TBool -- TODO: doesn't need to be a monad anymore...
     retBool = return [ (r, CSType TBool) ]
@@ -421,22 +424,31 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     --          , (r, CSVar $ x ^. Pil.right . info . sym)
     --          ]
 
-    -- first arg is double-precision of second and return
-    -- signedness of args can apparently be anything
-    integralBinOpDP :: ( Pil.HasLeft x SymExpression
-                       , Pil.HasRight x SymExpression)
-                    => Maybe Bool
-                    -> x
-                    -> ConstraintGen [(Sym, ConstraintSymType)]
-    integralBinOpDP mSignedness x = do
-      retSignednessType <- case mSignedness of
-        Nothing -> CSVar <$> newSym
-        Just b -> return . CSType . TVSign $ b
+    mulDP :: ( Pil.HasLeft x SymExpression
+             , Pil.HasRight x SymExpression)
+          => Bool
+          -> x
+          -> ConstraintGen [(Sym, ConstraintSymType)]
+    mulDP signedness x = do
+      let retSignednessType = CSType . TVSign $ signedness
+      rightSignedness <- CSVar <$> newSym
       return [ (r, CSType (TInt sz' retSignednessType))
-             , (x ^. Pil.left . info . sym, CSType $ TInt sz2x' retSignednessType)
-             , (r, CSVar $ x ^. Pil.right . info . sym)
+             , (x ^. Pil.left . info . sym, CSType $ TInt halfsz' retSignednessType)
+             , (x ^. Pil.right . info . sym, CSType $ TInt halfsz' rightSignedness)
              ]
 
+    divOrModDP :: ( Pil.HasLeft x SymExpression
+                       , Pil.HasRight x SymExpression)
+               => Bool
+               -> x
+               -> ConstraintGen [(Sym, ConstraintSymType)]
+    divOrModDP signedness x = do
+      let retSignednessType = CSType . TVSign $ signedness
+      rightSignedness <- CSVar <$> newSym
+      return [ (r, CSType (TInt sz' retSignednessType))
+             , (x ^. Pil.left . info . sym, CSType $ TInt sz2x' retSignednessType)
+             , (x ^. Pil.right . info . sym, CSType $ TInt sz' rightSignedness)
+             ]
 
     integralBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
                                 , Pil.HasRight x SymExpression ) 

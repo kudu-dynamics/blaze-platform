@@ -560,9 +560,8 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
 
   Pil.INT_TO_FLOAT x -> do
     y <- solveExpr $ x ^. Pil.src
-    let rm = SBV.sRoundNearestTiesToAway
-        f :: forall a. SBV.IEEEFloatConvertible a => SBV a -> Solver SVal
-        f = return . unSBV . SBV.toSDouble rm
+    let f :: forall a. SBV.IEEEFloatConvertible a => SBV a -> Solver SVal
+        f = return . unSBV . SBV.toSDouble SBV.sRoundNearestTiesToAway
     case kindOf y of
       (KBounded True 8) -> f (SBV y :: SBV.SInt8)
       (KBounded True 16) -> f (SBV y :: SBV.SInt16)
@@ -577,14 +576,13 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
            $ "INT_TO_FLOAT: unsupported return type: " <> show k
 
   Pil.LOAD x -> do
-    st <- get
-    let m = _mem st
-        key = dstToExpr $ x ^. Pil.src
+    m <- use mem
+    let key = dstToExpr $ x ^. Pil.src
     maybe (createFreeVar key) return $ HashMap.lookup key m
     where
       createFreeVar k = do
         freeVar <- fallbackAsFreeVar
-        modify (\s -> s { _mem = HashMap.insert k freeVar $ s ^. mem } )
+        mem %= HashMap.insert k freeVar
         return freeVar
 
 --   -- should _x have any influence on the type of r?
@@ -777,11 +775,15 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
       lx <- solveExpr (x ^. Pil.src)
       unSBV . f <$> toSFloat lx
 
+    -- | first arg is double width of second and return arg
+    -- so we have to increase width of second, then shrink result by half
     integralBinOpDP :: ( Pil.HasLeft x DSTExpression
                        , Pil.HasRight x DSTExpression )
-                    => x
+                    => Maybe Bool
+                    -> x
                     -> (SVal -> SVal -> SVal) -> Solver SVal
-    integralBinOpDP = bitVectorBinOp
+    integralBinOpDP mSignedness x f = do
+      
 
     binOpSameType :: ( Pil.HasLeft x DSTExpression
                      , Pil.HasRight x DSTExpression )
