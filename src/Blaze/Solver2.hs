@@ -190,78 +190,91 @@ zeroExtendSVal tw bv = case kindOf bv of
 -- | requires: width a >= width b
 --           : kindOf a, b are bounded
 --           : widths a, b > 0
-matchBoundedWidth :: SVal -> SVal -> SVal
+matchBoundedWidth :: HasKind a => a -> SVal -> SVal
 matchBoundedWidth a b = case (kindOf a, kindOf b) of
-  (KBounded s w1, KBounded _ w2)
+  (KBounded _ w1, KBounded s w2)
     | w1 == w2 -> b
-    | otherwise -> if s then signExtend w1' b else zeroExtend w1' b
+    | w1 > w2 -> if s then signExtend w1' b else zeroExtend w1' b
+    | otherwise -> lowPart w1' b
     where
       w1' = fromIntegral w1
   _ -> P.error "matchBoundedWidth: a and b must be kind Bounded"
 
 -- | Matches second to first bounded integral sign
 -- error if either not bounded.
-matchSign :: SVal -> SVal -> SVal
+matchSign :: HasKind a => a -> SVal -> SVal
 matchSign a b = case (kindOf a, kindOf b) of
   (KBounded s1 _, KBounded s2 _)
     | s1 == s2 -> b
     | otherwise -> if s1 then svSign b else svUnsign b
   _ -> P.error "matchSign: a and b must be kind Bounded"
 
+matchIntegral :: HasKind a => a -> SVal -> SVal
+matchIntegral a b = matchBoundedWidth a (matchSign a b)
 
-pilAdd :: SVal -> SVal -> SVal
-pilAdd a b = a `svPlus` b'
-  where
-    b' = matchSign a (matchBoundedWidth a b)
+-- if x is signed, converts to unsigned, then runs f, then converts result to signed
+runAsUnsigned :: (SVal -> SVal) -> SVal -> SVal
+runAsUnsigned f x = case kindOf x of
+  KBounded True _ -> svSign (f (svUnsign x))
+  KBounded False _ -> f x
+  _ -> P.error "runAsSigned: expected KBounded"
 
-pilCmpE :: SVal -> SVal -> SVal
-pilCmpE a b = case (kindOf a, kindOf b) of
-  (KBounded _ w0, KBounded _ _) -> svGreaterEq (constWord (Bits w0') 0) absDiff
-    where
-      w0' = fromIntegral w0
-      absDiff = svAbs diff'
-      diff' = (a `svMinus` b)
-  _ -> P.error "pilCmpE: both args should be KBounded kind"
 
-pilSub :: SVal -> SVal -> SVal
-pilSub a b = a `svMinus` b'
-  where
-    b' = matchSign a (matchBoundedWidth a b)
 
-pilCeil :: SVal -> SVal
-pilCeil x = case kindOf x of
-  KDouble -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardPositive $ toSFloat' x
-  _ -> P.error "pilCeil: x is not a KDouble"
+-- pilAdd :: SVal -> SVal -> SVal
+-- pilAdd a b = a `svPlus` b'
+--   where
+--     b' = matchSign a (matchBoundedWidth a b)
 
-pilFloor :: SVal -> SVal
-pilFloor x = case kindOf x of
-  KDouble -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardNegative $ toSFloat' x
-  _ -> P.error "pilFloor: x is not a KDouble"
+-- pilCmpE :: SVal -> SVal -> SVal
+-- pilCmpE a b = case (kindOf a, kindOf b) of
+--   (KBounded _ w0, KBounded _ _) -> svGreaterEq (constWord (Bits w0') 0) absDiff
+--     where
+--       w0' = fromIntegral w0
+--       absDiff = svAbs diff'
+--       diff' = (a `svMinus` b)
+--   _ -> P.error "pilCmpE: both args should be KBounded kind"
 
-pilFAdd :: SVal -> SVal -> SVal
-pilFAdd a b = case (kindOf a, kindOf b) of
-  (KDouble, KDouble) -> unSBV $ SBV.fpAdd 
-                                SBV.sRoundNearestTiesToAway
-                                (toSFloat' a)
-                                (toSFloat' b)
-  _ -> P.error "pilFAdd: one or both arguments are not KDouble"
+-- pilSub :: SVal -> SVal -> SVal
+-- pilSub a b = a `svMinus` b'
+--   where
+--     b' = matchSign a (matchBoundedWidth a b)
 
-pilFDiv :: SVal -> SVal -> SVal
-pilFDiv a b = case (kindOf a, kindOf b) of
-  (KDouble, KDouble) -> unSBV $ SBV.fpDiv 
-                                SBV.sRoundNearestTiesToAway
-                                (toSFloat' a)
-                                (toSFloat' b)
-  _ -> P.error "pilFDiv: one or both arguments are not KDouble"
+-- pilCeil :: SVal -> SVal
+-- pilCeil x = case kindOf x of
+--   KDouble -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardPositive $ toSFloat' x
+--   _ -> P.error "pilCeil: x is not a KDouble"
 
-pilRol :: SVal -> SVal -> SVal
-pilRol a b = a `svRotateLeft` b
+-- pilFloor :: SVal -> SVal
+-- pilFloor x = case kindOf x of
+--   KDouble -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardNegative $ toSFloat' x
+--   _ -> P.error "pilFloor: x is not a KDouble"
+
+-- pilFAdd :: SVal -> SVal -> SVal
+-- pilFAdd a b = case (kindOf a, kindOf b) of
+--   (KDouble, KDouble) -> unSBV $ SBV.fpAdd 
+--                                 SBV.sRoundNearestTiesToAway
+--                                 (toSFloat' a)
+--                                 (toSFloat' b)
+--   _ -> P.error "pilFAdd: one or both arguments are not KDouble"
+
+-- pilFDiv :: SVal -> SVal -> SVal
+-- pilFDiv a b = case (kindOf a, kindOf b) of
+--   (KDouble, KDouble) -> unSBV $ SBV.fpDiv 
+--                                 SBV.sRoundNearestTiesToAway
+--                                 (toSFloat' a)
+--                                 (toSFloat' b)
+--   _ -> P.error "pilFDiv: one or both arguments are not KDouble"
+
+-- pilRol :: SVal -> SVal -> SVal
+-- pilRol a b = a `svRotateLeft` b
 
 isSigned :: SVal -> Bool
 isSigned x = case kindOf x of
   KBounded s _ -> s
   k            -> P.error $ "isSigned expected KBounded, got " <> show k
 
+-- this is pretty much just copied out of Data.SBV
 sSignedShiftArithRight :: SVal -> SVal -> SVal
 sSignedShiftArithRight x i
   | isSigned i = error "sSignedShiftArithRight: shift amount should be unsigned"
@@ -272,6 +285,7 @@ sSignedShiftArithRight x i
 
 -- TODO: convert SVals to unsigned.
 -- the svJoin gets messed up if these are signed
+-- TODO: has the above TODO been done? check to make sure
 updateBitVec :: BitOffset -> SVal -> SVal -> SVal
 updateBitVec boff src dest = case (kindOf dest, kindOf src) of
   (KBounded destSign wdest, KBounded _ wsrc)
@@ -303,9 +317,14 @@ highPart n src = case kindOf src of
 
 
 -- with carry works like regular rotate with carry appended to the end
-rotateWithCarry :: (SVal -> SVal -> SVal) -> SVal -> SVal -> SVal -> SVal
-rotateWithCarry f src rot c = case kindOf src of
-  KBounded _ w -> svExtract w 1 $ f (svJoin src c) rot
+rotateRightWithCarry :: SVal -> SVal -> SVal -> SVal
+rotateRightWithCarry src rot c = case kindOf src of
+  KBounded _ w -> svExtract w 1 $ svRotateRight (svJoin src c) rot
+  _ -> P.error "rotateWithCarry: src is not KBounded"
+
+rotateLeftWithCarry :: SVal -> SVal -> SVal -> SVal
+rotateLeftWithCarry src rot c = case kindOf src of
+  KBounded _ w -> svExtract w 0 $ svRotateLeft (svJoin c src) rot
   _ -> P.error "rotateWithCarry: src is not KBounded"
 
 toSFloat :: SVal -> Solver SBV.SDouble
@@ -488,9 +507,9 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
 
   -- TODO: do we need to do anything special for the DP versions?
   Pil.DIVS x -> integralBinOpFirstArgIsReturn x svDivide
-  Pil.DIVS_DP x -> integralBinOpDP x svDivide 
+  Pil.DIVS_DP x -> divOrModDP True x svDivide
   Pil.DIVU x -> integralBinOpFirstArgIsReturn x svDivide
-  Pil.DIVU_DP x -> integralBinOpDP x svDivide
+  Pil.DIVU_DP x -> divOrModDP False x svDivide
 
   Pil.FABS x -> floatUnOp x SBV.fpAbs
   Pil.FADD x -> floatBinOp x $ SBV.fpAdd SBV.sRoundNearestTiesToAway
@@ -585,17 +604,16 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
         mem %= HashMap.insert k freeVar
         return freeVar
 
---   -- should _x have any influence on the type of r?
   Pil.LOW_PART x -> integralUnOp x (lowPart sz)
   Pil.LSL x -> integralBinOpUnrelatedArgs x svShiftLeft
   Pil.LSR x -> integralBinOpUnrelatedArgs x svShiftRight
   Pil.MODS x -> integralBinOpFirstArgIsReturn x svRem
-  Pil.MODS_DP x -> integralBinOpDP x svRem
+  Pil.MODS_DP x -> divOrModDP True x svRem
   Pil.MODU x -> integralBinOpFirstArgIsReturn x svRem
-  Pil.MODU_DP x -> integralBinOpDP x svRem
+  Pil.MODU_DP x -> divOrModDP False x svRem
   Pil.MUL x -> integralBinOpFirstArgIsReturn x svTimes
-  Pil.MULS_DP x -> integralBinOpDP x svTimes
-  Pil.MULU_DP x -> integralBinOpDP x svTimes
+  Pil.MULS_DP x -> mulDP True x
+  Pil.MULU_DP x -> mulDP False x
   Pil.NEG x -> integralUnOp x svUNeg
 
   Pil.NOT x -> do
@@ -607,25 +625,22 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
       _ -> throwError . ErrorMessage $ "NOT expecting Bool or Integral, got " <> show k
 
   Pil.OR x -> integralBinOpFirstArgIsReturn x svOr
-  Pil.RLC x -> rotateBinOpWithCarry x $ rotateWithCarry svRotateLeft
+  Pil.RLC x -> rotateBinOpWithCarry x $ rotateLeftWithCarry
   Pil.ROL x -> integralBinOpUnrelatedArgs x svRotateLeft
   Pil.ROR x -> integralBinOpUnrelatedArgs x svRotateRight
 --   Pil.ROUND_TO_INT x -> floatToInt x
-  Pil.RRC x -> rotateBinOpWithCarry x $ rotateWithCarry svRotateRight
+  Pil.RRC x -> rotateBinOpWithCarry x $ rotateRightWithCarry
   Pil.SBB x -> integralBinOpWithCarry x $ \a b c -> (a `svMinus` b) `svMinus` c
 -- --   -- STORAGE _ -> unknown
 -- --   StrCmp _ -> intRet
 -- --   StrNCmp _ -> intRet
 -- --   MemCmp _ -> intRet
---   -- should this somehow be linked to the type of the stack var?
---   -- its type could change every Store.
 --   Pil.STACK_LOCAL_ADDR _ -> retPointer
 
-  Pil.SUB x -> integralBinOpFirstArgIsReturn x pilSub
+  Pil.SUB x -> integralBinOpFirstArgIsReturn x svMinus
 
   Pil.SX x -> bitVectorUnOp x (signExtend sz)
 
-  -- TODO: should this return Bool?
   Pil.TEST_BIT x -> bitVectorBinOp x $ \a b -> case kindOf a of
     KBounded _ w -> (a `svAnd` (svExp (constWord (Bits w') 2) b)) `svGreaterThan` constWord (Bits w') 0
       where
@@ -633,7 +648,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
     -- TODO: Throw error if not KBounded
     _ -> svFalse
 
-  Pil.UNIMPL _ -> return svTrue
+  Pil.UNIMPL _ -> throwError . ErrorMessage $ "UNIMPL"
 
   Pil.UPDATE_VAR x -> do
     dest <- lookupVarSym $ x ^. Pil.dest
@@ -641,6 +656,7 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
     guardIntegral dest
     guardIntegral src
     --TODO: convert dest and src to unsigned and convert them back if needed
+    --TODO: the above TODO might already happen in updateBitVec. find out.
     return $ updateBitVec (toBitOffset $ x ^. Pil.offset) src dest
     
   --   -- How should src and dest be related?
@@ -775,15 +791,39 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
       lx <- solveExpr (x ^. Pil.src)
       unSBV . f <$> toSFloat lx
 
+    -- | return is double width, so we double the args
+    mulDP :: ( Pil.HasLeft x DSTExpression
+             , Pil.HasRight x DSTExpression )
+          => Bool
+          -> x
+          -> Solver SVal
+    mulDP signedness x = do
+      lx<- solveExpr (x ^. Pil.left)
+      rx <- solveExpr (x ^. Pil.right)
+      let retKind = KBounded signedness $ fromIntegral sz
+      guardIntegralFirstWidthNotSmaller lx rx
+      guardIntegralFirstWidthNotSmaller retKind lx
+      let lx' = matchIntegral retKind lx
+          rx' = matchIntegral lx' rx
+      return $ svTimes lx' rx'
+
+
     -- | first arg is double width of second and return arg
     -- so we have to increase width of second, then shrink result by half
-    integralBinOpDP :: ( Pil.HasLeft x DSTExpression
-                       , Pil.HasRight x DSTExpression )
-                    => Maybe Bool
+    divOrModDP :: ( Pil.HasLeft x DSTExpression
+                  , Pil.HasRight x DSTExpression )
+                    => Bool
                     -> x
                     -> (SVal -> SVal -> SVal) -> Solver SVal
-    integralBinOpDP mSignedness x f = do
-      
+    divOrModDP signedness x f = do
+      lx <- solveExpr (x ^. Pil.left)
+      rx <- solveExpr (x ^. Pil.right)
+      let retKind = KBounded signedness $ fromIntegral sz
+      guardIntegralFirstWidthNotSmaller lx rx
+      let rx' = matchIntegral lx rx
+          result = f lx rx
+          result' = matchIntegral retKind result -- make result size of original rx
+      return result
 
     binOpSameType :: ( Pil.HasLeft x DSTExpression
                      , Pil.HasRight x DSTExpression )
@@ -807,10 +847,10 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
       return $ f lx rx
 
     integralBinOpWithCarry :: ( HasLeft x DSTExpression
-             , HasRight x DSTExpression
-             , HasCarry x DSTExpression)
-          => x
-          -> (SVal -> SVal -> SVal -> SVal) -> Solver SVal
+                              , HasRight x DSTExpression
+                              , HasCarry x DSTExpression)
+                           => x
+                           -> (SVal -> SVal -> SVal -> SVal) -> Solver SVal
     integralBinOpWithCarry x f = do
       a <- solveExpr (x ^. Pil.left)
       b <- solveExpr (x ^. Pil.right)
@@ -818,20 +858,26 @@ solveExpr (Ch.InfoExpression ((Ch.SymInfo sz xsym), mdst) op) = catchFallbackAnd
       guardIntegralFirstWidthNotSmaller a b
       cAsInt <- boolToInt (kindOf a) c
       
-      let b' = matchSign a (matchBoundedWidth a b)
+      let b' = matchIntegral a b
       return $ f a b' cAsInt
 
 
+
     rotateBinOpWithCarry :: ( HasLeft x DSTExpression
-             , HasRight x DSTExpression
-             , HasCarry x DSTExpression)
-          => x
-          -> (SVal -> SVal -> SVal -> SVal) -> Solver SVal
+                            , HasRight x DSTExpression
+                            , HasCarry x DSTExpression)
+                         => x
+                         -> (SVal -> SVal -> SVal -> SVal) -> Solver SVal
     rotateBinOpWithCarry x f = do
       a <- solveExpr (x ^. Pil.left)
       b <- solveExpr (x ^. Pil.right)
       c <- solveExpr (x ^. Pil.carry)
-      return $ f a b c
+      guardIntegral a
+      guardIntegral b
+      guardBool c
+      cAsInt <- boolToInt (KBounded False 1) c
+      return $ runAsUnsigned (\y -> f y a cAsInt) a
+
 
 solveTypedStmtsWith :: SMTConfig
                     -> HashMap PilVar DeepSymType
