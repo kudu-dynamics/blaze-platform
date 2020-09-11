@@ -16,13 +16,6 @@ import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
 
 
--- removeZeroFields :: DeepSymType -> DeepSymType
--- removeZeroFields (DSVar s) = DSVar s
--- removeZeroFields (DSRecursive s (TZeroFIeld dst)) = dst
--- removeZeroFields (DSRecursive s pt) = DSRecursive s $ removeZeroFields <$> pt
--- removeZeroFields (DSType (TZeroFIeld dst)) = dst
--- removeZeroFields (DSType pt) = DSType $ removeZeroFields <$> pt
-
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
 flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
   where
@@ -55,16 +48,6 @@ subSyms sSyms hm s = case HashSet.member s sSyms of
   False -> case HashMap.lookup s hm of
     Nothing -> HashSet.empty
     Just v -> HashSet.unions . map (subSyms (HashSet.insert s sSyms) hm) $ foldr (:) [] v
-    
--- flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
--- flatToDeepSyms m = fmap f m
---   where
---     f :: PilType Sym -> DeepSymType
---     f = DSType . fmap g
-
---     g :: Sym -> DeepSymType
---     g s = maybe (DSVar s) f $ HashMap.lookup s m
-
 
 unifyConstraints :: [Constraint] -> UnifyState
 unifyConstraints cxs = snd $ runUnify unify initialState
@@ -121,11 +104,6 @@ checkStmts = fmap toReport . stmtSolutions
                 )
              -> TypeReport
     toReport (stmts', s, unSt) = TypeReport
-      --TODO: make sure EVERY sym var in all of these is an ORIGIN sym var
-      -- todo: symTypeStmts, symStmts, errs
-      -- done: varSymTypeMap, varSymMap
-      -- NA: varEqMap (map of origins to equals); probably can remove
-      --     if everything else is an origin var.
       { _symTypeStmts = zip [0..] $ fmap (fmap fillTypesInStmt) stmts'
       , _symStmts = stmts'
       , _varSymMap = originsVarSymMap

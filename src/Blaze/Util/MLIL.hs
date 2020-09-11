@@ -10,7 +10,7 @@ import Binja.C.Enums (BNVariableSourceType(StackVariableSourceType))
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as Func
 import qualified Binja.Variable as Var
-import Binja.MLIL (Instruction, OperationSize)
+import Binja.MLIL (Instruction)
 import qualified Binja.MLIL as MLIL
 import qualified Data.Text as Text
 import Blaze.Pretty (showHex)
@@ -100,8 +100,8 @@ getInstructionsWithOpByName opName binPath = do
 --- queries
 
 matchInstructionByName :: Text -> MLIL.Operation (MLIL.Expression F) -> Bool
-matchInstructionByName opName op =
-  Text.takeWhile (/= ' ') (show op) == opName
+matchInstructionByName opName op' =
+  Text.takeWhile (/= ' ') (show op') == opName
 
 -- looks like ADDRESS_OF is always with a stack var
 matchNonStackAddressOf :: MLIL.Operation (MLIL.Expression F) -> Bool

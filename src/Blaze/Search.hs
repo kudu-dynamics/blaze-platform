@@ -15,7 +15,6 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Path (AbstractCallNode, Node, Path)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map as Map
-import Data.Map ((!))
 import qualified Data.Set as Set
 import qualified Prelude as P
 

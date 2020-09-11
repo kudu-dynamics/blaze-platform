@@ -12,8 +12,6 @@ import Blaze.Prelude
 import qualified Blaze.Types.Graph.Alga as Ag
 import qualified Blaze.Types.IndirectCallResolution as Ic
 import qualified Blaze.VTable as VTable
-import Blaze.Types.Pil (Stmt)
-import Blaze.Types.VTable (VTable)
 import Data.Tree
 
 getIndirectCallSites :: BNBinaryView -> IO [Ic.IndirectCall]
