@@ -21,10 +21,10 @@ data BNFunctionParameter
       { _name :: Text,
         _fpType :: Maybe BNType,
         _typeConfidence :: Confidence,
-        _defaultLocation :: Maybe Bool,
-        _sourceType :: Maybe BNVariableSourceType,
-        _index :: Maybe VariableIndex,
-        _storage :: Maybe VariableStorage
+        _defaultLocation :: Bool,
+        _sourceType :: BNVariableSourceType,
+        _index :: VariableIndex,
+        _storage :: VariableStorage
       }
   deriving (Eq, Ord, Show)
 

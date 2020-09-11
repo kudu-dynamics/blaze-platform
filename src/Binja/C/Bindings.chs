@@ -360,18 +360,21 @@ instance Storable BNReferenceSource where
 
 {#fun unsafe BNGetTypeLibraryNamedObjects as getTypeLibraryNamedObjects' {withPtr* `BNTypeLibrary', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
-{#fun unsafe BNFreeQualifiedNameAndType as freeQualifiedNameAndType {castPtr `List BNQualifiedNameAndType'} -> `()' #}
+{#fun unsafe BNFreeQualifiedNameAndType as freeQualifiedNameAndType {castPtr `Ptr BNQualifiedNameAndType'} -> `()' #}
 
 {#fun unsafe BNFreeQualifiedNameAndTypeArray as freeQualifiedNameAndTypeArray {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}
 
-{#fun unsafe BNGetPlatformFunctions as getPlatformFunctions' {withPtr* `BNPlatform', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
-{#fun unsafe BNGetPlatformTypes as getPlatformTypes' {withPtr* `BNPlatform', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
-{#fun unsafe BNGetPlatformVariables as getPlatformVariables' {withPtr* `BNPlatform', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
 {#fun unsafe BNGetTypeParameters as getTypeParameters' {withPtr* `BNType', alloca- `CSize' peekIntConv*} -> `List BNFunctionParameter' castPtr #}
 
 {#fun unsafe BNFreeTypeParameterList as freeTypeParameterList {castPtr `List BNFunctionParameter', `Word64'} -> `()' #}
 
+
+
+
+
 {#fun unsafe BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
+
+{#fun unsafe BNFreeTypeList as freeTypeList {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}

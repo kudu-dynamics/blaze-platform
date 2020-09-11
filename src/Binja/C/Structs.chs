@@ -130,11 +130,12 @@ instance Storable BNQualifiedNameAndType where
   sizeOf _ = {#sizeof BNQualifiedNameAndType#}
   alignment _ = {#alignof BNQualifiedNameAndType#}
   peek p = do
-    count <- fromIntegral <$> ({#get BNQualifiedName->nameCount #} p)
-    name <- ({#get BNQualifiedName->name #} p) >>= peekArray count >>= convertCStrings
-    join <- ({#get BNQualifiedName->join #} p) >>= (fmap T.pack . peekCString)
+    count <- fromIntegral <$> ({#get BNQualifiedNameAndType->name.nameCount #} p)
+    name <- ({#get BNQualifiedNameAndType->name.name #} p) >>= peekArray count >>= convertCStrings
+    join <- ({#get BNQualifiedNameAndType->name.join #} p) >>= (fmap T.pack . peekCString)
     t <- ({#get BNQualifiedNameAndType->type #} p >>= nilable . castPtr) 
     return $ BNQualifiedNameAndType name join (fromIntegral count) t
+    
       where
         convertCStrings :: [CString] -> IO [Text]
         convertCStrings cStrs = traverse (fmap T.pack . peekCString) cStrs
@@ -148,9 +149,9 @@ instance Storable BNFunctionParameter where
     fpType <- ({#get BNFunctionParameter->type #} p >>= nilable . castPtr)
     typeConfidence <- liftM fromIntegral ({#get BNFunctionParameter->typeConfidence #} p)
     -- defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
-    -- defaultLocation <- ((\ptr -> C2HSImp.toBool <$> (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)) p)
-    -- sourceType <- liftM (toEnum . fromIntegral) ({#get BNVariable->type #} p)
-    -- index <- liftM fromIntegral ({#get BNVariable->index #} p)
-    -- storage <- liftM fromIntegral ({#get BNVariable->storage #} p)
-    return $ BNFunctionParameter name fpType typeConfidence Nothing Nothing Nothing Nothing
+    defaultLocation <- ((\ptr -> C2HSImp.toBool <$> (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)) p)
+    sourceType <- liftM (toEnum . fromIntegral) ({#get BNFunctionParameter->location.type #} p)
+    index <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
+    storage <- liftM fromIntegral ({#get BNFunctionParameter->location.storage #} p)
+    return $ BNFunctionParameter name fpType typeConfidence defaultLocation sourceType index storage
   poke _ _ = P.error "BNFunctionParameter 'poke' not implemented"
