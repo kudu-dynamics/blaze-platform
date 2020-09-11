@@ -414,7 +414,7 @@ guardIntegralFirstWidthNotSmaller x y = case (kx, ky) of
 guardSameKind :: (HasKind a, HasKind b) => a -> b -> Solver ()
 guardSameKind x y = case kindOf x == kindOf y of
   True -> return ()
-  _ -> throwError . ErrorMessage $ "guardSameKind: Not same kind"
+  _ -> throwError $ GuardError "guardSameKind" [kindOf x, kindOf y] "not same kind"
 
 lookupVarSym :: PilVar -> Solver SVal
 lookupVarSym pv = do
@@ -430,8 +430,8 @@ bitsToOperationSize = Pil.OperationSize . (`div` 8) . fromIntegral
 dstToExpr :: DSTExpression -> Expression
 dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. Ch.size) $ dstToExpr <$> op
 
-catchAndWarn :: Solver () -> Solver ()
-catchAndWarn m = catchError m $ \e -> do  
+catchAndWarnStmt :: Solver () -> Solver ()
+catchAndWarnStmt m = catchError m $ \e -> do  
   si <- use currentStmtIndex
   warn $ StmtError si e
 
@@ -439,13 +439,14 @@ warn :: SolverError -> Solver ()
 warn e = errors %= (e :)
 
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)) -> Solver ()
-solveStmt = \case
+solveStmt stmt = catchAndWarnStmt $ case stmt of
   Pil.Def x -> do
     pv <- lookupVarSym $ x ^. Pil.var
     expr <- solveExpr $ x ^. Pil.value
-    catchAndWarn $ guardSameKind pv expr
+    guardSameKind pv expr
     constrain $ pv `svEqual` expr
-  Pil.Constraint x -> solveExpr (x ^. Pil.condition) >>= constrain
+  Pil.Constraint x ->
+    solveExpr (x ^. Pil.condition) >>= constrain
   Pil.Store x -> do
     let exprAddr = dstToExpr $ x ^. Pil.addr
     sValue <- solveExpr $ x ^. Pil.value
