@@ -165,7 +165,7 @@ searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
     lookupPair m k = case Map.lookup k m of
       Nothing -> P.error . cs . pshow
         $ ( fmap (fmap pretty) callPaths
-          , fmap (\(a, b) -> (pretty a, pretty b)) $ Set.toList allCallPairs
+          , fmap (bimap pretty pretty) $ Set.toList allCallPairs
           , k
           , length startPaths
           )

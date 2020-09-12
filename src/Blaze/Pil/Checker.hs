@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{- HLINT ignore "Use if" -}
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
@@ -15,7 +15,6 @@ import Blaze.Pil.Checker.Constraints ( createVarSymMap
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
 
-
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
 flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
   where
@@ -24,7 +23,7 @@ flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
       Nothing -> DSVar s
       Just v -> parseF hs s v
     substSymRecurse :: HashSet Sym -> Sym -> Sym -> DeepSymType
-    substSymRecurse hs og s = case (s == og) of
+    substSymRecurse hs og s = case s == og of
       True -> DSVar s
       False -> case HashMap.lookup s flatSymHm of
         Nothing -> DSVar s

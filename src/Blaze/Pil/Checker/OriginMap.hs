@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Pil.Checker.OriginMap where
 
 import Blaze.Prelude
@@ -39,7 +38,7 @@ addVarEq a b = do
           addConstraint_ retiredSym $ SType rt
           solutions %= HashMap.delete retiredSym
   originMap .= m'
-  return (v)
+  return v
 
 originMapToGroupMap :: HashMap Sym Sym -> HashMap Sym (HashSet Sym) 
 originMapToGroupMap = foldr f HashMap.empty . HashMap.toList

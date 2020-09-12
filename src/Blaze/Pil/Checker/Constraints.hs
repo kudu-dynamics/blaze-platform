@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Pil.Checker.Constraints where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
@@ -94,7 +93,7 @@ lookupSymExpr :: Sym -> ConstraintGen SymExpression
 lookupSymExpr sym' = do
   m <- use symMap
   case HashMap.lookup sym' m of
-    Nothing -> throwError $ CannotFindSymInSymMap
+    Nothing -> throwError CannotFindSymInSymMap
     Just x -> return x
 
 addSymExpression :: Sym -> SymExpression -> ConstraintGen ()
@@ -136,8 +135,8 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.BOOL_TO_INT x -> return
     [ (r, CSType $ TBitVector sz')
-    , (x ^. Pil.src . info . sym, CSType $ TBool)
-                          ]
+    , (x ^. Pil.src . info . sym, CSType TBool)
+    ]
 
   -- TODO get most general type for this and args:
   Pil.CALL x -> do
@@ -337,14 +336,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
     carryConstraint :: (Pil.HasCarry x SymExpression) => x -> ConstraintGen [(Sym, ConstraintSymType)]
     carryConstraint x =
-      return [ (x ^. Pil.carry . info . sym, CSType $ TBool) ]
-
-
-    -- bitVectorUnOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen [(Sym, ConstraintSymType)]
-    -- bitVectorUnOp x =
-    --   return [ (r, CSType $ TBitVector sz')
-    --          , (r, CSVar $ x ^. Pil.src . info . sym)
-    --          ]
+      return [ (x ^. Pil.carry . info . sym, CSType TBool) ]
 
     bitVectorBinOp :: ( Pil.HasLeft x SymExpression
                       , Pil.HasRight x SymExpression)

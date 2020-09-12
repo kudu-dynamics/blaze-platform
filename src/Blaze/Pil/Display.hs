@@ -163,7 +163,7 @@ instance Disp a => Disp (Pil.Statement a) where
         params :: Text
         params = show $ fmap disp $ c ^. Pil.params
 
-dispExprOp :: Disp a => (Pil.ExprOp a) -> Pil.OperationSize -> Text
+dispExprOp :: Disp a => Pil.ExprOp a -> Pil.OperationSize -> Text
 dispExprOp exprOp size = case exprOp of
   (Pil.ADC op) -> dispBinop "adc" op size
   (Pil.ADD op) -> dispBinop "add" op size

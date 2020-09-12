@@ -175,7 +175,7 @@ prettyField op = Text.pack $ printf "%s[%s]" src offset
     offset :: Text
     offset = show (op ^. Pil.offset)
 
-prettyExprOp :: Pretty a => (Pil.ExprOp a) -> Pil.OperationSize -> Text
+prettyExprOp :: Pretty a => Pil.ExprOp a -> Pil.OperationSize -> Text
 prettyExprOp exprOp _size = case exprOp of
   (Pil.ADC op) -> prettyBinop "adc" op
   (Pil.ADD op) -> prettyBinop "add" op
@@ -298,14 +298,14 @@ instance Pretty PI.Sym where
   pretty (PI.Sym n) = "s" <> show n
 
 instance Pretty (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
-  pretty (PI.InfoExpression ((PI.SymInfo bitwidth s), mstype) op) =
+  pretty (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
 --    "{" <> pretty s <> "}" <->
     prettyExprOp op (coerce $ bitwidth * 8) <->
     "::" <->
     paren (pretty s <-> "|" <-> maybe "Unknown" pretty mstype)
 
 instance Pretty (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) where
-  pretty (PI.InfoExpression ((PI.SymInfo bitwidth s), mstype) op) =
+  pretty (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
 --    "{" <> pretty s <> "}" <->
     prettyExprOp op (coerce $ bitwidth * 8) <->
     "::" <->
@@ -321,7 +321,7 @@ instance Pretty Pil.Expression where
 
 instance (Pretty a, Pretty b) => Pretty (HashMap a b) where
   pretty m = "HashMap:\n"
-    <> Text.intercalate "\n" (fmap f $ HashMap.toList m)
+    <> Text.intercalate "\n" (f <$> HashMap.toList m)
     where
       f (a, b) = "  " <> paren (pretty a <> "," <-> pretty b)
 
@@ -372,7 +372,7 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TBitVector bitWidth -> "BitVector" <-> pretty bitWidth
     PI.TPointer bitWidth pointeeType -> "Pointer" <-> pretty bitWidth
                                         <-> paren (pretty pointeeType)
-    PI.TRecord m -> "Record" <-> asList (fmap rfield $ HashMap.toList m)
+    PI.TRecord m -> "Record" <-> asList (rfield <$> HashMap.toList m)
       where
         rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
     PI.TBottom s -> paren $ "Bottom" <-> pretty s

@@ -44,7 +44,7 @@ class Graph e n g | g -> e n where
 
 
 findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
-findNonRepeatPaths' seen start' g = case ((start' :) <$> succsPaths) of
+findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of
   [] -> [[start']]
   xs -> xs
   where

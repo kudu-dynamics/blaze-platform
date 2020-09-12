@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Pil.Checker.Unification where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
@@ -56,7 +55,7 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
         Just t' -> do
           currentStmt .= i
           t'' <- catchError (unifyPilTypes t t') $ \err -> do
-            errors %= ((UnifyConstraintsError i a err):)
+            errors %= (UnifyConstraintsError i a err :)
             return (TBottom a)
           solutions %= HashMap.insert a t''
 

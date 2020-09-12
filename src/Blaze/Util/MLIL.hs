@@ -36,7 +36,7 @@ getOperations :: forall fun. Instruction fun -> [OpWithSize fun]
 getOperations x = rootOp : foldr f [] (x ^. MLIL.op)
   where
     rootOp = OpWithSize (x ^. MLIL.size) (x ^. MLIL.op)
-    f y ops = (OpWithSize (y ^. MLIL.size) (y ^. MLIL.op)) : foldr f ops (y ^. MLIL.op)
+    f y ops = OpWithSize (y ^. MLIL.size) (y ^. MLIL.op) : foldr f ops (y ^. MLIL.op)
 
 instructionContainsOp :: (OpWithSize fun -> Bool)
                       -> Instruction fun
@@ -79,7 +79,7 @@ getInstructionsWithOpAndSize g binPath = do
           )
 
 getInstructionsWithOp :: (MLIL.Operation (MLIL.Expression F) -> Bool) -> FilePath -> IO [(Text, Int)]
-getInstructionsWithOp f fp = getInstructionsWithOpAndSize (f . view op) fp
+getInstructionsWithOp f = getInstructionsWithOpAndSize $ f . view op
 
 -- convenience function, returns func name and statement index
 getInstructionsWithOpByName :: Text -> FilePath -> IO [(Text, Int)]
@@ -151,7 +151,7 @@ matchSetVarFieldWithNegativeOffset _ = False
 -- 16 in , of 3688 adds
 matchAddWhereArgSizesUnequal :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchAddWhereArgSizesUnequal (MLIL.ADD x) =
-  (x ^. MLIL.left . MLIL.size /= x ^. MLIL.right . MLIL.size)
+  x ^. MLIL.left . MLIL.size /= x ^. MLIL.right . MLIL.size
 matchAddWhereArgSizesUnequal _ = False
 
 -- the only time !(size ret == size arg1 == size arg2) is when an arg is ADDRESS_OF

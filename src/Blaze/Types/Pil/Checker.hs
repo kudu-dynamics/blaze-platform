@@ -17,8 +17,8 @@ type ByteWidth = Bytes
 charSize :: BitWidth
 charSize = 8
 
-data Sym = Sym Int
-         deriving (Eq, Ord, Read, Show, Generic)
+newtype Sym = Sym Int
+            deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Sym
 
@@ -62,7 +62,7 @@ data PilType t = TBool
                -- | TTagged (HashSet TypeTag) t
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
-data T = T (PilType T)
+newtype T = T (PilType T)
   deriving (Eq, Ord, Read, Show)
 
 unT :: T -> PilType T
@@ -129,7 +129,7 @@ type TypedExpression = InfoExpression (PilType T)
 
 data UnifyError t = UnifyError (PilType t) (PilType t) (UnifyError t)
                   | IncompatibleTypes (PilType t) (PilType t)
-                  | OverlappingRecordField { recordFields :: (HashMap BitWidth t)
+                  | OverlappingRecordField { recordFields :: HashMap BitWidth t
                                            , offendingOffset :: BitWidth
                                            }
                   deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
