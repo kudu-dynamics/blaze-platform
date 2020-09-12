@@ -338,7 +338,7 @@ data ExprOp expr
     | CALL (CallOp expr)
 
     | Extract (ExtractOp expr)
-    | StrCmp (StrCmpOp expr) 
+    | StrCmp (StrCmpOp expr)
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
