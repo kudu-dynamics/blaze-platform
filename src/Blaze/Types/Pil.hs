@@ -259,13 +259,13 @@ data Expression = Expression
 instance Hashable Expression
 
 data ExprOp expr
-    = ADC (AdcOp expr) --
+    = ADC (AdcOp expr)
     | ADD (AddOp expr)
-    | ADD_OVERFLOW (AddOverflowOp expr) --
+    | ADD_OVERFLOW (AddOverflowOp expr)
     | AND (AndOp expr)
-    | ASR (AsrOp expr) --
+    | ASR (AsrOp expr)
     | BOOL_TO_INT (BoolToIntOp expr)
-    | CEIL (CeilOp expr) -- 
+    | CEIL (CeilOp expr)
     | CMP_E (CmpEOp expr)
     | CMP_NE (CmpNeOp expr)
     | CMP_SGE (CmpSgeOp expr)
@@ -283,7 +283,7 @@ data ExprOp expr
     | DIVU (DivuOp expr)
     | DIVU_DP (DivuDpOp expr)
     | FABS (FabsOp expr)
-    | FADD (FaddOp expr) -- 
+    | FADD (FaddOp expr)
     | FCMP_E (FcmpEOp expr)
     | FCMP_GE (FcmpGeOp expr)
     | FCMP_GT (FcmpGtOp expr)
@@ -292,11 +292,11 @@ data ExprOp expr
     | FCMP_NE (FcmpNeOp expr)
     | FCMP_O (FcmpOOp expr)
     | FCMP_UO (FcmpUoOp expr)
-    | FDIV (FdivOp expr) -- 
+    | FDIV (FdivOp expr)
     | FLOAT_CONST (FloatConstOp expr)
     | FLOAT_CONV (FloatConvOp expr)
-    | FLOAT_TO_INT (FloatToIntOp expr) --
-    | FLOOR (FloorOp expr) -- 
+    | FLOAT_TO_INT (FloatToIntOp expr)
+    | FLOOR (FloorOp expr)
     | FMUL (FmulOp expr)
     | FNEG (FnegOp expr)
     | FSQRT (FsqrtOp expr)
@@ -305,7 +305,7 @@ data ExprOp expr
     | IMPORT (ImportOp expr)
     | INT_TO_FLOAT (IntToFloatOp expr)
     | LOAD (LoadOp expr)
-    | LOW_PART (LowPartOp expr) -- 
+    | LOW_PART (LowPartOp expr)
     | LSL (LslOp expr)
     | LSR (LsrOp expr)
     | MODS (ModsOp expr)
@@ -337,9 +337,9 @@ data ExprOp expr
 
     | CALL (CallOp expr)
 
-    | Extract (ExtractOp expr) -- 
+    | Extract (ExtractOp expr)
     | StrCmp (StrCmpOp expr) 
-    | StrNCmp (StrNCmpOp expr) -- 
+    | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
