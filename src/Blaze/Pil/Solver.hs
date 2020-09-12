@@ -2,7 +2,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 
--- should this be moved to Blaze.Pil.Solver?
 module Blaze.Pil.Solver
   ( module Blaze.Pil.Solver
   , module Blaze.Types.Pil.Solver
@@ -219,55 +218,6 @@ runAsUnsigned f x = case kindOf x of
   _ -> P.error "runAsSigned: expected KBounded"
 
 
-
--- pilAdd :: SVal -> SVal -> SVal
--- pilAdd a b = a `svPlus` b'
---   where
---     b' = matchSign a (matchBoundedWidth a b)
-
--- pilCmpE :: SVal -> SVal -> SVal
--- pilCmpE a b = case (kindOf a, kindOf b) of
---   (KBounded _ w0, KBounded _ _) -> svGreaterEq (constWord (Bits w0') 0) absDiff
---     where
---       w0' = fromIntegral w0
---       absDiff = svAbs diff'
---       diff' = (a `svMinus` b)
---   _ -> P.error "pilCmpE: both args should be KBounded kind"
-
--- pilSub :: SVal -> SVal -> SVal
--- pilSub a b = a `svMinus` b'
---   where
---     b' = matchSign a (matchBoundedWidth a b)
-
--- pilCeil :: SVal -> SVal
--- pilCeil x = case kindOf x of
---   KDouble -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardPositive $ toSFloat' x
---   _ -> P.error "pilCeil: x is not a KDouble"
-
--- pilFloor :: SVal -> SVal
--- pilFloor x = case kindOf x of
---   KDouble -> unSBV . SBV.fpRoundToIntegral SBV.sRoundTowardNegative $ toSFloat' x
---   _ -> P.error "pilFloor: x is not a KDouble"
-
--- pilFAdd :: SVal -> SVal -> SVal
--- pilFAdd a b = case (kindOf a, kindOf b) of
---   (KDouble, KDouble) -> unSBV $ SBV.fpAdd 
---                                 SBV.sRoundNearestTiesToAway
---                                 (toSFloat' a)
---                                 (toSFloat' b)
---   _ -> P.error "pilFAdd: one or both arguments are not KDouble"
-
--- pilFDiv :: SVal -> SVal -> SVal
--- pilFDiv a b = case (kindOf a, kindOf b) of
---   (KDouble, KDouble) -> unSBV $ SBV.fpDiv 
---                                 SBV.sRoundNearestTiesToAway
---                                 (toSFloat' a)
---                                 (toSFloat' b)
---   _ -> P.error "pilFDiv: one or both arguments are not KDouble"
-
--- pilRol :: SVal -> SVal -> SVal
--- pilRol a b = a `svRotateLeft` b
-
 isSigned :: SVal -> Bool
 isSigned x = case kindOf x of
   KBounded s _ -> s
@@ -354,23 +304,6 @@ constrain x = toSBool x >>= SBV.constrain
 
 newSymVar :: Text -> Kind -> Solver SVal
 newSymVar name' k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (Just $ cs name')
-
-test :: Solver ()
-test = do
-  a <- newSymVar "a" (KBounded False 32)
-  b <- newSymVar "b" (KBounded False 20)
-  c <- newSymVar "c" (KBounded False 32)
-  let r = constWord 32 88
-  constrain $ c `svEqual` r
-  let b' = zeroExtend 32 b
-  constrain $ a `svLessThan` b'
-  constrain $ svEqual c (a `svPlus` b')
-
-
-test2 :: SymbolicT (ExceptT () IO) ()
-test2 = do
-  SBV.constrain . toSBool' $ constInt 32 99 `svEqual` constInt 32 99
-  return ()
 
 -------------------------------
 
