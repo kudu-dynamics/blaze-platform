@@ -29,19 +29,6 @@ class Graph e n g | g -> e n where
   bfs :: [n] -> g -> [[n]]
   subgraph :: (n -> Bool) -> g -> g
 
--- findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
--- findNonRepeatPaths' seen start' g = fmap (start':) $ do
---   succ' <- Set.toList $ succs start' g `Set.difference` seen
---   if succ' == end'
---     then return [succ']
---     else findNonRepeatPaths' (Set.insert succ' seen) succ' end' g
-
--- findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
--- findNonRepeatPaths' seen start' g = fmap (start':) $ do
---   succ' <- Set.toList $ succs start' g `Set.difference` seen
---   P.error $ show . length $ findNonRepeatPaths' (Set.insert succ' seen) succ' g
---   return [succ']
-
 
 findNonRepeatPaths' :: (Graph e n g, Ord n) => Set n -> n -> g -> [[n]]
 findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of
