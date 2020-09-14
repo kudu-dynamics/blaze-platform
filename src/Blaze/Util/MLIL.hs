@@ -129,26 +129,26 @@ matchSetVarAliasedWithNonStackVar (MLIL.SET_VAR_ALIASED x) =
   /= StackVariableSourceType
 matchSetVarAliasedWithNonStackVar _ = False
 
--- found some in 
+-- found some in Bin0
 matchVarFieldWithNonZeroOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchVarFieldWithNonZeroOffset (MLIL.VAR_SSA_FIELD x) =
   x ^. MLIL.offset /= 0
 matchVarFieldWithNonZeroOffset _ = False
 
 
--- found 0 in , , ls, kill
+-- found 0 in bin0, bin1, ls, kill
 matchSetVarFieldWhereVarHasNoWidth :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchSetVarFieldWhereVarHasNoWidth (MLIL.SET_VAR_SSA_FIELD x) =
   isNothing $ x ^. MLIL.prev . MLIL.src . MLIL.var . Var.varType
 matchSetVarFieldWhereVarHasNoWidth _ = False
 
--- 0 in , , kill, ls
+-- 0 in bin0, bin1, kill, ls
 matchSetVarFieldWithNegativeOffset :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchSetVarFieldWithNegativeOffset (MLIL.SET_VAR_SSA_FIELD x) =
   (x ^. MLIL.offset) < 0
 matchSetVarFieldWithNegativeOffset _ = False
 
--- 16 in , of 3688 adds
+-- 16 in bin0, of 3688 adds
 matchAddWhereArgSizesUnequal :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchAddWhereArgSizesUnequal (MLIL.ADD x) =
   x ^. MLIL.left . MLIL.size /= x ^. MLIL.right . MLIL.size
@@ -162,14 +162,14 @@ matchAddReturnAndFirstArgSizeUnequal (OpWithSize sz (MLIL.ADD x)) =
   (x ^. MLIL.left . MLIL.size /= sz)
 matchAddReturnAndFirstArgSizeUnequal _ = False
 
--- 0 in , 0 in 
+-- 0 in bin0, 0 in bin1
 -- BUT! There are a bunch that ADD a negative const...
 matchLoadWithSub :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchLoadWithSub (MLIL.LOAD_SSA (MLIL.LoadSSAOp (MLIL.Expression _ _ _ (MLIL.SUB _)) _)) = True
 matchLoadWithSub _ = False
 
--- 226 in 
--- 44 in 
+-- 226 in bin1
+-- 44 in Bin0
 matchLoadWithAddNegativeConst :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchLoadWithAddNegativeConst (MLIL.LOAD_SSA
                        (MLIL.LoadSSAOp
@@ -186,8 +186,8 @@ matchLoadWithAddNegativeConst (MLIL.LOAD_SSA
 matchLoadWithAddNegativeConst _ = False
 
 
--- 419 in 
--- 818 in 
+-- 419 in bin1
+-- 818 in Bin0
 matchLoadWithAddConst :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchLoadWithAddConst (MLIL.LOAD_SSA
                        (MLIL.LoadSSAOp
@@ -229,14 +229,14 @@ matchSBB :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchSBB (MLIL.SBB _) = True
 matchSBB _ = False
 
--- found 10 ADC's in , 10 which had these attributes
+-- found 10 ADC's in bin0, 10 which had these attributes
 matchADC :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchADC (MLIL.ADC x) =
   ( x ^. MLIL.left . MLIL.size == x ^. MLIL.right . MLIL.size )
   && ( x ^. MLIL.carry . MLIL.size == 0 )
 matchADC _ = False
 
--- found 10 in  -- only ADCs
+-- found 10 in bin0 -- only ADCs
 matchOpWithCarry :: MLIL.Operation (MLIL.Expression F) -> Bool
 matchOpWithCarry (MLIL.ADC _) = True
 matchOpWithCarry (MLIL.SBB _) = True
