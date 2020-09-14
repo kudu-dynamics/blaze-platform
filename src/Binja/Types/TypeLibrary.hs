@@ -5,26 +5,29 @@ module Binja.Types.TypeLibrary where
 import Binja.C.Enums (BNVariableSourceType)
 import Binja.C.Pointers (BNType)
 import Binja.Prelude
-import Binja.Types.Variable (BNVariable, Confidence, VariableIndex, VariableStorage, VarType)
+import Binja.Types.Variable ( BNVariable
+                            , Confidence
+                            , VariableIndex
+                            , VariableStorage
+                            , VarType
+                            )
 
 data BNQualifiedNameAndType
   = BNQualifiedNameAndType
       { _name :: [Text],
         _join :: Text,
         _nameCount :: Word64,
-        _qnType :: Maybe BNType
+        _bnTypePtr :: Maybe BNType
       }
   deriving (Eq, Ord, Show)
 
 data BNFunctionParameter
   = BNFunctionParameter
       { _name :: Text,
-        _fpType :: Maybe BNType,
+        _bnTypePtr :: Maybe BNType,
         _typeConfidence :: Confidence,
         _defaultLocation :: Bool,
-        _sourceType :: BNVariableSourceType,
-        _index :: VariableIndex,
-        _storage :: VariableStorage
+        _variable :: BNVariable
       }
   deriving (Eq, Ord, Show)
 
@@ -36,6 +39,6 @@ data FunctionT
       }
   deriving (Eq, Ord, Show)
 
--- $(makeFieldsNoPrefix ''BNQualifiedNameAndType)
+$(makeFieldsNoPrefix ''BNQualifiedNameAndType)
 $(makeFieldsNoPrefix ''BNFunctionParameter)
 $(makeFieldsNoPrefix ''FunctionT)

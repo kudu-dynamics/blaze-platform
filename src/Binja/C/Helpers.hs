@@ -14,7 +14,8 @@ import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource)
 import Binja.Types.StringReference (BNStringReference)
-import Binja.Types.TypeLibrary (BNQualifiedNameAndType(BNQualifiedNameAndType), BNFunctionParameter(BNFunctionParameter), _qnType, _fpType)
+import qualified Binja.Types.TypeLibrary as TypeLib
+import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 import Binja.C.Structs ()
 import Foreign.Storable (peek)
 import Foreign.Marshal.Alloc (alloca)
@@ -47,35 +48,31 @@ getSectionsAt bv addr =
   >>= manifestArrayWithFreeSize (newSectionReference <=< noFinPtrConv) freeSectionList
 
 getBinaryViewTypeLibraries :: BNBinaryView -> IO [BNTypeLibrary]
-getBinaryViewTypeLibraries bv = getBinaryViewTypeLibraries' bv 
-                                  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
+getBinaryViewTypeLibraries bv = getBinaryViewTypeLibraries' bv
+  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
 
 getPlatformTypeLibraries :: BNPlatform -> IO [BNTypeLibrary]
 getPlatformTypeLibraries p = getPlatformTypeLibraries' p 
-                                  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
+  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
 
 loadTypeLibraryFromFile :: String -> IO BNTypeLibrary
 loadTypeLibraryFromFile p = loadTypeLibraryFromFile' p >>= newTypeLibraryReference
 
 getTypeLibraryNamedObjects :: BNTypeLibrary -> IO [BNQualifiedNameAndType]
-getTypeLibraryNamedObjects tl = getTypeLibraryNamedObjects' tl >>= manifestArrayWithFreeSize f freeQualifiedNameAndTypeArray
-  where
-    f :: BNQualifiedNameAndType -> IO BNQualifiedNameAndType
-    f r = case r of
-      BNQualifiedNameAndType _ _ _ (Just bnT) -> do
-        bnT' <- newTypeReference bnT
-        return $ r { _qnType = Just bnT' }
-      _ -> return r  
+getTypeLibraryNamedObjects tl = getTypeLibraryNamedObjects' tl
+  >>= manifestArrayWithFreeSize updateBnTypePtrReference freeQualifiedNameAndTypeArray
 
 getTypeParameters :: BNType -> IO [BNFunctionParameter]
-getTypeParameters t = getTypeParameters' t >>= manifestArrayWithFreeSize f freeTypeParameterList
-  where
-    f :: BNFunctionParameter -> IO BNFunctionParameter
-    f r = case r of
-      BNFunctionParameter _ (Just bnT) _ _ _ _ _ -> do
-        bnT' <- newTypeReference bnT
-        return $ r { _fpType = Just bnT' }
-      _ -> return r  
+getTypeParameters t = getTypeParameters' t
+  >>= manifestArrayWithFreeSize updateBnTypePtrReference freeTypeParameterList
+
+updateBnTypePtrReference :: TypeLib.HasBnTypePtr a (Maybe BNType) => a -> IO a
+updateBnTypePtrReference x = case x ^. TypeLib.bnTypePtr of
+  Nothing -> return x
+  (Just t) -> do
+    t' <- newTypeReference t
+    return $ x & TypeLib.bnTypePtr .~ Just t'
+
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =

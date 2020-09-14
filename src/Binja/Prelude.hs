@@ -8,53 +8,63 @@ module Binja.Prelude
   , liftMaybeTIO
   , pshow
   , pprint
-  ) where
+  )
+where
 
-import           Prelude                   as Exports        ( (!!)
-                                                             , String
-                                                             , head
-                                                             , id
-                                                             )
-
-import           Binja.Types.ClassyFields  as Exports        ()
-import           Control.Lens              as Exports        ( (%~)
-                                                             , (.~)
-                                                             , (?~)
-                                                             , (^.)
-                                                             , (^?)
-                                                             , Iso'
-                                                             , Lens'
-                                                             , iso
-                                                             , lens
-                                                             , makeClassy
-                                                             , makeClassyPrisms
-                                                             , makeFields
-                                                             , makeFieldsNoPrefix
-                                                             , makeLenses
-                                                             , makePrisms
-                                                             , use
-                                                             , view
-                                                             )
-import           Control.Monad.Trans.Maybe as Exports        ( MaybeT
-                                                             , runMaybeT
-                                                             )
-import           Data.BinaryAnalysis       as Exports        ( Address( Address )
-                                                             , AddressWidth( AddressWidth )
-                                                             , Bits( Bits )
-                                                             , Bytes( Bytes )
-                                                             , toBits
-                                                             , toBytes
-                                                             )
-import           Data.Data                 as Exports
-import           Data.Maybe                as Exports        ( fromJust )
-import qualified Data.Text.Lazy            as L              ( Text )
-import           Protolude                 as Exports hiding ( Fixity
-                                                             , Bits
-                                                             , Infix
-                                                             , Prefix
-                                                             , head
-                                                             )
-import           Text.Pretty.Simple        as PP
+import Binja.Types.ClassyFields as Exports ()
+import Control.Lens as Exports
+  ( Iso'
+  , Lens'
+  , iso
+  , lens
+  , makeClassy
+  , makeClassyPrisms
+  , makeFields
+  , makeFieldsNoPrefix
+  , makeLenses
+  , makePrisms
+  , use
+  , set
+  , over
+  , view
+  , _1
+  , _2
+  , _3
+  , (%~)
+  , (.~)
+  , (?~)
+  , (^.)
+  , (^?)
+  )
+import Control.Monad.Trans.Maybe as Exports
+  ( MaybeT
+  , runMaybeT
+  )
+import Data.BinaryAnalysis as Exports
+  ( Address (Address)
+  , AddressWidth (AddressWidth)
+  , Bits (Bits)
+  , Bytes (Bytes)
+  , toBits
+  , toBytes
+  )
+import Data.Data as Exports
+import Data.Maybe as Exports (fromJust)
+import qualified Data.Text.Lazy as L (Text)
+import Protolude as Exports hiding
+  ( Bits
+  , Fixity
+  , Infix
+  , Prefix
+  , head
+  )
+import Text.Pretty.Simple as PP
+import Prelude as Exports
+  ( String
+  , head
+  , id
+  , (!!)
+  )
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

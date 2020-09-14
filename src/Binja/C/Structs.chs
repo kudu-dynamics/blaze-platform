@@ -153,5 +153,6 @@ instance Storable BNFunctionParameter where
     sourceType <- liftM (toEnum . fromIntegral) ({#get BNFunctionParameter->location.type #} p)
     index <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
     storage <- liftM fromIntegral ({#get BNFunctionParameter->location.storage #} p)
-    return $ BNFunctionParameter name fpType typeConfidence defaultLocation sourceType index storage
+    let var' = BNVariable sourceType index storage
+    return $ BNFunctionParameter name fpType typeConfidence defaultLocation var'
   poke _ _ = P.error "BNFunctionParameter 'poke' not implemented"
