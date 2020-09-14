@@ -1,3 +1,5 @@
+{- HLINT ignore "Reduce duplication" -}
+
 module Blaze.Pil.Checker.Unification where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
