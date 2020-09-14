@@ -44,7 +44,6 @@ import Blaze.Types.Pil
     UnimplMemOp (UnimplMemOp),
   )
 import qualified Blaze.Types.Pil as Pil
-import Control.Lens ((^?!))
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
@@ -157,8 +156,11 @@ convertExpr expr = do
     (MLIL.MODU x) -> mkExpr . Pil.MODU <$> f x
     (MLIL.MODU_DP x) -> mkExpr . Pil.MODU_DP <$> f x
     (MLIL.MUL x) -> mkExpr . Pil.MUL <$> f x
-    (MLIL.MULS_DP x) -> mkExpr . Pil.MULS_DP <$> f x
-    (MLIL.MULU_DP x) -> mkExpr . Pil.MULU_DP <$> f x
+
+    -- NOTE: binja gets these return sizes wrong
+    (MLIL.MULS_DP x) -> Expression (2 * expr ^. Pil.size) . Pil.MULS_DP <$> f x
+    (MLIL.MULU_DP x) -> Expression (2 * expr ^. Pil.size) . Pil.MULU_DP <$> f x
+
     (MLIL.NEG x) -> mkExpr . Pil.NEG <$> f x
     (MLIL.NOT x) -> mkExpr . Pil.NOT <$> f x
     (MLIL.OR x) -> mkExpr . Pil.OR <$> f x
@@ -185,14 +187,17 @@ convertExpr expr = do
     (MLIL.VAR_SPLIT_SSA x) -> do
       highVar <- convertToPilVarAndLog $ x ^. MLIL.high
       lowVar <- convertToPilVarAndLog $ x ^. MLIL.low
-      return $ mkExpr . Pil.VAR_SPLIT $ Pil.VarSplitOp highVar lowVar
+      -- return $ mkExpr . Pil.VAR_SPLIT $ Pil.VarSplitOp highVar lowVar
+      -- NOTE: Binja gets the return size wrong. use above if they fix it
+      return $ Expression (2 * expr ^. Pil.size)
+        . Pil.VAR_SPLIT $ Pil.VarSplitOp highVar lowVar
     (MLIL.VAR_SSA x) -> do
       srcVar <- convertToPilVarAndLog $ x ^. MLIL.src
       return $ mkExpr . Pil.VAR $ Pil.VarOp srcVar
     (MLIL.VAR_SSA_FIELD x) -> do
       srcVar <- convertToPilVarAndLog $ x ^. MLIL.src
       return $ mkExpr . Pil.VAR_FIELD $
-        Pil.VarFieldOp srcVar (x ^. MLIL.offset)
+        Pil.VarFieldOp srcVar (ByteOffset $ x ^. MLIL.offset)
     (MLIL.XOR x) -> mkExpr . Pil.XOR <$> f x
     (MLIL.ZX x) -> mkExpr . Pil.ZX <$> f x
     x -> return $ mkExpr . Pil.UNIMPL $ Text.take 20 (show x) <> "..."

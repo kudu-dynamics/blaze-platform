@@ -2,6 +2,7 @@ module Blaze.Function
   ( module Exports
   , createCallSite
   , isDirectCall
+  , getCallsInFunction
   , getStmtsForFunction
   , getStmtsForAllFunctions
   , getIndirectCallsInFunction

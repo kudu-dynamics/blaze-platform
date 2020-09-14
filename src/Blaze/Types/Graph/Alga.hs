@@ -60,17 +60,6 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
         subgraphEdges :: Set (n, n)
         subgraphEdges = Set.fromList $ G.edgeList subgraphAdjMap
 
-demograph :: AlgaGraph () Char
-demograph = fromEdges . fmap ((),) $ [ ('z', 'a')
-                                     , ('a', 'b')
-                                     , ('a', 'c')
-                                     , ('d', 'c')
-                                     , ('b', 'g')
-                                     , ('b', 'f')
-                                     , ('c', 'e')
-                                     ]
-
-
 toDot :: Ord n => (n -> Text) -> AlgaGraph e n -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
 
@@ -79,3 +68,4 @@ isAcyclic = GA.isAcyclic . adjacencyMap
 
 reachable :: Ord n => n -> AlgaGraph e n -> [n]
 reachable x = GA.reachable x . adjacencyMap
+

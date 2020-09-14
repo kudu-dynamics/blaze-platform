@@ -6,7 +6,9 @@ import Blaze.Prelude
 import Blaze.Types.Cfg (CfEdge, CfNode, Cfg)
 
 newtype BackEdge = BackEdge {_edge :: CfEdge}
-  deriving (Eq, Show, Generic, Hashable)
+  deriving (Eq, Show, Generic)
+
+instance Hashable BackEdge
 
 $(makeFieldsNoPrefix ''BackEdge)
 

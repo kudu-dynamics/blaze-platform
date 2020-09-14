@@ -15,7 +15,6 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Path (AbstractCallNode, Node, Path)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map as Map
-import Data.Map ((!))
 import qualified Data.Set as Set
 import qualified Prelude as P
 
@@ -65,9 +64,10 @@ getAbstractCallNodesToFunction fn = mapMaybe f . Path.toList
     f _ = Nothing
 
 -- | Nothing if path doesn't contain instruction
-snipBeforeInstruction :: Path p => InstructionIndex F -> p -> Maybe p
+snipBeforeInstruction :: (Pretty p, Path p) => InstructionIndex F -> p -> Maybe p
 snipBeforeInstruction ix p = case dropWhile (not . nodeContainsInstruction ix) $ Path.toList p of
-  [] -> Nothing
+  [] -> P.error . cs $ pretty p
+    -- Nothing
   xs -> Just $ Path.fromList xs
 
 
@@ -139,8 +139,10 @@ cartesian xs ys = do
 -- -- | allCombos [[1 2 3] [4 5] [6]] = [[1 4 6] [1 5 6] [2 4 6] [2 5 6] [3..]]
 allCombos :: [[a]] -> [[a]]
 allCombos [] = []
-allCombos [x] = [x]
-allCombos [x, y] = cartesian x y
+allCombos [xs] = do
+  x <- xs
+  return [x]
+allCombos [xs, ys] = cartesian xs ys
 allCombos (xs:xss) = do
   x <- xs
   ys <- allCombos xss
@@ -148,7 +150,7 @@ allCombos (xs:xss) = do
 
 -- | this is using the inefficient method of searching though all the nodes
 -- of every path in each function along the call path.
-searchBetween_ :: forall p. (Path p, Ord p)
+searchBetween_ :: forall p. (Path p, Ord p, Pretty p)
                => HashMap Address CG.Function
                -> HashMap Address Function
                -> CallGraph
@@ -160,9 +162,18 @@ searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
   | fn1 == fn2 = endPaths
   | otherwise = results
   where
+    lookupPair m k = case Map.lookup k m of
+      Nothing -> P.error . cs . pshow
+        $ ( fmap (fmap pretty) callPaths
+          , fmap (bimap pretty pretty) $ Set.toList allCallPairs
+          , k
+          , length startPaths
+          )
+      Just x -> x
+
     results = do
       cp <- callPathsAsPairs
-      pwcCallPath <- allCombos $ (callPairCache !) <$> cp
+      pwcCallPath <- allCombos $ (callPairCache `lookupPair`) <$> cp
       case uncons pwcCallPath of
         Nothing -> []
         Just (x, xs) -> do
@@ -173,7 +184,11 @@ searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
           case cond of
             Nothing -> P.error "Tried to join PathWithCall that didn't have AbstractCallNode as last"
             Just (ip, lac) -> return $ Path.expandLast ip lac
+
+    -- TODO: shouldn't startPaths and endPaths remove duplicates,
+    -- which might occur after snip removed unique part?
     startPaths = maybe [] (mapMaybe $ snipBeforeInstruction ix1) . Map.lookup fn1 $ fpaths
+
     endPaths = maybe [] (mapMaybe $ snipAfterInstruction ix2) $
       if fn1 == fn2 then Just startPaths else Map.lookup fn2 fpaths
 

@@ -38,7 +38,6 @@ import Blaze.Types.Pil.Analysis
     symbolGenerator,
   )
 import qualified Blaze.Types.Pil.Analysis as A
-import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import Data.List (nub)
@@ -68,6 +67,7 @@ getVarsFromExpr_ e = case e ^. Pil.op of
   (Pil.VAR_FIELD x) -> [x ^. Pil.src]
   (Pil.VAR_PHI x) -> x ^. Pil.dest : x ^. Pil.src
   (Pil.VAR_SPLIT x) -> [x ^. Pil.high, x ^. Pil.low]
+  (Pil.UPDATE_VAR x) -> [x ^. Pil.dest]
   x -> concatMap getVarsFromExpr_ x
 
 getVarsFromExpr :: Expression -> HashSet PilVar
@@ -172,7 +172,7 @@ updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
 updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
   addToEqMap (v1, v2) m
 updateVarEqMap _ m = m
-
+ 
 -- | Each var equivalent to another var is resolved to the
 --   earliest defined var. E.g., a = 1, b = a, c = b will
 --   result in c mapping to a.
@@ -188,7 +188,7 @@ getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
           Nothing -> v
           (Just v') -> v'
 
-originsMap :: EqMap PilVar -> HashMap PilVar (HashSet PilVar)
+originsMap :: (Eq a, Hashable a) => EqMap a -> HashMap a (HashSet a)
 originsMap = foldr f HMap.empty . HMap.toList
   where
     f (v1, v2) = HMap.alter g v1

@@ -6,6 +6,8 @@ module Blaze.Prelude
   ( module Exports
   , Streaming
   , StreamingIO
+  , PPrint(PPrint)
+  , catchEither
   , liftListM
   , liftListIO
   , liftEitherIO
@@ -38,6 +40,7 @@ import Control.Lens as Exports
     Lens',
     (^.),
     (^?),
+    (^?!),
     iso,
     lens,
     makeClassy,
@@ -46,6 +49,7 @@ import Control.Lens as Exports
     makeFieldsNoPrefix,
     makeLenses,
     makePrisms,
+    over,
     use,
     view,
     _Just,
@@ -71,6 +75,7 @@ import Data.BinaryAnalysis as Exports
     toBitOffset,
     toByteOffset
   )
+import Data.Coerce as Exports (coerce)
 import Data.Data as Exports
 import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
@@ -97,6 +102,7 @@ import Prelude as Exports
     head,
     error,
   )
+import qualified GHC.Show
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 
@@ -122,6 +128,9 @@ liftEitherM = ExceptT
 liftEither :: (MonadError e m) => Either e a -> m a
 liftEither (Left e) = throwError e
 liftEither (Right x) = return x
+
+catchEither :: MonadError e m => m a -> m (Either e a)
+catchEither m = catchError (Right <$> m) $ return . Left
 
 liftEitherIO :: (MonadError e m, MonadIO m) => IO (Either e a) -> m a
 liftEitherIO m = liftIO m >>= liftEither
@@ -183,3 +192,10 @@ instance ArithOverflow (SInt 128) where
   bvMulOFast = l2 bvMulOFast
   bvDivO = l2 bvDivO
   bvNegO = bvNegO . unSBV
+
+
+newtype PPrint a = PPrint a
+  deriving (Eq, Ord, Generic)
+
+instance Show a => Show (PPrint a) where
+  show (PPrint x) = cs $ pshow x

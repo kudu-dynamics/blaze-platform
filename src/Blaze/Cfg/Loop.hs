@@ -32,7 +32,6 @@ import Blaze.Types.Cfg.Loop as Exports hiding
   )
 import qualified Blaze.Types.Cfg.Loop as T
 import qualified Blaze.Types.Graph as G
-import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 

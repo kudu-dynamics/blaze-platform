@@ -74,6 +74,9 @@ sub = binOp Pil.SUB Pil.SubOp
 cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
+cmpSgt :: Expression -> Expression -> OperationSize -> Expression
+cmpSgt = binOp Pil.CMP_SGT Pil.CmpSgtOp
+
 sx :: Expression -> OperationSize -> Expression
 sx = unOp Pil.SX Pil.SxOp
 
@@ -87,13 +90,17 @@ strcmp = binOp Pil.StrCmp Pil.StrCmpOp
 load :: Expression -> OperationSize -> Expression
 load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
 
-varField :: Pil.Symbol -> Int64 -> OperationSize -> Expression
+varField :: Pil.Symbol -> ByteOffset -> OperationSize -> Expression
 varField sym offset size =
   mkExpr size (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset)
 
-field :: Pil.Expression -> ByteOffset -> OperationSize -> Expression
-field base offset size = 
-  mkExpr size $ Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
+fieldAddr :: Pil.Expression -> ByteOffset -> OperationSize -> Expression
+fieldAddr base offset size = 
+  mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
+
+stackLocalAddr :: Expression -> ByteOffset -> OperationSize -> Expression
+stackLocalAddr base offset size = 
+  mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt

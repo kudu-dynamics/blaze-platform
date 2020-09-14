@@ -33,7 +33,6 @@ import Blaze.Types.Pil
     runConverter,
   )
 import qualified Blaze.Types.Pil as Pil
-import Data.Coerce (coerce)
 import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 

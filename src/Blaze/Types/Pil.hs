@@ -9,7 +9,7 @@ where
 import Binja.MLIL as Exports
   ( AdcOp (AdcOp),
     AddOp (AddOp),
-    AddOverflowOp,
+    AddOverflowOp (AddOverflowOp),
     AndOp (AndOp),
     AsrOp (AsrOp),
     BoolToIntOp (BoolToIntOp),
@@ -361,7 +361,7 @@ instance Hashable a => Hashable (VarOp a)
 
 data VarFieldOp expr = VarFieldOp
     { _varFieldOpSrc :: PilVar
-    , _varFieldOpOffset :: Int64
+    , _varFieldOpOffset :: ByteOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarFieldOp a)
@@ -443,7 +443,7 @@ instance Hashable a => Hashable (ConstStrOp a)
 
 {- HLINT ignore StackLocalAddrOp -}
 data StackLocalAddrOp expr = StackLocalAddrOp
-    { _src :: StackOffset
+    { _stackOffset :: StackOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (StackLocalAddrOp a)
 
@@ -467,25 +467,25 @@ instance Hashable a => Hashable (UpdateVarOp a)
 
 data TypedExpression = TypedExpression
   { _exprType :: Type
-  , _size :: OperationSize
+  , _size :: Bytes
   , _op :: ExprOp Expression
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable TypedExpression
 
 newtype BitVecType = BitVecType
-  { _width :: Int
+  { _width :: Bytes
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable BitVecType
 
 data IntType = IntType
-  { _width :: Int
+  { _width :: Bytes
   , _signed :: Bool
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable IntType
 
 {- HLINT ignore FloatType -}
 data FloatType = FloatType
-  { _width :: Int
+  { _width :: Bytes
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable FloatType
 
@@ -496,20 +496,20 @@ data ArrayType = ArrayType
 instance Hashable ArrayType
 
 data PtrType = PtrType
-  { _width :: Int
+  { _width :: Bytes
   , _pointeeType :: Type
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable PtrType
 
 data FieldType = FieldType
-  { _offset :: Int
+  { _offset :: Bytes
   , _fieldType :: Type
   } deriving (Eq, Ord, Show, Generic)
 
 instance Hashable FieldType
 
 data StructType = StructType
-  { _size :: Int
+  { _size :: Bytes
   , _fields :: [Type]
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable StructType
@@ -683,15 +683,15 @@ $(makePrisms ''Statement)
 ------------------------
 
 -- gets bit width of integral type, if available
-getTypeByteWidth :: Type -> Maybe Int
+getTypeByteWidth :: Type -> Maybe Bytes
 getTypeByteWidth (TBitVec x) = Just $ x ^. width
 getTypeByteWidth (TInt x) = Just $ x ^. width
 getTypeByteWidth (TPtr x) = Just $ x ^. width
 getTypeByteWidth (TFloat x) = Just $ x ^. width
 getTypeByteWidth _ = Nothing
 
-getTypeBitWidth :: Type -> Maybe Int
-getTypeBitWidth = fmap (*8) . getTypeByteWidth
+getTypeBitWidth :: Type -> Maybe Bits
+getTypeBitWidth = fmap toBits . getTypeByteWidth
 
 getSignedness :: Type -> Maybe Bool
 getSignedness (TBitVec _) = Just False

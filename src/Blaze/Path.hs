@@ -28,7 +28,9 @@ import qualified Binja.Function as HFunction
 import qualified Binja.MLIL as MLIL
 import Blaze.Function (createCallSite)
 import qualified Blaze.Function as Function
-import Blaze.Graph (constructBasicBlockGraphWithoutBackEdges)
+import Blaze.Graph ( constructBasicBlockGraphWithoutBackEdges
+                   , constructBasicBlockGraph
+                   )
 import Blaze.Prelude
 import Blaze.Types.Function
   ( CallInstruction,
@@ -198,6 +200,21 @@ getConditionNode edge = case edge ^. BB.branchType of
         MLIL.IF op -> Just . ConditionNode fn isTrueBranch (op ^. MLIL.condition) <$> randomIO
         _ -> return Nothing
 
+-- convenience function
+pathFromBasicBlockStarts :: Path p
+                         => BNBinaryView
+                         -> Function
+                         -> [InstructionIndex F]
+                         -> IO (Maybe p)
+pathFromBasicBlockStarts bv fn starts = do
+  mlilSSAFunc <- HFunction.convertFunction fn
+  g <- constructBasicBlockGraph mlilSSAFunc :: IO (AlgaGraph (BlockEdge F) (BasicBlock F))
+  mbbs <- sequence <$> traverse (BB.getBasicBlockForInstruction mlilSSAFunc) starts
+  case mbbs of
+    Nothing -> return Nothing
+    Just bbs -> Just <$> pathFromBasicBlockList bv g bbs
+
+
 pathFromBasicBlockList ::
   (Graph (BlockEdge F) (BasicBlock F) g, Path p) =>
   BNBinaryView ->
@@ -221,6 +238,12 @@ simplePathsFromNodeGraph ::
   [p]
 simplePathsFromNodeGraph = fmap fromList . G.findAllSimplePaths
 
+nonRepeatPathsFromNodeGraph ::
+  (Graph () Node g, Path p) =>
+  g ->
+  [p]
+nonRepeatPathsFromNodeGraph = fmap fromList . G.findAllNonRepeatPaths
+
 simplePathsFromBasicBlockGraph ::
   (Graph (BlockEdge F) (BasicBlock F) g, Path p) =>
   BNBinaryView ->
@@ -234,6 +257,14 @@ allSimpleFunctionPaths bv fn = do
   mlilFn <- HFunction.getMLILSSAFunction fn
   ng <- constructNodeGraph bv mlilFn :: IO (AlgaGraph () Node)
   return $ simplePathsFromNodeGraph ng
+
+allNonRepeatFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
+allNonRepeatFunctionPaths bv fn = do
+  mlilFn <- HFunction.getMLILSSAFunction fn
+  ng <- constructNodeGraph bv mlilFn :: IO (AlgaGraph () Node)
+  return $ nonRepeatPathsFromNodeGraph ng
+
+
 
 -- allSimpleFunctionPaths :: Path p => BNBinaryView -> Function -> IO [p]
 -- allSimpleFunctionPaths bv fn = do
@@ -265,6 +296,15 @@ pathsForAllFunctions bv = do
   where
     g :: Function -> IO (Function, [p])
     g fn = (fn,) <$> allSimpleFunctionPaths bv fn
+
+nonRepeatPathsForAllFunctions :: forall p. Path p => BNBinaryView -> IO (Map Function [p])
+nonRepeatPathsForAllFunctions bv = do
+  fns <- HFunction.getFunctions bv
+  Map.fromList <$> traverse g fns
+  where
+    g :: Function -> IO (Function, [p])
+    g fn = (fn,) <$> allNonRepeatFunctionPaths bv fn
+
 
 -- |Find all abstract call nodes corresponding to call sites in 'caller' to the 'callee'.
 findAbstractCallNodes :: Path p => Function -> Function -> p -> [AbstractCallNode]
