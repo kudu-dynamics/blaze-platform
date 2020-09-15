@@ -184,6 +184,7 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.ASR op) -> prettyBinop "asr" op
   (Pil.BOOL_TO_INT op) -> prettyUnop "boolToInt" op
   (Pil.CEIL op) -> prettyUnop "ceil" op
+  (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. Pil.constant)
   (Pil.CMP_E op) -> prettyBinop "cmpE" op
   (Pil.CMP_NE op) -> prettyBinop "cmpNE" op
   (Pil.CMP_SGE op) -> prettyBinop "cmpSGE" op

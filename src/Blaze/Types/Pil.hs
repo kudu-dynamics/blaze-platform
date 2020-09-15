@@ -345,6 +345,7 @@ data ExprOp expr
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
     | FIELD_ADDR (FieldAddrOp expr)
     | UPDATE_VAR (UpdateVarOp expr)
+    | CONST_BOOL (ConstBoolOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ExprOp a)
@@ -461,6 +462,12 @@ data UpdateVarOp expr = UpdateVarOp
     , _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (UpdateVarOp a)
+
+{- HLINT ignore ConstBoolOp -}
+data ConstBoolOp expr = ConstBoolOp
+    { _constant :: Bool
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (ConstBoolOp a)
 
 -----------------------
 --- types
@@ -646,6 +653,7 @@ $(makeFields ''VarSplitOp)
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)
 $(makeFieldsNoPrefix ''UpdateVarOp)
+$(makeFieldsNoPrefix ''ConstBoolOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)

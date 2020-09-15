@@ -273,7 +273,7 @@ rotateRightWithCarry src rot c = case kindOf src of
 
 rotateLeftWithCarry :: SVal -> SVal -> SVal -> SVal
 rotateLeftWithCarry src rot c = case kindOf src of
-  KBounded _ w -> svExtract w 0 $ svRotateLeft (svJoin c src) rot
+  KBounded _ w -> svExtract (w - 1) 0 $ svRotateLeft (svJoin c src) rot
   _ -> P.error "rotateWithCarry: src is not KBounded"
 
 toSFloat :: SVal -> Solver SBV.SDouble
@@ -432,6 +432,7 @@ solveExpr (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catchFallbackAndWa
     k <- getRetKind
     guardIntegral k
     return . svInteger k . fromIntegral $ x ^. Pil.constant
+  Pil.CONST_BOOL x -> return . svBool $ x ^. Pil.constant
   Pil.CONST_PTR x ->
     return . svInteger (KBounded False $ fromIntegral sz)
     . fromIntegral $ x ^. Pil.constant

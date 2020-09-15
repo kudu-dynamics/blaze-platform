@@ -161,6 +161,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.CMP_ULT x -> signedBinOpReturnsBool False x
   Pil.CONST _ -> return [(r, CSType $ TBitVector sz')]
   Pil.CONST_PTR _ -> retPointer
+  Pil.CONST_BOOL _ -> retBool
   Pil.ConstStr x -> return [(r, CSType $ TArray
                                 ( CSType . TVLength . fromIntegral . Text.length
                                   $ x ^. Pil.value )
