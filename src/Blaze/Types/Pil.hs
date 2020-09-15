@@ -410,7 +410,6 @@ data ExtractOp expr = ExtractOp
 
 instance Hashable a => Hashable (ExtractOp a)
 
-
 data StrCmpOp expr = StrCmpOp
     { _left :: expr
     , _right :: expr

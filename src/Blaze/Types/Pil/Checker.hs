@@ -85,7 +85,7 @@ data DeepSymType = DSVar Sym
 
 data Constraint = Constraint
   { _stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
-  , _sym ::Sym
+  , _sym :: Sym
   , _symType :: SymType
   } deriving (Eq, Ord, Show, Generic)
 
