@@ -172,6 +172,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.ASR op) -> dispBinop "asr" op size
   (Pil.BOOL_TO_INT op) -> dispUnop "boolToInt" op size
   (Pil.CEIL op) -> dispUnop "ceil" op size
+  (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. Pil.constant) <-> disp size
   (Pil.CMP_E op) -> dispBinop "cmpE" op size
   (Pil.CMP_NE op) -> dispBinop "cmpNE" op size
   (Pil.CMP_SGE op) -> dispBinop "cmpSGE" op size
