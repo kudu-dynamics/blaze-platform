@@ -264,17 +264,17 @@ highPart n src = case kindOf src of
   KBounded _ w -> svExtract (w - 1) (w - fromIntegral n) src
   _ -> P.error "lowPart: src must be KBounded"
 
+rotateWithCarry :: (SVal -> SVal -> SVal) -> SVal -> SVal -> SVal -> SVal
+rotateWithCarry rotFunc src rot c = case kindOf src of
+  KBounded _ w -> svExtract w 1 $ rotFunc (svJoin src c) rot
+  _ -> P.error "rotateWithCarry: src is not KBounded"
 
 -- with carry works like regular rotate with carry appended to the end
 rotateRightWithCarry :: SVal -> SVal -> SVal -> SVal
-rotateRightWithCarry src rot c = case kindOf src of
-  KBounded _ w -> svExtract w 1 $ svRotateRight (svJoin src c) rot
-  _ -> P.error "rotateWithCarry: src is not KBounded"
+rotateRightWithCarry = rotateWithCarry svRotateRight
 
 rotateLeftWithCarry :: SVal -> SVal -> SVal -> SVal
-rotateLeftWithCarry src rot c = case kindOf src of
-  KBounded _ w -> svExtract (w - 1) 0 $ svRotateLeft (svJoin c src) rot
-  _ -> P.error "rotateWithCarry: src is not KBounded"
+rotateLeftWithCarry = rotateWithCarry svRotateLeft
 
 toSFloat :: SVal -> Solver SBV.SDouble
 toSFloat x = guardFloat x >> return (SBV x)
@@ -291,6 +291,11 @@ toSBool' x = case kindOf x of
 
 toSBool :: SVal -> Solver SBool
 toSBool x = guardBool x >> return (SBV x)
+
+boolToInt' :: SVal -> SVal
+boolToInt' b = svIte b (svInteger k 1) (svInteger k 0)
+  where
+    k = KBounded False 1
 
 -- converts bool to 0 or 1 integral of Kind k
 boolToInt :: Kind -> SVal -> Solver SVal
@@ -780,7 +785,7 @@ solveExpr (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catchFallbackAndWa
       guardIntegral b
       guardBool c
       cAsInt <- boolToInt (KBounded False 1) c
-      return $ runAsUnsigned (\y -> f y a cAsInt) a
+      return $ runAsUnsigned (\y -> f y b cAsInt) a
 
 
 solveTypedStmtsWith :: SMTConfig
