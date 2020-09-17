@@ -1,6 +1,6 @@
 module Blaze.Pil where
 
-import Binja.Function (Function)
+import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
@@ -48,7 +48,6 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
-import Binja.Function (MLILSSAFunction)
 
 type F = MLILSSAFunction
 
