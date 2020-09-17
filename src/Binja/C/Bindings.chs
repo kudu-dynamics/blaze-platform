@@ -342,21 +342,11 @@ instance Storable BNReferenceSource where
 
 ---- Type Libraries
 
-{#fun unsafe BNGetBinaryViewTypeLibraries as getBinaryViewTypeLibraries' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNTypeLibrary)' ptrListOut #}
-
-{#fun unsafe BNFreeTypeLibraryList as freeTypeLibraryList {ptrListIn `List (Ptr BNTypeLibrary)', `Word64'} -> `()' #}
-
 {#fun unsafe BNFreeTypeLibrary as freeTypeLibrary {withPtr* `BNTypeLibrary'} -> `()' #}
-
-{#fun unsafe BNGetTypeLibraryName as getTypeLibraryName {withPtr* `BNTypeLibrary'} -> `String' #}
 
 {#fun unsafe BNNewTypeLibraryReference as newTypeLibraryReference {withPtr* `BNTypeLibrary'} -> `BNTypeLibrary' safePtr* #}
 
-{#fun unsafe BNGetPlatformTypeLibraries as getPlatformTypeLibraries' {withPtr* `BNPlatform', alloca- `CSize' peekIntConv*} -> `List (Ptr BNTypeLibrary)' ptrListOut #}
-
 {#fun unsafe BNLoadTypeLibraryFromFile as loadTypeLibraryFromFile' {`String'} -> `BNTypeLibrary' safePtr* #}
-
-{#fun unsafe BNGetTypeLibraryNamedTypes as getTypeLibraryNamedTypes' {withPtr* `BNTypeLibrary', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
 {#fun unsafe BNGetTypeLibraryNamedObjects as getTypeLibraryNamedObjects' {withPtr* `BNTypeLibrary', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
@@ -364,17 +354,9 @@ instance Storable BNReferenceSource where
 
 {#fun unsafe BNFreeQualifiedNameAndTypeArray as freeQualifiedNameAndTypeArray {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}
 
-
-
-
 {#fun unsafe BNGetTypeParameters as getTypeParameters' {withPtr* `BNType', alloca- `CSize' peekIntConv*} -> `List BNFunctionParameter' castPtr #}
 
 {#fun unsafe BNFreeTypeParameterList as freeTypeParameterList {castPtr `List BNFunctionParameter', `Word64'} -> `()' #}
 
-
-
-
-
 {#fun unsafe BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
 
-{#fun unsafe BNFreeTypeList as freeTypeList {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}

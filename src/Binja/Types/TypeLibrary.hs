@@ -5,7 +5,7 @@ module Binja.Types.TypeLibrary where
 import Binja.C.Enums (BNVariableSourceType)
 import Binja.C.Pointers (BNType)
 import Binja.Prelude
-import Binja.Types.Variable (BNVariable, Confidence, VariableIndex, VariableStorage, VarType)
+import Binja.Types.Variable (Confidence, VariableIndex, VariableStorage, VarType)
 
 data BNQualifiedNameAndType
   = BNQualifiedNameAndType

@@ -151,7 +151,7 @@ instance Storable BNFunctionParameter where
     -- defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
     defaultLocation <- ((\ptr -> C2HSImp.toBool <$> (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)) p)
     sourceType <- liftM (toEnum . fromIntegral) ({#get BNFunctionParameter->location.type #} p)
-    index <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
+    idx <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
     storage <- liftM fromIntegral ({#get BNFunctionParameter->location.storage #} p)
-    return $ BNFunctionParameter name fpType typeConfidence defaultLocation sourceType index storage
+    return $ BNFunctionParameter name fpType typeConfidence defaultLocation sourceType idx storage
   poke _ _ = P.error "BNFunctionParameter 'poke' not implemented"
