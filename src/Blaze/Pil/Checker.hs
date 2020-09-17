@@ -2,6 +2,7 @@
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
+import Binja.Function (Function)
 import Blaze.Types.Pil ( Expression
                        , Statement
                        , PilVar
@@ -14,6 +15,8 @@ import Blaze.Pil.Checker.Constraints ( createVarSymMap
                                      )
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
+import qualified Blaze.Pil as Pil
+import qualified Blaze.Pil.Analysis as Analysis
 
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
 flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
@@ -71,21 +74,22 @@ stmtsConstraints stmts' = case er of
       mapM addStmtTypeConstraints stmts'
 
 
-stmtSolutions :: [Statement Expression]
+stmtSolutions :: [(Int, Statement Expression)]
               -> Either ConstraintGenError ( [Statement SymExpression]
                                            , ConstraintGenState
                                            , UnifyState
                                            )
-stmtSolutions stmts' = case er of
+stmtSolutions indexedStmts = case er of
   Left err -> Left err
   Right symStmts' -> Right ( fmap (varSubst $ ust ^. originMap) symStmts'
                            , gst
                            , ust)
   where
-    indexedStmts = zip [0..] stmts'
+    stmts' = fmap snd indexedStmts
     ust = unifyConstraints (reverse cxs)
     cxs = gst ^. constraints
     (er, gst) = runConstraintGen_ $ do
+      -- TODO: does this need to be a separate step? It should happen as new vars are found.
       createVarSymMap stmts'
       mapM (\(i, s) -> do
                currentStmt .= i
@@ -94,8 +98,8 @@ stmtSolutions stmts' = case er of
 
 -- | main function to type check / infer statements
 --   currently only returning types of pilvars in stmts for testing.
-checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
-checkStmts = fmap toReport . stmtSolutions
+checkStmts' :: [(Int, Statement Expression)] -> Either ConstraintGenError TypeReport
+checkStmts' indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
   where
     toReport :: ( [Statement SymExpression]
                 , ConstraintGenState
@@ -103,7 +107,7 @@ checkStmts = fmap toReport . stmtSolutions
                 )
              -> TypeReport
     toReport (stmts', s, unSt) = TypeReport
-      { _symTypeStmts = zip [0..] $ fmap (fmap fillTypesInStmt) stmts'
+      { _symTypeStmts = zip (fmap fst indexedStmts) $ fmap (fmap fillTypesInStmt) stmts'
       , _symStmts = stmts'
       , _varSymMap = originsVarSymMap
       , _varSymTypeMap = pilVarMap
@@ -137,4 +141,12 @@ checkStmts = fmap toReport . stmtSolutions
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols
 
+checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
+checkStmts = checkStmts' . zip [0..]
 
+
+checkFunction :: Function -> IO (Either ConstraintGenError TypeReport)
+checkFunction func = do
+  indexedStmts <- Pil.fromFunction func
+  let indexedStmts' = fmap (over _2 Analysis.substFieldAddr) indexedStmts
+  return $ checkStmts' indexedStmts'

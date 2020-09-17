@@ -6,6 +6,7 @@ import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
 import Blaze.Pil.Analysis (getAllSyms)
+import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 import Blaze.Types.Pil.Analysis (symbolGenerator)
 import Blaze.Prelude hiding
   ( Symbol,
@@ -47,6 +48,9 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
+import Binja.Function (MLILSSAFunction)
+
+type F = MLILSSAFunction
 
 --binja's default size is 0
 --but that seems like it would mess up arithmetic
@@ -334,12 +338,38 @@ convertInstrOp op' = do
     MLIL.UNDEF -> return [Undef]
     MLIL.NOP -> return [Nop]
     _ -> return []
+
+-- | intercepts VAR_PHI and splits out into separate defs
+-- i.e. if x = {a, b, c} then x = a, x = b, x = c
+-- used for type checking whole function
+convertInstrOpSplitPhi :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
+convertInstrOpSplitPhi = \case
+  (MLIL.VAR_PHI x) -> do
+    vdest <- convertToPilVarAndLog $ x ^. MLIL.dest
+    mapM (f vdest) $ x ^. MLIL.src
+      where
+        f vdest v = do
+          pv <- convertToPilVarAndLog v
+          -- doesn't seem safe
+          let vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
+          return . Def . DefOp vdest $
+            Expression (typeWidthToOperationSize $ vt ^. BNVar.width)
+                       (Pil.VAR $ Pil.VarOp pv)
+  x -> convertInstrOp x
     
 convertInstr :: MLIL.Instruction t -> Pil.Converter [Stmt]
 convertInstr = convertInstrOp . view MLIL.op
 
+convertInstrSplitPhi :: MLIL.Instruction F -> Pil.Converter [Stmt]
+convertInstrSplitPhi instr = case Func.toCallInstruction instr of
+  Nothing -> convertInstrOpSplitPhi . view MLIL.op $ instr
+  Just x -> convertCallInstruction x
+
 convertInstrs :: [MLIL.Instruction t] -> Pil.Converter [Stmt]
 convertInstrs = concatMapM convertInstr
+
+convertInstrsSplitPhi :: [MLIL.Instruction F] -> Pil.Converter [Stmt]
+convertInstrsSplitPhi = concatMapM convertInstrSplitPhi
 
 getCallDestFunctionName :: Function -> CallDest expr -> IO (Maybe Text)
 getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
@@ -377,8 +407,9 @@ genCallOutputStores paramInfos params =
     exprVars = (\x -> PilVar x Nothing HSet.empty) <$> symbolGenerator (getAllSyms [])
 
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
-convertCallInstruction :: Ctx -> CallInstruction -> Pil.Converter [Stmt]
-convertCallInstruction ctx c = do
+convertCallInstruction :: CallInstruction -> Pil.Converter [Stmt]
+convertCallInstruction c = do
+  ctx <- use Pil.ctx
   -- TODO: Better handling of possible Nothing value
   target <- Pil.getCallDest <$> convertExpr (fromJust (c ^. Func.dest))
   params <- sequence [convertExpr p | p <- c ^. Func.params]
@@ -407,6 +438,30 @@ convertCallInstruction ctx c = do
         (Just funcInfo) ->
           genCallOutputStores (funcInfo ^. Func.params) args
 
+-- | Gets all PIL statements contained in a function.
+-- the "Int" is the original MLIL_SSA InstructionIndex
+fromFunction' :: Function -> Pil.Converter [(Int, Stmt)]
+fromFunction' func = do
+  mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction func
+  mlilInstrs <- liftIO $ MLIL.fromFunction mlilFunc
+  concatMapM f $ zip [0..] mlilInstrs
+  where
+    f (mlilIndex, mlilInstr) =
+      fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
+  
+fromFunction :: Function -> IO [(Int, Stmt)]
+fromFunction func = fmap fst . flip Pil.runConverter st . fromFunction' $ func
+  where
+    ctx' = Pil.Ctx func 0
+    st = Pil.ConverterState
+      { _path = AlgaPath.empty
+      , _ctxMaxIdx = 0
+      , _ctxStack = ctx' :| []
+      , _ctx = ctx'
+      , _definedVars = []
+      , _usedVars = HSet.empty
+      , _knownFuncs = knownFuncDefs
+      }
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. Pil.dest of
