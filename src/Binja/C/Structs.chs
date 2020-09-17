@@ -133,7 +133,7 @@ instance Storable BNQualifiedNameAndType where
     count <- fromIntegral <$> ({#get BNQualifiedNameAndType->name.nameCount #} p)
     name <- ({#get BNQualifiedNameAndType->name.name #} p) >>= peekArray count >>= convertCStrings
     join <- ({#get BNQualifiedNameAndType->name.join #} p) >>= (fmap T.pack . peekCString)
-    t <- ({#get BNQualifiedNameAndType->type #} p >>= nilable . castPtr) 
+    t <- ({#get BNQualifiedNameAndType->type #} p >>= nilable_ . castPtr) 
     return $ BNQualifiedNameAndType name join (fromIntegral count) t
     
       where
@@ -146,13 +146,13 @@ instance Storable BNFunctionParameter where
   alignment _ = {#alignof BNFunctionParameter#}
   peek p = do
     name <- ({#get BNFunctionParameter->name #} p) >>= (fmap T.pack . peekCString)
-    fpType <- ({#get BNFunctionParameter->type #} p >>= nilable . castPtr)
+    fpType <- ({#get BNFunctionParameter->type #} p >>= nilable_ . castPtr)
     typeConfidence <- liftM fromIntegral ({#get BNFunctionParameter->typeConfidence #} p)
     -- defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
     defaultLocation <- ((\ptr -> C2HSImp.toBool <$> (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)) p)
     sourceType <- liftM (toEnum . fromIntegral) ({#get BNFunctionParameter->location.type #} p)
-    index <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
+    idx <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
     storage <- liftM fromIntegral ({#get BNFunctionParameter->location.storage #} p)
-    let var' = BNVariable sourceType index storage
+    let var' = BNVariable sourceType idx storage
     return $ BNFunctionParameter name fpType typeConfidence defaultLocation var'
   poke _ _ = P.error "BNFunctionParameter 'poke' not implemented"

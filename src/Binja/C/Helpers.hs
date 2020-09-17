@@ -47,14 +47,6 @@ getSectionsAt bv addr =
   getSectionsAt' bv addr
   >>= manifestArrayWithFreeSize (newSectionReference <=< noFinPtrConv) freeSectionList
 
-getBinaryViewTypeLibraries :: BNBinaryView -> IO [BNTypeLibrary]
-getBinaryViewTypeLibraries bv = getBinaryViewTypeLibraries' bv
-  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
-
-getPlatformTypeLibraries :: BNPlatform -> IO [BNTypeLibrary]
-getPlatformTypeLibraries p = getPlatformTypeLibraries' p 
-  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
-
 loadTypeLibraryFromFile :: String -> IO BNTypeLibrary
 loadTypeLibraryFromFile p = loadTypeLibraryFromFile' p >>= newTypeLibraryReference
 
@@ -72,7 +64,6 @@ updateBnTypePtrReference x = case x ^. TypeLib.bnTypePtr of
   (Just t) -> do
     t' <- newTypeReference t
     return $ x & TypeLib.bnTypePtr .~ Just t'
-
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =
