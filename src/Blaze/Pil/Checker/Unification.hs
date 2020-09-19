@@ -107,17 +107,18 @@ isTypeDescendent TChar t = case t of
   TChar -> True
   TBottom _ -> True
   _ -> False
--- isTypeDescendent TQueryChar t = case t of
---   TQueryChar -> True
---   -- TFirstOf _ _ -> True
---   TBottom _ -> True
---   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
+  TBottom _ -> True
+  _ -> False
+isTypeDescendent (TContainsFirst _) t = case t of
+  TContainsFirst _ -> True
+  TRecord _ -> True
+  TArray _ _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendent (TBottom _) t = case t of
@@ -145,18 +146,10 @@ unifyPilTypes pt1 pt2 =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
     (False, True) -> unifyPilTypes pt2 pt1
-    _ -> case pt1 of
-      -- TFirstOf ft bt -> case pt2 of
-      --   TFirstOf ft' bt' -> TZeroField <$> addVarEq ft ft' <*> addVarEq bt bt'
-        -- TArray alen et -> TArray alen <$> addVarEq t et
-        -- TRecord fields -> fmap TRecord . unifyRecords fields
-        --                   $ HashMap.fromList [(0, t)]
-        -- _ -> err
-        
+    _ -> case pt1 of        
       TArray len1 et1 -> case pt2 of
         TArray len2 et2 ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
-        -- TFirstOf ft bt -> 
         _ -> err
       TBool -> case pt2 of
         TBool -> return TBool
@@ -210,7 +203,7 @@ unifyPilTypes pt1 pt2 =
         TPointer w2 pointeeType2 ->
           TPointer <$> addVarEq w1 w2
                    <*> addVarEq pointeeType1 pointeeType2
-        TArray len1 et2 -> TArray len1 <$> addVarEq pointeeType1 et2
+        TArray len2 et2 -> TArray len2 <$> addVarEq pointeeType1 et2
 
         _ -> err
       TFunction _ret1 _params1 -> err -- don't know how to unify at the moment...
@@ -220,7 +213,14 @@ unifyPilTypes pt1 pt2 =
 
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
-        -- TFirstOf t -> fmap TRecord . unifyRecords m1 . HashMap.fromList $ [(0, t)]
+        _ -> err
+
+      TContainsFirst t1 -> case pt2 of
+        TContainsFirst t2 -> TContainsFirst <$> addVarEq t1 t2
+        TRecord m2 -> do
+          let m1 = HashMap.fromList [(0, t1)]
+          TRecord <$> unifyRecords m1 m2
+        TArray len2 t2 -> TArray len2 <$> addVarEq t1 t2
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of

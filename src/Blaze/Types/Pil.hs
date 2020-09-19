@@ -343,8 +343,12 @@ data ExprOp expr
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
-    | FIELD_ADDR (FieldAddrOp expr)
     | UPDATE_VAR (UpdateVarOp expr)
+
+    -- memory address specifier ops
+    | FIELD_ADDR (FieldAddrOp expr)  -- struct
+    | CONTAINER_FIRST_ADDR (ContainerFirstAddrOp expr) -- singleton or first of array/struct
+
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ExprOp a)
@@ -446,13 +450,6 @@ data StackLocalAddrOp expr = StackLocalAddrOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (StackLocalAddrOp a)
 
-{- HLINT ignore FieldAddrOp -}
-data FieldAddrOp expr = FieldAddrOp
-    { _baseAddr :: expr
-    , _offset :: ByteOffset
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (FieldAddrOp a)
-
 {- HLINT ignore UpdateVarOp -}
 data UpdateVarOp expr = UpdateVarOp
     { _dest :: PilVar
@@ -460,6 +457,19 @@ data UpdateVarOp expr = UpdateVarOp
     , _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (UpdateVarOp a)
+
+{- HLINT ignore FieldAddrOp -}
+data FieldAddrOp expr = FieldAddrOp
+    { _baseAddr :: expr
+    , _offset :: ByteOffset
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (FieldAddrOp a)
+
+{- HLINT ignore ContainerFirstAddrOp -}
+data ContainerFirstAddrOp expr = ContainerFirstAddrOp
+    { _baseAddr :: expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (ContainerFirstAddrOp a)
 
 -----------------------
 --- types
@@ -644,6 +654,7 @@ $(makeFields ''VarSplitOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)
+$(makeFieldsNoPrefix ''ContainerFirstAddrOp)
 $(makeFieldsNoPrefix ''UpdateVarOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)

@@ -47,8 +47,9 @@ data PilType t = TBool
                                   t -- type
                          )
 
-               -- | TFirstOf t
+               | TContainsFirst t
                -- first record field or array index, or itself
+               -- t is type of first thing
                
                -- Bottom is labeled with error info
                | TBottom Sym
