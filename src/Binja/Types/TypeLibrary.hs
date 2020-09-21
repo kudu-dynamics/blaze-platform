@@ -36,6 +36,6 @@ data FunctionT
       }
   deriving (Eq, Ord, Show)
 
--- $(makeFieldsNoPrefix ''BNQualifiedNameAndType)
+$(makeFieldsNoPrefix ''BNQualifiedNameAndType)
 $(makeFieldsNoPrefix ''BNFunctionParameter)
 $(makeFieldsNoPrefix ''FunctionT)
