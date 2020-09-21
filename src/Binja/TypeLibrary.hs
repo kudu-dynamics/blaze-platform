@@ -13,24 +13,23 @@ import Binja.Types.Variable hiding (name)
 import Binja.Variable (getVarType)
 import qualified Data.Text as Text
 
-functionTsFromTypeLib :: Bn.BNTypeLibrary -> IO [FunctionT]
+functionTsFromTypeLib :: Bn.BNTypeLibrary -> IO [FunctionType]
 functionTsFromTypeLib tl = Bn.getTypeLibraryNamedObjects tl >>= traverse f
   where
-    f :: BNQualifiedNameAndType -> IO FunctionT
+    f :: BNQualifiedNameAndType -> IO FunctionType
     f x = maybe 
-          (return $ FunctionT (getName $ x ^. name) Nothing [Nothing])
+          (return $ FunctionType (getName $ x ^. name) Nothing [Nothing])
           (\t -> createFunctionType (getName $ x ^. name) t)
-          $ x ^. qnType
+          $ x ^. bnTypePtr
 
-    createFunctionType :: Text -> Bn.BNType -> IO FunctionT
+    createFunctionType :: Text -> Bn.BNType -> IO FunctionType
     createFunctionType name' type' = do
       return' <- bnTypeToVarType type'
       args <- Bn.getTypeParameters type' >>= traverse paramToVarType
-      return $ FunctionT name' return' args
+      return $ FunctionType name' return' args
     bnTypeToVarType :: Bn.BNType -> IO (Maybe VarType)
     bnTypeToVarType v = Bn.getChildType v >>= getVarType
     getName :: [Text] -> Text
     getName l = maybe (Text.pack "") identity $ headMay l    
     paramToVarType :: BNFunctionParameter -> IO (Maybe VarType)
-    paramToVarType p = maybe (return Nothing) bnTypeToVarType $ p ^. fpType
-
+    paramToVarType p = maybe (return Nothing) bnTypeToVarType $ p ^. bnTypePtr
