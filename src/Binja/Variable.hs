@@ -9,6 +9,7 @@ module Binja.Variable
   , getVariableFromIdentifier
   , getFunctionParameterVariables
   , getVarType
+  , getVarType'
   ) where
 
 import           Binja.Prelude                   hiding ( handle )
