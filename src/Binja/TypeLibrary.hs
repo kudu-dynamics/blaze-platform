@@ -19,7 +19,7 @@ functionTsFromTypeLib tl = Bn.getTypeLibraryNamedObjects tl >>= traverse f
     f :: BNQualifiedNameAndType -> IO FunctionType
     f x = maybe 
           (return $ FunctionType (getName $ x ^. name) Nothing [Nothing])
-          (\t -> createFunctionType (getName $ x ^. name) t)
+          (createFunctionType (getName $ x ^. name))
           $ x ^. bnTypePtr
 
     createFunctionType :: Text -> Bn.BNType -> IO FunctionType
