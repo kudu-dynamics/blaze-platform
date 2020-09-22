@@ -281,8 +281,6 @@ unifyRecords a = foldM f a . HashMap.toList
         addConstraint_ s2 (SVar s)
         return m
 
-
-
 -- -- | given the fields in the hashmap, find the greatest (offset + known width)
 -- --   This doesn't consider padding or error on overlapping fields.
 -- getMinimumRecordWidth :: IsType a => HashMap BitWidth a -> BitWidth

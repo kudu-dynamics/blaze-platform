@@ -148,5 +148,5 @@ checkStmts = checkStmts' . zip [0..]
 checkFunction :: Function -> IO (Either ConstraintGenError TypeReport)
 checkFunction func = do
   indexedStmts <- Pil.fromFunction func
-  let indexedStmts' = fmap (over _2 Analysis.substFieldAddr) indexedStmts
+  let indexedStmts' = fmap (over _2 Analysis.substAddr) indexedStmts
   return $ checkStmts' indexedStmts'

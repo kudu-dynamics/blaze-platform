@@ -639,6 +639,7 @@ simplify = copyProp . constantProp
 
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
+         
 
 parseFieldAddrLoad :: Expression -> Maybe Expression
 parseFieldAddrLoad expr =
@@ -652,6 +653,10 @@ parseFieldAddrLoad expr =
             (expr ^. Pil.size)
             (Pil.LOAD (Pil.LoadOp innerExpr))
     _ -> Nothing
+
+-- TODO
+parseArrayAddr :: Expression -> Maybe Expression
+parseArrayAddr _x = Nothing
 
 parseFieldAddr :: Expression -> Maybe Expression
 parseFieldAddr expr =
@@ -681,6 +686,15 @@ parseFieldAddr expr =
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
 
+parseSingleVarAddr :: Expression -> Maybe Expression
+parseSingleVarAddr expr =
+  case expr ^. Pil.op of
+    Pil.VAR _ -> return
+      . Pil.Expression (expr ^. Pil.size)
+      . Pil.CONTAINER_FIRST_ADDR
+      $ Pil.ContainerFirstAddrOp expr
+    _ -> Nothing
+
 -- parseFieldAddr' :: Expression -> Maybe Expression
 -- parseFieldAddr' expr =
 --   -- (parseConst (view Pil.right)) >> replaceVar (view Pil.left) <|> (parseConst (view Pil.left)) >> replaceVar (view Pil.right)
@@ -698,6 +712,39 @@ parseFieldAddr expr =
 --       offset :: ByteOffset
 --       offset = ByteOffset 8
 
+parseAddrInLoad :: ( Expression -> Maybe Expression )
+                -> Expression
+                -> Maybe Expression
+parseAddrInLoad addrParser expr =
+  case expr ^. Pil.op of
+    Pil.LOAD (Pil.LoadOp inner) ->
+      outerWrapper <$> addrParser inner
+      where
+        outerWrapper :: Pil.Expression -> Pil.Expression
+        outerWrapper innerExpr =
+          Pil.Expression
+            (expr ^. Pil.size)
+            (Pil.LOAD (Pil.LoadOp innerExpr))
+    _ -> Nothing
+
+
+substAddr_ :: ( Expression -> Maybe Expression ) -> Stmt -> Stmt
+substAddr_ addrParser stmt = case stmt of
+  Pil.Def (Pil.DefOp var value) ->
+    Pil.Def (Pil.DefOp var $ substExprInExpr parseLoad value)
+  Pil.Store (Pil.StoreOp addr value) ->
+    Pil.Store
+    $ Pil.StoreOp
+      (substExprInExpr addrParser addr)
+      (substExprInExpr parseLoad value)
+  Pil.Constraint (Pil.ConstraintOp cond) ->
+    Pil.Constraint (Pil.ConstraintOp $ substExprInExpr parseLoad cond)
+  Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) ->
+    Pil.Call (callOp & Pil.dest .~ Pil.CallExpr (substExprInExpr parseLoad expr))
+  _ -> stmt
+  where
+    parseLoad = parseAddrInLoad addrParser
+  
 substFieldAddr :: Stmt -> Stmt
 substFieldAddr stmt =
   case stmt of
@@ -716,4 +763,11 @@ substFieldAddr stmt =
     _ -> stmt
 
 substFields :: [Stmt] -> [Stmt]
-substFields = fmap substFieldAddr
+substFields = fmap $ substAddr_ parseFieldAddr
+
+substAddr :: Stmt -> Stmt
+substAddr = substAddr_ $ \x ->
+  parseFieldAddr x <|> parseSingleVarAddr x <|> parseArrayAddr x
+
+substAddrs :: [Stmt] -> [Stmt]
+substAddrs = fmap substAddr

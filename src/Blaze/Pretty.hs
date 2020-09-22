@@ -379,6 +379,9 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TRecord m -> "Record" <-> asList (rfield <$> HashMap.toList m)
       where
         rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
+
+    PI.TContainsFirst t -> "ContainsFirst" <-> paren (pretty t)
+
     PI.TBottom s -> paren $ "Bottom" <-> pretty s
     PI.TFunction _ret _params -> "Func"
 

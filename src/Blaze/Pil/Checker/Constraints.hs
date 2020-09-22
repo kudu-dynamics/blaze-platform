@@ -40,6 +40,18 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
 
+  "strcmp" -> case cparams of
+    [a, b] -> do
+      ptrWidth <- CSVar <$> newSym
+      let str = CSType . TPointer ptrWidth $ CSType TChar
+      
+      return . Just $
+        [ ( a ^. info . sym, str )
+        , ( b ^. info . sym, str )
+        , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
+        ]
+    _ -> return Nothing --TODO : add warning about malformed fgets params
+
 
   
   _ -> return Nothing
@@ -517,11 +529,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
 -- | Recursively adds type constraints for all expr sym's in SymExpression,
 -- including nested syms.
--- Does not recurse down addresses of loads.
 addAllExprTypeConstraints :: SymExpression -> ConstraintGen ()
 addAllExprTypeConstraints x@(InfoExpression (SymInfo _ _thisExprSym) op') = do
   addExprTypeConstraints x
   mapM_ addAllExprTypeConstraints op'
+
+
 
 -- | converts expression to SymExpression (assigns symbols to all exprs), including itself
 --   adds each new sym/expr pair to CheckerState
