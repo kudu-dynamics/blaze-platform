@@ -329,7 +329,7 @@ data ExprOp expr
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text
     | VAR_PHI (VarPhiOp expr)
-    | VAR_SPLIT (VarSplitOp expr)
+    | VAR_JOIN (VarJoinOp expr)
     | VAR (VarOp expr)
     | VAR_FIELD (VarFieldOp expr)
     | XOR (XorOp expr)
@@ -374,12 +374,12 @@ data VarPhiOp expr = VarPhiOp
 
 instance Hashable a => Hashable (VarPhiOp a)
 
-data VarSplitOp expr = VarSplitOp
-    { _varSplitOpHigh :: PilVar
-    , _varSplitOpLow :: PilVar
+data VarJoinOp expr = VarJoinOp
+    { _varJoinOpHigh :: PilVar
+    , _varJoinOpLow :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Hashable a => Hashable (VarSplitOp a)
+instance Hashable a => Hashable (VarJoinOp a)
 
 --TODO: address_of and address_of_field
 ---------------
@@ -648,7 +648,7 @@ instance Hashable a => Hashable (Statement a)
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
 $(makeFields ''VarPhiOp)
-$(makeFields ''VarSplitOp)
+$(makeFields ''VarJoinOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)

@@ -66,7 +66,7 @@ getVarsFromExpr_ e = case e ^. Pil.op of
   (Pil.VAR vop) -> [vop ^. Pil.src]
   (Pil.VAR_FIELD x) -> [x ^. Pil.src]
   (Pil.VAR_PHI x) -> x ^. Pil.dest : x ^. Pil.src
-  (Pil.VAR_SPLIT x) -> [x ^. Pil.high, x ^. Pil.low]
+  (Pil.VAR_JOIN x) -> [x ^. Pil.high, x ^. Pil.low]
   (Pil.UPDATE_VAR x) -> [x ^. Pil.dest]
   x -> concatMap getVarsFromExpr_ x
 
@@ -115,9 +115,9 @@ substVarsInExpr f e = case e ^. Pil.op of
         ( x & Pil.src %~ fmap f
             & Pil.dest %~ f
         )
-  (Pil.VAR_SPLIT x) ->
+  (Pil.VAR_JOIN x) ->
     e & Pil.op
-      .~ Pil.VAR_SPLIT
+      .~ Pil.VAR_JOIN
         ( x & Pil.high %~ f
             & Pil.low %~ f
         )
