@@ -640,20 +640,6 @@ simplify = copyProp . constantProp
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
          
-
-parseFieldAddrLoad :: Expression -> Maybe Expression
-parseFieldAddrLoad expr =
-  case expr ^. Pil.op of
-    Pil.LOAD (Pil.LoadOp inner) ->
-      outerWrapper <$> parseFieldAddr inner
-      where
-        outerWrapper :: Pil.Expression -> Pil.Expression
-        outerWrapper innerExpr =
-          Pil.Expression
-            (expr ^. Pil.size)
-            (Pil.LOAD (Pil.LoadOp innerExpr))
-    _ -> Nothing
-
 -- TODO
 parseArrayAddr :: Expression -> Maybe Expression
 parseArrayAddr _x = Nothing
@@ -744,23 +730,6 @@ substAddr_ addrParser stmt = case stmt of
   _ -> stmt
   where
     parseLoad = parseAddrInLoad addrParser
-  
-substFieldAddr :: Stmt -> Stmt
-substFieldAddr stmt =
-  case stmt of
-    Pil.Def (Pil.DefOp var value) ->
-      Pil.Def (Pil.DefOp var $ substExprInExpr parseFieldAddrLoad value)
-    Pil.Store (Pil.StoreOp addr value) ->
-      Pil.Store
-        ( Pil.StoreOp
-            (substExprInExpr parseFieldAddr addr)
-            (substExprInExpr parseFieldAddrLoad value)
-        )
-    Pil.Constraint (Pil.ConstraintOp cond) ->
-      Pil.Constraint (Pil.ConstraintOp $ substExprInExpr parseFieldAddrLoad cond)
-    Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) ->
-      Pil.Call (callOp & Pil.dest .~ Pil.CallExpr (substExprInExpr parseFieldAddrLoad expr))
-    _ -> stmt
 
 substFields :: [Stmt] -> [Stmt]
 substFields = fmap $ substAddr_ parseFieldAddr
