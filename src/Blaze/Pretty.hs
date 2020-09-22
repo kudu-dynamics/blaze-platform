@@ -264,7 +264,7 @@ prettyExprOp exprOp _size = case exprOp of
     where
       srcs :: Text
       srcs = show (fmap pretty (op ^. Pil.src))
-  (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
+  (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
   -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (pretty $ op ^. Pil.src) (pretty)
   -- TODO: Need added
   (Pil.VAR op) -> prettyVar op

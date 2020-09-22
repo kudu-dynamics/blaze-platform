@@ -252,7 +252,7 @@ dispExprOp exprOp size = case exprOp of
     where
       srcs :: Text
       srcs = show (fmap disp (op ^. Pil.src))
-  (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s %s" (disp (op ^. Pil.high)) (disp (op ^. Pil.low)) (disp size)
+  (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s %s" (disp (op ^. Pil.high)) (disp (op ^. Pil.low)) (disp size)
   -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (disp $ op ^. Pil.src) (disp size)
   -- TODO: Need size added
   (Pil.VAR op) -> dispVar "var" op size
