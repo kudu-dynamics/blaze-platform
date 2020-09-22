@@ -9,7 +9,9 @@ import Blaze.Types.Pil ( Expression
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker
-import Blaze.Pil.Checker.Constraints ( createVarSymMap
+import Blaze.Types.Pil.Function (FuncVar)
+import Blaze.Pil.Checker.Constraints ( createFuncSymMap
+                                     , createVarSymMap
                                      , addStmtTypeConstraints
                                      )
 import Blaze.Pil.Checker.Unification ( unify )
@@ -82,11 +84,17 @@ stmtSolutions stmts' = case er of
                            , gst
                            , ust)
   where
+    indexedStmts :: [(Int, Statement Expression)]
     indexedStmts = zip [0..] stmts'
+    ust :: UnifyState
     ust = unifyConstraints (reverse cxs)
+    cxs :: [Constraint]
     cxs = gst ^. constraints
+    er :: Either ConstraintGenError [Statement SymExpression]
+    gst :: ConstraintGenState
     (er, gst) = runConstraintGen_ $ do
       createVarSymMap stmts'
+      createFuncSymMap stmts'
       mapM (\(i, s) -> do
                currentStmt .= i
                addStmtTypeConstraints s)
@@ -108,18 +116,24 @@ checkStmts = fmap toReport . stmtSolutions
       , _varSymMap = originsVarSymMap
       , _varSymTypeMap = pilVarMap
       , _varEqMap = originMapToGroupMap eqMap
+      , _funcSymTypeMap = funcVarMap
+      , _funcSymMap = originsFuncVarSymMap
       , _errors = errs
       , _flatSolutions = sols
       , _solutions = deepSols
       }
       where
+        originsVarSymMap :: HashMap PilVar Sym
         originsVarSymMap = varSubst eqMap <$> s ^. varSymMap
         sols :: HashMap Sym (PilType Sym)
         sols = unSt ^. solutions
+        errs :: [UnifyConstraintsError DeepSymType]
         errs = fmap f <$> unSt ^. errors
           where
             f s' = maybe (DSVar s') identity $ HashMap.lookup s' deepSols
+        eqMap :: HashMap Sym Sym
         eqMap = unSt ^. originMap
+        deepSols :: HashMap Sym DeepSymType
         deepSols = flatToDeepSyms sols
         fillTypesInStmt :: InfoExpression SymInfo
                         -> InfoExpression (SymInfo, Maybe DeepSymType)
@@ -130,9 +144,15 @@ checkStmts = fmap toReport . stmtSolutions
               HashMap.lookup originSym deepSols
           )
           (fmap fillTypesInStmt $ x ^. op)
-
         pilVarMap :: HashMap PilVar DeepSymType
         pilVarMap = fmap f originsVarSymMap
+          where
+            f :: Sym -> DeepSymType
+            f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols
+        originsFuncVarSymMap :: HashMap FuncVar Sym
+        originsFuncVarSymMap = varSubst eqMap <$> s ^. funcSymMap
+        funcVarMap :: HashMap FuncVar DeepSymType
+        funcVarMap = fmap f originsFuncVarSymMap
           where
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols

@@ -8,6 +8,7 @@ import Blaze.Types.Pil ( Expression(Expression)
                        , StackOffset
                        )
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Pil.Function (FuncVar)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as Analysis
@@ -70,6 +71,17 @@ createVarSymMap stmts' = do
   mapM_ f $ HashSet.toList vars
   where
     f var = newSym >>= addVarSym var
+
+addFuncSym :: FuncVar -> Sym -> ConstraintGen ()
+addFuncSym fv sym' = funcSymMap %= HashMap.insert fv sym'
+
+-- | Create mapping of each FuncVar to a symbol
+createFuncSymMap :: [Statement Expression] -> ConstraintGen ()
+createFuncSymMap stmts' = do
+  let vars = undefined
+  mapM_ f vars
+    where
+      f var = newSym >>= addFuncSym var
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
