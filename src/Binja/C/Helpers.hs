@@ -50,6 +50,10 @@ getSectionsAt bv addr =
 loadTypeLibraryFromFile :: String -> IO BNTypeLibrary
 loadTypeLibraryFromFile p = loadTypeLibraryFromFile' p >>= newTypeLibraryReference
 
+getBinaryViewTypeLibraries :: BNBinaryView -> IO [BNTypeLibrary]
+getBinaryViewTypeLibraries bv = getBinaryViewTypeLibraries' bv 
+                                  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
+
 getTypeLibraryNamedObjects :: BNTypeLibrary -> IO [BNQualifiedNameAndType]
 getTypeLibraryNamedObjects tl = getTypeLibraryNamedObjects' tl
   >>= manifestArrayWithFreeSize updateBnTypePtrReference freeQualifiedNameAndTypeArray

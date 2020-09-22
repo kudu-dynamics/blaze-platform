@@ -360,3 +360,9 @@ instance Storable BNReferenceSource where
 
 {#fun unsafe BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
 
+{#fun unsafe BNGetBinaryViewTypeLibraries as getBinaryViewTypeLibraries' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNTypeLibrary)' ptrListOut #}
+
+{#fun unsafe BNFreeTypeLibraryList as freeTypeLibraryList {ptrListIn `List (Ptr BNTypeLibrary)', `Word64'} -> `()' #}
+
+{#fun unsafe BNGetTypeLibraryName as getTypeLibraryName {withPtr* `BNTypeLibrary'} -> `String' #}
+
