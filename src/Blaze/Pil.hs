@@ -27,12 +27,14 @@ import Blaze.Types.Pil
     CallOp (CallOp),
     Ctx,
     DefOp (DefOp),
+    DefPhiOp (DefPhiOp),
     Expression (Expression),
     PilVar (PilVar),
     SSAVariableRef (SSAVariableRef),
     Statement
       ( Call,
         Def,
+        DefPhi,
         Nop,
         Store,
         Undef,
@@ -338,22 +340,23 @@ convertInstrOp op' = do
     MLIL.NOP -> return [Nop]
     _ -> return []
 
--- | intercepts VAR_PHI and splits out into separate defs
--- i.e. if x = {a, b, c} then x = a, x = b, x = c
--- used for type checking whole function
+-- | intercepts VAR_PHI and converts it to PIL DefPhi
+-- todo: rename
 convertInstrOpSplitPhi :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
 convertInstrOpSplitPhi = \case
   (MLIL.VAR_PHI x) -> do
     vdest <- convertToPilVarAndLog $ x ^. MLIL.dest
-    mapM (f vdest) $ x ^. MLIL.src
-      where
-        f vdest v = do
-          pv <- convertToPilVarAndLog v
-          -- doesn't seem safe
-          let vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
-          return . Def . DefOp vdest $
-            Expression (typeWidthToOperationSize $ vt ^. BNVar.width)
-                       (Pil.VAR $ Pil.VarOp pv)
+    srcs <- mapM convertToPilVarAndLog $ x ^. MLIL.src
+    return [DefPhi $ DefPhiOp vdest srcs]
+    -- mapM (f vdest) $ x ^. MLIL.src
+    --   where
+    --     f vdest v = do
+    --       pv <- convertToPilVarAndLog v
+    --       -- doesn't seem safe
+    --       let vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
+    --       return . Def . DefOp vdest $
+    --         Expression (typeWidthToOperationSize $ vt ^. BNVar.width)
+    --                    (Pil.VAR $ Pil.VarOp pv)
   x -> convertInstrOp x
     
 convertInstr :: MLIL.Instruction t -> Pil.Converter [Stmt]
