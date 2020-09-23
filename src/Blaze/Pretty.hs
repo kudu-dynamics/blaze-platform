@@ -263,10 +263,6 @@ prettyExprOp exprOp _size = case exprOp of
     <-> paren (pretty $ op ^. Pil.dest)
     <-> paren (pretty $ op ^. Pil.offset)
     <-> paren (pretty $ op ^. Pil.src)
-  (Pil.VAR_PHI op) -> Text.pack $ printf "2%s <- %s" (pretty (op ^. Pil.dest)) srcs
-    where
-      srcs :: Text
-      srcs = show (fmap pretty (op ^. Pil.src))
   (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
   -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (pretty $ op ^. Pil.src) (pretty)
   -- TODO: Need added
@@ -342,6 +338,10 @@ instance Pretty a => Pretty (Pil.Statement a) where
     (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. Pil.ctx)
     (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. Pil.leavingCtx)
     (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. Pil.dest) (pretty $ x ^. Pil.params)
+    (Pil.DefPhi x) -> Text.pack $ printf "%s = %s"
+                      (pretty $ x ^. Pil.dest)
+                      (asList . fmap pretty $ x ^. Pil.src)
+
 
 newtype PStmts a = PStmts [Pil.Statement a]
 

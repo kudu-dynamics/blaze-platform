@@ -7,6 +7,7 @@ import Blaze.Types.Pil ( Expression
                        , Statement
                        , PilVar
                        )
+import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker
@@ -144,9 +145,18 @@ checkStmts' indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
 checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
 checkStmts = checkStmts' . zip [0..]
 
+removeUnusedPhi :: [(Int, Pil.Stmt)] -> [(Int, Pil.Stmt)]
+removeUnusedPhi stmts' = filter (not . isUnusedPhi) stmts'
+  where
+    refs = Analysis.getRefVars . fmap snd $ stmts'
+    isUnusedPhi (_, (Pil.DefPhi (Pil.DefPhiOp v _))) = not $ HashSet.member v refs
+    isUnusedPhi _ = False
+
 
 checkFunction :: Function -> IO (Either ConstraintGenError TypeReport)
 checkFunction func = do
   indexedStmts <- Pil.fromFunction func
-  let indexedStmts' = fmap (over _2 Analysis.substAddr) indexedStmts
+  let indexedStmts' = removeUnusedPhi
+                    . fmap (over _2 Analysis.substAddr)
+                    $ indexedStmts
   return $ checkStmts' indexedStmts'

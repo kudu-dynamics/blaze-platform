@@ -328,7 +328,6 @@ data ExprOp expr
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text
-    | VAR_PHI (VarPhiOp expr)
     | VAR_SPLIT (VarSplitOp expr)
     | VAR (VarOp expr)
     | VAR_FIELD (VarFieldOp expr)
@@ -369,13 +368,6 @@ data VarFieldOp expr = VarFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarFieldOp a)
-
-data VarPhiOp expr = VarPhiOp
-    { _varPhiOpDest :: PilVar
-    , _varPhiOpSrc :: [PilVar]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarPhiOp a)
 
 data VarSplitOp expr = VarSplitOp
     { _varSplitOpHigh :: PilVar
@@ -631,6 +623,12 @@ data ExitContextOp expr = ExitContextOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ExitContextOp a)
 
+data DefPhiOp expr = DefPhiOp
+    { _dest :: PilVar
+    , _src :: [PilVar]
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (DefPhiOp a)
+
 type Stmt = Statement Expression
 
 data Statement expr = Def (DefOp expr)
@@ -644,12 +642,12 @@ data Statement expr = Def (DefOp expr)
                     | EnterContext (EnterContextOp expr)
                     | ExitContext (ExitContextOp expr)
                     | Call (CallOp expr)
+                    | DefPhi (DefPhiOp expr)
                     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (Statement a)
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
-$(makeFields ''VarPhiOp)
 $(makeFields ''VarSplitOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
@@ -686,6 +684,7 @@ $(makeFieldsNoPrefix ''DefOp)
 $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
+$(makeFieldsNoPrefix ''DefPhiOp)
 
 $(makePrisms ''ExprOp)
 $(makePrisms ''Type)

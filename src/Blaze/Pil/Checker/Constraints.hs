@@ -576,6 +576,13 @@ addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   ptrWidth <- newSym
   addConstraint_ symAddr . SType $ TPointer ptrWidth symVal
   return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
+addStmtTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
+  pvSym <- lookupVarSym pv
+  mapM_ (f pvSym) vs
+  traverse toSymExpression stmt -- does nothing but change the type
+  where
+    f pvSym v = lookupVarSym v >>= addConstraint_ pvSym . SVar
+
 
 
   -- symAddrExpr <- toSymExpression addrExpr

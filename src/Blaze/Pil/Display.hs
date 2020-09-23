@@ -162,6 +162,10 @@ instance Disp a => Disp (Pil.Statement a) where
         dest = disp $ c ^. Pil.dest
         params :: Text
         params = show $ fmap disp $ c ^. Pil.params
+    (Pil.DefPhi op) -> Text.pack $ printf "defPhi \"%s\" %s" var val
+      where
+        var = disp $ op ^. Pil.dest
+        val = asList . fmap disp $ op ^. Pil.src
 
 dispExprOp :: Disp a => Pil.ExprOp a -> Pil.OperationSize -> Text
 dispExprOp exprOp size = case exprOp of
@@ -251,10 +255,6 @@ dispExprOp exprOp size = case exprOp of
     <-> paren (disp $ op ^. Pil.dest)
     <-> paren (disp $ op ^. Pil.offset)
     <-> paren (disp $ op ^. Pil.src)
-  (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (disp (op ^. Pil.dest)) srcs
-    where
-      srcs :: Text
-      srcs = show (fmap disp (op ^. Pil.src))
   (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s %s" (disp (op ^. Pil.high)) (disp (op ^. Pil.low)) (disp size)
   -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (disp $ op ^. Pil.src) (disp size)
   -- TODO: Need size added

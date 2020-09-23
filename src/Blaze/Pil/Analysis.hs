@@ -19,6 +19,7 @@ import Blaze.Types.Pil
     Symbol,
   )
 import qualified Blaze.Types.Pil as Pil
+import qualified Data.List as List
 import Blaze.Types.Pil.Analysis
   ( Analysis,
     DefLoadStmt (DefLoadStmt),
@@ -56,6 +57,7 @@ sizeToWidth (Pil.OperationSize x) = toBits x
 
 getDefinedVar_ :: Stmt -> Maybe PilVar
 getDefinedVar_ (Def d) = Just $ d ^. Pil.var
+getDefinedVar_ (Pil.DefPhi d) = Just $ d ^. Pil.dest
 getDefinedVar_ _ = Nothing
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
@@ -65,7 +67,6 @@ getVarsFromExpr_ :: Expression -> [PilVar]
 getVarsFromExpr_ e = case e ^. Pil.op of
   (Pil.VAR vop) -> [vop ^. Pil.src]
   (Pil.VAR_FIELD x) -> [x ^. Pil.src]
-  (Pil.VAR_PHI x) -> x ^. Pil.dest : x ^. Pil.src
   (Pil.VAR_SPLIT x) -> [x ^. Pil.high, x ^. Pil.low]
   (Pil.UPDATE_VAR x) -> [x ^. Pil.dest]
   x -> concatMap getVarsFromExpr_ x
@@ -109,12 +110,6 @@ substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
 substVarsInExpr f e = case e ^. Pil.op of
   (Pil.VAR x) -> e & Pil.op .~ Pil.VAR (x & Pil.src %~ f)
   (Pil.VAR_FIELD x) -> e & Pil.op .~ Pil.VAR_FIELD (x & Pil.src %~ f)
-  (Pil.VAR_PHI x) ->
-    e & Pil.op
-      .~ Pil.VAR_PHI
-        ( x & Pil.src %~ fmap f
-            & Pil.dest %~ f
-        )
   (Pil.VAR_SPLIT x) ->
     e & Pil.op
       .~ Pil.VAR_SPLIT
@@ -123,8 +118,11 @@ substVarsInExpr f e = case e ^. Pil.op of
         )
   _ -> e
 
+-- | ignores left side of Def, Store, and DefPhi
 substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
-substVars_ f = fmap $ substVarsInExpr f
+substVars_ f (Pil.DefPhi (Pil.DefPhiOp pv vs)) =
+  Pil.DefPhi . Pil.DefPhiOp pv . List.nub . fmap f $ vs
+substVars_ f s = fmap (substVarsInExpr f) s
 
 substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
 substVars f = fmap $ substVars_ f
@@ -274,6 +272,17 @@ copyProp xs =
   where
     copyPropResult = _foldCopyPropState xs
     copyPropResult' = copyPropResult {_mapping = reduceMap (_mapping copyPropResult)}
+
+
+removeUnusedPhi :: [Stmt] -> [Stmt]
+removeUnusedPhi stmts = filter (not . isUnusedPhi) stmts
+  where
+    refs = getRefVars stmts
+    isUnusedPhi (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
+    isUnusedPhi _ = False
+
+
+--------------- MEMORY --------------------
 
 usesAddr :: MemAddr -> Stmt -> Bool
 usesAddr addr stmt = case stmt of
@@ -639,7 +648,9 @@ simplify = copyProp . constantProp
 
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
-         
+
+
+                     
 -- TODO
 parseArrayAddr :: Expression -> Maybe Expression
 parseArrayAddr _x = Nothing
@@ -731,8 +742,11 @@ substAddr_ addrParser stmt = case stmt of
   where
     parseLoad = parseAddrInLoad addrParser
 
+substFieldAddr :: Stmt -> Stmt
+substFieldAddr = substAddr_ parseFieldAddr
+
 substFields :: [Stmt] -> [Stmt]
-substFields = fmap $ substAddr_ parseFieldAddr
+substFields = fmap substFieldAddr
 
 substAddr :: Stmt -> Stmt
 substAddr = substAddr_ $ \x ->
@@ -740,3 +754,4 @@ substAddr = substAddr_ $ \x ->
 
 substAddrs :: [Stmt] -> [Stmt]
 substAddrs = fmap substAddr
+

@@ -73,6 +73,7 @@ deepSymTypeToKind t = case t of
     Ch.TBitVector bwt -> KBounded <$> pure False <*> getBitWidth bwt
     Ch.TPointer bwt _pt -> KBounded <$> pure False <*> getBitWidth bwt
     Ch.TRecord _ -> err "Can't handle Record type"
+    Ch.TContainsFirst _ -> err "Can't handle ContainsFirst type"
     Ch.TBottom s -> err $ "TBottom " <> show s
     Ch.TFunction _ _ -> err "Can't handle Function type"
 
@@ -384,6 +385,15 @@ solveStmt stmt = catchAndWarnStmt $ case stmt of
     sValue <- solveExpr $ x ^. Pil.value
     modify (\s -> s { _mem = HashMap.insert exprAddr sValue $ s ^. mem } )
     return ()
+  Pil.DefPhi x -> do
+    pv <- lookupVarSym $ x ^. Pil.dest
+    mapM_ (f pv) $ x ^. Pil.src
+    where
+      f pv y = do
+        pv2 <- lookupVarSym y
+        guardSameKind pv pv2
+        constrain $ pv `svEqual` pv2
+
   _ -> return ()
 
 

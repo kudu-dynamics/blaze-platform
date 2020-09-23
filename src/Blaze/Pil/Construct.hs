@@ -53,6 +53,7 @@ unOp f g x size =
     }
 
 ---- Expressions
+
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
@@ -112,6 +113,9 @@ stackLocalAddr base offset size =
 ---- Statements
 def :: Symbol -> Expression -> Stmt
 def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
+
+defPhi :: Symbol -> [Symbol] -> Stmt
+defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
 
 store :: Expression -> Expression -> Stmt
 store addr val = Pil.Store (Pil.StoreOp addr val)
