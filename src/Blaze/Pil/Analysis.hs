@@ -141,9 +141,9 @@ substVarExpr f = fmap $ substVarExpr_ f
 
 ---- Expression -> Expression substitution
 substExprInExpr :: (Expression -> Maybe Expression) -> Expression -> Expression
-substExprInExpr f x = recurse $ maybe x identity (f x)
+substExprInExpr f x = maybe x' identity (f x')
   where
-    recurse e = e & Pil.op %~ fmap (substExprInExpr f)
+    x' = x & Pil.op %~ fmap (substExprInExpr f)
 
 substExpr :: (Expression -> Maybe Expression) -> Stmt -> Stmt
 substExpr f = fmap $ substExprInExpr f
@@ -272,14 +272,16 @@ copyProp xs =
   where
     copyPropResult = _foldCopyPropState xs
     copyPropResult' = copyPropResult {_mapping = reduceMap (_mapping copyPropResult)}
+    
+isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
+isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
+isUnusedPhi _ _ = False
 
 
 removeUnusedPhi :: [Stmt] -> [Stmt]
-removeUnusedPhi stmts = filter (not . isUnusedPhi) stmts
+removeUnusedPhi stmts = filter (not . isUnusedPhi refs) stmts
   where
     refs = getRefVars stmts
-    isUnusedPhi (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
-    isUnusedPhi _ = False
 
 
 --------------- MEMORY --------------------
@@ -649,7 +651,8 @@ simplify = copyProp . constantProp
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
 
-
+subst :: (a -> Maybe a) -> a -> a
+subst f x = maybe x identity $ f x
                      
 -- TODO
 parseArrayAddr :: Expression -> Maybe Expression
@@ -683,14 +686,18 @@ parseFieldAddr expr =
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
 
-parseSingleVarAddr :: Expression -> Maybe Expression
-parseSingleVarAddr expr =
+parseContainerFirstAddr :: Expression -> Maybe Expression
+parseContainerFirstAddr expr =
   case expr ^. Pil.op of
-    Pil.VAR _ -> return
+    Pil.CONST_PTR _ -> newOp
+    Pil.VAR _ -> newOp
+    _ -> Nothing
+  where
+    newOp = return
       . Pil.Expression (expr ^. Pil.size)
       . Pil.CONTAINER_FIRST_ADDR
       $ Pil.ContainerFirstAddrOp expr
-    _ -> Nothing
+
 
 -- parseFieldAddr' :: Expression -> Maybe Expression
 -- parseFieldAddr' expr =
@@ -745,12 +752,13 @@ substAddr_ addrParser stmt = case stmt of
 substFieldAddr :: Stmt -> Stmt
 substFieldAddr = substAddr_ parseFieldAddr
 
+
 substFields :: [Stmt] -> [Stmt]
 substFields = fmap substFieldAddr
 
 substAddr :: Stmt -> Stmt
-substAddr = substAddr_ $ \x ->
-  parseFieldAddr x <|> parseSingleVarAddr x <|> parseArrayAddr x
+substAddr = substAddr_ $ \x -> 
+  parseFieldAddr x <|> parseContainerFirstAddr x <|> parseArrayAddr x
 
 substAddrs :: [Stmt] -> [Stmt]
 substAddrs = fmap substAddr

@@ -138,7 +138,7 @@ library:
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
   - Blaze.VTable
-
+  
 include-dirs:
   - "src"
   - "../haskell-binja/res"

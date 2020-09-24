@@ -11,13 +11,12 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker
-import Blaze.Pil.Checker.Constraints ( createVarSymMap
-                                     , addStmtTypeConstraints
-                                     )
+import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
 import qualified Blaze.Pil as Pil
 import qualified Blaze.Pil.Analysis as Analysis
+
 
 flatToDeepSyms :: HashMap Sym (PilType Sym) -> HashMap Sym DeepSymType
 flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
@@ -70,9 +69,7 @@ stmtsConstraints stmts' = case er of
   Left err -> Left err
   Right symStmts' -> Right (symStmts', s)
   where
-    (er, s) = runConstraintGen_ $ do
-      createVarSymMap stmts'
-      mapM addStmtTypeConstraints stmts'
+    (er, s) = runConstraintGen_ $ mapM addStmtTypeConstraints stmts'
 
 
 stmtSolutions :: [(Int, Statement Expression)]
@@ -86,12 +83,9 @@ stmtSolutions indexedStmts = case er of
                            , gst
                            , ust)
   where
-    stmts' = fmap snd indexedStmts
     ust = unifyConstraints (reverse cxs)
     cxs = gst ^. constraints
     (er, gst) = runConstraintGen_ $ do
-      -- TODO: does this need to be a separate step? It should happen as new vars are found.
-      createVarSymMap stmts'
       mapM (\(i, s) -> do
                currentStmt .= i
                addStmtTypeConstraints s)
@@ -146,17 +140,14 @@ checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
 checkStmts = checkStmts' . zip [0..]
 
 removeUnusedPhi :: [(Int, Pil.Stmt)] -> [(Int, Pil.Stmt)]
-removeUnusedPhi stmts' = filter (not . isUnusedPhi) stmts'
+removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmts'
   where
     refs = Analysis.getRefVars . fmap snd $ stmts'
-    isUnusedPhi (_, (Pil.DefPhi (Pil.DefPhiOp v _))) = not $ HashSet.member v refs
-    isUnusedPhi _ = False
-
 
 checkFunction :: Function -> IO (Either ConstraintGenError TypeReport)
 checkFunction func = do
   indexedStmts <- Pil.fromFunction func
   let indexedStmts' = removeUnusedPhi
-                    . fmap (over _2 Analysis.substAddr)
-                    $ indexedStmts
+                      . fmap (over _2 Analysis.substAddr)
+                      $ indexedStmts
   return $ checkStmts' indexedStmts'

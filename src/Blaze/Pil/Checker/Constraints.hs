@@ -8,9 +8,7 @@ import Blaze.Types.Pil ( Expression(Expression)
                        , StackOffset
                        )
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
-import qualified Blaze.Pil.Analysis as Analysis
 import qualified Data.Text as Text
 import Blaze.Types.Pil.Checker hiding (ret)
 
@@ -75,14 +73,6 @@ getStackOffsetSym k = do
 addVarSym :: PilVar -> Sym -> ConstraintGen ()
 addVarSym pv sym' = varSymMap %= HashMap.insert pv sym'
 
--- | Create mapping of each PilVar to a symbol
-createVarSymMap :: [Statement Expression] -> ConstraintGen ()
-createVarSymMap stmts' = do
-  let vars = Analysis.getAllVars stmts'
-  mapM_ f $ HashSet.toList vars
-  where
-    f var = newSym >>= addVarSym var
-
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
 
@@ -98,7 +88,10 @@ lookupVarSym :: PilVar -> ConstraintGen Sym
 lookupVarSym pv = do
   vsm <- use varSymMap
   case HashMap.lookup pv vsm of
-    Nothing -> throwError $ CannotFindPilVarInVarSymMap pv
+    Nothing -> do
+      s <- newSym
+      varSymMap %= HashMap.insert pv s
+      return s
     Just s -> return s
 
 lookupSymExpr :: Sym -> ConstraintGen SymExpression
