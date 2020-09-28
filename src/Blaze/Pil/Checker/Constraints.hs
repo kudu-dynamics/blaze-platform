@@ -318,7 +318,7 @@ exprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
     return [ (r, CSType $ TBitVector sz') ]
 
-  Pil.VAR_SPLIT x -> do
+  Pil.VAR_JOIN x -> do
     low <- lookupVarSym $ x ^. Pil.low
     high <- lookupVarSym $ x ^. Pil.high
     return [ (r, CSType $ TBitVector sz')

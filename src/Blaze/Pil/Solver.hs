@@ -616,7 +616,7 @@ solveExpr (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catchFallbackAndWa
       w = fromIntegral sz
 
   -- this should really be called VAR_JOIN
-  Pil.VAR_SPLIT x -> do    
+  Pil.VAR_JOIN x -> do
     low <- lookupVarSym $ x ^. Pil.low
     high <- lookupVarSym $ x ^. Pil.high
     guardIntegral low
