@@ -47,7 +47,8 @@ data PilType t = TBool
                                   t -- type
                          )
 
-               | TContainsFirst t
+               | TContainsFirst { first :: t }
+
                -- first record field or array index, or itself
                -- t is type of first thing
                
@@ -83,6 +84,7 @@ data DeepSymType = DSVar Sym
                  | DSType (PilType DeepSymType)
                deriving (Eq, Ord, Read, Show, Generic)
 
+--joinDeepSymTypes :: DeepSymType -> DeepSymType -> DeepSymType
 
 data Constraint = Constraint
   { _stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
@@ -171,7 +173,6 @@ data TypeReport = TypeReport
   , _solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
-
 
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------

@@ -21,19 +21,19 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
       sizeSz <- CSVar <$> newSym
       let ptrWidth = sz'
       return . Just $
-        [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
+        [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType (TContainsFirst . CSType $ TChar)) )
         , ( size' ^. info . sym, CSType . TInt sizeSz . CSType $ TVSign True )
-        , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
-        , ( r, CSType $ TPointer ptrWidth (CSType TChar) )
+        , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType (TContainsFirst . CSType $ TChar)) )
+        , ( r, CSType $ TPointer ptrWidth (CSType (TContainsFirst . CSType $ TChar)) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
   "asprintf" -> case cparams of
     (strp:fmt:_) -> do
       ptrWidth <- CSVar <$> newSym
-      let ptr = CSType . TPointer ptrWidth
+      let ptr = CSType . TPointer ptrWidth . CSType . TContainsFirst
       return . Just $
-        [ ( strp ^. info . sym, ptr . ptr $ CSType TChar )
-        , ( fmt ^. info . sym, ptr $ CSType TChar )
+        [ ( strp ^. info . sym, ptr . ptr . CSType $ TChar )
+        , ( fmt ^. info . sym, ptr . CSType $ TChar)
         , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
@@ -167,10 +167,14 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.CMP_ULT x -> signedBinOpReturnsBool False x
   Pil.CONST _ -> ret [(r, CSType $ TBitVector sz')]
   Pil.CONST_PTR _ -> retPointer
-  Pil.ConstStr x -> ret [(r, CSType $ TArray
-                             ( CSType . TVLength . fromIntegral . Text.length
-                               $ x ^. Pil.value )
-                             ( CSType TChar ))]
+
+  -- TODO: Should the length be Text.length + 1, to account for \0 ?
+  Pil.ConstStr x ->
+    ret [(r, CSType . TPointer sz'
+           . CSType $ TArray
+           ( CSType . TVLength . fromIntegral . Text.length
+             $ x ^. Pil.value )
+           ( CSType TChar ))]
   Pil.DIVS x -> integralBinOpFirstArgIsReturn (Just True) False x
   Pil.DIVS_DP x -> divOrModDP True x
   Pil.DIVU x -> integralBinOpFirstArgIsReturn (Just False) False x
