@@ -21,16 +21,16 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
       sizeSz <- CSVar <$> newSym
       let ptrWidth = sz'
       return . Just $
-        [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType (TContainsFirst . CSType $ TChar)) )
+        [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
         , ( size' ^. info . sym, CSType . TInt sizeSz . CSType $ TVSign True )
-        , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType (TContainsFirst . CSType $ TChar)) )
-        , ( r, CSType $ TPointer ptrWidth (CSType (TContainsFirst . CSType $ TChar)) )
+        , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
+        , ( r, CSType $ TPointer ptrWidth (CSType TChar) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
   "asprintf" -> case cparams of
     (strp:fmt:_) -> do
       ptrWidth <- CSVar <$> newSym
-      let ptr = CSType . TPointer ptrWidth . CSType . TContainsFirst
+      let ptr = CSType . TPointer ptrWidth
       return . Just $
         [ ( strp ^. info . sym, ptr . ptr . CSType $ TChar )
         , ( fmt ^. info . sym, ptr . CSType $ TChar)
@@ -200,12 +200,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' recType )
         ]
 
-  Pil.CONTAINER_FIRST_ADDR x -> do
-    firstType <- CSVar <$> newSym
-    let containerType = CSType . TContainsFirst $ firstType
-    ret [ ( r, CSType $ TPointer sz' firstType )
-        , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' containerType )
-        ]
+  -- Pil.CONTAINER_FIRST_ADDR x -> do
+  --   firstType <- CSVar <$> newSym
+  --   let containerType = CSType . TContainsFirst $ firstType
+  --   ret [ ( r, CSType $ TPointer sz' firstType )
+  --       , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' containerType )
+  --       ]
 
 
   Pil.FLOAT_CONST _ -> retFloat

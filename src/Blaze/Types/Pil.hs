@@ -346,7 +346,7 @@ data ExprOp expr
 
     -- memory address specifier ops
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
-    | CONTAINER_FIRST_ADDR (ContainerFirstAddrOp expr) -- singleton or first of array/struct
+    -- | CONTAINER_FIRST_ADDR (ContainerFirstAddrOp expr) -- singleton or first of array/struct
 
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
@@ -457,11 +457,11 @@ data FieldAddrOp expr = FieldAddrOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (FieldAddrOp a)
 
-{- HLINT ignore ContainerFirstAddrOp -}
-data ContainerFirstAddrOp expr = ContainerFirstAddrOp
-    { _baseAddr :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (ContainerFirstAddrOp a)
+-- {- HLINT ignore ContainerFirstAddrOp -}
+-- data ContainerFirstAddrOp expr = ContainerFirstAddrOp
+--     { _baseAddr :: expr
+--     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+-- instance Hashable a => Hashable (ContainerFirstAddrOp a)
 
 -----------------------
 --- types
@@ -652,7 +652,7 @@ $(makeFields ''VarSplitOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)
-$(makeFieldsNoPrefix ''ContainerFirstAddrOp)
+-- $(makeFieldsNoPrefix ''ContainerFirstAddrOp)
 $(makeFieldsNoPrefix ''UpdateVarOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)

@@ -686,17 +686,17 @@ parseFieldAddr expr =
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
 
-parseContainerFirstAddr :: Expression -> Maybe Expression
-parseContainerFirstAddr expr =
-  case expr ^. Pil.op of
-    Pil.CONST_PTR _ -> newOp
-    Pil.VAR _ -> newOp
-    _ -> Nothing
-  where
-    newOp = return
-      . Pil.Expression (expr ^. Pil.size)
-      . Pil.CONTAINER_FIRST_ADDR
-      $ Pil.ContainerFirstAddrOp expr
+-- parseContainerFirstAddr :: Expression -> Maybe Expression
+-- parseContainerFirstAddr expr =
+--   case expr ^. Pil.op of
+--     Pil.CONST_PTR _ -> newOp
+--     Pil.VAR _ -> newOp
+--     _ -> Nothing
+--   where
+--     newOp = return
+--       . Pil.Expression (expr ^. Pil.size)
+--       . Pil.CONTAINER_FIRST_ADDR
+--       $ Pil.ContainerFirstAddrOp expr
 
 
 -- parseFieldAddr' :: Expression -> Maybe Expression
@@ -757,8 +757,9 @@ substFields :: [Stmt] -> [Stmt]
 substFields = fmap substFieldAddr
 
 substAddr :: Stmt -> Stmt
-substAddr = substAddr_ $ \x -> 
-  parseFieldAddr x <|> parseContainerFirstAddr x <|> parseArrayAddr x
+substAddr = substAddr_ $ \x -> parseFieldAddr x
+  -- <|> parseContainerFirstAddr x
+  <|> parseArrayAddr x
 
 substAddrs :: [Stmt] -> [Stmt]
 substAddrs = fmap substAddr

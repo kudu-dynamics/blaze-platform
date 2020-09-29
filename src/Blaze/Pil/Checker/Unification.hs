@@ -115,12 +115,12 @@ isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TContainsFirst _) t = case t of
-  TContainsFirst _ -> True
-  TRecord _ -> True
-  TArray _ _ -> True
-  TBottom _ -> True
-  _ -> False
+-- isTypeDescendent (TContainsFirst _) t = case t of
+--   TContainsFirst _ -> True
+--   TRecord _ -> True
+--   TArray _ _ -> True
+--   TBottom _ -> True
+--   _ -> False
 isTypeDescendent (TBottom _) t = case t of
   TBottom _ -> True
   _ -> False
@@ -215,13 +215,13 @@ unifyPilTypes pt1 pt2 =
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
         _ -> err
 
-      TContainsFirst t1 -> case pt2 of
-        TContainsFirst t2 -> TContainsFirst <$> addVarEq t1 t2
-        TRecord m2 -> do
-          let m1 = HashMap.fromList [(0, t1)]
-          TRecord <$> unifyRecords m1 m2
-        TArray len2 t2 -> TArray len2 <$> addVarEq t1 t2
-        _ -> err
+      -- TContainsFirst t1 -> case pt2 of
+      --   TContainsFirst t2 -> TContainsFirst <$> addVarEq t1 t2
+      --   TRecord m2 -> do
+      --     let m1 = HashMap.fromList [(0, t1)]
+      --     TRecord <$> unifyRecords m1 m2
+      --   TArray len2 t2 -> TArray len2 <$> addVarEq t1 t2
+      --   _ -> err
 
       TVBitWidth bw1 -> case pt2 of
         TVBitWidth bw2

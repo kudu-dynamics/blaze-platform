@@ -207,9 +207,9 @@ dispExprOp exprOp size = case exprOp of
     "fieldAddr"
     <-> paren (disp $ op ^. Pil.baseAddr)
     <-> paren (disp $ op ^. Pil.offset)
-  (Pil.CONTAINER_FIRST_ADDR op) ->
-    "ContainerFirstAddr"
-    <-> paren (disp $ op ^. Pil.baseAddr)
+  -- (Pil.CONTAINER_FIRST_ADDR op) ->
+  --   "ContainerFirstAddr"
+  --   <-> paren (disp $ op ^. Pil.baseAddr)
 
   (Pil.FLOAT_CONST op) -> dispConst "float" op size
   (Pil.FLOAT_CONV op) -> dispUnop "floatConv" op size

@@ -47,7 +47,7 @@ data PilType t = TBool
                                   t -- type
                          )
 
-               | TContainsFirst { first :: t }
+               -- | TContainsFirst { first :: t }
 
                -- first record field or array index, or itself
                -- t is type of first thing
