@@ -102,13 +102,20 @@ type EqMap a = HashMap a a
 
 data AnalysisState = AnalysisState
   { _newSymbols :: [Symbol]
-  , _varEqMap :: EqMap PilVar
+  , _varEqMap :: Maybe (EqMap PilVar) -- putVarEqMap
   , _fieldBaseAddrs :: HashSet Expression
   , _arrayBaseAddrs :: HashSet Expression
   }
   deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''AnalysisState)
+
+emptyAnalysisState :: AnalysisState
+emptyAnalysisState = AnalysisState
+  []
+  (Just HMap.empty)
+  HSet.empty
+  HSet.empty
 
 newtype Analysis a = Analysis {_runAnalysis :: State AnalysisState a}
   deriving (Functor)
@@ -127,11 +134,14 @@ newSym = do
 runAnalysis :: Analysis a -> HashSet Symbol -> a
 runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
   where
-    s =
-      AnalysisState
-        { _newSymbols = symbolGenerator usedSymbols
-        , _varEqMap = HMap.empty
-        }
+    s = emptyAnalysisState
+        & newSymbols .~ symbolGenerator usedSymbols 
+
+runAnalysis_ :: Analysis a -> a
+runAnalysis_ m = flip evalState s . _runAnalysis $ m
+  where
+    s = emptyAnalysisState
+
 
 
 -- TODO: Make this better.

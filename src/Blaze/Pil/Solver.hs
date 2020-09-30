@@ -846,12 +846,12 @@ solvePathWith :: SMTConfig -> Function -> AlgaPath
                      (SolverReport, Ch.TypeReport))
 solvePathWith solverCfg startFunc p = do
   stmts <- Path.convertPath startFunc p
-  let stmts' = Analysis.substFields stmts
+  let stmts' = Analysis.substAddrs stmts
   solveStmtsWith solverCfg stmts'
 
 
 solvePathWith_ :: SMTConfig -> Function -> AlgaPath -> IO SolverResult
 solvePathWith_ solverCfg startFunc p = do
   stmts <- Path.convertPath startFunc p
-  let stmts' = Analysis.substFields stmts
+  let stmts' = Analysis.substAddrs stmts
   solveStmtsWith_ solverCfg stmts'

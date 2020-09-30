@@ -165,7 +165,6 @@ removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmt
 checkFunction :: Function -> IO (Either ConstraintGenError TypeReport)
 checkFunction func = do
   indexedStmts <- Pil.fromFunction func
-  let indexedStmts' = removeUnusedPhi
-                      . fmap (over _2 Analysis.substAddr)
-                      $ indexedStmts
-  return $ checkStmts' indexedStmts'
+  let indexedStmts' = zip (fmap fst indexedStmts) (Analysis.substAddrs $ fmap snd indexedStmts)
+      indexedStmts'' = removeUnusedPhi indexedStmts'
+  return $ checkStmts' indexedStmts''
