@@ -23,6 +23,7 @@ import qualified Data.List as List
 import Blaze.Types.Pil.Analysis
   ( Analysis,
     DefLoadStmt (DefLoadStmt),
+    EqMap,
     Index,
     LoadExpr (LoadExpr),
     LoadStmt (LoadStmt),
@@ -159,7 +160,7 @@ substExprMap m = flip (foldr f) $ HMap.toList m
 
 -----------------
 
-type EqMap a = HashMap a a
+
 
 addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
 addToEqMap (v1, v2) m = case HMap.lookup v2 m of
@@ -185,6 +186,10 @@ getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
         f v = case HMap.lookup v omap' of
           Nothing -> v
           (Just v') -> v'
+
+-- | puts VarEqMap in state
+putVarEqMap :: [Stmt] -> Analysis ()
+putVarEqMap xs = A.varEqMap .= getVarEqMap xs
 
 originsMap :: (Eq a, Hashable a) => EqMap a -> HashMap a (HashSet a)
 originsMap = foldr f HMap.empty . HMap.toList
@@ -653,12 +658,14 @@ simplifyMem valMap = memoryTransform . memSubst valMap
 
 subst :: (a -> Maybe a) -> a -> a
 subst f x = maybe x identity $ f x
-                     
--- TODO
-parseArrayAddr :: Expression -> Maybe Expression
+
+
+-- TODO: get rid of this after merge with Kevin's stuff.
+type ArrayAddrOp = FieldAddrOp
+parseArrayAddr :: Expression -> Maybe ArrayAddrOp
 parseArrayAddr _x = Nothing
 
-parseFieldAddr :: Expression -> Maybe Expression
+parseFieldAddr :: Expression -> Maybe FieldAddrOp
 parseFieldAddr expr =
   case expr ^. Pil.op of
     -- Case where there is a const on the right
@@ -716,9 +723,9 @@ parseFieldAddr expr =
 --       offset :: ByteOffset
 --       offset = ByteOffset 8
 
-parseAddrInLoad :: ( Expression -> Maybe Expression )
+parseAddrInLoad :: ( Expression -> Analysis Expression )
                 -> Expression
-                -> Maybe Expression
+                -> Analysis Expression
 parseAddrInLoad addrParser expr =
   case expr ^. Pil.op of
     Pil.LOAD (Pil.LoadOp inner) ->
@@ -732,7 +739,28 @@ parseAddrInLoad addrParser expr =
     _ -> Nothing
 
 
-substAddr_ :: ( Expression -> Maybe Expression ) -> Stmt -> Stmt
+substVarEqVarsInExpr :: Expression -> Analysis Expression
+substVarEqVarsInExpr x = do
+  m <- use A.varEqMap
+  return $ substVarsInExpr (f m) x
+  where
+    f m pv = maybe pv identity $ HMap.lookup pv m
+
+substArrayOrFieldAddr :: Expression -> Analysis Expression
+substArrayOrFieldAddr x = case parseFieldAddr x of
+  Just fieldAddrop -> do
+    baseAddr <- substVarEqVarsInExpr (fieldAddrOp ^. Pil.baseAddr)
+    fieldBaseAddrs %= HashSet.insert baseAddr
+    
+  Nothing -> case parseArrayAddr x of
+    Just arrayAddrOp -> do
+      baseAddr <- substVarEqVarsInExpr (arrayAddrOp ^. Pil.baseAddr)
+      fieldBaseAddrs %= HashSet.insert baseAddr
+    
+
+substAddr_ :: ( Expression -> Analysis Expression)
+           -> Stmt
+           -> Analysis Stmt
 substAddr_ addrParser stmt = case stmt of
   Pil.Def (Pil.DefOp var value) ->
     Pil.Def (Pil.DefOp var $ substExprInExpr parseLoad value)
@@ -749,12 +777,11 @@ substAddr_ addrParser stmt = case stmt of
   where
     parseLoad = parseAddrInLoad addrParser
 
-substFieldAddr :: Stmt -> Stmt
+substFieldAddr :: Stmt -> Analysis Stmt
 substFieldAddr = substAddr_ parseFieldAddr
 
-
-substFields :: [Stmt] -> [Stmt]
-substFields = fmap substFieldAddr
+substFields :: [Stmt] -> Analysis [Stmt]
+substFields = traverse substFieldAddr
 
 substAddr :: Stmt -> Stmt
 substAddr = substAddr_ $ \x -> parseFieldAddr x
@@ -764,3 +791,11 @@ substAddr = substAddr_ $ \x -> parseFieldAddr x
 substAddrs :: [Stmt] -> [Stmt]
 substAddrs = fmap substAddr
 
+
+substContainerAddr_ :: Stmt -> Analysis [Stmt]
+substContainerAddr_ = undefined
+
+-- | presumes `putVarEqMap`
+substAddrs_ :: [Stmt] -> Analysis [Stmt]
+substAddrs_ = do
+  undefined

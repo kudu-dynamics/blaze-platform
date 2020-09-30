@@ -12,6 +12,8 @@ import Blaze.Types.Pil
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashSet as HSet
+import qualified Data.HashMap.Strict as HMap
+
 import qualified Data.Text as Text
 
 data MemEquivGroup = MemEquivGroup
@@ -96,12 +98,17 @@ newtype ConstLoadExpr
 
 instance Hashable ConstLoadExpr
 
-newtype AnalysisState = AnalysisState
-  { _analysisStateNewSymbols :: [Symbol]
-  }
-  deriving (Eq, Ord, Read, Show)
+type EqMap a = HashMap a a
 
-$(makeFields ''AnalysisState)
+data AnalysisState = AnalysisState
+  { _newSymbols :: [Symbol]
+  , _varEqMap :: EqMap PilVar
+  , _fieldBaseAddrs :: HashSet Expression
+  , _arrayBaseAddrs :: HashSet Expression
+  }
+  deriving (Eq, Ord, Show)
+
+$(makeFieldsNoPrefix ''AnalysisState)
 
 newtype Analysis a = Analysis {_runAnalysis :: State AnalysisState a}
   deriving (Functor)
@@ -122,8 +129,10 @@ runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
   where
     s =
       AnalysisState
-        { _analysisStateNewSymbols = symbolGenerator usedSymbols
+        { _newSymbols = symbolGenerator usedSymbols
+        , _varEqMap = HMap.empty
         }
+
 
 -- TODO: Make this better.
 -- | Generate variable names.
@@ -136,6 +145,7 @@ symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
     names =
       [ Text.pack [a, b, c] | a <- letters, b <- letters, c <- letters
       ]
+
 
 $(makeFields ''StoreStmt)
 $(makeFields ''LoadStmt)
