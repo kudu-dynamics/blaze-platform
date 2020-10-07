@@ -186,8 +186,12 @@ import qualified Data.HashMap.Strict as HashMap
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Generic)
   deriving newtype Num
+  deriving anyclass Hashable
 
-instance Hashable CtxIndex
+newtype StmtIndex = StmtIndex { _val :: Int }
+  deriving(Eq, Ord, Show, Generic)
+  deriving newtype Num
+  deriving anyclass Hashable
 
 type Symbol = Text
 
@@ -631,19 +635,35 @@ instance Hashable a => Hashable (ExitContextOp a)
 
 type Stmt = Statement Expression
 
-data Statement expr = Def (DefOp expr)
-                    | Constraint (ConstraintOp expr)
-                    | Store (StoreOp expr)
-                    | UnimplInstr Text
-                    | UnimplMem (UnimplMemOp expr)
-                    | Undef
-                    | Nop
-                    | Annotation Text
-                    | EnterContext (EnterContextOp expr)
-                    | ExitContext (ExitContextOp expr)
-                    | Call (CallOp expr)
-                    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (Statement a)
+data Statement expr
+  = Def (DefOp expr)
+  | Constraint (ConstraintOp expr)
+  | Store (StoreOp expr)
+  | UnimplInstr Text
+  | UnimplMem (UnimplMemOp expr)
+  | Undef
+  | Nop
+  | Annotation Text
+  | EnterContext (EnterContextOp expr)
+  | ExitContext (ExitContextOp expr)
+  | Call (CallOp expr)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+  deriving anyclass Hashable
+
+newtype CallStatement
+  = CallStatement
+      {_stmt :: Statement Expression}
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass Hashable
+
+mkCallStatement :: Stmt -> Maybe CallStatement
+mkCallStatement stmt = case stmt of
+  Call _callOp -> 
+    Just $ CallStatement stmt
+  Def (DefOp _ (Expression _sz (CALL _callOp))) ->
+    Just $ CallStatement stmt
+  _ -> 
+    Nothing
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
@@ -684,6 +704,8 @@ $(makeFieldsNoPrefix ''DefOp)
 $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
+
+$(makeFieldsNoPrefix ''CallStatement)
 
 $(makePrisms ''ExprOp)
 $(makePrisms ''Type)
