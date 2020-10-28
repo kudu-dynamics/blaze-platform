@@ -192,10 +192,10 @@ convertExpr expr = do
     (MLIL.VAR_SPLIT_SSA x) -> do
       highVar <- convertToPilVarAndLog $ x ^. MLIL.high
       lowVar <- convertToPilVarAndLog $ x ^. MLIL.low
-      -- return $ mkExpr . Pil.VAR_SPLIT $ Pil.VarSplitOp highVar lowVar
+      -- return $ mkExpr . Pil.VAR_JOIN $ Pil.VarJoinOp highVar lowVar
       -- NOTE: Binja gets the return size wrong. use above if they fix it
       return $ Expression (2 * expr ^. Pil.size)
-        . Pil.VAR_SPLIT $ Pil.VarSplitOp highVar lowVar
+        . Pil.VAR_JOIN $ Pil.VarJoinOp highVar lowVar
     (MLIL.VAR_SSA x) -> do
       srcVar <- convertToPilVarAndLog $ x ^. MLIL.src
       return $ mkExpr . Pil.VAR $ Pil.VarOp srcVar

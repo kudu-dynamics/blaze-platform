@@ -328,7 +328,8 @@ data ExprOp expr
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text
-    | VAR_SPLIT (VarSplitOp expr)
+    | VAR_PHI (VarPhiOp expr)
+    | VAR_JOIN (VarJoinOp expr)
     | VAR (VarOp expr)
     | VAR_FIELD (VarFieldOp expr)
     | XOR (XorOp expr)
@@ -343,11 +344,9 @@ data ExprOp expr
     | ConstStr (ConstStrOp expr)
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
     | UPDATE_VAR (UpdateVarOp expr)
-
     -- memory address specifier ops
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
-    -- | CONTAINER_FIRST_ADDR (ContainerFirstAddrOp expr) -- singleton or first of array/struct
-
+    | CONST_BOOL (ConstBoolOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ExprOp a)
@@ -369,12 +368,19 @@ data VarFieldOp expr = VarFieldOp
 
 instance Hashable a => Hashable (VarFieldOp a)
 
-data VarSplitOp expr = VarSplitOp
-    { _varSplitOpHigh :: PilVar
-    , _varSplitOpLow :: PilVar
+data VarPhiOp expr = VarPhiOp
+    { _varPhiOpDest :: PilVar
+    , _varPhiOpSrc :: [PilVar]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Hashable a => Hashable (VarSplitOp a)
+instance Hashable a => Hashable (VarPhiOp a)
+
+data VarJoinOp expr = VarJoinOp
+    { _varJoinOpHigh :: PilVar
+    , _varJoinOpLow :: PilVar
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (VarJoinOp a)
 
 --TODO: address_of and address_of_field
 ---------------
@@ -457,11 +463,11 @@ data FieldAddrOp expr = FieldAddrOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (FieldAddrOp a)
 
--- {- HLINT ignore ContainerFirstAddrOp -}
--- data ContainerFirstAddrOp expr = ContainerFirstAddrOp
---     { _baseAddr :: expr
---     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
--- instance Hashable a => Hashable (ContainerFirstAddrOp a)
+{- HLINT ignore ConstBoolOp -}
+data ConstBoolOp expr = ConstBoolOp
+    { _constant :: Bool
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+instance Hashable a => Hashable (ConstBoolOp a)
 
 -----------------------
 --- types
@@ -648,12 +654,14 @@ instance Hashable a => Hashable (Statement a)
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
-$(makeFields ''VarSplitOp)
+$(makeFields ''VarPhiOp)
+$(makeFields ''VarJoinOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)
 -- $(makeFieldsNoPrefix ''ContainerFirstAddrOp)
 $(makeFieldsNoPrefix ''UpdateVarOp)
+$(makeFieldsNoPrefix ''ConstBoolOp)
 
 $(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)

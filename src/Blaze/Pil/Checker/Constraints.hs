@@ -175,6 +175,14 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
            ( CSType . TVLength . fromIntegral . Text.length
              $ x ^. Pil.value )
            ( CSType TChar ))]
+
+  -- Don't remember if this is correct, or the above
+  -- Pil.ConstStr x -> return [(r, CSType $ TArray
+  --                               ( CSType . TVLength . fromIntegral . Text.length
+  --                                 $ x ^. Pil.value )
+  --                               ( CSType TChar ))]
+
+  Pil.CONST_BOOL _ -> retBool
   Pil.DIVS x -> integralBinOpFirstArgIsReturn (Just True) False x
   Pil.DIVS_DP x -> divOrModDP True x
   Pil.DIVU x -> integralBinOpFirstArgIsReturn (Just False) False x
@@ -311,7 +319,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
     ret [ (r, CSType $ TBitVector sz') ]
 
-  Pil.VAR_SPLIT x -> do
+  Pil.VAR_JOIN x -> do
     low <- lookupVarSym $ x ^. Pil.low
     high <- lookupVarSym $ x ^. Pil.high
     ret [ (r, CSType $ TBitVector sz')

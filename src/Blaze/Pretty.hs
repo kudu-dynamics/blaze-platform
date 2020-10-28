@@ -184,6 +184,7 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.ASR op) -> prettyBinop "asr" op
   (Pil.BOOL_TO_INT op) -> prettyUnop "boolToInt" op
   (Pil.CEIL op) -> prettyUnop "ceil" op
+  (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. Pil.constant)
   (Pil.CMP_E op) -> prettyBinop "cmpE" op
   (Pil.CMP_NE op) -> prettyBinop "cmpNE" op
   (Pil.CMP_SGE op) -> prettyBinop "cmpSGE" op
@@ -263,7 +264,11 @@ prettyExprOp exprOp _size = case exprOp of
     <-> paren (pretty $ op ^. Pil.dest)
     <-> paren (pretty $ op ^. Pil.offset)
     <-> paren (pretty $ op ^. Pil.src)
-  (Pil.VAR_SPLIT op) -> Text.pack $ printf "varSplit %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
+  (Pil.VAR_PHI op) -> Text.pack $ printf "2%s <- %s" (pretty (op ^. Pil.dest)) srcs
+    where
+      srcs :: Text
+      srcs = show (fmap pretty (op ^. Pil.src))
+  (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
   -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (pretty $ op ^. Pil.src) (pretty)
   -- TODO: Need added
   (Pil.VAR op) -> prettyVar op
