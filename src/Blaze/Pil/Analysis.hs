@@ -708,7 +708,6 @@ parseFieldAddr expr =
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
 
-
 parseAddrInLoad :: ( Expression -> Analysis Expression )
                 -> Expression
                 -> Analysis Expression
@@ -749,7 +748,7 @@ substArrayOrFieldAddr x = case parseFieldAddr x of
       return $ fullAddrExpr pa
     Nothing -> return x
 
-substAddr_ :: ( Expression -> Analysis Expression)
+substAddr_ :: (Expression -> Analysis Expression)
            -> Stmt
            -> Analysis Stmt
 substAddr_ addrParser stmt = case stmt of
@@ -768,6 +767,24 @@ substAddr_ addrParser stmt = case stmt of
   where
     parseLoad = parseAddrInLoad addrParser
 
+substZeroOffsetFields :: Expression -> Analysis Expression
+substZeroOffsetFields expr = case expr ^. Pil.op of
+  Pil.FIELD_ADDR _ -> return expr
+
+  -- TODO: doesn't exist yet, but uncomment when it does
+  -- Pil.ARRAY_ADDR _ -> return expr
+
+  _ -> do
+    x <- substVarEqVarsInExpr expr
+    fieldBases <- use A.fieldBaseAddrs
+    return $ case HSet.member x fieldBases of
+      True -> Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+              $ Pil.FieldAddrOp expr 0
+      False -> expr
+
+
+  
+
 substFieldAddr :: Stmt -> Analysis Stmt
 substFieldAddr = substAddr_ substArrayOrFieldAddr
 
@@ -777,5 +794,9 @@ substFields = traverse substFieldAddr
 substAddrs :: [Stmt] -> [Stmt]
 substAddrs stmts = A.runAnalysis_ $ do
   putVarEqMap stmts
-  traverse (substAddr_ substArrayOrFieldAddr) stmts
+  stmts' <- traverse (substAddr_ substArrayOrFieldAddr) stmts
+
+  return stmts'
+  -- traverse (substAddr_ substZeroOffsetFields) stmts'
+  
 
