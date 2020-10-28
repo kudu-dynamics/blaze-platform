@@ -138,7 +138,7 @@ runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
         & newSymbols .~ symbolGenerator usedSymbols 
 
 runAnalysis_ :: Analysis a -> a
-runAnalysis_ m = flip evalState s . _runAnalysis $ m
+runAnalysis_ = flip evalState s . _runAnalysis
   where
     s = emptyAnalysisState
 

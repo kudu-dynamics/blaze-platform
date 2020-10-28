@@ -708,35 +708,6 @@ parseFieldAddr expr =
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
 
--- parseContainerFirstAddr :: Expression -> Maybe Expression
--- parseContainerFirstAddr expr =
---   case expr ^. Pil.op of
---     Pil.CONST_PTR _ -> newOp
---     Pil.VAR _ -> newOp
---     _ -> Nothing
---   where
---     newOp = return
---       . Pil.Expression (expr ^. Pil.size)
---       . Pil.CONTAINER_FIRST_ADDR
---       $ Pil.ContainerFirstAddrOp expr
-
-
--- parseFieldAddr' :: Expression -> Maybe Expression
--- parseFieldAddr' expr =
---   -- (parseConst (view Pil.right)) >> replaceVar (view Pil.left) <|> (parseConst (view Pil.left)) >> replaceVar (view Pil.right)
---   preview (Pil.op . Pil._ADD) expr >>= parseConst Pil.left >> replaceVar Pil.right expr
---     where
---       parseConst :: Lens' (AddOp Expression) Expression -> AddOp Expression -> Maybe Int64
---       parseConst getConstExpr x =
---         x ^? getConstExpr . Pil.op . Pil._CONST . Pil.constant
---       -- replaceVar :: Lens' (AddOp Expression) Expression -> Expression -> Maybe Expression
---       replaceVar :: Lens' (AddOp Expression) Expression -> Expression -> Maybe Expression
---       replaceVar getOtherExpr expr' =
---         (expr (Pil.op .~)) <$> 
---         (expr' ^? getOtherExpr . Pil.op . Pil._VAR) >> Pil.FieldAddrOp (expr' ^. getOtherExpr) offset 
---           <|> (expr' ^? getOtherExpr . Pil.op . Pil._CONST_PTR) >> Pil.FieldAddrOp (expr' ^. getOtherExpr) offset
---       offset :: ByteOffset
---       offset = ByteOffset 8
 
 parseAddrInLoad :: ( Expression -> Analysis Expression )
                 -> Expression

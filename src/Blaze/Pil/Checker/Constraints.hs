@@ -200,14 +200,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' recType )
         ]
 
-  -- Pil.CONTAINER_FIRST_ADDR x -> do
-  --   firstType <- CSVar <$> newSym
-  --   let containerType = CSType . TContainsFirst $ firstType
-  --   ret [ ( r, CSType $ TPointer sz' firstType )
-  --       , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' containerType )
-  --       ]
-
-
   Pil.FLOAT_CONST _ -> retFloat
 
 -- TODO: should there be a link between sz of bitvec and sz of float?
@@ -237,7 +229,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , ( r, ptrType )
         , ( r, CSType $ TBitVector sz' )
         ]
-
 
     -- case x ^. Pil.src . op of
     --   Pil.FIELD_ADDR y -> do

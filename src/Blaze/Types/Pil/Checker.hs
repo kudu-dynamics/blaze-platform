@@ -7,7 +7,6 @@ import Blaze.Types.Pil ( ExprOp
                        , PilVar
                        , StackOffset
                        )
--- import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
 
@@ -32,7 +31,6 @@ data TypeTag = TagDirty
 
 data PilType t = TBool
                | TChar
-               -- | TQueryChar
                
                | TInt { bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }
@@ -47,8 +45,6 @@ data PilType t = TBool
                                   t -- type
                          )
 
-               -- | TContainsFirst { first :: t }
-
                -- first record field or array index, or itself
                -- t is type of first thing
                
@@ -61,7 +57,6 @@ data PilType t = TBool
                | TVLength Word64
                | TVSign Bool
                
-               -- | TTagged (HashSet TypeTag) t
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
 newtype T = T (PilType T)
