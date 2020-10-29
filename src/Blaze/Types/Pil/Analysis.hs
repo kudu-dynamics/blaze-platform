@@ -131,6 +131,10 @@ newSym = do
   newSymbols %= drop 1
   return . maybe "RAN_OUT_OF_SYMBOLS" identity . headMay $ slist
 
+runAnalysisWithState :: Analysis a -> AnalysisState -> (a, AnalysisState)
+runAnalysisWithState m s =
+  flip runState s . _runAnalysis $ m
+
 runAnalysis :: Analysis a -> HashSet Symbol -> a
 runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
   where

@@ -785,10 +785,8 @@ substZeroOffsetFields expr = case expr ^. Pil.op of
     x <- substVarEqVarsInExpr expr
     fieldBases <- use A.fieldBaseAddrs
     return $ case HSet.member x fieldBases of
-      True ->
-        -- Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
-        -- $ Pil.FieldAddrOp expr 0
-        expr
+      True -> Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+              $ Pil.FieldAddrOp expr 0
       False -> expr
 
 
