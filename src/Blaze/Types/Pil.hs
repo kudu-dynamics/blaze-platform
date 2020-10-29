@@ -388,8 +388,8 @@ instance Hashable a => Hashable (VarJoinOp a)
 --TODO: address_of and address_of_field
 ---------------
 
-getCallDest :: Expression -> CallDest Expression
-getCallDest expr = case expr ^. op of
+mkCallDest :: Expression -> CallDest Expression
+mkCallDest expr = case expr ^. op of
   (CONST_PTR c) -> CallConstPtr c
   _ -> CallExpr expr
 
@@ -650,20 +650,25 @@ data Statement expr
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
   deriving anyclass Hashable
 
-newtype CallStatement
+data CallStatement
   = CallStatement
-      {_stmt :: Statement Expression}
+      { _stmt :: Statement Expression,
+        _callOp :: CallOp Expression
+      }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass Hashable
+  deriving anyclass (Hashable)
 
 mkCallStatement :: Stmt -> Maybe CallStatement
 mkCallStatement stmt = case stmt of
-  Call _callOp -> 
-    Just $ CallStatement stmt
-  Def (DefOp _ (Expression _sz (CALL _callOp))) ->
-    Just $ CallStatement stmt
+  Call callOp -> 
+    Just $ CallStatement stmt callOp
+  Def (DefOp _ (Expression _sz (CALL callOp))) ->
+    Just $ CallStatement stmt callOp
   _ -> 
     Nothing
+
+getCallDest :: CallStatement -> CallDest Expression
+getCallDest callStmt =  _dest (_callOp callStmt :: CallOp Expression)
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
@@ -700,12 +705,12 @@ $(makeFieldsNoPrefix ''ConverterState)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
 
+$(makeFieldsNoPrefix ''CallStatement)
+
 $(makeFieldsNoPrefix ''DefOp)
 $(makeFieldsNoPrefix ''StoreOp)
 $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
-
-$(makeFieldsNoPrefix ''CallStatement)
 
 $(makePrisms ''ExprOp)
 $(makePrisms ''Type)

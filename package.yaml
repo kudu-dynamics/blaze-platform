@@ -117,6 +117,7 @@ library:
   - Blaze.Pil.Checker.OriginMap
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
+  - Blaze.Pil.Function
   - Blaze.Pil.Path
   - Blaze.Prelude
   - Blaze.Pretty
@@ -134,6 +135,7 @@ library:
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Pil.Checker
+  - Blaze.Types.Pil.Function
   - Blaze.Types.Pil.Solver
   - Blaze.Types.VTable
   - Blaze.Util.MLIL

@@ -380,7 +380,7 @@ genCallOutputStores paramInfos params =
 convertCallInstruction :: Ctx -> CallInstruction -> Pil.Converter [Stmt]
 convertCallInstruction ctx c = do
   -- TODO: Better handling of possible Nothing value
-  target <- Pil.getCallDest <$> convertExpr (fromJust (c ^. Func.dest))
+  target <- Pil.mkCallDest <$> convertExpr (fromJust (c ^. Func.dest))
   params <- sequence [convertExpr p | p <- c ^. Func.params]
   mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
   funcDefs <- use Pil.knownFuncs

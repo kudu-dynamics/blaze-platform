@@ -6,6 +6,8 @@ import Blaze.Types.Pil ( Expression(Expression)
                        , Statement
                        , PilVar
                        , StackOffset
+                       , CallStatement
+                       , CallOp
                        )
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Function (FuncVar)
@@ -14,6 +16,27 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as Analysis
 import qualified Data.Text as Text
 import Blaze.Types.Pil.Checker
+    ( addConstraint_,
+      BitWidth,
+      ConstraintGen,
+      ConstraintGenError(CannotFindSymInSymMap,
+                         CannotFindPilVarInVarSymMap),
+      ConstraintSymType(..),
+      HasCurrentSym(currentSym),
+      HasFuncSymMap(funcSymMap),
+      HasInfo(info),
+      HasStackAddrSymMap(stackAddrSymMap),
+      HasSym(sym),
+      HasSymMap(symMap),
+      HasVarSymMap(varSymMap),
+      InfoExpression(InfoExpression),
+      PilType(TPointer, TVBitWidth, TVSign, TInt, TArray, TVLength,
+              TChar, TRecord, TFloat, TBitVector, TBool),
+      Sym(..),
+      SymExpression,
+      SymInfo(SymInfo),
+      SymType(SType, SVar) )
+import Control.Arrow ((&&&))
 
 
 constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
@@ -78,10 +101,22 @@ addFuncSym fv sym' = funcSymMap %= HashMap.insert fv sym'
 -- | Create mapping of each FuncVar to a symbol
 createFuncSymMap :: [Statement Expression] -> ConstraintGen ()
 createFuncSymMap stmts' = do
-  let vars = undefined
-  mapM_ f vars
+  mapM_ f $ concatMap mkFuncVars $ HashMap.keys callStmtGroups
     where
+      f :: FuncVar -> ConstraintGen ()
       f var = newSym >>= addFuncSym var
+      callStmts :: [CallStatement]
+      callStmts = mapMaybe Pil.mkCallStatement stmts'
+      -- The CallOp includes a list of parameters, we can then assume 
+      -- the all CallStatements in a group have the same number of params.
+      callStmtGroups :: HashMap (CallOp Expression) (HashSet CallStatement)
+      callStmtGroups = HashMap.fromListWith HashSet.union 
+        . fmap (view Pil.callOp &&& HashSet.singleton) 
+        $ callStmts
+      mkFuncVars :: CallOp Expression -> [FuncVar]
+      mkFuncVars callOp =
+        undefined
+
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
