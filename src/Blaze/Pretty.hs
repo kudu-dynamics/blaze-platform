@@ -216,10 +216,6 @@ prettyExprOp exprOp _size = case exprOp of
     "fieldAddr"
     <-> paren (pretty $ op ^. Pil.baseAddr)
     <-> paren (pretty $ op ^. Pil.offset)
-  -- (Pil.CONTAINER_FIRST_ADDR op) ->
-  --   "containerFirstAddr"
-  --   <-> paren (pretty $ op ^. Pil.baseAddr)
-
   (Pil.FLOAT_CONST op) -> prettyConst op
   (Pil.FLOAT_CONV op) -> prettyUnop "floatConv" op
   (Pil.FLOAT_TO_INT op) -> prettyUnop "floatToInt" op
@@ -384,8 +380,6 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TRecord m -> "Record" <-> asList (rfield <$> HashMap.toList m)
       where
         rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
-
-    -- PI.TContainsFirst t -> "ContainsFirst" <-> paren (pretty t)
 
     PI.TBottom s -> paren $ "Bottom" <-> pretty s
     PI.TFunction _ret _params -> "Func"

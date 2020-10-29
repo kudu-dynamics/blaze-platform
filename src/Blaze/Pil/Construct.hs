@@ -102,10 +102,6 @@ fieldAddr :: Pil.Expression -> ByteOffset -> OperationSize -> Expression
 fieldAddr base offset size = 
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
--- containerFirstAddr :: Pil.Expression -> OperationSize -> Expression
--- containerFirstAddr base size = 
---   mkExpr size . Pil.CONTAINER_FIRST_ADDR $ Pil.ContainerFirstAddrOp base
-
 stackLocalAddr :: Expression -> ByteOffset -> OperationSize -> Expression
 stackLocalAddr base offset size = 
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset

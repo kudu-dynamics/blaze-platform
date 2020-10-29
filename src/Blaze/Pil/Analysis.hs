@@ -784,13 +784,10 @@ substZeroOffsetFields expr = case expr ^. Pil.op of
   _ -> do
     x <- substVarEqVarsInExpr expr
     fieldBases <- use A.fieldBaseAddrs
-    return $ case HSet.member x fieldBases of
-      True -> Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
-              $ Pil.FieldAddrOp expr 0
-      False -> expr
-
-
-  
+    return $ if HSet.member x fieldBases
+      then  Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+            $ Pil.FieldAddrOp expr 0
+      else expr
 
 substFieldAddr :: Stmt -> Analysis Stmt
 substFieldAddr = substAddr_ substArrayOrFieldAddr
@@ -802,8 +799,6 @@ substAddrs :: [Stmt] -> [Stmt]
 substAddrs stmts = A.runAnalysis_ $ do
   putVarEqMap stmts
   stmts' <- traverse (substAddr_ substArrayOrFieldAddr) stmts
-
-  return stmts'
-  --traverse (substAddr_ substZeroOffsetFields) stmts'
+  traverse (substAddr_ substZeroOffsetFields) stmts'
   
 

@@ -348,15 +348,6 @@ convertInstrOpSplitPhi = \case
     vdest <- convertToPilVarAndLog $ x ^. MLIL.dest
     srcs <- mapM convertToPilVarAndLog $ x ^. MLIL.src
     return [DefPhi $ DefPhiOp vdest srcs]
-    -- mapM (f vdest) $ x ^. MLIL.src
-    --   where
-    --     f vdest v = do
-    --       pv <- convertToPilVarAndLog v
-    --       -- doesn't seem safe
-    --       let vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
-    --       return . Def . DefOp vdest $
-    --         Expression (typeWidthToOperationSize $ vt ^. BNVar.width)
-    --                    (Pil.VAR $ Pil.VarOp pv)
   x -> convertInstrOp x
     
 convertInstr :: MLIL.Instruction t -> Pil.Converter [Stmt]

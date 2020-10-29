@@ -354,7 +354,7 @@ instance Hashable a => Hashable (ExprOp a)
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
 
 
-{- HLINT ignore VarOp -}
+{- HLINT ignore VarOp "Use newtype instead of data" -}
 data VarOp expr = VarOp
     { _varOpSrc :: PilVar
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -435,20 +435,19 @@ data MemCmpOp expr = MemCmpOp
 
 instance Hashable a => Hashable (MemCmpOp a)
 
-{- HLINT ignore ConstStrOp -}
+{- HLINT ignore ConstStrOp "Use newtype instead of data" -}
 data ConstStrOp expr = ConstStrOp
     { _value :: Text
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ConstStrOp a)
 
-{- HLINT ignore StackLocalAddrOp -}
+{- HLINT ignore StackLocalAddrOp "Use newtype instead of data" -}
 data StackLocalAddrOp expr = StackLocalAddrOp
     { _stackOffset :: StackOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (StackLocalAddrOp a)
 
-{- HLINT ignore UpdateVarOp -}
 data UpdateVarOp expr = UpdateVarOp
     { _dest :: PilVar
     , _offset :: ByteOffset
@@ -456,14 +455,13 @@ data UpdateVarOp expr = UpdateVarOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (UpdateVarOp a)
 
-{- HLINT ignore FieldAddrOp -}
 data FieldAddrOp expr = FieldAddrOp
     { _baseAddr :: expr
     , _offset :: ByteOffset
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (FieldAddrOp a)
 
-{- HLINT ignore ConstBoolOp -}
+{- HLINT ignore ConstBoolOp "Use newtype instead of data" -}
 data ConstBoolOp expr = ConstBoolOp
     { _constant :: Bool
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -490,7 +488,7 @@ data IntType = IntType
   } deriving (Eq, Ord, Show, Generic)
 instance Hashable IntType
 
-{- HLINT ignore FloatType -}
+{- HLINT ignore FloatType "Use newtype instead of data" -}
 data FloatType = FloatType
   { _width :: Bytes
   } deriving (Eq, Ord, Show, Generic)
@@ -605,19 +603,19 @@ data StoreOp expr = StoreOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (StoreOp a)
 
-{- HLINT ignore ConstraintOp -}
+{- HLINT ignore ConstraintOp "Use newtype instead of data" -}
 data ConstraintOp expr = ConstraintOp
     { _condition :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ConstraintOp a)
 
-{- HLINT ignore UnimplMemOp -}
+{- HLINT ignore UnimplMemOp "Use newtype instead of data" -}
 data UnimplMemOp expr = UnimplMemOp
     { _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (UnimplMemOp a)
 
-{- HLINT ignore EnterContextOp -}
+{- HLINT ignore EnterContextOp "Use newtype instead of data" -}
 data EnterContextOp expr = EnterContextOp
     { _ctx :: Ctx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
@@ -659,7 +657,6 @@ $(makeFields ''VarJoinOp)
 
 $(makeFieldsNoPrefix ''StackLocalAddrOp)
 $(makeFieldsNoPrefix ''FieldAddrOp)
--- $(makeFieldsNoPrefix ''ContainerFirstAddrOp)
 $(makeFieldsNoPrefix ''UpdateVarOp)
 $(makeFieldsNoPrefix ''ConstBoolOp)
 

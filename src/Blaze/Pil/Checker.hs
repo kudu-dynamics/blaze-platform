@@ -44,24 +44,6 @@ flatToDeepSyms flatSymHm = HashMap.mapWithKey (parseF HashSet.empty) flatSymHm
         True -> DSRecursive sym' $ fmap (substSymRecurse (HashSet.insert sym' sSyms) sym') ptS
         False -> DSType $ fmap (substSym $ HashSet.insert sym' sSyms) ptS
 
--- -- | replaces any `ContainsFirst x` with `x`
--- cleanDeepSymType :: DeepSymType -> DeepSymType
--- cleanDeepSymType (DSVar s) = (DSVar s)
--- cleanDeepSymType (DSType (TContainsFirst x)) = cleanDeepSymType x
--- cleanDeepSymType (DSType x) = DSType $ fmap cleanDeepSymType x
--- cleanDeepSymType (DSRecursive s (TContainsFirst x)) =
---   case x of
---     DSVar s' -> DSVar s' -- shouldn't ever happen
---     DSType t -> DSRecursive s $ fmap cleanDeepSymType t
-
---     -- really shouldn't happen, but if it does, keep ContainsFirst
---     DSRecursive s' t -> DSRecursive s
---                       . TContainsFirst
---                       . DSRecursive s'
---                       $ fmap cleanDeepSymType t
--- cleanDeepSymType (DSRecursive s t) = DSRecursive s $ fmap cleanDeepSymType t
-
-
 subSyms :: HashSet Sym -> HashMap Sym (PilType Sym) -> Sym -> HashSet Sym
 subSyms sSyms hm s = case HashSet.member s sSyms of
   True -> HashSet.fromList [s]
