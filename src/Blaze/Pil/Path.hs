@@ -108,8 +108,7 @@ convertConditionNode n = do
 
 convertAbstractCallNode :: AbstractCallNode -> Converter [Stmt]
 convertAbstractCallNode n = do
-  ctx <- use Pil.ctx
-  Pil.convertCallInstruction ctx (n ^. Path.callSite . Func.callInstr)
+  Pil.convertCallInstruction $ n ^. Path.callSite . Func.callInstr
 
 -- TODO: Check this earlier in the conversion process? 
 getCallDestFunc :: CallSite -> Function

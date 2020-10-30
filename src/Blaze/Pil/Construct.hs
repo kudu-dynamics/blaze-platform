@@ -53,6 +53,7 @@ unOp f g x size =
     }
 
 ---- Expressions
+
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
@@ -73,6 +74,9 @@ sub = binOp Pil.SUB Pil.SubOp
 
 cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
+
+cmpNE :: Expression -> Expression -> OperationSize -> Expression
+cmpNE = binOp Pil.CMP_NE Pil.CmpNeOp
 
 cmpSgt :: Expression -> Expression -> OperationSize -> Expression
 cmpSgt = binOp Pil.CMP_SGT Pil.CmpSgtOp
@@ -105,6 +109,9 @@ stackLocalAddr base offset size =
 ---- Statements
 def :: Symbol -> Expression -> Stmt
 def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
+
+defPhi :: Symbol -> [Symbol] -> Stmt
+defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
 
 store :: Expression -> Expression -> Stmt
 store addr val = Pil.Store (Pil.StoreOp addr val)

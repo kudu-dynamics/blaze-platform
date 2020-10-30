@@ -17,11 +17,15 @@ import Blaze.Types.Pil
     Statement (Def),
     Stmt,
     Symbol,
+    FieldAddrOp,
   )
+import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
+import qualified Data.List as List
 import Blaze.Types.Pil.Analysis
   ( Analysis,
     DefLoadStmt (DefLoadStmt),
+    EqMap,
     Index,
     LoadExpr (LoadExpr),
     LoadStmt (LoadStmt),
@@ -56,6 +60,7 @@ sizeToWidth (Pil.OperationSize x) = toBits x
 
 getDefinedVar_ :: Stmt -> Maybe PilVar
 getDefinedVar_ (Def d) = Just $ d ^. Pil.var
+getDefinedVar_ (Pil.DefPhi d) = Just $ d ^. Pil.dest
 getDefinedVar_ _ = Nothing
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
@@ -123,8 +128,11 @@ substVarsInExpr f e = case e ^. Pil.op of
         )
   _ -> e
 
+-- | ignores left side of Def, Store, and DefPhi
 substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
-substVars_ f = fmap $ substVarsInExpr f
+substVars_ f (Pil.DefPhi (Pil.DefPhiOp pv vs)) =
+  Pil.DefPhi . Pil.DefPhiOp pv . List.nub . fmap f $ vs
+substVars_ f s = fmap (substVarsInExpr f) s
 
 substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
 substVars f = fmap $ substVars_ f
@@ -143,9 +151,17 @@ substVarExpr f = fmap $ substVarExpr_ f
 
 ---- Expression -> Expression substitution
 substExprInExpr :: (Expression -> Maybe Expression) -> Expression -> Expression
-substExprInExpr f x = recurse $ maybe x identity (f x)
+substExprInExpr f x = maybe x' identity (f x')
   where
-    recurse e = e & Pil.op %~ fmap (substExprInExpr f)
+    x' = x & Pil.op %~ fmap (substExprInExpr f)
+
+substExprInExprM :: (Expression -> Analysis Expression)
+                 -> Expression
+                 -> Analysis Expression
+substExprInExprM f x = do
+  op <- traverse (substExprInExprM f) $ x ^. Pil.op
+  f (x & Pil.op .~ op)
+
 
 substExpr :: (Expression -> Maybe Expression) -> Stmt -> Stmt
 substExpr f = fmap $ substExprInExpr f
@@ -161,7 +177,7 @@ substExprMap m = flip (foldr f) $ HMap.toList m
 
 -----------------
 
-type EqMap a = HashMap a a
+
 
 addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
 addToEqMap (v1, v2) m = case HMap.lookup v2 m of
@@ -187,6 +203,10 @@ getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
         f v = case HMap.lookup v omap' of
           Nothing -> v
           (Just v') -> v'
+
+-- | puts VarEqMap in state
+putVarEqMap :: [Stmt] -> Analysis ()
+putVarEqMap xs = A.varEqMap .= Just (getVarEqMap xs)
 
 originsMap :: (Eq a, Hashable a) => EqMap a -> HashMap a (HashSet a)
 originsMap = foldr f HMap.empty . HMap.toList
@@ -274,6 +294,19 @@ copyProp xs =
   where
     copyPropResult = _foldCopyPropState xs
     copyPropResult' = copyPropResult {_mapping = reduceMap (_mapping copyPropResult)}
+    
+isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
+isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
+isUnusedPhi _ _ = False
+
+
+removeUnusedPhi :: [Stmt] -> [Stmt]
+removeUnusedPhi stmts = filter (not . isUnusedPhi refs) stmts
+  where
+    refs = getRefVars stmts
+
+
+--------------- MEMORY --------------------
 
 usesAddr :: MemAddr -> Stmt -> Bool
 usesAddr addr stmt = case stmt of
@@ -640,34 +673,35 @@ simplify = copyProp . constantProp
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
 
-parseFieldAddrLoad :: Expression -> Maybe Expression
-parseFieldAddrLoad expr =
-  case expr ^. Pil.op of
-    Pil.LOAD (Pil.LoadOp inner) ->
-      outerWrapper <$> parseFieldAddr inner
-      where
-        outerWrapper :: Pil.Expression -> Pil.Expression
-        outerWrapper innerExpr =
-          Pil.Expression
-            (expr ^. Pil.size)
-            (Pil.LOAD (Pil.LoadOp innerExpr))
-    _ -> Nothing
+subst :: (a -> Maybe a) -> a -> a
+subst f x = maybe x identity $ f x
 
-parseFieldAddr :: Expression -> Maybe Expression
+data ParsedAddr = ParsedAddr
+  { baseAddrExpr :: Expression
+  , fullAddrExpr :: Expression
+  } deriving (Eq, Ord, Show)
+
+-- TODO: get rid of this after merge with Kevin's stuff.
+type ArrayAddrOp = (FieldAddrOp Expression)
+parseArrayAddr :: Expression -> Maybe ParsedAddr
+parseArrayAddr _x = Nothing
+
+parseFieldAddr :: Expression -> Maybe ParsedAddr
 parseFieldAddr expr =
   case expr ^. Pil.op of
     -- Case where there is a const on the right
-    Pil.ADD addOp@(Pil.AddOp _left Pil.Expression {_op = (Pil.CONST _)}) ->
-      Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
-        <$> ( Pil.FieldAddrOp
-                <$> base addOp (^. Pil.left) <*> offset addOp (^. Pil.right)
-            )
+    Pil.ADD addOp@(Pil.AddOp _left Pil.Expression {_op = (Pil.CONST _)}) -> do
+      baseAddr <- base addOp (^. Pil.left)
+      fullAddr <- Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+                  <$> ( Pil.FieldAddrOp baseAddr <$> offset addOp (^. Pil.right))
+      return $ ParsedAddr baseAddr fullAddr
     -- Case where there is a const on the left
-    Pil.ADD addOp@(Pil.AddOp Pil.Expression {_op = (Pil.CONST _)} _right) ->
-      Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
-        <$> ( Pil.FieldAddrOp
-                <$> base addOp (^. Pil.right) <*> offset addOp (^. Pil.left)
-            )
+    Pil.ADD addOp@(Pil.AddOp Pil.Expression {_op = (Pil.CONST _)} _right) -> do
+      baseAddr <- base addOp (^. Pil.right)
+      fullAddr <- Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+                  <$> ( Pil.FieldAddrOp baseAddr <$> offset addOp (^. Pil.left))
+      return $ ParsedAddr baseAddr fullAddr
+      
     _ -> Nothing
   where
     baseOp :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe (ExprOp Expression)
@@ -681,39 +715,90 @@ parseFieldAddr expr =
     offset :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe ByteOffset
     offset addOp getExpr = ByteOffset <$> getExpr addOp ^? Pil.op . Pil._CONST . Pil.constant
 
--- parseFieldAddr' :: Expression -> Maybe Expression
--- parseFieldAddr' expr =
---   -- (parseConst (view Pil.right)) >> replaceVar (view Pil.left) <|> (parseConst (view Pil.left)) >> replaceVar (view Pil.right)
---   preview (Pil.op . Pil._ADD) expr >>= parseConst Pil.left >> replaceVar Pil.right expr
---     where
---       parseConst :: Lens' (AddOp Expression) Expression -> AddOp Expression -> Maybe Int64
---       parseConst getConstExpr x =
---         x ^? getConstExpr . Pil.op . Pil._CONST . Pil.constant
---       -- replaceVar :: Lens' (AddOp Expression) Expression -> Expression -> Maybe Expression
---       replaceVar :: Lens' (AddOp Expression) Expression -> Expression -> Maybe Expression
---       replaceVar getOtherExpr expr' =
---         (expr (Pil.op .~)) <$> 
---         (expr' ^? getOtherExpr . Pil.op . Pil._VAR) >> Pil.FieldAddrOp (expr' ^. getOtherExpr) offset 
---           <|> (expr' ^? getOtherExpr . Pil.op . Pil._CONST_PTR) >> Pil.FieldAddrOp (expr' ^. getOtherExpr) offset
---       offset :: ByteOffset
---       offset = ByteOffset 8
+parseAddrInLoad :: ( Expression -> Analysis Expression )
+                -> Expression
+                -> Analysis Expression
+parseAddrInLoad addrParser expr =
+  case expr ^. Pil.op of
+    Pil.LOAD (Pil.LoadOp inner) ->
+      outerWrapper <$> addrParser inner
+      where
+        outerWrapper :: Pil.Expression -> Pil.Expression
+        outerWrapper innerExpr =
+          Pil.Expression
+            (expr ^. Pil.size)
+            (Pil.LOAD (Pil.LoadOp innerExpr))
+    _ -> return expr
 
-substFieldAddr :: Stmt -> Stmt
-substFieldAddr stmt =
-  case stmt of
-    Pil.Def (Pil.DefOp var value) ->
-      Pil.Def (Pil.DefOp var $ substExprInExpr parseFieldAddrLoad value)
-    Pil.Store (Pil.StoreOp addr value) ->
-      Pil.Store
-        ( Pil.StoreOp
-            (substExprInExpr parseFieldAddr addr)
-            (substExprInExpr parseFieldAddrLoad value)
-        )
-    Pil.Constraint (Pil.ConstraintOp cond) ->
-      Pil.Constraint (Pil.ConstraintOp $ substExprInExpr parseFieldAddrLoad cond)
-    Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) ->
-      Pil.Call (callOp & Pil.dest .~ Pil.CallExpr (substExprInExpr parseFieldAddrLoad expr))
-    _ -> stmt
+getVarEqMapOrError :: Analysis (EqMap PilVar)
+getVarEqMapOrError = maybe (P.error "Must run patVarEqMap first") identity <$>
+  use A.varEqMap
 
-substFields :: [Stmt] -> [Stmt]
-substFields = fmap substFieldAddr
+substVarEqVarsInExpr :: Expression -> Analysis Expression
+substVarEqVarsInExpr x = do
+  m <- getVarEqMapOrError
+  return $ substVarsInExpr (f m) x
+  where
+    f m pv = maybe pv identity $ HMap.lookup pv m
+
+substArrayOrFieldAddr :: Expression -> Analysis Expression
+substArrayOrFieldAddr x = case parseFieldAddr x of
+  Just pa -> do
+    baseAddr <- substVarEqVarsInExpr . baseAddrExpr $ pa
+    A.fieldBaseAddrs %= HSet.insert baseAddr
+    return $ fullAddrExpr pa
+    
+  Nothing -> case parseArrayAddr x of
+    Just pa -> do
+      baseAddr <- substVarEqVarsInExpr . baseAddrExpr $ pa
+      A.arrayBaseAddrs %= HSet.insert baseAddr
+      return $ fullAddrExpr pa
+    Nothing -> return x
+
+substAddr_ :: (Expression -> Analysis Expression)
+           -> Stmt
+           -> Analysis Stmt
+substAddr_ addrParser stmt = case stmt of
+  Pil.Def (Pil.DefOp var value) ->
+    Pil.Def . Pil.DefOp var <$> substExprInExprM parseLoad value
+  Pil.Store (Pil.StoreOp addr value) ->
+    fmap Pil.Store . Pil.StoreOp
+      <$> substExprInExprM addrParser addr
+      <*> substExprInExprM parseLoad value
+  Pil.Constraint (Pil.ConstraintOp cond) ->
+    Pil.Constraint . Pil.ConstraintOp <$> substExprInExprM parseLoad cond
+  Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) -> do
+    cx <- substExprInExprM parseLoad expr
+    return $ Pil.Call (callOp & Pil.dest .~ Pil.CallExpr cx)
+  _ -> return stmt
+  where
+    parseLoad = parseAddrInLoad addrParser
+
+substZeroOffsetFields :: Expression -> Analysis Expression
+substZeroOffsetFields expr = case expr ^. Pil.op of
+  Pil.FIELD_ADDR _ -> return expr
+
+  -- TODO: doesn't exist yet, but uncomment when it does
+  -- Pil.ARRAY_ADDR _ -> return expr
+
+  _ -> do
+    x <- substVarEqVarsInExpr expr
+    fieldBases <- use A.fieldBaseAddrs
+    return $ if HSet.member x fieldBases
+      then  Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
+            $ Pil.FieldAddrOp expr 0
+      else expr
+
+substFieldAddr :: Stmt -> Analysis Stmt
+substFieldAddr = substAddr_ substArrayOrFieldAddr
+
+substFields :: [Stmt] -> Analysis [Stmt]
+substFields = traverse substFieldAddr
+
+substAddrs :: [Stmt] -> [Stmt]
+substAddrs stmts = A.runAnalysis_ $ do
+  putVarEqMap stmts
+  stmts' <- traverse (substAddr_ substArrayOrFieldAddr) stmts
+  traverse (substAddr_ substZeroOffsetFields) stmts'
+  
+
