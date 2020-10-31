@@ -765,7 +765,7 @@ substArrayOrFieldAddr x = case parseFieldAddr x of
     return fullAddr
     
   Nothing -> case parseArrayAddr x of
-    Just pa -> do
+    Just _pa -> do
       -- TODO: imitate the above
       P.error "Array subst not yet implemented"
     Nothing -> do
