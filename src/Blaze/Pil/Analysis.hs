@@ -178,14 +178,8 @@ substExprMap m = flip (foldr f) $ HMap.toList m
 
 -----------------
 
-
-
 addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
-addToEqMap (v1, v2) m = addToOriginMap_ v1 v2 m
-  -- case HMap.lookup v2 m of
-  -- Nothing -> HMap.insert v1 v2 m
-  -- Just origin -> HMap.insert v1 origin m
-
+addToEqMap (v1, v2) = addToOriginMap_ v1 v2
 
 updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
 updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
