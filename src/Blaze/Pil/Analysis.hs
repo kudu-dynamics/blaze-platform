@@ -51,6 +51,7 @@ import Data.Sequence
   )
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
+import Blaze.Pil.Checker.OriginMap (addToOriginMap_)
 
 widthToSize :: Bits -> Pil.OperationSize
 widthToSize x = Pil.OperationSize $ toBytes x
@@ -180,29 +181,32 @@ substExprMap m = flip (foldr f) $ HMap.toList m
 
 
 addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
-addToEqMap (v1, v2) m = case HMap.lookup v2 m of
-  Nothing -> HMap.insert v1 v2 m
-  Just origin -> HMap.insert v1 origin m
+addToEqMap (v1, v2) m = addToOriginMap_ v1 v2 m
+  -- case HMap.lookup v2 m of
+  -- Nothing -> HMap.insert v1 v2 m
+  -- Just origin -> HMap.insert v1 origin m
+
 
 updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
 updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
   addToEqMap (v1, v2) m
+updateVarEqMap (Def (Pil.DefOp v1 _)) m = addToEqMap (v1, v1) m
 updateVarEqMap _ m = m
  
 -- | Each var equivalent to another var is resolved to the
 --   earliest defined var. E.g., a = 1, b = a, c = b will
 --   result in c mapping to a.
 getVarEqMap :: [Stmt] -> EqMap PilVar
-getVarEqMap = updateMapsToInOriginVars . foldr updateVarEqMap HMap.empty
-  where
-    updateMapsToInOriginVars :: EqMap PilVar -> EqMap PilVar
-    updateMapsToInOriginVars m = fmap f m
-      where
-        omap = originsMap m
-        omap' = HMap.mapWithKey mergePilVars omap
-        f v = case HMap.lookup v omap' of
-          Nothing -> v
-          (Just v') -> v'
+getVarEqMap = foldl' (flip updateVarEqMap) HMap.empty
+  -- where
+  --   updateMapsToInOriginVars :: EqMap PilVar -> EqMap PilVar
+  --   updateMapsToInOriginVars m = fmap f m
+  --     where
+  --       omap = originsMap m
+  --       omap' = HMap.mapWithKey mergePilVars omap
+  --       f v = case HMap.lookup v omap' of
+  --         Nothing -> v
+  --         (Just v') -> v'
 
 -- | puts VarEqMap in state
 putVarEqMap :: [Stmt] -> Analysis ()
@@ -689,6 +693,10 @@ parseArrayAddr _x = Nothing
 parseFieldAddr :: Expression -> Maybe ParsedAddr
 parseFieldAddr expr =
   case expr ^. Pil.op of
+    Pil.FIELD_ADDR (Pil.FieldAddrOp baseAddr _) ->
+      return $ ParsedAddr { baseAddrExpr = baseAddr
+                          , fullAddrExpr = expr
+                          }
     -- Case where there is a const on the right
     Pil.ADD addOp@(Pil.AddOp _left Pil.Expression {_op = (Pil.CONST _)}) -> do
       baseAddr <- base addOp (^. Pil.left)
@@ -744,35 +752,48 @@ substVarEqVarsInExpr x = do
 substArrayOrFieldAddr :: Expression -> Analysis Expression
 substArrayOrFieldAddr x = case parseFieldAddr x of
   Just pa -> do
-    baseAddr <- substVarEqVarsInExpr . baseAddrExpr $ pa
-    A.fieldBaseAddrs %= HSet.insert baseAddr
-    return $ fullAddrExpr pa
+    -- see if base addr is a struct or array access
+    op' <- traverse substArrayOrFieldAddr $ fullAddrExpr pa ^. Pil.op
+    let fullAddr = fullAddrExpr pa & Pil.op .~ op'
+        baseAddr = maybe (baseAddrExpr pa) identity
+                   $ fullAddr ^? Pil.op . Pil._FIELD_ADDR . Pil.baseAddr
+
+    -- store version with vars subst'd to fieldBaseAddrs for easy lookup
+    baseAddr' <- substVarEqVarsInExpr baseAddr
+    A.fieldBaseAddrs %= HSet.insert baseAddr'
+
+    return fullAddr
     
   Nothing -> case parseArrayAddr x of
     Just pa -> do
       baseAddr <- substVarEqVarsInExpr . baseAddrExpr $ pa
-      A.arrayBaseAddrs %= HSet.insert baseAddr
-      return $ fullAddrExpr pa
-    Nothing -> return x
+
+      baseAddr' <- substVarEqVarsInExpr baseAddr
+      A.arrayBaseAddrs %= HSet.insert baseAddr'
+
+      return $ fullAddrExpr (pa { baseAddrExpr = baseAddr })
+    Nothing -> do
+      op <- traverse substArrayOrFieldAddr $ x ^. Pil.op
+      return $ x & Pil.op .~ op
 
 substAddr_ :: (Expression -> Analysis Expression)
            -> Stmt
            -> Analysis Stmt
 substAddr_ addrParser stmt = case stmt of
   Pil.Def (Pil.DefOp var value) ->
-    Pil.Def . Pil.DefOp var <$> substExprInExprM parseLoad value
+    Pil.Def . Pil.DefOp var <$> parseLoad value
   Pil.Store (Pil.StoreOp addr value) ->
     fmap Pil.Store . Pil.StoreOp
-      <$> substExprInExprM addrParser addr
-      <*> substExprInExprM parseLoad value
+      <$> addrParser addr
+      <*> parseLoad value
   Pil.Constraint (Pil.ConstraintOp cond) ->
-    Pil.Constraint . Pil.ConstraintOp <$> substExprInExprM parseLoad cond
+    Pil.Constraint . Pil.ConstraintOp <$> parseLoad cond
   Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) -> do
-    cx <- substExprInExprM parseLoad expr
+    cx <- parseLoad expr
     return $ Pil.Call (callOp & Pil.dest .~ Pil.CallExpr cx)
   _ -> return stmt
   where
-    parseLoad = parseAddrInLoad addrParser
+    parseLoad = substExprInExprM $ parseAddrInLoad addrParser
 
 substZeroOffsetFields :: Expression -> Analysis Expression
 substZeroOffsetFields expr = case expr ^. Pil.op of

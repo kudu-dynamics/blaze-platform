@@ -10,7 +10,8 @@ import Blaze.Types.Pil.Checker
 -- to a map where multiple vars map to `a`, it just adds (b, a) to map
 -- instead of adding (a, b) and updating all the `a`s to `b`.
 -- returns updated map and "origin" var that 'a' and 'b' are pointing to
-addToOriginMap :: Sym -> Sym -> HashMap Sym Sym -> (Sym, Maybe Sym, HashMap Sym Sym)
+addToOriginMap :: (Hashable a, Eq a)
+               => a -> a -> HashMap a a -> (a, Maybe a, HashMap a a)
 addToOriginMap a b m = case (HashMap.lookup a m, HashMap.lookup b m) of
   (Nothing, Nothing) -> (b, Nothing, HashMap.insert a b (HashMap.insert b b m))
   (Just c, Nothing) -> (c, Nothing, HashMap.insert b c m)
@@ -18,6 +19,11 @@ addToOriginMap a b m = case (HashMap.lookup a m, HashMap.lookup b m) of
   (Just c, Just d)
     | c == d -> (c, Nothing, m)
     | otherwise -> (d, Just c, fmap (\x -> if x == c then d else x) m)
+
+addToOriginMap_ :: (Hashable a, Eq a)
+                => a -> a -> HashMap a a -> HashMap a a
+addToOriginMap_ a b m = addToOriginMap a b m ^. _3
+
 
 -- | Adds new var equality, returning the origin sym.
 -- If the equality merges two groups, it picks the origin associated
