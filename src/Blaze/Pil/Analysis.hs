@@ -766,12 +766,8 @@ substArrayOrFieldAddr x = case parseFieldAddr x of
     
   Nothing -> case parseArrayAddr x of
     Just pa -> do
-      baseAddr <- substVarEqVarsInExpr . baseAddrExpr $ pa
-
-      baseAddr' <- substVarEqVarsInExpr baseAddr
-      A.arrayBaseAddrs %= HSet.insert baseAddr'
-
-      return $ fullAddrExpr (pa { baseAddrExpr = baseAddr })
+      -- TODO: imitate the above
+      P.error "Array subst not yet implemented"
     Nothing -> do
       op <- traverse substArrayOrFieldAddr $ x ^. Pil.op
       return $ x & Pil.op .~ op
