@@ -6,7 +6,7 @@ module Blaze.Prelude
   ( module Exports
   , Streaming
   , StreamingIO
-  , PPrint(PPrint)
+  , PShow(PShow)
   , catchEither
   , liftListM
   , liftListIO
@@ -194,8 +194,8 @@ instance ArithOverflow (SInt 128) where
   bvNegO = bvNegO . unSBV
 
 
-newtype PPrint a = PPrint a
+newtype PShow a = PShow a
   deriving (Eq, Ord, Generic)
 
-instance Show a => Show (PPrint a) where
-  show (PPrint x) = cs $ pshow x
+instance Show a => Show (PShow a) where
+  show (PShow x) = cs $ pshow x
