@@ -4,8 +4,30 @@ module Blaze.Pil.Checker.Unification where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Pil.Checker.OriginMap (addVarEq)
 import Blaze.Types.Pil.Checker
+import Blaze.Pil.Analysis (addToOriginMap)
+
+-- | Adds new var equality, returning the origin sym.
+-- If the equality merges two groups, it picks the origin associated
+-- with the second symbol and changes the origins of the first group to
+-- the second origin. It also removes the solution associated with the
+-- first origin and adds it as constraint to be later merged as solution.
+addVarEq :: MonadState UnifyState m => Sym -> Sym -> m Sym
+addVarEq a b = do
+  m <- use originMap
+  let (v, mr, m') = addToOriginMap a b m
+  case mr of
+    Nothing -> return ()
+    Just retiredSym -> do
+      sols <- use solutions
+      case HashMap.lookup retiredSym sols of
+        Nothing -> return ()
+        Just rt -> do
+          addConstraint_ retiredSym $ SType rt
+          solutions %= HashMap.delete retiredSym
+  originMap .= m'
+  return v
+
 
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------

@@ -13,7 +13,7 @@ import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker
 import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
 import Blaze.Pil.Checker.Unification ( unify )
-import Blaze.Pil.Checker.OriginMap ( originMapToGroupMap )
+import Blaze.Pil.Analysis ( originMapToGroupMap )
 import qualified Blaze.Pil as Pil
 import qualified Blaze.Pil.Analysis as Analysis
 

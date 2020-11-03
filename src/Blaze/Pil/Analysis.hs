@@ -51,7 +51,7 @@ import Data.Sequence
   )
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
-import Blaze.Pil.Checker.OriginMap (addToOriginMap_)
+
 
 widthToSize :: Bits -> Pil.OperationSize
 widthToSize x = Pil.OperationSize $ toBytes x
@@ -176,43 +176,70 @@ substExprMap m = flip (foldr f) $ HMap.toList m
     f :: (Expression, Expression) -> Stmt -> Stmt
     f (a, b) = substExpr (\x -> if x == a then Just b else Nothing)
 
------------------
 
-addToEqMap :: (Hashable a, Ord a) => (a, a) -> EqMap a -> EqMap a
-addToEqMap (v1, v2) = addToOriginMap_ v1 v2
+------------------
+
+-- | Creates a map of "origins" that vars are equal to.
+-- The "origin" for vars remains the same, i.e. if you add (a, b)
+-- to a map where multiple vars map to `a`, it just adds (b, a) to map
+-- instead of adding (a, b) and updating all the `a`s to `b`.
+-- returns updated map and "origin" var that 'a' and 'b' are pointing to
+addToOriginMap :: (Hashable a, Eq a)
+               => a -> a -> HashMap a a -> (a, Maybe a, HashMap a a)
+addToOriginMap a b m = case (HMap.lookup a m, HMap.lookup b m) of
+  (Nothing, Nothing) -> (b, Nothing, HMap.insert a b (HMap.insert b b m))
+  (Just c, Nothing) -> (c, Nothing, HMap.insert b c m)
+  (Nothing, Just c) -> (c, Nothing, HMap.insert a c m)
+  (Just c, Just d)
+    | c == d -> (c, Nothing, m)
+    | otherwise -> (d, Just c, fmap (\x -> if x == c then d else x) m)
+
+addToOriginMap_ :: (Hashable a, Eq a)
+                => a -> a -> HashMap a a -> HashMap a a
+addToOriginMap_ a b m = addToOriginMap a b m ^. _3
+
+originMapToGroupMap :: (Hashable a, Eq a)
+                    => HashMap a a -> HashMap a (HashSet a)
+originMapToGroupMap = foldr f HMap.empty . HMap.toList
+  where
+    f (a, b) m = HMap.alter g b m
+      where
+        g Nothing = Just $ HSet.singleton a
+        g (Just s) = Just $ HSet.insert a s
+
+originMapToGroups :: (Hashable a, Eq a)
+                  => HashMap a a -> HashSet (HashSet a)
+originMapToGroups = HSet.fromList . HMap.elems . originMapToGroupMap
+
+updateOriginMap :: Stmt -> EqMap PilVar -> EqMap PilVar
+updateOriginMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
+  addToOriginMap_ v1 v2 m
+updateOriginMap (Def (Pil.DefOp v1 _)) m =
+  addToOriginMap_ v1 v1 m
+updateOriginMap _ m = m
+
+getOriginMap :: [Stmt] -> EqMap PilVar
+getOriginMap = foldl' (flip updateOriginMap) HMap.empty
+
+-- | puts OriginMap in state
+putOriginMap :: [Stmt] -> Analysis ()
+putOriginMap xs = A.originMap .= Just (getOriginMap xs)
+
+
+-----------------
 
 updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
 updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
-  addToEqMap (v1, v2) m
-updateVarEqMap (Def (Pil.DefOp v1 _)) m = addToEqMap (v1, v1) m
+  HMap.insert v1 v2 m
 updateVarEqMap _ m = m
  
--- | Each var equivalent to another var is resolved to the
---   earliest defined var. E.g., a = 1, b = a, c = b will
---   result in c mapping to a.
+-- | A mapping of equivalent vars. They are not reduced to origins.
 getVarEqMap :: [Stmt] -> EqMap PilVar
-getVarEqMap = foldl' (flip updateVarEqMap) HMap.empty
-  -- where
-  --   updateMapsToInOriginVars :: EqMap PilVar -> EqMap PilVar
-  --   updateMapsToInOriginVars m = fmap f m
-  --     where
-  --       omap = originsMap m
-  --       omap' = HMap.mapWithKey mergePilVars omap
-  --       f v = case HMap.lookup v omap' of
-  --         Nothing -> v
-  --         (Just v') -> v'
+getVarEqMap = foldr updateVarEqMap HMap.empty
 
 -- | puts VarEqMap in state
 putVarEqMap :: [Stmt] -> Analysis ()
 putVarEqMap xs = A.varEqMap .= Just (getVarEqMap xs)
-
-originsMap :: (Eq a, Hashable a) => EqMap a -> HashMap a (HashSet a)
-originsMap = foldr f HMap.empty . HMap.toList
-  where
-    f (v1, v2) = HMap.alter g v1
-      where
-        g Nothing = Just $ HSet.singleton v2
-        g (Just s) = Just $ HSet.insert v2 s
 
 -- | Merges the mapsTo of every var in set into the origin var.
 mergePilVars :: PilVar -> HashSet PilVar -> PilVar
@@ -733,12 +760,16 @@ parseAddrInLoad addrParser expr =
     _ -> return expr
 
 getVarEqMapOrError :: Analysis (EqMap PilVar)
-getVarEqMapOrError = maybe (P.error "Must run patVarEqMap first") identity <$>
+getVarEqMapOrError = maybe (P.error "Must run putVarEqMap first") identity <$>
   use A.varEqMap
 
-substVarEqVarsInExpr :: Expression -> Analysis Expression
-substVarEqVarsInExpr x = do
-  m <- getVarEqMapOrError
+getOriginMapOrError :: Analysis (EqMap PilVar)
+getOriginMapOrError = maybe (P.error "Must run putOriginMap first") identity <$>
+  use A.originMap
+
+substOriginVarsInExpr :: Expression -> Analysis Expression
+substOriginVarsInExpr x = do
+  m <- getOriginMapOrError
   return $ substVarsInExpr (f m) x
   where
     f m pv = maybe pv identity $ HMap.lookup pv m
@@ -753,7 +784,7 @@ substArrayOrFieldAddr x = case parseFieldAddr x of
                    $ fullAddr ^? Pil.op . Pil._FIELD_ADDR . Pil.baseAddr
 
     -- store version with vars subst'd to fieldBaseAddrs for easy lookup
-    baseAddr' <- substVarEqVarsInExpr baseAddr
+    baseAddr' <- substOriginVarsInExpr baseAddr
     A.fieldBaseAddrs %= HSet.insert baseAddr'
 
     return fullAddr
@@ -793,7 +824,7 @@ substZeroOffsetFields expr = case expr ^. Pil.op of
   -- Pil.ARRAY_ADDR _ -> return expr
 
   _ -> do
-    x <- substVarEqVarsInExpr expr
+    x <- substOriginVarsInExpr expr
     fieldBases <- use A.fieldBaseAddrs
     return $ if HSet.member x fieldBases
       then  Pil.Expression (expr ^. Pil.size) . Pil.FIELD_ADDR
@@ -808,7 +839,7 @@ substFields = traverse substFieldAddr
 
 substAddrs :: [Stmt] -> [Stmt]
 substAddrs stmts = A.runAnalysis_ $ do
-  putVarEqMap stmts
+  putOriginMap stmts
   stmts' <- traverse (substAddr_ substArrayOrFieldAddr) stmts
   traverse (substAddr_ substZeroOffsetFields) stmts'
   
