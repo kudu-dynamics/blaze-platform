@@ -12,7 +12,6 @@ import Blaze.Types.Pil
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashSet as HSet
-import qualified Data.HashMap.Strict as HMap
 
 import qualified Data.Text as Text
 
