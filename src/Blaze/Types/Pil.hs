@@ -101,6 +101,7 @@ data ExprOp expr
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
     | CONST_BOOL (ConstBoolOp expr)
     | UNIT
+    | ARRAY_ADDR (ArrayAddrOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data Expression = Expression
@@ -204,6 +205,12 @@ data FieldAddrOp expr = FieldAddrOp
 {- HLINT ignore ConstBoolOp "Use newtype instead of data" -}
 data ConstBoolOp expr = ConstBoolOp
   { constant :: Bool
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
+data ArrayAddrOp expr = ArrayAddrOp
+  { baseAddr :: expr
+  , arrayIndex :: expr
+  , stride :: expr
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 
