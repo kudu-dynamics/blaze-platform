@@ -55,7 +55,6 @@ default-extensions:
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
-#  - StrictData
   - TupleSections
 
   
@@ -68,7 +67,6 @@ library:
   - -Wredundant-constraints
   - -j
   - +RTS
-  - -s
   - -A256m
   - -n16m
   - -RTS
@@ -91,15 +89,12 @@ executables:
       - -Wredundant-constraints
       - -j
       - +RTS
-      - -s
       - -A256m
       - -n16m
       - -RTS
     dependencies:
       - base
       - binja-header-cleaner
-# build-tools:
-#   - c2hs
 
 include-dirs:
   - "src"
@@ -119,4 +114,4 @@ tests:
     - containers
     - binja-header-cleaner
     - hspec
-
+    
