@@ -1,8 +1,8 @@
-# Hinja
+# Binary Ninja bindings for Haskell
 
-Tool to generate Haskell and Idris bindings and datatypes for binaryninja core.
+Provides access to Binary Ninja from Haskell through the Binary Ninja core shared library.
 
-Strategy:
-* clean binaryninjacore.h file so language-c can parse it (needed by c2hs)
-* use language-c parser to generate records for Structs, function declarations (enum modules can already be generated using ParseEnums)
-
+## Usage
+* Generate a C-spec compliant binaryninjacore.h header file. 's header file is not compliant. This issue was reported and the response "will not fix."
+* Ensure the BN core shared library is placed/installed correctly such that it can be found during linking of the bindings.
+* With the fixed binayninjacore.h header file placed in the `res/` directory, the bindings can now be built.
