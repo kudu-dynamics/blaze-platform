@@ -253,7 +253,7 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    extra-libraries: binaryninjacore binaryninjacore
+    extra-libraries: binaryninjacore
     dependencies:
     - containers
     - binja
