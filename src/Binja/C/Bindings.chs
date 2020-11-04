@@ -176,6 +176,7 @@ void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesW
 
 
 ---- architecture
+{#fun unsafe BNGetDefaultArchitecture as getDefaultArchitecture {withPtr* `BNBinaryView'} -> `BNArchitecture' safePtr* #}
 
 {#fun unsafe BNGetAllArchitectureSemanticFlagClasses as getAllArchitectureSemanticFlagClasses' {withPtr* `BNArchitecture', alloca- `CSize' peekIntConv*} -> `List CUInt' id #}
 
