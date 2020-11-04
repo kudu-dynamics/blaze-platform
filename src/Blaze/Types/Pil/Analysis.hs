@@ -12,7 +12,6 @@ import Blaze.Types.Pil
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashSet as HSet
-import qualified Data.HashMap.Strict as HMap
 
 import qualified Data.Text as Text
 
@@ -103,6 +102,7 @@ type EqMap a = HashMap a a
 data AnalysisState = AnalysisState
   { _newSymbols :: [Symbol]
   , _varEqMap :: Maybe (EqMap PilVar) -- putVarEqMap
+  , _originMap :: Maybe (EqMap PilVar) --putOriginMap
   , _fieldBaseAddrs :: HashSet Expression
   , _arrayBaseAddrs :: HashSet Expression
   }
@@ -113,7 +113,8 @@ $(makeFieldsNoPrefix ''AnalysisState)
 emptyAnalysisState :: AnalysisState
 emptyAnalysisState = AnalysisState
   []
-  (Just HMap.empty)
+  Nothing
+  Nothing
   HSet.empty
   HSet.empty
 

@@ -114,7 +114,6 @@ library:
   - Blaze.Pil.Checker
   - Blaze.Pil.Checker.Constraints
   - Blaze.Pil.Checker.Unification
-  - Blaze.Pil.Checker.OriginMap
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Pil.Path

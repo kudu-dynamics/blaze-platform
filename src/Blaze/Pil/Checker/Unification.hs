@@ -4,8 +4,30 @@ module Blaze.Pil.Checker.Unification where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Pil.Checker.OriginMap (addVarEq)
 import Blaze.Types.Pil.Checker
+import Blaze.Pil.Analysis (addToOriginMap)
+
+-- | Adds new var equality, returning the origin sym.
+-- If the equality merges two groups, it picks the origin associated
+-- with the second symbol and changes the origins of the first group to
+-- the second origin. It also removes the solution associated with the
+-- first origin and adds it as constraint to be later merged as solution.
+addVarEq :: MonadState UnifyState m => Sym -> Sym -> m Sym
+addVarEq a b = do
+  m <- use originMap
+  let (v, mr, m') = addToOriginMap a b m
+  case mr of
+    Nothing -> return ()
+    Just retiredSym -> do
+      sols <- use solutions
+      case HashMap.lookup retiredSym sols of
+        Nothing -> return ()
+        Just rt -> do
+          addConstraint_ retiredSym $ SType rt
+          solutions %= HashMap.delete retiredSym
+  originMap .= m'
+  return v
+
 
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
@@ -115,12 +137,6 @@ isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
   TBottom _ -> True
   _ -> False
--- isTypeDescendent (TContainsFirst _) t = case t of
---   TContainsFirst _ -> True
---   TRecord _ -> True
---   TArray _ _ -> True
---   TBottom _ -> True
---   _ -> False
 isTypeDescendent (TBottom _) t = case t of
   TBottom _ -> True
   _ -> False
@@ -164,20 +180,12 @@ unifyPilTypes pt1 pt2 =
           addConstraint_ w1 . SType $ TVBitWidth charSize
           addConstraint_ sign1 . SType $ TVSign False
           return TChar
-        -- TQueryChar -> do
-        --   addConstraint_ w1 . SType $ TVBitWidth charSize
-        --   addConstraint_ sign1 . SType $ TVSign False
-        --   return TQueryChar
 
         _ -> err
 
       TChar -> case pt2 of
         TChar -> return TChar
         _ -> err
-
-      -- TQueryChar -> case pt2 of
-      --   TQueryChar -> return TQueryChar
-      --   _ -> err
       
       TFloat w1 -> case pt2 of
         TFloat w2 -> TFloat <$> addVarEq w1 w2
@@ -191,11 +199,6 @@ unifyPilTypes pt1 pt2 =
         TChar -> do
           addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
-
-        -- TQueryChar -> do
-        --   addConstraint_ w1 . SType $ TVBitWidth 8
-        --   return TQueryChar
-
 
         TBool -> return TBool
         _ -> err
@@ -214,14 +217,6 @@ unifyPilTypes pt1 pt2 =
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
         _ -> err
-
-      -- TContainsFirst t1 -> case pt2 of
-      --   TContainsFirst t2 -> TContainsFirst <$> addVarEq t1 t2
-      --   TRecord m2 -> do
-      --     let m1 = HashMap.fromList [(0, t1)]
-      --     TRecord <$> unifyRecords m1 m2
-      --   TArray len2 t2 -> TArray len2 <$> addVarEq t1 t2
-      --   _ -> err
 
       TVBitWidth bw1 -> case pt2 of
         TVBitWidth bw2
