@@ -249,6 +249,11 @@ dispExprOp exprOp size = case exprOp of
   (Pil.ADD_WILL_CARRY op) -> dispBinop "addWillCarry" op size
   (Pil.ADD_WILL_OVERFLOW op) -> dispBinop "addWillOverflow" op size
   (Pil.AND op) -> dispBinop "and" op size
+  (Pil.ARRAY_ADDR op) ->
+    "arrayAddr"
+    <-> parenExpr (op ^. #baseAddr)
+    <-> parenExpr (op ^. #arrayIndex)
+    <-> paren (disp $ op ^. #stride)
   (Pil.ASR op) -> dispBinop "asr" op size
   (Pil.BOOL_TO_INT op) -> dispUnop "boolToInt" op size
   (Pil.CEIL op) -> dispUnop "ceil" op size
@@ -388,6 +393,9 @@ instance Disp Function where
 
 instance Disp ByteOffset where
   disp (ByteOffset x) = "byteOffset " <> show x
+
+instance Disp Bytes where
+  disp (Bytes x) = "bytes " <> show x
 
 instance Disp [Pil.Stmt] where
   disp = Text.intercalate "\n" . fmap disp
