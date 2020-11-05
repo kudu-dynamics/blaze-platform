@@ -4,8 +4,30 @@ module Blaze.Pil.Checker.Unification where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Pil.Checker.OriginMap (addVarEq)
 import Blaze.Types.Pil.Checker
+import Blaze.Pil.Analysis (addToOriginMap)
+
+-- | Adds new var equality, returning the origin sym.
+-- If the equality merges two groups, it picks the origin associated
+-- with the second symbol and changes the origins of the first group to
+-- the second origin. It also removes the solution associated with the
+-- first origin and adds it as constraint to be later merged as solution.
+addVarEq :: MonadState UnifyState m => Sym -> Sym -> m Sym
+addVarEq a b = do
+  m <- use originMap
+  let (v, mr, m') = addToOriginMap a b m
+  case mr of
+    Nothing -> return ()
+    Just retiredSym -> do
+      sols <- use solutions
+      case HashMap.lookup retiredSym sols of
+        Nothing -> return ()
+        Just rt -> do
+          addConstraint_ retiredSym $ SType rt
+          solutions %= HashMap.delete retiredSym
+  originMap .= m'
+  return v
+
 
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
@@ -107,11 +129,6 @@ isTypeDescendent TChar t = case t of
   TChar -> True
   TBottom _ -> True
   _ -> False
--- isTypeDescendent TQueryChar t = case t of
---   TQueryChar -> True
---   -- TFirstOf _ _ -> True
---   TBottom _ -> True
---   _ -> False
 isTypeDescendent (TFunction _ _) t = case t of
   (TFunction _ _) -> True
   TBottom _ -> True
@@ -145,18 +162,10 @@ unifyPilTypes pt1 pt2 =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
     (False, True) -> unifyPilTypes pt2 pt1
-    _ -> case pt1 of
-      -- TFirstOf ft bt -> case pt2 of
-      --   TFirstOf ft' bt' -> TZeroField <$> addVarEq ft ft' <*> addVarEq bt bt'
-        -- TArray alen et -> TArray alen <$> addVarEq t et
-        -- TRecord fields -> fmap TRecord . unifyRecords fields
-        --                   $ HashMap.fromList [(0, t)]
-        -- _ -> err
-        
+    _ -> case pt1 of        
       TArray len1 et1 -> case pt2 of
         TArray len2 et2 ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
-        -- TFirstOf ft bt -> 
         _ -> err
       TBool -> case pt2 of
         TBool -> return TBool
@@ -171,20 +180,12 @@ unifyPilTypes pt1 pt2 =
           addConstraint_ w1 . SType $ TVBitWidth charSize
           addConstraint_ sign1 . SType $ TVSign False
           return TChar
-        -- TQueryChar -> do
-        --   addConstraint_ w1 . SType $ TVBitWidth charSize
-        --   addConstraint_ sign1 . SType $ TVSign False
-        --   return TQueryChar
 
         _ -> err
 
       TChar -> case pt2 of
         TChar -> return TChar
         _ -> err
-
-      -- TQueryChar -> case pt2 of
-      --   TQueryChar -> return TQueryChar
-      --   _ -> err
       
       TFloat w1 -> case pt2 of
         TFloat w2 -> TFloat <$> addVarEq w1 w2
@@ -199,18 +200,13 @@ unifyPilTypes pt1 pt2 =
           addConstraint_ w1 . SType $ TVBitWidth 8
           return TChar
 
-        -- TQueryChar -> do
-        --   addConstraint_ w1 . SType $ TVBitWidth 8
-        --   return TQueryChar
-
-
         TBool -> return TBool
         _ -> err
       TPointer w1 pointeeType1 -> case pt2 of
         TPointer w2 pointeeType2 ->
           TPointer <$> addVarEq w1 w2
                    <*> addVarEq pointeeType1 pointeeType2
-        TArray len1 et2 -> TArray len1 <$> addVarEq pointeeType1 et2
+        TArray len2 et2 -> TArray len2 <$> addVarEq pointeeType1 et2
 
         _ -> err
       TFunction _ret1 _params1 -> err -- don't know how to unify at the moment...
@@ -220,7 +216,6 @@ unifyPilTypes pt1 pt2 =
 
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
-        -- TFirstOf t -> fmap TRecord . unifyRecords m1 . HashMap.fromList $ [(0, t)]
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of
@@ -280,8 +275,6 @@ unifyRecords a = foldM f a . HashMap.toList
       Just s2 -> do
         addConstraint_ s2 (SVar s)
         return m
-
-
 
 -- -- | given the fields in the hashmap, find the greatest (offset + known width)
 -- --   This doesn't consider padding or error on overlapping fields.

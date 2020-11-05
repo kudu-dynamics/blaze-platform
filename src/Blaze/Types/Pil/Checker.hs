@@ -32,7 +32,6 @@ data TypeTag = TagDirty
 
 data PilType t = TBool
                | TChar
-               -- | TQueryChar
                
                | TInt { bitWidth :: t, signed :: t }
                | TFloat { bitWidth :: t }
@@ -47,8 +46,8 @@ data PilType t = TBool
                                   t -- type
                          )
 
-               -- | TFirstOf t
                -- first record field or array index, or itself
+               -- t is type of first thing
                
                -- Bottom is labeled with error info
                | TBottom Sym
@@ -57,9 +56,7 @@ data PilType t = TBool
                -- type level values for some dependent-type action
                | TVBitWidth BitWidth
                | TVLength Word64
-               | TVSign Bool
-               
-               -- TTagged (HashSet TypeTag) t
+               | TVSign Bool    
                deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
 
 newtype T = T (PilType T)
@@ -82,10 +79,11 @@ data DeepSymType = DSVar Sym
                  | DSType (PilType DeepSymType)
                deriving (Eq, Ord, Read, Show, Generic)
 
+--joinDeepSymTypes :: DeepSymType -> DeepSymType -> DeepSymType
 
 data Constraint = Constraint
   { _stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
-  , _sym ::Sym
+  , _sym :: Sym
   , _symType :: SymType
   } deriving (Eq, Ord, Show, Generic)
 
@@ -165,7 +163,6 @@ data TypeReport = TypeReport
   , _solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
-
 
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------

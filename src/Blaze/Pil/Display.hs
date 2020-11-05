@@ -162,6 +162,10 @@ instance Disp a => Disp (Pil.Statement a) where
         dest = disp $ c ^. Pil.dest
         params :: Text
         params = show $ fmap disp $ c ^. Pil.params
+    (Pil.DefPhi op) -> Text.pack $ printf "defPhi \"%s\" %s" var val
+      where
+        var = disp $ op ^. Pil.dest
+        val = asList . fmap disp $ op ^. Pil.src
 
 dispExprOp :: Disp a => Pil.ExprOp a -> Pil.OperationSize -> Text
 dispExprOp exprOp size = case exprOp of

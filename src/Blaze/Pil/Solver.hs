@@ -389,6 +389,15 @@ solveStmt stmt = catchAndWarnStmt $ case stmt of
     sValue <- solveExpr $ x ^. Pil.value
     modify (\s -> s { _mem = HashMap.insert exprAddr sValue $ s ^. mem } )
     return ()
+  Pil.DefPhi x -> do
+    pv <- lookupVarSym $ x ^. Pil.dest
+    mapM_ (f pv) $ x ^. Pil.src
+    where
+      f pv y = do
+        pv2 <- lookupVarSym y
+        guardSameKind pv pv2
+        constrain $ pv `svEqual` pv2
+
   _ -> return ()
 
 
@@ -842,12 +851,12 @@ solvePathWith :: SMTConfig -> Function -> AlgaPath
                      (SolverReport, Ch.TypeReport))
 solvePathWith solverCfg startFunc p = do
   stmts <- Path.convertPath startFunc p
-  let stmts' = Analysis.substFields stmts
+  let stmts' = Analysis.substAddrs stmts
   solveStmtsWith solverCfg stmts'
 
 
 solvePathWith_ :: SMTConfig -> Function -> AlgaPath -> IO SolverResult
 solvePathWith_ solverCfg startFunc p = do
   stmts <- Path.convertPath startFunc p
-  let stmts' = Analysis.substFields stmts
+  let stmts' = Analysis.substAddrs stmts
   solveStmtsWith_ solverCfg stmts'

@@ -339,6 +339,10 @@ instance Pretty a => Pretty (Pil.Statement a) where
     (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. Pil.ctx)
     (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. Pil.leavingCtx)
     (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. Pil.dest) (pretty $ x ^. Pil.params)
+    (Pil.DefPhi x) -> Text.pack $ printf "%s = %s"
+                      (pretty $ x ^. Pil.dest)
+                      (asList . fmap pretty $ x ^. Pil.src)
+
 
 newtype PStmts a = PStmts [Pil.Statement a]
 
@@ -376,6 +380,7 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TRecord m -> "Record" <-> asList (rfield <$> HashMap.toList m)
       where
         rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
+
     PI.TBottom s -> paren $ "Bottom" <-> pretty s
     PI.TFunction _ret _params -> "Func"
 

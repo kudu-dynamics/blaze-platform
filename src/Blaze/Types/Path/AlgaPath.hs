@@ -1,7 +1,11 @@
-module Blaze.Types.Path.AlgaPath (AlgaPath (AlgaPath)) where
+module Blaze.Types.Path.AlgaPath
+  ( AlgaPath (AlgaPath)
+  , empty
+  ) where
 
-import Blaze.Prelude
+import Blaze.Prelude hiding (empty)
 import Blaze.Types.Graph (Graph)
+import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Path
 import qualified Blaze.Types.Path as Path
@@ -18,3 +22,6 @@ instance Eq AlgaPath where
 
 instance Show AlgaPath where
   show = show . Path.toList
+
+empty :: AlgaPath
+empty = AlgaPath G.empty

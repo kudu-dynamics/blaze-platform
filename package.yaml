@@ -114,7 +114,6 @@ library:
   - Blaze.Pil.Checker
   - Blaze.Pil.Checker.Constraints
   - Blaze.Pil.Checker.Unification
-  - Blaze.Pil.Checker.OriginMap
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Pil.Function
@@ -140,7 +139,7 @@ library:
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
   - Blaze.VTable
-
+  
 include-dirs:
   - "src"
   - "../haskell-binja/res"
