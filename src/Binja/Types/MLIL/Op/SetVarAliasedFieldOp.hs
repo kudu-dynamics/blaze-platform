@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.SetVarAliasedFieldOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 import Binja.Types.MLIL.Common (SSAVariableDestAndSrc)
 
@@ -10,4 +11,5 @@ data SetVarAliasedFieldOp expr = SetVarAliasedFieldOp
     , _setVarAliasedFieldOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (SetVarAliasedFieldOp a)
 instance Hashable a => Hashable (SetVarAliasedFieldOp a)

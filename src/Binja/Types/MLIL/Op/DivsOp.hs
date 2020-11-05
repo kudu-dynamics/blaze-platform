@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.DivsOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data DivsOp expr = DivsOp
@@ -8,4 +9,5 @@ data DivsOp expr = DivsOp
     , _divsOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (DivsOp a)
 instance Hashable a => Hashable (DivsOp a)

@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.LslOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data LslOp expr = LslOp
@@ -8,4 +9,5 @@ data LslOp expr = LslOp
     , _lslOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (LslOp a)
 instance Hashable a => Hashable (LslOp a)

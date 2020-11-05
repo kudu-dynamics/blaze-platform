@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.SyscallUntypedSSAOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data SyscallUntypedSSAOp expr = SyscallUntypedSSAOp
@@ -9,4 +10,5 @@ data SyscallUntypedSSAOp expr = SyscallUntypedSSAOp
     , _syscallUntypedSSAOpStack :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (SyscallUntypedSSAOp a)
 instance Hashable a => Hashable (SyscallUntypedSSAOp a)

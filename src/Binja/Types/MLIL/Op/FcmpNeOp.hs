@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.FcmpNeOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data FcmpNeOp expr = FcmpNeOp
@@ -8,4 +9,5 @@ data FcmpNeOp expr = FcmpNeOp
     , _fcmpNeOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (FcmpNeOp a)
 instance Hashable a => Hashable (FcmpNeOp a)

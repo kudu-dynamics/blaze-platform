@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.RolOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data RolOp expr = RolOp
@@ -8,4 +9,5 @@ data RolOp expr = RolOp
     , _rolOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (RolOp a)
 instance Hashable a => Hashable (RolOp a)

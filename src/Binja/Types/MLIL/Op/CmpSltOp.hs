@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.CmpSltOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data CmpSltOp expr = CmpSltOp
@@ -8,4 +9,5 @@ data CmpSltOp expr = CmpSltOp
     , _cmpSltOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (CmpSltOp a)
 instance Hashable a => Hashable (CmpSltOp a)

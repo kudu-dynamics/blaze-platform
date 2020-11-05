@@ -13,6 +13,7 @@ import Binja.C.Types
 import Binja.Types.MLIL.Common as Exports
 import Binja.Types.MLIL.Ops as Exports
 
+import Test.SmallCheck.Series (Serial)
 
 newtype OpIndex = OpIndex Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
@@ -20,6 +21,7 @@ newtype OpIndex = OpIndex Word64
 newtype OperationSize = OperationSize Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
 
+instance Monad m => Serial m OperationSize
 instance Hashable OperationSize
 
 newtype OperandsData = OperandsData [Word64]

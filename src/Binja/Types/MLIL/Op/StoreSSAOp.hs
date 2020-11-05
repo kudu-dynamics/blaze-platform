@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.StoreSSAOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data StoreSSAOp expr = StoreSSAOp
@@ -10,4 +11,5 @@ data StoreSSAOp expr = StoreSSAOp
     , _storeSSAOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (StoreSSAOp a)
 instance Hashable a => Hashable (StoreSSAOp a)

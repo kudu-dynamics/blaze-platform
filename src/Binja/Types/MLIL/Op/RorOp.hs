@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.RorOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 
 data RorOp expr = RorOp
@@ -8,4 +9,5 @@ data RorOp expr = RorOp
     , _rorOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (RorOp a)
 instance Hashable a => Hashable (RorOp a)

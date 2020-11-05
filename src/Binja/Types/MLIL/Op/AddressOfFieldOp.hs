@@ -1,6 +1,7 @@
 module Binja.Types.MLIL.Op.AddressOfFieldOp where
 
 import Binja.Prelude
+import Test.SmallCheck.Series (Serial)
 
 import Binja.Types.Variable (Variable)
 
@@ -9,4 +10,5 @@ data AddressOfFieldOp expr = AddressOfFieldOp
     , _addressOfFieldOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
+instance Serial m a => Serial m (AddressOfFieldOp a)
 instance Hashable a => Hashable (AddressOfFieldOp a)
