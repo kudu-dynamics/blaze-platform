@@ -76,10 +76,10 @@ getStackOffsetSym k = do
     Just s -> return s
 
 addVarSym :: PilVar -> Sym -> ConstraintGen ()
-addVarSym pv sym' = varSymMap %= HashMap.insert pv sym'
+addVarSym pv s = varSymMap %= HashMap.insert pv s
 
 addFuncSym :: FuncVar -> Sym -> ConstraintGen ()
-addFuncSym fv sym' = funcSymMap %= HashMap.insert fv sym'
+addFuncSym fv s = funcSymMap %= HashMap.insert fv s
 
 -- | Create mapping of each FuncVar to a symbol
 createFuncSymMap :: [Statement Expression] -> ConstraintGen ()
@@ -118,7 +118,7 @@ lookupVarSym pv = do
   case HashMap.lookup pv vsm of
     Nothing -> do
       s <- newSym
-      varSymMap %= HashMap.insert pv s
+      addVarSym pv s
       return s
     Just s -> return s
 
