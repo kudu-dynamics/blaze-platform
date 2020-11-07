@@ -36,6 +36,7 @@ import Control.Lens as Exports
   , (^.)
   , (^?)
   )
+import Control.Monad.Extra as Exports ( mapMaybeM )
 import Control.Monad.Trans.Maybe as Exports
   ( MaybeT
   , runMaybeT

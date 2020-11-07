@@ -67,7 +67,7 @@ updateBnTypePtrReference x = case x ^. TypeLib.bnTypePtr of
   Nothing -> return x
   (Just t) -> do
     t' <- newTypeReference t
-    return $ x & TypeLib.bnTypePtr .~ Just t'
+    return $ x & TypeLib.bnTypePtr ?~ t'
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =

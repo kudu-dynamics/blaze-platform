@@ -23,14 +23,15 @@ data BNFunctionParameter = BNFunctionParameter
   , _bnTypePtr :: Maybe BNType
   , _typeConfidence :: Confidence
   , _defaultLocation :: Bool
-  , _variable :: BNVariable
+  , _location :: BNVariable
   }
   deriving (Eq, Ord, Show)
 
 data FunctionType = FunctionType
   { _name :: Text
-  , _returnType :: Maybe VarType
-  , _argumentTypes :: [Maybe VarType]
+  , _qualifiedName :: [Text] -- all examples had just 1 name, but just case...
+  , _returnType :: VarType
+  , _argumentTypes :: [VarType]
   }
   deriving (Eq, Ord, Show)
 

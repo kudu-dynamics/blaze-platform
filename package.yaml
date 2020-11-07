@@ -30,6 +30,7 @@ dependencies:
   - envy
   - language-c
   - lens
+  - monad-extras
   - mtl
   - newtype
   - pretty-simple

@@ -4,32 +4,37 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module Binja.TypeLibrary where
+module Binja.TypeLibrary
+  ( module Binja.TypeLibrary
+  , module Exports
+  ) where
 
-import qualified Binja.Core as Bn
+import qualified Binja.Core as BN
 import Binja.Prelude hiding (handle)
 import Binja.Types.TypeLibrary as Exports
 import Binja.Types.Variable hiding (name)
 import Binja.Variable (getVarType')
-import qualified Data.Text as Text
 
-functionTsFromTypeLib :: Bn.BNTypeLibrary -> IO [FunctionType]
-functionTsFromTypeLib tl = Bn.getTypeLibraryNamedObjects tl >>= traverse f
+-- | gets the types for all functions in the type lib
+-- if there are non-function types in the typelib, they will be ignored
+getFunctionTypes :: BN.BNTypeLibrary -> IO [FunctionType]
+getFunctionTypes tl = BN.getTypeLibraryNamedObjects tl >>= mapMaybeM f
   where
-    f :: BNQualifiedNameAndType -> IO FunctionType
-    f x = maybe 
-          (return $ FunctionType (getName $ x ^. name) Nothing [Nothing])
-          (createFunctionType (getName $ x ^. name))
-          $ x ^. bnTypePtr
+    getFromMaybe :: Monad m => Maybe a -> MaybeT m a
+    getFromMaybe = maybe mzero return
 
-    createFunctionType :: Text -> Bn.BNType -> IO FunctionType
-    createFunctionType name' type' = do
-      return' <- flip getVarType' (Confidence 255) type'
-      args <- Bn.getTypeParameters type' >>= traverse paramToVarType
-      return $ FunctionType name' (Just return') args
-    getName :: [Text] -> Text
-    getName l = maybe (Text.pack "") identity $ headMay l    
-    paramToVarType :: BNFunctionParameter -> IO (Maybe VarType)
-    paramToVarType p = maybe (return Nothing) mGetVarType $ p ^. bnTypePtr
-    mGetVarType :: Bn.BNType -> IO (Maybe VarType)
-    mGetVarType t' = flip getVarType' (Confidence 255) t' >>= return . Just 
+    f :: BNQualifiedNameAndType -> IO (Maybe FunctionType)
+    f x = runMaybeT $ do
+      bnt <- getFromMaybe $ x ^. bnTypePtr
+      retType <- liftIO $ getVarType' bnt 255
+      params <- liftIO $ BN.getTypeParameters bnt
+      paramsTypes <- traverse paramToVarType params
+
+      name' <- getFromMaybe . lastMay $ x ^. name
+
+      return $ FunctionType name' (x ^. name) retType paramsTypes
+
+    paramToVarType :: BNFunctionParameter -> MaybeT IO VarType
+    paramToVarType p = do
+      bnt <- getFromMaybe $ p ^. bnTypePtr
+      liftIO . getVarType' bnt $ p ^. typeConfidence
