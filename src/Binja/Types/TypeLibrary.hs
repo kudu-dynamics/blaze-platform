@@ -10,10 +10,15 @@ import Binja.Types.Variable
   , VarType
   )
 
-data BNQualifiedNameAndType = BNQualifiedNameAndType
+data BNQualifiedName = BNQualifiedName
   { _name :: [Text]
   , _join :: Text
   , _nameCount :: Word64
+  }
+  deriving (Eq, Ord, Show)
+
+data BNQualifiedNameAndType = BNQualifiedNameAndType
+  { _name :: BNQualifiedName
   , _bnTypePtr :: Maybe BNType
   }
   deriving (Eq, Ord, Show)
@@ -35,6 +40,7 @@ data FunctionType = FunctionType
   }
   deriving (Eq, Ord, Show)
 
+$(makeFieldsNoPrefix ''BNQualifiedName)
 $(makeFieldsNoPrefix ''BNQualifiedNameAndType)
 $(makeFieldsNoPrefix ''BNFunctionParameter)
 $(makeFieldsNoPrefix ''FunctionType)

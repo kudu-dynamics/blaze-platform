@@ -9,7 +9,9 @@ import qualified Prelude as P
 
 import Binja.C.Util
 import Binja.Types.MLIL
-import Binja.Types.Variable (BNVariable(BNVariable), BNTypeWithConfidence(BNTypeWithConfidence), BNBoolWithConfidence(BNBoolWithConfidence)
+import Binja.Types.Variable ( BNVariable(BNVariable)
+                            , BNTypeWithConfidence(BNTypeWithConfidence)
+                            , BNBoolWithConfidence(BNBoolWithConfidence)
                             , BNParameterVariablesWithConfidence(BNParameterVariablesWithConfidence))
 import qualified Binja.Types.Variable as Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge(BNBasicBlockEdge))
@@ -17,11 +19,13 @@ import Binja.Types.StringReference (BNStringReference(BNStringReference))
 import qualified Binja.Types.StringReference as StrRef
 import qualified Binja.Types.Symbol as Sym
 import Binja.Types.Symbol (BNNameSpace(BNNameSpace))
-import Binja.Types.TypeLibrary (BNQualifiedNameAndType(BNQualifiedNameAndType), BNFunctionParameter(BNFunctionParameter))
+import Binja.Types.TypeLibrary ( BNQualifiedNameAndType(BNQualifiedNameAndType)
+                               , BNQualifiedName(BNQualifiedName)
+                               , BNFunctionParameter(BNFunctionParameter))
 
 import Foreign.Ptr
 import Foreign.Marshal.Array
-import Foreign.C.String (peekCString, withCString, CString)
+import Foreign.C.String (withCString, CString)
 import qualified Data.Text as T
 import Foreign.Storable (sizeOf, alignment, peek, poke)
 
@@ -103,11 +107,11 @@ instance Storable BNNameSpace where
   peek p = do
     count <- fromIntegral <$> ({#get BNNameSpace->nameCount #} p)
     name <- ({#get BNNameSpace->name #} p) >>= peekArray count >>= convertCStrings
-    join <- ({#get BNNameSpace->join #} p) >>= (fmap T.pack . peekCString) 
+    join <- ({#get BNNameSpace->join #} p) >>= peekText
     return $ BNNameSpace name join (fromIntegral count)
       where
         convertCStrings :: [CString] -> IO [Text]
-        convertCStrings cStrs = traverse (fmap T.pack . peekCString) cStrs
+        convertCStrings cStrs = traverse peekText cStrs
   poke p x = do
     withCStringArray (x ^. Sym.name) ({#set BNNameSpace->name #} p)
     withCString (T.unpack (x ^. Sym.join)) ({#set BNNameSpace->join #} p)
@@ -131,21 +135,20 @@ instance Storable BNQualifiedNameAndType where
   alignment _ = {#alignof BNQualifiedNameAndType#}
   peek p = do
     count <- fromIntegral <$> ({#get BNQualifiedNameAndType->name.nameCount #} p)
-    name <- ({#get BNQualifiedNameAndType->name.name #} p) >>= peekArray count >>= convertCStrings
-    join <- ({#get BNQualifiedNameAndType->name.join #} p) >>= (fmap T.pack . peekCString)
-    t <- ({#get BNQualifiedNameAndType->type #} p >>= nilable_ . castPtr) 
-    return $ BNQualifiedNameAndType name join (fromIntegral count) t
-    
-      where
-        convertCStrings :: [CString] -> IO [Text]
-        convertCStrings cStrs = traverse (fmap T.pack . peekCString) cStrs
+    name <- ({#get BNQualifiedNameAndType->name.name #} p)
+            >>= peekArray count
+            >>= traverse peekText
+    join <- ({#get BNQualifiedNameAndType->name.join #} p) >>= peekText
+    t <- ({#get BNQualifiedNameAndType->type #} p >>= nilable_ . castPtr)
+    let qn = BNQualifiedName name join (fromIntegral count)
+    return $ BNQualifiedNameAndType qn t
   poke _ _ = P.error "BNQualifiedNameAndType 'poke' not implemented"
 
 instance Storable BNFunctionParameter where
   sizeOf _ = {#sizeof BNFunctionParameter#}
   alignment _ = {#alignof BNFunctionParameter#}
   peek p = do
-    name <- ({#get BNFunctionParameter->name #} p) >>= (fmap T.pack . peekCString)
+    name <- ({#get BNFunctionParameter->name #} p) >>= peekText
     fpType <- ({#get BNFunctionParameter->type #} p >>= nilable_ . castPtr)
     typeConfidence <- liftM fromIntegral ({#get BNFunctionParameter->typeConfidence #} p)
     -- defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
