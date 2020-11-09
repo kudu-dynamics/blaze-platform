@@ -1,5 +1,7 @@
 .haskell-job: &haskell-job
   image: "haskell:8.8"
+  tags:
+    - dind
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
