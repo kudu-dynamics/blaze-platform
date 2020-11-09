@@ -1,0 +1,14 @@
+.haskell-job: &haskell-job
+  image: "haskell:8.8"
+
+before_script: |
+  echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+
+  for project in binary-analysis haskell-binja; do
+    git clone ${CI_REPOSITORY_URL%/*}/"$project" ../"$project"
+  done
+
+docs:
+  <<: *haskell-job
+  script: |
+    stack haddock
