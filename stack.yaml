@@ -2,9 +2,10 @@ resolver: lts-15.3
 compiler: ghc-8.8.2
 
 packages:
-- binja-header-cleaner
+- .
 
 extra-deps:
+- binja-header-cleaner
 - ../binary-analysis
 # Can use a stable release for C2HS once the bool marshalling fix has
 # been included in a stable release.
