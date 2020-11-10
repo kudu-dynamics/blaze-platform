@@ -6,7 +6,6 @@ packages:
   
 extra-deps:
   - ../haskell-binja
-  - ../binja-header-cleaner
   - ../binary-analysis
   - parameterized-utils-2.0.1.0@sha256:ad6950440361b97222fe83932760311f88a0288e60f5d90ecbc67a68b86252fd,3673
   # - z3-408.0@sha256:89bbc2d828dc1fe1f19666e8e501c69ce5d0ed8026e4a02f7eae1e69f4a352af,4052
