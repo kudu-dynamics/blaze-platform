@@ -73,9 +73,7 @@ instance Storable BNBoolWithConfidence where
   sizeOf _ = {#sizeof BNBoolWithConfidence#}
   alignment _ = {#alignof BNBoolWithConfidence#}
   peek p = BNBoolWithConfidence
-    -- TODO: Revert to using the get pragma once C2HS bool member support has been fixed.
-    --       I.e., use: <$> ({#get BNBoolWithConfidence->value #} p)
-    <$> ((\ptr -> do {C2HSImp.toBool `fmap` (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)}) p)
+    <$> ({#get BNBoolWithConfidence->value #} p)
     <*> liftM fromIntegral ({#get BNBoolWithConfidence->confidence #} p)
   poke _ _ = P.error "BNBoolWithConfidence 'poke' not implemented"
 
@@ -151,8 +149,7 @@ instance Storable BNFunctionParameter where
     name <- ({#get BNFunctionParameter->name #} p) >>= peekText
     fpType <- ({#get BNFunctionParameter->type #} p >>= nilable_ . castPtr)
     typeConfidence <- liftM fromIntegral ({#get BNFunctionParameter->typeConfidence #} p)
-    -- defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
-    defaultLocation <- ((\ptr -> C2HSImp.toBool <$> (C2HSImp.peekByteOff ptr 0 :: IO C2HSImp.CBool)) p)
+    defaultLocation <- ({#get BNFunctionParameter->defaultLocation #} p)
     sourceType <- liftM (toEnum . fromIntegral) ({#get BNFunctionParameter->location.type #} p)
     idx <- liftM fromIntegral ({#get BNFunctionParameter->location.index #} p)
     storage <- liftM fromIntegral ({#get BNFunctionParameter->location.storage #} p)
