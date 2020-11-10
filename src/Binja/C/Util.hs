@@ -135,3 +135,6 @@ withCStringArray strs f = do
   result <- f arr
   freeCStringArray (length strs) arr
   return result
+
+peekText :: CString -> IO Text
+peekText = fmap T.pack . peekCString

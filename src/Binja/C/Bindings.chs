@@ -23,6 +23,7 @@ import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 import Binja.Types.StringReference (BNStringReference)
 import Binja.Types.Symbol (BNNameSpace)
+import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 
 #include <binaryninjacore.h>
   
@@ -163,6 +164,8 @@ void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesW
 {#fun unsafe wrapBNGetFunctionParameterVariables as wrapBNGetFunctionParameterVariables {withPtr* `BNFunction', castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
 
 {#fun unsafe BNFreeParameterVariables as freeParameterVariables {castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
+
+{#fun unsafe BNGetFunctionType as getFunctionType {withPtr* `BNFunction'} -> `BNType' safePtr* #}
 
 ---- symbols
 
@@ -337,3 +340,30 @@ instance Storable BNReferenceSource where
 {#fun unsafe BNFreeSection as freeSection {withPtr* `BNSection'} -> `()' #}
 
 {#fun unsafe BNNewSectionReference as newSectionReference {withPtr* `BNSection'} -> `BNSection' safePtr* #}
+
+---- Type Libraries
+
+{#fun unsafe BNFreeTypeLibrary as freeTypeLibrary {withPtr* `BNTypeLibrary'} -> `()' #}
+
+{#fun unsafe BNNewTypeLibraryReference as newTypeLibraryReference {withPtr* `BNTypeLibrary'} -> `BNTypeLibrary' safePtr* #}
+
+{#fun unsafe BNLoadTypeLibraryFromFile as loadTypeLibraryFromFile' {`String'} -> `BNTypeLibrary' safePtr* #}
+
+{#fun unsafe BNGetTypeLibraryNamedObjects as getTypeLibraryNamedObjects' {withPtr* `BNTypeLibrary', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
+
+{#fun unsafe BNFreeQualifiedNameAndType as freeQualifiedNameAndType {castPtr `Ptr BNQualifiedNameAndType'} -> `()' #}
+
+{#fun unsafe BNFreeQualifiedNameAndTypeArray as freeQualifiedNameAndTypeArray {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}
+
+{#fun unsafe BNGetTypeParameters as getTypeParameters' {withPtr* `BNType', alloca- `CSize' peekIntConv*} -> `List BNFunctionParameter' castPtr #}
+
+{#fun unsafe BNFreeTypeParameterList as freeTypeParameterList {castPtr `List BNFunctionParameter', `Word64'} -> `()' #}
+
+{#fun unsafe BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
+
+{#fun unsafe BNGetBinaryViewTypeLibraries as getBinaryViewTypeLibraries' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNTypeLibrary)' ptrListOut #}
+
+{#fun unsafe BNFreeTypeLibraryList as freeTypeLibraryList {ptrListIn `List (Ptr BNTypeLibrary)', `Word64'} -> `()' #}
+
+{#fun unsafe BNGetTypeLibraryName as getTypeLibraryName {withPtr* `BNTypeLibrary'} -> `String' #}
+

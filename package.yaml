@@ -30,6 +30,7 @@ dependencies:
   - envy
   - language-c
   - lens
+  - monad-extras
   - mtl
   - newtype
   - pretty-simple
@@ -82,6 +83,7 @@ library:
   - Binja.BasicBlock
   - Binja.MLIL
   - Binja.Reference
+  - Binja.TypeLibrary
   - Binja.Variable
   - Binja.Prelude
   - Binja.C.Enums
@@ -216,6 +218,7 @@ library:
   - Binja.Types.MLIL.Op.StoreStructSSAOp
   - Binja.Types.MLIL.Op.VarPhiOp
   - Binja.Types.MLIL.Op.MemPhiOp
+  - Binja.Types.TypeLibrary
 
 executables:
   gen-mlil-op-modules:

@@ -14,6 +14,8 @@ import Binja.Types.Variable
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
 import Binja.Types.Reference (BNReferenceSource)
 import Binja.Types.StringReference (BNStringReference)
+import qualified Binja.Types.TypeLibrary as TypeLib
+import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 import Binja.C.Structs ()
 import Foreign.Storable (peek)
 import Foreign.Marshal.Alloc (alloca)
@@ -44,6 +46,28 @@ getSectionsAt :: BNBinaryView -> Address -> IO [BNSection]
 getSectionsAt bv addr =
   getSectionsAt' bv addr
   >>= manifestArrayWithFreeSize (newSectionReference <=< noFinPtrConv) freeSectionList
+
+loadTypeLibraryFromFile :: String -> IO BNTypeLibrary
+loadTypeLibraryFromFile p = loadTypeLibraryFromFile' p >>= newTypeLibraryReference
+
+getBinaryViewTypeLibraries :: BNBinaryView -> IO [BNTypeLibrary]
+getBinaryViewTypeLibraries bv = getBinaryViewTypeLibraries' bv 
+                                  >>= manifestArrayWithFreeSize (newTypeLibraryReference <=< noFinPtrConv) freeTypeLibraryList
+
+getTypeLibraryNamedObjects :: BNTypeLibrary -> IO [BNQualifiedNameAndType]
+getTypeLibraryNamedObjects tl = getTypeLibraryNamedObjects' tl
+  >>= manifestArrayWithFreeSize updateBnTypePtrReference freeQualifiedNameAndTypeArray
+
+getTypeParameters :: BNType -> IO [BNFunctionParameter]
+getTypeParameters t = getTypeParameters' t
+  >>= manifestArrayWithFreeSize updateBnTypePtrReference freeTypeParameterList
+
+updateBnTypePtrReference :: TypeLib.HasBnTypePtr a (Maybe BNType) => a -> IO a
+updateBnTypePtrReference x = case x ^. TypeLib.bnTypePtr of
+  Nothing -> return x
+  (Just t) -> do
+    t' <- newTypeReference t
+    return $ x & TypeLib.bnTypePtr ?~ t'
 
 getFunctionBasicBlockList :: BNFunction -> IO [BNBasicBlock]
 getFunctionBasicBlockList fn =
@@ -84,8 +108,6 @@ getFunctionParameterVariables' fn = alloca $ \ptr -> do
   freeParameterVariables (castPtr ptr)
   return r
   
-  
-
 getChildType :: BNType -> IO BNTypeWithConfidence
 getChildType = allocAndPeek . wrapBNGetChildType
 
