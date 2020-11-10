@@ -2,9 +2,11 @@ resolver: lts-15.3
 compiler: ghc-8.8.2
 
 packages:
-  - .
+- binja-header-cleaner
 
 extra-deps:
-  - c2hs-0.28.6
-  - binja-header-cleaner
-  - ../binary-analysis
+- ../binary-analysis
+# Can use a stable release for C2HS once the bool marshalling fix has
+# been included in a stable release.
+- git: git@github.com:haskell/c2hs.git
+  commit: 684b4a529b35fbca2b3d3bcd0bed8d7925f8ea81

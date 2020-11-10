@@ -1,10 +1,7 @@
 module Main where
 
-import Binja.Header.Prelude
-
 import Binja.Header.ParseHeader (writeBeautyHeader)
---import qualified Data.Text.Lazy.IO as TextIO
-
+import Binja.Header.Prelude
 
 main :: IO ()
 main = do
@@ -13,8 +10,4 @@ main = do
     [inHeader, outHeader] -> do
       writeBeautyHeader inHeader outHeader
       putText "Success!"
-    _ -> putText "gen-clean-binja-header path/to/original/binaryninjacore.h path/to/create/new/binaryninjacore.h"
-
-
-  
-  
+    _ -> putText "clean-binja-header path/to/original/binaryninjacore.h path/to/new/binaryninjacore.h"
