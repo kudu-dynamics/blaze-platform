@@ -8,5 +8,5 @@ data AddressOfOp expr = AddressOfOp
     { _addressOfOpSrc :: Variable
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (AddressOfOp a)
 instance Hashable a => Hashable (AddressOfOp a)
+instance Serial m a => Serial m (AddressOfOp a)

@@ -10,5 +10,5 @@ data SetVarSplitOp expr = SetVarSplitOp
     , _setVarSplitOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (SetVarSplitOp a)
 instance Hashable a => Hashable (SetVarSplitOp a)
+instance Serial m a => Serial m (SetVarSplitOp a)

@@ -10,5 +10,5 @@ data TailcallOp expr = TailcallOp
     , _tailcallOpParams :: [expr]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (TailcallOp a)
 instance Hashable a => Hashable (TailcallOp a)
+instance Serial m a => Serial m (TailcallOp a)

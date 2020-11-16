@@ -8,5 +8,5 @@ data FreeVarSlotOp expr = FreeVarSlotOp
     { _freeVarSlotOpDest :: Variable
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FreeVarSlotOp a)
 instance Hashable a => Hashable (FreeVarSlotOp a)
+instance Serial m a => Serial m (FreeVarSlotOp a)

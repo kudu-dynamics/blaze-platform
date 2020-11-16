@@ -8,5 +8,5 @@ data FsubOp expr = FsubOp
     , _fsubOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FsubOp a)
 instance Hashable a => Hashable (FsubOp a)
+instance Serial m a => Serial m (FsubOp a)

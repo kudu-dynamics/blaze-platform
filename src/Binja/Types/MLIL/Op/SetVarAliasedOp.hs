@@ -9,5 +9,5 @@ data SetVarAliasedOp expr = SetVarAliasedOp
     , _setVarAliasedOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (SetVarAliasedOp a)
 instance Hashable a => Hashable (SetVarAliasedOp a)
+instance Serial m a => Serial m (SetVarAliasedOp a)

@@ -8,5 +8,5 @@ data OrOp expr = OrOp
     , _orOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (OrOp a)
 instance Hashable a => Hashable (OrOp a)
+instance Serial m a => Serial m (OrOp a)

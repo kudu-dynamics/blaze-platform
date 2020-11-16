@@ -8,5 +8,5 @@ data LsrOp expr = LsrOp
     , _lsrOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (LsrOp a)
 instance Hashable a => Hashable (LsrOp a)
+instance Serial m a => Serial m (LsrOp a)

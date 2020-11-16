@@ -8,5 +8,5 @@ data XorOp expr = XorOp
     , _xorOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (XorOp a)
 instance Hashable a => Hashable (XorOp a)
+instance Serial m a => Serial m (XorOp a)

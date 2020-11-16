@@ -8,5 +8,5 @@ data ModuDpOp expr = ModuDpOp
     , _moduDpOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (ModuDpOp a)
 instance Hashable a => Hashable (ModuDpOp a)
+instance Serial m a => Serial m (ModuDpOp a)

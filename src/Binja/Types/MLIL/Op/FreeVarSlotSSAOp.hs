@@ -8,5 +8,5 @@ data FreeVarSlotSSAOp expr = FreeVarSlotSSAOp
     { _freeVarSlotSSAOpPrev :: SSAVariableDestAndSrc
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FreeVarSlotSSAOp a)
 instance Hashable a => Hashable (FreeVarSlotSSAOp a)
+instance Serial m a => Serial m (FreeVarSlotSSAOp a)

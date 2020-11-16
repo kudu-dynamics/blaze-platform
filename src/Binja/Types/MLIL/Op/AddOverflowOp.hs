@@ -8,5 +8,5 @@ data AddOverflowOp expr = AddOverflowOp
     , _addOverflowOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (AddOverflowOp a)
 instance Hashable a => Hashable (AddOverflowOp a)
+instance Serial m a => Serial m (AddOverflowOp a)

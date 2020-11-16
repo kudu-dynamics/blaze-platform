@@ -8,5 +8,5 @@ data CmpUleOp expr = CmpUleOp
     , _cmpUleOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (CmpUleOp a)
 instance Hashable a => Hashable (CmpUleOp a)
+instance Serial m a => Serial m (CmpUleOp a)

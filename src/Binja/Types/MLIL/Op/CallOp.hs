@@ -10,5 +10,5 @@ data CallOp expr = CallOp
     , _callOpParams :: [expr]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (CallOp a)
 instance Hashable a => Hashable (CallOp a)
+instance Serial m a => Serial m (CallOp a)

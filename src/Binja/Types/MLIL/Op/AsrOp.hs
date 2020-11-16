@@ -8,5 +8,5 @@ data AsrOp expr = AsrOp
     , _asrOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (AsrOp a)
 instance Hashable a => Hashable (AsrOp a)
+instance Serial m a => Serial m (AsrOp a)

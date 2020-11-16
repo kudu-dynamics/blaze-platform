@@ -9,5 +9,5 @@ data VarSplitOp expr = VarSplitOp
     , _varSplitOpLow :: Variable
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (VarSplitOp a)
 instance Hashable a => Hashable (VarSplitOp a)
+instance Serial m a => Serial m (VarSplitOp a)

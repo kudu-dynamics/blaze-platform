@@ -8,5 +8,5 @@ data DivsDpOp expr = DivsDpOp
     , _divsDpOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (DivsDpOp a)
 instance Hashable a => Hashable (DivsDpOp a)
+instance Serial m a => Serial m (DivsDpOp a)

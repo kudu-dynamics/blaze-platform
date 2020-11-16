@@ -8,5 +8,5 @@ data TestBitOp expr = TestBitOp
     , _testBitOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (TestBitOp a)
 instance Hashable a => Hashable (TestBitOp a)
+instance Serial m a => Serial m (TestBitOp a)

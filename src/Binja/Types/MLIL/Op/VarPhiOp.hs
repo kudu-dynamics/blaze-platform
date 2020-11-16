@@ -9,5 +9,5 @@ data VarPhiOp expr = VarPhiOp
     , _varPhiOpSrc :: [SSAVariable]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (VarPhiOp a)
 instance Hashable a => Hashable (VarPhiOp a)
+instance Serial m a => Serial m (VarPhiOp a)

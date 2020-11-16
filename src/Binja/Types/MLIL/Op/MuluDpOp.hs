@@ -8,5 +8,5 @@ data MuluDpOp expr = MuluDpOp
     , _muluDpOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (MuluDpOp a)
 instance Hashable a => Hashable (MuluDpOp a)
+instance Serial m a => Serial m (MuluDpOp a)

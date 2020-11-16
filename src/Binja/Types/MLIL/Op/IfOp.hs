@@ -9,5 +9,5 @@ data IfOp expr = IfOp
     , _ifOpFalse :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (IfOp a)
 instance Hashable a => Hashable (IfOp a)
+instance Serial m a => Serial m (IfOp a)

@@ -7,5 +7,5 @@ data FloatToIntOp expr = FloatToIntOp
     { _floatToIntOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FloatToIntOp a)
 instance Hashable a => Hashable (FloatToIntOp a)
+instance Serial m a => Serial m (FloatToIntOp a)

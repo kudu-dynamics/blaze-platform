@@ -8,5 +8,5 @@ data FcmpLtOp expr = FcmpLtOp
     , _fcmpLtOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FcmpLtOp a)
 instance Hashable a => Hashable (FcmpLtOp a)
+instance Serial m a => Serial m (FcmpLtOp a)

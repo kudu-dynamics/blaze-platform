@@ -7,5 +7,5 @@ data FtruncOp expr = FtruncOp
     { _ftruncOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FtruncOp a)
 instance Hashable a => Hashable (FtruncOp a)
+instance Serial m a => Serial m (FtruncOp a)

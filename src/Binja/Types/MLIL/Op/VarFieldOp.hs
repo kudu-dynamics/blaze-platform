@@ -9,5 +9,5 @@ data VarFieldOp expr = VarFieldOp
     , _varFieldOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (VarFieldOp a)
 instance Hashable a => Hashable (VarFieldOp a)
+instance Serial m a => Serial m (VarFieldOp a)

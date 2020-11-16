@@ -8,5 +8,5 @@ data AndOp expr = AndOp
     , _andOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (AndOp a)
 instance Hashable a => Hashable (AndOp a)
+instance Serial m a => Serial m (AndOp a)

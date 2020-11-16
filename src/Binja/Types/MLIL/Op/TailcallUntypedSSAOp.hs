@@ -10,5 +10,5 @@ data TailcallUntypedSSAOp expr = TailcallUntypedSSAOp
     , _tailcallUntypedSSAOpStack :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (TailcallUntypedSSAOp a)
 instance Hashable a => Hashable (TailcallUntypedSSAOp a)
+instance Serial m a => Serial m (TailcallUntypedSSAOp a)

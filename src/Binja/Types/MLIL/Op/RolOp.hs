@@ -8,5 +8,5 @@ data RolOp expr = RolOp
     , _rolOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (RolOp a)
 instance Hashable a => Hashable (RolOp a)
+instance Serial m a => Serial m (RolOp a)

@@ -8,5 +8,5 @@ data SubOp expr = SubOp
     , _subOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (SubOp a)
 instance Hashable a => Hashable (SubOp a)
+instance Serial m a => Serial m (SubOp a)

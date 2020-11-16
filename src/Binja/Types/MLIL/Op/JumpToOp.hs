@@ -8,5 +8,5 @@ data JumpToOp expr = JumpToOp
     , _jumpToOpTargets :: [Int64]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (JumpToOp a)
 instance Hashable a => Hashable (JumpToOp a)
+instance Serial m a => Serial m (JumpToOp a)

@@ -9,5 +9,5 @@ data SyscallOp expr = SyscallOp
     , _syscallOpParams :: [expr]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (SyscallOp a)
 instance Hashable a => Hashable (SyscallOp a)
+instance Serial m a => Serial m (SyscallOp a)

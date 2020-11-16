@@ -8,5 +8,5 @@ data VarAliasedOp expr = VarAliasedOp
     { _varAliasedOpSrc :: SSAVariable
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (VarAliasedOp a)
 instance Hashable a => Hashable (VarAliasedOp a)
+instance Serial m a => Serial m (VarAliasedOp a)

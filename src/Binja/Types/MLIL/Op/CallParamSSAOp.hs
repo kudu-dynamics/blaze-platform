@@ -9,5 +9,5 @@ data CallParamSSAOp expr = CallParamSSAOp
     , _callParamSSAOpSrc :: [SSAVariable]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (CallParamSSAOp a)
 instance Hashable a => Hashable (CallParamSSAOp a)
+instance Serial m a => Serial m (CallParamSSAOp a)

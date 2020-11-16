@@ -9,5 +9,5 @@ data RlcOp expr = RlcOp
     , _rlcOpCarry :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (RlcOp a)
 instance Hashable a => Hashable (RlcOp a)
+instance Serial m a => Serial m (RlcOp a)

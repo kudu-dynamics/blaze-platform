@@ -8,5 +8,5 @@ data AddOp expr = AddOp
     , _addOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (AddOp a)
 instance Hashable a => Hashable (AddOp a)
+instance Serial m a => Serial m (AddOp a)

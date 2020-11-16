@@ -8,5 +8,5 @@ data MemPhiOp expr = MemPhiOp
     , _memPhiOpSrc_memory :: [Int64]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (MemPhiOp a)
 instance Hashable a => Hashable (MemPhiOp a)
+instance Serial m a => Serial m (MemPhiOp a)

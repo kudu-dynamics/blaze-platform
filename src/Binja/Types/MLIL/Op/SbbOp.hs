@@ -9,5 +9,5 @@ data SbbOp expr = SbbOp
     , _sbbOpCarry :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (SbbOp a)
 instance Hashable a => Hashable (SbbOp a)
+instance Serial m a => Serial m (SbbOp a)

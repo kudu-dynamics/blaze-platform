@@ -10,5 +10,5 @@ data TailcallSSAOp expr = TailcallSSAOp
     , _tailcallSSAOpSrc_memory :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (TailcallSSAOp a)
 instance Hashable a => Hashable (TailcallSSAOp a)
+instance Serial m a => Serial m (TailcallSSAOp a)

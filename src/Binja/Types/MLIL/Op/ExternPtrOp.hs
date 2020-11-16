@@ -8,5 +8,5 @@ data ExternPtrOp expr = ExternPtrOp
     , _externPtrOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (ExternPtrOp a)
 instance Hashable a => Hashable (ExternPtrOp a)
+instance Serial m a => Serial m (ExternPtrOp a)

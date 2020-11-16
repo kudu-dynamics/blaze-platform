@@ -9,5 +9,5 @@ data VarSSAFieldOp expr = VarSSAFieldOp
     , _varSSAFieldOpOffset :: Int64
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (VarSSAFieldOp a)
 instance Hashable a => Hashable (VarSSAFieldOp a)
+instance Serial m a => Serial m (VarSSAFieldOp a)

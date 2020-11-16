@@ -8,5 +8,5 @@ data CmpNeOp expr = CmpNeOp
     , _cmpNeOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (CmpNeOp a)
 instance Hashable a => Hashable (CmpNeOp a)
+instance Serial m a => Serial m (CmpNeOp a)

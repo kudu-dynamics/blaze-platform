@@ -8,5 +8,5 @@ data FmulOp expr = FmulOp
     , _fmulOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FmulOp a)
 instance Hashable a => Hashable (FmulOp a)
+instance Serial m a => Serial m (FmulOp a)

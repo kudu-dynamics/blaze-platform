@@ -8,5 +8,5 @@ data FdivOp expr = FdivOp
     , _fdivOpRight :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (FdivOp a)
 instance Hashable a => Hashable (FdivOp a)
+instance Serial m a => Serial m (FdivOp a)

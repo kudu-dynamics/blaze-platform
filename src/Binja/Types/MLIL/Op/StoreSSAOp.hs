@@ -10,5 +10,5 @@ data StoreSSAOp expr = StoreSSAOp
     , _storeSSAOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (StoreSSAOp a)
 instance Hashable a => Hashable (StoreSSAOp a)
+instance Serial m a => Serial m (StoreSSAOp a)

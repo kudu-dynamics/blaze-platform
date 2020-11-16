@@ -8,5 +8,5 @@ data StoreOp expr = StoreOp
     , _storeOpSrc :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
-instance Serial m a => Serial m (StoreOp a)
 instance Hashable a => Hashable (StoreOp a)
+instance Serial m a => Serial m (StoreOp a)
