@@ -3,13 +3,14 @@
 module Blaze.Types.Pil.Function where
 
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Pil (PilVar, StmtIndex)
+import Blaze.Types.Pil (PilVar, StmtIndex, CallDest, Expression)
 import Data.BinaryAnalysis (Symbol)
 
 data Access = In | Out | InOut | Unknown
   deriving (Enum, Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
+-- | Parameter positions start at position 1.
 newtype ParamPosition = ParamPosition Int
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
@@ -57,8 +58,24 @@ data FuncRef
 -- | Used for type inference of functions to assign
 -- shared type variables to function parameters.
 data FuncVar
-  = FuncParam FuncRef Parameter
-  | FuncResult FuncRef
+  = FuncParam CallTarget ParamPosition
+  | FuncResult CallTarget
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- | A call target has an expression destination
+-- along with parameter and result information.
+-- Used when a function cannot be resolved (e.g., indirect call)
+-- or when it simple has not been resolved.
+-- A CallTarget can be used to group call sites that share
+-- the same call destination and expectations around 
+-- call arguments and results.
+data CallTarget
+  = CallTarget
+      { _dest :: CallDest Expression,
+        _numArgs :: Int,
+        _hasResult :: Bool
+      }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -82,11 +99,32 @@ data FuncInfo
   deriving (Eq, Show, Generic)
   deriving anyclass (Hashable)
 
+newtype CallArg
+  = CallArg
+      {_expr :: Expression}
+
+-- TODO: Consider extending this to support
+--       the call expression as the result.
+newtype CallResult
+  = CallResult 
+      {_var :: PilVar}
+
+data CallVar
+  = ArgVar CallArg
+  | ResultVar CallResult
+
+data CallInfo
+  = CallInfo
+      { _dest :: CallDest Expression,
+        _args :: [CallArg],
+        _result :: Maybe CallResult
+      }
+
 data CallSite
   = CallSite
       { _caller :: FuncRef,
         _stmtIndex :: StmtIndex,
-        _callee :: FuncRef
+        _callee :: CallDest Expression
       }
   deriving (Eq, Show, Generic)
   deriving anyclass (Hashable)
@@ -104,3 +142,11 @@ $(makePrisms ''Parameter)
 $(makeFieldsNoPrefix ''ResultInfo)
 
 $(makeFieldsNoPrefix ''FuncInfo)
+
+$(makeFieldsNoPrefix ''CallInfo)
+
+$(makeFieldsNoPrefix ''CallResult)
+
+$(makeFieldsNoPrefix ''CallTarget)
+
+$(makeFieldsNoPrefix ''CallVar)
