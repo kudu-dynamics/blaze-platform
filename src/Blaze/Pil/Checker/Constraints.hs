@@ -2,20 +2,26 @@ module Blaze.Pil.Checker.Constraints where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Prelude as P
-import Blaze.Types.Pil ( Expression(Expression)
-                       , Statement
-                       , PilVar
-                       , StackOffset
-                       , CallStatement
-                       , CallOp
-                       )
+import Blaze.Types.Pil
+  ( Expression (Expression),
+    PilVar,
+    StackOffset,
+    Statement,
+  )
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil.Function (FuncVar)
-import qualified Data.HashSet as HashSet
+import Blaze.Types.Pil.Function
+  (FuncResult,  CallTarget,
+    FuncVar (FuncParam),
+    FuncVar,
+    ParamPosition (ParamPosition),
+  )
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
+
 import Blaze.Types.Pil.Checker hiding (ret)
-import Control.Arrow ((&&&))
+import Blaze.Pil.Function (mkCallInfo, mkCallTarget)
+import qualified Blaze.Types.Pil.Function as Func
 
 
 constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
@@ -47,7 +53,7 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
     [a, b] -> do
       ptrWidth <- CSVar <$> newSym
       let str = CSType . TPointer ptrWidth $ CSType TChar
-      
+
       return . Just $
         [ ( a ^. info . sym, str )
         , ( b ^. info . sym, str )
@@ -56,7 +62,7 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
     _ -> return Nothing --TODO : add warning about malformed fgets params
 
 
-  
+
   _ -> return Nothing
 
   where
@@ -84,22 +90,24 @@ addFuncSym fv s = funcSymMap %= HashMap.insert fv s
 -- | Create mapping of each FuncVar to a symbol
 createFuncSymMap :: [Statement Expression] -> ConstraintGen ()
 createFuncSymMap stmts' = do
-  mapM_ f $ concatMap mkFuncVars $ HashMap.keys callStmtGroups
-    where
-      f :: FuncVar -> ConstraintGen ()
-      f var = newSym >>= addFuncSym var
-      callStmts :: [CallStatement]
-      callStmts = mapMaybe Pil.mkCallStatement stmts'
-      -- The CallOp includes a list of parameters, we can then assume 
-      -- the all CallStatements in a group have the same number of params.
-      callStmtGroups :: HashMap (CallOp Expression) (HashSet CallStatement)
-      callStmtGroups = HashMap.fromListWith HashSet.union 
-        . fmap (view Pil.callOp &&& HashSet.singleton) 
-        $ callStmts
-      mkFuncVars :: CallOp Expression -> [FuncVar]
-      mkFuncVars callOp =
-        undefined
-
+  mapM_ createAndAddSym $ concatMap mkFuncVars callTgts
+  where
+    createAndAddSym :: FuncVar -> ConstraintGen ()
+    createAndAddSym var = newSym >>= addFuncSym var
+    callTgts :: HashSet CallTarget
+    callTgts =
+      HashSet.fromList $
+        mkCallTarget . mkCallInfo
+          <$> mapMaybe Pil.mkCallStatement stmts'
+    mkFuncVars :: CallTarget -> [FuncVar]
+    mkFuncVars tgt =
+      if tgt ^. Func.hasResult then
+        FuncResult tgt : params
+      else
+        params
+      where
+        params :: [FuncVar]
+        params = FuncParam tgt . ParamPosition <$> [1..(tgt ^. Func.numArgs)]
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
@@ -180,7 +188,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
     -- this one always includes bitvec width constraint on ret
     -- ((r, CSType $ TBitVector sz') :) <$> maybe (return []) return mxs
-  
+
   Pil.CEIL x -> floatUnOp x
   Pil.CMP_E x -> integralBinOpReturnsBool x
   Pil.CMP_NE x -> integralBinOpReturnsBool x
@@ -308,7 +316,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.OR x -> bitVectorBinOp x
   Pil.RLC x -> integralFirstArgIsReturn x >> addCarryConstraint x
-  
+
   Pil.ROL x -> integralFirstArgIsReturn x
   Pil.ROR x -> integralFirstArgIsReturn x
   Pil.ROUND_TO_INT x -> floatToInt x
@@ -452,7 +460,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
           ]
 
     integralBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
-                                , Pil.HasRight x SymExpression ) 
+                                , Pil.HasRight x SymExpression )
                              => x
                              -> ConstraintGen ()
     integralBinOpReturnsBool x = do
