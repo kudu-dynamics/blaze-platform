@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.CallParamSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 import Binja.Types.MLIL.Common (SSAVariable)
 

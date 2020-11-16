@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FcmpGtOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FcmpGtOp expr = FcmpGtOp

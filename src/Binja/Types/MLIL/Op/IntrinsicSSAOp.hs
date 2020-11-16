@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.IntrinsicSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 import Binja.Types.MLIL.Common (Intrinsic)
 import Binja.Types.MLIL.Common (SSAVariable)

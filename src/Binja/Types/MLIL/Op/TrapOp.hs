@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.TrapOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data TrapOp expr = TrapOp

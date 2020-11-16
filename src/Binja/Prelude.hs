@@ -59,6 +59,9 @@ import Protolude as Exports hiding
   , Prefix
   , head
   )
+import Test.SmallCheck.Series as Exports
+  ( Serial
+  )
 import Text.Pretty.Simple as PP
 import Prelude as Exports
   ( String

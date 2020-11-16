@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.IfOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data IfOp expr = IfOp

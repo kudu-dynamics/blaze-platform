@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FloorOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FloorOp expr = FloorOp

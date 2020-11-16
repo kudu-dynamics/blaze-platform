@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FabsOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FabsOp expr = FabsOp

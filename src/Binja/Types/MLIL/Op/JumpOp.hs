@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.JumpOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data JumpOp expr = JumpOp

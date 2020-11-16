@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.OrOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data OrOp expr = OrOp

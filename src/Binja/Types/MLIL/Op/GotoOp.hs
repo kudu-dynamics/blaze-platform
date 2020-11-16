@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.GotoOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data GotoOp expr = GotoOp

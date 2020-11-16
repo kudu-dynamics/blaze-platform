@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.SyscallUntypedOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data SyscallUntypedOp expr = SyscallUntypedOp

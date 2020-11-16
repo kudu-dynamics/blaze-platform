@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.ConstPtrOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data ConstPtrOp expr = ConstPtrOp

@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.NotOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data NotOp expr = NotOp

@@ -4,7 +4,6 @@ import Binja.Prelude
 
 import Binja.Types.Variable (Variable)
 
-import Test.SmallCheck.Series (Serial)
 
 data SSAVariable = SSAVariable { _var :: Variable
                                , _version :: Int

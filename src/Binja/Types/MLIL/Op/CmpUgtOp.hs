@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.CmpUgtOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data CmpUgtOp expr = CmpUgtOp

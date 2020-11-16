@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FsubOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FsubOp expr = FsubOp

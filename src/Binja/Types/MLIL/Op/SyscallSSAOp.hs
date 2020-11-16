@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.SyscallSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data SyscallSSAOp expr = SyscallSSAOp

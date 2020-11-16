@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.StoreOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data StoreOp expr = StoreOp

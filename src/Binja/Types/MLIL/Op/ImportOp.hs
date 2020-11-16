@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.ImportOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data ImportOp expr = ImportOp

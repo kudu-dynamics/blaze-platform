@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.IntToFloatOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data IntToFloatOp expr = IntToFloatOp

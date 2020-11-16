@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.DivuOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data DivuOp expr = DivuOp

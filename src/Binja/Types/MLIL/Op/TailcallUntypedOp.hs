@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.TailcallUntypedOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data TailcallUntypedOp expr = TailcallUntypedOp

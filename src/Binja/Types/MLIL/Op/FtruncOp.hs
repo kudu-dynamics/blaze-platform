@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FtruncOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FtruncOp expr = FtruncOp

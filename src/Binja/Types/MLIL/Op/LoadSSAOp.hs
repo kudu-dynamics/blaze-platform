@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.LoadSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data LoadSSAOp expr = LoadSSAOp

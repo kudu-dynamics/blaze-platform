@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FcmpNeOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FcmpNeOp expr = FcmpNeOp

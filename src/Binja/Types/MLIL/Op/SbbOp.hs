@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.SbbOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data SbbOp expr = SbbOp

@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.LsrOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data LsrOp expr = LsrOp

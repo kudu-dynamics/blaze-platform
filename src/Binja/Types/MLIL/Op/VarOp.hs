@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.VarOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 import Binja.Types.Variable (Variable)
 

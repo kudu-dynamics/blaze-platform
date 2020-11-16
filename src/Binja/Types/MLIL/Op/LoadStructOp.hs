@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.LoadStructOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data LoadStructOp expr = LoadStructOp

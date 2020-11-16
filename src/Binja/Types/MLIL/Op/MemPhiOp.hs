@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.MemPhiOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data MemPhiOp expr = MemPhiOp

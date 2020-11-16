@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FcmpGeOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FcmpGeOp expr = FcmpGeOp

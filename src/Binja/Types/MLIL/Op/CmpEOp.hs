@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.CmpEOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data CmpEOp expr = CmpEOp

@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.ModsDpOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data ModsDpOp expr = ModsDpOp

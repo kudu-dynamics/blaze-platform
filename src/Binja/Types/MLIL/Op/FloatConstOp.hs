@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FloatConstOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FloatConstOp expr = FloatConstOp

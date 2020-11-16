@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.RoundToIntOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data RoundToIntOp expr = RoundToIntOp

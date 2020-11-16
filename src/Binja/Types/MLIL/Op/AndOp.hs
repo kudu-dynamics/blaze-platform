@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.AndOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data AndOp expr = AndOp

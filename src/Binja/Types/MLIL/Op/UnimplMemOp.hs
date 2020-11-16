@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.UnimplMemOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data UnimplMemOp expr = UnimplMemOp

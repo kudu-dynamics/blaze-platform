@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.TailcallSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data TailcallSSAOp expr = TailcallSSAOp

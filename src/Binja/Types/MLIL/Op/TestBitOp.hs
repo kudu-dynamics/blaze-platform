@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.TestBitOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data TestBitOp expr = TestBitOp

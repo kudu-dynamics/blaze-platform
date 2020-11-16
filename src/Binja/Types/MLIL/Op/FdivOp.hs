@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.FdivOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data FdivOp expr = FdivOp

@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.StoreStructSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data StoreStructSSAOp expr = StoreStructSSAOp

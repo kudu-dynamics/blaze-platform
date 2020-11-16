@@ -13,8 +13,6 @@ import Binja.C.Types
 import Binja.Types.MLIL.Common as Exports
 import Binja.Types.MLIL.Ops as Exports
 
-import Test.SmallCheck.Series (Serial)
-
 newtype OpIndex = OpIndex Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 

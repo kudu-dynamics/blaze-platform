@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.LowPartOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data LowPartOp expr = LowPartOp

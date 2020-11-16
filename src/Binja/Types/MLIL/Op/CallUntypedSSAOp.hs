@@ -1,7 +1,6 @@
 module Binja.Types.MLIL.Op.CallUntypedSSAOp where
 
 import Binja.Prelude
-import Test.SmallCheck.Series (Serial)
 
 
 data CallUntypedSSAOp expr = CallUntypedSSAOp
