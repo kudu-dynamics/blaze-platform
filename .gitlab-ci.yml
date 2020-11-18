@@ -18,18 +18,35 @@ cache: &global-cache
     - .stack/
     - .stack-work/
 
+build:
+  <<: *haskell-job
+  stage: build
+  needs: []
+  script: |
+    stack build
+  artifacts:
+    paths:
+      - .stack-work/
+
 docs:
   <<: *haskell-job
+  stage: deploy
+  needs:
+    - build
   script: |
     stack haddock
+  artifacts:
+    paths:
+      - .stack/
+      - .stack-work/
 
 pages:
   <<: *haskell-job
+  stage: deploy
   needs:
     - docs
   rules:
     - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
-  stage: deploy
   script: |
     cp -arT "`stack path --snapshot-doc-root`" public
   artifacts:
