@@ -9,7 +9,10 @@ before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
   - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
-      git clone ${CI_REPOSITORY_URL%/*}/"$project" ../"$project"
+      [ -d "../$project" ] && git -C "../$project" pull || {
+        rm -rf "../$project";
+        git clone ${CI_REPOSITORY_URL%/*}/"$project" "../$project";
+      }
     done
 
 cache: &global-cache
