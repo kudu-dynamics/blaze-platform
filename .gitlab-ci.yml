@@ -24,7 +24,7 @@ cache: &global-cache
 build:
   <<: *haskell-job
   stage: build
-  needs: []
+  #needs: []  # gitlab 12.8
   script: |
     stack build
   artifacts:
