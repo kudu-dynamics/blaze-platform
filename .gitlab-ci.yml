@@ -2,6 +2,8 @@
   image: "haskell:8.8"
   tags:
     - dind
+  variables:
+    STACK_ROOT: .stack
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
@@ -10,7 +12,26 @@ before_script:
       git clone ${CI_REPOSITORY_URL%/*}/"$project" ../"$project"
     done
 
+cache: &global-cache
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .stack/
+    - .stack-work/
+
 docs:
   <<: *haskell-job
   script: |
     stack haddock
+
+pages:
+  <<: *haskell-job
+  needs:
+    - docs
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
+  stage: deploy
+  script: |
+    cp -arT "`stack path --snapshot-doc-root`" public
+  artifacts:
+    paths:
+      - public
