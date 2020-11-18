@@ -33,7 +33,7 @@ build:
 
 docs:
   <<: *haskell-job
-  stage: deploy
+  stage: test
   needs:
     - build
   script: |
