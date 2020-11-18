@@ -1,3 +1,9 @@
+stages:
+  - build
+  - test
+  - docs
+  - deploy
+
 .haskell-job: &haskell-job
   image: "haskell:8.8"
   tags:
@@ -29,11 +35,12 @@ build:
     stack build
   artifacts:
     paths:
+      - .stack/
       - .stack-work/
 
 docs:
   <<: *haskell-job
-  stage: test
+  stage: docs
   needs:
     - build
   script: |
