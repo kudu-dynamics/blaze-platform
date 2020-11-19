@@ -16,10 +16,8 @@ before_script:
   - |
     set -ex
     for project in binary-analysis haskell-binja binja-header-cleaner; do
-      [ -d "../$project" ] && git -C "../$project" pull || {
-        rm -rf "../$project";
-        git clone -v ${CI_REPOSITORY_URL%/*}/"$project" "../$project";
-      }
+      rm -rf "../$project"
+      git clone -v --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
     done
 
 cache: &global-cache
