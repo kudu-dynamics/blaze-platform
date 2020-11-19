@@ -23,6 +23,7 @@ cache:
 
 
 before_script:
+  - env && exit 1
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
   - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
