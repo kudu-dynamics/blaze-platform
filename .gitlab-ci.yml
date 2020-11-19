@@ -12,8 +12,9 @@ stages:
     STACK_ROOT: ${CI_PROJECT_DIR}/.stack
 
 before_script:
-  - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+  - set -ex && echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
   - |
+    set -ex
     for project in binary-analysis haskell-binja binja-header-cleaner; do
       [ -d "../$project" ] && git -C "../$project" pull || {
         rm -rf "../$project";
