@@ -4,12 +4,23 @@ stages:
   - docs
   - deploy
 
+variables:
+  CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+
 .haskell-job: &haskell-job
   image: "haskell:8.8"
   tags:
     - dind
   variables:
     STACK_ROOT: ${CI_PROJECT_DIR}/.stack
+  cache:
+    paths:
+      - .stack/
+      - .stack-work/
+
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
@@ -18,12 +29,6 @@ before_script:
       rm -rf "../$project"
       git clone --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
     done
-
-cache: &global-cache
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - .stack/
-    - .stack-work/
 
 build:
   <<: *haskell-job
