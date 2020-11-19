@@ -17,7 +17,7 @@ before_script:
     for project in binary-analysis haskell-binja binja-header-cleaner; do
       [ -d "../$project" ] && git -C "../$project" pull || {
         rm -rf "../$project";
-        git clone ${CI_REPOSITORY_URL%/*}/"$project" "../$project";
+        git clone -v ${CI_REPOSITORY_URL%/*}/"$project" "../$project";
       }
     done
 
@@ -42,7 +42,8 @@ docs:
   <<: *haskell-job
   stage: docs
   needs:
-    - build
+    - job: build
+      artifacts: true
   script: |
     stack haddock
   artifacts:
@@ -54,7 +55,8 @@ pages:
   <<: *haskell-job
   stage: deploy
   needs:
-    - docs
+    - job: docs
+      artifacts: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
   script: |
