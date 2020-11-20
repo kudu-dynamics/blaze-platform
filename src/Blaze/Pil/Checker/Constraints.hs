@@ -10,8 +10,8 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Function
-  (FuncResult,  CallTarget,
-    FuncVar (FuncParam),
+  ( CallTarget,
+    FuncVar (FuncParam, FuncResult),
     FuncVar,
     ParamPosition (ParamPosition),
   )
@@ -19,8 +19,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
-import Blaze.Types.Pil.Checker hiding (ret)
-import Blaze.Pil.Function (mkCallInfo, mkCallTarget)
+import Blaze.Types.Pil.Checker hiding (op, params, ret)
+import Blaze.Pil.Function (mkCallTarget)
 import qualified Blaze.Types.Pil.Function as Func
 
 
@@ -84,30 +84,21 @@ getStackOffsetSym k = do
 addVarSym :: PilVar -> Sym -> ConstraintGen ()
 addVarSym pv s = varSymMap %= HashMap.insert pv s
 
-addFuncSym :: FuncVar -> Sym -> ConstraintGen ()
+addFuncSym :: FuncVar SymExpression -> Sym -> ConstraintGen ()
 addFuncSym fv s = funcSymMap %= HashMap.insert fv s
 
+-- TODO: Remove me after refactor
 -- | Create mapping of each FuncVar to a symbol
 createFuncSymMap :: [Statement Expression] -> ConstraintGen ()
 createFuncSymMap stmts' = do
   mapM_ createAndAddSym $ concatMap mkFuncVars callTgts
   where
-    createAndAddSym :: FuncVar -> ConstraintGen ()
+    createAndAddSym :: FuncVar SymExpression -> ConstraintGen ()
     createAndAddSym var = newSym >>= addFuncSym var
-    callTgts :: HashSet CallTarget
-    callTgts =
-      HashSet.fromList $
-        mkCallTarget . mkCallInfo
-          <$> mapMaybe Pil.mkCallStatement stmts'
-    mkFuncVars :: CallTarget -> [FuncVar]
-    mkFuncVars tgt =
-      if tgt ^. Func.hasResult then
-        FuncResult tgt : params
-      else
-        params
-      where
-        params :: [FuncVar]
-        params = FuncParam tgt . ParamPosition <$> [1..(tgt ^. Func.numArgs)]
+    callTgts :: HashSet (CallTarget SymExpression)
+    callTgts = undefined
+    mkFuncVars :: CallTarget SymExpression -> [FuncVar SymExpression]
+    mkFuncVars tgt = undefined
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
@@ -119,7 +110,9 @@ newSym = do
   currentSym %= incrementSym
   return x
 
--- | get pilvar's cooresponding Sym from state
+-- | Get the type symbol associated with a 'PilVar'.
+-- If no entry exists for the provided 'PilVar' an entry
+-- is added to the map and the new 'Sym' value is returned.
 lookupVarSym :: PilVar -> ConstraintGen Sym
 lookupVarSym pv = do
   vsm <- use varSymMap
@@ -127,6 +120,19 @@ lookupVarSym pv = do
     Nothing -> do
       s <- newSym
       addVarSym pv s
+      return s
+    Just s -> return s
+
+-- | Get the type symbol associated with a 'FuncVar'.
+-- If no entry exists for the provided 'FuncVar' an entry
+-- is added to the map and the new 'Sym' value is returned.
+lookupFuncSym :: FuncVar SymExpression -> ConstraintGen Sym
+lookupFuncSym fvar = do
+  fsm <- use funcSymMap
+  case HashMap.lookup fvar fsm of
+    Nothing -> do
+      s <- newSym
+      addFuncSym fvar s
       return s
     Just s -> return s
 
@@ -143,27 +149,27 @@ addSymExpression sym' x = symMap %= HashMap.insert sym' x
 byteOffsetToBitOffset :: ByteOffset -> BitOffset
 byteOffsetToBitOffset (ByteOffset n) = BitOffset $ n * 8
 
-addConstraint' :: (Sym, ConstraintSymType) -> ConstraintGen ()
-addConstraint' (s1, CSVar s2) = addConstraint_ s1 $ SVar s2
-addConstraint' (s, CSType t) = do
+addConstraint :: (Sym, ConstraintSymType) -> ConstraintGen ()
+addConstraint (s1, CSVar s2) = equals s1 s2
+addConstraint (s, CSType t) = do
   t' <- traverse f t
-  addConstraint_ s $ SType t'
+  assignType s t'
   where
     f :: ConstraintSymType -> ConstraintGen Sym
     f (CSVar v) = return v
     f (CSType ptc) = do
       x <- newSym
       pt <- traverse f ptc
-      addConstraint_ x . SType $ pt
+      assignType x pt
       return x
 
-addConstraints' :: [(Sym, ConstraintSymType)] -> ConstraintGen ()
-addConstraints' = mapM_ addConstraint'
+addConstraints :: [(Sym, ConstraintSymType)] -> ConstraintGen ()
+addConstraints = mapM_ addConstraint
 
 -- | Generates constraints for all immediate syms in SymExpression.
 -- does not get constraints of children exprs.
 addExprTypeConstraints :: SymExpression -> ConstraintGen ()
-addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
+addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x >> addCarryConstraint x
   Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
 
@@ -172,7 +178,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.AND x -> bitVectorBinOp x
 
-  --   shift right...?
+  -- Arithmetic shift right
   Pil.ASR x -> integralFirstArgIsReturn x
 
   Pil.BOOL_TO_INT x -> ret
@@ -182,12 +188,28 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   -- TODO get most general type for this and args:
   Pil.CALL x -> do
-    mxs <- constrainStandardFunc r sz x
-    -- should it always return additional bitvec constraint for ret?
-    maybe (ret [ (r, CSType $ TBitVector sz') ]) ret mxs
+    let callTgt = mkCallTarget x
+        -- Create the FuncVars for parameters
+        argFuncVars = FuncParam callTgt . ParamPosition <$> 
+          [1..(callTgt ^. Func.numArgs)]
+    argFuncSyms <- traverse lookupFuncSym argFuncVars
+    let callArgSyms = view (info . sym) <$> x ^. Pil.params
+    -- Set symbols for call args and function params to be equal
+    zipWithM_ equals argFuncSyms callArgSyms
+    -- Set constraint for return value from call target
+    resultFuncSym <- lookupFuncSym $ FuncResult callTgt
+    equals resultFuncSym r
 
-    -- this one always includes bitvec width constraint on ret
-    -- ((r, CSType $ TBitVector sz') :) <$> maybe (return []) return mxs
+    -- Use information from known functions to add constraints
+    -- TODO: This currently uses a fixed set of hard-coded 
+    --       function type information. This should later use
+    --       the BN type library and/or a source that can be 
+    --       updated. 
+    mxs <- constrainStandardFunc r sz x
+    -- TODO: Should the bitvec constraints always be included?
+    case mxs of
+      Just xs -> addConstraints xs
+      Nothing -> addConstraints [(r, CSType $ TBitVector sz')]
 
   Pil.CEIL x -> floatUnOp x
   Pil.CMP_E x -> integralBinOpReturnsBool x
@@ -368,15 +390,15 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 --   -- _ -> unknown
 
 --   Extract _ -> bitvecRet
-  _ -> P.error . show $ op'
+  _ -> P.error . show $ op
     --throwError UnhandledExpr
   where
-    ret = addConstraints'
+    ret = addConstraints
     sz' = CSType $ TVBitWidth sz
     halfsz' = CSType . TVBitWidth $ sz `div` 2
     sz2x' = CSType . TVBitWidth $ sz * 2
     getBoolRet = return $ CSType TBool -- TODO: doesn't need to be a monad anymore...
-    retBool = ret [ (r, CSType TBool) ]
+    retBool = addConstraints [ (r, CSType TBool) ]
 
     retFloat = ret [ (r, CSType $ TFloat sz') ]
 
@@ -404,7 +426,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       ret [ (r, CSType $ TInt sz' signednessType)
           , (x ^. Pil.src . info . sym, CSType $ TInt argSizeType signednessType)
           ]
-
 
     integralUnOp :: (Pil.HasSrc x SymExpression)
                  => Maybe Bool
@@ -552,21 +573,17 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
           , ( r, n )
           ]
 
-
 -- | Generates constraints for all syms in SymExpression and adds them to state.
 -- does NOT recurse down sub-expressions like addAllExprTypeConstraints
 -- addExprTypeConstraints :: SymExpression -> ConstraintGen ()
 -- addExprTypeConstraints = mapM_ addConstraint' <=< exprTypeConstraints
 
-
 -- | Recursively adds type constraints for all expr sym's in SymExpression,
 -- including nested syms.
 addAllExprTypeConstraints :: SymExpression -> ConstraintGen ()
-addAllExprTypeConstraints x@(InfoExpression (SymInfo _ _thisExprSym) op') = do
+addAllExprTypeConstraints x@(InfoExpression (SymInfo _ _) op') = do
   addExprTypeConstraints x
   mapM_ addAllExprTypeConstraints op'
-
-
 
 -- | converts expression to SymExpression (assigns symbols to all exprs), including itself
 --   adds each new sym/expr pair to CheckerState
@@ -590,13 +607,13 @@ addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   let exprSym = symExpr ^. info . sym
   pvSym <- lookupVarSym pv
   addAllExprTypeConstraints symExpr
-  addConstraint_ pvSym $ SVar exprSym
+  equals pvSym exprSym
   return $ Pil.Def (Pil.DefOp pv symExpr)
 addStmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. info . sym
   addAllExprTypeConstraints symExpr
-  addConstraint_ exprSym $ SType TBool
+  assignType exprSym TBool
   return $ Pil.Constraint (Pil.ConstraintOp symExpr)
 addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
@@ -606,25 +623,12 @@ addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   addAllExprTypeConstraints symAddrExpr
   addAllExprTypeConstraints symValExpr
   ptrWidth <- newSym
-  addConstraint_ symAddr . SType $ TPointer ptrWidth symVal
+  assignType symAddr $ TPointer ptrWidth symVal
   return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
 addStmtTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
   pvSym <- lookupVarSym pv
-  mapM_ (f pvSym) vs
+  mapM_ (addPhiConstraint pvSym) vs
   traverse toSymExpression stmt -- does nothing but change the type
   where
-    f pvSym v = lookupVarSym v >>= addConstraint_ pvSym . SVar
-
-
-
-  -- symAddrExpr <- toSymExpression addrExpr
-  -- symValExpr <- toSymExpression valExpr
-  -- let symAddr = symAddrExpr ^. info . sym
-  --     symVal = symValExpr ^. info . sym
-  -- addAllExprTypeConstraints symAddrExpr
-  -- addAllExprTypeConstraints symValExpr
-  -- ptrWidth <- newSym
-  -- addConstraint' (symAddr, CSType $ TPointer (CSVar ptrWidth)
-  --                          (CSType . TZeroField . CSVar $ symVal))
-  -- return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
+    addPhiConstraint pvSym v = lookupVarSym v >>= equals pvSym
 addStmtTypeConstraints s = traverse toSymExpression s

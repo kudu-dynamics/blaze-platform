@@ -10,7 +10,7 @@ import Blaze.Types.Pil ( Expression
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
-import Blaze.Types.Pil.Checker
+import Blaze.Types.Pil.Checker hiding (symStmts)
 import Blaze.Types.Pil.Function (FuncVar)
 import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
 import Blaze.Pil.Checker.Unification ( unify )
@@ -62,44 +62,46 @@ unifyConstraints cxs = snd $ runUnify unify initialState
                               , _currentStmt = 0
                               }
 
--- for debugging...
-stmtsConstraints :: [Statement Expression]
-                 -> Either ConstraintGenError ( [Statement SymExpression]
-                                              , ConstraintGenState )
-stmtsConstraints stmts' = case er of
-  Left err -> Left err
-  Right symStmts' -> Right (symStmts', s)
+-- | Adds constraints for all statements.
+-- This is a good place to add constraints that require
+-- access to all statements.
+addAllConstraints ::
+  [(Int, Statement Expression)] ->
+  Either ConstraintGenError
+    ( [Statement SymExpression],
+      ConstraintGenState
+    )
+addAllConstraints indexedStmts = 
+  fmap (, gst) er
   where
-    (er, s) = runConstraintGen_ $ mapM addStmtTypeConstraints stmts'
-
-
-stmtSolutions :: [(Int, Statement Expression)]
-              -> Either ConstraintGenError ( [Statement SymExpression]
-                                           , ConstraintGenState
-                                           , UnifyState
-                                           )
-stmtSolutions indexedStmts = case er of
-  Left err -> Left err
-  Right symStmts' -> Right ( fmap (varSubst $ ust ^. originMap) symStmts'
-                           , gst
-                           , ust)
-  where
-    ust :: UnifyState
-    ust = unifyConstraints (reverse cxs)
-    cxs :: [Constraint]
-    cxs = gst ^. constraints
     er :: Either ConstraintGenError [Statement SymExpression]
     gst :: ConstraintGenState
     (er, gst) = runConstraintGen_ $ do
-      mapM (\(i, s) -> do
-               currentStmt .= i
-               addStmtTypeConstraints s)
+      mapM
+        ( \(i, s) -> do
+            currentStmt .= i
+            addStmtTypeConstraints s
+        )
         indexedStmts
+
+stmtSolutions ::
+  [(Int, Statement Expression)] ->
+  Either ConstraintGenError
+    ( [Statement SymExpression],
+      ConstraintGenState,
+      UnifyState
+    )
+stmtSolutions indexedStmts = do
+  (symStmts, genState) <- addAllConstraints indexedStmts
+  let unifyState = unifyConstraints . reverse $ genState ^. constraints
+  return (fmap (varSubst $ unifyState ^. originMap) symStmts,
+          genState,
+          unifyState)
 
 -- | main function to type check / infer statements
 --   currently only returning types of pilvars in stmts for testing.
-checkStmts' :: [(Int, Statement Expression)] -> Either ConstraintGenError TypeReport
-checkStmts' indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
+checkIndexedStmts :: [(Int, Statement Expression)] -> Either ConstraintGenError TypeReport
+checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
   where
     toReport :: ( [Statement SymExpression]
                 , ConstraintGenState
@@ -145,25 +147,28 @@ checkStmts' indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
           where
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols
-        originsFuncVarSymMap :: HashMap FuncVar Sym
+        originsFuncVarSymMap :: HashMap (FuncVar SymExpression) Sym
         originsFuncVarSymMap = varSubst eqMap <$> s ^. funcSymMap
-        funcVarMap :: HashMap FuncVar DeepSymType
+        funcVarMap :: HashMap (FuncVar SymExpression) DeepSymType
         funcVarMap = fmap f originsFuncVarSymMap
           where
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols
 
 checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
-checkStmts = checkStmts' . zip [0..]
+checkStmts = checkIndexedStmts . zip [0..]
 
 removeUnusedPhi :: [(Int, Pil.Stmt)] -> [(Int, Pil.Stmt)]
 removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmts'
   where
     refs = Analysis.getRefVars . fmap snd $ stmts'
 
+-- TODO: Consider introducing an IndexedStmt type to avoid the awkwardness
+--       below where we split a [(Int, Stmt)] to process all [Stmt] and then
+--       reassemble.
 checkFunction :: Function -> IO (Either ConstraintGenError TypeReport)
 checkFunction func = do
   indexedStmts <- Pil.fromFunction func
-  let indexedStmts' = zip (fmap fst indexedStmts) (Analysis.substAddrs $ fmap snd indexedStmts)
-      indexedStmts'' = removeUnusedPhi indexedStmts'
-  return $ checkStmts' indexedStmts''
+  return $ checkIndexedStmts . removeUnusedPhi $
+    zip (fmap fst indexedStmts) (Analysis.substAddrs $ fmap snd indexedStmts)
+
