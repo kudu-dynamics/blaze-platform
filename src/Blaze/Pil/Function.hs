@@ -3,7 +3,7 @@ module Blaze.Pil.Function where
 import Blaze.Prelude
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil
-  ( CallStatement,
+  (Expression, CallOp,  CallStatement,
   )
 import qualified Blaze.Types.Pil.Function as Func
 import Blaze.Types.Pil.Function
@@ -46,26 +46,29 @@ funcRefFromFunc func =
       _hasResult = isJust $ func ^. Func.result
     }
 
-mkCallTarget :: CallInfo -> CallTarget
-mkCallTarget info =
+mkCallTarget :: CallOp expr -> CallTarget expr
+mkCallTarget call =
   CallTarget 
-    { _dest = info ^. Func.dest,
-      _numArgs = length $ info ^. Func.args,
-      _hasResult = isJust $ info ^. Func.result
+    { _dest = call ^. Pil.dest,
+      _numArgs = length $ call ^. Pil.params
     }
 
-mkCallInfo :: CallStatement -> CallInfo
-mkCallInfo callStmt =
-  CallInfo
-    { _dest = callStmt ^.(Pil.callOp . Pil.dest),
-      _args = args,
-      _result = result
-    }
-  where
-    args :: [CallArg]
-    args = CallArg <$> callStmt ^. (Pil.callOp . Pil.params)
-    result :: Maybe CallResult
-    result = case callStmt ^. Pil.stmt of
-      Pil.Def (Pil.DefOp var _) -> Just $ CallResult var
-      _ -> Nothing
+-- mkCallInfo :: CallStatement -> CallInfo
+-- mkCallInfo callStmt =
+--   CallInfo
+--     { _dest = callStmt ^. (Pil.callOp . Pil.dest),
+--       _args = CallArg <$> callStmt ^. (Pil.callOp . Pil.params),
+--       _result = case callStmt ^. Pil.stmt of
+--         Pil.Def (Pil.DefOp var _) -> Just $ CallResult var
+--         _ -> Nothing
+--     }
       
+-- mkCallInfoFromCallOp :: CallOp a -> CallInfo a
+-- mkCallInfoFromCallOp callOp =
+--  CallInfo
+--     { _dest = callOp ^. Pil.dest,
+--       _args = CallArg <$> callOp ^. Pil.params,
+--       -- Without additional context we don't know if a result 
+--       -- from the call is used.
+--       _result = Nothing
+--     }

@@ -57,9 +57,9 @@ data FuncRef
 
 -- | Used for type inference of functions to assign
 -- shared type variables to function parameters.
-data FuncVar
-  = FuncParam CallTarget ParamPosition
-  | FuncResult CallTarget
+data FuncVar expr
+  = FuncParam (CallTarget expr) ParamPosition
+  | FuncResult (CallTarget expr)
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -70,11 +70,10 @@ data FuncVar
 -- A CallTarget can be used to group call sites that share
 -- the same call destination and expectations around 
 -- call arguments and results.
-data CallTarget
+data CallTarget expr
   = CallTarget
-      { _dest :: CallDest Expression,
-        _numArgs :: Int,
-        _hasResult :: Bool
+      { _dest :: CallDest expr,
+        _numArgs :: Int
       }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
@@ -113,9 +112,9 @@ data CallVar
   = ArgVar CallArg
   | ResultVar CallResult
 
-data CallInfo
+data CallInfo a
   = CallInfo
-      { _dest :: CallDest Expression,
+      { _dest :: CallDest a,
         _args :: [CallArg],
         _result :: Maybe CallResult
       }
