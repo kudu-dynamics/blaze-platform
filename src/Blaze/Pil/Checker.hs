@@ -141,7 +141,7 @@ checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
               originSym <- HashMap.lookup (x ^. info . sym) eqMap
               HashMap.lookup originSym deepSols
           )
-          (fmap fillTypesInStmt $ x ^. op)
+          (fmap fillTypesInStmt $ x ^. Pil.op)
         pilVarMap :: HashMap PilVar DeepSymType
         pilVarMap = fmap f originsVarSymMap
           where

@@ -53,7 +53,6 @@ unOp f g x size =
     }
 
 ---- Expressions
-
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
@@ -109,6 +108,14 @@ stackLocalAddr base offset size =
 ---- Statements
 def :: Symbol -> Expression -> Stmt
 def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
+
+-- TODO: This helper assumes the only output of the call operation
+--       is the variable being defined.
+defCall :: Symbol -> Expression -> [Expression]
+defCall sym dest args = def sym callExpr
+  where
+    callExpr :: Expression
+    callExpr = Pil.CALL $ Pil.CallOp [] dest args 
 
 defPhi :: Symbol -> [Symbol] -> Stmt
 defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar

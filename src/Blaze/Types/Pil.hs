@@ -388,12 +388,6 @@ instance Hashable a => Hashable (VarJoinOp a)
 
 --TODO: address_of and address_of_field
 ---------------
-
-mkCallDest :: Expression -> CallDest Expression
-mkCallDest expr = case expr ^. op of
-  (CONST_PTR c) -> CallConstPtr c
-  _ -> CallExpr expr
-
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExpr expr
                    | CallExprs [expr]

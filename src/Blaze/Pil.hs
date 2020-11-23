@@ -23,12 +23,15 @@ import Blaze.Types.Function
   )
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Pil
-  ( CallDest,
+  ( CallDest (CallConstPtr, CallExpr),
+    CallDest,
     CallOp (CallOp),
     Ctx,
     DefOp (DefOp),
     DefPhiOp (DefPhiOp),
+    ExprOp,
     Expression (Expression),
+    HasOp,
     PilVar (PilVar),
     SSAVariableRef (SSAVariableRef),
     Statement
@@ -46,6 +49,7 @@ import Blaze.Types.Pil
     Symbol,
     UnimplMemOp (UnimplMemOp),
   )
+
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
@@ -85,6 +89,16 @@ mkFieldOffsetExprAddr addrExpr offset =
         . fromIntegral
         $ offset
     )
+
+-- mkCallDest :: HasField "_op" expr (ExprOp expr) => expr -> CallDest expr
+-- mkCallDest x = case getField @"_op" x of
+--   (Pil.CONST_PTR c) -> CallConstPtr c
+--   _ -> CallExpr x
+
+mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
+mkCallDest x = case x ^. Pil.op of
+  (Pil.CONST_PTR c) -> CallConstPtr c
+  _ -> CallExpr x
 
 convertExpr :: MLIL.Expression t -> Pil.Converter Expression
 convertExpr expr = do
@@ -404,7 +418,7 @@ convertCallInstruction :: CallInstruction -> Pil.Converter [Stmt]
 convertCallInstruction c = do
   ctx <- use Pil.ctx
   -- TODO: Better handling of possible Nothing value
-  target <- Pil.mkCallDest <$> convertExpr (fromJust (c ^. Func.dest))
+  target <- mkCallDest <$> convertExpr (fromJust (c ^. Func.dest))
   params <- sequence [convertExpr p | p <- c ^. Func.params]
   mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
   funcDefs <- use Pil.knownFuncs

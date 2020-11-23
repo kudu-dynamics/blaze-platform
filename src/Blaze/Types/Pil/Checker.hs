@@ -6,6 +6,7 @@ import Blaze.Types.Pil ( ExprOp
                        , Statement
                        , PilVar
                        , StackOffset
+                       , HasOp (op)
                        )
 import Blaze.Types.Pil.Function ( FuncVar )
 import qualified Data.HashMap.Strict as HashMap
