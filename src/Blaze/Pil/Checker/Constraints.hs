@@ -10,16 +10,14 @@ import Blaze.Types.Pil
   )
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Function
-  ( CallTarget,
-    FuncVar (FuncParam, FuncResult),
+  ( FuncVar (FuncParam, FuncResult),
     FuncVar,
     ParamPosition (ParamPosition),
   )
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
-import Blaze.Types.Pil.Checker hiding (op, params, ret)
+import Blaze.Types.Pil.Checker hiding (params, ret)
 import Blaze.Pil.Function (mkCallTarget)
 import qualified Blaze.Types.Pil.Function as Func
 
@@ -86,19 +84,6 @@ addVarSym pv s = varSymMap %= HashMap.insert pv s
 
 addFuncSym :: FuncVar SymExpression -> Sym -> ConstraintGen ()
 addFuncSym fv s = funcSymMap %= HashMap.insert fv s
-
--- TODO: Remove me after refactor
--- | Create mapping of each FuncVar to a symbol
-createFuncSymMap :: [Statement Expression] -> ConstraintGen ()
-createFuncSymMap stmts' = do
-  mapM_ createAndAddSym $ concatMap mkFuncVars callTgts
-  where
-    createAndAddSym :: FuncVar SymExpression -> ConstraintGen ()
-    createAndAddSym var = newSym >>= addFuncSym var
-    callTgts :: HashSet (CallTarget SymExpression)
-    callTgts = undefined
-    mkFuncVars :: CallTarget SymExpression -> [FuncVar SymExpression]
-    mkFuncVars tgt = undefined
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
@@ -596,7 +581,7 @@ toSymExpression (Expression sz op') = do
   addSymExpression s sexpr
   return sexpr
 
--- | get all rules for a stmt, including subexpressions
+-- | Generate all rules for a stmt, including subexpressions
 -- and add them to state
 -- also create a `Statement SymExpression`
 -- make sure to set the `currentStmt` index before calling this

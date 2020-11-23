@@ -356,8 +356,6 @@ data ExprOp expr
 instance Hashable a => Hashable (ExprOp a)
 
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
-
-
 {- HLINT ignore VarOp "Use newtype instead of data" -}
 data VarOp expr = VarOp
     { _varOpSrc :: PilVar
@@ -388,12 +386,22 @@ instance Hashable a => Hashable (VarJoinOp a)
 
 --TODO: address_of and address_of_field
 ---------------
+-- TODO: Consider removing the CallConstPtr data constructor
+--       as const ptrs can juse be an expression.
+--       The purpose was to disambiguate between static 
+--       and dynamic call destinations, but perhaps this could
+--       be represented in a better way?
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExpr expr
                    | CallExprs [expr]
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallDest a)
+
+mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
+mkCallDest x = case x ^. op of
+  (CONST_PTR c) -> CallConstPtr c
+  _ -> CallExpr x
 
 data CallOp expr = CallOp
   { _dest :: CallDest expr
@@ -464,6 +472,15 @@ data ConstBoolOp expr = ConstBoolOp
     { _constant :: Bool
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ConstBoolOp a)
+
+mkFieldOffsetExprAddr :: Expression -> Int64 -> Expression
+mkFieldOffsetExprAddr addrExpr offst =
+  Expression
+    (addrExpr ^. size)
+    ( FIELD_ADDR . FieldAddrOp addrExpr
+        . fromIntegral
+        $ offst
+    )
 
 -----------------------
 --- types

@@ -3,7 +3,7 @@ module Blaze.Pil.Construct where
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil
-  ( ExprOp,
+  (ExprOp,
     Expression (Expression),
     OperationSize,
     PilVar (PilVar),
@@ -111,11 +111,11 @@ def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
-defCall :: Symbol -> Expression -> [Expression]
-defCall sym dest args = def sym callExpr
+defCall :: Symbol -> Expression -> [Expression] -> OperationSize -> Stmt
+defCall sym dest args size = def sym callExpr
   where
     callExpr :: Expression
-    callExpr = Pil.CALL $ Pil.CallOp [] dest args 
+    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp (Pil.mkCallDest dest) Nothing args 
 
 defPhi :: Symbol -> [Symbol] -> Stmt
 defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
