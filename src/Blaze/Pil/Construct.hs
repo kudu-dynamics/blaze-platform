@@ -3,7 +3,7 @@ module Blaze.Pil.Construct where
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil
-  (ExprOp,
+  ( ExprOp,
     Expression (Expression),
     OperationSize,
     PilVar (PilVar),
