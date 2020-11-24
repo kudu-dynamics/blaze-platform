@@ -1,4 +1,5 @@
 stages:
+  - deps
   - build
   - test
   - docs
@@ -11,7 +12,7 @@ cache:
   key: ${CI_COMMIT_REF_SLUG}
 
 .haskell-job: &haskell-job
-  image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base
+  image: ${CI_REGISTRY}/blaze/blaze/blaze-deps
   tags:
     - dind
   variables:
@@ -19,8 +20,6 @@ cache:
   cache:
     paths:
       - .stack/
-      - .stack-work/
-
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
@@ -31,16 +30,29 @@ before_script:
       git clone --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
     done
 
+deps:
+  <<: *haskell-job
+  image: docker:dind
+  stage: deps
+  script:
+    - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps || true
+    - docker build .. -f ./Dockerfile -t ${CI_REGISTRY}/blaze/blaze/blaze-deps
+    - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps
+
 build:
   <<: *haskell-job
   stage: build
-  #needs: []  # gitlab 12.8
+  needs:
+    - job: deps
+      artifacts: false
   script: |
     stack build
   artifacts:
     paths:
       - .stack/
-      - .stack-work/
+      # - .stack-work/
+    exclude:
+      - .stack/programs/
 
 docs:
   <<: *haskell-job
@@ -53,7 +65,9 @@ docs:
   artifacts:
     paths:
       - .stack/
-      - .stack-work/
+      # - .stack-work/
+    exclude:
+      - .stack/programs/
 
 pages:
   <<: *haskell-job
