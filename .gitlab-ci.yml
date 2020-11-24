@@ -23,8 +23,9 @@ cache:
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
-  - 'cat /etc/*release*'
-  - apt update && apt install -y git
+  - |
+    apt update && apt install -y git || \
+      apk update && apk add git
   - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
       rm -rf "../$project"
@@ -38,7 +39,7 @@ deps:
   script:
     - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:master || true
     - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}" || true
-    - docker build .. -f ./Dockerfile -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
+    - docker build .. -f ./Dockerfile --build-arg=STACK_ROOT="${STACK_ROOT}" -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
     - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
 
 build:
