@@ -20,9 +20,11 @@ cache:
   cache:
     paths:
       - .stack/
+      - .stack-work/
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+  - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
   - |
     apt update && apt install -y git || \
       apk update && apk add git
