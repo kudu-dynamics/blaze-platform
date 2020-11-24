@@ -3,7 +3,7 @@
 module Blaze.Types.Pil.Function where
 
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Pil (PilVar, StmtIndex, CallDest, Expression)
+import Blaze.Types.Pil (PilVar, CallDest)
 import Data.BinaryAnalysis (Symbol)
 
 data Access = In | Out | InOut | Unknown
@@ -98,35 +98,11 @@ data FuncInfo
   deriving (Eq, Show, Generic)
   deriving anyclass (Hashable)
 
-newtype CallArg
-  = CallArg
-      {_expr :: Expression}
-
 -- TODO: Consider extending this to support
 --       the call expression as the result.
 newtype CallResult
   = CallResult 
       {_var :: PilVar}
-
-data CallVar
-  = ArgVar CallArg
-  | ResultVar CallResult
-
-data CallInfo a
-  = CallInfo
-      { _dest :: CallDest a,
-        _args :: [CallArg],
-        _result :: Maybe CallResult
-      }
-
-data CallSite
-  = CallSite
-      { _caller :: FuncRef,
-        _stmtIndex :: StmtIndex,
-        _callee :: CallDest Expression
-      }
-  deriving (Eq, Show, Generic)
-  deriving anyclass (Hashable)
 
 $(makePrisms ''Access)
 
@@ -142,10 +118,6 @@ $(makeFieldsNoPrefix ''ResultInfo)
 
 $(makeFieldsNoPrefix ''FuncInfo)
 
-$(makeFieldsNoPrefix ''CallInfo)
-
 $(makeFieldsNoPrefix ''CallResult)
 
 $(makeFieldsNoPrefix ''CallTarget)
-
-$(makeFieldsNoPrefix ''CallVar)
