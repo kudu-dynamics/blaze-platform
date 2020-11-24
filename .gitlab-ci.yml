@@ -24,6 +24,7 @@ cache:
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+  - apt update && apt install -y git
   - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
       rm -rf "../$project"
