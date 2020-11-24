@@ -12,7 +12,7 @@ cache:
   key: ${CI_COMMIT_REF_SLUG}
 
 .haskell-job: &haskell-job
-  image: ${CI_REGISTRY}/blaze/blaze/blaze-deps
+  image: ${CI_REGISTRY}/blaze/blaze/blaze-deps:${CI_COMMIT_REF_SLUG}
   tags:
     - dind
   variables:
@@ -23,6 +23,7 @@ cache:
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+  - 'cat /etc/*release*'
   - apt update && apt install -y git
   - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
@@ -35,50 +36,48 @@ deps:
   image: docker:dind
   stage: deps
   script:
-    - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps || true
-    - docker build .. -f ./Dockerfile -t ${CI_REGISTRY}/blaze/blaze/blaze-deps
-    - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps
+    - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:master || true
+    - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}" || true
+    - docker build .. -f ./Dockerfile -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
+    - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
 
 build:
   <<: *haskell-job
   stage: build
-  needs:
-    - job: deps
-      artifacts: false
+  needs: ["deps"]
   script: |
     stack build
-  artifacts:
-    paths:
-      - .stack/
-      # - .stack-work/
-    exclude:
-      - .stack/programs/
+  # artifacts:
+  #   paths:
+  #     - .stack/
+  #     - .stack-work/
+  #   exclude:
+  #     - .stack/programs/
 
-docs:
-  <<: *haskell-job
-  stage: docs
-  needs:
-    - job: build
-      artifacts: true
-  script: |
-    stack haddock
-  artifacts:
-    paths:
-      - .stack/
-      # - .stack-work/
-    exclude:
-      - .stack/programs/
+# docs:
+#   <<: *haskell-job
+#   stage: docs
+#   needs:
+#     - job: build
+#       artifacts: true
+#   script: |
+#     stack haddock
+#   artifacts:
+#     paths:
+#       - .stack/
+#       - .stack-work/
+#     exclude:
+#       - .stack/programs/
 
 pages:
   <<: *haskell-job
   stage: deploy
-  needs:
-    - job: docs
-      artifacts: true
+  needs: ["deps", "build"]
   rules:
     - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
-  script: |
-    cp -arT "`stack path --snapshot-doc-root`" public
+  script:
+    - stack haddock
+    - cp -arT "$(stack path --snapshot-doc-root)" public
   artifacts:
     paths:
       - public
