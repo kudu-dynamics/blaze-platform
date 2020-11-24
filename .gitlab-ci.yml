@@ -39,7 +39,7 @@ deps:
   script:
     - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:master || true
     - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}" || true
-    - docker build .. -f ./Dockerfile --build-arg=STACK_ROOT="${STACK_ROOT}" -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
+    - docker build .. -f ./Dockerfile --build-arg=STACK_ROOT="${STACK_ROOT}" --build-arg=DOCKER_REGISTRY="${CI_REGISTRY}" -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
     - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
 
 build:
