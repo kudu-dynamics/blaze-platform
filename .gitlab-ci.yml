@@ -41,7 +41,8 @@ deps:
   script:
     - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:master || true
     - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}" || true
-    - docker build .. -f ./Dockerfile --build-arg=STACK_ROOT="${STACK_ROOT}" --build-arg=DOCKER_REGISTRY="${CI_REGISTRY}" -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
+    - df -h
+    - stop=0; ( while [ $stop -eq 0 ]; do date && free -m; sleep 5; done; ) & docker build .. -f ./Dockerfile --build-arg=STACK_ROOT="${STACK_ROOT}" --build-arg=DOCKER_REGISTRY="${CI_REGISTRY}" -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}" && stop=1
     - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
 
 build:
@@ -50,27 +51,6 @@ build:
   needs: ["deps"]
   script: |
     stack build
-  # artifacts:
-  #   paths:
-  #     - .stack/
-  #     - .stack-work/
-  #   exclude:
-  #     - .stack/programs/
-
-# docs:
-#   <<: *haskell-job
-#   stage: docs
-#   needs:
-#     - job: build
-#       artifacts: true
-#   script: |
-#     stack haddock
-#   artifacts:
-#     paths:
-#       - .stack/
-#       - .stack-work/
-#     exclude:
-#       - .stack/programs/
 
 pages:
   <<: *haskell-job
