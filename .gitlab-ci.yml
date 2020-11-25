@@ -5,14 +5,9 @@ stages:
   - docs
   - deploy
 
-variables:
-  CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
-
-cache:
-  key: ${CI_COMMIT_REF_SLUG}
-
 .haskell-job: &haskell-job
-  image: ${CI_REGISTRY}/blaze/blaze/blaze-deps:${CI_COMMIT_REF_SLUG}
+  #image: ${CI_REGISTRY}/blaze/blaze/blaze-deps:${CI_COMMIT_REF_SLUG}
+  image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
   tags:
     - dind
   variables:
@@ -21,58 +16,34 @@ cache:
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
   - |
-    apt update && apt install -y git || \
-      apk update && apk add git
-  - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
       rm -rf "../$project"
       git clone --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
     done
 
-deps:
-  <<: *haskell-job
-  image: docker:dind
-  stage: deps
-  script:
-    - ls -al
-    - git ls-files --others
-    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
-    - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:master || true
-    - docker pull ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}" || true
-    - |
-      cat >../.dockerignore <<EOF
-      *
-      !blaze/
-      !binary-analysis/
-      !haskell-binja/
-      !binja-header-cleaner/
-      */.git/
-      */.gitlab-ci.yml
-      */Dockerfile
-      **/.stack/
-      **/.stack-work/
-      EOF
-    - |
-      stop=0
-      while [ $stop -eq 0 ]; do date; sleep 5; done &
-      docker build .. -f ./Dockerfile --build-arg=STACK_ROOT="${STACK_ROOT}" --build-arg=DOCKER_REGISTRY="${CI_REGISTRY}" -t ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
-      stop=1
-    - docker push ${CI_REGISTRY}/blaze/blaze/blaze-deps:"${CI_COMMIT_REF_SLUG}"
-
 build:
   <<: *haskell-job
   stage: build
-  needs: ["deps"]
-  script: |
-    stack build
+  #needs: ["deps"]
+  script:
+    - stack build
+  variables:
+    CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}-${CI_JOB_NAME}
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-${CI_JOB_NAME}
+    paths:
+      - .stack/
+      - .stack-work/
 
 pages:
   <<: *haskell-job
   stage: deploy
-  needs: ["deps", "build"]
+  needs: ["build"]
   rules:
     - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
   script:
+    - ls -al
+    - locale
     - stack haddock
     - cp -arT "$(stack path --snapshot-doc-root)" public
   artifacts:
