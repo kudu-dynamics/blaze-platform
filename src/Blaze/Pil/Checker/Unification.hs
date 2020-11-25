@@ -5,6 +5,24 @@ module Blaze.Pil.Checker.Unification where
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker
+    ( Constraint(Constraint),
+      SymType(SType, SVar),
+      PilType(TVSign, TBottom, TBitVector, TFloat, TInt, TChar, TBool,
+              TPointer, TArray, TFunction, TRecord, TVBitWidth, TVLength),
+      Sym,
+      charSize,
+      UnifyConstraintsError(UnifyConstraintsError),
+      UnifyError(IncompatibleTypes),
+      HasSolutions(solutions),
+      HasErrors(errors),
+      UnifyState,
+      HasCurrentStmt(currentStmt),
+      HasOriginMap(originMap),
+      VarSubst(varSubst),
+      Unify,
+      popConstraint,
+      assignType,
+      equals )
 import Blaze.Pil.Analysis (addToOriginMap)
 
 -- | Adds new var equality, returning the origin sym.
@@ -23,7 +41,7 @@ addVarEq a b = do
       case HashMap.lookup retiredSym sols of
         Nothing -> return ()
         Just rt -> do
-          addConstraint_ retiredSym $ SType rt
+          assignType retiredSym rt
           solutions %= HashMap.delete retiredSym
   originMap .= m'
   return v
@@ -174,11 +192,11 @@ unifyPilTypes pt1 pt2 =
         TInt w2 sign2 -> TInt <$> addVarEq w1 w2
                               <*> addVarEq sign1 sign2
         TPointer w2 pointeeType1 -> do
-          addConstraint_ sign1 . SType $ TVSign False
+          assignType sign1 $ TVSign False
           flip TPointer pointeeType1 <$> addVarEq w1 w2
         TChar -> do
-          addConstraint_ w1 . SType $ TVBitWidth charSize
-          addConstraint_ sign1 . SType $ TVSign False
+          assignType w1 $ TVBitWidth charSize
+          assignType sign1 $ TVSign False
           return TChar
 
         _ -> err
@@ -197,7 +215,7 @@ unifyPilTypes pt1 pt2 =
         TPointer w2 pt -> TPointer <$> addVarEq w1 w2 <*> pure pt
 
         TChar -> do
-          addConstraint_ w1 . SType $ TVBitWidth 8
+          assignType w1 $ TVBitWidth 8
           return TChar
 
         TBool -> return TBool
@@ -273,7 +291,7 @@ unifyRecords a = foldM f a . HashMap.toList
     f m (boff, s) = case HashMap.lookup boff m of
       Nothing -> return $ HashMap.insert boff s m
       Just s2 -> do
-        addConstraint_ s2 (SVar s)
+        equals s2 s
         return m
 
 -- -- | given the fields in the hashmap, find the greatest (offset + known width)

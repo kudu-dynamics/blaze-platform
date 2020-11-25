@@ -46,6 +46,7 @@ import Blaze.Types.Pil
     Symbol,
     UnimplMemOp (UnimplMemOp),
   )
+
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HSet
@@ -76,15 +77,6 @@ varToStackLocalAddr ctx v =
 
 typeWidthToOperationSize :: BNVar.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (BNVar.TypeWidth n) = MLIL.OperationSize n
-
-mkFieldOffsetExprAddr :: Pil.Expression -> Int64 -> Pil.Expression
-mkFieldOffsetExprAddr addrExpr offset =
-  Pil.Expression
-    (addrExpr ^. MLIL.size)
-    ( Pil.FIELD_ADDR . Pil.FieldAddrOp addrExpr
-        . fromIntegral
-        $ offset
-    )
 
 convertExpr :: MLIL.Expression t -> Pil.Converter Expression
 convertExpr expr = do
@@ -148,11 +140,11 @@ convertExpr expr = do
     (MLIL.LOAD_STRUCT x) -> do
       srcExpr <- convertExpr $ x ^. MLIL.src
       return $ mkExpr . Pil.LOAD . Pil.LoadOp $
-        mkFieldOffsetExprAddr srcExpr (x ^. MLIL.offset)
+        Pil.mkFieldOffsetExprAddr srcExpr (x ^. MLIL.offset)
     (MLIL.LOAD_STRUCT_SSA x) -> do
       srcExpr <- convertExpr $ x ^. MLIL.src
       return $ mkExpr . Pil.LOAD . Pil.LoadOp $
-        mkFieldOffsetExprAddr srcExpr (x ^. MLIL.offset)
+        Pil.mkFieldOffsetExprAddr srcExpr (x ^. MLIL.offset)
     (MLIL.LOW_PART x) -> mkExpr . Pil.LOW_PART <$> f x
     (MLIL.LSL x) -> mkExpr . Pil.LSL <$> f x
     (MLIL.LSR x) -> mkExpr . Pil.LSR <$> f x
@@ -185,7 +177,7 @@ convertExpr expr = do
         addrExpr = varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var)
     (MLIL.VAR_ALIASED_FIELD x) ->
       return $ mkExpr . Pil.LOAD . Pil.LoadOp
-        . mkFieldOffsetExprAddr addrExpr
+        . Pil.mkFieldOffsetExprAddr addrExpr
         $ x ^. MLIL.offset
       where
         addrExpr = varToStackLocalAddr ctx (x ^. MLIL.src . MLIL.var)
@@ -298,14 +290,14 @@ convertInstrOp op' = do
       where
         addrExpr = varToStackLocalAddr ctx (x ^. MLIL.prev . MLIL.src . MLIL.var)
         destAddrExpr =
-          mkFieldOffsetExprAddr addrExpr $
+          Pil.mkFieldOffsetExprAddr addrExpr $
             x ^. MLIL.offset
     (MLIL.STORE_SSA x) -> do
       exprSrc <- convertExpr (x ^. MLIL.src)
       exprDest <- convertExpr (x ^. MLIL.dest)
       return [Store $ StoreOp exprDest exprSrc]
     (MLIL.STORE_STRUCT_SSA x) -> do
-      destExpr <- (`mkFieldOffsetExprAddr` (x ^. MLIL.offset)) <$> convertExpr (x ^. MLIL.dest)
+      destExpr <- (`Pil.mkFieldOffsetExprAddr` (x ^. MLIL.offset)) <$> convertExpr (x ^. MLIL.dest)
       srcExpr <- convertExpr (x ^. MLIL.src)
       return [Store $ StoreOp destExpr srcExpr]
     -- TODO: How should we organize handling path-sensitive vs -insensitive conversions of phi nodes?
@@ -404,7 +396,7 @@ convertCallInstruction :: CallInstruction -> Pil.Converter [Stmt]
 convertCallInstruction c = do
   ctx <- use Pil.ctx
   -- TODO: Better handling of possible Nothing value
-  target <- Pil.getCallDest <$> convertExpr (fromJust (c ^. Func.dest))
+  target <- Pil.mkCallDest <$> convertExpr (fromJust (c ^. Func.dest))
   params <- sequence [convertExpr p | p <- c ^. Func.params]
   mname <- liftIO $ getCallDestFunctionName (ctx ^. Pil.func) target
   funcDefs <- use Pil.knownFuncs

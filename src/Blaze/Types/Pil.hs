@@ -186,8 +186,12 @@ import qualified Data.HashMap.Strict as HashMap
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Generic)
   deriving newtype Num
+  deriving anyclass Hashable
 
-instance Hashable CtxIndex
+newtype StmtIndex = StmtIndex { _val :: Int }
+  deriving(Eq, Ord, Show, Generic)
+  deriving newtype Num
+  deriving anyclass Hashable
 
 type Symbol = Text
 
@@ -352,8 +356,6 @@ data ExprOp expr
 instance Hashable a => Hashable (ExprOp a)
 
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
-
-
 {- HLINT ignore VarOp "Use newtype instead of data" -}
 data VarOp expr = VarOp
     { _varOpSrc :: PilVar
@@ -384,18 +386,22 @@ instance Hashable a => Hashable (VarJoinOp a)
 
 --TODO: address_of and address_of_field
 ---------------
-
-getCallDest :: Expression -> CallDest Expression
-getCallDest expr = case expr ^. op of
-  (CONST_PTR c) -> CallConstPtr c
-  _ -> CallExpr expr
-
+-- TODO: Consider removing the CallConstPtr data constructor
+--       as const ptrs can juse be an expression.
+--       The purpose was to disambiguate between static 
+--       and dynamic call destinations, but perhaps this could
+--       be represented in a better way?
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExpr expr
                    | CallExprs [expr]
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallDest a)
+
+mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
+mkCallDest x = case x ^. op of
+  (CONST_PTR c) -> CallConstPtr c
+  _ -> CallExpr x
 
 data CallOp expr = CallOp
   { _dest :: CallDest expr
@@ -466,6 +472,15 @@ data ConstBoolOp expr = ConstBoolOp
     { _constant :: Bool
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ConstBoolOp a)
+
+mkFieldOffsetExprAddr :: Expression -> Int64 -> Expression
+mkFieldOffsetExprAddr addrExpr offst =
+  Expression
+    (addrExpr ^. size)
+    ( FIELD_ADDR . FieldAddrOp addrExpr
+        . fromIntegral
+        $ offst
+    )
 
 -----------------------
 --- types
@@ -635,20 +650,41 @@ instance Hashable a => Hashable (DefPhiOp a)
 
 type Stmt = Statement Expression
 
-data Statement expr = Def (DefOp expr)
-                    | Constraint (ConstraintOp expr)
-                    | Store (StoreOp expr)
-                    | UnimplInstr Text
-                    | UnimplMem (UnimplMemOp expr)
-                    | Undef
-                    | Nop
-                    | Annotation Text
-                    | EnterContext (EnterContextOp expr)
-                    | ExitContext (ExitContextOp expr)
-                    | Call (CallOp expr)
-                    | DefPhi (DefPhiOp expr)
-                    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (Statement a)
+data Statement expr
+  = Def (DefOp expr)
+  | Constraint (ConstraintOp expr)
+  | Store (StoreOp expr)
+  | UnimplInstr Text
+  | UnimplMem (UnimplMemOp expr)
+  | Undef
+  | Nop
+  | Annotation Text
+  | EnterContext (EnterContextOp expr)
+  | ExitContext (ExitContextOp expr)
+  | Call (CallOp expr)
+  | DefPhi (DefPhiOp expr)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+  deriving anyclass Hashable
+
+data CallStatement
+  = CallStatement
+      { _stmt :: Statement Expression,
+        _callOp :: CallOp Expression
+      }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+mkCallStatement :: Stmt -> Maybe CallStatement
+mkCallStatement stmt = case stmt of
+  Call callOp -> 
+    Just $ CallStatement stmt callOp
+  Def (DefOp _ (Expression _sz (CALL callOp))) ->
+    Just $ CallStatement stmt callOp
+  _ -> 
+    Nothing
+
+getCallDest :: CallStatement -> CallDest Expression
+getCallDest callStmt =  _dest (_callOp callStmt :: CallOp Expression)
 
 $(makeFields ''VarOp)
 $(makeFields ''VarFieldOp)
@@ -684,6 +720,8 @@ $(makeFieldsNoPrefix ''Ctx)
 $(makeFieldsNoPrefix ''ConverterState)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
+
+$(makeFieldsNoPrefix ''CallStatement)
 
 $(makeFieldsNoPrefix ''DefOp)
 $(makeFieldsNoPrefix ''StoreOp)
