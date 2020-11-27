@@ -47,7 +47,8 @@ pages:
   stage: deploy
   needs: ["build"]
   rules:
-    - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - when: manual
   script:
     - stack haddock
     - cp -arT "$(stack path --snapshot-doc-root)" public
