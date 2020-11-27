@@ -12,6 +12,12 @@ stages:
     - dind
   variables:
     STACK_ROOT: ${CI_PROJECT_DIR}/.stack
+    CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .stack/
+      - .stack-work/
 
 before_script:
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
@@ -27,13 +33,6 @@ build:
   #needs: ["deps"]
   script:
     - stack build
-  variables:
-    CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}-${CI_JOB_NAME}
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}-${CI_JOB_NAME}
-    paths:
-      - .stack/
-      - .stack-work/
 
 pages:
   <<: *haskell-job
