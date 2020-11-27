@@ -34,6 +34,13 @@ build:
   script:
     - stack build
 
+test:
+  <<: *haskell-job
+  stage: test
+  needs: ["build"]
+  script:
+    - stack test
+
 pages:
   <<: *haskell-job
   stage: deploy
