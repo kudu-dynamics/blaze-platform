@@ -10,16 +10,17 @@ stages:
   image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
   tags:
     - dind
-  variables:
+  variables: &haskell-job-variables
     STACK_ROOT: ${CI_PROJECT_DIR}/.stack
     CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
-  cache:
+  cache: &haskell-job-cache
     key: ${CI_COMMIT_REF_SLUG}
     paths:
       - .stack/
       - .stack-work/
 
 before_script:
+  - env
   - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
   - |
     for project in binary-analysis haskell-binja binja-header-cleaner; do
@@ -48,8 +49,6 @@ pages:
   rules:
     - if: '$CI_COMMIT_BRANCH == "haddock" || $CI_PIPELINE_SOURCE == "trigger"'
   script:
-    - ls -al
-    - locale
     - stack haddock
     - cp -arT "$(stack path --snapshot-doc-root)" public
   artifacts:
