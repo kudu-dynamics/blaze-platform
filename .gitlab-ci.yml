@@ -45,7 +45,7 @@ test:
 pages:
   <<: *haskell-job
   stage: deploy
-  needs: ["build"]
+  needs: ["build", "test"]
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - when: manual
