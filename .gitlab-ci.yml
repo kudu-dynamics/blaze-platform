@@ -16,6 +16,9 @@ stages:
         rm -rf "../$project"
         git clone --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
       done
+  after_script:
+    - ls -al
+    - ( shopt -s dotglob && du -bhs * )
 
 .haskell-job:
   #image: ${CI_REGISTRY}/blaze/blaze/blaze-deps:${CI_COMMIT_REF_SLUG}
