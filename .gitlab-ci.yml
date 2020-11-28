@@ -46,7 +46,7 @@ build:
   stage: build
   #needs: ["deps"]
   script:
-    - stack build
+    - stack build --test --no-run-tests
 
 test:
   extends: .haskell-job
