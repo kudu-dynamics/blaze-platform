@@ -9,3 +9,4 @@ data FcmpGeOp expr = FcmpGeOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FcmpGeOp a)
+instance Serial m a => Serial m (FcmpGeOp a)

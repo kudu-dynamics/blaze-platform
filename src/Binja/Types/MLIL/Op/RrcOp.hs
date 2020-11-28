@@ -10,3 +10,4 @@ data RrcOp expr = RrcOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (RrcOp a)
+instance Serial m a => Serial m (RrcOp a)

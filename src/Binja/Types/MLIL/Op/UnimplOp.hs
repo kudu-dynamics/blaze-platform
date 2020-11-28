@@ -7,3 +7,4 @@ data UnimplOp expr = UnimplOp
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (UnimplOp a)
+instance Serial m a => Serial m (UnimplOp a)

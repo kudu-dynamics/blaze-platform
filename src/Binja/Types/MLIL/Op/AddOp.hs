@@ -9,3 +9,4 @@ data AddOp expr = AddOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (AddOp a)
+instance Serial m a => Serial m (AddOp a)

@@ -9,3 +9,4 @@ data RolOp expr = RolOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (RolOp a)
+instance Serial m a => Serial m (RolOp a)

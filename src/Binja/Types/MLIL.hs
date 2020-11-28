@@ -13,13 +13,13 @@ import Binja.C.Types
 import Binja.Types.MLIL.Common as Exports
 import Binja.Types.MLIL.Ops as Exports
 
-
 newtype OpIndex = OpIndex Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
 newtype OperationSize = OperationSize Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
 
+instance Monad m => Serial m OperationSize
 instance Hashable OperationSize
 
 newtype OperandsData = OperandsData [Word64]

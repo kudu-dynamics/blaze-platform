@@ -8,3 +8,4 @@ data FabsOp expr = FabsOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FabsOp a)
+instance Serial m a => Serial m (FabsOp a)

@@ -10,3 +10,4 @@ data VarSplitSSAOp expr = VarSplitSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarSplitSSAOp a)
+instance Serial m a => Serial m (VarSplitSSAOp a)

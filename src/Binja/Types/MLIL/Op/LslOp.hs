@@ -9,3 +9,4 @@ data LslOp expr = LslOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (LslOp a)
+instance Serial m a => Serial m (LslOp a)

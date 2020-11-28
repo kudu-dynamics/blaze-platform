@@ -11,3 +11,4 @@ data SetVarSSAFieldOp expr = SetVarSSAFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SetVarSSAFieldOp a)
+instance Serial m a => Serial m (SetVarSSAFieldOp a)

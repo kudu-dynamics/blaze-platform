@@ -9,3 +9,4 @@ data MemPhiOp expr = MemPhiOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (MemPhiOp a)
+instance Serial m a => Serial m (MemPhiOp a)

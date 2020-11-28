@@ -10,3 +10,4 @@ data IfOp expr = IfOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (IfOp a)
+instance Serial m a => Serial m (IfOp a)

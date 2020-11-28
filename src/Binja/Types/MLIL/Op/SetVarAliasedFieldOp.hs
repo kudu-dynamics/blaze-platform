@@ -11,3 +11,4 @@ data SetVarAliasedFieldOp expr = SetVarAliasedFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SetVarAliasedFieldOp a)
+instance Serial m a => Serial m (SetVarAliasedFieldOp a)

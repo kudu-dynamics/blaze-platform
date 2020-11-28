@@ -9,3 +9,4 @@ data MulsDpOp expr = MulsDpOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (MulsDpOp a)
+instance Serial m a => Serial m (MulsDpOp a)

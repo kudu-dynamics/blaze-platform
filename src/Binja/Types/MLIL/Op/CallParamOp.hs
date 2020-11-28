@@ -9,3 +9,4 @@ data CallParamOp expr = CallParamOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallParamOp a)
+instance Serial m a => Serial m (CallParamOp a)

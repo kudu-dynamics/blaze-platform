@@ -9,3 +9,4 @@ data AndOp expr = AndOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (AndOp a)
+instance Serial m a => Serial m (AndOp a)

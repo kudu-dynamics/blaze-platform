@@ -9,3 +9,4 @@ data CallOutputOp expr = CallOutputOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallOutputOp a)
+instance Serial m a => Serial m (CallOutputOp a)

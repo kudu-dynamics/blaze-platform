@@ -8,3 +8,4 @@ data ConstPtrOp expr = ConstPtrOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ConstPtrOp a)
+instance Serial m a => Serial m (ConstPtrOp a)

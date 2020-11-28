@@ -9,3 +9,4 @@ data RorOp expr = RorOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (RorOp a)
+instance Serial m a => Serial m (RorOp a)

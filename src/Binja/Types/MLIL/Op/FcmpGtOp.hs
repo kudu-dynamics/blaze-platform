@@ -9,3 +9,4 @@ data FcmpGtOp expr = FcmpGtOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FcmpGtOp a)
+instance Serial m a => Serial m (FcmpGtOp a)

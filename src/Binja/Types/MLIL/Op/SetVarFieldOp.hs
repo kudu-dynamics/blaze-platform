@@ -11,3 +11,4 @@ data SetVarFieldOp expr = SetVarFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SetVarFieldOp a)
+instance Serial m a => Serial m (SetVarFieldOp a)

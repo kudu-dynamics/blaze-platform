@@ -10,3 +10,4 @@ data SetVarOp expr = SetVarOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SetVarOp a)
+instance Serial m a => Serial m (SetVarOp a)

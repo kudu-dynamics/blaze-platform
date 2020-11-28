@@ -36,6 +36,7 @@ dependencies:
   - pretty-simple
   - protolude
   - raw-strings-qq
+  - smallcheck
   - stm
   - template-haskell
   - text

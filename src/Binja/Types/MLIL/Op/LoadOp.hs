@@ -8,3 +8,4 @@ data LoadOp expr = LoadOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (LoadOp a)
+instance Serial m a => Serial m (LoadOp a)

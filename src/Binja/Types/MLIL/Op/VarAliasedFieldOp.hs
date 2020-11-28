@@ -10,3 +10,4 @@ data VarAliasedFieldOp expr = VarAliasedFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarAliasedFieldOp a)
+instance Serial m a => Serial m (VarAliasedFieldOp a)

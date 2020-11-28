@@ -8,3 +8,4 @@ data SxOp expr = SxOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SxOp a)
+instance Serial m a => Serial m (SxOp a)

@@ -9,3 +9,4 @@ data FdivOp expr = FdivOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FdivOp a)
+instance Serial m a => Serial m (FdivOp a)

@@ -9,3 +9,4 @@ data CmpUltOp expr = CmpUltOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CmpUltOp a)
+instance Serial m a => Serial m (CmpUltOp a)

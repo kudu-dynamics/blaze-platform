@@ -10,3 +10,4 @@ data SyscallUntypedSSAOp expr = SyscallUntypedSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SyscallUntypedSSAOp a)
+instance Serial m a => Serial m (SyscallUntypedSSAOp a)

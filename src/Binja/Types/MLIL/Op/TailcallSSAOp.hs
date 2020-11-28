@@ -11,3 +11,4 @@ data TailcallSSAOp expr = TailcallSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (TailcallSSAOp a)
+instance Serial m a => Serial m (TailcallSSAOp a)

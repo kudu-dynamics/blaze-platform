@@ -8,3 +8,4 @@ data RetHintOp expr = RetHintOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (RetHintOp a)
+instance Serial m a => Serial m (RetHintOp a)
