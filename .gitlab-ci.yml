@@ -11,13 +11,13 @@ stages:
     - ls -al
     - ( shopt -s dotglob && du -bhs * )
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
-    - mkdir .stack-work.deps
+    - mkdir -p .stack-work.deps
     - |
       for project in binary-analysis haskell-binja binja-header-cleaner; do
         rm -rf "../$project"
         git clone --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
         pushd "../$project" >/dev/null
-        mkdir ../blaze/.stack-work.deps/"$project"
+        mkdir -p ../blaze/.stack-work.deps/"$project"
         ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
         popd
       done
