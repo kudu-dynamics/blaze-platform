@@ -1,3 +1,7 @@
+-- The undefined value is used in the definition of Serial instances 
+-- in this module. The OPTIONS_GHC pragma can be removed if this
+-- changes.
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Binja.Types.Variable where
