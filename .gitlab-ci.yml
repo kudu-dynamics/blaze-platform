@@ -55,7 +55,7 @@ build:
   script:
     - stack build --test --no-run-tests
 
-test:
+.test:
   extends: .haskell-job
   stage: test
   script:
