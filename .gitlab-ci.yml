@@ -55,7 +55,7 @@ build:
   script:
     - stack build --test --no-run-tests
 
-.test:
+test:
   extends: .haskell-job
   stage: test
   script:
@@ -71,6 +71,7 @@ pages:
   script:
     - stack haddock
     - cp -arT "$(stack path --snapshot-doc-root)" public
+  allow_failure: true
   artifacts:
     paths:
       - public
