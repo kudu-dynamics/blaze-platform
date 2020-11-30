@@ -7,9 +7,12 @@ stages:
 
 .job:
   before_script:
+    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - env
     - ls -al
     - ( shopt -s dotglob && du -bhs * )
+    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
+    - echo -e "section_start:`date +%s`:setup\r\e[0KSetup"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - mkdir -p .stack-work.deps
     - |
@@ -19,11 +22,15 @@ stages:
         pushd "../$project" >/dev/null
         mkdir -p ../blaze/.stack-work.deps/"$project"
         ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
+        ls -al "../$project"
         popd
       done
+    - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
+    - echo -e "section_start:`date +%s`:post-env\r\e[0KEnvironment info (after_script)"
     - ls -al
     - ( shopt -s dotglob && du -bhs * )
+    - echo -e "section_end:`date +%s`:post-env\r\e[0K"
 
 .haskell-job:
   #image: ${CI_REGISTRY}/blaze/blaze/blaze-deps:${CI_COMMIT_REF_SLUG}
