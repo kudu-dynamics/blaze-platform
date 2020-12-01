@@ -83,9 +83,6 @@ import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 
 {#fun unsafe BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-bytesToAddressWidth :: Integral a => a -> AddressWidth
-bytesToAddressWidth = fromIntegral . (*8)
-
 {#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' bytesToAddressWidth #}
 
 ---- Stream reader

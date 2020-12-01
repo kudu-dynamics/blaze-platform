@@ -138,3 +138,6 @@ withCStringArray strs f = do
 
 peekText :: CString -> IO Text
 peekText = fmap T.pack . peekCString
+
+bytesToAddressWidth :: Integral a => a -> AddressWidth
+bytesToAddressWidth = fromIntegral . (*8)
