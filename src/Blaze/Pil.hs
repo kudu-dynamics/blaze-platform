@@ -45,6 +45,7 @@ import Blaze.Types.Pil
     StoreOp (StoreOp),
     Symbol,
     UnimplMemOp (UnimplMemOp),
+    createStartConverterState
   )
 
 import qualified Blaze.Types.Pil as Pil
@@ -434,19 +435,10 @@ fromFunction' func = do
     f (mlilIndex, mlilInstr) =
       fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
   
-fromFunction :: Function -> IO [(Int, Stmt)]
-fromFunction func = fmap fst . flip Pil.runConverter st . fromFunction' $ func
+fromFunction :: AddressWidth -> Function -> IO [(Int, Stmt)]
+fromFunction addrSize func = fmap fst . flip Pil.runConverter st . fromFunction' $ func
   where
-    ctx' = Pil.Ctx func 0
-    st = Pil.ConverterState
-      { _path = AlgaPath.empty
-      , _ctxMaxIdx = 0
-      , _ctxStack = ctx' :| []
-      , _ctx = ctx'
-      , _definedVars = []
-      , _usedVars = HSet.empty
-      , _knownFuncs = knownFuncDefs
-      }
+    st = createStartConverterState AlgaPath.empty func knownFuncDefs addrSize
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. Pil.dest of

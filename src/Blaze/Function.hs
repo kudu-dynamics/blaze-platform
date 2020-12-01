@@ -10,6 +10,7 @@ module Blaze.Function
   ) where
 
 import Binja.Core (BNBinaryView)
+import qualified Binja.Core as BN
 import Binja.Function
   ( Function,
     getFunctionStartingAt
@@ -24,8 +25,7 @@ import qualified Binja.Function as Func
 import qualified Blaze.Graph as G
 import Blaze.Types.Path (PathGraph (PathGraph))
 import Blaze.Types.Path.AlgaPath (AlgaPath (AlgaPath))
-import Blaze.Pil (convertInstrs)
-import qualified Blaze.Pil.Path as BPP
+import qualified Blaze.Pil as Pil
 import qualified Blaze.Types.Pil as Pil
 
 
@@ -51,18 +51,20 @@ createCallSite bv func c = CallSite func c <$> case c ^. dest of
   Nothing -> return $ DestColl Set.empty --- probably should be a failure
 
 getStmtsForAllFunctions :: BNBinaryView -> IO [Pil.Stmt]
-getStmtsForAllFunctions bv = concat <$> (Func.getFunctions bv >>= traverse getStmtsForFunction)
+getStmtsForAllFunctions bv = concat <$> (Func.getFunctions bv >>= traverse (getStmtsForFunction bv))
 
-getStmtsForFunction :: Func.Function -> IO [Pil.Stmt]
-getStmtsForFunction fn = do
+getStmtsForFunction :: BNBinaryView -> Func.Function -> IO [Pil.Stmt]
+getStmtsForFunction bv fn = do
   instrs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
   -- TODO: Using an empty path since we don't actually have a path. 
   --       How should we refactor this so we can use the same converter/importer 
   --       machinery to import arbitrary instructions?
   --       I.e., the path is only needed when expanding function calls, not 
   --       importing a single function.
+  addrSize <- BN.getViewAddressSize bv
   let path = AlgaPath (PathGraph G.empty)
-  tmp <- traverse ((`Pil.runConverter` BPP.createStartConverterState path fn) . convertInstrs) instrs
+      startConverterState = Pil.createStartConverterState path fn Pil.knownFuncDefs addrSize
+  tmp <- traverse ((`Pil.runConverter` startConverterState) . Pil.convertInstrs) instrs
   return $ concatMap fst tmp
 
 getCallsInFunction :: Func.Function -> IO [CallInstruction]

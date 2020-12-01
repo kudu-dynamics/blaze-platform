@@ -181,7 +181,9 @@ import Binja.Function (Function)
 import Blaze.Types.Function (FuncInfo)
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
+import qualified Data.BinaryAnalysis as BA
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HS
 
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Generic)
@@ -194,6 +196,22 @@ newtype StmtIndex = StmtIndex { _val :: Int }
   deriving anyclass Hashable
 
 type Symbol = Text
+
+data Ctx = Ctx
+  { _func :: Function
+  , _ctxIndex :: CtxIndex
+  }
+  deriving (Eq, Ord, Show, Generic)
+instance Hashable Ctx
+$(makeFieldsNoPrefix ''Ctx)
+
+data SSAVariableRef = SSAVariableRef
+  { _var :: SSAVariable
+  , _func :: Function
+  , _ctxIndex :: CtxIndex
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 -- Maybe is used to wrap _func and _ctxIndex since
 -- contextual information may not be available or desirable
@@ -235,25 +253,41 @@ data ConverterState
         -- but undefined, PilVars are included
         _usedVars :: HashSet PilVar,
         -- Map of known functions with parameter access information
-        _knownFuncs :: HashMap Text FuncInfo
+        _knownFuncs :: HashMap Text FuncInfo,
+        -- Address size based on target platform
+        _addrSize :: AddressWidth,
+        -- Default variable size, usually based on platform default
+        _defaultVarSize :: Bits
       }
   deriving (Eq, Show, Generic)
+$(makeFieldsNoPrefix ''ConverterState)
 
 -- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
   deriving (Functor) 
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
 
+createStartCtx :: Function -> Ctx
+createStartCtx func_ = Ctx func_ 0
+
+createStartConverterState :: AlgaPath -> Function -> HashMap Text FuncInfo -> AddressWidth -> ConverterState
+createStartConverterState path_ f knownFuncDefs addrSize_ =
+  ConverterState
+    path_
+    (startCtx ^. ctxIndex)
+    (startCtx :| [])
+    startCtx
+    []
+    HS.empty
+    knownFuncDefs
+    addrSize_
+    (BA.bits addrSize_)
+ where
+  startCtx :: Ctx
+  startCtx = createStartCtx f
+
 runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
 runConverter m s = flip runStateT s $ _runConverter m
-
-data SSAVariableRef = SSAVariableRef
-  { _var :: SSAVariable
-  , _func :: Function
-  , _ctxIndex :: CtxIndex
-  } deriving (Eq, Ord, Show, Generic)
-
-instance Hashable SSAVariableRef
 
 data Expression = Expression
   { _size :: OperationSize
@@ -582,12 +616,6 @@ instance Monoid TypeEnv where
 
 ------
 
-data Ctx = Ctx
-  { _func :: Function
-  , _ctxIndex :: CtxIndex
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable Ctx
-
 data StackOffset = StackOffset
   { _ctx :: Ctx
   , _offset :: ByteOffset
@@ -716,8 +744,6 @@ $(makeFieldsNoPrefix ''ArrayType)
 $(makeFieldsNoPrefix ''PtrType)
 $(makeFieldsNoPrefix ''FieldType)
 $(makeFieldsNoPrefix ''StructType)
-$(makeFieldsNoPrefix ''Ctx)
-$(makeFieldsNoPrefix ''ConverterState)
 $(makeFieldsNoPrefix ''StackOffset)
 $(makeFieldsNoPrefix ''Storage)
 
