@@ -234,8 +234,10 @@ instance Hashable PilVar
 
 data ConverterState
   = ConverterState
-      { -- The path being converted
-        _path :: AlgaPath,
+      { -- TODO: Conversions sometimes occur without need for
+        --       a path. Identify and refactor appropriately.
+        -- The path being converted. 
+        _path :: AlgaPath, 
         -- The maximum context ID used so far
         _ctxMaxIdx :: CtxIndex,
         -- The current context should be on the top of the stack.
@@ -270,10 +272,12 @@ newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
 createStartCtx :: Function -> Ctx
 createStartCtx func_ = Ctx func_ 0
 
-createStartConverterState :: AlgaPath -> Function -> HashMap Text FuncInfo -> AddressWidth -> ConverterState
-createStartConverterState path_ f knownFuncDefs addrSize_ =
+-- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
+--       accepting a map from the user.
+mkConverterState :: HashMap Text FuncInfo -> AddressWidth -> Function -> AlgaPath -> ConverterState
+mkConverterState knownFuncDefs addrSize_ f p =
   ConverterState
-    path_
+    p
     (startCtx ^. ctxIndex)
     (startCtx :| [])
     startCtx
@@ -288,6 +292,9 @@ createStartConverterState path_ f knownFuncDefs addrSize_ =
 
 runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
 runConverter m s = flip runStateT s $ _runConverter m
+
+convert :: ConverterState -> Converter a -> IO a
+convert s m = fst <$> runConverter m s
 
 data Expression = Expression
   { _size :: OperationSize

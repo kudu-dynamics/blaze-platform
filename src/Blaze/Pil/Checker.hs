@@ -166,9 +166,7 @@ removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmt
 -- TODO: Consider introducing an IndexedStmt type to avoid the awkwardness
 --       below where we split a [(Int, Stmt)] to process all [Stmt] and then
 --       reassemble.
-checkFunction :: AddressWidth -> Function -> IO (Either ConstraintGenError TypeReport)
-checkFunction addrWidth func = do
-  indexedStmts <- Pil.fromFunction addrWidth func
-  return $ checkIndexedStmts . removeUnusedPhi $
-    zip (fmap fst indexedStmts) (Analysis.substAddrs $ fmap snd indexedStmts)
-
+checkFunction :: [(Int, Pil.Stmt)] -> Either ConstraintGenError TypeReport
+checkFunction funcStmts = 
+  checkIndexedStmts . removeUnusedPhi $
+    zip (fmap fst funcStmts) (Analysis.substAddrs $ fmap snd funcStmts)

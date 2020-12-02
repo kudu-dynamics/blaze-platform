@@ -185,12 +185,5 @@ convertNode _ = return [] -- TODO
 convertNodes :: [Node] -> Converter [Stmt]
 convertNodes = fmap concat . traverse convertNode
 
-convertPath :: Function -> AlgaPath -> AddressWidth -> IO [Stmt]
-convertPath startFunc path addrSize =
-  fmap (concat . fst)
-    . flip
-      Pil.runConverter
-      (Pil.createStartConverterState path startFunc Pil.knownFuncDefs addrSize)
-    . traverse convertNode
-    . Path.toList
-    $ path
+convertPath :: AlgaPath -> Converter [Stmt]
+convertPath = convertNodes . Path.toList
