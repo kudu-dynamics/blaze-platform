@@ -18,7 +18,6 @@ import Blaze.Types.Pil ( Expression
                        , Statement
                        )
 import qualified Data.HashMap.Strict as HashMap
-import qualified Blaze.Pil.Analysis as Analysis
 import Blaze.Types.Pil.Solver
 import Data.SBV.Tools.Overflow (bvAddO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
@@ -34,9 +33,6 @@ import Data.SBV.Trans ( (.==)
                       )
 import qualified Data.Text as Text
 import qualified Binja.Function as Func
-import Binja.Function (Function)
-import Blaze.Types.Path.AlgaPath (AlgaPath)
-import qualified Blaze.Pil.Path as Path
 import Data.SBV.Dynamic as D hiding (Solver)
 import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
@@ -842,21 +838,3 @@ solveStmtsWith_ :: SMTConfig
 solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. result
-
-solvePathWith :: SMTConfig -> Function -> AlgaPath
-              -> IO (Either
-                     (Either
-                      Ch.ConstraintGenError
-                      (SolverError, Ch.TypeReport))
-                     (SolverReport, Ch.TypeReport))
-solvePathWith solverCfg startFunc p = do
-  stmts <- Path.convertPath startFunc p
-  let stmts' = Analysis.substAddrs stmts
-  solveStmtsWith solverCfg stmts'
-
-
-solvePathWith_ :: SMTConfig -> Function -> AlgaPath -> IO SolverResult
-solvePathWith_ solverCfg startFunc p = do
-  stmts <- Path.convertPath startFunc p
-  let stmts' = Analysis.substAddrs stmts
-  solveStmtsWith_ solverCfg stmts'

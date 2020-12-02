@@ -25,7 +25,7 @@ getConstructors bv = Func.getFunctions bv >>= concatMapM (getConstructorsInFunct
   where
     getConstructorsInFunction :: BNBinaryView -> Func.Function -> IO [Ic.ClassConstructor]
     getConstructorsInFunction tbv fn = do
-      vtStores <- Bf.getStmtsForFunction fn >>= VTable.getVTableStores tbv
+      vtStores <- Bf.getStmtsForFunction bv fn >>= VTable.getVTableStores tbv
       cgFn <- Bni.convertFunction bv fn
       return $ uncurry (Ic.ClassConstructor cgFn) <$> vtStores
 

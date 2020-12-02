@@ -26,11 +26,9 @@ import qualified Blaze.Types.Path as Path
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil
   ( Converter,
-    ConverterState (ConverterState),
-    Ctx (Ctx),
+    Ctx,
     CtxIndex,
-    Stmt,
-    runConverter,
+    Stmt
   )
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HS
@@ -187,16 +185,12 @@ convertNode _ = return [] -- TODO
 convertNodes :: [Node] -> Converter [Stmt]
 convertNodes = fmap concat . traverse convertNode
 
-createStartCtx :: Function -> Ctx
-createStartCtx func = Ctx func 0
-
-createStartConverterState :: AlgaPath -> Function -> ConverterState
-createStartConverterState path func = 
-  ConverterState path (startCtx ^. Pil.ctxIndex) (startCtx :| []) startCtx [] HS.empty Pil.knownFuncDefs
-    where 
-      startCtx :: Ctx
-      startCtx = createStartCtx func
-
-convertPath :: Function -> AlgaPath -> IO [Stmt]
-convertPath startFunc path =
-  fmap (concat . fst) . flip runConverter (createStartConverterState path startFunc) . traverse convertNode . Path.toList $ path
+convertPath :: Function -> AlgaPath -> AddressWidth -> IO [Stmt]
+convertPath startFunc path addrSize =
+  fmap (concat . fst)
+    . flip
+      Pil.runConverter
+      (Pil.createStartConverterState path startFunc Pil.knownFuncDefs addrSize)
+    . traverse convertNode
+    . Path.toList
+    $ path
