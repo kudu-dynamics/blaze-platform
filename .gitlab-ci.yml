@@ -60,7 +60,6 @@ test:
   stage: test
   script:
     - stack test
-  allow_failure: true
 
 pages:
   extends: .haskell-job
