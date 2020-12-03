@@ -1,5 +1,6 @@
 stages:
-  - deps
+  - base
+  - push-base
   - build
   - test
   - docs
@@ -34,9 +35,9 @@ stages:
     - echo -e "section_end:`date +%s`:post-env\r\e[0K"
 
 .haskell-job:
-  #image: ${CI_REGISTRY}/blaze/blaze/blaze-deps:${CI_COMMIT_REF_SLUG}
   extends: .job
-  image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
+  #image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
+  image: ${CI_REGISTRY}/blaze/blaze/blaze-base:latest
   tags:
     - dind
   variables:
@@ -49,10 +50,35 @@ stages:
       - .stack-work/
       - .stack-work.deps/
 
+base:
+  stage: base
+  image: docker:dind
+  rules:
+    - changes:
+        - Dockerfile.base
+  script:
+    - image="${CI_REGISTRY}/blaze/blaze/blaze-base:latest"
+    - '[ -n "$image" ]'
+    - 'docker pull "$image" || echo "Missing from docker registry: $image"'
+    - docker build --pull - <Dockerfile.base
+
+push-base:
+  stage: push-base
+  image: docker:dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - Dockerfile.base
+  script:
+    - image="${CI_REGISTRY}/blaze/blaze/blaze-base:latest"
+    - '[ -n "$image" ]'
+    - 'docker pull "$image" || echo "Missing from docker registry: $image"'
+    - docker build --pull -t "$image" - <Dockerfile.base
+    - docker push "$image"
+
 build:
   extends: .haskell-job
   stage: build
-  #needs: ["deps"]
   script:
     - stack build --test --no-run-tests
 

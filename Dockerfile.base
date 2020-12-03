@@ -1,0 +1,21 @@
+# Build with `docker build - <Dockerfile.base`, i.e., no build context
+
+ARG DOCKER_REGISTRY=gitlab.mp.kududyn.io:5005
+ARG BINARYNINJA_IMAGE_TAG=latest
+ARG HASKELL_DOCKER_BASE_IMAGE_TAG=latest
+
+ARG BLAZE_BINJA_CHANNEL=dev
+ARG BLAZE_BINJA_VERSION=2.2.2559-dev
+
+# From blaze-system/deps/binja
+FROM ${DOCKER_REGISTRY}/blaze/blaze-system/binary-ninja:${BINARYNINJA_IMAGE_TAG} as binaryninja
+ENV BLAZE_BINJA_CHANNEL=${BLAZE_BINJA_CHANNEL}
+ENV BLAZE_BINJA_VERSION=${BLAZE_BINJA_VERSION}
+RUN python /tmp/binjaupdater.py
+
+FROM ${DOCKER_REGISTRY}/blaze/blaze-system/haskell-docker-base:${HASKELL_DOCKER_BASE_IMAGE_TAG}
+ARG BN_INSTALL_ROOT="/usr/share/binaryninja"
+#ENV PATH="/root/.local/bin:${PATH}:${BN_INSTALL_ROOT}"
+ENV PYTHONPATH="${BN_INSTALL_ROOT}/python${PYTHONPATH:+:$PYTHONPATH}"
+ENV BINJA_PLUGINS="${BN_INSTALL_ROOT}/bn-plugins"
+ENV LD_LIBRARY_PATH="${BINJA_CORE}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
