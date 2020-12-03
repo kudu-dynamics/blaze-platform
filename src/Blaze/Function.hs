@@ -25,6 +25,7 @@ import qualified Binja.Function as Func
 import qualified Blaze.Graph as G
 import Blaze.Types.Path (PathGraph (PathGraph))
 import Blaze.Types.Path.AlgaPath (AlgaPath (AlgaPath))
+import qualified Blaze.Types.Path.AlgaPath as AP
 import qualified Blaze.Pil as Pil
 import qualified Blaze.Types.Pil as Pil
 
@@ -62,8 +63,7 @@ getStmtsForFunction bv fn = do
   --       I.e., the path is only needed when expanding function calls, not 
   --       importing a single function.
   addrSize <- BN.getViewAddressSize bv
-  let path = AlgaPath (PathGraph G.empty)
-      startConverterState = Pil.createStartConverterState path fn Pil.knownFuncDefs addrSize
+  let startConverterState = Pil.mkConverterState Pil.knownFuncDefs addrSize fn AP.empty
   tmp <- traverse ((`Pil.runConverter` startConverterState) . Pil.convertInstrs) instrs
   return $ concatMap fst tmp
 

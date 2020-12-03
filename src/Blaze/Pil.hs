@@ -6,7 +6,6 @@ import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
 import Blaze.Pil.Analysis (getAllSyms)
-import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 import Blaze.Types.Pil.Analysis (symbolGenerator)
 import Blaze.Prelude hiding
   ( Symbol,
@@ -44,8 +43,7 @@ import Blaze.Types.Pil
     Stmt,
     StoreOp (StoreOp),
     Symbol,
-    UnimplMemOp (UnimplMemOp),
-    createStartConverterState
+    UnimplMemOp (UnimplMemOp)
   )
 
 import qualified Blaze.Types.Pil as Pil
@@ -426,19 +424,14 @@ convertCallInstruction c = do
 
 -- | Gets all PIL statements contained in a function.
 -- the "Int" is the original MLIL_SSA InstructionIndex
-fromFunction' :: Function -> Pil.Converter [(Int, Stmt)]
-fromFunction' func = do
+convertFunction :: Function -> Pil.Converter [(Int, Stmt)]
+convertFunction func = do
   mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction func
   mlilInstrs <- liftIO $ MLIL.fromFunction mlilFunc
   concatMapM f $ zip [0..] mlilInstrs
   where
     f (mlilIndex, mlilInstr) =
       fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
-  
-fromFunction :: AddressWidth -> Function -> IO [(Int, Stmt)]
-fromFunction addrSize func = fmap fst . flip Pil.runConverter st . fromFunction' $ func
-  where
-    st = createStartConverterState AlgaPath.empty func knownFuncDefs addrSize
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. Pil.dest of
