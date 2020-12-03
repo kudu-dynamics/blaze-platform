@@ -37,7 +37,7 @@ stages:
 .haskell-job:
   extends: .job
   #image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
-  image: ${CI_REGISTRY}/blaze/blaze/blaze-base:latest
+  image: ${CI_REGISTRY}/blaze/blaze/blaze-base:${CI_COMMIT_REF_SLUG}
   tags:
     - dind
   variables:
@@ -53,28 +53,16 @@ stages:
 base:
   stage: base
   image: docker:dind
-  rules:
-    - changes:
-        - Dockerfile.base
+  tags:
+    - dind
   script:
-    - image="${CI_REGISTRY}/blaze/blaze/blaze-base:latest"
+    - '[ "$CI_COMMIT_BRANCH" -eq "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
+    - '[ -n "$tag" ]'
+    - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
     - '[ -n "$image" ]'
-    - 'docker pull "$image" || echo "Missing from docker registry: $image"'
-    - docker build --pull - <Dockerfile.base
-
-push-base:
-  stage: push-base
-  image: docker:dind
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - Dockerfile.base
-  script:
-    - image="${CI_REGISTRY}/blaze/blaze/blaze-base:latest"
-    - '[ -n "$image" ]'
-    - 'docker pull "$image" || echo "Missing from docker registry: $image"'
-    - docker build --pull -t "$image" - <Dockerfile.base
-    - docker push "$image"
+    - 'docker pull "${image}:${tag}" || docker pull "${image}:latest" || echo "Missing from docker registry: ${image}:${tag}, ${image}:latest"'
+    - docker build --pull -t "${image}:${tag}" - <Dockerfile.base
+    - docker push "${image}:${tag}"
 
 build:
   extends: .haskell-job
