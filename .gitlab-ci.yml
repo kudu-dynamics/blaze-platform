@@ -9,6 +9,7 @@ stages:
   before_script:
     - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - env
+    - ls -al /usr/lib ~/.binaryninja /usr/share/binaryninja/* || true
     - ls -al
     - ( shopt -s dotglob && du -bhs * )
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
