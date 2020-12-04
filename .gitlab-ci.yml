@@ -20,7 +20,7 @@ stages:
     - |
       for project in binary-analysis haskell-binja binja-header-cleaner; do
         rm -rf "../$project"
-        git clone --depth=1 ${CI_REPOSITORY_URL%/*}/"$project" "../$project"
+        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/$project.git" "../$project"
         pushd "../$project" >/dev/null
         mkdir -p ../blaze/.stack-work.deps/"$project"
         ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
