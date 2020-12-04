@@ -22,9 +22,6 @@ import Blaze.Types.Function as Exports
 import qualified Data.Set as Set
 import qualified Binja.BasicBlock as BB
 import qualified Binja.Function as Func
-import qualified Blaze.Graph as G
-import Blaze.Types.Path (PathGraph (PathGraph))
-import Blaze.Types.Path.AlgaPath (AlgaPath (AlgaPath))
 import qualified Blaze.Types.Path.AlgaPath as AP
 import qualified Blaze.Pil as Pil
 import qualified Blaze.Types.Pil as Pil

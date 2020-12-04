@@ -2,7 +2,6 @@
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import Binja.Function (Function)
 import Blaze.Types.Pil ( Expression
                        , Statement
                        , PilVar
@@ -15,7 +14,6 @@ import Blaze.Types.Pil.Function (FuncVar)
 import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Analysis ( originMapToGroupMap )
-import qualified Blaze.Pil as Pil
 import qualified Blaze.Pil.Analysis as Analysis
 
 
