@@ -2,21 +2,35 @@
 
 ARG DOCKER_REGISTRY=gitlab.mp.kududyn.io:5005
 ARG BINARYNINJA_IMAGE_TAG=latest
-ARG HASKELL_DOCKER_BASE_IMAGE_TAG=latest
-
-ARG BLAZE_BINJA_CHANNEL=dev
-ARG BLAZE_BINJA_VERSION=2.2.2559-dev
 
 # From blaze-system/deps/binja
 FROM ${DOCKER_REGISTRY}/blaze/blaze-system/binary-ninja:${BINARYNINJA_IMAGE_TAG} as binaryninja
+ARG BLAZE_BINJA_CHANNEL=dev
+ARG BLAZE_BINJA_VERSION=2.2.2559-dev
+
+RUN apt update && apt install -yq \
+    autoconf \
+    automake \
+    build-essential \
+    netbase \
+    wget \
+    unzip \
+    libtinfo-dev \
+    haskell-stack \
+    git \
+    locales
+
+# Update Binary Ninja
 ENV BLAZE_BINJA_CHANNEL=${BLAZE_BINJA_CHANNEL}
 ENV BLAZE_BINJA_VERSION=${BLAZE_BINJA_VERSION}
 RUN python /tmp/binjaupdater.py
 
-FROM ${DOCKER_REGISTRY}/blaze/blaze-system/haskell-docker-base:${HASKELL_DOCKER_BASE_IMAGE_TAG}
-COPY --from=binaryninja /usr/share/binaryninja/ /usr/share/binaryninja/
-ARG BN_INSTALL_ROOT="/usr/share/binaryninja"
-#ENV PATH="/root/.local/bin:${PATH}:${BN_INSTALL_ROOT}"
-ENV PYTHONPATH="${BN_INSTALL_ROOT}/python${PYTHONPATH:+:$PYTHONPATH}"
-ENV BINJA_PLUGINS="${BN_INSTALL_ROOT}/bn-plugins"
-ENV LD_LIBRARY_PATH="${BINJA_CORE}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# Generate and set en_US.UTF-8 locale
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+RUN stack upgrade --binary-only
+
+ENV PATH="/root/.local/bin${PATH:+:$PATH}"
