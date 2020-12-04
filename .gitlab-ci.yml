@@ -58,7 +58,7 @@ base:
   before_script:
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
   script:
-    - '[ "$CI_COMMIT_REF_NAME" -eq "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
+    - '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
     - '[ -n "$tag" ]'
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
     - '[ -n "$image" ]'
