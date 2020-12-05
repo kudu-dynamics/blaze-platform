@@ -231,38 +231,39 @@ data PilVar = PilVar
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
+-- TODO: Conversions sometimes occur without need for
+--       a path. Identify and refactor appropriately.
 data ConverterState = ConverterState
-  { -- TODO: Conversions sometimes occur without need for
-    --       a path. Identify and refactor appropriately.
-    -- The path being converted.
+  { 
+    -- | The path being converted.
     _path :: AlgaPath
-  , -- The maximum context ID used so far
-    _ctxMaxIdx :: CtxIndex
-  , -- The current context should be on the top of the stack.
+    -- | The maximum context ID used so far
+  , _ctxMaxIdx :: CtxIndex
+    -- | The current context should be on the top of the stack.
     -- I.e., the stack should never be empty.
-    _ctxStack :: NonEmpty Ctx
-  , -- The current context
-    _ctx :: Ctx
-  , -- Currently known defined PilVars for all contexts.
+  , _ctxStack :: NonEmpty Ctx
+    -- | The current context
+  , _ctx :: Ctx
+    -- | Currently known defined PilVars for all contexts.
     -- This is assumed to be ordered by most recently defined first.
     -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
     --       This could happen for synthesized PilVars with a Nothing context.
-    _definedVars :: [PilVar]
-  , -- All PilVars referenced for all contexts.
+  , _definedVars :: [PilVar]
+    -- | All PilVars referenced for all contexts.
     -- This differs from _definedVars, as order is not preserved and referenced,
     -- but undefined, PilVars are included
-    _usedVars :: HashSet PilVar
-  , -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
+  , _usedVars :: HashSet PilVar
+    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
     --       when moving to a PilImporter instance.
     -- TODO: Does this need to be a set or just a single variable?
-    -- A mapping of PilVars to the a variable from the import source.
-    _sourceVars :: HashMap PilVar SSAVariableRef
-  , -- Map of known functions with parameter access information
-    _knownFuncs :: HashMap Text FuncInfo
-  , -- Address size based on target platform
-    _addrSize :: AddressWidth
-  , -- Default variable size, usually based on platform default
-    _defaultVarSize :: Bits
+    -- | A mapping of PilVars to the a variable from the import source.
+  , _sourceVars :: HashMap PilVar SSAVariableRef
+    -- | Map of known functions with parameter access information
+  , _knownFuncs :: HashMap Text FuncInfo
+    -- | Address size based on target platform
+  , _addrSize :: AddressWidth
+    -- | Default variable size, usually based on platform default
+  , _defaultVarSize :: Bits
   }
   deriving (Eq, Show, Generic)
 $(makeFieldsNoPrefix ''ConverterState)
