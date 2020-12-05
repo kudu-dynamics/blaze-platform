@@ -241,13 +241,6 @@ getVarEqMap = foldr updateVarEqMap HMap.empty
 putVarEqMap :: [Stmt] -> Analysis ()
 putVarEqMap xs = A.varEqMap .= Just (getVarEqMap xs)
 
--- | Merges the mapsTo of every var in set into the origin var.
-mergePilVars :: PilVar -> HashSet PilVar -> PilVar
-mergePilVars originVar s = originVar & Pil.mapsTo .~ x
-  where
-    x = foldr HSet.union HSet.empty y
-    y = fmap (view Pil.mapsTo) . HSet.toList $ HSet.insert originVar s
-
 ---- Constant Propagation
 type VarExprMap = HashMap PilVar Expression
 
@@ -587,11 +580,10 @@ replaceStore store symbol = update storeIdx varDef
     storeIdx = store ^. A.index
     storedVal = store ^. (A.op . Pil.value)
     ctx = Nothing -- TODO
-    mapsTo = HSet.empty -- TODO
     varDef =
       Pil.Def
         ( Pil.DefOp
-            { _var = Pil.PilVar symbol ctx mapsTo,
+            { _var = Pil.PilVar symbol ctx,
               _value = storedVal
             }
         )

@@ -24,6 +24,7 @@ import qualified Blaze.Types.Function as Func
 import Blaze.Types.Pil
   ( CallDest,
     CallOp (CallOp),
+    Converter,
     Ctx,
     DefOp (DefOp),
     DefPhiOp (DefPhiOp),
@@ -47,14 +48,14 @@ import Blaze.Types.Pil
   )
 
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.HashMap.Strict as HM
+import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
 type F = MLILSSAFunction
 
 --binja's default size is 0
---but that seems like it would mess up arithmetic
+--but that seems like it would mess up aritHMapetic
 --with size 8, it will be easy to cast to smaller width if needed
 defaultStackLocalAddrSize :: Pil.OperationSize
 defaultStackLocalAddrSize = 8
@@ -77,7 +78,7 @@ varToStackLocalAddr ctx v =
 typeWidthToOperationSize :: BNVar.TypeWidth -> MLIL.OperationSize
 typeWidthToOperationSize (BNVar.TypeWidth n) = MLIL.OperationSize n
 
-convertExpr :: MLIL.Expression t -> Pil.Converter Expression
+convertExpr :: MLIL.Expression t -> Converter Expression
 convertExpr expr = do
   ctx <- use Pil.ctx
   case expr ^. MLIL.op of
@@ -198,7 +199,7 @@ convertExpr expr = do
     (MLIL.ZX x) -> mkExpr . Pil.ZX <$> f x
     x -> return $ mkExpr . Pil.UNIMPL $ Text.take 20 (show x) <> "..."
     where
-      f :: Traversable m => m (MLIL.Expression t) -> Pil.Converter (m Expression)
+      f :: Traversable m => m (MLIL.Expression t) -> Converter (m Expression)
       f = traverse convertExpr
       mkExpr :: Pil.ExprOp Expression -> Expression
       mkExpr = Expression (expr ^. Pil.size)
@@ -206,20 +207,17 @@ convertExpr expr = do
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
 
-convertToPilVar :: Ctx -> MLIL.SSAVariable -> PilVar
-convertToPilVar ctx v = PilVar
-  (getSymbol v)
-  (Just ctx)
-  (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
-
-convertToPilVarAndLog :: MLIL.SSAVariable -> Pil.Converter PilVar
-convertToPilVarAndLog v = do
+convertToPilVar :: MLIL.SSAVariable -> Converter PilVar
+convertToPilVar v = do
   ctx <- use Pil.ctx
-  let pvar =
-        PilVar
-          (getSymbol v)
-          (Just ctx)
-          (HSet.singleton $ SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex))
+  let sourceVar = SSAVariableRef v (ctx ^. Pil.func) (ctx ^. Pil.ctxIndex)
+      pilVar = PilVar (getSymbol v) (Just ctx)
+  Pil.sourceVars %= HMap.insert pilVar sourceVar
+  return pilVar
+
+convertToPilVarAndLog :: MLIL.SSAVariable -> Converter PilVar
+convertToPilVarAndLog v = do
+  pvar <- convertToPilVar v
   Pil.usedVars %= HSet.insert pvar
   return pvar
 
@@ -237,7 +235,7 @@ getLastDefined :: [PilVar] -> HashSet PilVar -> Maybe PilVar
 getLastDefined orderedVars candidateVars =
   headMay [v | v <- orderedVars, HSet.member v candidateVars]
 
-convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
+convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Converter [Statement Expression]
 convertInstrOp op' = do
   ctx <- use Pil.ctx
   case op' of
@@ -304,8 +302,9 @@ convertInstrOp op' = do
     --       phase.
     (MLIL.VAR_PHI x) -> do
       defVars <- use Pil.definedVars
-      let srcVars = HSet.fromList . fmap (convertToPilVar ctx) $ x ^. MLIL.src
-          latestVar = getLastDefined defVars srcVars
+      -- Not using all the phi vars, so don't need to log them all
+      srcVars <- HSet.fromList <$> traverse convertToPilVar (x ^. MLIL.src)
+      let latestVar = getLastDefined defVars srcVars
       case latestVar of
         Nothing -> return []
         Just lVar -> do
@@ -333,7 +332,7 @@ convertInstrOp op' = do
 
 -- | intercepts VAR_PHI and converts it to PIL DefPhi
 -- todo: rename
-convertInstrOpSplitPhi :: MLIL.Operation (MLIL.Expression t) -> Pil.Converter [Statement Expression]
+convertInstrOpSplitPhi :: MLIL.Operation (MLIL.Expression t) -> Converter [Statement Expression]
 convertInstrOpSplitPhi = \case
   (MLIL.VAR_PHI x) -> do
     vdest <- convertToPilVarAndLog $ x ^. MLIL.dest
@@ -341,18 +340,18 @@ convertInstrOpSplitPhi = \case
     return [DefPhi $ DefPhiOp vdest srcs]
   x -> convertInstrOp x
     
-convertInstr :: MLIL.Instruction t -> Pil.Converter [Stmt]
+convertInstr :: MLIL.Instruction t -> Converter [Stmt]
 convertInstr = convertInstrOp . view MLIL.op
 
-convertInstrSplitPhi :: MLIL.Instruction F -> Pil.Converter [Stmt]
+convertInstrSplitPhi :: MLIL.Instruction F -> Converter [Stmt]
 convertInstrSplitPhi instr = case Func.toCallInstruction instr of
   Nothing -> convertInstrOpSplitPhi . view MLIL.op $ instr
   Just x -> convertCallInstruction x
 
-convertInstrs :: [MLIL.Instruction t] -> Pil.Converter [Stmt]
+convertInstrs :: [MLIL.Instruction t] -> Converter [Stmt]
 convertInstrs = concatMapM convertInstr
 
-convertInstrsSplitPhi :: [MLIL.Instruction F] -> Pil.Converter [Stmt]
+convertInstrsSplitPhi :: [MLIL.Instruction F] -> Converter [Stmt]
 convertInstrsSplitPhi = concatMapM convertInstrSplitPhi
 
 getCallDestFunctionName :: Function -> CallDest expr -> IO (Maybe Text)
@@ -388,10 +387,10 @@ genCallOutputStores paramInfos params =
           (Expression (argExpr ^. Pil.size) (Pil.VAR (Pil.VarOp freeVar)))
     -- TODO: Need to actually find the used defined vars and exclude them
     exprVars :: [PilVar]
-    exprVars = (\x -> PilVar x Nothing HSet.empty) <$> symbolGenerator (getAllSyms [])
+    exprVars = (`PilVar` Nothing) <$> symbolGenerator (getAllSyms [])
 
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
-convertCallInstruction :: CallInstruction -> Pil.Converter [Stmt]
+convertCallInstruction :: CallInstruction -> Converter [Stmt]
 convertCallInstruction c = do
   ctx <- use Pil.ctx
   -- TODO: Better handling of possible Nothing value
@@ -417,14 +416,14 @@ convertCallInstruction c = do
   where 
     getOutStores :: Maybe Text -> HashMap Text FuncInfo -> [Expression] -> [Stmt]
     getOutStores mname funcInfos args =
-      case mname >>= (`HM.lookup` funcInfos) of
+      case mname >>= (`HMap.lookup` funcInfos) of
         Nothing -> []
         (Just funcInfo) ->
           genCallOutputStores (funcInfo ^. Func.params) args
 
 -- | Gets all PIL statements contained in a function.
 -- the "Int" is the original MLIL_SSA InstructionIndex
-convertFunction :: Function -> Pil.Converter [(Int, Stmt)]
+convertFunction :: Function -> Converter [(Int, Stmt)]
 convertFunction func = do
   mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction func
   mlilInstrs <- liftIO $ MLIL.fromFunction mlilFunc
@@ -441,7 +440,7 @@ isDirectCall c = case c ^. Pil.dest of
 -- TODO: Move to external file/module of definitions
 knownFuncDefs :: HashMap Text FuncInfo
 knownFuncDefs =
-  HM.fromList
+  HMap.fromList
     [ ( "asprintf",
         mkFuncInfo
           "asprintf"

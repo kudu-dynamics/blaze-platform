@@ -31,7 +31,6 @@ import Blaze.Types.Pil
     Stmt
   )
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.HashSet as HS
 import qualified Data.List.NonEmpty as NE
 
 -- convert path to [Pil]
@@ -118,7 +117,7 @@ defSymbol :: Pil.Symbol -> Pil.Expression -> Converter Stmt
 defSymbol sym expr = do
   ctx <- use Pil.ctx
   -- TODO: Sort out use of mapsTo when defining the PilVar
-  let pilVar = Pil.PilVar sym (Just ctx) HS.empty
+  let pilVar = Pil.PilVar sym (Just ctx)
   return $ Pil.Def (Pil.DefOp pilVar expr)
 
 defPilVar :: Pil.PilVar -> Pil.Expression -> Stmt
