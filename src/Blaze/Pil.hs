@@ -55,7 +55,7 @@ import qualified Data.Text as Text
 type F = MLILSSAFunction
 
 --binja's default size is 0
---but that seems like it would mess up aritHMapetic
+--but that seems like it would mess up arithmetic
 --with size 8, it will be easy to cast to smaller width if needed
 defaultStackLocalAddrSize :: Pil.OperationSize
 defaultStackLocalAddrSize = 8
