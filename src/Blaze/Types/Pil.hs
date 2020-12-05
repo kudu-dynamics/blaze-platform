@@ -182,7 +182,7 @@ import Blaze.Types.Function (FuncInfo)
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import qualified Data.BinaryAnalysis as BA
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
 newtype CtxIndex = CtxIndex Int
@@ -219,48 +219,52 @@ data SSAVariableRef = SSAVariableRef
 -- which do not correspond to variables in the source program.)
 data PilVar = PilVar
   { _symbol :: Symbol
-  -- TODO: Reassess use of Maybe for ctx. 
-  --       Currently needed when introducing synthesized PilVars
-  --       when replacing store statements. May also be useful for 
-  --       introducing arbitrary symbols used in constraints?
-  --       Another option is to explicitly use a default context
-  --       Related to this is having Blaze.Pil.Construct functions
-  --       play nice with context management.
+    -- TODO: Reassess use of Maybe for ctx.
+    --       Currently needed when introducing synthesized PilVars
+    --       when replacing store statements. May also be useful for
+    --       introducing arbitrary symbols used in constraints?
+    --       Another option is to explicitly use a default context
+    --       Related to this is having Blaze.Pil.Construct functions
+    --       play nice with context management.
   , _ctx :: Maybe Ctx
-  , _mapsTo :: HashSet SSAVariableRef
-  } deriving (Eq, Ord, Show, Generic)
-           
-instance Hashable PilVar
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-data ConverterState
-  = ConverterState
-      { -- TODO: Conversions sometimes occur without need for
-        --       a path. Identify and refactor appropriately.
-        -- The path being converted. 
-        _path :: AlgaPath, 
-        -- The maximum context ID used so far
-        _ctxMaxIdx :: CtxIndex,
-        -- The current context should be on the top of the stack.
-        -- I.e., the stack should never be empty.
-        _ctxStack :: NonEmpty Ctx,
-        -- The current context
-        _ctx :: Ctx,
-        -- Currently known defined PilVars for all contexts.
-        -- This is assumed to be ordered by most recently defined first.
-        -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
-        --       This could happen for synthesized PilVars with a Nothing context.
-        _definedVars :: [PilVar],
-        -- All PilVars referenced for all contexts.
-        -- This differs from _definedVars, as order is not preserved and referenced, 
-        -- but undefined, PilVars are included
-        _usedVars :: HashSet PilVar,
-        -- Map of known functions with parameter access information
-        _knownFuncs :: HashMap Text FuncInfo,
-        -- Address size based on target platform
-        _addrSize :: AddressWidth,
-        -- Default variable size, usually based on platform default
-        _defaultVarSize :: Bits
-      }
+-- TODO: Conversions sometimes occur without need for
+--       a path. Identify and refactor appropriately.
+data ConverterState = ConverterState
+  { 
+    -- | The path being converted.
+    _path :: AlgaPath
+    -- | The maximum context ID used so far
+  , _ctxMaxIdx :: CtxIndex
+    -- | The current context should be on the top of the stack.
+    -- I.e., the stack should never be empty.
+  , _ctxStack :: NonEmpty Ctx
+    -- | The current context
+  , _ctx :: Ctx
+    -- | Currently known defined PilVars for all contexts.
+    -- This is assumed to be ordered by most recently defined first.
+    -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
+    --       This could happen for synthesized PilVars with a Nothing context.
+  , _definedVars :: [PilVar]
+    -- | All PilVars referenced for all contexts.
+    -- This differs from _definedVars, as order is not preserved and referenced,
+    -- but undefined, PilVars are included
+  , _usedVars :: HashSet PilVar
+    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
+    --       when moving to a PilImporter instance.
+    -- TODO: Does this need to be a set or just a single variable?
+    -- | A mapping of PilVars to the a variable from the import source.
+  , _sourceVars :: HashMap PilVar SSAVariableRef
+    -- | Map of known functions with parameter access information
+  , _knownFuncs :: HashMap Text FuncInfo
+    -- | Address size based on target platform
+  , _addrSize :: AddressWidth
+    -- | Default variable size, usually based on platform default
+  , _defaultVarSize :: Bits
+  }
   deriving (Eq, Show, Generic)
 $(makeFieldsNoPrefix ''ConverterState)
 
@@ -283,6 +287,7 @@ mkConverterState knownFuncDefs addrSize_ f p =
     startCtx
     []
     HS.empty
+    HM.empty
     knownFuncDefs
     addrSize_
     (BA.bits addrSize_)
@@ -613,13 +618,13 @@ newtype TypeEnv = TypeEnv (HashMap PilVar Type)
 instance Hashable TypeEnv
 
 typeEnvLookup :: PilVar -> TypeEnv -> Maybe Type
-typeEnvLookup v (TypeEnv env) = HashMap.lookup v env
+typeEnvLookup v (TypeEnv env) = HM.lookup v env
 
 instance Semigroup TypeEnv where
-  (<>) (TypeEnv m1) (TypeEnv m2) = TypeEnv $ HashMap.unionWith (<>) m1 m2
+  (<>) (TypeEnv m1) (TypeEnv m2) = TypeEnv $ HM.unionWith (<>) m1 m2
 
 instance Monoid TypeEnv where
-  mempty = TypeEnv HashMap.empty
+  mempty = TypeEnv HM.empty
 
 ------
 

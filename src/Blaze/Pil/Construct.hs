@@ -10,14 +10,12 @@ import Blaze.Types.Pil
     Stmt,
     Symbol,
   )
-import qualified Data.HashSet as HSet
 
 pilVar :: Symbol -> PilVar
 pilVar s =
   PilVar
     { _symbol = s,
-      _ctx = Nothing,
-      _mapsTo = HSet.empty
+      _ctx = Nothing
     }
 
 mkExpr :: OperationSize -> ExprOp Expression -> Expression
