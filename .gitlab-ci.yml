@@ -82,7 +82,7 @@ build:
   extends: .haskell-job
   stage: build
   script:
-    - "( cd ../header && make header && git diff --stat; )"
+    - "( cd ../haskell-binja && make header && git diff --stat; )"
     - stack build
 
 test:
