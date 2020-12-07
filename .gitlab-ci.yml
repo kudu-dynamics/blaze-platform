@@ -71,7 +71,8 @@ build:
   extends: .haskell-job
   stage: build
   script:
-    - stack build --test --no-run-tests
+    - "( cd ../header && make header && git diff --stat; )"
+    - stack build
 
 test:
   extends: .haskell-job
