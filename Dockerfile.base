@@ -37,3 +37,10 @@ ENV LC_ALL=en_US.UTF-8
 RUN stack upgrade --binary-only
 
 ENV PATH="/root/.local/bin${PATH:+:$PATH}"
+
+COPY stack.yaml package.yaml /tmp/blaze-deps/
+RUN cd /tmp/blaze-deps && \
+    sed -i '/..\/haskell-binja/d;/..\/binary-analysis/d' stack.yaml && \
+    stack build --only-dependencies && \
+    cd / && \
+    rm -rf /tmp/blaze-deps
