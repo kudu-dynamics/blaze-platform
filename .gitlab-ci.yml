@@ -56,13 +56,24 @@ base:
   image: docker:dind
   tags:
     - dind
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "haddock"
+      changes:
+        - "**/stack.yaml"
+        - "**/stack.yaml.lock"
+        - "**/package.yaml"
+        - "**/*.cabal"
   before_script:
+    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
+    - env
+    - ls -al
+    - ( shopt -s dotglob && du -bhs * )
+    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
   script:
-    - '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
-    - '[ -n "$tag" ]'
+    #- '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
+    - tag=latest
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
-    - '[ -n "$image" ]'
     - 'docker pull "${image}:${tag}" || docker pull "${image}:latest" || echo "Missing from docker registry: ${image}:${tag}, ${image}:latest"'
     - docker build --pull -t "${image}:${tag}" - <Dockerfile.base
     - docker push "${image}:${tag}"
@@ -84,7 +95,7 @@ pages:
   extends: .haskell-job
   stage: deploy
   rules:
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_REF_NAME == "haddock"
     - when: manual
   script:
     - stack haddock
