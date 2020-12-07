@@ -5,9 +5,6 @@ ARG BINARYNINJA_IMAGE_TAG=latest
 
 # From blaze-system/deps/binja
 FROM ${DOCKER_REGISTRY}/blaze/blaze-system/binary-ninja:${BINARYNINJA_IMAGE_TAG} as binaryninja
-ARG BLAZE_BINJA_CHANNEL=dev
-ARG BLAZE_BINJA_VERSION=2.2.2559-dev
-
 RUN apt update && apt install -yq \
     autoconf \
     automake \
@@ -21,9 +18,15 @@ RUN apt update && apt install -yq \
     locales
 
 # Update Binary Ninja
+ARG BLAZE_BINJA_CHANNEL=dev
+ARG BLAZE_BINJA_VERSION=2.1.2282-dev
+ARG BLAZE_BINJA_API_COMMIT=cf7851dee087e939ae10c0befe7ffa854885d41c
 ENV BLAZE_BINJA_CHANNEL=${BLAZE_BINJA_CHANNEL}
 ENV BLAZE_BINJA_VERSION=${BLAZE_BINJA_VERSION}
 RUN python /tmp/binjaupdater.py
+RUN cd "${BN_TARGET_ROOT}/bn-api" && ls -al && git checkout "${BLAZE_BINJA_API_COMMIT}"
+
+ENV BLAZE_BINJA_API=${BN_TARGET_ROOT}/bn-api
 
 # Generate and set en_US.UTF-8 locale
 RUN locale-gen en_US.UTF-8
