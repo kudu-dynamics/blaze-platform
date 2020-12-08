@@ -33,12 +33,12 @@ workflow:
       !binary-analysis
       !haskell-binja
       !binja-header-cleaner
-      **/.git/
+      **/.git
       **/.gitlab-ci.yml
       **/Dockerfile*
-      **/.stack/
-      **/.stack-work/
-      **/.stack-work.deps/
+      **/.stack
+      **/.stack-work
+      **/.stack-work.deps
       **/*.cabal
       EOF
     - |
