@@ -17,7 +17,7 @@ data Function
         _functionName :: Text,
         _functionAddress :: Address
       }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 instance Hashable Function
 
@@ -27,11 +27,11 @@ data CallSite
         _callSiteAddress :: Address,
         _callSiteDest :: CallDest
       }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 newtype CallDest
   = DestFunc Function
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 $(makeFields ''Function)
 $(makeFields ''CallSite)
