@@ -1,30 +1,33 @@
-module Blaze.Function
-  ( module Exports
-  , createCallSite
-  , isDirectCall
-  , getCallsInFunction
-  , getStmtsForFunction
-  , getStmtsForAllFunctions
-  , getIndirectCallsInFunction
-  , getIndirectCallSites
-  ) where
+module Blaze.Function (
+  module Exports,
+  createCallSite,
+  isDirectCall,
+  getCallsInFunction,
+  getStmtsForFunction,
+  getStmtsForAllFunctions,
+  getIndirectCallsInFunction,
+  getIndirectCallSites,
+) where
 
 import Binja.Core (BNBinaryView)
 import qualified Binja.Core as BN
-import Binja.Function
-  ( Function,
-    getFunctionStartingAt
-  )
+import Binja.Function (
+  Function,
+  getFunctionStartingAt,
+ )
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import Blaze.Types.Function as Exports
 
-import qualified Data.Set as Set
 import qualified Binja.BasicBlock as BB
-import qualified Binja.Function as Func
-import qualified Blaze.Types.Path.AlgaPath as AP
+import qualified Binja.Function as BNFunc
+import Blaze.Import.Source.BinaryNinja (BNImporter)
+import qualified Blaze.Import.Source.BinaryNinja as BNI
 import qualified Blaze.Pil as Pil
+import qualified Blaze.Types.CallGraph as CG
+import qualified Blaze.Types.Path.AlgaPath as AP
 import qualified Blaze.Types.Pil as Pil
+import qualified Data.Set as Set
 
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
@@ -48,12 +51,17 @@ createCallSite bv func c = CallSite func c <$> case c ^. dest of
     _ -> return $ DestExpr dexpr
   Nothing -> return $ DestColl Set.empty --- probably should be a failure
 
-getStmtsForAllFunctions :: BNBinaryView -> IO [Pil.Stmt]
-getStmtsForAllFunctions bv = concat <$> (Func.getFunctions bv >>= traverse (getStmtsForFunction bv))
+getStmtsForAllFunctions :: BNImporter -> IO [Pil.Stmt]
+getStmtsForAllFunctions imp = do
+  let bv = imp ^. BNI.binaryView
+  bnFuncs <- BNFunc.getFunctions bv
+  funcs <- traverse (BNI.convertFunction bv) bnFuncs
+  concat <$> traverse (uncurry $ getStmtsForFunction imp) (zip funcs bnFuncs)
 
-getStmtsForFunction :: BNBinaryView -> Func.Function -> IO [Pil.Stmt]
-getStmtsForFunction bv fn = do
-  instrs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
+getStmtsForFunction :: BNImporter -> CG.Function -> BNFunc.Function -> IO [Pil.Stmt]
+getStmtsForFunction imp fn bnFn = do
+  let bv = imp ^. BNI.binaryView
+  instrs <- BNFunc.getMLILSSAFunction bnFn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
   -- TODO: Using an empty path since we don't actually have a path. 
   --       How should we refactor this so we can use the same converter/importer 
   --       machinery to import arbitrary instructions?
@@ -61,27 +69,27 @@ getStmtsForFunction bv fn = do
   --       importing a single function.
   addrSize <- BN.getViewAddressSize bv
   let startConverterState = Pil.mkConverterState Pil.knownFuncDefs addrSize fn AP.empty
-  tmp <- traverse ((`Pil.runConverter` startConverterState) . Pil.convertInstrs) instrs
-  return $ concatMap fst tmp
+  stmts <- traverse ((`Pil.runConverter` startConverterState) . Pil.convertInstrs) instrs
+  return $ concatMap fst stmts
 
-getCallsInFunction :: Func.Function -> IO [CallInstruction]
+getCallsInFunction :: BNFunc.Function -> IO [CallInstruction]
 getCallsInFunction fn = do
-  bbs <- Func.getMLILSSAFunction fn >>= BB.getBasicBlocks
+  bbs <- BNFunc.getMLILSSAFunction fn >>= BB.getBasicBlocks
   concat <$> traverse callsPerBB bbs
   where
     callsPerBB bb = mapMaybe toCallInstruction <$> MLIL.fromBasicBlock bb
 
-getIndirectCallsInFunction :: Func.Function -> IO [CallInstruction]
+getIndirectCallsInFunction :: BNFunc.Function -> IO [CallInstruction]
 getIndirectCallsInFunction fn = do
   calls <- getCallsInFunction fn
   return $ filter (not . isDirectCall) calls
 
-getIndirectCallSites :: [Func.Function] -> IO [(Func.Function, CallInstruction)]
+getIndirectCallSites :: [BNFunc.Function] -> IO [(BNFunc.Function, CallInstruction)]
 getIndirectCallSites fns = do
   indirectCalls <- traverse getIndirectCallsInFunction fns
   return . getTupleList $ zip fns indirectCalls
   where
-    getTupleList :: [(Func.Function, [CallInstruction])] -> [(Func.Function, CallInstruction)]
+    getTupleList :: [(BNFunc.Function, [CallInstruction])] -> [(BNFunc.Function, CallInstruction)]
     getTupleList = concat <$> map (uncurry createTuple)
     createTuple fn (i:is) = [(fn, i)] <> createTuple fn is
     createTuple _ [] = []

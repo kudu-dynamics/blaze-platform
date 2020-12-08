@@ -106,6 +106,7 @@ library:
   - Blaze.Graph
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
+  - Blaze.Import.Pil
   - Blaze.Import.Source.BinaryNinja
   - Blaze.IndirectCallResolution
   - Blaze.Path

@@ -140,55 +140,11 @@ import Binja.MLIL as Exports
     UndefOp (UndefOp),
     UnimplOp (UnimplOp),
     XorOp (XorOp),
-    ZxOp (ZxOp),
-    address,
-    carry,
-    condition,
-    constant,
-    dest,
-    dest_memory,
-    exprIndex,
-    false,
-    func,
-    high,
-    index,
-    intrinsic,
-    left,
-    low,
-    offset,
-    op,
-    opData,
-    operands,
-    operation,
-    output,
-    params,
-    prev,
-    right,
-    size,
-    sourceOperand,
-    src,
-    src_memory,
-    stack,
-    targets,
-    true,
-    var,
-    vector,
-    version,
+    ZxOp (ZxOp)
   )
-
-import Binja.Function (Function)
-
-import Blaze.Types.Function (FuncInfo)
 import Blaze.Prelude hiding (Symbol, Type)
-import Blaze.Types.Path.AlgaPath (AlgaPath)
-import qualified Data.BinaryAnalysis as BA
+import Blaze.Types.CallGraph (Function)
 import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
-
-newtype CtxIndex = CtxIndex Int
-  deriving (Eq, Ord, Show, Generic)
-  deriving newtype Num
-  deriving anyclass Hashable
 
 newtype StmtIndex = StmtIndex { _val :: Int }
   deriving(Eq, Ord, Show, Generic)
@@ -197,6 +153,11 @@ newtype StmtIndex = StmtIndex { _val :: Int }
 
 type Symbol = Text
 
+newtype CtxIndex = CtxIndex Int
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype Num
+  deriving anyclass Hashable
+
 data Ctx = Ctx
   { _func :: Function
   , _ctxIndex :: CtxIndex
@@ -204,14 +165,6 @@ data Ctx = Ctx
   deriving (Eq, Ord, Show, Generic)
 instance Hashable Ctx
 $(makeFieldsNoPrefix ''Ctx)
-
-data SSAVariableRef = SSAVariableRef
-  { _var :: SSAVariable
-  , _func :: Function
-  , _ctxIndex :: CtxIndex
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
 
 -- Maybe is used to wrap _func and _ctxIndex since
 -- contextual information may not be available or desirable
@@ -231,82 +184,12 @@ data PilVar = PilVar
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
--- TODO: Conversions sometimes occur without need for
---       a path. Identify and refactor appropriately.
-data ConverterState = ConverterState
-  { 
-    -- | The path being converted.
-    _path :: AlgaPath
-    -- | The maximum context ID used so far
-  , _ctxMaxIdx :: CtxIndex
-    -- | The current context should be on the top of the stack.
-    -- I.e., the stack should never be empty.
-  , _ctxStack :: NonEmpty Ctx
-    -- | The current context
-  , _ctx :: Ctx
-    -- | Currently known defined PilVars for all contexts.
-    -- This is assumed to be ordered by most recently defined first.
-    -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
-    --       This could happen for synthesized PilVars with a Nothing context.
-  , _definedVars :: [PilVar]
-    -- | All PilVars referenced for all contexts.
-    -- This differs from _definedVars, as order is not preserved and referenced,
-    -- but undefined, PilVars are included
-  , _usedVars :: HashSet PilVar
-    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
-    --       when moving to a PilImporter instance.
-    -- TODO: Does this need to be a set or just a single variable?
-    -- | A mapping of PilVars to the a variable from the import source.
-  , _sourceVars :: HashMap PilVar SSAVariableRef
-    -- | Map of known functions with parameter access information
-  , _knownFuncs :: HashMap Text FuncInfo
-    -- | Address size based on target platform
-  , _addrSize :: AddressWidth
-    -- | Default variable size, usually based on platform default
-  , _defaultVarSize :: Bits
-  }
-  deriving (Eq, Show, Generic)
-$(makeFieldsNoPrefix ''ConverterState)
-
--- TODO: Add map of PilVars to original vars to the state being tracked
-newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
-  deriving (Functor) 
-  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
-
-createStartCtx :: Function -> Ctx
-createStartCtx func_ = Ctx func_ 0
-
--- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
---       accepting a map from the user.
-mkConverterState :: HashMap Text FuncInfo -> AddressWidth -> Function -> AlgaPath -> ConverterState
-mkConverterState knownFuncDefs addrSize_ f p =
-  ConverterState
-    p
-    (startCtx ^. ctxIndex)
-    (startCtx :| [])
-    startCtx
-    []
-    HS.empty
-    HM.empty
-    knownFuncDefs
-    addrSize_
-    (BA.bits addrSize_)
- where
-  startCtx :: Ctx
-  startCtx = createStartCtx f
-
-runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
-runConverter m s = flip runStateT s $ _runConverter m
-
-convert :: ConverterState -> Converter a -> IO a
-convert s m = fst <$> runConverter m s
-
 data Expression = Expression
   { _size :: OperationSize
   , _op :: ExprOp Expression
-  } deriving (Eq, Ord, Show, Generic)
-
-instance Hashable Expression
+  } 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 data ExprOp expr
     = ADC (AdcOp expr)
@@ -736,7 +619,6 @@ $(makeFieldsNoPrefix ''FieldAddrOp)
 $(makeFieldsNoPrefix ''UpdateVarOp)
 $(makeFieldsNoPrefix ''ConstBoolOp)
 
-$(makeFieldsNoPrefix ''SSAVariableRef)
 $(makeFieldsNoPrefix ''PilVar)
 $(makeFieldsNoPrefix ''Expression)
 $(makeFieldsNoPrefix ''CallOp)

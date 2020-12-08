@@ -18,8 +18,7 @@ data Function
         _functionAddress :: Address
       }
   deriving (Eq, Ord, Show, Generic)
-
-instance Hashable Function
+  deriving anyclass (Hashable)
 
 data CallSite
   = CallSite

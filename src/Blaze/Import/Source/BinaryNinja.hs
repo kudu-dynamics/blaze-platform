@@ -1,7 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Blaze.Import.Source.BinaryNinja where
-
+module Blaze.Import.Source.BinaryNinja (
+  module Blaze.Import.Source.BinaryNinja,
+  module Exports,
+) where
+  
+import qualified Blaze.Import.Source.BinaryNinja.Pil as Exports
 import qualified Binja.BasicBlock as BNBb
 import qualified Binja.C.Enums as BNEnums
 import qualified Binja.Core as Binja
@@ -12,8 +16,10 @@ import qualified Binja.Reference as Ref
 import qualified Binja.View
 import Blaze.Types.Function (CallInstruction, toCallInstruction)
 import qualified Blaze.Types.Function as Func
-import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
+import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions, getFunction))
 import Blaze.Import.Cfg (CfgImporter (getCfg))
+import Blaze.Import.Pil (PilImporter (getFuncStatements, getPathStatements))
+import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.CallGraph as CG
 import Blaze.Types.CallGraph
@@ -43,6 +49,7 @@ import Blaze.Types.Cfg
     Cfg,
     buildCfg,
   )
+import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Extra (mapMaybeM)
 import Control.Monad.Trans.Writer.Lazy (WriterT, runWriterT, tell)
 import Data.BinaryAnalysis (Symbol (Symbol, _symbolName, _symbolRawName))
@@ -132,10 +139,15 @@ createCallSite bv bnCaller callInstr = do
               )
 
 instance CallGraphImporter BNImporter where
+  getFunction imp addr = do
+    let bv = imp ^. binaryView
+    func <- BNFunc.getFunctionStartingAt bv Nothing addr :: IO (Maybe BNFunc.Function)
+    traverse (convertFunction bv) func
+
   getFunctions imp = do
     let bv = imp ^. binaryView
     funcs <- BNFunc.getFunctions bv
-    sequence $ convertFunction bv <$> funcs
+    traverse (convertFunction bv) funcs
 
   getCallSites imp func = do
     let bv = imp ^. binaryView
