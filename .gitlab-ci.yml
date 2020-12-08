@@ -6,6 +6,8 @@ stages:
   - docs
   - deploy
 
+# FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
+# case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
 workflow:
   rules:
     - if: $CI_MERGE_REQUEST_ID
@@ -108,6 +110,7 @@ test:
   stage: test
   script:
     - stack test
+  allow_failure: true
 
 pages:
   extends: .haskell-job
