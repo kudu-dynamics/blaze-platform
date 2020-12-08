@@ -75,6 +75,8 @@ base:
   rules:
     - if: $CI_COMMIT_REF_NAME == "haddock"
       changes:
+        - "**/Dockerfile*"
+        - "**/.gitlab-ci.yml"
         - "**/stack.yaml"
         - "**/stack.yaml.lock"
         - "**/package.yaml"
