@@ -15,7 +15,8 @@ RUN apt update && apt install -yq \
     libtinfo-dev \
     haskell-stack \
     git \
-    locales
+    locales \
+    z3
 
 # Update Binary Ninja
 ARG BLAZE_BINJA_CHANNEL=dev
