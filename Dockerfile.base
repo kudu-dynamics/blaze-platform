@@ -38,9 +38,11 @@ RUN stack upgrade --binary-only
 
 ENV PATH="/root/.local/bin${PATH:+:$PATH}"
 
-COPY stack.yaml package.yaml /tmp/blaze-deps/
-RUN cd /tmp/blaze-deps && \
-    sed -i '/..\/haskell-binja/d;/..\/binary-analysis/d' stack.yaml && \
-    stack build --only-dependencies && \
+COPY blaze/ /tmp/blaze-deps/blaze/
+COPY haskell-binja/ /tmp/blaze-deps/haskell-binja/
+COPY binary-analysis/ /tmp/blaze-deps/binary-analysis/
+COPY binja-header-cleaner/ /tmp/blaze-deps/binja-header-cleaner/
+RUN cd /tmp/blaze-deps/blaze && \
+    stack build --only-dependencies --test --no-run-tests && \
     cd / && \
     rm -rf /tmp/blaze-deps

@@ -15,8 +15,24 @@ stages:
     - ( shopt -s dotglob && du -bhs * )
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
     - echo -e "section_start:`date +%s`:setup\r\e[0KSetup"
+    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - mkdir -p .stack-work.deps
+    - |
+      echo <<EOF >../.dockerignore
+      *
+      !blaze
+      !binary-analysis
+      !haskell-binja
+      !binja-header-cleaner
+      */.git/
+      */.gitlab-ci.yml
+      */Dockerfile*
+      **/.stack/
+      **/.stack-work/
+      **/.stack-work.deps/
+      **/*.cabal
+      EOF
     - |
       for project in binary-analysis haskell-binja binja-header-cleaner; do
         rm -rf "../$project"
@@ -41,16 +57,17 @@ stages:
   tags:
     - dind
   variables:
-    STACK_ROOT: ${CI_PROJECT_DIR}/.stack
+  #  STACK_ROOT: ${CI_PROJECT_DIR}/.stack
     CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
   cache:
     key: ${CI_COMMIT_REF_SLUG}
     paths:
-      - .stack/
+      #- .stack/
       - .stack-work/
       - .stack-work.deps/
 
 base:
+  extends: .job
   timeout: 1h
   stage: base
   image: docker:dind
@@ -63,26 +80,19 @@ base:
         - "**/stack.yaml.lock"
         - "**/package.yaml"
         - "**/*.cabal"
-  before_script:
-    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
-    - env
-    - ls -al
-    - ( shopt -s dotglob && du -bhs * )
-    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
-    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
   script:
     #- '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
     - tag=latest
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
     - 'docker pull "${image}:${tag}" || docker pull "${image}:latest" || echo "Missing from docker registry: ${image}:${tag}, ${image}:latest"'
-    - docker build --pull -t "${image}:${tag}" - <Dockerfile.base
+    - docker build --pull -t "${image}:${tag}" .. -f Dockerfile.base
     - docker push "${image}:${tag}"
 
 build:
   extends: .haskell-job
   stage: build
   script:
-    - "( cd ../haskell-binja && make header && git diff --stat; )"
+    #- "( cd ../haskell-binja && make header && git diff --stat; )"
     - stack build
 
 test:
