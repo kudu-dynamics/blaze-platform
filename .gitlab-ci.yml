@@ -15,7 +15,6 @@ stages:
     - ( shopt -s dotglob && du -bhs * )
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
     - echo -e "section_start:`date +%s`:setup\r\e[0KSetup"
-    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - mkdir -p .stack-work.deps
     - |
@@ -81,6 +80,7 @@ base:
         - "**/package.yaml"
         - "**/*.cabal"
   script:
+    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     #- '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
     - tag=latest
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
