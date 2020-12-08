@@ -25,9 +25,9 @@ stages:
       !binary-analysis
       !haskell-binja
       !binja-header-cleaner
-      */.git/
-      */.gitlab-ci.yml
-      */Dockerfile*
+      **/.git/
+      **/.gitlab-ci.yml
+      **/Dockerfile*
       **/.stack/
       **/.stack-work/
       **/.stack-work.deps/
@@ -74,19 +74,18 @@ base:
   image: docker:dind
   tags:
     - dind
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "haddock"
-      changes:
-        - "**/Dockerfile*"
-        - "**/.gitlab-ci.yml"
-        - "**/stack.yaml"
-        - "**/stack.yaml.lock"
-        - "**/package.yaml"
-        - "**/*.cabal"
+  # rules:
+  #   - if: $CI_COMMIT_REF_NAME == "haddock"
+  #     changes:
+  #       - "**/Dockerfile*"
+  #       - "**/.gitlab-ci.yml"
+  #       - "**/stack.yaml"
+  #       - "**/stack.yaml.lock"
+  #       - "**/package.yaml"
+  #       - "**/*.cabal"
   script:
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    #- '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
-    - tag=latest
+    - '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
     - 'docker pull "${image}:${tag}" || docker pull "${image}:latest" || echo "Missing from docker registry: ${image}:${tag}, ${image}:latest"'
     - docker build --pull -t "${image}:${tag}" .. -f Dockerfile.base
