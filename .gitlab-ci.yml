@@ -37,11 +37,12 @@ stages:
       for project in binary-analysis haskell-binja binja-header-cleaner; do
         rm -rf "../$project"
         git clone --depth=1 "${CI_REPOSITORY_URL%/*}/$project.git" "../$project"
-        pushd "../$project" >/dev/null
-        mkdir -p ../blaze/.stack-work.deps/"$project"
-        ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
-        ls -al "../$project"
-        popd
+        (
+          cd "../$project" >/dev/null
+          mkdir -p ../blaze/.stack-work.deps/"$project"
+          ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
+          ls -al "../$project"
+        )
       done
     - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
