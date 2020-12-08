@@ -82,7 +82,7 @@ base:
   tags:
     - dind
   # rules:
-  #   - if: $CI_COMMIT_REF_NAME == "haddock"
+  #   - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
   #     changes:
   #       - "**/Dockerfile*"
   #       - "**/.gitlab-ci.yml"
@@ -118,7 +118,7 @@ pages:
   rules:
     - if: $CI_MERGE_REQUEST_ID
       when: never
-    - if: $CI_COMMIT_REF_NAME == "haddock"
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
       when: on_success
     - when: manual
   script:
