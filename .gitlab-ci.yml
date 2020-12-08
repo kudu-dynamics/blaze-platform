@@ -6,6 +6,12 @@ stages:
   - docs
   - deploy
 
+workflow:
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 .job:
   timeout: 1h
   before_script:
@@ -69,7 +75,6 @@ stages:
 
 base:
   extends: .job
-  timeout: 1h
   stage: base
   image: docker:dind
   tags:
@@ -108,7 +113,10 @@ pages:
   extends: .haskell-job
   stage: deploy
   rules:
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
     - if: $CI_COMMIT_REF_NAME == "haddock"
+      when: on_success
     - when: manual
   script:
     - stack haddock
