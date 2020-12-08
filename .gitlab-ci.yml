@@ -15,7 +15,7 @@ stages:
     - find -maxdepth 1 -print0 | xargs -0 du -bhs
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
     - echo -e "section_start:`date +%s`:setup\r\e[0KSetup"
-    - command -v git || { apt update && apt install -y git; } || apk add git
+    - "[ -f /etc/alpine-release ] && apk add git coreutils"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - mkdir -p .stack-work.deps
     - |
