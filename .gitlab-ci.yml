@@ -20,8 +20,8 @@ workflow:
     - "[ -f /etc/alpine-release ] && apk add git coreutils"
     - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - env
-    - ls -al
-    - find -maxdepth 1 -print0 | xargs -0 du -bhs
+    - ls -al || true  # FIXME see coreutils issue
+    - find -maxdepth 1 -print0 | xargs -0 -n1 du -bhs
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
     - echo -e "section_start:`date +%s`:setup\r\e[0KSetup"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
@@ -49,14 +49,14 @@ workflow:
           cd "../$project" >/dev/null
           mkdir -p ../blaze/.stack-work.deps/"$project"
           ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
-          ls -al "../$project"
+          ls -al "../$project" || true  # FIXME see coreutils issue
         )
       done
     - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
     - echo -e "section_start:`date +%s`:post-env\r\e[0KEnvironment info (after_script)"
-    - ls -al
-    - find -maxdepth 1 -print0 | xargs -0 du -bhs
+    - ls -al || true  # FIXME see coreutils issue
+    - find -maxdepth 1 -print0 | xargs -0 -n1 du -bhs
     - echo -e "section_end:`date +%s`:post-env\r\e[0K"
 
 .haskell-job:
