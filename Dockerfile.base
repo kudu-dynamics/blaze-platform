@@ -40,7 +40,7 @@ RUN stack upgrade --binary-only
 ENV PATH="/root/.local/bin${PATH:+:$PATH}"
 
 COPY blaze/ /tmp/blaze-deps/blaze/
-RUN find /tmp/blaze-deps/blaze \( -name .git -o -name .stack-work -o -name .stack-work.deps \) -prune -o -print0 | xargs -0 -n1 -I{} bash -c 'echo -en {}\\t; tar -c {} | sha256sum'
+RUN find /tmp/blaze-deps/blaze \( -name .git -o -name .stack-work -o -name .stack-work.deps \) -prune -o -print0 | xargs -0 -n1 -I{} bash -c 'echo -en {}\\t; tar --mtime 0 --sort=name --owner=0 --group=0 --numeric-owner --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime -c {} | sha256sum'
 COPY haskell-binja/ /tmp/blaze-deps/haskell-binja/
 COPY binary-analysis/ /tmp/blaze-deps/binary-analysis/
 COPY binja-header-cleaner/ /tmp/blaze-deps/binja-header-cleaner/
