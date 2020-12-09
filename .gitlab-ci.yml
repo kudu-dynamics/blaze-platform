@@ -29,17 +29,25 @@ workflow:
     - |
       echo <<EOF >../.dockerignore
       *
+
       !blaze
       !binary-analysis
       !haskell-binja
       !binja-header-cleaner
+
       **/.git
       **/.gitlab-ci.yml
-      **/Dockerfile*
+
       **/.stack
-      **/.stack-work
-      **/.stack-work.deps
+      **/.stack-work*
+
       **/*.cabal
+
+      **/dist-newstyle
+      **/dist
+
+      **/Dockerfile*
+      **/.dockerignore
       EOF
     - |
       for project in binary-analysis haskell-binja binja-header-cleaner; do
@@ -91,6 +99,8 @@ base:
   #       - "**/package.yaml"
   #       - "**/*.cabal"
   script:
+    - git ls-files --others
+    - ls -a ..
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
