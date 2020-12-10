@@ -27,13 +27,13 @@ workflow:
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - mkdir -p .stack-work.deps
     - |
-      echo <<EOF >../.dockerignore
+      cat <<EOF >../.dockerignore
       *
 
-      !blaze/**
-      !binary-analysis/**
-      !haskell-binja/**
-      !binja-header-cleaner/**
+      !blaze
+      !binary-analysis
+      !haskell-binja
+      !binja-header-cleaner
 
       **/.git
       **/.gitlab-ci.yml
