@@ -30,10 +30,10 @@ workflow:
       echo <<EOF >../.dockerignore
       *
 
-      !blaze
-      !binary-analysis
-      !haskell-binja
-      !binja-header-cleaner
+      !blaze/**
+      !binary-analysis/**
+      !haskell-binja/**
+      !binja-header-cleaner/**
 
       **/.git
       **/.gitlab-ci.yml
@@ -101,6 +101,7 @@ base:
   script:
     - git ls-files --others
     - ls -a ..
+    - cat ../.dockerignore
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
     - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
