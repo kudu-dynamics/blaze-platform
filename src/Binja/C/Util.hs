@@ -49,10 +49,9 @@ peekIntConv   :: (Storable a, Integral a, Integral b)
               => Ptr a -> IO b
 peekIntConv    = fmap fromIntegral . peek
 
-toBool :: CInt -> Bool
+toBool :: CUChar -> Bool
 toBool 0 = False
 toBool _ = True
-
 
 allocaStruct :: forall b. Storable b => (Ptr () -> IO (Bool, b)) -> IO (Bool, b)
 allocaStruct f = alloca g where
