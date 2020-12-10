@@ -7,7 +7,4 @@ packages:
 extra-deps:
 - binja-header-cleaner
 - ../binary-analysis
-# Can use a stable release for C2HS once the bool marshalling fix has
-# been included in a stable release.
-- git: https://github.com/haskell/c2hs.git
-  commit: fbb4c2fa6ec5528aa068512f1b691298db420321
+- c2hs-0.28.7
