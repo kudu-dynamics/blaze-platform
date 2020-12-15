@@ -20,14 +20,10 @@ RUN apt update && apt install -yq \
 
 # Update Binary Ninja
 ARG BLAZE_BINJA_CHANNEL=dev
-ARG BLAZE_BINJA_VERSION=2.1.2282-dev
-ARG BLAZE_BINJA_API_COMMIT=cf7851dee087e939ae10c0befe7ffa854885d41c
-ENV BLAZE_BINJA_CHANNEL=${BLAZE_BINJA_CHANNEL}
-ENV BLAZE_BINJA_VERSION=${BLAZE_BINJA_VERSION}
-RUN python /tmp/binjaupdater.py
-RUN cd "${BN_TARGET_ROOT}/bn-api" && git checkout "${BLAZE_BINJA_API_COMMIT}"
-
-ENV BLAZE_BINJA_API=${BN_TARGET_ROOT}/bn-api
+ARG BLAZE_BINJA_VERSION=LATEST
+ARG BLAZE_BINJA_API_COMMIT=origin/dev
+RUN /tmp/binja_api_update "${BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
+RUN python3 /tmp/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
 # Generate and set en_US.UTF-8 locale
 RUN locale-gen en_US.UTF-8
@@ -43,8 +39,6 @@ COPY blaze/ /tmp/blaze-deps/blaze/
 COPY haskell-binja/ /tmp/blaze-deps/haskell-binja/
 COPY binary-analysis/ /tmp/blaze-deps/binary-analysis/
 COPY binja-header-cleaner/ /tmp/blaze-deps/binja-header-cleaner/
-RUN apt install -qy tree && tree -a /tmp/blaze-deps
-RUN z3 --version
 RUN cd /tmp/blaze-deps/blaze && \
     stack build --only-dependencies --test --no-run-tests && \
     cd / && \
