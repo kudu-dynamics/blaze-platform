@@ -62,23 +62,22 @@ import Binja.MLIL as Exports
     FsubOp (FsubOp),
     FtruncOp (FtruncOp),
     GotoOp (GotoOp),
-    --TODO: do this for every xOp...
-
+    -- TODO: Remove the other HasField typeclasses?
     HasCarry,
-    HasCondition,
-    HasConstant,
-    HasDest,
-    HasFunc,
-    HasHigh,
-    HasLeft,
-    HasLow,
-    HasOffset,
-    HasOp,
-    HasParams,
-    HasRight,
-    HasSize,
-    HasSrc,
-    HasVar,
+    -- HasCondition,
+    -- HasConstant,
+    -- HasDest,
+    -- HasFunc,
+    -- HasHigh,
+    -- HasLeft,
+    -- HasLow,
+    -- HasOffset,
+    -- HasOp,
+    -- HasParams,
+    -- HasRight,
+    -- HasSize,
+    -- HasSrc,
+    -- HasVar,
     IfOp (IfOp),
     ImportOp (ImportOp),
     IntToFloatOp (IntToFloatOp),
@@ -163,7 +162,7 @@ data Ctx = Ctx
   , _ctxIndex :: CtxIndex
   }
   deriving (Eq, Ord, Show, Generic)
-instance Hashable Ctx
+  deriving anyclass Hashable
 $(makeFieldsNoPrefix ''Ctx)
 
 -- Maybe is used to wrap _func and _ctxIndex since
@@ -181,13 +180,6 @@ data PilVar = PilVar
     --       play nice with context management.
   , _ctx :: Maybe Ctx
   }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
-data Expression = Expression
-  { _size :: OperationSize
-  , _op :: ExprOp Expression
-  } 
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -284,6 +276,13 @@ data ExprOp expr
 
 instance Hashable a => Hashable (ExprOp a)
 
+data Expression = Expression
+  { _size :: OperationSize
+  , _op :: ExprOp Expression
+  } 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
 {- HLINT ignore VarOp "Use newtype instead of data" -}
 data VarOp expr = VarOp
@@ -326,11 +325,6 @@ data CallDest expr = CallConstPtr (ConstPtrOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallDest a)
-
-mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
-mkCallDest x = case x ^. op of
-  (CONST_PTR c) -> CallConstPtr c
-  _ -> CallExpr x
 
 data CallOp expr = CallOp
   { _dest :: CallDest expr
@@ -620,7 +614,6 @@ $(makeFieldsNoPrefix ''UpdateVarOp)
 $(makeFieldsNoPrefix ''ConstBoolOp)
 
 $(makeFieldsNoPrefix ''PilVar)
-$(makeFieldsNoPrefix ''Expression)
 $(makeFieldsNoPrefix ''CallOp)
 $(makeFieldsNoPrefix ''ExtractOp)
 $(makeFieldsNoPrefix ''StrCmpOp)
@@ -649,6 +642,7 @@ $(makeFieldsNoPrefix ''UnimplMemOp)
 $(makeFieldsNoPrefix ''ConstraintOp)
 $(makeFieldsNoPrefix ''DefPhiOp)
 
+$(makeFieldsNoPrefix ''Expression)
 $(makePrisms ''ExprOp)
 $(makePrisms ''Type)
 $(makePrisms ''Statement)
@@ -672,3 +666,8 @@ getSignedness (TPtr _) = Just False
 getSignedness (TFloat _) = Just True --floats are always signed?
 getSignedness _ = Nothing
 
+-- mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
+mkCallDest :: HasOp Expression (ExprOp Expression) => Expression -> CallDest Expression
+mkCallDest x = case x ^. op of
+  (CONST_PTR c) -> CallConstPtr c
+  _ -> CallExpr x
