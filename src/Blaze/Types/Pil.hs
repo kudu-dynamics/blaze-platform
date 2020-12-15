@@ -190,10 +190,16 @@ newtype CtxIndex = CtxIndex Int
   deriving newtype Num
   deriving anyclass Hashable
 
+instance FromJSON CtxIndex
+instance ToJSON CtxIndex
+
 newtype StmtIndex = StmtIndex { _val :: Int }
   deriving(Eq, Ord, Show, Generic)
   deriving newtype Num
   deriving anyclass Hashable
+
+instance FromJSON StmtIndex
+instance ToJSON StmtIndex
 
 type Symbol = Text
 
@@ -203,6 +209,9 @@ data Ctx = Ctx
   }
   deriving (Eq, Ord, Show, Generic)
 instance Hashable Ctx
+instance FromJSON Ctx
+instance ToJSON Ctx
+
 $(makeFieldsNoPrefix ''Ctx)
 
 data SSAVariableRef = SSAVariableRef
@@ -230,6 +239,9 @@ data PilVar = PilVar
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
+
+instance FromJSON PilVar
+instance ToJSON PilVar
 
 -- TODO: Conversions sometimes occur without need for
 --       a path. Identify and refactor appropriately.
@@ -307,6 +319,9 @@ data Expression = Expression
   } deriving (Eq, Ord, Show, Generic)
 
 instance Hashable Expression
+instance FromJSON Expression
+instance ToJSON Expression
+
 
 data ExprOp expr
     = ADC (AdcOp expr)
@@ -409,6 +424,7 @@ data VarOp expr = VarOp
 
 instance Hashable a => Hashable (VarOp a)
 
+
 data VarFieldOp expr = VarFieldOp
     { _varFieldOpSrc :: PilVar
     , _varFieldOpOffset :: ByteOffset
@@ -443,6 +459,9 @@ data CallDest expr = CallConstPtr (ConstPtrOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallDest a)
+instance FromJSON a => FromJSON (CallDest a)
+instance ToJSON a => ToJSON (CallDest a)
+
 
 mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
 mkCallDest x = case x ^. op of
@@ -456,6 +475,8 @@ data CallOp expr = CallOp
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallOp a)
+instance FromJSON a => FromJSON (CallOp a)
+instance ToJSON a => ToJSON (CallOp a)
 
 data ExtractOp expr = ExtractOp
     { _src :: expr
@@ -632,7 +653,11 @@ data StackOffset = StackOffset
   { _ctx :: Ctx
   , _offset :: ByteOffset
   } deriving (Eq, Ord, Show, Generic)
+
 instance Hashable StackOffset
+instance FromJSON StackOffset
+instance ToJSON StackOffset
+
 
 type Keyword = Text
 
@@ -640,9 +665,16 @@ data Label = StackOffsetLabel StackOffset
            | KeywordLabel Keyword
            deriving (Eq, Ord, Show, Generic)
 
+instance FromJSON Label
+instance ToJSON Label
+
+
 newtype Storage = Storage
   { _label :: Label
   } deriving (Eq, Ord, Show, Generic)
+
+instance FromJSON Storage
+instance ToJSON Storage
 
 ---- Statements
 
@@ -651,42 +683,56 @@ data DefOp expr = DefOp
     , _value :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (DefOp a)
+instance FromJSON a => FromJSON (DefOp a)
+instance ToJSON a => ToJSON (DefOp a)
 
 data StoreOp expr = StoreOp
     { _addr :: expr
     , _value :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (StoreOp a)
+instance FromJSON a => FromJSON (StoreOp a)
+instance ToJSON a => ToJSON (StoreOp a)
 
 {- HLINT ignore ConstraintOp "Use newtype instead of data" -}
 data ConstraintOp expr = ConstraintOp
     { _condition :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ConstraintOp a)
+instance FromJSON a => FromJSON (ConstraintOp a)
+instance ToJSON a => ToJSON (ConstraintOp a)
 
 {- HLINT ignore UnimplMemOp "Use newtype instead of data" -}
 data UnimplMemOp expr = UnimplMemOp
     { _src :: expr
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (UnimplMemOp a)
+instance FromJSON a => FromJSON (UnimplMemOp a)
+instance ToJSON a => ToJSON (UnimplMemOp a)
 
 {- HLINT ignore EnterContextOp "Use newtype instead of data" -}
 data EnterContextOp expr = EnterContextOp
     { _ctx :: Ctx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (EnterContextOp a)
+instance FromJSON a => FromJSON (EnterContextOp a)
+instance ToJSON a => ToJSON (EnterContextOp a)
 
 data ExitContextOp expr = ExitContextOp
     { _leavingCtx :: Ctx
     , _returningToCtx :: Ctx
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ExitContextOp a)
+instance FromJSON a => FromJSON (ExitContextOp a)
+instance ToJSON a => ToJSON (ExitContextOp a)
 
 data DefPhiOp expr = DefPhiOp
     { _dest :: PilVar
     , _src :: [PilVar]
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (DefPhiOp a)
+instance FromJSON a => FromJSON (DefPhiOp a)
+instance ToJSON a => ToJSON (DefPhiOp a)
 
 type Stmt = Statement Expression
 
@@ -706,6 +752,9 @@ data Statement expr
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
   deriving anyclass Hashable
 
+instance FromJSON a => FromJSON (Statement a)
+instance ToJSON a => ToJSON (Statement a)
+
 data CallStatement
   = CallStatement
       { _stmt :: Statement Expression,
@@ -713,6 +762,9 @@ data CallStatement
       }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
+
+instance FromJSON CallStatement
+instance ToJSON CallStatement
 
 mkCallStatement :: Stmt -> Maybe CallStatement
 mkCallStatement stmt = case stmt of

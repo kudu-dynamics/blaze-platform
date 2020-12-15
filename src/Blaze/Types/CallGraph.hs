@@ -31,7 +31,8 @@ data CallSite
 
 newtype CallDest
   = DestFunc Function
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
 
 $(makeFields ''Function)
 $(makeFields ''CallSite)
