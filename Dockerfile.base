@@ -16,7 +16,9 @@ RUN apt update && apt install -yq \
     haskell-stack \
     git \
     locales \
-    z3
+    ninja-build
+
+RUN lscpu && ninja --help && false
 
 # Update Binary Ninja
 ARG BLAZE_BINJA_CHANNEL=dev
