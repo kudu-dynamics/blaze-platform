@@ -16,9 +16,33 @@ RUN apt update && apt install -yq \
     haskell-stack \
     git \
     locales \
-    ninja-build
+    cmake \
+    ninja-build \
+    python3-distutils  # z3 relies on this for some reason
 
-RUN lscpu && ninja --help && false
+# Generate and set en_US.UTF-8 locale
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV PATH="/root/.local/bin${PATH:+:$PATH}"
+
+# Build and install z3
+RUN cd /tmp && \
+    git clone --depth=1 https://github.com/Z3Prover/z3 && \
+    mkdir z3/build
+RUN cd /tmp/z3/build && \
+    cmake -GNinja ..
+RUN cd /tmp/z3/build && \
+    ninja
+RUN cd /tmp/z3/build && \
+    ninja install && \
+    cd / && \
+    rm -rf /tmp/z3
+
+RUN z3 --version && which z3 && false
+
+RUN stack upgrade --binary-only
 
 # Update Binary Ninja
 ARG BLAZE_BINJA_CHANNEL=dev
@@ -26,16 +50,6 @@ ARG BLAZE_BINJA_VERSION=LATEST
 ARG BLAZE_BINJA_API_COMMIT=origin/dev
 RUN /tmp/binja_api_update "${BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
 RUN python3 /tmp/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
-
-# Generate and set en_US.UTF-8 locale
-RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
-
-RUN stack upgrade --binary-only
-
-ENV PATH="/root/.local/bin${PATH:+:$PATH}"
 
 COPY blaze/ /tmp/blaze-deps/blaze/
 COPY haskell-binja/ /tmp/blaze-deps/haskell-binja/
