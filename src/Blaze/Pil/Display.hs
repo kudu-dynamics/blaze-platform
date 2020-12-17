@@ -5,6 +5,7 @@ import qualified Binja.MLIL
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
+import qualified Blaze.Types.CallGraph as CG
 import Blaze.Types.Pil (OperationSize)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
@@ -296,6 +297,13 @@ instance Disp Pil.StackOffset where
     <-> show (x ^. #offset)
     <-> paren (disp (x ^. #ctx))
 
+
+instance Disp CG.Function where
+  disp f = Text.pack $ printf "func \"%s\" %s" name start
+    where
+      name = f ^. #name
+      start :: Text
+      start = show $ f ^. #address
 
 
 instance Disp ByteOffset where

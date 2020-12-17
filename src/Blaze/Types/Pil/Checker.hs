@@ -108,16 +108,16 @@ data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
                         deriving (Eq, Ord, Show)
 
 data InfoExpression a = InfoExpression
-  { _info :: a
-  , _op :: ExprOp (InfoExpression a)
+  { info :: a
+  , op :: ExprOp (InfoExpression a)
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 $(makeFieldsNoPrefix ''InfoExpression)
 
 instance Hashable a => Hashable (InfoExpression a)
 
 data SymInfo = SymInfo
-  { _size :: BitWidth
-  , _sym :: Sym
+  { size :: BitWidth
+  , sym :: Sym
   } deriving (Eq, Ord, Show, Generic)
     deriving anyclass Hashable
 $(makeFieldsNoPrefix ''SymInfo)
@@ -148,20 +148,20 @@ type VarEqMap = EqualityMap Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { _symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
-  , _symStmts :: [Statement SymExpression]
+  { symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
+  , symStmts :: [Statement SymExpression]
   --  , _typedStmts :: [Statement TypedExpression]
-  , _varSymTypeMap :: HashMap PilVar DeepSymType
-  , _varSymMap :: HashMap PilVar Sym
+  , varSymTypeMap :: HashMap PilVar DeepSymType
+  , varSymMap :: HashMap PilVar Sym
 --  , _unresolvedStmts :: [Statement SymExpression]
   -- , _unresolvedSyms :: [(Sym, Sym)]
   -- , _unresolvedTypes :: [(Sym, PilType SymType, PilType SymType)]
-  , _varEqMap :: VarEqMap
-  , _funcSymTypeMap :: HashMap (FuncVar SymExpression) DeepSymType
-  , _funcSymMap :: HashMap (FuncVar SymExpression) Sym
-  , _errors :: [UnifyConstraintsError DeepSymType]
-  , _flatSolutions :: HashMap Sym (PilType Sym)
-  , _solutions :: HashMap Sym DeepSymType
+  , varEqMap :: VarEqMap
+  , funcSymTypeMap :: HashMap (FuncVar SymExpression) DeepSymType
+  , funcSymMap :: HashMap (FuncVar SymExpression) Sym
+  , errors :: [UnifyConstraintsError DeepSymType]
+  , flatSolutions :: HashMap Sym (PilType Sym)
+  , solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
 $(makeFieldsNoPrefix ''TypeReport)
 
@@ -169,13 +169,13 @@ $(makeFieldsNoPrefix ''TypeReport)
 ------ Constraint generation phase ---------------------------
 
 data ConstraintGenState = ConstraintGenState
-  { _currentSym :: Sym
-  , _symMap :: HashMap Sym SymExpression
-  , _varSymMap :: HashMap PilVar Sym
-  , _funcSymMap :: HashMap (FuncVar SymExpression) Sym
-  , _constraints :: [Constraint]
-  , _currentStmt :: Int
-  , _stackAddrSymMap :: HashMap StackOffset Sym
+  { currentSym :: Sym
+  , symMap :: HashMap Sym SymExpression
+  , varSymMap :: HashMap PilVar Sym
+  , funcSymMap :: HashMap (FuncVar SymExpression) Sym
+  , constraints :: [Constraint]
+  , currentStmt :: Int
+  , stackAddrSymMap :: HashMap StackOffset Sym
   } deriving (Eq, Ord, Show)
 
 $(makeFieldsNoPrefix ''ConstraintGenState)
@@ -202,18 +202,18 @@ runConstraintGen_ m = runConstraintGen m emptyConstraintGenState
 ---------- unification and constraint solving ----------------------
 
 data UnifyState = UnifyState
-                  { _constraints :: [Constraint]
+                  { constraints :: [Constraint]
 
                   -- solution key syms should all be origins in originMap
-                  , _solutions :: HashMap Sym (PilType Sym)
+                  , solutions :: HashMap Sym (PilType Sym)
 
-                  , _errors :: [UnifyConstraintsError Sym]
+                  , errors :: [UnifyConstraintsError Sym]
 
                   -- this is a map of syms to their "original" sym
                   -- like if you add (a, b), (b, c)
                   -- it should store a | b  -> c
-                  , _originMap :: HashMap Sym Sym
-                  , _currentStmt :: Int
+                  , originMap :: HashMap Sym Sym
+                  , currentStmt :: Int
                   } deriving (Eq, Ord, Show)
 $(makeFieldsNoPrefix ''UnifyState)
 
@@ -237,8 +237,8 @@ equals :: ( HasConstraints s [Constraint]
             => Sym -> Sym -> m ()
 equals x y = addConstraint_ x (SVar y)
 
-data UnifyResult = UnifyResult { _solutions :: [(Sym, SymType)]
-                               , _errors :: [UnifyError Sym]
+data UnifyResult = UnifyResult { solutions :: [(Sym, SymType)]
+                               , errors :: [UnifyError Sym]
                                } deriving (Eq, Ord, Read, Show)
 $(makeFieldsNoPrefix ''UnifyResult)
 
