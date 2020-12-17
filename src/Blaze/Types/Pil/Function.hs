@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Pil.Function where
 
 import Blaze.Prelude hiding (Symbol)
@@ -16,8 +14,8 @@ newtype ParamPosition = ParamPosition Int
   deriving anyclass (Hashable)
 
 data PositionalParameter = PositionalParameter
-  { _var :: PilVar
-  , _access :: Access
+  { var :: PilVar
+  , access :: Access
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
@@ -28,13 +26,13 @@ data VarArgParameter
   deriving anyclass (Hashable)
 
 data Function = Function
-  { _name :: Symbol
-  , _start :: Address
-  , _params :: [PositionalParameter]
-  , _varparam :: Maybe VarArgParameter
-  , _locals :: [PilVar]
-  , _globals :: [PilVar]
-  , _result :: Maybe PilVar
+  { name :: Symbol
+  , start :: Address
+  , params :: [PositionalParameter]
+  , varparam :: Maybe VarArgParameter
+  , locals :: [PilVar]
+  , globals :: [PilVar]
+  , result :: Maybe PilVar
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
@@ -44,11 +42,11 @@ data Function = Function
  or awkward to include.
 -}
 data FuncRef = FuncRef
-  { _name :: Symbol
-  , _start :: Address
-  , _params :: [PositionalParameter]
-  , _varparam :: Maybe VarArgParameter
-  , _hasResult :: Bool
+  { name :: Symbol
+  , start :: Address
+  , params :: [PositionalParameter]
+  , varparam :: Maybe VarArgParameter
+  , hasResult :: Bool
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
@@ -71,14 +69,14 @@ data FuncVar expr
  call arguments and results.
 -}
 data CallTarget expr = CallTarget
-  { _dest :: CallDest expr
-  , _numArgs :: Int
+  { dest :: CallDest expr
+  , numArgs :: Int
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
 newtype ResultInfo = ResultInfo
-  {_name :: Text}
+  { name :: Text }
   deriving (Eq, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -89,10 +87,10 @@ newtype ResultInfo = ResultInfo
  parameter list.
 -}
 data FuncInfo = FuncInfo
-  { _name :: Symbol
-  , _params :: [PositionalParameter]
-  , _varparam :: Maybe VarArgParameter
-  , _result :: ResultInfo
+  { name :: Symbol
+  , params :: [PositionalParameter]
+  , varparam :: Maybe VarArgParameter
+  , result :: ResultInfo
   }
   deriving (Eq, Show, Generic)
   deriving anyclass (Hashable)
@@ -100,12 +98,4 @@ data FuncInfo = FuncInfo
 -- TODO: Consider extending this to support
 --       the call expression as the result.
 newtype CallResult = CallResult
-  {_var :: PilVar}
-
-$(makePrisms ''Access)
-$(makeFieldsNoPrefix ''Function)
-$(makePrisms ''FuncVar)
-$(makeFieldsNoPrefix ''ResultInfo)
-$(makeFieldsNoPrefix ''FuncInfo)
-$(makeFieldsNoPrefix ''CallResult)
-$(makeFieldsNoPrefix ''CallTarget)
+  { var :: PilVar }

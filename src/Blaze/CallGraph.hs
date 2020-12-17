@@ -34,4 +34,4 @@ getCallGraphEdges ::
 getCallGraphEdges imp funcs = do
   callee <- S.fromList funcs
   callSite <- liftListIO $ getCallSites imp callee
-  S.yield (callSite ^. caller, callee)
+  S.yield (callSite ^. #caller, callee)

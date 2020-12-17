@@ -93,6 +93,7 @@ default-extensions:
 library:
   ghc-options:
   - -Wall
+  - -Wno-name-shadowing
   - -Wcompat
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns

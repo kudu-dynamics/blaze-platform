@@ -5,8 +5,7 @@ module Blaze.Types.Pil.Op.FtruncOp where
 import Blaze.Prelude
 
 data FtruncOp expr = FtruncOp
-  { left :: expr
-  , right :: expr
+  { src :: expr
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
 
 instance Hashable a => Hashable (FtruncOp a)
