@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.CallGraph where
 
 import Blaze.Prelude hiding (Symbol)
@@ -13,24 +11,24 @@ type CallEdge = (Function, Function)
 -- TODO: Consider moving Function to Data.BinaryAnalysis
 data Function
   = Function
-      { _functionSymbol :: Maybe Symbol,
-        _functionName :: Text,
-        _functionAddress :: Address
+      { symbol :: Maybe Symbol,
+        name :: Text,
+        address :: Address
       }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, FromJSON, ToJSON)
+
 
 data CallSite
   = CallSite
-      { _callSiteCaller :: Function,
-        _callSiteAddress :: Address,
-        _callSiteDest :: CallDest
+      { caller :: Function,
+        address :: Address,
+        dest :: CallDest
       }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 newtype CallDest
   = DestFunc Function
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
 
-$(makeFields ''Function)
-$(makeFields ''CallSite)

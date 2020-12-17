@@ -20,6 +20,7 @@ extra-source-files:
 description:         Please see the readme
 
 dependencies:
+  - aeson
   - algebraic-graphs
   - async
   - attoparsec
@@ -37,6 +38,7 @@ dependencies:
   - dom-lt
   - envy
   - extra
+  - generic-lens
   - hashable
   #  - ghc-typelits-natnormalise
   - lens
@@ -62,6 +64,7 @@ dependencies:
 
 default-extensions:
   - BangPatterns
+  - DataKinds
   - DeriveAnyClass
   - DeriveDataTypeable
   - DeriveFoldable
@@ -78,6 +81,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NoImplicitPrelude
+  - OverloadedLabels
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
@@ -176,6 +180,23 @@ executables:
     - binja
     - hspec
     - text
+  gen_pil_ops:
+    main: Main.hs
+    source-dirs:  app/gen_pil_ops
+    ghc-options:
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - filepath
+    - hspec
+    - text
+
     
 benchmarks:
   call-graph-benchmark:

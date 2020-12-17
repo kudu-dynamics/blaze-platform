@@ -63,6 +63,7 @@ import Control.Lens as Exports
   )
 import Control.Monad.Trans.Class as Exports (MonadTrans)
 import Control.Monad.Trans.Maybe as Exports (MaybeT, runMaybeT)
+import Data.Aeson as Exports (FromJSON, ToJSON)
 import Data.BinaryAnalysis as Exports
   ( Address (Address),
     AddressWidth (AddressWidth),
@@ -77,6 +78,8 @@ import Data.BinaryAnalysis as Exports
   )
 import Data.Coerce as Exports (coerce)
 import Data.Data as Exports
+import Data.Generics.Labels as Exports ()
+import Data.Generics.Product.Fields as Exports (HasField(field), HasField'(field'))
 import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
 import Data.Maybe as Exports (fromJust)
@@ -87,7 +90,13 @@ import Data.String.Conversions as Exports (cs)
 import qualified Data.Text.Lazy as L (Text)
 import Data.UUID as Exports (UUID)
 import qualified Data.UUID as UUID
-import Protolude as Exports hiding (Bits, Fixity, Infix, Prefix, head)
+import Protolude as Exports hiding ( Bits
+                                   , Fixity
+                                   , Infix
+                                   , Prefix
+                                   , HasField
+                                   , head
+                                   )
 import Streamly as Exports
   ( IsStream,
     asyncly,

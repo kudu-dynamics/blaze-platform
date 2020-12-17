@@ -1,149 +1,89 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Blaze.Types.Pil
-  ( module Exports,
+  ( -- module Exports,
     module Blaze.Types.Pil,
   )
 where
 
-import Binja.MLIL as Exports
-  ( AdcOp (AdcOp),
-    AddOp (AddOp),
-    AddOverflowOp (AddOverflowOp),
-    AndOp (AndOp),
-    AsrOp (AsrOp),
-    BoolToIntOp (BoolToIntOp),
-    BpOp (BpOp),
-    CallOutputOp (CallOutputOp),
-    CallOutputSSAOp (CallOutputSSAOp),
-    CallParamOp (CallParamOp),
-    CallParamSSAOp (CallParamSSAOp),
-    CallSSAOp (CallSSAOp),
-    CallUntypedOp (CallUntypedOp),
-    CallUntypedSSAOp (CallUntypedSSAOp),
-    CeilOp (CeilOp),
-    CmpEOp (CmpEOp),
-    CmpNeOp (CmpNeOp),
-    CmpSgeOp (CmpSgeOp),
-    CmpSgtOp (CmpSgtOp),
-    CmpSleOp (CmpSleOp),
-    CmpSltOp (CmpSltOp),
-    CmpUgeOp (CmpUgeOp),
-    CmpUgtOp (CmpUgtOp),
-    CmpUleOp (CmpUleOp),
-    CmpUltOp (CmpUltOp),
-    ConstOp (ConstOp),
-    ConstPtrOp (ConstPtrOp),
-    DivsDpOp (DivsDpOp),
-    DivsOp (DivsOp),
-    DivuDpOp (DivuDpOp),
-    DivuOp (DivuOp),
-    ExternPtrOp (ExternPtrOp),
-    FabsOp (FabsOp),
-    FaddOp (FaddOp),
-    FcmpEOp (FcmpEOp),
-    FcmpGeOp (FcmpGeOp),
-    FcmpGtOp (FcmpGtOp),
-    FcmpLeOp (FcmpLeOp),
-    FcmpLtOp (FcmpLtOp),
-    FcmpNeOp (FcmpNeOp),
-    FcmpOOp (FcmpOOp),
-    FcmpUoOp (FcmpUoOp),
-    FdivOp (FdivOp),
-    FloatConstOp (FloatConstOp),
-    FloatConvOp (FloatConvOp),
-    FloatToIntOp (FloatToIntOp),
-    FloorOp (FloorOp),
-    FmulOp (FmulOp),
-    FnegOp (FnegOp),
-    FreeVarSlotOp (FreeVarSlotOp),
-    FreeVarSlotSSAOp (FreeVarSlotSSAOp),
-    FsqrtOp (FsqrtOp),
-    FsubOp (FsubOp),
-    FtruncOp (FtruncOp),
-    GotoOp (GotoOp),
-    -- TODO: Remove the other HasField typeclasses?
-    HasCarry,
-    -- HasCondition,
-    -- HasConstant,
-    -- HasDest,
-    -- HasFunc,
-    -- HasHigh,
-    -- HasLeft,
-    -- HasLow,
-    -- HasOffset,
-    -- HasOp,
-    -- HasParams,
-    -- HasRight,
-    -- HasSize,
-    -- HasSrc,
-    -- HasVar,
-    IfOp (IfOp),
-    ImportOp (ImportOp),
-    IntToFloatOp (IntToFloatOp),
-    IntrinsicOp (IntrinsicOp),
-    IntrinsicSSAOp (IntrinsicSSAOp),
-    JumpOp (JumpOp),
-    JumpToOp (JumpToOp),
-    LoadOp (LoadOp),
-    LoadSSAOp (LoadSSAOp),
-    LoadStructOp (LoadStructOp),
-    LoadStructSSAOp (LoadStructSSAOp),
-    LowPartOp (LowPartOp),
-    LslOp (LslOp),
-    LsrOp (LsrOp),
-    MemPhiOp (MemPhiOp),
-    ModsDpOp (ModsDpOp),
-    ModsOp (ModsOp),
-    ModuDpOp (ModuDpOp),
-    ModuOp (ModuOp),
-    MulOp (MulOp),
-    MulsDpOp (MulsDpOp),
-    MuluDpOp (MuluDpOp),
-    NegOp (NegOp),
-    NoretOp (NoretOp),
-    NotOp (NotOp),
-    OperationSize (OperationSize),
-    OrOp (OrOp),
-    RetHintOp (RetHintOp),
-    RetOp (RetOp),
-    RlcOp (RlcOp),
-    RolOp (RolOp),
-    RorOp (RorOp),
-    RoundToIntOp (RoundToIntOp),
-    RrcOp (RrcOp),
-    SSAVariable,
-    SbbOp (SbbOp),
-    SetVarAliasedFieldOp (SetVarAliasedFieldOp),
-    SetVarAliasedOp (SetVarAliasedOp),
-    SetVarFieldOp (SetVarFieldOp),
-    SetVarOp (SetVarOp),
-    SetVarSSAFieldOp (SetVarSSAFieldOp),
-    SetVarSSAOp (SetVarSSAOp),
-    SetVarSplitOp (SetVarSplitOp),
-    SetVarSplitSSAOp (SetVarSplitSSAOp),
-    StoreStructOp (StoreStructOp),
-    StoreStructSSAOp (StoreStructSSAOp),
-    SubOp (SubOp),
-    SxOp (SxOp),
-    SyscallOp (SyscallOp),
-    SyscallSSAOp (SyscallSSAOp),
-    SyscallUntypedOp (SyscallUntypedOp),
-    SyscallUntypedSSAOp (SyscallUntypedSSAOp),
-    TailcallOp (TailcallOp),
-    TailcallSSAOp (TailcallSSAOp),
-    TailcallUntypedOp (TailcallUntypedOp),
-    TailcallUntypedSSAOp (TailcallUntypedSSAOp),
-    TestBitOp (TestBitOp),
-    TrapOp (TrapOp),
-    UndefOp (UndefOp),
-    UnimplOp (UnimplOp),
-    XorOp (XorOp),
-    ZxOp (ZxOp)
-  )
+
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.CallGraph (Function)
+import Blaze.Types.ClassyFields (HasSize(size))
+
 import qualified Data.HashMap.Strict as HM
+
+import Blaze.Types.Pil.Op.AdcOp (AdcOp)
+import Blaze.Types.Pil.Op.AddOp (AddOp)
+import Blaze.Types.Pil.Op.AddOverflowOp (AddOverflowOp)
+import Blaze.Types.Pil.Op.AndOp (AndOp)
+import Blaze.Types.Pil.Op.AsrOp (AsrOp)
+import Blaze.Types.Pil.Op.BoolToIntOp (BoolToIntOp)
+import Blaze.Types.Pil.Op.CeilOp (CeilOp)
+import Blaze.Types.Pil.Op.CmpEOp (CmpEOp)
+import Blaze.Types.Pil.Op.CmpNeOp (CmpNeOp)
+import Blaze.Types.Pil.Op.CmpSgeOp (CmpSgeOp)
+import Blaze.Types.Pil.Op.CmpSgtOp (CmpSgtOp)
+import Blaze.Types.Pil.Op.CmpSleOp (CmpSleOp)
+import Blaze.Types.Pil.Op.CmpSltOp (CmpSltOp)
+import Blaze.Types.Pil.Op.CmpUgeOp (CmpUgeOp)
+import Blaze.Types.Pil.Op.CmpUgtOp (CmpUgtOp)
+import Blaze.Types.Pil.Op.CmpUleOp (CmpUleOp)
+import Blaze.Types.Pil.Op.CmpUltOp (CmpUltOp)
+import Blaze.Types.Pil.Op.ConstOp (ConstOp)
+import Blaze.Types.Pil.Op.ConstFloatOp (ConstFloatOp)
+import Blaze.Types.Pil.Op.ConstPtrOp (ConstPtrOp)
+import Blaze.Types.Pil.Op.DivsOp (DivsOp)
+import Blaze.Types.Pil.Op.DivsDpOp (DivsDpOp)
+import Blaze.Types.Pil.Op.DivuOp (DivuOp)
+import Blaze.Types.Pil.Op.DivuDpOp (DivuDpOp)
+import Blaze.Types.Pil.Op.FabsOp (FabsOp)
+import Blaze.Types.Pil.Op.FaddOp (FaddOp)
+import Blaze.Types.Pil.Op.FcmpEOp (FcmpEOp)
+import Blaze.Types.Pil.Op.FcmpGeOp (FcmpGeOp)
+import Blaze.Types.Pil.Op.FcmpGtOp (FcmpGtOp)
+import Blaze.Types.Pil.Op.FcmpLeOp (FcmpLeOp)
+import Blaze.Types.Pil.Op.FcmpLtOp (FcmpLtOp)
+import Blaze.Types.Pil.Op.FcmpNeOp (FcmpNeOp)
+import Blaze.Types.Pil.Op.FcmpOOp (FcmpOOp)
+import Blaze.Types.Pil.Op.FcmpUoOp (FcmpUoOp)
+import Blaze.Types.Pil.Op.FdivOp (FdivOp)
+import Blaze.Types.Pil.Op.FloatConvOp (FloatConvOp)
+import Blaze.Types.Pil.Op.FloatToIntOp (FloatToIntOp)
+import Blaze.Types.Pil.Op.FloorOp (FloorOp)
+import Blaze.Types.Pil.Op.FmulOp (FmulOp)
+import Blaze.Types.Pil.Op.FnegOp (FnegOp)
+import Blaze.Types.Pil.Op.FsqrtOp (FsqrtOp)
+import Blaze.Types.Pil.Op.FsubOp (FsubOp)
+import Blaze.Types.Pil.Op.FtruncOp (FtruncOp)
+import Blaze.Types.Pil.Op.ImportOp (ImportOp)
+import Blaze.Types.Pil.Op.IntToFloatOp (IntToFloatOp)
+import Blaze.Types.Pil.Op.LoadOp (LoadOp)
+import Blaze.Types.Pil.Op.LowPartOp (LowPartOp)
+import Blaze.Types.Pil.Op.LslOp (LslOp)
+import Blaze.Types.Pil.Op.LsrOp (LsrOp)
+import Blaze.Types.Pil.Op.ModsOp (ModsOp)
+import Blaze.Types.Pil.Op.ModsDpOp (ModsDpOp)
+import Blaze.Types.Pil.Op.ModuOp (ModuOp)
+import Blaze.Types.Pil.Op.ModuDpOp (ModuDpOp)
+import Blaze.Types.Pil.Op.MulOp (MulOp)
+import Blaze.Types.Pil.Op.MulsDpOp (MulsDpOp)
+import Blaze.Types.Pil.Op.MuluDpOp (MuluDpOp)
+import Blaze.Types.Pil.Op.NegOp (NegOp)
+import Blaze.Types.Pil.Op.NotOp (NotOp)
+import Blaze.Types.Pil.Op.OrOp (OrOp)
+import Blaze.Types.Pil.Op.RlcOp (RlcOp)
+import Blaze.Types.Pil.Op.RolOp (RolOp)
+import Blaze.Types.Pil.Op.RorOp (RorOp)
+import Blaze.Types.Pil.Op.RoundToIntOp (RoundToIntOp)
+import Blaze.Types.Pil.Op.RrcOp (RrcOp)
+import Blaze.Types.Pil.Op.SbbOp (SbbOp)
+import Blaze.Types.Pil.Op.SubOp (SubOp)
+import Blaze.Types.Pil.Op.SxOp (SxOp)
+import Blaze.Types.Pil.Op.TestBitOp (TestBitOp)
+import Blaze.Types.Pil.Op.XorOp (XorOp)
+import Blaze.Types.Pil.Op.ZxOp (ZxOp)
+
 
 newtype StmtIndex = StmtIndex { _val :: Int }
   deriving(Eq, Ord, Show, Generic)
@@ -151,6 +91,11 @@ newtype StmtIndex = StmtIndex { _val :: Int }
   deriving anyclass Hashable
 
 type Symbol = Text
+
+newtype OperationSize = OperationSize Bytes
+  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
+
+instance Hashable OperationSize
 
 newtype CtxIndex = CtxIndex Int
   deriving (Eq, Ord, Show, Generic)
@@ -203,6 +148,7 @@ data ExprOp expr
     | CMP_ULT (CmpUltOp expr)
     | CONST (ConstOp expr)
     | CONST_PTR (ConstPtrOp expr)
+    | CONST_FLOAT (ConstFloatOp expr)
     | DIVS (DivsOp expr)
     | DIVS_DP (DivsDpOp expr)
     | DIVU (DivuOp expr)
@@ -218,7 +164,6 @@ data ExprOp expr
     | FCMP_O (FcmpOOp expr)
     | FCMP_UO (FcmpUoOp expr)
     | FDIV (FdivOp expr)
-    | FLOAT_CONST (FloatConstOp expr)
     | FLOAT_CONV (FloatConvOp expr)
     | FLOAT_TO_INT (FloatToIntOp expr)
     | FLOOR (FloorOp expr)
@@ -395,15 +340,6 @@ data ConstBoolOp expr = ConstBoolOp
     { _constant :: Bool
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 instance Hashable a => Hashable (ConstBoolOp a)
-
-mkFieldOffsetExprAddr :: Expression -> Int64 -> Expression
-mkFieldOffsetExprAddr addrExpr offst =
-  Expression
-    (addrExpr ^. size)
-    ( FIELD_ADDR . FieldAddrOp addrExpr
-        . fromIntegral
-        $ offst
-    )
 
 -----------------------
 --- types
@@ -646,7 +582,89 @@ $(makeFieldsNoPrefix ''Expression)
 $(makePrisms ''ExprOp)
 $(makePrisms ''Type)
 $(makePrisms ''Statement)
+
+$(makeFieldsNoPrefix ''AdcOp)
+$(makeFieldsNoPrefix ''AddOp)
+$(makeFieldsNoPrefix ''AddOverflowOp)
+$(makeFieldsNoPrefix ''AndOp)
+$(makeFieldsNoPrefix ''AsrOp)
+$(makeFieldsNoPrefix ''BoolToIntOp)
+$(makeFieldsNoPrefix ''CeilOp)
+$(makeFieldsNoPrefix ''CmpEOp)
+$(makeFieldsNoPrefix ''CmpNeOp)
+$(makeFieldsNoPrefix ''CmpSgeOp)
+$(makeFieldsNoPrefix ''CmpSgtOp)
+$(makeFieldsNoPrefix ''CmpSleOp)
+$(makeFieldsNoPrefix ''CmpSltOp)
+$(makeFieldsNoPrefix ''CmpUgeOp)
+$(makeFieldsNoPrefix ''CmpUgtOp)
+$(makeFieldsNoPrefix ''CmpUleOp)
+$(makeFieldsNoPrefix ''CmpUltOp)
+$(makeFieldsNoPrefix ''ConstOp)
+$(makeFieldsNoPrefix ''ConstFloatOp)
+$(makeFieldsNoPrefix ''ConstPtrOp)
+$(makeFieldsNoPrefix ''DivsOp)
+$(makeFieldsNoPrefix ''DivsDpOp)
+$(makeFieldsNoPrefix ''DivuOp)
+$(makeFieldsNoPrefix ''DivuDpOp)
+$(makeFieldsNoPrefix ''FabsOp)
+$(makeFieldsNoPrefix ''FaddOp)
+$(makeFieldsNoPrefix ''FcmpEOp)
+$(makeFieldsNoPrefix ''FcmpGeOp)
+$(makeFieldsNoPrefix ''FcmpGtOp)
+$(makeFieldsNoPrefix ''FcmpLeOp)
+$(makeFieldsNoPrefix ''FcmpLtOp)
+$(makeFieldsNoPrefix ''FcmpNeOp)
+$(makeFieldsNoPrefix ''FcmpOOp)
+$(makeFieldsNoPrefix ''FcmpUoOp)
+$(makeFieldsNoPrefix ''FdivOp)
+$(makeFieldsNoPrefix ''FloatConvOp)
+$(makeFieldsNoPrefix ''FloatToIntOp)
+$(makeFieldsNoPrefix ''FloorOp)
+$(makeFieldsNoPrefix ''FmulOp)
+$(makeFieldsNoPrefix ''FnegOp)
+$(makeFieldsNoPrefix ''FsqrtOp)
+$(makeFieldsNoPrefix ''FsubOp)
+$(makeFieldsNoPrefix ''FtruncOp)
+$(makeFieldsNoPrefix ''ImportOp)
+$(makeFieldsNoPrefix ''IntToFloatOp)
+$(makeFieldsNoPrefix ''LoadOp)
+$(makeFieldsNoPrefix ''LowPartOp)
+$(makeFieldsNoPrefix ''LslOp)
+$(makeFieldsNoPrefix ''LsrOp)
+$(makeFieldsNoPrefix ''ModsOp)
+$(makeFieldsNoPrefix ''ModsDpOp)
+$(makeFieldsNoPrefix ''ModuOp)
+$(makeFieldsNoPrefix ''ModuDpOp)
+$(makeFieldsNoPrefix ''MulOp)
+$(makeFieldsNoPrefix ''MulsDpOp)
+$(makeFieldsNoPrefix ''MuluDpOp)
+$(makeFieldsNoPrefix ''NegOp)
+$(makeFieldsNoPrefix ''NotOp)
+$(makeFieldsNoPrefix ''OrOp)
+$(makeFieldsNoPrefix ''RlcOp)
+$(makeFieldsNoPrefix ''RolOp)
+$(makeFieldsNoPrefix ''RorOp)
+$(makeFieldsNoPrefix ''RoundToIntOp)
+$(makeFieldsNoPrefix ''RrcOp)
+$(makeFieldsNoPrefix ''SbbOp)
+$(makeFieldsNoPrefix ''SubOp)
+$(makeFieldsNoPrefix ''SxOp)
+$(makeFieldsNoPrefix ''TestBitOp)
+$(makeFieldsNoPrefix ''XorOp)
+$(makeFieldsNoPrefix ''ZxOp)
+
 ------------------------
+
+mkFieldOffsetExprAddr :: Expression -> Int64 -> Expression
+mkFieldOffsetExprAddr addrExpr offst =
+  Expression
+    (addrExpr ^. size)
+    ( FIELD_ADDR . FieldAddrOp addrExpr
+        . fromIntegral
+        $ offst
+    )
+
 
 -- gets bit width of integral type, if available
 getTypeByteWidth :: Type -> Maybe Bytes
