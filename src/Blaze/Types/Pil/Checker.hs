@@ -6,7 +6,6 @@ import Blaze.Types.Pil ( ExprOp
                        , Statement
                        , PilVar
                        , StackOffset
-                       , HasOp (op)
                        )
 import Blaze.Types.Pil.Function ( FuncVar )
 import qualified Data.HashMap.Strict as HashMap
@@ -111,7 +110,6 @@ data InfoExpression a = InfoExpression
   { info :: a
   , op :: ExprOp (InfoExpression a)
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-$(makeFieldsNoPrefix ''InfoExpression)
 
 instance Hashable a => Hashable (InfoExpression a)
 
@@ -120,7 +118,6 @@ data SymInfo = SymInfo
   , sym :: Sym
   } deriving (Eq, Ord, Show, Generic)
     deriving anyclass Hashable
-$(makeFieldsNoPrefix ''SymInfo)
 
 type SymExpression = InfoExpression SymInfo
 
@@ -140,7 +137,6 @@ data UnifyConstraintsError t = UnifyConstraintsError
                                , _sym :: Sym
                                , _error :: UnifyError t
                                } deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
-$(makeFieldsNoPrefix ''UnifyConstraintsError)
 
 type EqualityMap a = HashMap a (HashSet a)
 
@@ -163,7 +159,6 @@ data TypeReport = TypeReport
   , flatSolutions :: HashMap Sym (PilType Sym)
   , solutions :: HashMap Sym DeepSymType
   } deriving (Eq, Ord, Show, Generic)
-$(makeFieldsNoPrefix ''TypeReport)
 
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------
@@ -178,7 +173,6 @@ data ConstraintGenState = ConstraintGenState
   , stackAddrSymMap :: HashMap StackOffset Sym
   } deriving (Eq, Ord, Show)
 
-$(makeFieldsNoPrefix ''ConstraintGenState)
 
 emptyConstraintGenState :: ConstraintGenState
 emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty HashMap.empty [] 0 HashMap.empty
@@ -214,25 +208,25 @@ data UnifyState = UnifyState
                   -- it should store a | b  -> c
                   , originMap :: HashMap Sym Sym
                   , currentStmt :: Int
-                  } deriving (Eq, Ord, Show)
-$(makeFieldsNoPrefix ''UnifyState)
+                  } deriving (Eq, Ord, Show, Generic)
 
-addConstraint_ :: ( HasConstraints s [Constraint]
-                  , HasCurrentStmt s Int
+
+addConstraint_ :: ( HasField' "constraints" s [Constraint]
+                  , HasField' "currentStmt" s Int
                   , MonadState s m )
                   => Sym -> SymType -> m ()
 addConstraint_ s st = do
-  i <- use currentStmt
-  constraints %= (Constraint i s st :)
+  i <- use #currentStmt
+  #constraints %= (Constraint i s st :)
 
-assignType :: ( HasConstraints s [Constraint]
-              , HasCurrentStmt s Int
+assignType :: ( HasField' "constraints" s [Constraint]
+              , HasField' "currentStmt" s Int
               , MonadState s m)
                => Sym -> PilType Sym -> m ()
 assignType s t = addConstraint_ s (SType t)
 
-equals :: ( HasConstraints s [Constraint]
-          , HasCurrentStmt s Int
+equals :: ( HasField' "constraints" s [Constraint]
+          , HasField' "currentStmt" s Int
           , MonadState s m)
             => Sym -> Sym -> m ()
 equals x y = addConstraint_ x (SVar y)
@@ -240,7 +234,6 @@ equals x y = addConstraint_ x (SVar y)
 data UnifyResult = UnifyResult { solutions :: [(Sym, SymType)]
                                , errors :: [UnifyError Sym]
                                } deriving (Eq, Ord, Read, Show)
-$(makeFieldsNoPrefix ''UnifyResult)
 
 -- | monad just used for unifyWithSubs function and its helpers
 newtype Unify a = Unify { _runUnify :: ExceptT (UnifyError Sym) (StateT UnifyState Identity) a }
@@ -255,10 +248,10 @@ runUnify :: Unify a -> UnifyState -> (Either (UnifyError Sym) a, UnifyState)
 runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
 
 popConstraint :: Unify (Maybe Constraint)
-popConstraint = use constraints >>= \case
+popConstraint = use #constraints >>= \case
   [] -> return Nothing
   (cx:cxs) -> do
-    constraints .= cxs
+    #constraints .= cxs
     return $ Just cx
 
 

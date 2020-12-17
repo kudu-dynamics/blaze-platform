@@ -91,8 +91,8 @@ stmtSolutions ::
     )
 stmtSolutions indexedStmts = do
   (symStmts, genState) <- addAllConstraints indexedStmts
-  let unifyState = unifyConstraints . reverse $ genState ^. constraints
-  return (fmap (varSubst $ unifyState ^. originMap) symStmts,
+  let unifyState = unifyConstraints . reverse $ genState ^. #constraints
+  return (fmap (varSubst $ unifyState ^. #originMap) symStmts,
           genState,
           unifyState)
 
@@ -120,33 +120,33 @@ checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
       }
       where
         originsVarSymMap :: HashMap PilVar Sym
-        originsVarSymMap = varSubst eqMap <$> s ^. varSymMap
+        originsVarSymMap = varSubst eqMap <$> s ^. #varSymMap
         sols :: HashMap Sym (PilType Sym)
-        sols = unSt ^. solutions
+        sols = unSt ^. #solutions
         errs :: [UnifyConstraintsError DeepSymType]
-        errs = fmap f <$> unSt ^. errors
+        errs = fmap f <$> unSt ^. #errors
           where
             f s' = maybe (DSVar s') identity $ HashMap.lookup s' deepSols
         eqMap :: HashMap Sym Sym
-        eqMap = unSt ^. originMap
+        eqMap = unSt ^. #originMap
         deepSols :: HashMap Sym DeepSymType
         deepSols = flatToDeepSyms sols
         fillTypesInStmt :: InfoExpression SymInfo
                         -> InfoExpression (SymInfo, Maybe DeepSymType)
         fillTypesInStmt x = InfoExpression
-          ( x ^. info
+          ( x ^. #info
           , do
-              originSym <- HashMap.lookup (x ^. info . sym) eqMap
+              originSym <- HashMap.lookup (x ^. #info . #sym) eqMap
               HashMap.lookup originSym deepSols
           )
-          (fmap fillTypesInStmt $ x ^. Pil.op)
+          (fmap fillTypesInStmt $ x ^. #op)
         pilVarMap :: HashMap PilVar DeepSymType
         pilVarMap = fmap f originsVarSymMap
           where
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols
         originsFuncVarSymMap :: HashMap (FuncVar SymExpression) Sym
-        originsFuncVarSymMap = varSubst eqMap <$> s ^. funcSymMap
+        originsFuncVarSymMap = varSubst eqMap <$> s ^. #funcSymMap
         funcVarMap :: HashMap (FuncVar SymExpression) DeepSymType
         funcVarMap = fmap f originsFuncVarSymMap
           where
