@@ -9,7 +9,7 @@ import Blaze.Types.Pil ( Expression
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
-import Blaze.Types.Pil.Checker hiding (symStmts)
+import Blaze.Types.Pil.Checker
 import Blaze.Types.Pil.Function (FuncVar)
 import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
 import Blaze.Pil.Checker.Unification ( unify )
@@ -53,11 +53,11 @@ subSyms sSyms hm s = case HashSet.member s sSyms of
 unifyConstraints :: [Constraint] -> UnifyState
 unifyConstraints cxs = snd $ runUnify unify initialState
   where
-    initialState = UnifyState { _constraints = cxs
-                              , _solutions = HashMap.empty
-                              , _errors = []
-                              , _originMap = HashMap.empty
-                              , _currentStmt = 0
+    initialState = UnifyState { constraints = cxs
+                              , solutions = HashMap.empty
+                              , errors = []
+                              , originMap = HashMap.empty
+                              , currentStmt = 0
                               }
 
 -- | Adds constraints for all statements.
@@ -77,7 +77,7 @@ addAllConstraints indexedStmts =
     (er, gst) = runConstraintGen_ $ do
       mapM
         ( \(i, s) -> do
-            currentStmt .= i
+            #currentStmt .= i
             addStmtTypeConstraints s
         )
         indexedStmts
@@ -90,9 +90,9 @@ stmtSolutions ::
       UnifyState
     )
 stmtSolutions indexedStmts = do
-  (symStmts, genState) <- addAllConstraints indexedStmts
+  (symStmts', genState) <- addAllConstraints indexedStmts
   let unifyState = unifyConstraints . reverse $ genState ^. #constraints
-  return (fmap (varSubst $ unifyState ^. #originMap) symStmts,
+  return (fmap (varSubst $ unifyState ^. #originMap) symStmts',
           genState,
           unifyState)
 
@@ -107,16 +107,16 @@ checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
                 )
              -> TypeReport
     toReport (stmts', s, unSt) = TypeReport
-      { _symTypeStmts = zip (fmap fst indexedStmts) $ fmap (fmap fillTypesInStmt) stmts'
-      , _symStmts = stmts'
-      , _varSymMap = originsVarSymMap
-      , _varSymTypeMap = pilVarMap
-      , _varEqMap = originMapToGroupMap eqMap
-      , _funcSymTypeMap = funcVarMap
-      , _funcSymMap = originsFuncVarSymMap
-      , _errors = errs
-      , _flatSolutions = sols
-      , _solutions = deepSols
+      { symTypeStmts = zip (fmap fst indexedStmts) $ fmap (fmap fillTypesInStmt) stmts'
+      , symStmts = stmts'
+      , varSymMap = originsVarSymMap
+      , varSymTypeMap = pilVarMap
+      , varEqMap = originMapToGroupMap eqMap
+      , funcSymTypeMap = funcVarMap
+      , funcSymMap = originsFuncVarSymMap
+      , errors = errs
+      , flatSolutions = sols
+      , solutions = deepSols
       }
       where
         originsVarSymMap :: HashMap PilVar Sym

@@ -260,12 +260,12 @@ data CallStatement = CallStatement
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
 mkCallStatement :: Stmt -> Maybe CallStatement
-mkCallStatement stmt = case stmt of
-  Call callOp -> 
-    Just $ CallStatement stmt callOp
-  Def (DefOp _ (Expression _sz (CALL callOp))) ->
-    Just $ CallStatement stmt callOp
-  _ -> 
+mkCallStatement stmt' = case stmt' of
+  Call callOp' ->
+    Just $ CallStatement stmt' callOp'
+  Def (DefOp _ (Expression _sz (CALL callOp'))) ->
+    Just $ CallStatement stmt' callOp'
+  _ ->
     Nothing
 
 mkCallDest :: HasField' "op" Expression (ExprOp Expression) => Expression -> CallDest Expression

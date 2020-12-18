@@ -48,7 +48,7 @@ genCallOutputStores paramInfos params =
   where
     maybeOutParam :: FuncParamInfo -> Expression -> Maybe Expression
     maybeOutParam pInfo expr = do
-      access <- pInfo ^? Func._FuncParamInfo . Func.access
+      access <- pInfo ^? #_FuncParamInfo . #access
       if access == Func.Out
         then return expr
         else Nothing
@@ -59,13 +59,13 @@ genCallOutputStores paramInfos params =
       Pil.Store $
         Pil.StoreOp
           argExpr
-          (Expression (argExpr ^. Pil.size) (Pil.VAR (Pil.VarOp freeVar)))
+          (Expression (argExpr ^. #size) (Pil.VAR (Pil.VarOp freeVar)))
     -- TODO: Need to actually find the used defined vars and exclude them
     exprVars :: [PilVar]
     exprVars = (`PilVar` Nothing) <$> symbolGenerator (getAllSyms [])
 
 isDirectCall :: CallOp Expression -> Bool
-isDirectCall c = case c ^. Pil.dest of
+isDirectCall c = case c ^. #dest of
   (Pil.CallConstPtr _) -> True
   _ -> False
 

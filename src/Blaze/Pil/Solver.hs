@@ -12,9 +12,6 @@ import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil ( Expression
                        , PilVar
-                       , HasLeft
-                       , HasRight
-                       , HasCarry
                        , Statement
                        )
 import qualified Data.HashMap.Strict as HashMap

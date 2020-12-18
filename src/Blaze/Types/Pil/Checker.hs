@@ -57,10 +57,10 @@ data PilType t = TBool
                | TVBitWidth BitWidth
                | TVLength Word64
                | TVSign Bool    
-               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
+               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic)
 
 newtype T = T (PilType T)
-  deriving (Eq, Ord, Read, Show)
+  deriving (Eq, Ord, Read, Show, Generic)
 
 unT :: T -> PilType T
 unT (T pt) = pt
@@ -104,7 +104,7 @@ data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
                         | CannotFindSymInSymMap
                         | UnhandledExpr
                         | UnhandledStmt
-                        deriving (Eq, Ord, Show)
+                        deriving (Eq, Ord, Show, Generic)
 
 data InfoExpression a = InfoExpression
   { info :: a
@@ -171,7 +171,7 @@ data ConstraintGenState = ConstraintGenState
   , constraints :: [Constraint]
   , currentStmt :: Int
   , stackAddrSymMap :: HashMap StackOffset Sym
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 emptyConstraintGenState :: ConstraintGenState

@@ -39,7 +39,7 @@ class Path p where
 data InsertablePath p = InsertablePath
   { insertableFullPath :: p
   , insertableFirstNode :: Node -- proof that it's not empty
-  } deriving (Eq, Ord, Show, Functor)
+  } deriving (Eq, Ord, Show, Functor, Generic)
 
 mkInsertablePath :: Path p => p -> Maybe (InsertablePath p)
 mkInsertablePath p = InsertablePath p <$> firstNode p
@@ -47,7 +47,7 @@ mkInsertablePath p = InsertablePath p <$> firstNode p
 data LastIsAbstractCall p = LastIsAbstractCall
   { lacFullPath :: p
   , lacLastNode :: AbstractCallNode
-  } deriving (Eq, Ord, Show, Functor)
+  } deriving (Eq, Ord, Show, Functor, Generic)
 
 mkLastIsAbstractCall :: Path p => p -> Maybe (LastIsAbstractCall p)
 mkLastIsAbstractCall p = do
@@ -57,7 +57,7 @@ mkLastIsAbstractCall p = do
     _ -> Nothing
 
 newtype PathGraph g = PathGraph g
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 deriving newtype instance (Graph () Node g) => Graph () Node (PathGraph g)
 
@@ -79,58 +79,51 @@ data Node = SubBlock SubBlockNode
           | AbstractCall AbstractCallNode
           | AbstractPath AbstractPathNode
           | Condition ConditionNode
-          deriving (Eq, Ord, Show)
+          deriving (Eq, Ord, Show, Generic)
 
 
 data ConditionNode = ConditionNode
-  { _func :: Function
-  , _trueOrFalseBranch :: Bool
-  , _condition :: MLIL.Expression F
-  , _uuid :: UUID
-  } deriving (Eq, Ord, Show)
+  { func :: Function
+  , trueOrFalseBranch :: Bool
+  , condition :: MLIL.Expression F
+  , uuid :: UUID
+  } deriving (Eq, Ord, Show, Generic)
 
 data SubBlockNode = SubBlockNode
-  { _func :: Function
-  , _blockStart :: InstructionIndex F
-  , _start :: InstructionIndex F
-  , _end :: InstructionIndex F
-  , _uuid :: UUID
-  } deriving (Eq, Ord, Show)
+  { func :: Function
+  , blockStart :: InstructionIndex F
+  , start :: InstructionIndex F
+  , end :: InstructionIndex F
+  , uuid :: UUID
+  } deriving (Eq, Ord, Show, Generic)
 
 data CallNode = CallNode
-  { _func :: Function
-  , _callSite :: CallSite
-  , _uuid :: UUID
-  } deriving (Eq, Ord, Show)
+  { func :: Function
+  , callSite :: CallSite
+  , uuid :: UUID
+  } deriving (Eq, Ord, Show, Generic)
 
 data RetNode = RetNode
-  { _func :: Function
-  , _callSite :: CallSite
-  , _uuid :: UUID
-  } deriving (Eq, Ord, Show)
+  { func :: Function
+  , callSite :: CallSite
+  , uuid :: UUID
+  } deriving (Eq, Ord, Show, Generic)
 
 -- we are unsure if this will be useful
 data AbstractPathNode = AbstractPathNode
-  { _func :: Function
-  , _startNode :: Node
-  , _endNode :: Node
-  , _uuid :: UUID
-  } deriving (Eq, Ord, Show)
+  { func :: Function
+  , startNode :: Node
+  , endNode :: Node
+  , uuid :: UUID
+  } deriving (Eq, Ord, Show, Generic)
 
 -- use this instead of the old CallNode / AbstractPathNode / RetNode combo
 data AbstractCallNode = AbstractCallNode
-  { _func :: Function
-  , _callSite :: CallSite
-  , _uuid :: UUID
-  } deriving (Eq, Ord, Show)
+  { func :: Function
+  , callSite :: CallSite
+  , uuid :: UUID
+  } deriving (Eq, Ord, Show, Generic)
 
-$(makePrisms ''Node)
-$(makeFieldsNoPrefix ''SubBlockNode)
-$(makeFieldsNoPrefix ''ConditionNode)
-$(makeFieldsNoPrefix ''CallNode)
-$(makeFieldsNoPrefix ''RetNode)
-$(makeFieldsNoPrefix ''AbstractPathNode)
-$(makeFieldsNoPrefix ''AbstractCallNode)
 
 paren :: Text -> Text
 paren t = "(" <> t <> ")"
@@ -145,12 +138,12 @@ quote' :: Text -> Text
 quote' t = "'" <> t <> "'"
 
 getNodeFunc :: Node -> Function
-getNodeFunc (SubBlock x) = x ^. func
-getNodeFunc (Call x) = x ^. func
-getNodeFunc (Ret x) = x ^. func
-getNodeFunc (AbstractCall x) = x ^. func
-getNodeFunc (AbstractPath x) = x ^. func
-getNodeFunc (Condition x) = x ^. func
+getNodeFunc (SubBlock x) = x ^. #func
+getNodeFunc (Call x) = x ^. #func
+getNodeFunc (Ret x) = x ^. #func
+getNodeFunc (AbstractCall x) = x ^. #func
+getNodeFunc (AbstractPath x) = x ^. #func
+getNodeFunc (Condition x) = x ^. #func
 
 callTwaddle :: Word32
 callTwaddle = 999
@@ -207,8 +200,8 @@ instance (Graph () Node g) => Path (PathGraph g) where
       msucc = succ n p
 
       -- just twaddling the AbstractPathNode's UUID since we don't have IO.
-      cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (twaddleUUID callTwaddle $ acn ^. uuid)
-      rnode = Ret $ RetNode (acn ^. func) (acn ^. callSite) (twaddleUUID retTwaddle $ acn ^. uuid)
+      cnode = Call $ CallNode (acn ^. #func) (acn ^. #callSite) (twaddleUUID callTwaddle $ acn ^. #uuid)
+      rnode = Ret $ RetNode (acn ^. #func) (acn ^. #callSite) (twaddleUUID retTwaddle $ acn ^. #uuid)
 
       ppart = insertableFullPath ip
       firstN = insertableFirstNode ip
@@ -225,7 +218,7 @@ instance (Graph () Node g) => Path (PathGraph g) where
       , [ (cnode, firstN) ]
       ]
     where
-      cnode = Call $ CallNode (acn ^. func) (acn ^. callSite) (twaddleUUID callTwaddle $ acn ^. uuid)
+      cnode = Call $ CallNode (acn ^. #func) (acn ^. #callSite) (twaddleUUID callTwaddle $ acn ^. #uuid)
       firstN = insertableFirstNode ip
       acn = lacLastNode lac
       n = AbstractCall acn
@@ -246,10 +239,10 @@ startFunction :: Path p => p -> Maybe Function
 startFunction p = do
   n <- firstNode p
   case n of
-    SubBlock sb -> return $ sb ^. func
-    Call c -> return $ c ^. func
-    Ret r -> return $ r ^. func
-    AbstractPath apn -> return $ apn ^. func
+    SubBlock sb -> return $ sb ^. #func
+    Call c -> return $ c ^. #func
+    Ret r -> return $ r ^. #func
+    AbstractPath apn -> return $ apn ^. #func
     _ -> Nothing
 
 

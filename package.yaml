@@ -87,13 +87,13 @@ default-extensions:
   - StandaloneDeriving
 #  - StrictData
   - TupleSections
+  - TypeApplications
   - TypeFamilies
 
 
 library:
   ghc-options:
   - -Wall
-  - -Wno-name-shadowing
   - -Wcompat
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
