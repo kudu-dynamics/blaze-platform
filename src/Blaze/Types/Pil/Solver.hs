@@ -46,13 +46,12 @@ emptyCtx :: SolverCtx
 emptyCtx = SolverCtx mempty
 
 data SolverState = SolverState
-  { _varMap :: HashMap PilVar SVal
-  , _varNames :: HashMap PilVar Text
-  , _mem :: HashMap Expression SVal
-  , _currentStmtIndex :: Int
-  , _errors :: [SolverError]
-  }
-$(makeFieldsNoPrefix ''SolverState)
+  { varMap :: HashMap PilVar SVal
+  , varNames :: HashMap PilVar Text
+  , mem :: HashMap Expression SVal
+  , currentStmtIndex :: Int
+  , errors :: [SolverError]
+  } deriving (Generic)
 
 emptyState :: SolverState
 emptyState = SolverState HashMap.empty HashMap.empty HashMap.empty 0 []
@@ -131,15 +130,15 @@ checkSatWith_ cfg m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx)
 
 stmtError :: SolverError -> Solver a
 stmtError e = do
-  si <- use currentStmtIndex
+  si <- use #currentStmtIndex
   throwError $ StmtError si e
 
 liftSymbolicT :: SymbolicT (ExceptT SolverError IO) a -> Solver a
 liftSymbolicT = Solver . lift . lift
 
 data SolverReport = SolverReport
-  { _result :: SolverResult
-  , _warnings :: [SolverError]
+  { result :: SolverResult
+  , warnings :: [SolverError]
   } deriving (Eq, Ord, Show, Generic)
   
 $(makeFieldsNoPrefix ''SolverReport)

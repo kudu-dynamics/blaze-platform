@@ -1,11 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+
+-- todo: most this to binja converter dir
 module Blaze.Types.Function where
+
+import Blaze.Prelude hiding (Symbol)
 
 import Binja.Core (InstructionIndex)
 import Binja.MLIL (Expression, OperationSize, SSAVariable)
 import qualified Binja.MLIL as MLIL
-import Blaze.Prelude hiding (Symbol)
 import Data.BinaryAnalysis (Symbol (Symbol))
 import Binja.Function (Function, MLILSSAFunction)
 
