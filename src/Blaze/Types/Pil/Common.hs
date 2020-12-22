@@ -10,6 +10,7 @@ newtype StmtIndex = StmtIndex { val :: Int }
 
 type Symbol = Text
 
+-- TODO: should this be in Bits?
 newtype OperationSize = OperationSize Bytes
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Num, Real, Enum, Integral)

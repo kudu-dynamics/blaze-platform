@@ -55,6 +55,7 @@ import Blaze.Import.Source.BinaryNinja.Types ( SSAVariableRef(SSAVariableRef)
                                              , ConverterState
                                              )
 import Blaze.Pil (getLastDefined)
+import Blaze.Util.GenericConv (gconv)
 
 -- $(makeFieldsNoPrefix ''ConverterState)
 
@@ -117,10 +118,8 @@ convertExpr :: MLIL.Expression t -> Converter Expression
 convertExpr expr = do
   ctx <- use #ctx
   case expr ^. MLIL.op of
-    (MLIL.ADC (MLIL.AdcOp a b c)) ->
-      mkExpr . Pil.ADC <$> f (Pil.AdcOp a b c)
-    (MLIL.ADD (MLIL.AddOp a b)) -> mkExpr . Pil.ADD <$>
-      f (Pil.AddOp a b)
+    (MLIL.ADC x) -> mkExpr . Pil.ADC <$> f x
+    (MLIL.ADD x) -> mkExpr . Pil.ADD <$> f x
     (MLIL.ADDRESS_OF x) -> varToStackLocalAddr (x ^. MLIL.src)
     (MLIL.ADDRESS_OF_FIELD x) -> do
       stackAddr <- varToStackLocalAddr $ x ^. MLIL.src
@@ -128,42 +127,25 @@ convertExpr expr = do
         . Pil.FieldAddrOp stackAddr
         . fromIntegral
         $ x ^. MLIL.offset
-    (MLIL.ADD_OVERFLOW (MLIL.AddOverflowOp a b)) -> mkExpr . Pil.ADD_OVERFLOW <$>
-      f (Pil.AddOverflowOp a b)
-    (MLIL.AND (MLIL.AndOp a b)) -> mkExpr . Pil.AND <$>
-      f (Pil.AndOp a b)
-    (MLIL.ASR (MLIL.AsrOp a b)) -> mkExpr . Pil.ASR <$>
-      f (Pil.AsrOp a b)
-    (MLIL.BOOL_TO_INT (MLIL.BoolToIntOp x)) -> mkExpr . Pil.BOOL_TO_INT <$>
-      f (Pil.BoolToIntOp x)
-    (MLIL.CEIL (MLIL.CeilOp x)) -> mkExpr . Pil.CEIL <$>
-      f (Pil.CeilOp x)
-    (MLIL.CMP_E (MLIL.CmpEOp a b)) -> mkExpr . Pil.CMP_E <$>
-      f (Pil.CmpEOp a b)
-    (MLIL.CMP_NE (MLIL.CmpNeOp a b)) -> mkExpr . Pil.CMP_NE <$>
-      f (Pil.CmpNeOp a b)
-    (MLIL.CMP_SGE (MLIL.CmpSgeOp a b)) -> mkExpr . Pil.CMP_SGE <$>
-      f (Pil.CmpSgeOp a b)
-    (MLIL.CMP_SGT (MLIL.CmpSgtOp a b)) -> mkExpr . Pil.CMP_SGT <$>
-      f (Pil.CmpSgtOp a b)
-    (MLIL.CMP_SLE (MLIL.CmpSleOp a b)) -> mkExpr . Pil.CMP_SLE <$>
-      f (Pil.CmpSleOp a b)
-    (MLIL.CMP_SLT (MLIL.CmpSltOp a b)) -> mkExpr . Pil.CMP_SLT <$>
-      f (Pil.CmpSltOp a b)
-    (MLIL.CMP_UGE (MLIL.CmpUgeOp a b)) -> mkExpr . Pil.CMP_UGE <$>
-      f (Pil.CmpUgeOp a b)
-    (MLIL.CMP_UGT (MLIL.CmpUgtOp a b)) -> mkExpr . Pil.CMP_UGT <$>
-      f (Pil.CmpUgtOp a b)
-    (MLIL.CMP_ULE (MLIL.CmpUleOp a b)) -> mkExpr . Pil.CMP_ULE <$>
-      f(Pil.CmpUleOp a b)
-    (MLIL.CMP_ULT (MLIL.CmpUltOp a b)) -> mkExpr . Pil.CMP_ULT <$>
-      f (Pil.CmpUltOp a b)
-    (MLIL.CONST (MLIL.ConstOp x)) -> return . mkExpr . Pil.CONST $ Pil.ConstOp x
-    (MLIL.CONST_PTR (MLIL.ConstPtrOp x)) -> return . mkExpr . Pil.CONST_PTR $ Pil.ConstPtrOp x
-    (MLIL.DIVS (MLIL.DivsOp a b)) -> mkExpr . Pil.DIVS <$>
-      f (Pil.DivsOp a b)
-    (MLIL.DIVS_DP (MLIL.DivsDpOp a b)) -> mkExpr . Pil.DIVS_DP <$>
-      f (Pil.DivsDpOp a b)
+    (MLIL.ADD_OVERFLOW x) -> mkExpr . Pil.ADD_OVERFLOW <$> f x
+    (MLIL.AND x) -> mkExpr . Pil.AND <$> f x
+    (MLIL.ASR x) -> mkExpr . Pil.ASR <$> f x
+    (MLIL.BOOL_TO_INT x) -> mkExpr . Pil.BOOL_TO_INT <$> f x
+    (MLIL.CEIL x) -> mkExpr . Pil.CEIL <$> f x
+    (MLIL.CMP_E x) -> mkExpr . Pil.CMP_E <$> f x
+    (MLIL.CMP_NE x) -> mkExpr . Pil.CMP_NE <$> f x
+    (MLIL.CMP_SGE x) -> mkExpr . Pil.CMP_SGE <$> f x
+    (MLIL.CMP_SGT x) -> mkExpr . Pil.CMP_SGT <$> f x
+    (MLIL.CMP_SLE x) -> mkExpr . Pil.CMP_SLE <$> f x
+    (MLIL.CMP_SLT x) -> mkExpr . Pil.CMP_SLT <$> f x
+    (MLIL.CMP_UGE x) -> mkExpr . Pil.CMP_UGE <$> f x
+    (MLIL.CMP_UGT x) -> mkExpr . Pil.CMP_UGT <$> f x
+    (MLIL.CMP_ULE x) -> mkExpr . Pil.CMP_ULE <$> f x
+    (MLIL.CMP_ULT x) -> mkExpr . Pil.CMP_ULT <$> f x
+    (MLIL.CONST x) -> mkExpr . Pil.CONST <$> f x
+    (MLIL.CONST_PTR x) -> mkExpr . Pil.CONST_PTR <$> f x
+    (MLIL.DIVS x) -> mkExpr . Pil.DIVS <$> f x
+    (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
     (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
     (MLIL.DIVU_DP x) -> mkExpr . Pil.DIVU_DP <$> f x
     (MLIL.FABS x) -> mkExpr . Pil.FABS <$> f x
@@ -254,11 +236,15 @@ convertExpr expr = do
     (MLIL.ZX x) -> mkExpr . Pil.ZX <$> f x
     x -> return $ mkExpr . Pil.UNIMPL $ Text.take 20 (show x) <> "..."
     where
-      -- f = convertExpr
-      f :: Traversable m => m (MLIL.Expression t) -> Converter (m Expression)
-      f = traverse convertExpr
+      -- f :: Traversable m => m (MLIL.Expression t) -> Converter (m Expression)
+      f :: ( Traversable m
+           , Generic (m (MLIL.Expression t))
+           , Generic (m' Expression) )
+        => m (MLIL.Expression t)
+        -> Converter (m' Expression)
+      f = fmap gconv . traverse convertExpr
       mkExpr :: Pil.ExprOp Expression -> Expression
-      mkExpr = Expression (expr ^. MLIL.size)
+      mkExpr = Expression (toPilOpSize $ expr ^. MLIL.size)
 
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
