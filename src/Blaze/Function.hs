@@ -23,6 +23,8 @@ import qualified Binja.BasicBlock as BB
 import qualified Binja.Function as BNFunc
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import qualified Blaze.Import.Source.BinaryNinja as BNI
+import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNICG
+import qualified Blaze.Import.Source.BinaryNinja.Pil as BNPil
 import qualified Blaze.Pil as Pil
 import qualified Blaze.Types.CallGraph as CG
 import qualified Blaze.Types.Path.AlgaPath as AP
@@ -31,7 +33,7 @@ import qualified Data.Set as Set
 
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
-getDestOp CallInstruction{_dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'
+getDestOp CallInstruction{dest=Just MLIL.Expression{MLIL.op=op'}} = Just op'
 getDestOp _ = Nothing
 
 isDirectCall :: CallInstruction -> Bool
@@ -55,7 +57,7 @@ getStmtsForAllFunctions :: BNImporter -> IO [Pil.Stmt]
 getStmtsForAllFunctions imp = do
   let bv = imp ^. BNI.binaryView
   bnFuncs <- BNFunc.getFunctions bv
-  funcs <- traverse (BNI.convertFunction bv) bnFuncs
+  funcs <- traverse (BNICG.convertFunction bv) bnFuncs
   concat <$> traverse (uncurry $ getStmtsForFunction imp) (zip funcs bnFuncs)
 
 getStmtsForFunction :: BNImporter -> CG.Function -> BNFunc.Function -> IO [Pil.Stmt]
@@ -68,8 +70,9 @@ getStmtsForFunction imp fn bnFn = do
   --       I.e., the path is only needed when expanding function calls, not 
   --       importing a single function.
   addrSize <- BN.getViewAddressSize bv
-  let startConverterState = Pil.mkConverterState Pil.knownFuncDefs addrSize fn AP.empty
-  stmts <- traverse ((`Pil.runConverter` startConverterState) . Pil.convertInstrs) instrs
+  let startConverterState = BNPil.mkConverterState Pil.knownFuncDefs addrSize fn AP.empty
+  stmts <- traverse ((`BNPil.runConverter` startConverterState)
+                     . BNPil.convertInstrs) instrs
   return $ concatMap fst stmts
 
 getCallsInFunction :: BNFunc.Function -> IO [CallInstruction]

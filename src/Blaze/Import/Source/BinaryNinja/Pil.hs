@@ -55,7 +55,7 @@ import Blaze.Import.Source.BinaryNinja.Types ( SSAVariableRef(SSAVariableRef)
                                              , ConverterState
                                              )
 import Blaze.Pil (getLastDefined)
-import Blaze.Util.GenericConv (gconv)
+import Blaze.Util.GenericConv (GConv, gconv)
 
 -- $(makeFieldsNoPrefix ''ConverterState)
 
@@ -237,9 +237,12 @@ convertExpr expr = do
     x -> return $ mkExpr . Pil.UNIMPL $ Text.take 20 (show x) <> "..."
     where
       -- f :: Traversable m => m (MLIL.Expression t) -> Converter (m Expression)
-      f :: ( Traversable m
-           , Generic (m (MLIL.Expression t))
-           , Generic (m' Expression) )
+      f :: forall m m' t.
+           ( Traversable m
+           , Generic (m Expression)
+           , Generic (m' Expression)
+           , GConv (Rep (m Expression)) (Rep (m' Expression))
+           )
         => m (MLIL.Expression t)
         -> Converter (m' Expression)
       f = fmap gconv . traverse convertExpr
@@ -252,7 +255,8 @@ getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
 convertToPilVar :: MLIL.SSAVariable -> Converter PilVar
 convertToPilVar v = do
   ctx <- use #ctx
-  let sourceVar = SSAVariableRef v (ctx ^. #func) (ctx ^. #ctxIndex)
+  bnfunc <- undefined $ ctx ^. #func
+  let sourceVar = SSAVariableRef v bnfunc (ctx ^. #ctxIndex)
       pilVar = PilVar (getSymbol v) (Just ctx)
   #sourceVars %= HMap.insert pilVar sourceVar
   return pilVar
@@ -266,6 +270,7 @@ convertToPilVarAndLog v = do
 convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Converter [Statement Expression]
 convertInstrOp op' = do
   ctx <- use #ctx
+  defVarSize <- use #defaultVarSize
   case op' of
     (MLIL.SET_VAR_SSA x) -> do
       pvar <- convertToPilVarAndLog $ x ^. MLIL.dest
@@ -288,7 +293,7 @@ convertInstrOp op' = do
         off = fromIntegral $ x ^. MLIL.offset
         getVarWidth v = v ^? MLIL.var . BNVar.varType . _Just . BNVar.width
         varSize =
-          maybe (ctx ^. #defaultVarSize) fromIntegral $
+          maybe (Pil.OperationSize . toBytes $ defVarSize) fromIntegral $
             getVarWidth destVar <|> getVarWidth srcVar
     (MLIL.SET_VAR_SPLIT_SSA x) -> do
       pvarHigh <- convertToPilVarAndLog $ x ^. MLIL.high
@@ -306,17 +311,15 @@ convertInstrOp op' = do
     -- note: prev.src and prev.dest are the same except memory ssa version
     (MLIL.SET_VAR_ALIASED x) -> do
       expr <- convertExpr (x ^. MLIL.src)
+      addrExpr <- varToStackLocalAddr (x ^. MLIL.prev . MLIL.src . MLIL.var)
       return [Store $ StoreOp addrExpr expr]
-      where
-        addrExpr = varToStackLocalAddr (x ^. MLIL.prev . MLIL.src . MLIL.var)
     (MLIL.SET_VAR_ALIASED_FIELD x) -> do
       srcExpr <- convertExpr (x ^. MLIL.src)
+      addrExpr <- varToStackLocalAddr (x ^. MLIL.prev . MLIL.src . MLIL.var)
+      let destAddrExpr = Pil.mkFieldOffsetExprAddr addrExpr
+                         $ x ^. MLIL.offset
+
       return [Store $ StoreOp destAddrExpr srcExpr]
-      where
-        addrExpr = varToStackLocalAddr (x ^. MLIL.prev . MLIL.src . MLIL.var)
-        destAddrExpr =
-          Pil.mkFieldOffsetExprAddr addrExpr $
-            x ^. MLIL.offset
     (MLIL.STORE_SSA x) -> do
       exprSrc <- convertExpr (x ^. MLIL.src)
       exprDest <- convertExpr (x ^. MLIL.dest)
@@ -402,7 +405,8 @@ convertCallInstruction c = do
   params <- sequence [convertExpr p | p <- c ^. #params]
   
   ctx <- use #ctx
-  mname <- liftIO $ getCallDestFunctionName (ctx ^. #func) target
+  bnfunc <- undefined $ ctx ^. #func
+  mname <- liftIO $ getCallDestFunctionName bnfunc target
 
   -- getFuncName_ <- use #getFuncName
   -- -- TODO: Is there a way to write this without case matching?
@@ -415,7 +419,8 @@ convertCallInstruction c = do
   let outStores = getOutStores mname funcDefs params
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get
   -- actual size. This is done below when handling the case for a return value.
-  let callExpr = Expression (c ^. #size) . Pil.CALL $ Pil.CallOp target mname params
+  let callExpr = Expression (toPilOpSize $ c ^. #size) . Pil.CALL
+                 $ Pil.CallOp target mname params
   case c ^. #outputDest of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
     [] -> return $ Call (CallOp target mname params) : outStores
