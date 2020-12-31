@@ -113,6 +113,11 @@ library:
   - Blaze.Import.Cfg
   - Blaze.Import.Pil
   - Blaze.Import.Source.BinaryNinja
+  - Blaze.Import.Source.BinaryNinja.Pil
+  - Blaze.Import.Source.BinaryNinja.CallGraph
+  - Blaze.Import.Source.BinaryNinja.Cfg
+  - Blaze.Import.Source.BinaryNinja.Types
+  - Blaze.Import.Source.BinaryNinja.Pil.Path
   - Blaze.IndirectCallResolution
   - Blaze.Path
   - Blaze.Pil

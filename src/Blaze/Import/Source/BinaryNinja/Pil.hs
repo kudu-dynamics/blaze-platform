@@ -5,6 +5,7 @@ module Blaze.Import.Source.BinaryNinja.Pil where
 import Blaze.Prelude hiding (Symbol)
 
 import qualified Prelude as P
+import Blaze.Pil as Pil
 import qualified Blaze.Types.Function as Func
 import qualified Data.BinaryAnalysis as BA
 import Binja.Function (Function, MLILSSAFunction)
@@ -463,7 +464,7 @@ getFuncStatementsIndexed bv func' = do
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
     Just bnFunc -> do
       addrSize' <- BN.getViewAddressSize bv
-      let st = mkConverterState bv HMap.empty addrSize' func' AlgaPath.empty
+      let st = mkConverterState bv Pil.knownFuncDefs addrSize' func' AlgaPath.empty
       fst <$> runConverter (convertFunction bnFunc) st
 
 getFuncStatements :: BNBinaryView -> CG.Function -> IO [Stmt]

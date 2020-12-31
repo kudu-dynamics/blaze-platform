@@ -39,7 +39,7 @@ instance PilImporter BNImporter where
     Pil.getFuncStatements (imp ^. #binaryView)
 
   getPathStatements imp =
-    Path.runConvertPath (imp ^. #binaryView)
+    Path.convertPath (imp ^. #binaryView)
 
 
 -- -- TODO: Have a proper Symbol type in BN bindings with fields already populated

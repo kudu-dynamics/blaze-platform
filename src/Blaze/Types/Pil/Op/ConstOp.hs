@@ -1,9 +1,8 @@
 module Blaze.Types.Pil.Op.ConstOp where
 
--- This module is generated. Please use gen_pil_ops/Main.hs to modify.
+-- This module is generated. Please use app/gen_pil_ops/Main.hs to modify.
 
 import Blaze.Prelude
-import Blaze.Util.GenericConv
 
 data ConstOp expr = ConstOp
   { constant :: Int64
