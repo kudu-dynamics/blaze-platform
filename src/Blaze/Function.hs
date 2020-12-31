@@ -33,7 +33,7 @@ import qualified Data.Set as Set
 
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
-getDestOp CallInstruction{dest=Just MLIL.Expression{MLIL.op=op'}} = Just op'
+getDestOp CallInstruction{dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'
 getDestOp _ = Nothing
 
 isDirectCall :: CallInstruction -> Bool
@@ -43,7 +43,7 @@ isDirectCall c = case getDestOp c of
   _ -> False
 
 createCallSite :: BNBinaryView -> Function -> CallInstruction -> IO CallSite
-createCallSite bv func c = CallSite func c <$> case c ^. dest of
+createCallSite bv func c = CallSite func c <$> case c ^. #dest of
   Just dexpr -> case (dexpr ^. MLIL.op :: MLIL.Operation (MLIL.Expression F)) of
     (MLIL.CONST_PTR cpop) -> maybe (DestAddr addr) DestFunc <$>
                               getFunctionStartingAt bv Nothing addr
@@ -55,14 +55,14 @@ createCallSite bv func c = CallSite func c <$> case c ^. dest of
 
 getStmtsForAllFunctions :: BNImporter -> IO [Pil.Stmt]
 getStmtsForAllFunctions imp = do
-  let bv = imp ^. BNI.binaryView
+  let bv = imp ^. #binaryView
   bnFuncs <- BNFunc.getFunctions bv
   funcs <- traverse (BNICG.convertFunction bv) bnFuncs
   concat <$> traverse (uncurry $ getStmtsForFunction imp) (zip funcs bnFuncs)
 
 getStmtsForFunction :: BNImporter -> CG.Function -> BNFunc.Function -> IO [Pil.Stmt]
 getStmtsForFunction imp fn bnFn = do
-  let bv = imp ^. BNI.binaryView
+  let bv = imp ^. #binaryView
   instrs <- BNFunc.getMLILSSAFunction bnFn >>= BB.getBasicBlocks >>= traverse MLIL.fromBasicBlock
   -- TODO: Using an empty path since we don't actually have a path. 
   --       How should we refactor this so we can use the same converter/importer 
@@ -70,7 +70,7 @@ getStmtsForFunction imp fn bnFn = do
   --       I.e., the path is only needed when expanding function calls, not 
   --       importing a single function.
   addrSize <- BN.getViewAddressSize bv
-  let startConverterState = BNPil.mkConverterState Pil.knownFuncDefs addrSize fn AP.empty
+  let startConverterState = BNPil.mkConverterState bv Pil.knownFuncDefs addrSize fn AP.empty
   stmts <- traverse ((`BNPil.runConverter` startConverterState)
                      . BNPil.convertInstrs) instrs
   return $ concatMap fst stmts

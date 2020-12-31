@@ -4,12 +4,15 @@ module Blaze.Import.Source.BinaryNinja.Pil where
 
 import Blaze.Prelude hiding (Symbol)
 
+import qualified Prelude as P
 import qualified Blaze.Types.Function as Func
 import qualified Data.BinaryAnalysis as BA
 import Binja.Function (Function, MLILSSAFunction)
+import qualified Binja.Core as BN
+import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
-import Blaze.Import.Pil
+-- import Blaze.Import.Pil
 import Blaze.Types.Function (FuncInfo)
 import Blaze.Types.Pil
   ( CallDest,
@@ -41,6 +44,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Pil as Pil
 import Blaze.Import.Source.BinaryNinja.Types
 import qualified Blaze.Types.CallGraph as CG
+import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
 import Blaze.Import.Source.BinaryNinja.CallGraph (getCallDestAddr)
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable as BNVar
@@ -56,6 +60,7 @@ import Blaze.Import.Source.BinaryNinja.Types ( SSAVariableRef(SSAVariableRef)
                                              )
 import Blaze.Pil (getLastDefined)
 import Blaze.Util.GenericConv (GConv, gconv)
+import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 
 -- $(makeFieldsNoPrefix ''ConverterState)
 
@@ -69,8 +74,8 @@ createStartCtx func = Ctx func 0
 
 -- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
 --       accepting a map from the user.
-mkConverterState :: HashMap Text FuncInfo -> AddressWidth -> CG.Function -> AlgaPath -> ConverterState
-mkConverterState knownFuncDefs addrSize_ f p =
+mkConverterState :: BNBinaryView -> HashMap Text FuncInfo -> AddressWidth -> CG.Function -> AlgaPath -> ConverterState
+mkConverterState bv knownFuncDefs addrSize_ f p =
   ConverterState
     p
     (startCtx ^. #ctxIndex)
@@ -82,6 +87,7 @@ mkConverterState knownFuncDefs addrSize_ f p =
     knownFuncDefs
     addrSize_
     (BA.bits addrSize_)
+    bv
  where
   startCtx :: Ctx
   startCtx = createStartCtx f
@@ -442,11 +448,25 @@ convertCallInstruction c = do
 -- | Gets all PIL statements contained in a function.
 -- the "Int" is the original MLIL_SSA InstructionIndex
 convertFunction :: Function -> Converter [(Int, Stmt)]
-convertFunction func = do
-  mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction func
+convertFunction func' = do
+  mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction func'
   mlilInstrs <- liftIO $ MLIL.fromFunction mlilFunc
   concatMapM f $ zip [0..] mlilInstrs
   where
     f (mlilIndex, mlilInstr) =
       fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
 
+getFuncStatementsIndexed :: BNBinaryView -> CG.Function -> IO [(Int, Stmt)]
+getFuncStatementsIndexed bv func' = do
+  mBnFunc <- BNCG.toBinjaFunction bv func'
+  case mBnFunc of
+    Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
+    Just bnFunc -> do
+      addrSize' <- BN.getViewAddressSize bv
+      let st = mkConverterState bv HMap.empty addrSize' func' AlgaPath.empty
+      fst <$> runConverter (convertFunction bnFunc) st
+
+getFuncStatements :: BNBinaryView -> CG.Function -> IO [Stmt]
+getFuncStatements bv func' = fmap snd <$> getFuncStatementsIndexed bv func'
+
+-- getPathStatements :: a -> Path -> IO [Stmt]

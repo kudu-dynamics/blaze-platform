@@ -236,13 +236,5 @@ instance (Graph () Node g) => Path (PathGraph g) where
   -- snipAfter n p = maybe G.empty identity $ do
 
 startFunction :: Path p => p -> Maybe Function
-startFunction p = do
-  n <- firstNode p
-  case n of
-    SubBlock sb -> return $ sb ^. #func
-    Call c -> return $ c ^. #func
-    Ret r -> return $ r ^. #func
-    AbstractPath apn -> return $ apn ^. #func
-    _ -> Nothing
-
+startFunction p = getNodeFunc <$> firstNode p
 

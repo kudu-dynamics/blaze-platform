@@ -22,7 +22,7 @@ import qualified Prelude as P
 type F = MLILSSAFunction
 
 callSiteContainsInstruction :: InstructionIndex F -> CallSite -> Bool
-callSiteContainsInstruction ix c = ix == c ^. BF.callInstr . BF.index
+callSiteContainsInstruction ix c = ix == c ^. #callInstr . #index
 
 nodeContainsInstruction :: InstructionIndex F -> Node -> Bool
 nodeContainsInstruction ix x = case x of
@@ -31,10 +31,10 @@ nodeContainsInstruction ix x = case x of
   (Path.AbstractPath _) -> False
   (Path.AbstractCall n) -> checkCallSite n
   (Path.Call n) -> checkCallSite n
-  (Path.SubBlock n) -> ix < n ^. Path.end && ix >= n ^. Path.start
+  (Path.SubBlock n) -> ix < n ^. #end && ix >= n ^. #start
   where
-    checkCallSite :: Path.HasCallSite a CallSite => a -> Bool
-    checkCallSite n = callSiteContainsInstruction ix $ n ^. Path.callSite
+    checkCallSite :: HasField' "callSite" a CallSite => a -> Bool
+    checkCallSite n = callSiteContainsInstruction ix $ n ^. #callSite
 
 -- | returns first node that contains the instruction
 firstNodeContainingInstruction :: Path p => InstructionIndex F -> p -> Maybe Node
@@ -48,7 +48,7 @@ lastNodeContainingInstruction :: Path p => InstructionIndex F -> p -> Maybe Node
 lastNodeContainingInstruction ix = headMay . filter (nodeContainsInstruction ix) . reverse . Path.toList
 
 callSiteCallsFunction :: Function -> CallSite -> Bool
-callSiteCallsFunction fn c = case c ^. BF.callDest of
+callSiteCallsFunction fn c = case c ^. #callDest of
   (BF.DestAddr addr) -> fn ^. Func.start == addr
   (BF.DestFunc fn') -> fn == fn'
   (BF.DestExpr _) -> False -- maybe should check the expr?
@@ -60,7 +60,7 @@ callSiteCallsFunction fn c = case c ^. BF.callDest of
 getAbstractCallNodesToFunction :: Path p => Function -> p -> [AbstractCallNode]
 getAbstractCallNodesToFunction fn = mapMaybe f . Path.toList
   where
-    f (Path.AbstractCall n) = bool Nothing (Just n) $ callSiteCallsFunction fn $ n ^. Path.callSite
+    f (Path.AbstractCall n) = bool Nothing (Just n) $ callSiteCallsFunction fn $ n ^. #callSite
     f _ = Nothing
 
 -- | Nothing if path doesn't contain instruction
@@ -209,7 +209,7 @@ searchBetween_ cgfuncs bnfuncs cg fpaths fn1 ix1 fn2 ix2
         mCgPaths :: Maybe [[CG.Function]]
         mCgPaths = (\(x, y) -> G.findSimplePaths x y cg) <$> fns
         mBnPaths :: Maybe [[Function]]
-        mBnPaths = (fmap . mapMaybe) ((`HMap.lookup` bnfuncs) . (^. CG.address)) <$> mCgPaths
+        mBnPaths = (fmap . mapMaybe) ((`HMap.lookup` bnfuncs) . (^. #address)) <$> mCgPaths
     
     callPathsAsPairs :: [[(Function, Function)]]
     callPathsAsPairs = pairs <$> callPaths

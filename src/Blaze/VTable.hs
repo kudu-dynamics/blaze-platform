@@ -2,12 +2,12 @@ module Blaze.VTable where
 
 import qualified Binja.Core as BN
 import Binja.Core (BNBinaryReader, BNBinaryView, getReaderPosition, read64, read8, seekBinaryReader, getViewAddressSize)
-import qualified Binja.Function as BF
+import qualified Binja.Function as BNFunc
 import Binja.Function (getFunctionStartingAt)
 import qualified Binja.Reference as BR
 import Binja.View (getDefaultReader)
 import Blaze.CallGraph (Function)
-import Blaze.Import.Source.BinaryNinja (convertFunction)
+import Blaze.Import.Source.BinaryNinja.CallGraph (convertFunction)
 import Blaze.Prelude
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.VTable as VTable
@@ -106,7 +106,7 @@ getVirtualFunctions_ initVptr = do
         (getFunctionAndUpdateReader (ctx ^. VTable.bv) readr (ctx ^. VTable.width))
   liftIO $ traverse (convertFunction (ctx ^. VTable.bv)) fs
   where
-    getFunctionAndUpdateReader :: BNBinaryView -> BNBinaryReader -> AddressWidth -> IO (Maybe BF.Function)
+    getFunctionAndUpdateReader :: BNBinaryView -> BNBinaryReader -> AddressWidth -> IO (Maybe BNFunc.Function)
     getFunctionAndUpdateReader bv br width = do
       currentPosition <- getReaderPosition br
       fAddr <- case width of
@@ -173,7 +173,7 @@ isVtable bv addr = do
   getViewAddressSize bv >>= \case
     (AddressWidth 64) -> BN.read64 readr >>= \case
       Nothing -> return False
-      Just ptr -> isJust <$> (BF.getFunctionStartingAt bv Nothing . Address . fromIntegral $ ptr :: IO (Maybe BF.Function))
+      Just ptr -> isJust <$> (BNFunc.getFunctionStartingAt bv Nothing . Address . fromIntegral $ ptr :: IO (Maybe BNFunc.Function))
     _ -> return False
 
 getVTables :: BNBinaryView -> [Address] -> IO [VTable]
@@ -182,5 +182,5 @@ getVTables bv = mapM (getVTable bv)
 getVTableRefs :: BNBinaryView -> VTable -> IO [BR.ReferenceSource]
 getVTableRefs bv = BR.getCodeReferences bv . (^. VTable.vptrAddress)
 
-getDeclarationRefs :: BNBinaryView -> (BF.Function, Pil.Stmt, VTable) -> IO [BR.ReferenceSource]
-getDeclarationRefs bv = BR.getCodeReferences bv . (^. (_1 . BF.start))
+getDeclarationRefs :: BNBinaryView -> (BNFunc.Function, Pil.Stmt, VTable) -> IO [BR.ReferenceSource]
+getDeclarationRefs bv = BR.getCodeReferences bv . (^. (_1 . BNFunc.start))

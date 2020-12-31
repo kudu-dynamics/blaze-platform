@@ -14,6 +14,8 @@ import Blaze.Prelude hiding (Symbol)
 import Blaze.Import.Source.BinaryNinja.Types
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as CallGraph
 import qualified Blaze.Import.Source.BinaryNinja.Cfg as Cfg
+import qualified Blaze.Import.Source.BinaryNinja.Pil as Pil
+import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
 
 newtype BNImporter
   = BNImporter
@@ -33,11 +35,12 @@ instance CfgImporter BNImporter NodeMap where
 
 
 instance PilImporter BNImporter where
-  getFuncStatements imp func = do
-    return undefined
+  getFuncStatements imp =
+    Pil.getFuncStatements (imp ^. #binaryView)
 
-  getPathStatements imp path = do
-    return undefined
+  getPathStatements imp =
+    Path.runConvertPath (imp ^. #binaryView)
+
 
 -- -- TODO: Have a proper Symbol type in BN bindings with fields already populated
 -- --       so that IO is not needed here

@@ -10,28 +10,30 @@ import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Function as Bf
 import qualified Blaze.Import.CallGraph as Cgi
 import qualified Blaze.Import.Source.BinaryNinja as Bni
+import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
+import Blaze.Import.Pil as Pili
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import qualified Blaze.Types.Graph.Alga as Ag
 import Blaze.Types.IndirectCallResolution (IndirectCall, ClassConstructor (ClassConstructor))
 import qualified Blaze.Types.IndirectCallResolution as Icr
 import qualified Blaze.VTable as VTable
 import Data.Tree
+import qualified Blaze.Import.Source.BinaryNinja.Pil as BNPil
 
 getIndirectCallSites :: BNBinaryView -> IO [IndirectCall]
 getIndirectCallSites bv = Func.getFunctions bv >>= Bf.getIndirectCallSites >>= traverse convertToIndirectCall
   where
     convertToIndirectCall :: (Func.Function, Bf.CallInstruction) -> IO IndirectCall
-    convertToIndirectCall (func, callInstr) = (`IndirectCall` callInstr) <$> Bni.convertFunction bv func
+    convertToIndirectCall (func, callInstr) = (`Icr.IndirectCall` callInstr) <$> BNCG.convertFunction bv func
 
-getConstructorsInFunction :: BNImporter -> Func.Function -> IO [ClassConstructor]
+getConstructorsInFunction :: BNImporter -> Cg.Function -> IO [ClassConstructor]
 getConstructorsInFunction imp fn = do
-  let bv = imp ^. Bni.binaryView
-  vtStores <- Bf.getStmtsForFunction imp fn >>= VTable.getVTableStores bv
-  cgFn <- Bni.convertFunction bv fn
-  return $ uncurry (ClassConstructor cgFn) <$> vtStores
+  let bv = imp ^. #binaryView
+  vtStores <- Pili.getFuncStatements imp fn >>= VTable.getVTableStores bv
+  return $ uncurry (ClassConstructor fn) <$> vtStores
 
 getConstructors :: BNImporter -> IO [ClassConstructor]
-getConstructors imp = Cgi.getFunctions imp >>= concatMapM (getConstructorsInFunction bv)
+getConstructors imp = Cgi.getFunctions imp >>= concatMapM (getConstructorsInFunction imp)
 
 getDirectedCg :: BNImporter -> IO Cg.CallGraph
 getDirectedCg imp = Cgi.getFunctions imp >>= Cg.getCallGraph imp
