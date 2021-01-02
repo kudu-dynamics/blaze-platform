@@ -18,7 +18,6 @@ import Blaze.Types.IndirectCallResolution (IndirectCall, ClassConstructor (Class
 import qualified Blaze.Types.IndirectCallResolution as Icr
 import qualified Blaze.VTable as VTable
 import Data.Tree
-import qualified Blaze.Import.Source.BinaryNinja.Pil as BNPil
 
 getIndirectCallSites :: BNBinaryView -> IO [IndirectCall]
 getIndirectCallSites bv = Func.getFunctions bv >>= Bf.getIndirectCallSites >>= traverse convertToIndirectCall

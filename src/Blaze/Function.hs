@@ -22,7 +22,6 @@ import Blaze.Types.Function as Exports
 import qualified Binja.BasicBlock as BB
 import qualified Binja.Function as BNFunc
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import qualified Blaze.Import.Source.BinaryNinja as BNI
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNICG
 import qualified Blaze.Import.Source.BinaryNinja.Pil as BNPil
 import qualified Blaze.Pil as Pil

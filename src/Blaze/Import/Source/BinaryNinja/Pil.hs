@@ -8,7 +8,7 @@ import qualified Prelude as P
 import Blaze.Pil as Pil
 import qualified Blaze.Types.Function as Func
 import qualified Data.BinaryAnalysis as BA
-import Binja.Function (Function, MLILSSAFunction)
+import Binja.Function (Function)
 import qualified Binja.Core as BN
 import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BNFunc
@@ -19,7 +19,6 @@ import Blaze.Types.Pil
   ( CallDest,
     CallOp (CallOp),
     Ctx(Ctx),
-    CtxIndex(CtxIndex),
     DefOp (DefOp),
     DefPhiOp (DefPhiOp),
     Expression (Expression),
@@ -42,24 +41,15 @@ import Blaze.Types.Pil
 
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import qualified Blaze.Types.Pil as Pil
-import qualified Blaze.Pil as Pil
 import Blaze.Import.Source.BinaryNinja.Types
 import qualified Blaze.Types.CallGraph as CG
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
-import Blaze.Import.Source.BinaryNinja.CallGraph (getCallDestAddr)
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
 import Blaze.Types.Function (CallInstruction)
-import Blaze.Pil.Analysis (getAllSyms)
-import Blaze.Types.Pil.Analysis (symbolGenerator)
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
-import Blaze.Import.Source.BinaryNinja.Types ( SSAVariableRef(SSAVariableRef)
-                                             , F
-                                             , ConverterState
-                                             )
-import Blaze.Pil (getLastDefined)
 import Blaze.Util.GenericConv (GConv, gconv)
 import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 
@@ -71,12 +61,12 @@ newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
 
 createStartCtx :: CG.Function -> Ctx
-createStartCtx func = Ctx func 0
+createStartCtx func' = Ctx func' 0
 
 -- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
 --       accepting a map from the user.
 mkConverterState :: BNBinaryView -> HashMap Text FuncInfo -> AddressWidth -> CG.Function -> AlgaPath -> ConverterState
-mkConverterState bv knownFuncDefs addrSize_ f p =
+mkConverterState bv knownFuncDefs_ addrSize_ f p =
   ConverterState
     p
     (startCtx ^. #ctxIndex)
@@ -85,7 +75,7 @@ mkConverterState bv knownFuncDefs addrSize_ f p =
     []
     HSet.empty
     HMap.empty
-    knownFuncDefs
+    knownFuncDefs_
     addrSize_
     (BA.bits addrSize_)
     bv
@@ -106,12 +96,12 @@ addessWidthToOperationSize (AddressWidth bits) =
 -- TODO: Should we throw an error if (v ^. BNVar.sourceType /= StackVariableSourceType)?
 varToStackLocalAddr :: Variable -> Converter Expression
 varToStackLocalAddr v = do
-  ctx <- use #ctx
-  addrSize <- addessWidthToOperationSize <$> use #addrSize
-  return $ Expression addrSize
+  ctx' <- use #ctx
+  addrSize' <- addessWidthToOperationSize <$> use #addrSize
+  return $ Expression addrSize'
     . Pil.STACK_LOCAL_ADDR
     . Pil.StackLocalAddrOp
-    . Pil.StackOffset ctx
+    . Pil.StackOffset ctx'
     . fromIntegral
     $ v ^. BNVar.storage
 
@@ -123,7 +113,6 @@ typeWidthToOperationSize (BNVar.TypeWidth n) = Pil.OperationSize n
 
 convertExpr :: MLIL.Expression t -> Converter Expression
 convertExpr expr = do
-  ctx <- use #ctx
   case expr ^. MLIL.op of
     (MLIL.ADC x) -> mkExpr . Pil.ADC <$> f x
     (MLIL.ADD x) -> mkExpr . Pil.ADD <$> f x
@@ -259,12 +248,22 @@ convertExpr expr = do
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
 
+convertToBinjaFunction :: CG.Function -> Converter (Maybe BNFunc.Function)
+convertToBinjaFunction cgFunc = do
+  bv <- use #binaryView
+  liftIO $ BNCG.toBinjaFunction bv cgFunc
+
+unsafeConvertToBinjaFunction :: CG.Function -> Converter BNFunc.Function
+unsafeConvertToBinjaFunction cgFunc = convertToBinjaFunction cgFunc >>= maybe err return
+  where
+    err = P.error $ "Could not convert to Binja Func: " <> show cgFunc
+
 convertToPilVar :: MLIL.SSAVariable -> Converter PilVar
 convertToPilVar v = do
-  ctx <- use #ctx
-  bnfunc <- undefined $ ctx ^. #func
-  let sourceVar = SSAVariableRef v bnfunc (ctx ^. #ctxIndex)
-      pilVar = PilVar (getSymbol v) (Just ctx)
+  ctx' <- use #ctx
+  bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
+  let sourceVar = SSAVariableRef v bnfunc (ctx' ^. #ctxIndex)
+      pilVar = PilVar (getSymbol v) (Just ctx')
   #sourceVars %= HMap.insert pilVar sourceVar
   return pilVar
 
@@ -276,7 +275,6 @@ convertToPilVarAndLog v = do
 
 convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Converter [Statement Expression]
 convertInstrOp op' = do
-  ctx <- use #ctx
   defVarSize <- use #defaultVarSize
   case op' of
     (MLIL.SET_VAR_SSA x) -> do
@@ -411,8 +409,8 @@ convertCallInstruction c = do
   target <- Pil.mkCallDest <$> convertExpr (fromJust (c ^. #dest))
   params <- sequence [convertExpr p | p <- c ^. #params]
   
-  ctx <- use #ctx
-  bnfunc <- undefined $ ctx ^. #func
+  ctx' <- use #ctx
+  bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
   mname <- liftIO $ getCallDestFunctionName bnfunc target
 
   -- getFuncName_ <- use #getFuncName
@@ -469,5 +467,3 @@ getFuncStatementsIndexed bv func' = do
 
 getFuncStatements :: BNBinaryView -> CG.Function -> IO [Stmt]
 getFuncStatements bv func' = fmap snd <$> getFuncStatementsIndexed bv func'
-
--- getPathStatements :: a -> Path -> IO [Stmt]

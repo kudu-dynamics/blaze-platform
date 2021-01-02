@@ -23,9 +23,10 @@ module Blaze.Prelude
   , hdebug
   , twaddleUUID
   , unfoldWhileJustM
+  , unsafeFromRight
   ) where
 
---import qualified Prelude as P
+import qualified Prelude as P
 
 --import Data.Typeable as Exports
 
@@ -111,7 +112,6 @@ import Prelude as Exports
     head,
     error,
   )
-import qualified GHC.Show
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 
@@ -208,3 +208,8 @@ newtype PShow a = PShow a
 
 instance Show a => Show (PShow a) where
   show (PShow x) = cs $ pshow x
+
+unsafeFromRight :: Either a b -> b
+unsafeFromRight = \case
+  Left _ -> P.error "unsafeFromRight: got Left"
+  Right x -> x
