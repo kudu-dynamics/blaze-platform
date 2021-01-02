@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Cfg.Loop where
 
 import Blaze.Prelude

@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Cfg where
 
 import qualified Blaze.Graph as Graph
@@ -92,7 +90,7 @@ instance Graph BranchType CfNode (Cfg a) where
   addNodes nodes = over #graph $ Graph.addNodes nodes
   addEdge lblEdge = over #graph $ Graph.addEdge lblEdge
   hasNode node = Graph.hasNode node . view #graph
-  transpose = over #graph $ Graph.transpose
+  transpose = over #graph Graph.transpose
   bfs startNodes = Graph.bfs startNodes . view #graph
 
   -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?

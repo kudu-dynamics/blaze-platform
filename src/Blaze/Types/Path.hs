@@ -1,5 +1,4 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Blaze.Types.Path where
 

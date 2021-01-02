@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Types.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)

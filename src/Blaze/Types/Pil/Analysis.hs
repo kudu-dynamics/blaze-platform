@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Pil.Analysis where
 
 import Blaze.Prelude hiding (Symbol)

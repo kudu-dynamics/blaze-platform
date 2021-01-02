@@ -1,3 +1,4 @@
+{- HLINT ignore "Use newtype instead of data" -}
 module Blaze.Types.Pil.Op.IntToFloatOp where
 
 -- This module is generated. Please use app/gen_pil_ops/Main.hs to modify.

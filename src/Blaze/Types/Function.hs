@@ -1,6 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
-
 -- todo: most this to binja converter dir
 module Blaze.Types.Function where
 

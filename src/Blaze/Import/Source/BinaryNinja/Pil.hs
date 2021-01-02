@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Import.Source.BinaryNinja.Pil where
 
 import Blaze.Prelude hiding (Symbol)
@@ -14,7 +12,6 @@ import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 -- import Blaze.Import.Pil
-import Blaze.Types.Function (FuncInfo)
 import Blaze.Types.Pil
   ( CallDest,
     CallOp (CallOp),
@@ -47,7 +44,7 @@ import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
-import Blaze.Types.Function (CallInstruction)
+import Blaze.Types.Function (CallInstruction, FuncInfo)
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 import Blaze.Util.GenericConv (GConv, gconv)

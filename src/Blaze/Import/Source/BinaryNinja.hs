@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Import.Source.BinaryNinja (
   module Blaze.Import.Source.BinaryNinja,
 --  module Exports,
