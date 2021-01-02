@@ -16,6 +16,7 @@ import qualified Blaze.Import.Source.BinaryNinja.CallGraph as CallGraph
 import qualified Blaze.Import.Source.BinaryNinja.Cfg as Cfg
 import qualified Blaze.Import.Source.BinaryNinja.Pil as Pil
 import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
+import qualified Binja.MLIL as Mlil
 
 newtype BNImporter
   = BNImporter

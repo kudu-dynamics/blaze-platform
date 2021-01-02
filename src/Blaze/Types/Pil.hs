@@ -268,7 +268,7 @@ mkCallStatement stmt' = case stmt' of
   _ ->
     Nothing
 
-mkCallDest :: HasField' "op" Expression (ExprOp Expression) => Expression -> CallDest Expression
+mkCallDest :: HasField' "op" expr (ExprOp expr) => expr -> CallDest expr
 mkCallDest x = case x ^. #op of
   (CONST_PTR c) -> CallConstPtr c
   _ -> CallExpr x
