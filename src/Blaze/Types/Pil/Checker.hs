@@ -81,9 +81,9 @@ data DeepSymType = DSVar Sym
 --joinDeepSymTypes :: DeepSymType -> DeepSymType -> DeepSymType
 
 data Constraint = Constraint
-  { _stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
-  , _sym :: Sym
-  , _symType :: SymType
+  { stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
+  , sym :: Sym
+  , symType :: SymType
   } deriving (Eq, Ord, Show, Generic)
 
 -- | solutions should be the "final unification" for any sym.
@@ -131,10 +131,10 @@ data UnifyError t = UnifyError (PilType t) (PilType t) (UnifyError t)
                   deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
 
 data UnifyConstraintsError t = UnifyConstraintsError
-                               { _stmtOrigin  :: Int
+                               { stmtOrigin  :: Int
                                --index in list of pil stmts for now
-                               , _sym :: Sym
-                               , _error :: UnifyError t
+                               , sym :: Sym
+                               , error :: UnifyError t
                                } deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
 
 type EqualityMap a = HashMap a (HashSet a)
