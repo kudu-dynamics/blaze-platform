@@ -19,7 +19,6 @@ import qualified Data.Text as Text
 
 import Blaze.Types.Pil.Checker hiding (params, ret)
 import Blaze.Pil.Function (mkCallTarget)
-import qualified Blaze.Types.Pil.Function as Func
 
 
 constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
@@ -30,9 +29,9 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
       sizeSz <- CSVar <$> newSym
       let ptrWidth = sz'
       return . Just $
-        [ ( s ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
-        , ( size' ^. info . sym, CSType . TInt sizeSz . CSType $ TVSign True )
-        , ( stream ^. info . sym, CSType $ TPointer ptrWidth (CSType TChar) )
+        [ ( s ^. #info . #sym, CSType $ TPointer ptrWidth (CSType TChar) )
+        , ( size' ^. #info . #sym, CSType . TInt sizeSz . CSType $ TVSign True )
+        , ( stream ^. #info . #sym, CSType $ TPointer ptrWidth (CSType TChar) )
         , ( r, CSType $ TPointer ptrWidth (CSType TChar) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
@@ -41,8 +40,8 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
       ptrWidth <- CSVar <$> newSym
       let ptr = CSType . TPointer ptrWidth
       return . Just $
-        [ ( strp ^. info . sym, ptr . ptr . CSType $ TChar )
-        , ( fmt ^. info . sym, ptr . CSType $ TChar)
+        [ ( strp ^. #info . #sym, ptr . ptr . CSType $ TChar )
+        , ( fmt ^. #info . #sym, ptr . CSType $ TChar)
         , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
@@ -53,8 +52,8 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
       let str = CSType . TPointer ptrWidth $ CSType TChar
 
       return . Just $
-        [ ( a ^. info . sym, str )
-        , ( b ^. info . sym, str )
+        [ ( a ^. #info . #sym, str )
+        , ( b ^. #info . #sym, str )
         , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
@@ -71,19 +70,19 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
 
 getStackOffsetSym :: StackOffset -> ConstraintGen Sym
 getStackOffsetSym k = do
-  m <- use stackAddrSymMap
+  m <- use #stackAddrSymMap
   case HashMap.lookup k m of
     Nothing -> do
       s <- newSym
-      stackAddrSymMap %= HashMap.insert k s
+      #stackAddrSymMap %= HashMap.insert k s
       return s
     Just s -> return s
 
 addVarSym :: PilVar -> Sym -> ConstraintGen ()
-addVarSym pv s = varSymMap %= HashMap.insert pv s
+addVarSym pv s = #varSymMap %= HashMap.insert pv s
 
 addFuncSym :: FuncVar SymExpression -> Sym -> ConstraintGen ()
-addFuncSym fv s = funcSymMap %= HashMap.insert fv s
+addFuncSym fv s = #funcSymMap %= HashMap.insert fv s
 
 incrementSym :: Sym -> Sym
 incrementSym (Sym n) = Sym $ n + 1
@@ -91,8 +90,8 @@ incrementSym (Sym n) = Sym $ n + 1
 -- | Creates new, unused Sym
 newSym :: ConstraintGen Sym
 newSym = do
-  x <- use currentSym
-  currentSym %= incrementSym
+  x <- use #currentSym
+  #currentSym %= incrementSym
   return x
 
 -- | Get the type symbol associated with a 'PilVar'.
@@ -100,7 +99,7 @@ newSym = do
 -- is added to the map and the new 'Sym' value is returned.
 lookupVarSym :: PilVar -> ConstraintGen Sym
 lookupVarSym pv = do
-  vsm <- use varSymMap
+  vsm <- use #varSymMap
   case HashMap.lookup pv vsm of
     Nothing -> do
       s <- newSym
@@ -113,7 +112,7 @@ lookupVarSym pv = do
 -- is added to the map and the new 'Sym' value is returned.
 lookupFuncSym :: FuncVar SymExpression -> ConstraintGen Sym
 lookupFuncSym fvar = do
-  fsm <- use funcSymMap
+  fsm <- use #funcSymMap
   case HashMap.lookup fvar fsm of
     Nothing -> do
       s <- newSym
@@ -123,13 +122,13 @@ lookupFuncSym fvar = do
 
 lookupSymExpr :: Sym -> ConstraintGen SymExpression
 lookupSymExpr sym' = do
-  m <- use symMap
+  m <- use #symMap
   case HashMap.lookup sym' m of
     Nothing -> throwError CannotFindSymInSymMap
     Just x -> return x
 
 addSymExpression :: Sym -> SymExpression -> ConstraintGen ()
-addSymExpression sym' x = symMap %= HashMap.insert sym' x
+addSymExpression sym' x = #symMap %= HashMap.insert sym' x
 
 byteOffsetToBitOffset :: ByteOffset -> BitOffset
 byteOffsetToBitOffset (ByteOffset n) = BitOffset $ n * 8
@@ -154,7 +153,7 @@ addConstraints = mapM_ addConstraint
 -- | Generates constraints for all immediate syms in SymExpression.
 -- does not get constraints of children exprs.
 addExprTypeConstraints :: SymExpression -> ConstraintGen ()
-addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
+addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ADC x -> integralBinOpFirstArgIsReturn Nothing True x >> addCarryConstraint x
   Pil.ADD x -> integralBinOpFirstArgIsReturn Nothing True x
 
@@ -168,7 +167,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
 
   Pil.BOOL_TO_INT x -> ret
     [ (r, CSType $ TBitVector sz')
-    , (x ^. Pil.src . info . sym, CSType TBool)
+    , (x ^. #src . #info . #sym, CSType TBool)
     ]
 
   -- TODO get most general type for this and args:
@@ -176,9 +175,9 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     let callTgt = mkCallTarget x
         -- Create the FuncVars for parameters
         argFuncVars = FuncParam callTgt . ParamPosition <$> 
-          [1..(callTgt ^. Func.numArgs)]
+          [1..(callTgt ^. #numArgs)]
     argFuncSyms <- traverse lookupFuncSym argFuncVars
-    let callArgSyms = view (info . sym) <$> x ^. Pil.params
+    let callArgSyms = view (#info . #sym) <$> x ^. #params
     -- Set symbols for call args and function params to be equal
     zipWithM_ equals argFuncSyms callArgSyms
     -- Set constraint for return value from call target
@@ -216,7 +215,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     ret [(r, CSType . TPointer sz'
            . CSType $ TArray
            ( CSType . TVLength . fromIntegral . Text.length
-             $ x ^. Pil.value )
+             $ x ^. #value )
            ( CSType TChar ))]
 
   -- Don't remember if this is correct, or the above
@@ -246,17 +245,17 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     fieldType <- CSVar <$> newSym
     let recType = CSType . TRecord . HashMap.fromList $
           -- for now, assuming all offsets are positive...
-          [ (byteOffsetToBitOffset $ x ^. Pil.offset, fieldType) ]
+          [ (byteOffsetToBitOffset $ x ^. #offset, fieldType) ]
     ret [ ( r, CSType $ TPointer sz' fieldType )
-        , ( x ^. Pil.baseAddr . info . sym, CSType $ TPointer sz' recType )
+        , ( x ^. #baseAddr . #info . #sym, CSType $ TPointer sz' recType )
         ]
 
-  Pil.FLOAT_CONST _ -> retFloat
+  Pil.CONST_FLOAT _ -> retFloat
 
 -- TODO: should there be a link between sz of bitvec and sz of float?
   Pil.FLOAT_CONV x -> do
     bvWidth <- CSVar <$> newSym
-    ret [ ( x ^. Pil.src . info . sym, CSType $ TBitVector bvWidth )
+    ret [ ( x ^. #src . #info . #sym, CSType $ TBitVector bvWidth )
         , ( r, CSType $ TFloat sz' )
         ]
   Pil.FLOAT_TO_INT x -> floatToInt x
@@ -276,7 +275,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   Pil.LOAD x -> do
     ptrWidth <- CSVar <$> newSym
     ptrType <- CSVar <$> newSym
-    ret [ ( x ^. Pil.src . info . sym, CSType $ TPointer ptrWidth ptrType )
+    ret [ ( x ^. #src . #info . #sym, CSType $ TPointer ptrWidth ptrType )
         , ( r, ptrType )
         , ( r, CSType $ TBitVector sz' )
         ]
@@ -318,7 +317,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   -- NOT is either Bool -> Bool or BitVec -> BitVec
   -- but no way to express that without typeclasses
   -- so it's just constrained as `a -> a`
-  Pil.NOT x -> ret [(r, CSVar $ x ^. Pil.src . info . sym)]
+  Pil.NOT x -> ret [(r, CSVar $ x ^. #src . #info . #sym)]
     -- bitVectorUnOp x
 
   Pil.OR x -> bitVectorBinOp x
@@ -338,7 +337,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   -- should this somehow be linked to the type of the stack var?
   -- its type could change every Store.
   Pil.STACK_LOCAL_ADDR x -> do
-    s <- getStackOffsetSym $ x ^. Pil.stackOffset
+    s <- getStackOffsetSym $ x ^. #stackOffset
     ret [ (r, CSType $ TPointer sz' (CSVar s)) ]
 
   Pil.SUB x -> integralBinOpFirstArgIsReturn (Just True) True x
@@ -347,14 +346,14 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
   Pil.TEST_BIT _ -> retBool -- ? tests if bit in int is on or off
   Pil.UNIMPL _ -> ret [ (r, CSType $ TBitVector sz' ) ]
   Pil.UPDATE_VAR x -> do
-    v <- lookupVarSym $ x ^. Pil.dest
+    v <- lookupVarSym $ x ^. #dest
     -- How should src and dest be related?
     -- Can't express that `offset + width(src) == width(dest)`
     --  without `+` and `==` as type level operators.
     ret [ (r, CSVar v) ]
 
   Pil.VAR x -> do
-    v <- lookupVarSym $ x ^. Pil.src
+    v <- lookupVarSym $ x ^. #src
     ret [ (r, CSVar v)
         , (v, CSType $ TBitVector sz')
         ]
@@ -363,8 +362,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
     ret [ (r, CSType $ TBitVector sz') ]
 
   Pil.VAR_JOIN x -> do
-    low <- lookupVarSym $ x ^. Pil.low
-    high <- lookupVarSym $ x ^. Pil.high
+    low <- lookupVarSym $ x ^. #low
+    high <- lookupVarSym $ x ^. #high
     ret [ (r, CSType $ TBitVector sz')
         , (low, CSType $ TBitVector halfsz')
         , (high, CSType $ TBitVector halfsz')
@@ -375,7 +374,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
 --   -- _ -> unknown
 
 --   Extract _ -> bitvecRet
-  _ -> P.error . show $ op
+  _ -> P.error . show $ op'
     --throwError UnhandledExpr
   where
     ret = addConstraints
@@ -391,28 +390,28 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       pt <- newSym
       ret [ (r, CSType (TPointer sz' (CSVar pt))) ]
 
-    addCarryConstraint :: (Pil.HasCarry x SymExpression) => x -> ConstraintGen ()
+    addCarryConstraint :: (HasField' "carry" x SymExpression) => x -> ConstraintGen ()
     addCarryConstraint x =
-      ret [ (x ^. Pil.carry . info . sym, CSType TBool) ]
+      ret [ (x ^. field' @"carry" . #info . #sym, CSType TBool) ]
 
-    bitVectorBinOp :: ( Pil.HasLeft x SymExpression
-                      , Pil.HasRight x SymExpression)
+    bitVectorBinOp :: ( HasField' "left" x SymExpression
+                      , HasField' "right" x SymExpression)
                    => x -> ConstraintGen ()
     bitVectorBinOp x =
       ret [ (r, CSType $ TBitVector sz')
-          , (r, CSVar $ x ^. Pil.left . info . sym)
-          , (r, CSVar $ x ^. Pil.right . info . sym)
+          , (r, CSVar $ x ^. field' @"left" . #info . #sym)
+          , (r, CSVar $ x ^. field' @"right" . #info . #sym)
           ]
 
-    integralExtendOp :: (Pil.HasSrc x SymExpression) => x -> ConstraintGen ()
+    integralExtendOp :: (HasField' "src" x SymExpression) => x -> ConstraintGen ()
     integralExtendOp x = do
       argSizeType <- CSVar <$> newSym
       signednessType <- CSVar <$> newSym
       ret [ (r, CSType $ TInt sz' signednessType)
-          , (x ^. Pil.src . info . sym, CSType $ TInt argSizeType signednessType)
+          , (x ^. field' @"src" . #info . #sym, CSType $ TInt argSizeType signednessType)
           ]
 
-    integralUnOp :: (Pil.HasSrc x SymExpression)
+    integralUnOp :: (HasField' "src" x SymExpression)
                  => Maybe Bool
                  -> x
                  -> ConstraintGen ()
@@ -421,11 +420,11 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
         Nothing -> CSVar <$> newSym
         Just b -> return . CSType . TVSign $ b
       ret [ (r, CSType (TInt sz' signednessType))
-          , (r, CSVar $ x ^. Pil.src . info . sym)
+          , (r, CSVar $ x ^. field' @"src" . #info . #sym)
           ]
 
-    integralBinOpFirstArgIsReturn :: ( Pil.HasLeft x SymExpression
-                                     , Pil.HasRight x SymExpression)
+    integralBinOpFirstArgIsReturn :: ( HasField' "left" x SymExpression
+                                     , HasField' "right" x SymExpression)
                                   => Maybe Bool -> Bool -> x
                                   -> ConstraintGen ()
     integralBinOpFirstArgIsReturn mSignedness secondArgSameWidth x = do
@@ -435,12 +434,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       arg2Sign <- CSVar <$> newSym
       secondArgWidth <- bool (CSVar <$> newSym) (return sz') secondArgSameWidth
       ret [ (r, CSType (TInt sz' signednessType))
-          , (r, CSVar $ x ^. Pil.left . info . sym)
-          , (x ^. Pil.right . info . sym, CSType $ TInt secondArgWidth arg2Sign)
+          , (r, CSVar $ x ^. field' @"left" . #info . #sym)
+          , (x ^. field' @"right" . #info . #sym, CSType $ TInt secondArgWidth arg2Sign)
           ]
 
-    mulDP :: ( Pil.HasLeft x SymExpression
-             , Pil.HasRight x SymExpression)
+    mulDP :: ( HasField' "left" x SymExpression
+             , HasField' "right" x SymExpression)
           => Bool
           -> x
           -> ConstraintGen ()
@@ -448,12 +447,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       let retSignednessType = CSType . TVSign $ signedness
       rightSignedness <- CSVar <$> newSym
       ret [ (r, CSType (TInt sz' retSignednessType))
-          , (x ^. Pil.left . info . sym, CSType $ TInt halfsz' retSignednessType)
-          , (x ^. Pil.right . info . sym, CSType $ TInt halfsz' rightSignedness)
+          , (x ^. field' @"left" . #info . #sym, CSType $ TInt halfsz' retSignednessType)
+          , (x ^. field' @"right" . #info . #sym, CSType $ TInt halfsz' rightSignedness)
           ]
 
-    divOrModDP :: ( Pil.HasLeft x SymExpression
-                  , Pil.HasRight x SymExpression)
+    divOrModDP :: ( HasField' "left" x SymExpression
+                  , HasField' "right" x SymExpression)
                => Bool
                -> x
                -> ConstraintGen ()
@@ -461,12 +460,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       let retSignednessType = CSType . TVSign $ signedness
       rightSignedness <- CSVar <$> newSym
       ret [ (r, CSType (TInt sz' retSignednessType))
-          , (x ^. Pil.left . info . sym, CSType $ TInt sz2x' retSignednessType)
-          , (x ^. Pil.right . info . sym, CSType $ TInt sz' rightSignedness)
+          , (x ^. field' @"left" . #info . #sym, CSType $ TInt sz2x' retSignednessType)
+          , (x ^. field' @"right" . #info . #sym, CSType $ TInt sz' rightSignedness)
           ]
 
-    integralBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
-                                , Pil.HasRight x SymExpression )
+    integralBinOpReturnsBool :: ( HasField' "left" x SymExpression
+                                , HasField' "right" x SymExpression )
                              => x
                              -> ConstraintGen ()
     integralBinOpReturnsBool x = do
@@ -475,12 +474,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       argSignSym <- newSym
       let argType = CSType (TInt (CSVar argWidthSym) (CSVar argSignSym))
       ret [ ( r, b )
-          , ( x ^. Pil.left . info . sym, argType )
-          , ( x ^. Pil.right . info . sym, argType )
+          , ( x ^. field' @"left" . #info . #sym, argType )
+          , ( x ^. field' @"right". #info . #sym, argType )
           ]
 
-    signedBinOpReturnsBool :: ( Pil.HasLeft x SymExpression
-                              , Pil.HasRight x SymExpression )
+    signedBinOpReturnsBool :: ( HasField' "left" x SymExpression
+                              , HasField' "right" x SymExpression )
                            => Bool
                            -> x
                            -> ConstraintGen ()
@@ -488,50 +487,50 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       b <- getBoolRet
       argWidthSym <- newSym
       ret [ (r, b)
-          , (x ^. Pil.left . info . sym, CSType (TInt (CSVar argWidthSym) (CSType $ TVSign isSignedBool)))
-          , (x ^. Pil.right . info . sym, CSType (TInt (CSVar argWidthSym) (CSType $ TVSign isSignedBool)))
+          , (x ^. field' @"left". #info . #sym, CSType (TInt (CSVar argWidthSym) (CSType $ TVSign isSignedBool)))
+          , (x ^. field' @"right" . #info . #sym, CSType (TInt (CSVar argWidthSym) (CSType $ TVSign isSignedBool)))
           ]
 
-    intToFloat :: (Pil.HasSrc x SymExpression)
+    intToFloat :: (HasField' "src" x SymExpression)
                => x
                -> ConstraintGen ()
     intToFloat x = do
       intWidth <- CSVar <$> newSym
       intSign <- CSVar <$> newSym
-      ret [ ( x ^. Pil.src . info . sym, CSType $ TInt intWidth intSign )
+      ret [ ( x ^. field' @"src" . #info . #sym, CSType $ TInt intWidth intSign )
           , ( r, CSType $ TFloat sz' )
           ]
 
 
-    floatToInt :: (Pil.HasSrc x SymExpression)
+    floatToInt :: (HasField' "src" x SymExpression)
                => x
                -> ConstraintGen ()
     floatToInt x = do
       floatWidth <- CSVar <$> newSym
       intSign <- CSVar <$> newSym
-      ret [ ( x ^. Pil.src . info . sym, CSType $ TFloat floatWidth )
+      ret [ ( x ^. field' @"src" . #info . #sym, CSType $ TFloat floatWidth )
           , ( r, CSType $ TInt sz' intSign )
           ]
 
-    floatBinOp :: ( Pil.HasLeft x SymExpression
-                  , Pil.HasRight x SymExpression )
+    floatBinOp :: ( HasField' "left" x SymExpression
+                  , HasField' "right" x SymExpression )
                => x
                -> ConstraintGen ()
     floatBinOp x = do
       ret [ (r, CSType (TFloat sz'))
-          , (r, CSVar $ x ^. Pil.left . info . sym)
-          , (r, CSVar $ x ^. Pil.right . info . sym)
+          , (r, CSVar $ x ^. field' @"left" . #info . #sym)
+          , (r, CSVar $ x ^. field' @"right" . #info . #sym)
           ]
 
-    floatUnOp :: (Pil.HasSrc x SymExpression)
+    floatUnOp :: (HasField' "src" x SymExpression)
               => x
               -> ConstraintGen ()
     floatUnOp x = do
       ret [ (r, CSType (TFloat sz'))
-          , (r, CSVar $ x ^. Pil.src . info . sym)
+          , (r, CSVar $ x ^. field' @"src" . #info . #sym)
           ]
 
-    floatBinOpReturnsBool :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
+    floatBinOpReturnsBool :: (HasField' "left" x SymExpression, HasField' "right" x SymExpression)
                           => x
                           -> ConstraintGen ()
     floatBinOpReturnsBool x = do
@@ -539,11 +538,11 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       argWidthSym <- newSym
       let argType = CSType (TFloat $ CSVar argWidthSym)
       ret [ ( r, b )
-          , ( x ^. Pil.left . info . sym, argType )
-          , ( x ^. Pil.right . info . sym, argType )
+          , ( x ^. field' @"left" . #info . #sym, argType )
+          , ( x ^. field' @"right" . #info . #sym, argType )
           ]
 
-    integralFirstArgIsReturn :: (Pil.HasLeft x SymExpression, Pil.HasRight x SymExpression)
+    integralFirstArgIsReturn :: (HasField' "left" x SymExpression, HasField' "right" x SymExpression)
                              => x
                              -> ConstraintGen ()
     integralFirstArgIsReturn x = do
@@ -552,8 +551,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op) = case op of
       intSign <- CSVar <$> newSym
       shifterSign <- CSVar <$> newSym
       let n = CSType $ TInt intWidth intSign
-      ret [ ( x ^. Pil.left . info . sym, n )
-          , ( x ^. Pil.right . info . sym
+      ret [ ( x ^. field' @"left". #info . #sym, n )
+          , ( x ^. field' @"right" . #info . #sym
             , CSType $ TInt shifterWidth shifterSign )
           , ( r, n )
           ]
@@ -589,22 +588,22 @@ addStmtTypeConstraints :: Statement Expression
                        -> ConstraintGen (Statement SymExpression)
 addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   symExpr <- toSymExpression expr
-  let exprSym = symExpr ^. info . sym
+  let exprSym = symExpr ^. #info . #sym
   pvSym <- lookupVarSym pv
   addAllExprTypeConstraints symExpr
   equals pvSym exprSym
   return $ Pil.Def (Pil.DefOp pv symExpr)
 addStmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   symExpr <- toSymExpression expr
-  let exprSym = symExpr ^. info . sym
+  let exprSym = symExpr ^. #info . #sym
   addAllExprTypeConstraints symExpr
   assignType exprSym TBool
   return $ Pil.Constraint (Pil.ConstraintOp symExpr)
 addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
   symValExpr <- toSymExpression valExpr
-  let symAddr = symAddrExpr ^. info . sym
-      symVal = symValExpr ^. info . sym
+  let symAddr = symAddrExpr ^. #info . #sym
+      symVal = symValExpr ^. #info . #sym
   addAllExprTypeConstraints symAddrExpr
   addAllExprTypeConstraints symValExpr
   ptrWidth <- newSym

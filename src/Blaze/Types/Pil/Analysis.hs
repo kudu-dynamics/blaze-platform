@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Pil.Analysis where
 
 import Blaze.Prelude hiding (Symbol)
@@ -16,17 +14,17 @@ import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
 data MemEquivGroup = MemEquivGroup
-  { _memEquivGroupStore :: Maybe StoreStmt,
-    _memEquivGroupStorage :: MemStorage,
+  { store :: Maybe StoreStmt
+  , storage :: MemStorage
     -- There may be multiple LoadStmt instances for a single
     -- statement if that statement includes multiple matching
     -- load expressions.
     -- E.g.: def x [load]
-    _memEquivGroupDefLoads :: [DefLoadStmt],
+  , defLoads :: [DefLoadStmt]
     -- Any stmt with nested load, excluding Def-Load statements, but
     -- including store statements.
     -- If there are n loads in a single stmt, there will be n LoadStmts.
-    _memEquivGroupLoads :: [LoadStmt]
+  , loads :: [LoadStmt]
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -39,36 +37,36 @@ type Index = Int
 type MemAddr = Expression
 
 data MemStorage = MemStorage
-  { _memStorageStart :: MemAddr,
-    _memStorageWidth :: Bits
+  { start :: MemAddr
+  , width :: Bits
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable MemStorage
 
 data StoreStmt = StoreStmt
-  { _storeStmtStmt :: Stmt,
-    _storeStmtOp :: Pil.StoreOp Expression,
-    _storeStmtStorage :: MemStorage,
-    _storeStmtIndex :: Index
+  { stmt :: Stmt
+  , op :: Pil.StoreOp Expression
+  , storage :: MemStorage
+  , index :: Index
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable StoreStmt
 
 data LoadStmt = LoadStmt
-  { _loadStmtStmt :: Stmt,
-    _loadStmtLoadExpr :: LoadExpr,
-    _loadStmtStorage :: MemStorage,
-    _loadStmtIndex :: Index
+  { stmt :: Stmt
+  , loadExpr :: LoadExpr
+  , storage :: MemStorage
+  , index :: Index
   }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable LoadStmt
 
 data DefLoadStmt = DefLoadStmt
-  { _defLoadStmtVar :: PilVar,
-    _defLoadStmtLoadStmt :: LoadStmt
+  { var :: PilVar
+  , loadStmt :: LoadStmt
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -86,7 +84,7 @@ instance Hashable MemStmt
 -- Need the expression in order to include the size of the value being loaded
 -- from memory. NB: We don't need the same for StoreOp/Store because the size
 -- of the store is inferred from the value to be written. Is that a safe assumption?
-newtype LoadExpr = LoadExpr {_loadExprExpr :: Expression}
+newtype LoadExpr = LoadExpr {expr :: Expression}
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable LoadExpr
@@ -100,15 +98,13 @@ instance Hashable ConstLoadExpr
 type EqMap a = HashMap a a
 
 data AnalysisState = AnalysisState
-  { _newSymbols :: [Symbol]
-  , _varEqMap :: Maybe (EqMap PilVar) -- putVarEqMap
-  , _originMap :: Maybe (EqMap PilVar) --putOriginMap
-  , _fieldBaseAddrs :: HashSet Expression
-  , _arrayBaseAddrs :: HashSet Expression
+  { newSymbols :: [Symbol]
+  , varEqMap :: Maybe (EqMap PilVar) -- putVarEqMap
+  , originMap :: Maybe (EqMap PilVar) --putOriginMap
+  , fieldBaseAddrs :: HashSet Expression
+  , arrayBaseAddrs :: HashSet Expression
   }
-  deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''AnalysisState)
+  deriving (Eq, Ord, Show, Generic)
 
 emptyAnalysisState :: AnalysisState
 emptyAnalysisState = AnalysisState
@@ -128,8 +124,8 @@ newtype Analysis a = Analysis {_runAnalysis :: State AnalysisState a}
 
 newSym :: Analysis Symbol
 newSym = do
-  slist <- use newSymbols
-  newSymbols %= drop 1
+  slist <- use #newSymbols
+  #newSymbols %= drop 1
   return . maybe "RAN_OUT_OF_SYMBOLS" identity . headMay $ slist
 
 runAnalysisWithState :: Analysis a -> AnalysisState -> (a, AnalysisState)
@@ -140,7 +136,7 @@ runAnalysis :: Analysis a -> HashSet Symbol -> a
 runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
   where
     s = emptyAnalysisState
-        & newSymbols .~ symbolGenerator usedSymbols 
+        & #newSymbols .~ symbolGenerator usedSymbols 
 
 runAnalysis_ :: Analysis a -> a
 runAnalysis_ = flip evalState s . _runAnalysis
@@ -161,10 +157,3 @@ symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
       [ Text.pack [a, b, c] | a <- letters, b <- letters, c <- letters
       ]
 
-
-$(makeFields ''StoreStmt)
-$(makeFields ''LoadStmt)
-$(makeFields ''DefLoadStmt)
-$(makeFields ''MemEquivGroup)
-$(makeFields ''MemStorage)
-$(makeFields ''LoadExpr)

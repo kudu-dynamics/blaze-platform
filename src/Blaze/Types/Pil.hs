@@ -1,312 +1,13 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Pil
-  ( module Exports,
-    module Blaze.Types.Pil,
-  )
-where
+  ( module Exports
+  , module Blaze.Types.Pil
+  ) where
 
-import Binja.MLIL as Exports
-  ( AdcOp (AdcOp),
-    AddOp (AddOp),
-    AddOverflowOp (AddOverflowOp),
-    AndOp (AndOp),
-    AsrOp (AsrOp),
-    BoolToIntOp (BoolToIntOp),
-    BpOp (BpOp),
-    CallOutputOp (CallOutputOp),
-    CallOutputSSAOp (CallOutputSSAOp),
-    CallParamOp (CallParamOp),
-    CallParamSSAOp (CallParamSSAOp),
-    CallSSAOp (CallSSAOp),
-    CallUntypedOp (CallUntypedOp),
-    CallUntypedSSAOp (CallUntypedSSAOp),
-    CeilOp (CeilOp),
-    CmpEOp (CmpEOp),
-    CmpNeOp (CmpNeOp),
-    CmpSgeOp (CmpSgeOp),
-    CmpSgtOp (CmpSgtOp),
-    CmpSleOp (CmpSleOp),
-    CmpSltOp (CmpSltOp),
-    CmpUgeOp (CmpUgeOp),
-    CmpUgtOp (CmpUgtOp),
-    CmpUleOp (CmpUleOp),
-    CmpUltOp (CmpUltOp),
-    ConstOp (ConstOp),
-    ConstPtrOp (ConstPtrOp),
-    DivsDpOp (DivsDpOp),
-    DivsOp (DivsOp),
-    DivuDpOp (DivuDpOp),
-    DivuOp (DivuOp),
-    ExternPtrOp (ExternPtrOp),
-    FabsOp (FabsOp),
-    FaddOp (FaddOp),
-    FcmpEOp (FcmpEOp),
-    FcmpGeOp (FcmpGeOp),
-    FcmpGtOp (FcmpGtOp),
-    FcmpLeOp (FcmpLeOp),
-    FcmpLtOp (FcmpLtOp),
-    FcmpNeOp (FcmpNeOp),
-    FcmpOOp (FcmpOOp),
-    FcmpUoOp (FcmpUoOp),
-    FdivOp (FdivOp),
-    FloatConstOp (FloatConstOp),
-    FloatConvOp (FloatConvOp),
-    FloatToIntOp (FloatToIntOp),
-    FloorOp (FloorOp),
-    FmulOp (FmulOp),
-    FnegOp (FnegOp),
-    FreeVarSlotOp (FreeVarSlotOp),
-    FreeVarSlotSSAOp (FreeVarSlotSSAOp),
-    FsqrtOp (FsqrtOp),
-    FsubOp (FsubOp),
-    FtruncOp (FtruncOp),
-    GotoOp (GotoOp),
-    --TODO: do this for every xOp...
 
-    HasCarry,
-    HasCondition,
-    HasConstant,
-    HasDest,
-    HasFunc,
-    HasHigh,
-    HasLeft,
-    HasLow,
-    HasOffset,
-    HasOp,
-    HasParams,
-    HasRight,
-    HasSize,
-    HasSrc,
-    HasVar,
-    IfOp (IfOp),
-    ImportOp (ImportOp),
-    IntToFloatOp (IntToFloatOp),
-    IntrinsicOp (IntrinsicOp),
-    IntrinsicSSAOp (IntrinsicSSAOp),
-    JumpOp (JumpOp),
-    JumpToOp (JumpToOp),
-    LoadOp (LoadOp),
-    LoadSSAOp (LoadSSAOp),
-    LoadStructOp (LoadStructOp),
-    LoadStructSSAOp (LoadStructSSAOp),
-    LowPartOp (LowPartOp),
-    LslOp (LslOp),
-    LsrOp (LsrOp),
-    MemPhiOp (MemPhiOp),
-    ModsDpOp (ModsDpOp),
-    ModsOp (ModsOp),
-    ModuDpOp (ModuDpOp),
-    ModuOp (ModuOp),
-    MulOp (MulOp),
-    MulsDpOp (MulsDpOp),
-    MuluDpOp (MuluDpOp),
-    NegOp (NegOp),
-    NoretOp (NoretOp),
-    NotOp (NotOp),
-    OperationSize (OperationSize),
-    OrOp (OrOp),
-    RetHintOp (RetHintOp),
-    RetOp (RetOp),
-    RlcOp (RlcOp),
-    RolOp (RolOp),
-    RorOp (RorOp),
-    RoundToIntOp (RoundToIntOp),
-    RrcOp (RrcOp),
-    SSAVariable,
-    SbbOp (SbbOp),
-    SetVarAliasedFieldOp (SetVarAliasedFieldOp),
-    SetVarAliasedOp (SetVarAliasedOp),
-    SetVarFieldOp (SetVarFieldOp),
-    SetVarOp (SetVarOp),
-    SetVarSSAFieldOp (SetVarSSAFieldOp),
-    SetVarSSAOp (SetVarSSAOp),
-    SetVarSplitOp (SetVarSplitOp),
-    SetVarSplitSSAOp (SetVarSplitSSAOp),
-    StoreStructOp (StoreStructOp),
-    StoreStructSSAOp (StoreStructSSAOp),
-    SubOp (SubOp),
-    SxOp (SxOp),
-    SyscallOp (SyscallOp),
-    SyscallSSAOp (SyscallSSAOp),
-    SyscallUntypedOp (SyscallUntypedOp),
-    SyscallUntypedSSAOp (SyscallUntypedSSAOp),
-    TailcallOp (TailcallOp),
-    TailcallSSAOp (TailcallSSAOp),
-    TailcallUntypedOp (TailcallUntypedOp),
-    TailcallUntypedSSAOp (TailcallUntypedSSAOp),
-    TestBitOp (TestBitOp),
-    TrapOp (TrapOp),
-    UndefOp (UndefOp),
-    UnimplOp (UnimplOp),
-    XorOp (XorOp),
-    ZxOp (ZxOp),
-    address,
-    carry,
-    condition,
-    constant,
-    dest,
-    dest_memory,
-    exprIndex,
-    false,
-    func,
-    high,
-    index,
-    intrinsic,
-    left,
-    low,
-    offset,
-    op,
-    opData,
-    operands,
-    operation,
-    output,
-    params,
-    prev,
-    right,
-    size,
-    sourceOperand,
-    src,
-    src_memory,
-    stack,
-    targets,
-    true,
-    var,
-    vector,
-    version,
-  )
-
-import Binja.Function (Function)
-
-import Blaze.Types.Function (FuncInfo)
 import Blaze.Prelude hiding (Symbol, Type)
-import Blaze.Types.Path.AlgaPath (AlgaPath)
-import qualified Data.BinaryAnalysis as BA
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashSet as HS
+import Blaze.Types.Pil.Ops as Exports
+import Blaze.Types.Pil.Common as Exports
 
-newtype CtxIndex = CtxIndex Int
-  deriving (Eq, Ord, Show, Generic)
-  deriving newtype Num
-  deriving anyclass Hashable
-
-newtype StmtIndex = StmtIndex { _val :: Int }
-  deriving(Eq, Ord, Show, Generic)
-  deriving newtype Num
-  deriving anyclass Hashable
-
-type Symbol = Text
-
-data Ctx = Ctx
-  { _func :: Function
-  , _ctxIndex :: CtxIndex
-  }
-  deriving (Eq, Ord, Show, Generic)
-instance Hashable Ctx
-$(makeFieldsNoPrefix ''Ctx)
-
-data SSAVariableRef = SSAVariableRef
-  { _var :: SSAVariable
-  , _func :: Function
-  , _ctxIndex :: CtxIndex
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
--- Maybe is used to wrap _func and _ctxIndex since
--- contextual information may not be available or desirable
--- when introducing "synthetic" variables. (I.e., variables
--- which do not correspond to variables in the source program.)
-data PilVar = PilVar
-  { _symbol :: Symbol
-    -- TODO: Reassess use of Maybe for ctx.
-    --       Currently needed when introducing synthesized PilVars
-    --       when replacing store statements. May also be useful for
-    --       introducing arbitrary symbols used in constraints?
-    --       Another option is to explicitly use a default context
-    --       Related to this is having Blaze.Pil.Construct functions
-    --       play nice with context management.
-  , _ctx :: Maybe Ctx
-  }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
--- TODO: Conversions sometimes occur without need for
---       a path. Identify and refactor appropriately.
-data ConverterState = ConverterState
-  { 
-    -- | The path being converted.
-    _path :: AlgaPath
-    -- | The maximum context ID used so far
-  , _ctxMaxIdx :: CtxIndex
-    -- | The current context should be on the top of the stack.
-    -- I.e., the stack should never be empty.
-  , _ctxStack :: NonEmpty Ctx
-    -- | The current context
-  , _ctx :: Ctx
-    -- | Currently known defined PilVars for all contexts.
-    -- This is assumed to be ordered by most recently defined first.
-    -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
-    --       This could happen for synthesized PilVars with a Nothing context.
-  , _definedVars :: [PilVar]
-    -- | All PilVars referenced for all contexts.
-    -- This differs from _definedVars, as order is not preserved and referenced,
-    -- but undefined, PilVars are included
-  , _usedVars :: HashSet PilVar
-    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
-    --       when moving to a PilImporter instance.
-    -- TODO: Does this need to be a set or just a single variable?
-    -- | A mapping of PilVars to the a variable from the import source.
-  , _sourceVars :: HashMap PilVar SSAVariableRef
-    -- | Map of known functions with parameter access information
-  , _knownFuncs :: HashMap Text FuncInfo
-    -- | Address size based on target platform
-  , _addrSize :: AddressWidth
-    -- | Default variable size, usually based on platform default
-  , _defaultVarSize :: Bits
-  }
-  deriving (Eq, Show, Generic)
-$(makeFieldsNoPrefix ''ConverterState)
-
--- TODO: Add map of PilVars to original vars to the state being tracked
-newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
-  deriving (Functor) 
-  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
-
-createStartCtx :: Function -> Ctx
-createStartCtx func_ = Ctx func_ 0
-
--- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
---       accepting a map from the user.
-mkConverterState :: HashMap Text FuncInfo -> AddressWidth -> Function -> AlgaPath -> ConverterState
-mkConverterState knownFuncDefs addrSize_ f p =
-  ConverterState
-    p
-    (startCtx ^. ctxIndex)
-    (startCtx :| [])
-    startCtx
-    []
-    HS.empty
-    HM.empty
-    knownFuncDefs
-    addrSize_
-    (BA.bits addrSize_)
- where
-  startCtx :: Ctx
-  startCtx = createStartCtx f
-
-runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
-runConverter m s = flip runStateT s $ _runConverter m
-
-convert :: ConverterState -> Converter a -> IO a
-convert s m = fst <$> runConverter m s
-
-data Expression = Expression
-  { _size :: OperationSize
-  , _op :: ExprOp Expression
-  } deriving (Eq, Ord, Show, Generic)
-
-instance Hashable Expression
 
 data ExprOp expr
     = ADC (AdcOp expr)
@@ -328,6 +29,7 @@ data ExprOp expr
     | CMP_ULT (CmpUltOp expr)
     | CONST (ConstOp expr)
     | CONST_PTR (ConstPtrOp expr)
+    | CONST_FLOAT (ConstFloatOp expr)
     | DIVS (DivsOp expr)
     | DIVS_DP (DivsDpOp expr)
     | DIVU (DivuOp expr)
@@ -343,7 +45,6 @@ data ExprOp expr
     | FCMP_O (FcmpOOp expr)
     | FCMP_UO (FcmpUoOp expr)
     | FDIV (FdivOp expr)
-    | FLOAT_CONST (FloatConstOp expr)
     | FLOAT_CONV (FloatConvOp expr)
     | FLOAT_TO_INT (FloatToIntOp expr)
     | FLOOR (FloorOp expr)
@@ -397,38 +98,37 @@ data ExprOp expr
     -- memory address specifier ops
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
     | CONST_BOOL (ConstBoolOp expr)
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
-instance Hashable a => Hashable (ExprOp a)
+data Expression = Expression
+  { size :: OperationSize
+  , op :: ExprOp Expression
+  } 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable, ToJSON, FromJSON)
 
+
+-- TODO: Move these into the PIL op generator
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
 {- HLINT ignore VarOp "Use newtype instead of data" -}
 data VarOp expr = VarOp
-    { _varOpSrc :: PilVar
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarOp a)
+  { src :: PilVar
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data VarFieldOp expr = VarFieldOp
-    { _varFieldOpSrc :: PilVar
-    , _varFieldOpOffset :: ByteOffset
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarFieldOp a)
+  { src :: PilVar
+  , offset :: ByteOffset
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data VarPhiOp expr = VarPhiOp
-    { _varPhiOpDest :: PilVar
-    , _varPhiOpSrc :: [PilVar]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarPhiOp a)
+  { dest :: PilVar
+  , src :: [PilVar]
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data VarJoinOp expr = VarJoinOp
-    { _varJoinOpHigh :: PilVar
-    , _varJoinOpLow :: PilVar
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarJoinOp a)
+  { high :: PilVar
+  , low :: PilVar
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 --TODO: address_of and address_of_field
 ---------------
@@ -440,253 +140,99 @@ instance Hashable a => Hashable (VarJoinOp a)
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
                    | CallExpr expr
                    | CallExprs [expr]
-  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CallDest a)
-
-mkCallDest :: HasOp expr (ExprOp expr) => expr -> CallDest expr
-mkCallDest x = case x ^. op of
-  (CONST_PTR c) -> CallConstPtr c
-  _ -> CallExpr x
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data CallOp expr = CallOp
-  { _dest :: CallDest expr
-  , _name :: Maybe Text
-  , _params :: [expr]
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CallOp a)
+  { dest :: CallDest expr
+  , name :: Maybe Text
+  , params :: [expr]
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data ExtractOp expr = ExtractOp
-    { _src :: expr
-    , _offset :: Int64
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (ExtractOp a)
+  { src :: expr
+  , offset :: Int64
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data StrCmpOp expr = StrCmpOp
-    { _left :: expr
-    , _right :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (StrCmpOp a)
+  { left :: expr
+  , right :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data StrNCmpOp expr = StrNCmpOp
-    { _left :: expr
-    , _right :: expr
-    , _len :: Int
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (StrNCmpOp a)
+  { left :: expr
+  , right :: expr
+  , len :: Int
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data MemCmpOp expr = MemCmpOp
-    { _left :: expr
-    , _right :: expr
-    , _size :: Bytes
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (MemCmpOp a)
+  { left :: expr
+  , right :: expr
+  , size :: Bytes
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore ConstStrOp "Use newtype instead of data" -}
 data ConstStrOp expr = ConstStrOp
-    { _value :: Text
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (ConstStrOp a)
+  { value :: Text
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore StackLocalAddrOp "Use newtype instead of data" -}
 data StackLocalAddrOp expr = StackLocalAddrOp
-    { _stackOffset :: StackOffset
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (StackLocalAddrOp a)
+  { stackOffset :: StackOffset
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data UpdateVarOp expr = UpdateVarOp
-    { _dest :: PilVar
-    , _offset :: ByteOffset
-    , _src :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (UpdateVarOp a)
+  { dest :: PilVar
+  , offset :: ByteOffset
+  , src :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data FieldAddrOp expr = FieldAddrOp
-    { _baseAddr :: expr
-    , _offset :: ByteOffset
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (FieldAddrOp a)
+  { baseAddr :: expr
+  , offset :: ByteOffset
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore ConstBoolOp "Use newtype instead of data" -}
 data ConstBoolOp expr = ConstBoolOp
-    { _constant :: Bool
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (ConstBoolOp a)
+  { constant :: Bool
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
-mkFieldOffsetExprAddr :: Expression -> Int64 -> Expression
-mkFieldOffsetExprAddr addrExpr offst =
-  Expression
-    (addrExpr ^. size)
-    ( FIELD_ADDR . FieldAddrOp addrExpr
-        . fromIntegral
-        $ offst
-    )
-
------------------------
---- types
-
-data TypedExpression = TypedExpression
-  { _exprType :: Type
-  , _size :: Bytes
-  , _op :: ExprOp Expression
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable TypedExpression
-
-newtype BitVecType = BitVecType
-  { _width :: Bytes
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable BitVecType
-
-data IntType = IntType
-  { _width :: Bytes
-  , _signed :: Bool
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable IntType
-
-{- HLINT ignore FloatType "Use newtype instead of data" -}
-data FloatType = FloatType
-  { _width :: Bytes
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable FloatType
-
-data ArrayType = ArrayType
-  { _capacity :: Int
-  , _elemType :: Type
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable ArrayType
-
-data PtrType = PtrType
-  { _width :: Bytes
-  , _pointeeType :: Type
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable PtrType
-
-data FieldType = FieldType
-  { _offset :: Bytes
-  , _fieldType :: Type
-  } deriving (Eq, Ord, Show, Generic)
-
-instance Hashable FieldType
-
-data StructType = StructType
-  { _size :: Bytes
-  , _fields :: [Type]
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable StructType
-
-data FuncType = FuncType
-  { _args :: [Type]
-  , _ret :: Maybe Type
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable FuncType
-
-type ObsType = [Type]
-
-data Type = TBool
-          | TBitVec BitVecType
-          | TInt IntType
-          | TFloat FloatType
-          | TArray ArrayType
-          | TPtr PtrType
-          | TField FieldType
-          | TString
-          | TStruct StructType
-          | TObs ObsType
-          | TFunc FuncType
-          deriving (Eq, Ord, Show, Generic)
-instance Hashable Type
-
-instance Semigroup Type where
-  (<>) (TObs obs1) (TObs obs2) = TObs $ obs1 <> obs2
-  (<>) (TObs obs) t = TObs $ obs <> [t] --to keep associativity
-  (<>) t (TObs obs) = TObs $ t:obs
-  (<>) t1 t2
-    | t1 == t2 = t1
-    | otherwise = TObs [t1, t2]
-
-instance Monoid Type where
-  mempty = TObs []
-
-newtype TypeEnv = TypeEnv (HashMap PilVar Type)
-  deriving (Eq, Ord, Show, Generic)
-instance Hashable TypeEnv
-
-typeEnvLookup :: PilVar -> TypeEnv -> Maybe Type
-typeEnvLookup v (TypeEnv env) = HM.lookup v env
-
-instance Semigroup TypeEnv where
-  (<>) (TypeEnv m1) (TypeEnv m2) = TypeEnv $ HM.unionWith (<>) m1 m2
-
-instance Monoid TypeEnv where
-  mempty = TypeEnv HM.empty
-
-------
-
-data StackOffset = StackOffset
-  { _ctx :: Ctx
-  , _offset :: ByteOffset
-  } deriving (Eq, Ord, Show, Generic)
-instance Hashable StackOffset
-
-type Keyword = Text
-
-data Label = StackOffsetLabel StackOffset
-           | KeywordLabel Keyword
-           deriving (Eq, Ord, Show, Generic)
-
-newtype Storage = Storage
-  { _label :: Label
-  } deriving (Eq, Ord, Show, Generic)
 
 ---- Statements
 
 data DefOp expr = DefOp
-    { _var :: PilVar
-    , _value :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (DefOp a)
+  { var :: PilVar
+  , value :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data StoreOp expr = StoreOp
-    { _addr :: expr
-    , _value :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (StoreOp a)
+  { addr :: expr
+  , value :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore ConstraintOp "Use newtype instead of data" -}
 data ConstraintOp expr = ConstraintOp
-    { _condition :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (ConstraintOp a)
+  { condition :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore UnimplMemOp "Use newtype instead of data" -}
 data UnimplMemOp expr = UnimplMemOp
-    { _src :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (UnimplMemOp a)
+  { src :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore EnterContextOp "Use newtype instead of data" -}
 data EnterContextOp expr = EnterContextOp
-    { _ctx :: Ctx
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (EnterContextOp a)
+  { ctx :: Ctx
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data ExitContextOp expr = ExitContextOp
-    { _leavingCtx :: Ctx
-    , _returningToCtx :: Ctx
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (ExitContextOp a)
+  { leavingCtx :: Ctx
+  , returningToCtx :: Ctx
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data DefPhiOp expr = DefPhiOp
-    { _dest :: PilVar
-    , _src :: [PilVar]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-instance Hashable a => Hashable (DefPhiOp a)
+  { dest :: PilVar
+  , src :: [PilVar]
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 type Stmt = Statement Expression
 
@@ -704,89 +250,40 @@ data Statement expr
   | Call (CallOp expr)
   | DefPhi (DefPhiOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-  deriving anyclass Hashable
+  deriving anyclass (Hashable, ToJSON, FromJSON)
 
-data CallStatement
-  = CallStatement
-      { _stmt :: Statement Expression,
-        _callOp :: CallOp Expression
-      }
+data CallStatement = CallStatement
+  { stmt :: Statement Expression
+  , callOp :: CallOp Expression
+  }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, ToJSON, FromJSON)
 
 mkCallStatement :: Stmt -> Maybe CallStatement
-mkCallStatement stmt = case stmt of
-  Call callOp -> 
-    Just $ CallStatement stmt callOp
-  Def (DefOp _ (Expression _sz (CALL callOp))) ->
-    Just $ CallStatement stmt callOp
-  _ -> 
+mkCallStatement stmt' = case stmt' of
+  Call callOp' ->
+    Just $ CallStatement stmt' callOp'
+  Def (DefOp _ (Expression _sz (CALL callOp'))) ->
+    Just $ CallStatement stmt' callOp'
+  _ ->
     Nothing
 
+mkCallDest :: HasField' "op" expr (ExprOp expr) => expr -> CallDest expr
+mkCallDest x = case x ^. #op of
+  (CONST_PTR c) -> CallConstPtr c
+  _ -> CallExpr x
+
 getCallDest :: CallStatement -> CallDest Expression
-getCallDest callStmt =  _dest (_callOp callStmt :: CallOp Expression)
+getCallDest = view (#callOp . #dest)
 
-$(makeFields ''VarOp)
-$(makeFields ''VarFieldOp)
-$(makeFields ''VarPhiOp)
-$(makeFields ''VarJoinOp)
-
-$(makeFieldsNoPrefix ''StackLocalAddrOp)
-$(makeFieldsNoPrefix ''FieldAddrOp)
-$(makeFieldsNoPrefix ''UpdateVarOp)
-$(makeFieldsNoPrefix ''ConstBoolOp)
-
-$(makeFieldsNoPrefix ''SSAVariableRef)
-$(makeFieldsNoPrefix ''PilVar)
-$(makeFieldsNoPrefix ''Expression)
-$(makeFieldsNoPrefix ''CallOp)
-$(makeFieldsNoPrefix ''ExtractOp)
-$(makeFieldsNoPrefix ''StrCmpOp)
-$(makeFieldsNoPrefix ''StrNCmpOp)
-$(makeFieldsNoPrefix ''MemCmpOp)
-$(makeFieldsNoPrefix ''ConstStrOp)
-$(makeFieldsNoPrefix ''EnterContextOp)
-$(makeFieldsNoPrefix ''ExitContextOp)
-
-$(makeFieldsNoPrefix ''TypedExpression)
-$(makeFieldsNoPrefix ''BitVecType)
-$(makeFieldsNoPrefix ''IntType)
-$(makeFieldsNoPrefix ''FloatType)
-$(makeFieldsNoPrefix ''ArrayType)
-$(makeFieldsNoPrefix ''PtrType)
-$(makeFieldsNoPrefix ''FieldType)
-$(makeFieldsNoPrefix ''StructType)
-$(makeFieldsNoPrefix ''StackOffset)
-$(makeFieldsNoPrefix ''Storage)
-
-$(makeFieldsNoPrefix ''CallStatement)
-
-$(makeFieldsNoPrefix ''DefOp)
-$(makeFieldsNoPrefix ''StoreOp)
-$(makeFieldsNoPrefix ''UnimplMemOp)
-$(makeFieldsNoPrefix ''ConstraintOp)
-$(makeFieldsNoPrefix ''DefPhiOp)
-
-$(makePrisms ''ExprOp)
-$(makePrisms ''Type)
-$(makePrisms ''Statement)
 ------------------------
 
--- gets bit width of integral type, if available
-getTypeByteWidth :: Type -> Maybe Bytes
-getTypeByteWidth (TBitVec x) = Just $ x ^. width
-getTypeByteWidth (TInt x) = Just $ x ^. width
-getTypeByteWidth (TPtr x) = Just $ x ^. width
-getTypeByteWidth (TFloat x) = Just $ x ^. width
-getTypeByteWidth _ = Nothing
-
-getTypeBitWidth :: Type -> Maybe Bits
-getTypeBitWidth = fmap toBits . getTypeByteWidth
-
-getSignedness :: Type -> Maybe Bool
-getSignedness (TBitVec _) = Just False
-getSignedness (TInt x) = Just $ x ^. signed
-getSignedness (TPtr _) = Just False
-getSignedness (TFloat _) = Just True --floats are always signed?
-getSignedness _ = Nothing
+mkFieldOffsetExprAddr :: Expression -> Int64 -> Expression
+mkFieldOffsetExprAddr addrExpr offst =
+  Expression
+    (addrExpr ^. #size)
+    ( FIELD_ADDR . FieldAddrOp addrExpr
+        . fromIntegral
+        $ offst
+    )
 

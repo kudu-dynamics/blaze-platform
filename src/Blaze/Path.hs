@@ -171,7 +171,7 @@ getSpanList f lo hi (x : xs)
 convertBasicBlockToNodeList :: BNBinaryView -> BasicBlock F -> IO [Node]
 convertBasicBlockToNodeList bv bb = do
   calls <- mapMaybe toCallInstruction <$> MLIL.fromBasicBlock bb
-  let spans = getSpanList (view Function.index) (bb ^. BB.start) (bb ^. BB.end) calls
+  let spans = getSpanList (view #index) (bb ^. BB.start) (bb ^. BB.end) calls
   concat <$> traverse f spans
   where
     fn = bb ^. BB.func . HFunction.func
@@ -311,8 +311,8 @@ findAbstractCallNodes :: Path p => Function -> Function -> p -> [AbstractCallNod
 findAbstractCallNodes caller callee = mapMaybe f . Path.toList
   where
     f (AbstractCall acn)
-      | (acn ^. callSite . Function.caller == caller)
-          && (Function.DestFunc callee == acn ^. callSite . Function.callDest) =
+      | (acn ^. #callSite . #caller == caller)
+          && (Function.DestFunc callee == acn ^. #callSite . #callDest) =
         Just acn
       | otherwise = Nothing
     f _ = Nothing
@@ -321,4 +321,4 @@ findAbstractCallNodes caller callee = mapMaybe f . Path.toList
 findAbstractCallNode :: Path p => Function -> InstructionIndex F -> Function -> p -> Maybe AbstractCallNode
 findAbstractCallNode caller callSiteIdx callee path =
   headMay $ [acn | acn <- findAbstractCallNodes caller callee path,
-                   acn ^. callSite . Function.callInstr . Function.index == callSiteIdx]
+                   acn ^. #callSite . #callInstr . #index == callSiteIdx]

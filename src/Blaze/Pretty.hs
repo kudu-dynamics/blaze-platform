@@ -96,14 +96,14 @@ instance Pretty MLIL.SSAVariable where
       version = show (ssaVar ^. MLIL.version)
 
 instance Pretty Pil.PilVar where
-  pretty v = v ^. Pil.symbol
+  pretty v = v ^. #symbol
 
 instance Pretty Pil.OperationSize where
   pretty (Pil.OperationSize sz) = show sz
 
 instance Pretty a => Pretty (Pil.CallDest a) where
   pretty dest = case dest of
-    (Pil.CallConstPtr ptr) -> show (ptr ^. Pil.constant)
+    (Pil.CallConstPtr ptr) -> show (ptr ^. #constant)
     (Pil.CallExpr e) -> pretty e
     (Pil.CallExprs es) -> show $ fmap pretty es
 
@@ -118,25 +118,25 @@ instance Pretty Pil.Ctx where
   pretty ctx = Text.pack $ printf "ctx (%s) %s" func idx
     where
       func :: Text
-      func = pretty (ctx ^. Pil.func)
+      func = pretty (ctx ^. #func)
       idx :: Text
-      idx = show (ctx ^. Pil.ctxIndex)
+      idx = show (ctx ^. #ctxIndex)
 
 prettyBinop ::
   ( Pretty b,
-    Pil.HasLeft a b,
-    Pil.HasRight a b
+    HasField' "left" a b,
+    HasField' "right" a b
   ) =>
   Symbol ->
   a ->
   Text
 prettyBinop sym op = Text.pack $ printf "%s (%s) (%s)" sym left right
   where
-    left = pretty (op ^. Pil.left)
-    right = pretty (op ^. Pil.right)
+    left = pretty (op ^. #left)
+    right = pretty (op ^. #right)
 
 prettyUnop ::
-  ( Pil.HasSrc a b,
+  ( HasField' "src" a b,
     Pretty b
   ) =>
   Symbol ->
@@ -144,10 +144,10 @@ prettyUnop ::
   Text
 prettyUnop sym op = Text.pack $ printf "%s(%s)" sym src
   where
-    src = pretty (op ^. Pil.src)
+    src = pretty (op ^. #src)
 
 prettyConst ::
-  ( Pil.HasConstant a b,
+  ( HasField' "constant" a b,
     Show b
   ) =>
   a ->
@@ -155,25 +155,25 @@ prettyConst ::
 prettyConst op = Text.pack $ printf "%s" const
   where
     const :: Text
-    const = show (op ^. Pil.constant)
+    const = show (op ^. #constant)
 
-prettyVar :: (Pil.HasSrc a Pil.PilVar) => a -> Text
+prettyVar :: (HasField' "src" a Pil.PilVar) => a -> Text
 prettyVar op = Text.pack $ printf "%s" src
   where
-    src = pretty (op ^. Pil.src)
+    src = pretty (op ^. #src)
 
 prettyField ::
-  ( Pil.HasSrc a b,
+  ( HasField' "src" a b,
     Pretty b,
-    Pil.HasOffset a ByteOffset
+    HasField' "offset" a ByteOffset
   ) =>
   a ->
   Text
 prettyField op = Text.pack $ printf "%s[%s]" src offset
   where
-    src = pretty (op ^. Pil.src)
+    src = pretty (op ^. #src)
     offset :: Text
-    offset = show (op ^. Pil.offset)
+    offset = show (op ^. #offset)
 
 prettyExprOp :: Pretty a => Pil.ExprOp a -> Pil.OperationSize -> Text
 prettyExprOp exprOp _size = case exprOp of
@@ -184,7 +184,7 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.ASR op) -> prettyBinop "asr" op
   (Pil.BOOL_TO_INT op) -> prettyUnop "boolToInt" op
   (Pil.CEIL op) -> prettyUnop "ceil" op
-  (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. Pil.constant)
+  (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. #constant)
   (Pil.CMP_E op) -> prettyBinop "cmpE" op
   (Pil.CMP_NE op) -> prettyBinop "cmpNE" op
   (Pil.CMP_SGE op) -> prettyBinop "cmpSGE" op
@@ -214,9 +214,9 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.FDIV op) -> prettyBinop "fdiv" op
   (Pil.FIELD_ADDR op) ->
     "fieldAddr"
-    <-> paren (pretty $ op ^. Pil.baseAddr)
-    <-> paren (pretty $ op ^. Pil.offset)
-  (Pil.FLOAT_CONST op) -> prettyConst op
+    <-> paren (pretty $ op ^. #baseAddr)
+    <-> paren (pretty $ op ^. #offset)
+  (Pil.CONST_FLOAT op) -> prettyConst op
   (Pil.FLOAT_CONV op) -> prettyUnop "floatConv" op
   (Pil.FLOAT_TO_INT op) -> prettyUnop "floatToInt" op
   (Pil.FLOOR op) -> prettyUnop "floor" op
@@ -227,7 +227,7 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.FTRUNC op) -> prettyUnop "ftrunc" op
   (Pil.IMPORT op) -> prettyConst op
   (Pil.INT_TO_FLOAT op) -> prettyUnop "intToFloat" op
-  (Pil.LOAD op) -> Text.pack $ printf "[%s]" $ Text.unpack (pretty (op ^. Pil.src))
+  (Pil.LOAD op) -> Text.pack $ printf "[%s]" $ Text.unpack (pretty (op ^. #src))
   -- TODO: add memory versions for all SSA ops
   (Pil.LOW_PART op) -> prettyUnop "lowPart" op
   (Pil.LSL op) -> prettyBinop "lsl" op
@@ -250,41 +250,41 @@ prettyExprOp exprOp _size = case exprOp of
   -- TODO: Need to add carry
   (Pil.RRC op) -> prettyBinop "rrc" op
   (Pil.SBB op) -> prettyBinop "sbb" op
-  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (pretty $ op ^. Pil.stackOffset)
+  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (pretty $ op ^. #stackOffset)
   (Pil.SUB op) -> prettyBinop "sub" op
   (Pil.SX op) -> prettyUnop "sx" op
   (Pil.TEST_BIT op) -> prettyBinop "testBit" op
   (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
   (Pil.UPDATE_VAR op) ->
     "updateVar"
-    <-> paren (pretty $ op ^. Pil.dest)
-    <-> paren (pretty $ op ^. Pil.offset)
-    <-> paren (pretty $ op ^. Pil.src)
-  (Pil.VAR_PHI op) -> Text.pack $ printf "2%s <- %s" (pretty (op ^. Pil.dest)) srcs
+    <-> paren (pretty $ op ^. #dest)
+    <-> paren (pretty $ op ^. #offset)
+    <-> paren (pretty $ op ^. #src)
+  (Pil.VAR_PHI op) -> Text.pack $ printf "2%s <- %s" (pretty (op ^. #dest)) srcs
     where
       srcs :: Text
-      srcs = show (fmap pretty (op ^. Pil.src))
-  (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s" (pretty (op ^. Pil.high)) (pretty (op ^. Pil.low))
-  -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (pretty $ op ^. Pil.src) (pretty)
+      srcs = show (fmap pretty (op ^. #src))
+  (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s" (pretty (op ^. #high)) (pretty (op ^. #low))
+  -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (pretty $ op ^. #src) (pretty)
   -- TODO: Need added
   (Pil.VAR op) -> prettyVar op
   -- TODO: Add field offset
   (Pil.VAR_FIELD op) -> prettyField op
   (Pil.XOR op) -> prettyBinop "xor" op
   (Pil.ZX op) -> prettyUnop "zx" op
-  (Pil.CALL op) -> case op ^. Pil.name of
+  (Pil.CALL op) -> case op ^. #name of
     (Just name) -> Text.pack $ printf "call %s %s %s" name dest params
     Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest params
     where
-      dest = pretty (op ^. Pil.dest)
+      dest = pretty (op ^. #dest)
       params :: Text
-      params = asList (fmap pretty (op ^. Pil.params))
+      params = asList (fmap pretty (op ^. #params))
   (Pil.StrCmp op) -> prettyBinop "strcmp" op
-  (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s" (op ^. Pil.len) (pretty (op ^. Pil.left)) (pretty (op ^. Pil.right))
+  (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s" (op ^. #len) (pretty (op ^. #left)) (pretty (op ^. #right))
   (Pil.MemCmp op) -> prettyBinop "memcmp" op
     -- TODO: Should ConstStr also use const rather than value as field name?
-  (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. Pil.value
-  (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (pretty (op ^. Pil.src)) (op ^. Pil.offset)
+  (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
+  (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (pretty (op ^. #src)) (op ^. #offset)
 
 instance Pretty PI.SymType where
   pretty (PI.SVar s) = pretty s
@@ -328,20 +328,20 @@ instance (Pretty a, Pretty b) => Pretty (HashMap a b) where
 
 instance Pretty a => Pretty (Pil.Statement a) where
   pretty stmt = case stmt of
-    (Pil.Def x) -> Text.pack $ printf "%s = %s" (pretty $ x ^. Pil.var) (pretty $ x ^. Pil.value)
-    (Pil.Constraint x) -> Text.pack $ printf "?: %s" (pretty $ x ^. Pil.condition)
-    (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. Pil.addr) (pretty $ x ^. Pil.value)
+    (Pil.Def x) -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
+    (Pil.Constraint x) -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
+    (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
     Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> t <> "\")"
-    (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. Pil.src)
+    (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
     Pil.Undef -> "Undefined"
     Pil.Nop -> "Nop"
     (Pil.Annotation t) -> "Annotation: " <> t
-    (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. Pil.ctx)
-    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. Pil.leavingCtx)
-    (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. Pil.dest) (pretty $ x ^. Pil.params)
+    (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. #ctx)
+    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
+    (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
     (Pil.DefPhi x) -> Text.pack $ printf "%s = %s"
-                      (pretty $ x ^. Pil.dest)
-                      (asList . fmap pretty $ x ^. Pil.src)
+                      (pretty $ x ^. #dest)
+                      (asList . fmap pretty $ x ^. #src)
 
 
 newtype PStmts a = PStmts [Pil.Statement a]
@@ -362,8 +362,8 @@ instance Pretty ByteOffset where
 instance Pretty Pil.StackOffset where
   pretty x =
     "stackOffset"
-      <-> show (x ^. Pil.offset)
-      <-> paren (pretty (x ^. Pil.ctx))
+      <-> show (x ^. #offset)
+      <-> paren (pretty (x ^. #ctx))
 
 instance Pretty t => Pretty (PI.PilType t) where
   pretty = \case
@@ -397,9 +397,9 @@ instance Pretty Cg.CallDest where
 
 instance Pretty Cg.CallSite where
   pretty x =
-    pretty (x ^. Cg.caller) 
-      <> "@" <> pretty (x ^. Cg.address)
-      <> " -> " <> pretty (x ^. Cg.dest)
+    pretty (x ^. #caller) 
+      <> "@" <> pretty (x ^. #address)
+      <> " -> " <> pretty (x ^. #dest)
 
 
 --- Function
@@ -414,27 +414,27 @@ instance Pretty Func.CallDest where
   pretty (Func.DestColl x) = pretty x
 
 instance Pretty Func.CallSite where
-  pretty x = pretty (x ^. Func.caller) <> " -> "
-             <> pretty (x ^. Func.callDest)
+  pretty x = pretty (x ^. #caller) <> " -> "
+             <> pretty (x ^. #callDest)
 
 --- Path
 instance Pretty Path.Node where
   pretty (Path.SubBlock x) =
-    Path.brack (pretty (x ^. Path.start) <> "-" <> pretty (x ^. Path.end - 1)) <> " : SubBlock"
+    Path.brack (pretty (x ^. #start) <> "-" <> pretty (x ^. #end - 1)) <> " : SubBlock"
   pretty (Path.Call x) =
-    "-------Expanding call: " <> pretty (x ^. Path.callSite)
+    "-------Expanding call: " <> pretty (x ^. #callSite)
   pretty (Path.Ret x) =
-    "-------Returning to " <> pretty (x ^. Path.func) <> " from " <> pretty (x ^. Path.callSite . Func.callDest)
+    "-------Returning to " <> pretty (x ^. #func) <> " from " <> pretty (x ^. #callSite . #callDest)
   pretty (Path.AbstractCall x) = pretty x
   pretty (Path.AbstractPath _) = "AbstractPath"
   pretty (Path.Condition x) =
-    "Condition: " <> bool "NOT " "" (x ^. Path.trueOrFalseBranch)
-    <> pretty (x ^. Path.condition)
+    "Condition: " <> bool "NOT " "" (x ^. #trueOrFalseBranch)
+    <> pretty (x ^. #condition)
 
 instance Pretty Path.AbstractCallNode where
-  pretty x = Path.brack (pretty $ x ^. Path.callSite . Func.callInstr . Func.index)
+  pretty x = Path.brack (pretty $ x ^. #callSite . #callInstr . #index)
     <> " : "
-    <> pretty (x ^. Path.callSite)
+    <> pretty (x ^. #callSite)
 
 
 --- AlgaPath

@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Cfg where
 
 import qualified Blaze.Graph as Graph
@@ -20,30 +18,25 @@ instance Hashable BranchType
 
 data CfNode
   = BasicBlock
-      { _basicBlockFunction :: Function,
-        _basicBlockStart :: Address
+      { function :: Function
+      , start :: Address
       }
   | Call
-      { _callFunction :: Function,
-        _callTarget :: Address
+      { function :: Function
+      , target :: Address
       }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable CfNode
 
-$(makeFields ''CfNode)
-
-data CfEdge
-  = CfEdge
-      { _src :: CfNode,
-        _dst :: CfNode,
-        _branchType :: BranchType
-      }
+data CfEdge = CfEdge
+  { src :: CfNode
+  , dst :: CfNode
+  , branchType :: BranchType
+  }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable CfEdge
-
-$(makeFieldsNoPrefix ''CfEdge)
 
 newtype Dominators = Dominators (HashMap CfNode (HashSet CfNode))
 
@@ -58,28 +51,27 @@ type ControlFlowGraph = AlgaGraph BranchType CfNode
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
 mkControlFlowGraph :: CfNode -> [CfNode] -> [CfEdge] -> ControlFlowGraph
-mkControlFlowGraph root ns es =
-  Graph.addNodes (root : ns) . Graph.fromEdges $
-    (_branchType &&& (_src &&& _dst)) <$> es
+mkControlFlowGraph root' ns es =
+  Graph.addNodes (root' : ns) . Graph.fromEdges $
+    (view #branchType &&& (view #src &&& view #dst)) <$> es
 
-data Cfg a
-  = Cfg
-      { _graph :: ControlFlowGraph,
-        _root :: CfNode,
-        _mapping :: Maybe a
-      }
-  deriving (Eq, Show)
+data Cfg a = Cfg
+  { graph :: ControlFlowGraph
+  , root :: CfNode
+  , mapping :: Maybe a
+  }
+  deriving (Eq, Show, Generic)
 
 buildCfg :: CfNode -> [CfNode] -> [CfEdge] -> Maybe a -> Cfg a
-buildCfg root rest es mapping =
+buildCfg root' rest es mapping' =
   Cfg
-    { _graph = graph,
-      _root = root,
-      _mapping = mapping
+    { graph = graph'
+    , root = root'
+    , mapping = mapping'
     }
   where
-    graph :: ControlFlowGraph
-    graph = mkControlFlowGraph root rest es
+    graph' :: ControlFlowGraph
+    graph' = mkControlFlowGraph root' rest es
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
@@ -87,19 +79,19 @@ instance Graph BranchType CfNode (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use buildCfg to construct a CFG."
   fromEdges _ = error "Use buildCfg to construct a CFG."
-  succs node = Graph.succs node . _graph
-  preds node = Graph.preds node . _graph
-  nodes = Graph.nodes . _graph
-  edges = Graph.edges . _graph
-  getEdgeLabel edge = Graph.getEdgeLabel edge . _graph
-  setEdgeLabel label edge cfg = cfg {_graph = Graph.setEdgeLabel label edge . _graph $ cfg}
-  removeEdge edge cfg = cfg {_graph = Graph.removeEdge edge . _graph $ cfg}
-  removeNode node cfg = cfg {_graph = Graph.removeNode node . _graph $ cfg}
-  addNodes nodes cfg = cfg {_graph = Graph.addNodes nodes . _graph $ cfg}
-  addEdge lblEdge cfg = cfg {_graph = Graph.addEdge lblEdge . _graph $ cfg}
-  hasNode node = Graph.hasNode node . _graph
-  transpose cfg = cfg {_graph = Graph.transpose . _graph $ cfg}
-  bfs startNodes cfg = Graph.bfs startNodes . _graph $ cfg
+  succs node = Graph.succs node . view #graph
+  preds node = Graph.preds node . view #graph
+  nodes = Graph.nodes . view #graph
+  edges = Graph.edges . view #graph
+  getEdgeLabel edge = Graph.getEdgeLabel edge . view #graph
+  setEdgeLabel label edge cfg = cfg & #graph %~ Graph.setEdgeLabel label edge
+  removeEdge edge = over #graph $ Graph.removeEdge edge
+  removeNode node = over #graph $ Graph.removeNode node
+  addNodes nodes = over #graph $ Graph.addNodes nodes
+  addEdge lblEdge = over #graph $ Graph.addEdge lblEdge
+  hasNode node = Graph.hasNode node . view #graph
+  transpose = over #graph Graph.transpose
+  bfs startNodes = Graph.bfs startNodes . view #graph
 
   -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?
-  subgraph pred cfg = cfg {_graph = Graph.subgraph pred . _graph $ cfg}
+  subgraph pred = over #graph $ Graph.subgraph pred
