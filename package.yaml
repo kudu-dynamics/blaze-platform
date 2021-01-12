@@ -79,8 +79,8 @@ default-extensions:
   - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
-  - NoMonomorphismRestriction
   - NoImplicitPrelude
+  - NoMonomorphismRestriction
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
