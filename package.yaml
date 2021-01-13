@@ -81,6 +81,7 @@ default-extensions:
   - MultiParamTypeClasses
   - NoImplicitPrelude
   - NoMonomorphismRestriction
+  - OverloadedLabels
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
