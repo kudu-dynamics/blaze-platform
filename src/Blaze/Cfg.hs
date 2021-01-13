@@ -19,7 +19,7 @@ type CfMap = HashMap CfNode Int
 
 buildNodeMap :: Cfg a -> DltMap
 buildNodeMap cfg =
-  Im.fromList $ zip [0 ..] (Set.toList . G.nodes . _graph $ cfg)
+  Im.fromList $ zip [0 ..] (Set.toList . G.nodes . view #graph $ cfg)
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
@@ -40,15 +40,15 @@ buildDltGraph :: Cfg a -> DltMap -> Dlt.Rooted
 buildDltGraph cfg dltMap =
   -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
   -- that don't have outgoing edges.
-  (cfMap Hm.! _root cfg, Dlt.fromAdj dltAdj)
+  (cfMap Hm.! view #root cfg, Dlt.fromAdj dltAdj)
   where
     cfMap :: CfMap
     cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
     dltNodes :: [Dlt.Node]
-    dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes . _graph $ cfg)
+    dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes . view #graph $ cfg)
     dltEdges :: [Dlt.Edge]
     dltEdges = do
-      (_, (src, dst)) <- G.edges . _graph $ cfg
+      (_, (src, dst)) <- G.edges . view #graph $ cfg
       return (cfMap Hm.! src, cfMap Hm.! dst)
     dltAdj :: [(Dlt.Node, [Dlt.Node])]
     dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges

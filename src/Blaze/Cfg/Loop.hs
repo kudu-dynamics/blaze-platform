@@ -1,12 +1,6 @@
 module Blaze.Cfg.Loop
   ( module Blaze.Cfg.Loop,
     module Exports,
-    T.backEdge,
-    T.body,
-    T.cfg,
-    T.edge,
-    T.header,
-    T.tail,
   )
 where
 
@@ -16,7 +10,7 @@ import Blaze.Types.Cfg
   ( BranchType,
     CfEdge (CfEdge),
     CfNode,
-    Cfg (_root),
+    Cfg(root),
     Dominators,
   )
 import qualified Blaze.Types.Cfg as TCfg
@@ -30,7 +24,6 @@ import Blaze.Types.Cfg.Loop as Exports hiding
     header,
     tail,
   )
-import qualified Blaze.Types.Cfg.Loop as T
 import qualified Blaze.Types.Graph as G
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
@@ -40,27 +33,27 @@ import qualified Data.HashSet as HS
 --  If that assumption is wrong, isBackEdge defaults to False.
 isBackEdge :: Dominators -> CfEdge -> Bool
 isBackEdge domMap edge =
-  case HM.lookup (edge ^. TCfg.src) (coerce domMap) of
+  case HM.lookup (edge ^. #src) (coerce domMap) of
     Nothing -> False
-    (Just domNodes) -> HS.member (edge ^. TCfg.dst) domNodes
+    (Just domNodes) -> HS.member (edge ^. #dst) domNodes
 
 fromGraphEdge :: (BranchType, (CfNode, CfNode)) -> CfEdge
 fromGraphEdge (bType, (srcNode, dstNode)) = CfEdge srcNode dstNode bType
 
 getBackEdges :: Cfg a -> [BackEdge]
-getBackEdges cfg =
+getBackEdges cfg' =
   [ BackEdge e
-    | e <- fromGraphEdge <$> G.edges cfg,
+    | e <- fromGraphEdge <$> G.edges cfg',
       isBackEdge doms e
   ]
   where
     doms :: Dominators
-    doms = getDominators cfg
+    doms = getDominators cfg'
 
 -- | Find body nodes of loop. If an empty list is returned, the loop
 --  only contains a head(er) node and a tail node.
 getBodyNodes :: Cfg a -> BackEdge -> HashSet CfNode
-getBodyNodes cfg backEdge =
+getBodyNodes cfg' backEdge =
   HS.delete header
     . HS.delete tail
     . HS.fromList
@@ -68,38 +61,38 @@ getBodyNodes cfg backEdge =
     . G.bfs [tail]
     . G.transpose
     . G.removeNode header
-    $ cfg
+    $ cfg'
   where
     header :: CfNode
-    header = backEdge ^. (T.edge . TCfg.dst)
+    header = backEdge ^. (#edge . #dst)
     tail :: CfNode
-    tail = backEdge ^. (T.edge . TCfg.src)
+    tail = backEdge ^. (#edge . #src)
 
 getLoopBody :: Cfg a -> BackEdge -> LoopBody
-getLoopBody cfg backEdge =
+getLoopBody cfg' backEdge =
   LoopBody bodyNodes
   where
     bodyNodes :: HashSet CfNode
-    bodyNodes = getBodyNodes cfg backEdge
+    bodyNodes = getBodyNodes cfg' backEdge
 
 getLoopCfg :: forall a. Cfg a -> LoopHeader -> LoopNodes -> LoopCfg a
-getLoopCfg cfg header loopNodes =
-  LoopCfg $ subCfg_ {_root = header ^. T.node}
+getLoopCfg cfg' header loopNodes =
+  LoopCfg $ subCfg_ {root = header ^. #node}
   where
     subCfg_ :: Cfg a
-    subCfg_ = G.subgraph (`HS.member` (loopNodes ^. T.nodes)) cfg
+    subCfg_ = G.subgraph (`HS.member` (loopNodes ^. #nodes)) cfg'
 
 fromBackEdge :: forall a. Cfg a -> BackEdge -> NatLoop a
-fromBackEdge cfg backEdge =
+fromBackEdge cfg' backEdge =
   NatLoop header body tail loopCfg backEdge
   where
     header :: LoopHeader
-    header = LoopHeader $ backEdge ^. (T.edge . TCfg.dst)
+    header = LoopHeader $ backEdge ^. (#edge . #dst)
     body :: LoopBody
-    body = getLoopBody cfg backEdge
+    body = getLoopBody cfg' backEdge
     tail :: LoopTail
-    tail = LoopTail $ backEdge ^. (T.edge . TCfg.src)
+    tail = LoopTail $ backEdge ^. (#edge . #src)
     loopNodes :: LoopNodes
-    loopNodes = LoopNodes $ HS.insert (header ^. T.node) . HS.insert (tail ^. T.node) $ (body ^. T.nodes)
+    loopNodes = LoopNodes $ HS.insert (header ^. #node) . HS.insert (tail ^. #node) $ (body ^. #nodes)
     loopCfg :: LoopCfg a
-    loopCfg = getLoopCfg cfg header loopNodes
+    loopCfg = getLoopCfg cfg' header loopNodes

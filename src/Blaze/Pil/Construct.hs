@@ -14,40 +14,40 @@ import Blaze.Types.Pil
 pilVar :: Symbol -> PilVar
 pilVar s =
   PilVar
-    { _symbol = s,
-      _ctx = Nothing
+    { symbol = s
+    , ctx = Nothing
     }
 
 mkExpr :: OperationSize -> ExprOp Expression -> Expression
 mkExpr size op =
   Expression
-    { _size = size,
-      _op = op
+    { size = size
+    , op = op
     }
 
-binOp ::
-  (a -> ExprOp Expression) ->
-  (Expression -> Expression -> a) ->
-  Expression ->
-  Expression ->
-  OperationSize ->
-  Expression
+binOp
+  :: (a -> ExprOp Expression)
+  -> (Expression -> Expression -> a)
+  -> Expression
+  -> Expression
+  -> OperationSize
+  -> Expression
 binOp f g x y size =
   Expression
-    { _size = size,
-      _op = f (g x y)
+    { size = size
+    , op = f (g x y)
     }
 
-unOp ::
-  (a -> ExprOp Expression) ->
-  (Expression -> a) ->
-  Expression ->
-  OperationSize ->
-  Expression
+unOp
+  :: (a -> ExprOp Expression)
+  -> (Expression -> a)
+  -> Expression
+  -> OperationSize
+  -> Expression
 unOp f g x size =
   Expression
-    { _size = size,
-      _op = f (g x)
+    { size = size
+    , op = f (g x)
     }
 
 ---- Expressions

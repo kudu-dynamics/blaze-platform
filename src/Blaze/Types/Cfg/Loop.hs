@@ -1,51 +1,34 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.Cfg.Loop where
 
 import Blaze.Prelude
 import Blaze.Types.Cfg (CfEdge, CfNode, Cfg)
 
-newtype BackEdge = BackEdge {_edge :: CfEdge}
+newtype BackEdge = BackEdge {edge :: CfEdge}
   deriving (Eq, Show, Generic)
 
 instance Hashable BackEdge
 
-$(makeFieldsNoPrefix ''BackEdge)
-
 -- TODO: Consider using a type that can only be a basic block node?
-newtype LoopHeader = LoopHeader {_node :: CfNode}
-  deriving (Eq, Show)
+newtype LoopHeader = LoopHeader {node :: CfNode}
+  deriving (Eq, Show, Generic)
 
-$(makeFieldsNoPrefix ''LoopHeader)
+newtype LoopBody = LoopBody {nodes :: HashSet CfNode}
+  deriving (Eq, Show, Generic)
 
-newtype LoopBody = LoopBody {_nodes :: HashSet CfNode}
-  deriving (Eq, Show)
+newtype LoopTail = LoopTail {node :: CfNode}
+  deriving (Eq, Show, Generic)
 
-$(makeFieldsNoPrefix ''LoopBody)
+newtype LoopNodes = LoopNodes {nodes :: HashSet CfNode}
+  deriving (Eq, Show, Generic)
 
-newtype LoopTail = LoopTail {_node :: CfNode}
-  deriving (Eq, Show)
+newtype LoopCfg a = LoopCfg {cfg :: Cfg a}
+  deriving (Eq, Show, Generic)
 
-$(makeFieldsNoPrefix ''LoopTail)
-
-newtype LoopNodes = LoopNodes {_nodes :: HashSet CfNode}
-  deriving (Eq, Show)
-
-$(makeFieldsNoPrefix ''LoopNodes)
-
-newtype LoopCfg a = LoopCfg {_cfg :: Cfg a}
-  deriving (Eq, Show)
-
-$(makeFieldsNoPrefix ''LoopCfg)
-
-data NatLoop a
-  = NatLoop
-      { _header :: LoopHeader,
-        _body :: LoopBody,
-        _tail :: LoopTail,
-        _cfg :: LoopCfg a,
-        _backEdge :: BackEdge
-      }
-  deriving (Eq, Show)
-
-$(makeFieldsNoPrefix ''NatLoop)
+data NatLoop a = NatLoop
+  { header :: LoopHeader
+  , body :: LoopBody
+  , tail :: LoopTail
+  , cfg :: LoopCfg a
+  , backEdge :: BackEdge
+  }
+  deriving (Eq, Show, Generic)

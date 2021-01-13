@@ -20,6 +20,7 @@ extra-source-files:
 description:         Please see the readme
 
 dependencies:
+  - aeson
   - algebraic-graphs
   - async
   - attoparsec
@@ -37,6 +38,7 @@ dependencies:
   - dom-lt
   - envy
   - extra
+  - generic-lens
   - hashable
   #  - ghc-typelits-natnormalise
   - lens
@@ -89,7 +91,6 @@ default-extensions:
   - TypeApplications
   - TypeFamilies
 
-
 library:
   ghc-options:
   - -Wall
@@ -110,7 +111,13 @@ library:
   - Blaze.Graph
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
+  - Blaze.Import.Pil
   - Blaze.Import.Source.BinaryNinja
+  - Blaze.Import.Source.BinaryNinja.Pil
+  - Blaze.Import.Source.BinaryNinja.CallGraph
+  - Blaze.Import.Source.BinaryNinja.Cfg
+  - Blaze.Import.Source.BinaryNinja.Types
+  - Blaze.Import.Source.BinaryNinja.Pil.Path
   - Blaze.IndirectCallResolution
   - Blaze.Path
   - Blaze.Pil
@@ -179,6 +186,23 @@ executables:
     - binja
     - hspec
     - text
+  gen_pil_ops:
+    main: Main.hs
+    source-dirs:  app/gen_pil_ops
+    ghc-options:
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binja
+    - filepath
+    - hspec
+    - text
+
     
 benchmarks:
   call-graph-benchmark:

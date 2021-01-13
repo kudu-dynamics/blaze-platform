@@ -13,11 +13,7 @@ import Blaze.Types.Pil.Checker
       charSize,
       UnifyConstraintsError(UnifyConstraintsError),
       UnifyError(IncompatibleTypes),
-      HasSolutions(solutions),
-      HasErrors(errors),
       UnifyState,
-      HasCurrentStmt(currentStmt),
-      HasOriginMap(originMap),
       VarSubst(varSubst),
       Unify,
       popConstraint,
@@ -32,18 +28,18 @@ import Blaze.Pil.Analysis (addToOriginMap)
 -- first origin and adds it as constraint to be later merged as solution.
 addVarEq :: MonadState UnifyState m => Sym -> Sym -> m Sym
 addVarEq a b = do
-  m <- use originMap
+  m <- use #originMap
   let (v, mr, m') = addToOriginMap a b m
   case mr of
     Nothing -> return ()
     Just retiredSym -> do
-      sols <- use solutions
+      sols <- use #solutions
       case HashMap.lookup retiredSym sols of
         Nothing -> return ()
         Just rt -> do
           assignType retiredSym rt
-          solutions %= HashMap.delete retiredSym
-  originMap .= m'
+          #solutions %= HashMap.delete retiredSym
+  #originMap .= m'
   return v
 
 
@@ -57,14 +53,14 @@ updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 -- | Applies originMap substitutions to solution types.
 substSolutions :: Unify ()
 substSolutions = do
-  omap <- use originMap
-  solutions %= fmap (varSubst omap)
+  omap <- use #originMap
+  #solutions %= fmap (varSubst omap)
 
 
 -- | Unifies constraint with all other constraints and solutions in state.
 unifyConstraint :: Constraint -> Unify ()
 unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
-  omap <- use originMap
+  omap <- use #originMap
   case varSubst omap cx of
     (Constraint _ a (SVar b))
       | a == b -> return ()  -- redundant constraint
@@ -82,24 +78,24 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
       -- TODO: occurs check here? (error if 'a' is used in 't')
       -- maybe we don't need occurs check since it's flat, hence "lazy"
       -- if unification fails with infinite loop, look here...
-      sols <- use solutions
+      sols <- use #solutions
       case HashMap.lookup a sols of
         Nothing -> do
 
           -- why? is this only needed when preSubstSym == a?
-          originMap %= HashMap.insert preSubstSym a
+          #originMap %= HashMap.insert preSubstSym a
 
           -- BUG: some var eq gets added to vareqmap and solutions aren't updated
           -- when (a /= preSubstSym)
           --   $ solutions %= fmap (varSubst . HashMap.fromList $ [(preSubstSym, a)])
 
-          solutions %= HashMap.insert a t
+          #solutions %= HashMap.insert a t
         Just t' -> do
-          currentStmt .= i
+          #currentStmt .= i
           t'' <- catchError (unifyPilTypes t t') $ \err -> do
-            errors %= (UnifyConstraintsError i a err :)
+            #errors %= (UnifyConstraintsError i a err :)
             return (TBottom a)
-          solutions %= HashMap.insert a t''
+          #solutions %= HashMap.insert a t''
 
 
 -----------------------------------------
