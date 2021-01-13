@@ -235,7 +235,7 @@ executables:
       - -j
     dependencies:
       - base
-      - binja
+      - binaryninja
       - filepath
       - text
 
@@ -260,6 +260,6 @@ tests:
     extra-libraries: binaryninjacore
     dependencies:
     - containers
-    - binja
+    - binaryninja
     - hspec
     - text
