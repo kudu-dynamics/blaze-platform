@@ -1,10 +1,10 @@
-name:                binja
+name:                binaryninja
 version:             0.1.0.0
-github:              "mp/binja"
+github:              "binaryninja-haskell"
 license:             LicenseRef-AllRightsReserved
 author:              "Matt Parker"
 maintainer:          "mp@kududyn.com"
-copyright:           "2019 Kudu Dynamics"
+copyright:           "2021 Kudu Dynamics"
 
 extra-source-files:
 - README.md
