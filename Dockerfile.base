@@ -1,10 +1,10 @@
 # Build with `docker build - <Dockerfile.base`, i.e., no build context
 
-ARG DOCKER_REGISTRY=gitlab.mp.kududyn.io:5005
+ARG DOCKER_REGISTRY=gitlab.mp.kududyn.io:5005/blaze
 ARG BINARYNINJA_IMAGE_TAG=latest
 
 # From blaze-system/deps/binja
-FROM ${DOCKER_REGISTRY}/blaze/devops/binary-ninja:${BINARYNINJA_IMAGE_TAG} as binaryninja
+FROM ${DOCKER_REGISTRY}/devops/binary-ninja:${BINARYNINJA_IMAGE_TAG} as binaryninja
 RUN apt update && apt install -yq \
     autoconf \
     automake \

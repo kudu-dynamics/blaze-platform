@@ -15,6 +15,9 @@ workflow:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+variables:
+  REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
+
 .job:
   timeout: 1h
   before_script:
@@ -71,7 +74,7 @@ workflow:
 .haskell-job:
   extends: .job
   #image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
-  image: ${CI_REGISTRY}/blaze/blaze/blaze-base:${CI_COMMIT_REF_SLUG}
+  image: ${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}
   tags:
     - dind
   variables:
@@ -84,7 +87,7 @@ workflow:
       - .stack-work/
       - .stack-work.deps/
 
-base:
+Build base image:
   extends: .job
   stage: base
   image: docker:dind
@@ -101,12 +104,26 @@ base:
   #       - "**/*.cabal"
   script:
     - git ls-files --others
-    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - '[ "$CI_COMMIT_REF_NAME" = "$CI_DEFAULT_BRANCH" ] && tag=latest || tag="$CI_COMMIT_REF_SLUG"'
-    - image="${CI_REGISTRY}/blaze/blaze/blaze-base"
-    - 'docker pull "${image}:${tag}" || docker pull "${image}:latest" || echo "Missing from docker registry: ${image}:${tag}, ${image}:latest"'
-    - docker build --pull -t "${image}:${tag}" .. -f Dockerfile.base
-    - docker push "${image}:${tag}"
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:latest" || true
+    - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}" || true
+    - docker build --pull .. -f Dockerfile.base
+      -t "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
+      -t "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}"
+    - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
+    - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}"
+
+Push latest base image:
+  stage: push-base
+  extends: .job
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
+    - docker tag "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}" "${REPO_DOCKER_REGISTRY}/blaze-base:latest"
+    - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:latest"
 
 build:
   extends: .haskell-job
