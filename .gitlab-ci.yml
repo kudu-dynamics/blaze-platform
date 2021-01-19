@@ -17,6 +17,7 @@ workflow:
 
 variables:
   REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
+  GROUP_DOCKER_REGISTRY: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}
 
 .job:
   timeout: 1h
@@ -108,6 +109,7 @@ Build base image:
     - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:latest" || true
     - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}" || true
     - docker build --pull .. -f Dockerfile.base
+      --build-arg DEVOPS_DOCKER_REGISTRY=${GROUP_DOCKER_REGISTRY}/devops
       -t "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
       -t "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}"
     - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
