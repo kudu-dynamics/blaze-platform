@@ -51,7 +51,7 @@ workflow:
       **/.dockerignore
       EOF
     - |
-      for project in binary-analysis haskell-binja binja-header-cleaner; do
+      for project in binary-analysis binaryninja-haskell; do
         rm -rf "../$project"
         git clone --depth=1 "${CI_REPOSITORY_URL%/*}/$project.git" "../$project"
         (
