@@ -27,7 +27,7 @@ dependencies:
   - base >= 4.7 && < 5
   - binary-analysis
   - bimap
-  - binja
+  - binaryninja
   - bv
   - bytestring
 #  - bv-sized
@@ -153,7 +153,7 @@ library:
   
 include-dirs:
   - "src"
-  - "../haskell-binja/res"
+  - "../binaryninja-haskell/res"
 
 executables:
   demo:
@@ -168,7 +168,7 @@ executables:
     dependencies:
     - blaze
     - containers
-    - binja
+    - binaryninja
     - hspec
     - text
   find_mlil_ssa:
@@ -183,7 +183,7 @@ executables:
     dependencies:
     - blaze
     - containers
-    - binja
+    - binaryninja
     - hspec
     - text
   gen_pil_ops:
@@ -198,7 +198,7 @@ executables:
     dependencies:
     - blaze
     - containers
-    - binja
+    - binaryninja
     - filepath
     - hspec
     - text
@@ -215,7 +215,7 @@ benchmarks:
     - -with-rtsopts=-N
     dependencies:
     - blaze
-    - binja
+    - binaryninja
     - text
     #- criterion
 
@@ -234,6 +234,6 @@ tests:
     - algebraic-graphs
     - containers
     - blaze
-    - binja
+    - binaryninja
     - hspec
     - text
