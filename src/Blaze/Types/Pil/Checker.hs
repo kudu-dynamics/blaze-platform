@@ -17,9 +17,9 @@ charSize :: BitWidth
 charSize = 8
 
 newtype Sym = Sym Int
-            deriving (Eq, Ord, Read, Show, Generic)
+  deriving (Eq, Ord, Read, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON, Hashable)
 
-instance Hashable Sym
 
 data TypeTag = TagDirty
              | TagSanitized
@@ -108,14 +108,14 @@ data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
 data InfoExpression a = InfoExpression
   { info :: a
   , op :: ExprOp (InfoExpression a)
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
 
 instance Hashable a => Hashable (InfoExpression a)
 
 data SymInfo = SymInfo
   { size :: BitWidth
   , sym :: Sym
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
     deriving anyclass Hashable
 
 type SymExpression = InfoExpression SymInfo
@@ -144,7 +144,7 @@ type VarEqMap = EqualityMap Sym
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
   { symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
-  , symStmts :: [Statement SymExpression]
+  , symStmts :: [(Int, Statement SymExpression)]
   --  , _typedStmts :: [Statement TypedExpression]
   , varSymTypeMap :: HashMap PilVar DeepSymType
   , varSymMap :: HashMap PilVar Sym
