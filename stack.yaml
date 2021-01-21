@@ -14,4 +14,5 @@ extra-deps:
   - git: https://github.com/meditans/haskell-z3.git
     commit: 8bb9fe8628f1e915880da1aaf2c20ce3e0a4fb2d
   - dom-lt-0.2.0@sha256:fc7451d6ada55233239d22b6eed8f2e4c1c1290f1cad101c9d429ea875aa72e6,1615
-
+  - git: https://github.com/haskell/c2hs.git
+    commit: 684b4a529b35fbca2b3d3bcd0bed8d7925f8ea81
