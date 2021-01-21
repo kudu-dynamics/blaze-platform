@@ -1,10 +1,10 @@
 name:                blaze
 version:             0.1.0.0
-github:              "haskell-blaze"
-license:             BSD3
+github:              "blaze"
+license:             LicenseRef-AllRightsReserved
 author:              ""
 maintainer:          ""
-copyright:           "2019 Kudu Dynamics"
+copyright:           "2021 Kudu Dynamics"
 
 extra-source-files:
 - README.md
@@ -63,6 +63,7 @@ dependencies:
   - vector
 
 default-extensions:
+  - AllowAmbiguousTypes
   - BangPatterns
   - DataKinds
   - DeriveAnyClass
@@ -81,15 +82,14 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NoImplicitPrelude
+  - NoMonomorphismRestriction
   - OverloadedLabels
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
-#  - StrictData
   - TupleSections
   - TypeApplications
   - TypeFamilies
-
 
 library:
   ghc-options:
