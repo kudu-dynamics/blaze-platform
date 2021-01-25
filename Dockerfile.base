@@ -48,8 +48,8 @@ RUN stack upgrade --binary-only
 ARG BLAZE_BINJA_CHANNEL=dev
 ARG BLAZE_BINJA_VERSION=LATEST
 ARG BLAZE_BINJA_API_COMMIT=origin/dev
-RUN /tmp/binja_api_update "${BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
-RUN python3 /tmp/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
+RUN /usr/local/bin/binja_api_update "${BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
+RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
 COPY /blaze/ /tmp/blaze-deps/blaze/
 COPY /binaryninja-haskell/ /tmp/blaze-deps/binaryninja-haskell/
