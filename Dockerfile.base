@@ -40,7 +40,7 @@ RUN cd /tmp/z3/build && \
     cd / && \
     rm -rf /tmp/z3
 
-RUN z3 --version && which z3 && false
+RUN z3 --version && which z3
 
 RUN stack upgrade --binary-only
 
@@ -51,10 +51,9 @@ ARG BLAZE_BINJA_API_COMMIT=origin/dev
 RUN /tmp/binja_api_update "${BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
 RUN python3 /tmp/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
-COPY blaze/ /tmp/blaze-deps/blaze/
-COPY haskell-binja/ /tmp/blaze-deps/haskell-binja/
-COPY binary-analysis/ /tmp/blaze-deps/binary-analysis/
-COPY binja-header-cleaner/ /tmp/blaze-deps/binja-header-cleaner/
+COPY /blaze/ /tmp/blaze-deps/blaze/
+COPY /binaryninja-haskell/ /tmp/blaze-deps/binaryninja-haskell/
+COPY /binary-analysis/ /tmp/blaze-deps/binary-analysis/
 RUN cd /tmp/blaze-deps/blaze && \
     stack build --only-dependencies --test --no-run-tests && \
     cd / && \
