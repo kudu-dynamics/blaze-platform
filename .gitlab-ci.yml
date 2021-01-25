@@ -36,9 +36,8 @@ variables:
       *
 
       !blaze
+      !binaryninja-haskell
       !binary-analysis
-      !haskell-binja
-      !binja-header-cleaner
 
       **/.git
       **/.gitlab-ci.yml
