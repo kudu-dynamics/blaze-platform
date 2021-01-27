@@ -7,7 +7,6 @@ import Binja.Prelude hiding (handle)
 import Binja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
 
 import qualified Data.Text as Text
-import Test.SmallCheck.Series (series, decDepth, newtypeCons, (<~>))
 
 
 -- TODO: Add a symbol field

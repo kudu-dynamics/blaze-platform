@@ -7,8 +7,6 @@ import Binja.Prelude
 import Binja.C.Pointers (BNType)
 import Binja.C.Enums (BNTypeClass, BNVariableSourceType)
 
-import qualified Data.Text as Text
-import Test.SmallCheck.Series (series, decDepth, newtypeCons, (<~>))
 
 newtype TypeWidth = TypeWidth Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
