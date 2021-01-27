@@ -8,4 +8,3 @@ data RetOp expr = RetOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (RetOp a)
-instance Serial m a => Serial m (RetOp a)

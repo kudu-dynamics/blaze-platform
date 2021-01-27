@@ -9,4 +9,3 @@ data FcmpOOp expr = FcmpOOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FcmpOOp a)
-instance Serial m a => Serial m (FcmpOOp a)

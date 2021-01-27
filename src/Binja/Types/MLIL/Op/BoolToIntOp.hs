@@ -8,4 +8,3 @@ data BoolToIntOp expr = BoolToIntOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (BoolToIntOp a)
-instance Serial m a => Serial m (BoolToIntOp a)

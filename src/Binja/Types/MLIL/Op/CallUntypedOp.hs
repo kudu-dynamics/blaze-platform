@@ -11,4 +11,3 @@ data CallUntypedOp expr = CallUntypedOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CallUntypedOp a)
-instance Serial m a => Serial m (CallUntypedOp a)

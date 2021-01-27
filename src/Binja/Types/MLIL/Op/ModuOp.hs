@@ -9,4 +9,3 @@ data ModuOp expr = ModuOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ModuOp a)
-instance Serial m a => Serial m (ModuOp a)

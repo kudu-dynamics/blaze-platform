@@ -7,4 +7,3 @@ data BpOp expr = BpOp
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (BpOp a)
-instance Serial m a => Serial m (BpOp a)

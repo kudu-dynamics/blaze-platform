@@ -19,7 +19,6 @@ newtype OpIndex = OpIndex Word64
 newtype OperationSize = OperationSize Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
 
-instance Monad m => Serial m OperationSize
 instance Hashable OperationSize
 
 newtype OperandsData = OperandsData [Word64]

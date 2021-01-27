@@ -8,4 +8,3 @@ data LowPartOp expr = LowPartOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (LowPartOp a)
-instance Serial m a => Serial m (LowPartOp a)

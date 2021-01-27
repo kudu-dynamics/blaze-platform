@@ -10,4 +10,3 @@ data SyscallOp expr = SyscallOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SyscallOp a)
-instance Serial m a => Serial m (SyscallOp a)

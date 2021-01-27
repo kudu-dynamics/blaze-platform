@@ -8,4 +8,3 @@ data FloatConvOp expr = FloatConvOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FloatConvOp a)
-instance Serial m a => Serial m (FloatConvOp a)

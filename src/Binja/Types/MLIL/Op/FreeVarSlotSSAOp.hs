@@ -9,4 +9,3 @@ data FreeVarSlotSSAOp expr = FreeVarSlotSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FreeVarSlotSSAOp a)
-instance Serial m a => Serial m (FreeVarSlotSSAOp a)

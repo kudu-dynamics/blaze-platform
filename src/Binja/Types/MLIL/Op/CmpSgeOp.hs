@@ -9,4 +9,3 @@ data CmpSgeOp expr = CmpSgeOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CmpSgeOp a)
-instance Serial m a => Serial m (CmpSgeOp a)

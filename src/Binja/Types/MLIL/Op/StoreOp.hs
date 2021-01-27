@@ -9,4 +9,3 @@ data StoreOp expr = StoreOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (StoreOp a)
-instance Serial m a => Serial m (StoreOp a)

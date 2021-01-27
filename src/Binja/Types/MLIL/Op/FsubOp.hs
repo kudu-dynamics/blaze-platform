@@ -9,4 +9,3 @@ data FsubOp expr = FsubOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FsubOp a)
-instance Serial m a => Serial m (FsubOp a)

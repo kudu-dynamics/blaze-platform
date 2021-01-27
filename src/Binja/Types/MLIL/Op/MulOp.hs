@@ -9,4 +9,3 @@ data MulOp expr = MulOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (MulOp a)
-instance Serial m a => Serial m (MulOp a)

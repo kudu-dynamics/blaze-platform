@@ -8,4 +8,3 @@ data IntToFloatOp expr = IntToFloatOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (IntToFloatOp a)
-instance Serial m a => Serial m (IntToFloatOp a)

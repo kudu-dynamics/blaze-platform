@@ -9,4 +9,3 @@ data JumpToOp expr = JumpToOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (JumpToOp a)
-instance Serial m a => Serial m (JumpToOp a)

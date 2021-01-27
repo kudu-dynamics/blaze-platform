@@ -8,4 +8,3 @@ data CeilOp expr = CeilOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (CeilOp a)
-instance Serial m a => Serial m (CeilOp a)

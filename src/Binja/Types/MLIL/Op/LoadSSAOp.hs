@@ -9,4 +9,3 @@ data LoadSSAOp expr = LoadSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (LoadSSAOp a)
-instance Serial m a => Serial m (LoadSSAOp a)

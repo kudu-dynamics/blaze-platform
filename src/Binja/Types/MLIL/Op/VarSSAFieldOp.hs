@@ -10,4 +10,3 @@ data VarSSAFieldOp expr = VarSSAFieldOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (VarSSAFieldOp a)
-instance Serial m a => Serial m (VarSSAFieldOp a)
