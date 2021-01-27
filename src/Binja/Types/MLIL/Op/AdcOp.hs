@@ -10,4 +10,3 @@ data AdcOp expr = AdcOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (AdcOp a)
-instance Serial m a => Serial m (AdcOp a)

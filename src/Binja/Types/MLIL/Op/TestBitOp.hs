@@ -9,4 +9,3 @@ data TestBitOp expr = TestBitOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (TestBitOp a)
-instance Serial m a => Serial m (TestBitOp a)

@@ -1,7 +1,3 @@
--- The undefined value is used in the definition of Serial instances 
--- in this module. The OPTIONS_GHC pragma can be removed if this
--- changes.
-{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Binja.Types.Variable where
@@ -11,18 +7,12 @@ import Binja.Prelude
 import Binja.C.Pointers (BNType)
 import Binja.C.Enums (BNTypeClass, BNVariableSourceType)
 
-import qualified Data.Text as Text
-import Test.SmallCheck.Series (series, decDepth, newtypeCons, (<~>))
 
 newtype TypeWidth = TypeWidth Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
 
-instance Monad m => Serial m TypeWidth where series = newtypeCons TypeWidth
-
 newtype TypeAlignment = TypeAlignment Bytes
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
-
-instance Monad m => Serial m TypeAlignment where series = newtypeCons TypeAlignment
 
 data VarType = VarType
   { _confidence :: Confidence
@@ -37,36 +27,17 @@ data VarType = VarType
   , _elementType :: Maybe VarType
   } deriving (Eq, Ord, Show, Generic)
 
-instance Monad m => Serial m VarType where
-  series = decDepth $ VarType
-    <$> series
-    <~> pure undefined  -- Don't randomly generate pointers
-    <~> series
-    <~> series
-    <~> series
-    <~> series
-    <~> series
-    <~> series
-    <~> newtypeCons Text.pack
-    <~> series
-
 newtype VariableIdentifier = VariableIdentifier Word64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
 newtype VariableIndex = VariableIndex Word32
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
-instance Monad m => Serial m VariableIndex where series = newtypeCons VariableIndex
-
 newtype VariableStorage = VariableStorage Int64
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
 
-instance Monad m => Serial m VariableStorage where series = newtypeCons VariableStorage
-
 newtype Confidence = Confidence Word8
   deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
-
-instance Monad m => Serial m Confidence where series = newtypeCons Confidence
 
 data BNVariable = BNVariable
   { _sourceType :: BNVariableSourceType
@@ -81,14 +52,6 @@ data Variable = Variable
   , _sourceType :: BNVariableSourceType
   , _varType :: Maybe VarType
   } deriving (Eq, Ord, Show, Generic)
-
-instance Monad m => Serial m Variable where
-  series = decDepth $ Variable
-    <$> series
-    <~> newtypeCons Text.pack
-    <~> series
-    <~> pure undefined  -- don't ramdomly generate pointers
-    <~> series
 
 -- TODO: Just using the index for hashing, is this OK? Are variables from multiple 
 --       functions with shared index values ever stored in the same hash-using

@@ -7,7 +7,6 @@ import Binja.Prelude hiding (handle)
 import Binja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
 
 import qualified Data.Text as Text
-import Test.SmallCheck.Series (series, decDepth, newtypeCons, (<~>))
 
 
 -- TODO: Add a symbol field
@@ -22,12 +21,6 @@ instance Eq Function where
 
 instance Hashable Function where
   hashWithSalt s x = hashWithSalt s $ _start x
-
-instance Monad m => Serial m Function where
-  series = decDepth $ Function
-    <$> pure undefined  -- Don't ramdomly generate pointers
-    <~> newtypeCons Text.pack
-    <~> series
 
 data LLILFunction = LLILFunction
   { _handle :: BNLowLevelILFunction

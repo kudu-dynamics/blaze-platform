@@ -8,4 +8,3 @@ data JumpOp expr = JumpOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (JumpOp a)
-instance Serial m a => Serial m (JumpOp a)

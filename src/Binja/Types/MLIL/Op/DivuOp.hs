@@ -9,4 +9,3 @@ data DivuOp expr = DivuOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (DivuOp a)
-instance Serial m a => Serial m (DivuOp a)

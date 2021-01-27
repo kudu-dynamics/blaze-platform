@@ -12,4 +12,3 @@ data IntrinsicOp expr = IntrinsicOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (IntrinsicOp a)
-instance Serial m a => Serial m (IntrinsicOp a)

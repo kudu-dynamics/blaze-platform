@@ -12,4 +12,3 @@ data IntrinsicSSAOp expr = IntrinsicSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (IntrinsicSSAOp a)
-instance Serial m a => Serial m (IntrinsicSSAOp a)

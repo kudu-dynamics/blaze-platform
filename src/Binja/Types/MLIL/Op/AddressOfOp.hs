@@ -9,4 +9,3 @@ data AddressOfOp expr = AddressOfOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (AddressOfOp a)
-instance Serial m a => Serial m (AddressOfOp a)

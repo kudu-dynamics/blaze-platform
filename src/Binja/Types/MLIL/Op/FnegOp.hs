@@ -8,4 +8,3 @@ data FnegOp expr = FnegOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (FnegOp a)
-instance Serial m a => Serial m (FnegOp a)

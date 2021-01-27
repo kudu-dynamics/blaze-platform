@@ -9,4 +9,3 @@ data ExternPtrOp expr = ExternPtrOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (ExternPtrOp a)
-instance Serial m a => Serial m (ExternPtrOp a)

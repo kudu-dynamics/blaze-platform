@@ -10,4 +10,3 @@ data SetVarSSAOp expr = SetVarSSAOp
     } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
 
 instance Hashable a => Hashable (SetVarSSAOp a)
-instance Serial m a => Serial m (SetVarSSAOp a)
