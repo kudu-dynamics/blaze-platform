@@ -3,11 +3,9 @@ module Blaze.Types.Pil
   , module Blaze.Types.Pil
   ) where
 
-
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
-
 
 data ExprOp expr
     = ADC (AdcOp expr)

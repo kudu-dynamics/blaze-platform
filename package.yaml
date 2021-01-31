@@ -30,7 +30,6 @@ dependencies:
   - binaryninja
   - bv
   - bytestring
-#  - bv-sized
   - casing
   - containers
   - data-binary-ieee754
@@ -40,7 +39,6 @@ dependencies:
   - extra
   - generic-lens
   - hashable
-  #  - ghc-typelits-natnormalise
   - lens
   - list-t
   - mtl

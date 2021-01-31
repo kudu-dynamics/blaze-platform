@@ -37,23 +37,23 @@ toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
 toMlilSsaInstr instr =
   maybe (MlilSsaNonCall instr) MlilSsaCall (toCallInstruction instr)
 
-runNodeConverter :: NodeConverter a -> IO (a, DList NodeMapEntry)
+runNodeConverter :: NodeConverter a -> IO (a, DList MlilNodeRefMapEntry)
 runNodeConverter = runWriterT
 
-tellEntry :: NodeMapEntry -> NodeConverter ()
+tellEntry :: MlilNodeRefMapEntry -> NodeConverter ()
 tellEntry = tell . DList.singleton
 
 -- | Assumes instructions are consecutive
-nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter CfNode
+nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode MlilSsaInstructionIndex)
 nodeFromInstrs func' instrs = do
   let node =
         BasicBlock
           { Cfg.function = func'
-          , Cfg.start = view Mlil.address . NEList.head $ instrs
+          , Cfg.start = view Mlil.index . NEList.head $ instrs
           }
   tellEntry
     ( node,
-      CodeReference
+      Cfg.CodeReference
         { function = func'
         , startIndex = view Mlil.index . NEList.head $ instrs
         , endIndex = view Mlil.index . NEList.last $ instrs
@@ -61,16 +61,16 @@ nodeFromInstrs func' instrs = do
     )
   return node
 
-nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter CfNode
+nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode MlilSsaInstructionIndex)
 nodeFromCallInstr func' callInstr = do
   let node =
         Call
           { function = func'
-          , target = callInstr ^. #address
+          , start = callInstr ^. #index
           }
   tellEntry
     ( node
-    , CodeReference
+    , Cfg.CodeReference
         { function = func'
         , startIndex = callInstr ^. #index
         , endIndex = callInstr ^. #index
@@ -78,7 +78,7 @@ nodeFromCallInstr func' callInstr = do
     )
   return node
 
-nodeFromGroup :: Function -> InstrGroup -> NodeConverter CfNode
+nodeFromGroup :: Function -> InstrGroup -> NodeConverter (CfNode MlilSsaInstructionIndex)
 nodeFromGroup func' = \case
   (SingleCall x) -> nodeFromCallInstr func' x
   (ManyNonCalls xs) -> nodeFromInstrs func' xs
@@ -113,21 +113,21 @@ groupInstrs xs = mconcat (parseAndSplit <$> groupedInstrs)
       -- in the group.
       _ -> [ManyNonCalls . NEList.fromList . mapMaybe parseNonCall . NEList.toList $ g]
 
-nodesFromInstrs :: Function -> [MlilSsaInstruction] -> NodeConverter [CfNode]
+nodesFromInstrs :: Function -> [MlilSsaInstruction] -> NodeConverter [MlilSsaCfNode]
 nodesFromInstrs func' instrs = do
   let instrGroups = groupInstrs $ toMlilSsaInstr <$> instrs
   mapM (nodeFromGroup func') instrGroups
 
-convertNode :: Function -> MlilSsaBlock -> NodeConverter [CfNode]
+convertNode :: Function -> MlilSsaBlock -> NodeConverter [MlilSsaCfNode]
 convertNode func' bnBlock = do
   instrs <- liftIO $ Mlil.fromBasicBlock bnBlock
   nodesFromInstrs func' instrs
 
-createEdgesForNodeGroup :: [CfNode] -> [CfEdge]
+createEdgesForNodeGroup :: [MlilSsaCfNode] -> [MlilSsaCfEdge]
 createEdgesForNodeGroup ns =
   maybe [] (($ UnconditionalBranch) . uncurry CfEdge <$>) (maybeNodePairs =<< NEList.nonEmpty ns)
   where
-    maybeNodePairs :: NonEmpty CfNode -> Maybe [(CfNode, CfNode)]
+    maybeNodePairs :: NonEmpty MlilSsaCfNode -> Maybe [(MlilSsaCfNode, MlilSsaCfNode)]
     maybeNodePairs = \case
       _ :| [] -> Nothing
       nodes -> Just $ zip (NEList.toList nodes) (NEList.tail nodes)
@@ -139,7 +139,7 @@ convertBranchType = \case
   BNEnums.FalseBranch -> FalseBranch
   _ -> UnconditionalBranch
 
-convertEdge :: MlilSsaBlockMap -> MlilSsaBlockEdge -> Maybe CfEdge
+convertEdge :: MlilSsaBlockMap -> MlilSsaBlockEdge -> Maybe MlilSsaCfEdge
 convertEdge nodeMap bnEdge = do
   let bnSrc = bnEdge ^. BNBb.src
   bnDst <- bnEdge ^. BNBb.target
@@ -151,7 +151,7 @@ importCfg ::
   Function ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
-  IO (Maybe (Cfg NodeMap))
+  IO (Maybe (Cfg MlilSsaInstructionIndex MlilNodeRefMap))
 importCfg func' bnNodes bnEdges = do
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode func') bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
@@ -164,7 +164,7 @@ importCfg func' bnNodes bnEdges = do
           cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
       return . Just $ buildCfg cfRoot cfRest cfEdges (Just . HMap.fromList . DList.toList $ mapEntries)
 
-getCfg :: BNBinaryView -> CG.Function -> IO (Maybe (Cfg NodeMap))
+getCfg :: BNBinaryView -> CG.Function -> IO (Maybe (Cfg MlilSsaInstructionIndex MlilNodeRefMap))
 getCfg bv func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of

@@ -31,28 +31,28 @@ import qualified Data.HashSet as HS
 -- | Check if an edge is a back edge using graph dominators.
 --  We assume the dominators include the nodes referenced in the edge.
 --  If that assumption is wrong, isBackEdge defaults to False.
-isBackEdge :: Dominators -> CfEdge -> Bool
+isBackEdge :: (Hashable a, Ord a) => Dominators a -> CfEdge a -> Bool
 isBackEdge domMap edge =
   case HM.lookup (edge ^. #src) (coerce domMap) of
     Nothing -> False
     (Just domNodes) -> HS.member (edge ^. #dst) domNodes
 
-fromGraphEdge :: (BranchType, (CfNode, CfNode)) -> CfEdge
+fromGraphEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
 fromGraphEdge (bType, (srcNode, dstNode)) = CfEdge srcNode dstNode bType
 
-getBackEdges :: Cfg a -> [BackEdge]
+getBackEdges :: forall a b. (Hashable a, Ord a) => Cfg a b -> [BackEdge a]
 getBackEdges cfg' =
   [ BackEdge e
     | e <- fromGraphEdge <$> G.edges cfg',
       isBackEdge doms e
   ]
   where
-    doms :: Dominators
+    doms :: Dominators a
     doms = getDominators cfg'
 
 -- | Find body nodes of loop. If an empty list is returned, the loop
 --  only contains a head(er) node and a tail node.
-getBodyNodes :: Cfg a -> BackEdge -> HashSet CfNode
+getBodyNodes :: forall a b. (Hashable a, Ord a) => Cfg a b -> BackEdge a -> HashSet (CfNode a)
 getBodyNodes cfg' backEdge =
   HS.delete header
     . HS.delete tail
@@ -63,36 +63,36 @@ getBodyNodes cfg' backEdge =
     . G.removeNode header
     $ cfg'
   where
-    header :: CfNode
+    header :: CfNode a
     header = backEdge ^. (#edge . #dst)
-    tail :: CfNode
+    tail :: CfNode a
     tail = backEdge ^. (#edge . #src)
 
-getLoopBody :: Cfg a -> BackEdge -> LoopBody
+getLoopBody :: forall a b. (Hashable a, Ord a) => Cfg a b -> BackEdge a -> LoopBody a
 getLoopBody cfg' backEdge =
   LoopBody bodyNodes
   where
-    bodyNodes :: HashSet CfNode
+    bodyNodes :: HashSet (CfNode a)
     bodyNodes = getBodyNodes cfg' backEdge
 
-getLoopCfg :: forall a. Cfg a -> LoopHeader -> LoopNodes -> LoopCfg a
+getLoopCfg :: forall a b. (Hashable a, Ord a) => Cfg a b -> LoopHeader a -> LoopNodes a -> LoopCfg a b
 getLoopCfg cfg' header loopNodes =
   LoopCfg $ subCfg_ {root = header ^. #node}
   where
-    subCfg_ :: Cfg a
+    subCfg_ :: Cfg a b
     subCfg_ = G.subgraph (`HS.member` (loopNodes ^. #nodes)) cfg'
 
-fromBackEdge :: forall a. Cfg a -> BackEdge -> NatLoop a
+fromBackEdge :: forall a b. (Hashable a, Ord a) => Cfg a b -> BackEdge a -> NatLoop a b
 fromBackEdge cfg' backEdge =
   NatLoop header body tail loopCfg backEdge
   where
-    header :: LoopHeader
+    header :: LoopHeader a
     header = LoopHeader $ backEdge ^. (#edge . #dst)
-    body :: LoopBody
+    body :: LoopBody a
     body = getLoopBody cfg' backEdge
-    tail :: LoopTail
+    tail :: LoopTail a
     tail = LoopTail $ backEdge ^. (#edge . #src)
-    loopNodes :: LoopNodes
+    loopNodes :: LoopNodes a
     loopNodes = LoopNodes $ HS.insert (header ^. #node) . HS.insert (tail ^. #node) $ (body ^. #nodes)
-    loopCfg :: LoopCfg a
+    loopCfg :: LoopCfg a b
     loopCfg = getLoopCfg cfg' header loopNodes

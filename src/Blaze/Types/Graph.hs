@@ -10,6 +10,7 @@ type LEdge label node = (label, (node, node))
 
 type Edge node = (node, node)
 
+-- TODO: Switch to HashSet from Set for type class
 class Graph e n g | g -> e n where
   empty :: g
   fromNode :: n -> g

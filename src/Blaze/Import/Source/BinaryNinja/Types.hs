@@ -5,8 +5,7 @@ import qualified Binja.Core as Binja
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.CallGraph (Function)
-import Blaze.Types.Cfg (CfNode)
+import Blaze.Types.Cfg (CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry)
 import Blaze.Types.Function (CallInstruction, FuncInfo)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil
@@ -34,7 +33,11 @@ type MlilSsaInstruction = Mlil.Instruction MlilSsaFunc
 
 type MlilSsaInstructionIndex = Binja.InstructionIndex MlilSsaFunc
 
-type MlilSsaBlockMap = HashMap MlilSsaBlock [CfNode]
+type MlilSsaCfNode = CfNode MlilSsaInstructionIndex
+
+type MlilSsaCfEdge = CfEdge MlilSsaInstructionIndex
+
+type MlilSsaBlockMap = HashMap MlilSsaBlock [MlilSsaCfNode]
 
 type NonCallInstruction = MlilSsaInstruction
 
@@ -48,19 +51,10 @@ data MlilSsaInstr
   | MlilSsaNonCall NonCallInstruction
   deriving (Eq, Ord, Show, Generic)
 
-data CodeReference = CodeReference
-  { function :: Function
-  , startIndex :: MlilSsaInstructionIndex
-  , endIndex :: MlilSsaInstructionIndex
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-type NodeMap = HashMap CfNode CodeReference
-
-type NodeMapEntry = (CfNode, CodeReference)
-
-type NodeConverter a = WriterT (DList NodeMapEntry) IO a
-
+type MlilCodeReference = CodeReference MlilSsaInstructionIndex
+type MlilNodeRefMap = NodeRefMap MlilSsaInstructionIndex MlilSsaInstructionIndex
+type MlilNodeRefMapEntry = NodeRefMapEntry MlilSsaInstructionIndex MlilSsaInstructionIndex
+type NodeConverter a = WriterT (DList MlilNodeRefMapEntry) IO a
 
 ----- Pil
 

@@ -16,53 +16,72 @@ data BranchType
 
 instance Hashable BranchType
 
-data CfNode
+data CfNode a
   = BasicBlock
       { function :: Function
-      , start :: Address
+      , start :: a
       }
   | Call
       { function :: Function
-      , target :: Address
+      , start :: a
       }
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-instance Hashable CfNode
-
-data CfEdge = CfEdge
-  { src :: CfNode
-  , dst :: CfNode
+data CfEdge a = CfEdge
+  { src :: CfNode a
+  , dst :: CfNode a
   , branchType :: BranchType
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-instance Hashable CfEdge
+data CodeReference a = CodeReference
+  { function :: Function
+  , startIndex :: a
+  , endIndex :: a
+  }
+  deriving (Eq, Ord, Show, Generic)
 
-newtype Dominators = Dominators (HashMap CfNode (HashSet CfNode))
+type NodeRefMap a b = HashMap (CfNode a) (CodeReference b)
 
-newtype PostDominators = PostDominators (HashMap CfNode (HashSet CfNode))
+type NodeRefMapEntry a b = (CfNode a, CodeReference b)
+
+newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
+
+newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a)))
 
 -- | A non-empty graph that consists of a strongly-connected component
 -- with a single root node (a node with no incoming edges).
 -- This is intended to be the graph representation of a CFG.
 -- A user of this API probably wants to work with the 'Cfg' type that
 -- includes additional information about the CFG.
-type ControlFlowGraph = AlgaGraph BranchType CfNode
+type ControlFlowGraph a = AlgaGraph BranchType (CfNode a)
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: CfNode -> [CfNode] -> [CfEdge] -> ControlFlowGraph
+mkControlFlowGraph :: Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> ControlFlowGraph a
 mkControlFlowGraph root' ns es =
   Graph.addNodes (root' : ns) . Graph.fromEdges $
     (view #branchType &&& (view #src &&& view #dst)) <$> es
 
-data Cfg a = Cfg
-  { graph :: ControlFlowGraph
-  , root :: CfNode
-  , mapping :: Maybe a
+-- TODO: Need to remove nodes from the mapping. Consider making mapping external,
+--       an implementor can't know how to speculatively update this without
+--       more type info and an appropriate interface
+-- TODO: The mapping was originally intended to map imported information to
+--       the source it was derived from. Consider removing mapping from Cfg and
+--       instead providing it as an additional result after the importing process.
+-- TODO: Expand CfNode so that it can support storing different information. 
+--       E.g., a CfNode could have a data :: a field which could be [Stmt] or
+--       anything else. We may still need to support parameterized location
+--       references for cases where Address won't work (e.g., MLIL SSA)
+data Cfg a b = Cfg
+  { graph :: ControlFlowGraph a
+  , root :: CfNode a
+  , mapping :: Maybe b
   }
   deriving (Eq, Show, Generic)
 
-buildCfg :: CfNode -> [CfNode] -> [CfEdge] -> Maybe a -> Cfg a
+buildCfg :: forall a b. Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> Maybe b -> Cfg a b
 buildCfg root' rest es mapping' =
   Cfg
     { graph = graph'
@@ -70,12 +89,12 @@ buildCfg root' rest es mapping' =
     , mapping = mapping'
     }
   where
-    graph' :: ControlFlowGraph
+    graph' :: ControlFlowGraph a
     graph' = mkControlFlowGraph root' rest es
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Graph BranchType CfNode (Cfg a) where
+instance Ord a => Graph BranchType (CfNode a) (Cfg a b) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use buildCfg to construct a CFG."
   fromEdges _ = error "Use buildCfg to construct a CFG."
