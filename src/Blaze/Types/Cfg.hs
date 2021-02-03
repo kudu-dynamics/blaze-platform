@@ -19,11 +19,15 @@ instance Hashable BranchType
 data CfNode a
   = BasicBlock
       { function :: Function
-      , start :: a
+      , start :: Address
+      , end :: Address
+      , nodeData :: a
       }
   | Call
       { function :: Function
-      , start :: a
+      , start :: Address
+      , end :: Address
+      , nodeData :: a
       }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
@@ -43,9 +47,9 @@ data CodeReference a = CodeReference
   }
   deriving (Eq, Ord, Show, Generic)
 
-type NodeRefMap a b = HashMap (CfNode a) (CodeReference b)
+type NodeRefMap a b = HashMap a b
 
-type NodeRefMapEntry a b = (CfNode a, CodeReference b)
+type NodeRefMapEntry a b = (a, b)
 
 newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
 

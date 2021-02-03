@@ -342,6 +342,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
     (Pil.DefPhi x) -> Text.pack $ printf "%s = %s"
                       (pretty $ x ^. #dest)
                       (asList . fmap pretty $ x ^. #src)
+    (Pil.BranchCond x) -> "Branch cond: " <> pretty (x ^. #cond)
 
 
 newtype PStmts a = PStmts [Pil.Statement a]

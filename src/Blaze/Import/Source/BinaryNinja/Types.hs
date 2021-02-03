@@ -33,13 +33,16 @@ type MlilSsaInstruction = Mlil.Instruction MlilSsaFunc
 
 type MlilSsaInstructionIndex = Binja.InstructionIndex MlilSsaFunc
 
-type MlilSsaCfNode = CfNode MlilSsaInstructionIndex
+type MlilSsaCfNode = CfNode (NonEmpty MlilSsaInstruction)
 
-type MlilSsaCfEdge = CfEdge MlilSsaInstructionIndex
+type MlilSsaCfEdge = CfEdge (NonEmpty MlilSsaInstruction)
 
 type MlilSsaBlockMap = HashMap MlilSsaBlock [MlilSsaCfNode]
 
-type NonCallInstruction = MlilSsaInstruction
+newtype NonCallInstruction = NonCallInstruction
+  {unNonCallInstruction :: MlilSsaInstruction}
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 data InstrGroup
   = SingleCall {_callInstr :: CallInstruction}
@@ -50,10 +53,11 @@ data MlilSsaInstr
   = MlilSsaCall CallInstruction
   | MlilSsaNonCall NonCallInstruction
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 type MlilCodeReference = CodeReference MlilSsaInstructionIndex
-type MlilNodeRefMap = NodeRefMap MlilSsaInstructionIndex MlilSsaInstructionIndex
-type MlilNodeRefMapEntry = NodeRefMapEntry MlilSsaInstructionIndex MlilSsaInstructionIndex
+type MlilNodeRefMap = NodeRefMap (CfNode (NonEmpty MlilSsaInstruction)) MlilCodeReference
+type MlilNodeRefMapEntry = NodeRefMapEntry (CfNode (NonEmpty MlilSsaInstruction)) MlilCodeReference
 type NodeConverter a = WriterT (DList MlilNodeRefMapEntry) IO a
 
 ----- Pil

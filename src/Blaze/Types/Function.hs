@@ -24,17 +24,21 @@ data CallOperation = CALL (MLIL.CallOp (MLIL.Expression F))
                    | SYSCALL_UNTYPED (MLIL.SyscallUntypedOp (MLIL.Expression F))
                    | SYSCALL_UNTYPED_SSA (MLIL.SyscallUntypedSSAOp (MLIL.Expression F))
                    deriving (Eq, Ord, Show, Generic)
+                   deriving anyclass Hashable
 
 
 data CallInstruction = CallInstruction
-  { address :: Address
+  { instr :: MLIL.Instruction F
+  , address :: Address
   , index :: InstructionIndex F
   , size :: OperationSize
   , params :: [MLIL.Expression F]
   , dest :: Maybe (MLIL.Expression F) -- syscalls don't have a BNIL dest expression
   , outputDest :: [SSAVariable]
   , op :: CallOperation
-  } deriving (Eq, Ord, Show, Generic)
+  } 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass Hashable
 
 getOutputDest :: MLIL.Expression F -> Maybe [SSAVariable]
 getOutputDest expr = case expr ^. MLIL.op of
@@ -42,7 +46,7 @@ getOutputDest expr = case expr ^. MLIL.op of
   _ -> Nothing
 
 toCallInstruction :: MLIL.Instruction F -> Maybe CallInstruction
-toCallInstruction instr = toCallInstr <$> case instr ^. MLIL.op of
+toCallInstruction inst = toCallInstr <$> case inst ^. MLIL.op of
   MLIL.CALL_SSA op' ->
     Just
       ( Just $ op' ^. MLIL.dest,
@@ -85,10 +89,11 @@ toCallInstruction instr = toCallInstr <$> case instr ^. MLIL.op of
       case mOutputDest of
         (Just outputDest') ->
           CallInstruction
-            (instr ^. MLIL.address)
-            (instr ^. MLIL.index)
-            (instr ^. MLIL.size)
-            (MLIL.getParams $ instr ^. MLIL.op)
+            inst
+            (inst ^. MLIL.address)
+            (inst ^. MLIL.index)
+            (inst ^. MLIL.size)
+            (MLIL.getParams $ inst ^. MLIL.op)
             mdest'
             outputDest'
             op'

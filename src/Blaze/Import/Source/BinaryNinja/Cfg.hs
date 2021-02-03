@@ -35,7 +35,7 @@ import Blaze.Import.Source.BinaryNinja.Types
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
 toMlilSsaInstr instr =
-  maybe (MlilSsaNonCall instr) MlilSsaCall (toCallInstruction instr)
+  maybe (MlilSsaNonCall $ NonCallInstruction instr) MlilSsaCall (toCallInstruction instr)
 
 runNodeConverter :: NodeConverter a -> IO (a, DList MlilNodeRefMapEntry)
 runNodeConverter = runWriterT
@@ -44,29 +44,33 @@ tellEntry :: MlilNodeRefMapEntry -> NodeConverter ()
 tellEntry = tell . DList.singleton
 
 -- | Assumes instructions are consecutive
-nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode MlilSsaInstructionIndex)
+nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromInstrs func' instrs = do
   let node =
         BasicBlock
-          { Cfg.function = func'
-          , Cfg.start = view Mlil.index . NEList.head $ instrs
+          { function = func'
+          , start = (view Mlil.address . unNonCallInstruction) . NEList.head $ instrs
+          , end = (view Mlil.address . unNonCallInstruction) . NEList.last $ instrs
+          , nodeData = unNonCallInstruction <$> instrs
           }
   tellEntry
     ( node,
       Cfg.CodeReference
         { function = func'
-        , startIndex = view Mlil.index . NEList.head $ instrs
-        , endIndex = view Mlil.index . NEList.last $ instrs
+        , startIndex = view Mlil.index . unNonCallInstruction . NEList.head $ instrs
+        , endIndex = view Mlil.index . unNonCallInstruction . NEList.last $ instrs
         }
     )
   return node
 
-nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode MlilSsaInstructionIndex)
+nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromCallInstr func' callInstr = do
   let node =
         Call
           { function = func'
-          , start = callInstr ^. #index
+          , start = callInstr ^. #address
+          , end = callInstr ^. #address
+          , nodeData = callInstr ^. #instr :| []
           }
   tellEntry
     ( node
@@ -78,7 +82,7 @@ nodeFromCallInstr func' callInstr = do
     )
   return node
 
-nodeFromGroup :: Function -> InstrGroup -> NodeConverter (CfNode MlilSsaInstructionIndex)
+nodeFromGroup :: Function -> InstrGroup -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromGroup func' = \case
   (SingleCall x) -> nodeFromCallInstr func' x
   (ManyNonCalls xs) -> nodeFromInstrs func' xs
@@ -151,7 +155,7 @@ importCfg ::
   Function ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
-  IO (Maybe (Cfg MlilSsaInstructionIndex MlilNodeRefMap))
+  IO (Maybe (Cfg (NonEmpty MlilSsaInstruction) MlilNodeRefMap))
 importCfg func' bnNodes bnEdges = do
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode func') bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
@@ -162,9 +166,15 @@ importCfg func' bnNodes bnEdges = do
           bnNodeMap = HMap.fromList $ zip bnNodes cfNodeGroups
           cfEdgesFromBnCfg = convertEdge bnNodeMap <$> bnEdges
           cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
-      return . Just $ buildCfg cfRoot cfRest cfEdges (Just . HMap.fromList . DList.toList $ mapEntries)
+      return
+        . Just
+        $ buildCfg
+          cfRoot
+          cfRest
+          cfEdges
+          (Just . HMap.fromList . DList.toList $ mapEntries)
 
-getCfg :: BNBinaryView -> CG.Function -> IO (Maybe (Cfg MlilSsaInstructionIndex MlilNodeRefMap))
+getCfg :: BNBinaryView -> CG.Function -> IO (Maybe (Cfg (NonEmpty MlilSsaInstruction) MlilNodeRefMap))
 getCfg bv func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of
