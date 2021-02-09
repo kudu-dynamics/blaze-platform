@@ -22,11 +22,13 @@ variables:
 .job:
   timeout: 1h
   before_script:
-    - if [ -f /etc/alpine-release ]; then
+    - |
+      if [ -f /etc/alpine-release ]; then
         apk add git coreutils
         apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
       fi
     - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
+    - uname -a
     - env
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
