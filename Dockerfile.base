@@ -1,4 +1,4 @@
-# Build with `docker build - <Dockerfile.base`, i.e., no build context
+# Build with `docker build .. -f Dockerfile.base`, i.e., it needs binary-analysis and binaryninja-haskell in the context
 
 ARG DEVOPS_DOCKER_REGISTRY=${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops
 ARG DEVOPS_BINARYNINJA_IMAGE_TAG=latest
