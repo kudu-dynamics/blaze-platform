@@ -5,33 +5,40 @@ import qualified Binja.C.Enums as BNEnums
 import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
-import Blaze.Types.Function (CallInstruction, toCallInstruction)
+import qualified Blaze.Graph as G
+import Blaze.Import.Pil (PilImporter (getCodeRefStatements))
+import Blaze.Import.Source.BinaryNinja.Types
 import Blaze.Prelude hiding (Symbol)
+import Blaze.Types.CallGraph (
+  Function,
+ )
 import qualified Blaze.Types.CallGraph as CG
-import Blaze.Types.CallGraph
-  ( Function )
+import Blaze.Types.Cfg (
+  BranchType (
+    FalseBranch,
+    TrueBranch,
+    UnconditionalBranch
+  ),
+  CfEdge (CfEdge),
+  CfNode (
+    BasicBlock,
+    Call
+  ),
+  Cfg,
+  mkCfg,
+  mkEdge,
+ )
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Cfg
-  ( BranchType
-      ( FalseBranch,
-        TrueBranch,
-        UnconditionalBranch
-      ),
-    CfEdge (CfEdge),
-    CfNode
-      ( BasicBlock,
-        Call
-      ),
-    Cfg,
-    buildCfg,
-  )
+import Blaze.Types.Function (CallInstruction, toCallInstruction)
+import Blaze.Types.Import (ImportResult (ImportResult))
+import Blaze.Types.Pil (Stmt)
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.DList (DList)
 import qualified Data.DList as DList
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
-import Blaze.Import.Source.BinaryNinja.Types
-
+import qualified Data.Set as Set
+import Data.Tuple.Extra ((***))
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
 toMlilSsaInstr instr =
@@ -54,8 +61,8 @@ nodeFromInstrs func' instrs = do
           , nodeData = unNonCallInstruction <$> instrs
           }
   tellEntry
-    ( node,
-      Cfg.CodeReference
+    ( node
+    , Cfg.CodeReference
         { function = func'
         , startIndex = view Mlil.index . unNonCallInstruction . NEList.head $ instrs
         , endIndex = view Mlil.index . unNonCallInstruction . NEList.last $ instrs
@@ -90,32 +97,32 @@ nodeFromGroup func' = \case
 -- | Parse a list of MlilSsaInstr into groups
 groupInstrs :: [MlilSsaInstr] -> [InstrGroup]
 groupInstrs xs = mconcat (parseAndSplit <$> groupedInstrs)
-  where
-    groupedInstrs :: [NonEmpty MlilSsaInstr]
-    groupedInstrs =
-      NEList.groupWith
-        ( \case
-            (MlilSsaCall _) -> True
-            (MlilSsaNonCall _) -> False
-        )
-        xs
-    parseCall :: MlilSsaInstr -> Maybe CallInstruction
-    parseCall = \case
-      (MlilSsaCall x') -> Just x'
-      _ -> error "Unexpected non-call instruction when parsing call instructions."
-    parseNonCall :: MlilSsaInstr -> Maybe NonCallInstruction
-    parseNonCall = \case
-      (MlilSsaNonCall x') -> Just x'
-      _ -> error "Unexpected call instruction when parsing non-call instructions."
-    -- Need to split consecutive calls
-    parseAndSplit :: NonEmpty MlilSsaInstr -> [InstrGroup]
-    parseAndSplit g = case g of
-      -- In this case we know all instructions in the group will be calls
-      -- based on the previous grouping performed.
-      (MlilSsaCall _) :| _ -> mapMaybe (fmap SingleCall . parseCall) $ NEList.toList g
-      -- This case handles non-call instructions. We know there are no calls
-      -- in the group.
-      _ -> [ManyNonCalls . NEList.fromList . mapMaybe parseNonCall . NEList.toList $ g]
+ where
+  groupedInstrs :: [NonEmpty MlilSsaInstr]
+  groupedInstrs =
+    NEList.groupWith
+      ( \case
+          (MlilSsaCall _) -> True
+          (MlilSsaNonCall _) -> False
+      )
+      xs
+  parseCall :: MlilSsaInstr -> Maybe CallInstruction
+  parseCall = \case
+    (MlilSsaCall x') -> Just x'
+    _ -> error "Unexpected non-call instruction when parsing call instructions."
+  parseNonCall :: MlilSsaInstr -> Maybe NonCallInstruction
+  parseNonCall = \case
+    (MlilSsaNonCall x') -> Just x'
+    _ -> error "Unexpected call instruction when parsing non-call instructions."
+  -- Need to split consecutive calls
+  parseAndSplit :: NonEmpty MlilSsaInstr -> [InstrGroup]
+  parseAndSplit g = case g of
+    -- In this case we know all instructions in the group will be calls
+    -- based on the previous grouping performed.
+    (MlilSsaCall _) :| _ -> mapMaybe (fmap SingleCall . parseCall) $ NEList.toList g
+    -- This case handles non-call instructions. We know there are no calls
+    -- in the group.
+    _ -> [ManyNonCalls . NEList.fromList . mapMaybe parseNonCall . NEList.toList $ g]
 
 nodesFromInstrs :: Function -> [MlilSsaInstruction] -> NodeConverter [MlilSsaCfNode]
 nodesFromInstrs func' instrs = do
@@ -130,11 +137,11 @@ convertNode func' bnBlock = do
 createEdgesForNodeGroup :: [MlilSsaCfNode] -> [MlilSsaCfEdge]
 createEdgesForNodeGroup ns =
   maybe [] (($ UnconditionalBranch) . uncurry CfEdge <$>) (maybeNodePairs =<< NEList.nonEmpty ns)
-  where
-    maybeNodePairs :: NonEmpty MlilSsaCfNode -> Maybe [(MlilSsaCfNode, MlilSsaCfNode)]
-    maybeNodePairs = \case
-      _ :| [] -> Nothing
-      nodes -> Just $ zip (NEList.toList nodes) (NEList.tail nodes)
+ where
+  maybeNodePairs :: NonEmpty MlilSsaCfNode -> Maybe [(MlilSsaCfNode, MlilSsaCfNode)]
+  maybeNodePairs = \case
+    _ :| [] -> Nothing
+    nodes -> Just $ zip (NEList.toList nodes) (NEList.tail nodes)
 
 convertBranchType :: BNEnums.BNBranchType -> BranchType
 convertBranchType = \case
@@ -155,7 +162,7 @@ importCfg ::
   Function ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
-  IO (Maybe (Cfg (NonEmpty MlilSsaInstruction) MlilNodeRefMap))
+  IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 importCfg func' bnNodes bnEdges = do
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode func') bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
@@ -168,14 +175,12 @@ importCfg func' bnNodes bnEdges = do
           cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
       return
         . Just
-        $ buildCfg
-          cfRoot
-          cfRest
-          cfEdges
-          (Just . HMap.fromList . DList.toList $ mapEntries)
+        $ ImportResult
+          (mkCfg cfRoot cfRest cfEdges)
+          (HMap.fromList . DList.toList $ mapEntries)
 
-getCfg :: BNBinaryView -> CG.Function -> IO (Maybe (Cfg (NonEmpty MlilSsaInstruction) MlilNodeRefMap))
-getCfg bv func' = do
+getCfgAlt :: BNBinaryView -> CG.Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt bv func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of
     Nothing ->
@@ -185,3 +190,70 @@ getCfg bv func' = do
       bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
       bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
       importCfg func' bnMlilBbs bnMlilBbEdges
+
+getCfg ::
+  PilImporter a MlilSsaInstructionIndex =>
+  a ->
+  BNBinaryView ->
+  CG.Function ->
+  IO (Maybe (ImportResult PilCfg PilNodeMap))
+getCfg imp bv fun = do
+  result <- getCfgAlt bv fun
+  case result of
+    Nothing -> return Nothing
+    Just (ImportResult mlilCfg mlilRefMap) -> do
+      let mlilRootNode = mlilCfg ^. #root
+          mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
+      pilRootNode <- convertToPilNode imp mlilRefMap mlilRootNode
+      pilRestNodes <- traverse (convertToPilNode imp mlilRefMap) mlilRestNodes
+      let mlilToPilNodeMap =
+            HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
+          pilEdges = traverse (convertToPilEdge mlilToPilNodeMap . mkEdge) (G.edges mlilCfg)
+          pilStmtsMap =
+            HMap.fromList $
+              ( (fromJust . (`HMap.lookup` mlilToPilNodeMap))
+                  *** identity
+              )
+                <$> HMap.toList mlilRefMap
+      return $
+        ImportResult
+          <$> (mkCfg pilRootNode pilRestNodes <$> pilEdges)
+          <*> Just pilStmtsMap
+
+getPilFromNode ::
+  PilImporter a MlilSsaInstructionIndex =>
+  a ->
+  MlilNodeRefMap ->
+  CfNode (NonEmpty MlilSsaInstruction) ->
+  IO [Stmt]
+getPilFromNode imp nodeMap node =
+  case HMap.lookup node nodeMap of
+    Nothing -> error $ "No entry for node: " <> show node <> "."
+    Just codeRef -> do
+      getCodeRefStatements imp codeRef
+
+convertToPilNode ::
+  PilImporter a MlilSsaInstructionIndex =>
+  a ->
+  MlilNodeRefMap ->
+  MlilSsaCfNode ->
+  IO PilNode
+convertToPilNode imp mapping mlilSsaNode = do
+  let startInstr = NEList.head $ mlilSsaNode ^. #nodeData
+      startAddr = startInstr ^. Mlil.address
+      lastInstr = NEList.last $ mlilSsaNode ^. #nodeData
+      lastAddr = lastInstr ^. Mlil.address
+  case mlilSsaNode of
+    BasicBlock fun _ _ _ -> do
+      stmts <- getPilFromNode imp mapping mlilSsaNode
+      return $ BasicBlock fun startAddr lastAddr stmts
+    Call fun _ _ _ -> do
+      stmts <- getPilFromNode imp mapping mlilSsaNode
+      return $ Call fun startAddr lastAddr stmts
+
+convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe PilEdge
+convertToPilEdge nodeMap mlilSsaEdge =
+  CfEdge
+    <$> HMap.lookup (mlilSsaEdge ^. #src) nodeMap
+    <*> HMap.lookup (mlilSsaEdge ^. #dst) nodeMap
+    <*> Just (mlilSsaEdge ^. #branchType)

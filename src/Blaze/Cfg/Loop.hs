@@ -40,7 +40,7 @@ isBackEdge domMap edge =
 fromGraphEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
 fromGraphEdge (bType, (srcNode, dstNode)) = CfEdge srcNode dstNode bType
 
-getBackEdges :: forall a b. (Hashable a, Ord a) => Cfg a b -> [BackEdge a]
+getBackEdges :: forall a. (Hashable a, Ord a) => Cfg a -> [BackEdge a]
 getBackEdges cfg' =
   [ BackEdge e
     | e <- fromGraphEdge <$> G.edges cfg',
@@ -52,7 +52,7 @@ getBackEdges cfg' =
 
 -- | Find body nodes of loop. If an empty list is returned, the loop
 --  only contains a head(er) node and a tail node.
-getBodyNodes :: forall a b. (Hashable a, Ord a) => Cfg a b -> BackEdge a -> HashSet (CfNode a)
+getBodyNodes :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> HashSet (CfNode a)
 getBodyNodes cfg' backEdge =
   HS.delete header
     . HS.delete tail
@@ -68,21 +68,21 @@ getBodyNodes cfg' backEdge =
     tail :: CfNode a
     tail = backEdge ^. (#edge . #src)
 
-getLoopBody :: forall a b. (Hashable a, Ord a) => Cfg a b -> BackEdge a -> LoopBody a
+getLoopBody :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> LoopBody a
 getLoopBody cfg' backEdge =
   LoopBody bodyNodes
   where
     bodyNodes :: HashSet (CfNode a)
     bodyNodes = getBodyNodes cfg' backEdge
 
-getLoopCfg :: forall a b. (Hashable a, Ord a) => Cfg a b -> LoopHeader a -> LoopNodes a -> LoopCfg a b
+getLoopCfg :: forall a. (Hashable a, Ord a) => Cfg a -> LoopHeader a -> LoopNodes a -> LoopCfg a
 getLoopCfg cfg' header loopNodes =
   LoopCfg $ subCfg_ {root = header ^. #node}
   where
-    subCfg_ :: Cfg a b
+    subCfg_ :: Cfg a
     subCfg_ = G.subgraph (`HS.member` (loopNodes ^. #nodes)) cfg'
 
-fromBackEdge :: forall a b. (Hashable a, Ord a) => Cfg a b -> BackEdge a -> NatLoop a b
+fromBackEdge :: forall a b. (Hashable a, Ord a) => Cfg a -> BackEdge a -> NatLoop a b
 fromBackEdge cfg' backEdge =
   NatLoop header body tail loopCfg backEdge
   where
@@ -94,5 +94,5 @@ fromBackEdge cfg' backEdge =
     tail = LoopTail $ backEdge ^. (#edge . #src)
     loopNodes :: LoopNodes a
     loopNodes = LoopNodes $ HS.insert (header ^. #node) . HS.insert (tail ^. #node) $ (body ^. #nodes)
-    loopCfg :: LoopCfg a b
+    loopCfg :: LoopCfg a
     loopCfg = getLoopCfg cfg' header loopNodes

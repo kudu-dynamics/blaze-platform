@@ -139,6 +139,7 @@ library:
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
   - Blaze.Types.Path.AlgaPath
+  - Blaze.Types.Import
   - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis

@@ -6,7 +6,7 @@ where
 
 import qualified Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Cfg as Exports hiding (branchType, dst, src)
+import Blaze.Types.Cfg as Exports
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
 import qualified Data.HashSet as Hs
@@ -17,7 +17,7 @@ type DltMap a = IntMap (CfNode a)
 
 type CfMap a = HashMap (CfNode a) Int
 
-buildNodeMap :: Ord a => Cfg a b -> DltMap a
+buildNodeMap :: Ord a => Cfg a -> DltMap a
 buildNodeMap cfg =
   Im.fromList $ zip [0 ..] (Set.toList . G.nodes . view #graph $ cfg)
 
@@ -37,9 +37,9 @@ buildAdjMap ns =
 --  entries must be present. That is, we know there is a corresponding
 --  Int for every CfNode.
 buildDltGraph ::
-  forall a b.
+  forall a.
   (Hashable a, Ord a) =>
-  Cfg a b ->
+  Cfg a ->
   DltMap a ->
   Dlt.Rooted
 buildDltGraph cfg dltMap =
@@ -53,14 +53,14 @@ buildDltGraph cfg dltMap =
   dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes . view #graph $ cfg)
   dltEdges :: [Dlt.Edge]
   dltEdges = do
-    (_, (src, dst)) <- G.edges . view #graph $ cfg
-    return (cfMap Hm.! src, cfMap Hm.! dst)
+    (_, (src_, dst_)) <- G.edges . view #graph $ cfg
+    return (cfMap Hm.! src_, cfMap Hm.! dst_)
   dltAdj :: [(Dlt.Node, [Dlt.Node])]
   dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
 
 -- | Convert a Blaze CFG to a dom-lt flow graph
-dltGraphFromCfg :: forall a b. (Hashable a, Ord a) => 
-  Cfg a b -> (Dlt.Rooted, DltMap a)
+dltGraphFromCfg :: forall a. (Hashable a, Ord a) => 
+  Cfg a -> (Dlt.Rooted, DltMap a)
 dltGraphFromCfg cfg =
   (buildDltGraph cfg dltMap, dltMap)
   where
@@ -68,10 +68,10 @@ dltGraphFromCfg cfg =
     dltMap = buildNodeMap cfg
 
 domHelper ::
-  forall a b.
+  forall a.
   (Hashable a, Ord a) =>
   (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) ->
-  Cfg a b ->
+  Cfg a ->
   HashMap (CfNode a) (HashSet (CfNode a))
 domHelper f cfg =
   Hm.fromList . ((Hs.fromList <$>) <$>) $ domList
@@ -86,8 +86,8 @@ domHelper f cfg =
 -- to find dominators. The result is converted back to CfNodes before being returned.
 -- Per dom-lt, the complexity is:
 -- O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
-getDominators :: (Hashable a, Ord a) => Cfg a b -> Dominators a
+getDominators :: (Hashable a, Ord a) => Cfg a -> Dominators a
 getDominators = Dominators . domHelper Dlt.dom
 
-getPostDominators :: (Hashable a, Ord a) => Cfg a b -> PostDominators a
+getPostDominators :: (Hashable a, Ord a) => Cfg a -> PostDominators a
 getPostDominators = PostDominators . domHelper Dlt.pdom

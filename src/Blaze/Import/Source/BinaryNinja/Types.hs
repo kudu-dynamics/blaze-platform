@@ -5,13 +5,14 @@ import qualified Binja.Core as Binja
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Cfg (CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry)
+import Blaze.Types.Cfg (Cfg, CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry)
 import Blaze.Types.Function (CallInstruction, FuncInfo)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil
   ( Ctx
   , CtxIndex
   , PilVar
+  , Stmt
   )
 import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Trans.Writer.Lazy (WriterT)
@@ -56,9 +57,16 @@ data MlilSsaInstr
   deriving anyclass (Hashable)
 
 type MlilCodeReference = CodeReference MlilSsaInstructionIndex
-type MlilNodeRefMap = NodeRefMap (CfNode (NonEmpty MlilSsaInstruction)) MlilCodeReference
-type MlilNodeRefMapEntry = NodeRefMapEntry (CfNode (NonEmpty MlilSsaInstruction)) MlilCodeReference
+type MlilNode = CfNode (NonEmpty MlilSsaInstruction)
+type MlilNodeRefMap = NodeRefMap MlilNode MlilCodeReference
+type MlilNodeRefMapEntry = NodeRefMapEntry MlilNode MlilCodeReference
 type NodeConverter a = WriterT (DList MlilNodeRefMapEntry) IO a
+
+type PilNode = CfNode [Stmt]
+type PilEdge = CfEdge [Stmt]
+type PilNodeMap = HashMap PilNode MlilCodeReference
+type PilNodeMapEntry = (PilNode, [Stmt])
+type PilCfg = Cfg [Stmt]
 
 ----- Pil
 

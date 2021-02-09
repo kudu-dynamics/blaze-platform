@@ -17,11 +17,19 @@ import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
 import Blaze.Import.Source.BinaryNinja.Types as Exports
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Cfg (CfNode)
 import qualified Blaze.Types.Path.AlgaPath as AlgaPath
+import Blaze.Types.Pil (Stmt)
 
 newtype BNImporter = BNImporter
   { binaryView :: BNBinaryView
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+{- |This type is used to provide an alternative instance of the
+ 'CfgImporter'.
+-}
+newtype BNImporterAlt = BNImporterAlt
+  { bnImporter :: BNImporter
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -32,17 +40,20 @@ instance CallGraphImporter BNImporter where
 
   getCallSites imp = CallGraph.getCallSites (imp ^. #binaryView)
 
-instance CfgImporter BNImporter (NonEmpty MlilSsaInstruction) MlilNodeRefMap where
-  getCfg imp = Cfg.getCfg (imp ^. #binaryView)
+instance CfgImporter BNImporterAlt (NonEmpty MlilSsaInstruction) MlilNodeRefMap where
+  getCfg imp = Cfg.getCfgAlt (imp ^. #bnImporter . #binaryView)
 
-instance PilImporter BNImporter (CfNode (NonEmpty MlilSsaInstruction)) MlilCodeReference where
+instance CfgImporter BNImporter [Stmt] PilNodeMap where
+  getCfg imp = Cfg.getCfg imp (imp ^. #binaryView)
+
+instance PilImporter BNImporter MlilSsaInstructionIndex where
   getFuncStatements imp =
     PilImp.getFuncStatements (imp ^. #binaryView)
 
   getPathStatements imp =
     Path.convertPath (imp ^. #binaryView)
 
-  getNodeStatements imp (_, codeRef) = do
+  getCodeRefStatements imp codeRef = do
     let fn = codeRef ^. #function
         funcAddr = fn ^. #address
     mBnFunc <- BnFunc.getFunctionStartingAt bv Nothing funcAddr

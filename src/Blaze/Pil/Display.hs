@@ -134,6 +134,9 @@ instance Disp Pil.Ctx where
 
 instance Disp a => Disp (Pil.Statement a) where
   disp stmt = case stmt of
+    Pil.BranchCond op -> Text.pack $ printf "branch (%s)" cond
+      where 
+        cond = disp $ op ^. #cond
     (Pil.Def op) -> Text.pack $ printf "def \"%s\" (%s)" var val
       where
         var = disp $ op ^. #var

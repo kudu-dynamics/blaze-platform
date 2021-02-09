@@ -20,14 +20,14 @@ newtype LoopTail a = LoopTail {node :: CfNode a}
 newtype LoopNodes a = LoopNodes {nodes :: HashSet (CfNode a)}
   deriving (Eq, Show, Generic)
 
-newtype LoopCfg a b = LoopCfg {cfg :: Cfg a b}
+newtype LoopCfg a = LoopCfg {cfg :: Cfg a}
   deriving (Eq, Show, Generic)
 
 data NatLoop a b = NatLoop
   { header :: LoopHeader a
   , body :: LoopBody a
   , tail :: LoopTail a
-  , cfg :: LoopCfg a b
+  , cfg :: LoopCfg a
   , backEdge :: BackEdge a
   }
   deriving (Eq, Show, Generic)
