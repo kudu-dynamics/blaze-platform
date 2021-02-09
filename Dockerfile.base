@@ -34,11 +34,7 @@ RUN cd /tmp && \
 RUN cd /tmp/z3/build && \
     cmake -GNinja ..
 RUN cd /tmp/z3/build && \
-    { ninja || \
-      ninja -j4 || \
-      ninja -j2 || \
-      ninja -j1 \
-    ; }
+    ninja
 RUN cd /tmp/z3/build && \
     ninja install && \
     cd / && \
@@ -59,10 +55,6 @@ COPY /blaze/ /tmp/blaze-deps/blaze/
 COPY /binaryninja-haskell/ /tmp/blaze-deps/binaryninja-haskell/
 COPY /binary-analysis/ /tmp/blaze-deps/binary-analysis/
 RUN cd /tmp/blaze-deps/blaze && \
-    { stack build --only-dependencies --test --no-run-tests || \
-      stack build -j4 --only-dependencies --test --no-run-tests || \
-      stack build -j2 --only-dependencies --test --no-run-tests || \
-      stack build -j1 --only-dependencies --test --no-run-tests \
-    ; } && \
+    stack build --only-dependencies --test --no-run-tests && \
     cd / && \
     rm -rf /tmp/blaze-deps

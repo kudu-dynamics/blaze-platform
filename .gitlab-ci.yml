@@ -22,7 +22,10 @@ variables:
 .job:
   timeout: 1h
   before_script:
-    - "[ -f /etc/alpine-release ] && apk add git coreutils"
+    - if [ -f /etc/alpine-release ]; then
+        apk add git coreutils
+        apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
+      fi
     - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - env
     - ls -al || true  # FIXME see coreutils issue
@@ -107,7 +110,7 @@ Build base image:
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:latest" || true
     - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}" || true
-    - docker build --pull .. -f Dockerfile.base
+    - \time -v docker build --pull .. -f Dockerfile.base
       --build-arg DEVOPS_DOCKER_REGISTRY=${GROUP_DOCKER_REGISTRY}/devops
       -t "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
       -t "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}"
