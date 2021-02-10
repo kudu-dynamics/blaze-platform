@@ -38,8 +38,13 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
     }
   removeNode n g = AlgaGraph
     { adjacencyMap = G.removeVertex n $ adjacencyMap g
-    , edgeMap = Map.filterWithKey (\(n1, n2) _ -> n1 == n || n2 == n) $ edgeMap g
+    , edgeMap = foldl' (flip Map.delete) (edgeMap g) edgesToRemove
     }
+      where
+        edgesToRemove :: [(n, n)]
+        edgesToRemove = ((n, ) <$> Set.toList (succs n g)) 
+          ++ (( ,n) <$> Set.toList (preds n g))
+
   addNodes ns g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.vertices ns
     , edgeMap = edgeMap g}

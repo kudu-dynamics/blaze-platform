@@ -3,11 +3,9 @@ module Blaze.Types.Pil
   , module Blaze.Types.Pil
   ) where
 
-
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
-
 
 data ExprOp expr
     = ADC (AdcOp expr)
@@ -234,6 +232,11 @@ data DefPhiOp expr = DefPhiOp
   , src :: [PilVar]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
+{- HLINT ignore BranchCondOp "Use newtype instead of data" -}
+data BranchCondOp expr = BranchCondOp
+  { cond :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
 type Stmt = Statement Expression
 
 data Statement expr
@@ -249,6 +252,7 @@ data Statement expr
   | ExitContext (ExitContextOp expr)
   | Call (CallOp expr)
   | DefPhi (DefPhiOp expr)
+  | BranchCond (BranchCondOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 

@@ -13,7 +13,8 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
 -- import Blaze.Import.Pil
 import Blaze.Types.Pil
-  ( CallDest,
+  ( BranchCondOp (BranchCondOp),
+    CallDest,
     CallOp (CallOp),
     Ctx(Ctx),
     DefOp (DefOp),
@@ -21,7 +22,8 @@ import Blaze.Types.Pil
     Expression (Expression),
     PilVar (PilVar),
     Statement
-      ( Call,
+      ( BranchCond,
+        Call,
         Def,
         DefPhi,
         Nop,
@@ -274,6 +276,9 @@ convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Converter [Statement Exp
 convertInstrOp op' = do
   defVarSize <- use #defaultVarSize
   case op' of
+    (MLIL.IF x) -> do
+      condition <- convertExpr (x ^. MLIL.condition)
+      return [BranchCond $ BranchCondOp condition]
     (MLIL.SET_VAR_SSA x) -> do
       pvar <- convertToPilVarAndLog $ x ^. MLIL.dest
       expr <- convertExpr (x ^. MLIL.src)
@@ -361,7 +366,7 @@ convertInstrOp op' = do
       return [UnimplMem $ UnimplMemOp expr]
     MLIL.UNDEF -> return [Undef]
     MLIL.NOP -> return [Nop]
-    _ -> return []
+    _ -> return [UnimplInstr $ show op']
 
 -- | intercepts VAR_PHI and converts it to PIL DefPhi
 -- todo: rename

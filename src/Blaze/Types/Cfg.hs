@@ -1,7 +1,7 @@
 module Blaze.Types.Cfg where
 
-import qualified Blaze.Graph as Graph
 import Blaze.Graph (Graph)
+import qualified Blaze.Graph as Graph
 import Blaze.Prelude hiding (pred)
 import Blaze.Types.CallGraph (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
@@ -16,69 +16,84 @@ data BranchType
 
 instance Hashable BranchType
 
-data CfNode
+data CfNode a
   = BasicBlock
       { function :: Function
       , start :: Address
+      , end :: Address
+      , nodeData :: a
       }
   | Call
       { function :: Function
-      , target :: Address
+      , start :: Address
+      , end :: Address
+      , nodeData :: a
       }
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-instance Hashable CfNode
-
-data CfEdge = CfEdge
-  { src :: CfNode
-  , dst :: CfNode
+data CfEdge a = CfEdge
+  { src :: CfNode a
+  , dst :: CfNode a
   , branchType :: BranchType
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-instance Hashable CfEdge
+mkEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
+mkEdge (bt, (s, d)) =
+  CfEdge s d bt
+  
+data CodeReference a = CodeReference
+  { function :: Function
+  , startIndex :: a
+  , endIndex :: a
+  }
+  deriving (Eq, Ord, Show, Generic)
 
-newtype Dominators = Dominators (HashMap CfNode (HashSet CfNode))
+type NodeRefMap a b = HashMap a b
 
-newtype PostDominators = PostDominators (HashMap CfNode (HashSet CfNode))
+type NodeRefMapEntry a b = (a, b)
 
--- | A non-empty graph that consists of a strongly-connected component
--- with a single root node (a node with no incoming edges).
--- This is intended to be the graph representation of a CFG.
--- A user of this API probably wants to work with the 'Cfg' type that
--- includes additional information about the CFG.
-type ControlFlowGraph = AlgaGraph BranchType CfNode
+newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
+  deriving (Eq, Ord, Show, Generic)
+
+newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a)))
+  deriving (Eq, Ord, Show, Generic)
+
+{- | A non-empty graph that consists of a strongly-connected component
+ with a single root node (a node with no incoming edges).
+ This is intended to be the graph representation of a CFG.
+ A user of this API probably wants to work with the 'Cfg' type that
+ includes additional information about the CFG.
+-}
+type ControlFlowGraph a = AlgaGraph BranchType (CfNode a)
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: CfNode -> [CfNode] -> [CfEdge] -> ControlFlowGraph
+mkControlFlowGraph :: Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> ControlFlowGraph a
 mkControlFlowGraph root' ns es =
   Graph.addNodes (root' : ns) . Graph.fromEdges $
     (view #branchType &&& (view #src &&& view #dst)) <$> es
 
 data Cfg a = Cfg
-  { graph :: ControlFlowGraph
-  , root :: CfNode
-  , mapping :: Maybe a
+  { graph :: ControlFlowGraph a
+  , root :: CfNode a
   }
   deriving (Eq, Show, Generic)
 
-buildCfg :: CfNode -> [CfNode] -> [CfEdge] -> Maybe a -> Cfg a
-buildCfg root' rest es mapping' =
+mkCfg :: forall a. Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
+mkCfg root' rest es =
   Cfg
-    { graph = graph'
+    { graph = mkControlFlowGraph root' rest es
     , root = root'
-    , mapping = mapping'
     }
-  where
-    graph' :: ControlFlowGraph
-    graph' = mkControlFlowGraph root' rest es
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Graph BranchType CfNode (Cfg a) where
+instance Ord a => Graph BranchType (CfNode a) (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
-  fromNode _ = error "Use buildCfg to construct a CFG."
-  fromEdges _ = error "Use buildCfg to construct a CFG."
+  fromNode _ = error "Use mkCfg to construct a CFG."
+  fromEdges _ = error "Use mkCfg to construct a CFG."
   succs node = Graph.succs node . view #graph
   preds node = Graph.preds node . view #graph
   nodes = Graph.nodes . view #graph

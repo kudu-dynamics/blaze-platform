@@ -176,6 +176,13 @@ getRetVals retNode = do
     Nothing ->
       error "RetNode not preceded by a SubBlockNode."
 
+isPathStmt :: Stmt -> Bool
+isPathStmt stmt =
+  case stmt of
+    Pil.BranchCond _ -> False 
+    Pil.UnimplInstr _ -> False
+    _ -> True
+
 convertRetNode :: RetNode -> Converter [Stmt]
 convertRetNode node = do
   leavingCtx <- use #ctx
@@ -207,4 +214,5 @@ convertPath bv path = case Path.startFunction path of
     cgFunc <- liftIO $ BNCG.convertFunction bv func'
     addrSize' <- BN.getViewAddressSize bv
     let st = Pil.mkConverterState bv Pil.knownFuncDefs addrSize' cgFunc path
-    fst <$> Pil.runConverter (convertPath_ path) st
+    stmts <- fst <$> Pil.runConverter (convertPath_ path) st
+    return $ filter isPathStmt stmts

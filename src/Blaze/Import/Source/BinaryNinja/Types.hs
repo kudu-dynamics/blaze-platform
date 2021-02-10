@@ -5,14 +5,14 @@ import qualified Binja.Core as Binja
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.CallGraph (Function)
-import Blaze.Types.Cfg (CfNode)
+import Blaze.Types.Cfg (Cfg, CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry)
 import Blaze.Types.Function (CallInstruction, FuncInfo)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil
   ( Ctx
   , CtxIndex
   , PilVar
+  , Stmt
   )
 import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Trans.Writer.Lazy (WriterT)
@@ -34,9 +34,16 @@ type MlilSsaInstruction = Mlil.Instruction MlilSsaFunc
 
 type MlilSsaInstructionIndex = Binja.InstructionIndex MlilSsaFunc
 
-type MlilSsaBlockMap = HashMap MlilSsaBlock [CfNode]
+type MlilSsaCfNode = CfNode (NonEmpty MlilSsaInstruction)
 
-type NonCallInstruction = MlilSsaInstruction
+type MlilSsaCfEdge = CfEdge (NonEmpty MlilSsaInstruction)
+
+type MlilSsaBlockMap = HashMap MlilSsaBlock [MlilSsaCfNode]
+
+newtype NonCallInstruction = NonCallInstruction
+  {unNonCallInstruction :: MlilSsaInstruction}
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 data InstrGroup
   = SingleCall {_callInstr :: CallInstruction}
@@ -47,20 +54,19 @@ data MlilSsaInstr
   = MlilSsaCall CallInstruction
   | MlilSsaNonCall NonCallInstruction
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-data CodeReference = CodeReference
-  { function :: Function
-  , startIndex :: MlilSsaInstructionIndex
-  , endIndex :: MlilSsaInstructionIndex
-  }
-  deriving (Eq, Ord, Show, Generic)
+type MlilCodeReference = CodeReference MlilSsaInstructionIndex
+type MlilNode = CfNode (NonEmpty MlilSsaInstruction)
+type MlilNodeRefMap = NodeRefMap MlilNode MlilCodeReference
+type MlilNodeRefMapEntry = NodeRefMapEntry MlilNode MlilCodeReference
+type NodeConverter a = WriterT (DList MlilNodeRefMapEntry) IO a
 
-type NodeMap = HashMap CfNode CodeReference
-
-type NodeMapEntry = (CfNode, CodeReference)
-
-type NodeConverter a = WriterT (DList NodeMapEntry) IO a
-
+type PilNode = CfNode [Stmt]
+type PilEdge = CfEdge [Stmt]
+type PilNodeMap = HashMap PilNode MlilCodeReference
+type PilNodeMapEntry = (PilNode, [Stmt])
+type PilCfg = Cfg [Stmt]
 
 ----- Pil
 
