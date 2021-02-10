@@ -75,16 +75,6 @@ mkControlFlowGraph root' ns es =
   Graph.addNodes (root' : ns) . Graph.fromEdges $
     (view #branchType &&& (view #src &&& view #dst)) <$> es
 
--- TODO: Need to remove nodes from the mapping. Consider making mapping external,
---       an implementor can't know how to speculatively update this without
---       more type info and an appropriate interface
--- TODO: The mapping was originally intended to map imported information to
---       the source it was derived from. Consider removing mapping from Cfg and
---       instead providing it as an additional result after the importing process.
--- TODO: Expand CfNode so that it can support storing different information.
---       E.g., a CfNode could have a data :: a field which could be [Stmt] or
---       anything else. We may still need to support parameterized location
---       references for cases where Address won't work (e.g., MLIL SSA)
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
   , root :: CfNode a
