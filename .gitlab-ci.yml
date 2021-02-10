@@ -8,6 +8,7 @@ stages:
 
 # FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
 # case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
+# This may be possible starting with gitlab 13.7: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/38673
 workflow:
   rules:
     - if: $CI_COMMIT_BRANCH && $CI_MERGE_REQUEST_ID == null
@@ -23,18 +24,22 @@ variables:
 .job:
   timeout: 1h
   before_script:
+    - echo -e "section_start:`date +%s`:bootstrap[collapsed=true]\r\e[0KBootstrap build dependencies"
     - |
       if [ -f /etc/alpine-release ]; then
         apk add git coreutils
         apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
       fi
-    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
+    - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
     - uname -a
     - env
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
-    - echo -e "section_start:`date +%s`:setup\r\e[0KSetup"
+
+    - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - mkdir -p .stack-work.deps
     - |
@@ -72,7 +77,7 @@ variables:
       done
     - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
-    - echo -e "section_start:`date +%s`:post-env\r\e[0KEnvironment info (after_script)"
+    - echo -e "section_start:`date +%s`:post-env[collapsed=true]\r\e[0KEnvironment info (after_script)"
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
     - echo -e "section_end:`date +%s`:post-env\r\e[0K"
@@ -150,8 +155,6 @@ pages:
   extends: .haskell-job
   stage: deploy
   rules:
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
       when: on_success
     - when: manual
