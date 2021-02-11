@@ -15,12 +15,14 @@ type List = Ptr
 newtype BNPointer = BNPointer (ForeignPtr BNPointer)
 
 newtype InstructionIndex x = InstructionIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable, Generic)
+  deriving (Eq, Ord, Show, Enum, Functor, Foldable, Traversable, Generic)
+  deriving newtype (Num, Real, Integral)
 
 instance Hashable (InstructionIndex x)
 
 newtype ExpressionIndex x = ExpressionIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Functor, Foldable, Traversable, Generic)
+  deriving (Eq, Ord, Show, Enum, Functor, Foldable, Traversable, Generic)
+  deriving newtype (Num, Real, Integral)
 
 instance Hashable (ExpressionIndex x)
 

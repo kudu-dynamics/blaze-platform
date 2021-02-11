@@ -9,10 +9,12 @@ import Binja.C.Enums (BNTypeClass, BNVariableSourceType)
 
 
 newtype TypeWidth = TypeWidth Bytes
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Enum)
+  deriving newtype (Num, Real, Integral)
 
 newtype TypeAlignment = TypeAlignment Bytes
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Enum)
+  deriving newtype (Num, Real, Integral)
 
 data VarType = VarType
   { _confidence :: Confidence
@@ -28,17 +30,18 @@ data VarType = VarType
   } deriving (Eq, Ord, Show, Generic)
 
 newtype VariableIdentifier = VariableIdentifier Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
+  deriving (Eq, Ord, Show, Enum, Generic)
+  deriving newtype (Num, Real, Integral, Hashable)
 
 newtype VariableIndex = VariableIndex Word32
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
-
+  deriving (Eq, Ord, Show, Enum, Generic)
+  deriving newtype (Num, Real, Integral, Hashable)
 newtype VariableStorage = VariableStorage Int64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
-
+  deriving (Eq, Ord, Show, Enum, Generic)
+  deriving newtype (Num, Real, Integral, Hashable)
 newtype Confidence = Confidence Word8
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic, Hashable)
-
+  deriving (Eq, Ord, Show, Enum, Generic)
+  deriving newtype (Num, Real, Integral, Hashable)
 data BNVariable = BNVariable
   { _sourceType :: BNVariableSourceType
   , _index :: VariableIndex

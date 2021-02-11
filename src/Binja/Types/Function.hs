@@ -6,8 +6,6 @@ import Binja.Prelude hiding (handle)
 
 import Binja.C.Pointers (BNFunction, BNLowLevelILFunction, BNMediumLevelILFunction)
 
-import qualified Data.Text as Text
-
 
 -- TODO: Add a symbol field
 data Function = Function

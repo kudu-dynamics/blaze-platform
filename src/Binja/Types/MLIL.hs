@@ -14,12 +14,13 @@ import Binja.Types.MLIL.Common as Exports
 import Binja.Types.MLIL.Ops as Exports
 
 newtype OpIndex = OpIndex Word64
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral)
+  deriving (Eq, Ord, Show, Enum)
+  deriving newtype (Num, Real, Integral)
 
 newtype OperationSize = OperationSize Bytes
-  deriving (Eq, Ord, Show, Num, Real, Enum, Integral, Generic)
-
-instance Hashable OperationSize
+  deriving (Eq, Ord, Show, Enum, Generic)
+  deriving newtype (Num, Real, Integral)
+  deriving anyclass (Hashable)
 
 newtype OperandsData = OperandsData [Word64]
   deriving (Eq, Ord, Show)
@@ -41,7 +42,8 @@ data OpBuilderCtx fun = OpBuilderCtx
 
 newtype OpBuilder fun a = OpBuilder
   { runOpBuilder_ :: ReaderT (OpBuilderCtx fun) (StateT OpIndex IO) a }
-  deriving ( Functor, Applicative, Monad, MonadIO
+  deriving (Functor)
+  deriving newtype (Applicative, Monad, MonadIO
            , MonadReader (OpBuilderCtx fun)
            , MonadState OpIndex)
 
@@ -71,14 +73,18 @@ data Instruction t = Instruction
   , _index :: InstructionIndex t
   , _size :: OperationSize
   , _op :: Operation (Expression t)
-  } deriving (Eq, Ord, Show)
+  } 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass Hashable
 
 data Expression t = Expression
   { _address :: Address
   , _index :: ExpressionIndex t
   , _size :: OperationSize
   , _op :: Operation (Expression t)
-  } deriving (Eq, Ord, Show)
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 
 data Operation expr
@@ -213,7 +219,8 @@ data Operation expr
     | STORE_STRUCT_SSA (StoreStructSSAOp expr)
     | VAR_PHI (VarPhiOp expr)
     | MEM_PHI (MemPhiOp expr)
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass Hashable
 
 $(makePrisms ''Operation)
 
