@@ -39,7 +39,6 @@ variables:
 
     - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
-    - mkdir -p .stack-work.deps
     - |
       cat <<EOF >../.dockerignore
       *
@@ -63,14 +62,8 @@ variables:
       EOF
     - |
       for project in binary-analysis; do
-        rm -rf "../$project"
-        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/$project.git" "../$project"
-        (
-          cd "../$project" >/dev/null
-          mkdir -p ../binaryninja-haskell/.stack-work.deps/"$project"
-          ln -sf ../binaryninja-haskell/.stack-work.deps/"$project" .stack-work
-          ls -al "../$project"
-        )
+        rm -rf "../${project}"
+        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
       done
     - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
@@ -85,15 +78,6 @@ variables:
   image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}
   tags:
     - dind
-  variables:
-  #  STACK_ROOT: ${CI_PROJECT_DIR}/.stack
-    CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      #- .stack/
-      - .stack-work/
-      - .stack-work.deps/
 
 Build base image:
   extends: .job
@@ -134,14 +118,14 @@ Push latest base image:
     - docker tag "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}" "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:latest"
     - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:latest"
 
-build:
+Build binaryninja-haskell:
   extends: .haskell-job
   stage: build
   script:
-    #- "( cd ../haskell-binja && make header && git diff --stat; )"
+    - "( cd ../haskell-binja && make header && git diff --stat && git checkout . ; )"
     - stack build
 
-test:
+Test binaryninja-haskell:
   extends: .haskell-job
   stage: test
   script:
