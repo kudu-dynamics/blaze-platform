@@ -9,7 +9,8 @@ import Blaze.Types.Cfg (CodeReference)
 
 type Path = AlgaPath
 
-class PilImporter a b | a -> b where
+class PilImporter a where
+  type IndexType a
   getFuncStatements :: a -> Function -> IO [Stmt]
   getPathStatements :: a -> Path -> IO [Stmt]
-  getCodeRefStatements :: a -> CodeReference b -> IO [Stmt]
+  getCodeRefStatements :: a -> CodeReference (IndexType a) -> IO [Stmt]

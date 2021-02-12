@@ -40,13 +40,18 @@ instance CallGraphImporter BNImporter where
 
   getCallSites imp = CallGraph.getCallSites (imp ^. #binaryView)
 
-instance CfgImporter BNImporterAlt (NonEmpty MlilSsaInstruction) MlilNodeRefMap where
+instance CfgImporter BNImporterAlt where
+  type NodeType BNImporterAlt = NonEmpty MlilSsaInstruction
+  type NodeMapType BNImporterAlt = MlilNodeRefMap
   getCfg imp = Cfg.getCfgAlt (imp ^. #bnImporter . #binaryView)
 
-instance CfgImporter BNImporter [Stmt] PilNodeMap where
+instance CfgImporter BNImporter where
+  type NodeType BNImporter = [Stmt]
+  type NodeMapType BNImporter = PilNodeMap
   getCfg imp = Cfg.getCfg imp (imp ^. #binaryView)
 
-instance PilImporter BNImporter MlilSsaInstructionIndex where
+instance PilImporter BNImporter where
+  type IndexType BNImporter = MlilSsaInstructionIndex
   getFuncStatements imp =
     PilImp.getFuncStatements (imp ^. #binaryView)
 
