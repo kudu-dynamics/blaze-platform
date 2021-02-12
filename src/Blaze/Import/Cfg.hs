@@ -5,5 +5,7 @@ import Blaze.Types.CallGraph (Function)
 import Blaze.Types.Cfg
 import Blaze.Types.Import (ImportResult)
 
-class CfgImporter a b c | a -> b c where
-  getCfg :: a -> Function -> IO (Maybe (ImportResult (Cfg b) c))
+class CfgImporter a where
+  type NodeType a
+  type NodeMapType a
+  getCfg :: a -> Function -> IO (Maybe (ImportResult (Cfg (NodeType a)) (NodeMapType a)))

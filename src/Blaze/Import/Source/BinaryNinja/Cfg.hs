@@ -6,7 +6,7 @@ import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
-import Blaze.Import.Pil (PilImporter (getCodeRefStatements))
+import Blaze.Import.Pil (PilImporter (getCodeRefStatements, IndexType))
 import Blaze.Import.Source.BinaryNinja.Types
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.CallGraph (
@@ -192,7 +192,7 @@ getCfgAlt bv func' = do
       importCfg func' bnMlilBbs bnMlilBbEdges
 
 getCfg ::
-  PilImporter a MlilSsaInstructionIndex =>
+  (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
   CG.Function ->
@@ -221,7 +221,7 @@ getCfg imp bv fun = do
           <*> Just pilStmtsMap
 
 getPilFromNode ::
-  PilImporter a MlilSsaInstructionIndex =>
+  (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   MlilNodeRefMap ->
   CfNode (NonEmpty MlilSsaInstruction) ->
@@ -233,7 +233,7 @@ getPilFromNode imp nodeMap node =
       getCodeRefStatements imp codeRef
 
 convertToPilNode ::
-  PilImporter a MlilSsaInstructionIndex =>
+  (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   MlilNodeRefMap ->
   MlilSsaCfNode ->
