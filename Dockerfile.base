@@ -1,40 +1,20 @@
 # Build with `docker build .. -f Dockerfile.base`, i.e., it needs binary-analysis in the context
+ARG BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE=${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops/binaryninja-haskell-base:latest
 
-ARG DEVOPS_DOCKER_REGISTRY=${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops
-ARG DEVOPS_BINARYNINJA_IMAGE_TAG=latest
+FROM ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
 
-# From blaze-system/deps/binja
-FROM ${DEVOPS_DOCKER_REGISTRY}/binary-ninja:${DEVOPS_BINARYNINJA_IMAGE_TAG} as binaryninja
-RUN apt update && apt install -yq \
-    autoconf \
-    automake \
-    build-essential \
-    netbase \
-    wget \
-    unzip \
-    libtinfo-dev \
-    haskell-stack \
-    git \
-    locales
+COPY /binary-analysis/ /blaze/binary-analysis/
+COPY /binaryninja-haskell/ /blaze/binaryninja-haskell/
 
-# Generate and set en_US.UTF-8 locale
-RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
-ENV PATH="/root/.local/bin${PATH:+:$PATH}"
+# Update Binary Ninja. Purposely put after the COPY instructions so that we're always
+# pulling latest binary ninja
 
-RUN stack upgrade --binary-only
-
-# Update Binary Ninja
 ARG BLAZE_BINJA_CHANNEL=dev
 ARG BLAZE_BINJA_VERSION=LATEST
 ARG BLAZE_BINJA_API_COMMIT=origin/dev
 RUN /usr/local/bin/binja_api_update "${BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
 RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
-COPY /binaryninja-haskell/ /blaze/binaryninja-haskell/
-COPY /binary-analysis/ /blaze/binary-analysis/
 RUN cd /blaze/binaryninja-haskell && \
     stack build --only-dependencies --test --no-run-tests && \
     cd / && \
