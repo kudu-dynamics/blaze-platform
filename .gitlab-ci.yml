@@ -121,7 +121,7 @@ build:
   extends: .haskell-job
   stage: build
   script:
-    - "( cd ../haskell-binja && make header && git diff --stat && git checkout . ; )"
+    - "( make header && git diff --stat && git checkout . ; )"
     - stack build
 
 test:
