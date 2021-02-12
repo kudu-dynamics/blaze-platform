@@ -1,6 +1,6 @@
 stages:
-  - base
-  - push-base
+  - deps:build
+  - deps:push
   - build
   - test
 
@@ -17,6 +17,7 @@ workflow:
 variables:
   REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
   GROUP_DOCKER_REGISTRY: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}
+  BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE: ${GROUP_DOCKER_REGISTRY}/devops/binaryninja-haskell-base:latest
   DOCKER_BUILDKIT: "1"
 
 .job:
@@ -74,14 +75,13 @@ variables:
 
 .haskell-job:
   extends: .job
-  #image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
-  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}
+  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:commit-${CI_COMMIT_SHA}
   tags:
     - dind
 
-Build base image:
+deps:build:branch:
+  stage: deps:build
   extends: .job
-  stage: base
   image: docker:dind
   tags:
     - dind
@@ -95,37 +95,36 @@ Build base image:
   #       - "**/package.yaml"
   #       - "**/*.cabal"
   script:
-    - git ls-files --others
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - docker pull "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:latest" || true
-    - docker pull "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:branch-${CI_COMMIT_REF_SLUG}" || true
     - \time -v docker build --pull .. -f Dockerfile.base
-      --build-arg DEVOPS_DOCKER_REGISTRY=${GROUP_DOCKER_REGISTRY}/devops
-      -t "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}"
-      -t "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:branch-${CI_COMMIT_REF_SLUG}"
-    - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}"
-    - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:branch-${CI_COMMIT_REF_SLUG}"
+      --build-arg BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE="${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}"
+      -t "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:commit-${CI_COMMIT_SHA}"
+      -t "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:branch-${CI_COMMIT_REF_SLUG}"
+    - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:commit-${CI_COMMIT_SHA}"
+    - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:branch-${CI_COMMIT_REF_SLUG}"
 
-Push latest base image:
-  stage: push-base
+deps:push:latest:
+  stage: deps:push
   extends: .job
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - deps:build:branch
   variables:
     GIT_STRATEGY: none
   script:
-    - docker pull "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}"
-    - docker tag "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:commit-${CI_COMMIT_SHA}" "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:latest"
-    - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-base:latest"
+    - docker pull "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:commit-${CI_COMMIT_SHA}"
+    - docker tag "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:commit-${CI_COMMIT_SHA}" "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:latest"
+    - docker push "${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps:latest"
 
-Build binaryninja-haskell:
+build:
   extends: .haskell-job
   stage: build
   script:
     - "( cd ../haskell-binja && make header && git diff --stat && git checkout . ; )"
     - stack build
 
-Test binaryninja-haskell:
+test:
   extends: .haskell-job
   stage: test
   script:
