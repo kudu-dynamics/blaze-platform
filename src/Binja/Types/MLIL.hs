@@ -71,15 +71,18 @@ data Instruction t = Instruction
   , _index :: InstructionIndex t
   , _size :: OperationSize
   , _op :: Operation (Expression t)
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable a => Hashable (Instruction a)
 
 data Expression t = Expression
   { _address :: Address
   , _index :: ExpressionIndex t
   , _size :: OperationSize
   , _op :: Operation (Expression t)
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Generic)
 
+instance Hashable a => Hashable (Expression a)
 
 data Operation expr
     = NOP
@@ -213,7 +216,9 @@ data Operation expr
     | STORE_STRUCT_SSA (StoreStructSSAOp expr)
     | VAR_PHI (VarPhiOp expr)
     | MEM_PHI (MemPhiOp expr)
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+
+instance Hashable a => Hashable (Operation a)
 
 $(makePrisms ''Operation)
 
