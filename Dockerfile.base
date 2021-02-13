@@ -16,6 +16,4 @@ RUN /usr/local/bin/binja_api_update "${BLAZE_BINJA_API}" "${BLAZE_BINJA_API_COMM
 RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
 RUN cd /blaze/binaryninja-haskell && \
-    stack build --only-dependencies --test --no-run-tests && \
-    cd / && \
-    rm -rf /tmp/blaze-deps
+    stack build --only-dependencies --test --no-run-tests
