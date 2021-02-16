@@ -131,7 +131,7 @@ test:branch:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - stack test
+    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
   allow_failure: false
 
 test:detached:
