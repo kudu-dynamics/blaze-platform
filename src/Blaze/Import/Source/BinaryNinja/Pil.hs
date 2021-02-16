@@ -14,7 +14,6 @@ import qualified Binja.MLIL as MLIL
 -- import Blaze.Import.Pil
 import Blaze.Types.Pil
   ( BranchCondOp (BranchCondOp),
-    CallDest,
     CallOp (CallOp),
     Ctx(Ctx),
     DefOp (DefOp),
@@ -392,17 +391,6 @@ convertInstrs = concatMapM convertInstr
 convertInstrsSplitPhi :: [MLIL.Instruction F] -> Converter [Stmt]
 convertInstrsSplitPhi = concatMapM convertInstrSplitPhi
 
-getCallDestFunctionName :: BNFunc.Function -> CallDest expr -> IO (Maybe Text)
-getCallDestFunctionName ctxfn (Pil.CallConstPtr op) = do
-  bv <- BNFunc.getFunctionDataBinaryView ctxfn
-  mfn <-
-    BNFunc.getFunctionStartingAt bv Nothing
-      . Address
-      . fromIntegral
-      $ op ^. #constant :: IO (Maybe BNFunc.Function)
-  return $ view BNFunc.name <$> (mfn :: Maybe BNFunc.Function)
-getCallDestFunctionName _ _ = return Nothing
-
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
 convertCallInstruction :: CallInstruction -> Converter [Stmt]
 convertCallInstruction ci = do
@@ -426,9 +414,7 @@ convertCallInstruction ci = do
   
   params <- sequence [convertExpr p | p <- ci ^. #params]
   
-  ctx' <- use #ctx
-  bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
-  mname <- liftIO $ getCallDestFunctionName bnfunc target
+  let mname = target ^? #_CallFunc . #name
 
   -- getFuncName_ <- use #getFuncName
   -- -- TODO: Is there a way to write this without case matching?

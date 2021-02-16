@@ -171,7 +171,6 @@ getSpanList f lo hi (x : xs)
 convertBasicBlockToNodeList :: BNBinaryView -> BasicBlock F -> IO [Node]
 convertBasicBlockToNodeList bv bb = do
   calls <- mapMaybe toCallInstruction <$> MLIL.fromBasicBlock bb
-  putText $ "CALLS __________ : " <> show calls
   let spans = getSpanList (view #index) (bb ^. BB.start) (bb ^. BB.end) calls
   concat <$> traverse f spans
   where
