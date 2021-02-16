@@ -131,7 +131,7 @@ test:branch:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
+    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run_stack_test.py
   allow_failure: false
 
 test:detached:
@@ -145,7 +145,7 @@ test:detached:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
+    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run_stack_test.py
   allow_failure: false
 
 push:latest:
