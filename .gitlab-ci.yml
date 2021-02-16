@@ -91,11 +91,27 @@ build:branch:
     GIT_CLEAN_FLAGS: none
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - \time -v docker build --pull .. -f Dockerfile
       -t "${image}:commit-${CI_COMMIT_SHA}"
       -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
     - docker push "${image}:commit-${CI_COMMIT_SHA}"
     - docker push "${image}:branch-${CI_COMMIT_REF_SLUG}"
+
+build:detached:
+  stage: build
+  extends: .dind
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+  needs: []
+  variables:
+    GIT_CLEAN_FLAGS: none
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - \time -v docker build --pull .. -f Dockerfile
+      -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
+    - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
 
 test:branch:
   stage: test
@@ -109,6 +125,20 @@ test:branch:
     GIT_CLEAN_FLAGS: none
   script:
     - stack test
+  allow_failure: true
+
+test:detached:
+  stage: test
+  extends: .haskell-job
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+  needs:
+    - build:detached
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
   allow_failure: true
 
 push:latest:
@@ -126,31 +156,3 @@ push:latest:
     - docker pull "${image}:commit-${CI_COMMIT_SHA}"
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
-
-build:detached:
-  stage: build
-  extends: .dind
-  rules:
-    - if: $CI_MERGE_REQUEST_IID
-  needs: []
-  variables:
-    GIT_CLEAN_FLAGS: none
-  script:
-    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
-    - \time -v docker build --pull .. -f Dockerfile
-      -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
-    - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
-
-test:detached:
-  stage: test
-  extends: .haskell-job
-  rules:
-    - if: $CI_MERGE_REQUEST_IID
-  needs:
-    - build:detached
-  variables:
-    GIT_STRATEGY: none
-    GIT_CLEAN_FLAGS: none
-  script:
-    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
-  allow_failure: true
