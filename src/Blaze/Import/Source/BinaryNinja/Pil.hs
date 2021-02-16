@@ -405,11 +405,26 @@ getCallDestFunctionName _ _ = return Nothing
 
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
 convertCallInstruction :: CallInstruction -> Converter [Stmt]
-convertCallInstruction c = do
+convertCallInstruction ci = do
   -- TODO: Better handling of possible Nothing value
 
-  target <- Pil.mkCallDest <$> convertExpr (fromJust (c ^. #dest))
-  params <- sequence [convertExpr p | p <- c ^. #params]
+  targetExpr <- convertExpr (fromJust (ci ^. #dest))
+
+  target <- case targetExpr ^. #op of
+      (Pil.CONST_PTR c) -> do
+        bv <- use #binaryView
+        mfunc <- liftIO $ BNFunc.getFunctionStartingAt bv Nothing
+          . Address
+          . fromIntegral
+          $ c ^. #constant :: Converter (Maybe BNFunc.Function)
+        case mfunc of
+          Nothing -> return $ Pil.CallConstPtr c
+          Just bnf -> do
+            fn <- liftIO $ BNCG.convertFunction bv bnf
+            return $ Pil.CallFunc fn
+      _ -> return $ Pil.CallExpr targetExpr
+  
+  params <- sequence [convertExpr p | p <- ci ^. #params]
   
   ctx' <- use #ctx
   bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
@@ -426,9 +441,9 @@ convertCallInstruction c = do
   let outStores = getOutStores mname funcDefs params
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get
   -- actual size. This is done below when handling the case for a return value.
-  let callExpr = Expression (toPilOpSize $ c ^. #size) . Pil.CALL
+  let callExpr = Expression (toPilOpSize $ ci ^. #size) . Pil.CALL
                  $ Pil.CallOp target mname params
-  case c ^. #outputDest of
+  case ci ^. #outputDest of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
     [] -> return $ Call (CallOp target mname params) : outStores
     (dest : _) -> do
@@ -445,6 +460,7 @@ convertCallInstruction c = do
         Nothing -> []
         (Just funcInfo) ->
           Pil.genCallOutputStores (funcInfo ^. #params) args
+
 
 -- | Gets all PIL statements contained in a function.
 -- the "Int" is the original MLIL_SSA InstructionIndex

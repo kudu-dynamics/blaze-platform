@@ -6,6 +6,7 @@ module Blaze.Types.Pil
 import Blaze.Prelude hiding (Symbol, Type)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
+import qualified Blaze.Types.CallGraph as CG
 
 data ExprOp expr
     = ADC (AdcOp expr)
@@ -136,6 +137,7 @@ data VarJoinOp expr = VarJoinOp
 --       and dynamic call destinations, but perhaps this could
 --       be represented in a better way?
 data CallDest expr = CallConstPtr (ConstPtrOp expr)
+                   | CallFunc CG.Function
                    | CallExpr expr
                    | CallExprs [expr]
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
