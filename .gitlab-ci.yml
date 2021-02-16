@@ -1,6 +1,4 @@
 stages:
-  - deps:build
-  - deps:push
   - build
   - test
   - push
@@ -83,85 +81,17 @@ variables:
   before_script: []
   after_script: []
 
-deps:build:branch:
-  stage: deps:build
-  extends: .dind
-  rules:
-    - if: $CI_MERGE_REQUEST_IID == null
-  needs: []
-  # rules:
-  #   - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
-  #     changes:
-  #       - "**/Dockerfile*"
-  #       - "**/.gitlab-ci.yml"
-  #       - "**/stack.yaml"
-  #       - "**/stack.yaml.lock"
-  #       - "**/package.yaml"
-  #       - "**/*.cabal"
-  script:
-    - deps_image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps
-    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - \time -v docker build --pull .. -f Dockerfile.base
-      --build-arg BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE="${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}:latest"
-      -t "${deps_image}:commit-${CI_COMMIT_SHA}"
-      -t "${deps_image}:branch-${CI_COMMIT_REF_SLUG}"
-    - docker push "${deps_image}:commit-${CI_COMMIT_SHA}"
-    - docker push "${deps_image}:branch-${CI_COMMIT_REF_SLUG}"
-
-deps:build:detached:
-  stage: deps:build
-  extends: .dind
-  rules:
-    - if: $CI_MERGE_REQUEST_IID
-  needs: []
-  # rules:
-  #   - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
-  #     changes:
-  #       - "**/Dockerfile*"
-  #       - "**/.gitlab-ci.yml"
-  #       - "**/stack.yaml"
-  #       - "**/stack.yaml.lock"
-  #       - "**/package.yaml"
-  #       - "**/*.cabal"
-  script:
-    - deps_image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps
-    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - \time -v docker build --pull .. -f Dockerfile.base
-      --build-arg BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE="${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}:latest"
-      -t "${deps_image}:merge-${CI_MERGE_REQUEST_IID}"
-    - docker push "${deps_image}:merge-${CI_MERGE_REQUEST_IID}"
-
-deps:push:latest:
-  stage: deps:push
-  extends: .dind
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  needs:
-    - deps:build:branch
-  variables:
-    GIT_STRATEGY: none
-    GIT_CLEAN_FLAGS: none
-  script:
-    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps
-    - docker pull "${image}:commit-${CI_COMMIT_SHA}"
-    - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
-    - docker push "${image}:latest"
-
 build:branch:
   stage: build
   extends: .dind
   rules:
     - if: $CI_MERGE_REQUEST_IID == null
-  needs:
-    - deps:build:branch
+  needs: []
   variables:
     GIT_CLEAN_FLAGS: none
   script:
-    - deps_image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
-    - "( make header && git diff --stat && git checkout . ; )"
     - \time -v docker build --pull .. -f Dockerfile
-      --build-arg DEPS_IMAGE="${deps_image}:commit-${CI_COMMIT_SHA}"
       -t "${image}:commit-${CI_COMMIT_SHA}"
       -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
     - docker push "${image}:commit-${CI_COMMIT_SHA}"
@@ -202,16 +132,12 @@ build:detached:
   extends: .dind
   rules:
     - if: $CI_MERGE_REQUEST_IID
-  needs:
-    - deps:build:detached
+  needs: []
   variables:
     GIT_CLEAN_FLAGS: none
   script:
-    - deps_image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell-deps
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
-    - "( make header && git diff --stat && git checkout . ; )"
     - \time -v docker build --pull .. -f Dockerfile
-      --build-arg DEPS_IMAGE="${deps_image}:merge-${CI_MERGE_REQUEST_IID}"
       -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
     - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
 
