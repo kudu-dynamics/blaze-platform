@@ -126,7 +126,7 @@ test:branch:
     GIT_CLEAN_FLAGS: none
   script:
     - stack test
-  allow_failure: true
+  allow_failure: false
 
 test:detached:
   stage: test
@@ -140,7 +140,7 @@ test:detached:
     GIT_CLEAN_FLAGS: none
   script:
     - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
-  allow_failure: true
+  allow_failure: false
 
 push:latest:
   stage: push
