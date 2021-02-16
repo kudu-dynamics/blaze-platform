@@ -25,6 +25,7 @@ stack = subprocess.Popen(
 
 
 def cleanup_and_exit(retcode):
+    print('\x1b[0m', end='')  # Reset terminal colors
     print('Terminating stack...')
     stack.terminate()
     if stack.poll() is None:
