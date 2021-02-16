@@ -25,12 +25,17 @@ stack = subprocess.Popen(
 
 
 def cleanup_and_exit(retcode):
+    print('Terminating stack...')
     stack.terminate()
     if stack.poll() is None:
+        print('Stack did not terminate. Killing instead...')
         stack.kill()
 
+    print('pkill stack')
     subprocess.run(['pkill', 'stack'])
+    print('pkill binja-test')
     subprocess.run(['pkill', 'binja-test'])
+    print('done!')
 
     exit(retcode)
 
