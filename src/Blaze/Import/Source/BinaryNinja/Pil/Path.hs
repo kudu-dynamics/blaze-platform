@@ -155,9 +155,6 @@ convertCallNode n = do
   params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
   let paramSyms = createParamSymbol 0 <$> params
   defs <- zipWithM defSymbol paramSyms argExprs
-  putText "\n\n-----------------------"
-  liftIO $ pprint defs
-  putText "-----------------------\n\n"
   return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
 
 getRetVals_ :: SubBlockNode -> Converter [Pil.Expression]
