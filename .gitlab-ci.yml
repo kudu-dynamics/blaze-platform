@@ -28,7 +28,7 @@ variables:
     - echo -e "section_start:`date +%s`:bootstrap[collapsed=true]\r\e[0KBootstrap build dependencies"
     - |
       if [ -f /etc/alpine-release ]; then
-        apk add git coreutils
+        apk add git coreutils python3
         apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
       fi
     - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
@@ -152,5 +152,5 @@ test:detached:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - stack test
+    - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run-stack-test.py
   allow_failure: true
