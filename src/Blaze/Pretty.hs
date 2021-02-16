@@ -106,6 +106,7 @@ instance Pretty a => Pretty (Pil.CallDest a) where
     (Pil.CallConstPtr ptr) -> show (ptr ^. #constant)
     (Pil.CallExpr e) -> pretty e
     (Pil.CallExprs es) -> show $ fmap pretty es
+    (Pil.CallFunc fn) -> pretty fn
 
 instance Pretty Binja.Function.Function where
   pretty f = Text.pack $ printf "%s @0x%x" name start
