@@ -116,6 +116,7 @@ instance Disp a => Disp (Pil.CallDest a) where
     (Pil.CallConstPtr ptr) -> show (ptr ^. #constant)
     (Pil.CallExpr e) -> disp e
     (Pil.CallExprs es) -> show $ fmap disp es
+    (Pil.CallFunc fn) -> disp fn
 
 instance Disp Binja.Function.Function where
   disp f = Text.pack $ printf "func \"%s\" %s" name start
