@@ -93,6 +93,9 @@ build:branch:
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker pull "${image}:branch-${CI_COMMIT_REF_SLUG}" ||
+      docker pull "${image}:latest" ||
+      true
     - \time -v docker build --pull .. -f Dockerfile
       -t "${image}:commit-${CI_COMMIT_SHA}"
       -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
@@ -110,6 +113,9 @@ build:detached:
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker pull "${image}:merge-${CI_MERGE_REQUEST_IID}" ||
+      docker pull "${image}:latest" ||
+      true
     - \time -v docker build --pull .. -f Dockerfile
       -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
     - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
