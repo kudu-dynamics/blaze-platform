@@ -6,6 +6,14 @@ import Blaze.Prelude hiding (pred)
 import Blaze.Types.CallGraph (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
+import Blaze.Types.Pil (Stmt)
+
+type PilNode = CfNode [Stmt]
+type PilEdge = CfEdge [Stmt]
+type PilCallNode = CallNode [Stmt]
+type PilBbNode = BasicBlockNode [Stmt]
+type PilNodeMapEntry = (PilNode, [Stmt])
+type PilCfg = Cfg [Stmt]
 
 -- TODO: Consider adding more depending on what is being represented.
 data BranchType
@@ -16,19 +24,49 @@ data BranchType
 
 instance Hashable BranchType
 
+data BasicBlockNode a = BasicBlockNode
+  { function :: Function
+  , start :: Address
+  , end :: Address
+  , nodeData :: a
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data CallNode a = CallNode
+  { function :: Function
+  , start :: Address
+  , nodeData :: a
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data EnterFuncNode a = EnterFuncNode
+  { prevFunc :: Function
+  , nextFunc :: Function
+  , nodeData :: a
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data LeaveFuncNode a = LeaveFuncNode
+  { prevFunc :: Function
+  , nextFunc :: Function
+  , nodeData :: a
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- TODO: Consider moving the interprocedural nodes into a separate type
+--       specific to InterCfg.
+-- TODO: Once the Cfg only needs to support PIL statements, remove type parameter
+--       a and use more-specific definitions of the various node types. E.g.,
+--       a CallNode should have a single CallStatement entry, not a nodeData of type a.
 data CfNode a
-  = BasicBlock
-      { function :: Function
-      , start :: Address
-      , end :: Address
-      , nodeData :: a
-      }
-  | Call
-      { function :: Function
-      , start :: Address
-      , end :: Address
-      , nodeData :: a
-      }
+  = BasicBlock (BasicBlockNode a)
+  | Call (CallNode a)
+  | EnterFunc (EnterFuncNode a)
+  | LeaveFunc (LeaveFuncNode a)
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -43,7 +81,7 @@ data CfEdge a = CfEdge
 mkEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
 mkEdge (bt, (s, d)) =
   CfEdge s d bt
-  
+
 data CodeReference a = CodeReference
   { function :: Function
   , startIndex :: a
@@ -75,6 +113,8 @@ mkControlFlowGraph root' ns es =
   Graph.addNodes (root' : ns) . Graph.fromEdges $
     (view #branchType &&& (view #src &&& view #dst)) <$> es
 
+-- TODO: Consider removing type parameter once a PIL CFG can be constructed
+--       w/o an intermediate MLIL SSA CFG.
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
   , root :: CfNode a

@@ -6,7 +6,7 @@ import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
-import Blaze.Import.Pil (PilImporter (getCodeRefStatements, IndexType))
+import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
 import Blaze.Import.Source.BinaryNinja.Types
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.CallGraph (
@@ -14,11 +14,13 @@ import Blaze.Types.CallGraph (
  )
 import qualified Blaze.Types.CallGraph as CG
 import Blaze.Types.Cfg (
+  BasicBlockNode (BasicBlockNode),
   BranchType (
     FalseBranch,
     TrueBranch,
     UnconditionalBranch
   ),
+  CallNode (CallNode),
   CfEdge (CfEdge),
   CfNode (
     BasicBlock,
@@ -26,7 +28,7 @@ import Blaze.Types.Cfg (
   ),
   Cfg,
   mkCfg,
-  mkEdge,
+  mkEdge, PilCfg, PilNode, PilEdge
  )
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Function (CallInstruction, toCallInstruction)
@@ -54,12 +56,13 @@ tellEntry = tell . DList.singleton
 nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromInstrs func' instrs = do
   let node =
-        BasicBlock
-          { function = func'
-          , start = (view Mlil.address . unNonCallInstruction) . NEList.head $ instrs
-          , end = (view Mlil.address . unNonCallInstruction) . NEList.last $ instrs
-          , nodeData = unNonCallInstruction <$> instrs
-          }
+        BasicBlock $
+          BasicBlockNode
+            { function = func'
+            , start = (view Mlil.address . unNonCallInstruction) . NEList.head $ instrs
+            , end = (view Mlil.address . unNonCallInstruction) . NEList.last $ instrs
+            , nodeData = unNonCallInstruction <$> instrs
+            }
   tellEntry
     ( node
     , Cfg.CodeReference
@@ -73,12 +76,12 @@ nodeFromInstrs func' instrs = do
 nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromCallInstr func' callInstr = do
   let node =
-        Call
-          { function = func'
-          , start = callInstr ^. #address
-          , end = callInstr ^. #address
-          , nodeData = callInstr ^. #instr :| []
-          }
+        Call $
+          CallNode
+            { function = func'
+            , start = callInstr ^. #address
+            , nodeData = callInstr ^. #instr :| []
+            }
   tellEntry
     ( node
     , Cfg.CodeReference
@@ -196,7 +199,7 @@ getCfg ::
   a ->
   BNBinaryView ->
   CG.Function ->
-  IO (Maybe (ImportResult PilCfg PilNodeMap))
+  IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
 getCfg imp bv fun = do
   result <- getCfgAlt bv fun
   case result of
@@ -239,17 +242,13 @@ convertToPilNode ::
   MlilSsaCfNode ->
   IO PilNode
 convertToPilNode imp mapping mlilSsaNode = do
-  let startInstr = NEList.head $ mlilSsaNode ^. #nodeData
-      startAddr = startInstr ^. Mlil.address
-      lastInstr = NEList.last $ mlilSsaNode ^. #nodeData
-      lastAddr = lastInstr ^. Mlil.address
   case mlilSsaNode of
-    BasicBlock fun _ _ _ -> do
+    BasicBlock (BasicBlockNode fun startAddr lastAddr _) -> do
       stmts <- getPilFromNode imp mapping mlilSsaNode
-      return $ BasicBlock fun startAddr lastAddr stmts
-    Call fun _ _ _ -> do
+      return $ BasicBlock (BasicBlockNode fun startAddr lastAddr stmts)
+    Call (CallNode fun startAddr _) -> do
       stmts <- getPilFromNode imp mapping mlilSsaNode
-      return $ Call fun startAddr lastAddr stmts
+      return $ Call (CallNode fun startAddr stmts)
 
 convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe PilEdge
 convertToPilEdge nodeMap mlilSsaEdge =

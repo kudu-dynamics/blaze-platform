@@ -103,6 +103,7 @@ library:
   exposed-modules:
   - Blaze.CallGraph
   - Blaze.Cfg
+  - Blaze.Cfg.Interprocedural
   - Blaze.Cfg.Loop
   - Blaze.Fir
   - Blaze.Function
@@ -133,6 +134,7 @@ library:
   - Blaze.Pil.Solver
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
+  - Blaze.Types.Cfg.Interprocedural  
   - Blaze.Types.Cfg.Loop
   - Blaze.Types.Fir
   - Blaze.Types.Function

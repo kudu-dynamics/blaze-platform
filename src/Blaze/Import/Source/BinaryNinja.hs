@@ -41,13 +41,13 @@ instance CallGraphImporter BNImporter where
   getCallSites imp = CallGraph.getCallSites (imp ^. #binaryView)
 
 instance CfgImporter BNImporterAlt where
-  type NodeType BNImporterAlt = NonEmpty MlilSsaInstruction
+  type NodeDataType BNImporterAlt = NonEmpty MlilSsaInstruction
   type NodeMapType BNImporterAlt = MlilNodeRefMap
   getCfg imp = Cfg.getCfgAlt (imp ^. #bnImporter . #binaryView)
 
 instance CfgImporter BNImporter where
-  type NodeType BNImporter = [Stmt]
-  type NodeMapType BNImporter = PilNodeMap
+  type NodeDataType BNImporter = [Stmt]
+  type NodeMapType BNImporter = PilMlilNodeMap
   getCfg imp = Cfg.getCfg imp (imp ^. #binaryView)
 
 instance PilImporter BNImporter where
