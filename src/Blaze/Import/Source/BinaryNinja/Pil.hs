@@ -83,7 +83,7 @@ mkConverterState bv knownFuncDefs_ addrSize_ f p =
   startCtx = createStartCtx f
 
 runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
-runConverter m s = flip runStateT s $ _runConverter m
+runConverter m = runStateT $ _runConverter m
 
 convert :: ConverterState -> Converter a -> IO a
 convert s m = fst <$> runConverter m s
