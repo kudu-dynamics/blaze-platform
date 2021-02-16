@@ -447,7 +447,6 @@ convertCallInstruction ci = do
         (Just funcInfo) ->
           Pil.genCallOutputStores (funcInfo ^. #params) args
 
-
 -- | Gets all PIL statements contained in a function.
 -- the "Int" is the original MLIL_SSA InstructionIndex
 convertFunction :: Function -> Converter [(Int, Stmt)]
