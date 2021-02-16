@@ -51,6 +51,7 @@ variables:
 
       **/.git
       **/.gitlab-ci.yml
+      **/.ci
 
       **/.stack
       **/.stack-work*
