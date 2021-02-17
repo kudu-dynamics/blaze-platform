@@ -6,7 +6,7 @@ import subprocess
 import time
 import re
 
-if os.environ['CI'] != 'true':
+if os.environ.get('CI') != 'true':
     print('It is not advised to run this script except in a container',
           file=sys.stderr)
     exit(1)
