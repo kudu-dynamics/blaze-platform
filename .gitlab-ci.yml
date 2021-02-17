@@ -87,8 +87,6 @@ build:branch:
   rules:
     - if: $CI_MERGE_REQUEST_IID == null
   needs: []
-  variables:
-    GIT_CLEAN_FLAGS: none
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
@@ -107,8 +105,6 @@ build:detached:
   rules:
     - if: $CI_MERGE_REQUEST_IID
   needs: []
-  variables:
-    GIT_CLEAN_FLAGS: none
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
@@ -132,7 +128,6 @@ test:branch:
   script:
     - cd /blaze/binaryninja-haskell
     - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run_stack_test.py
-  allow_failure: false
 
 test:detached:
   stage: test
@@ -147,7 +142,6 @@ test:detached:
   script:
     - cd /blaze/binaryninja-haskell
     - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run_stack_test.py
-  allow_failure: false
 
 push:latest:
   stage: push

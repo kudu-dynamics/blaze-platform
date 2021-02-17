@@ -18,6 +18,4 @@ RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BIN
 WORKDIR /blaze/binaryninja-haskell
 RUN stack build --only-dependencies
 
-FROM base
-
 RUN stack build --test --no-run-tests
