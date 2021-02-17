@@ -6,6 +6,6 @@ import Binja.Prelude
 data CmpSgtOp expr = CmpSgtOp
     { _cmpSgtOpLeft :: expr
     , _cmpSgtOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CmpSgtOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

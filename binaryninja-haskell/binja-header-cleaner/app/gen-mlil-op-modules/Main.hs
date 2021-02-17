@@ -11,7 +11,7 @@ import System.FilePath (FilePath, (<.>), (</>))
 import Binja.Header.Types.Printer (Printer, br, indent, pr)
 import qualified Binja.Header.Types.Printer as Printer
 import qualified Data.Char as Char
-import Data.List (nub)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
@@ -34,7 +34,7 @@ opTypeType ot = case ot of
   "var_ssa" -> "SSAVariable"
   "var_ssa_dest_and_src" -> "SSAVariableDestAndSrc"
   "int_list" -> "[Int64]"
-  "address_list" -> "[Address]"
+  "target_address_list" -> "[Address]"
   "var_list" -> "[Variable]"
   "var_ssa_list" -> "[SSAVariable]"
   "expr_list" -> "[expr]"
@@ -50,7 +50,7 @@ opTypeBuilder ot = case ot of
   "var_ssa" -> "buildSSAVariable"
   "var_ssa_dest_and_src" -> "buildSSAVariableDestAndSrc"
   "int_list" -> "buildIntList"
-  "address_list" -> "buildAddressList"
+  "target_address_list" -> "buildTargetAddrsList"
   "var_list" -> "buildVarList"
   "var_ssa_list" -> "buildSSAVarList"
   "expr_list" -> "buildExprList"
@@ -91,30 +91,29 @@ operatorNameToRecordName =
 operatorRecordList :: [Text]
 operatorRecordList = operatorNameToRecordName . fst <$> statementsData
 
-printRestArgs :: Text -> [(Text, Text)] -> Printer ()
-printRestArgs _ [] = pr $ "} " <> derivingClause
-printRestArgs pname ((argName, argType) : args) = do
-  pr $ ", _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
-  printRestArgs pname args
+dataDerivingClause :: [Text]
+dataDerivingClause =
+  [ "deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)"
+  , "deriving anyclass (Hashable)"
+  ]
 
-derivingClause :: Text
-derivingClause = "deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)"
+newtypeDerivingClause :: [Text]
+newtypeDerivingClause =
+  [ "deriving stock (Show, Generic, Functor, Foldable, Traversable)"
+  , "deriving newtype (Eq, Ord, Hashable)"
+  ]
 
 printOperationUnionType :: [(Text, [(Text, Text)])] -> Printer ()
-printOperationUnionType (firstOp : moreOps) = do
+printOperationUnionType ops = do
   pr "data Operation expr"
   indent $ do
-    pr $ "= " <> strOp firstOp
-    printRest moreOps
+    forM_ (zip ("=" : repeat "|") ops) $ \(c, op) -> do
+      pr $ c <> " " <> strOp op
+    traverse_ pr dataDerivingClause
   where
-    printRest [] = pr "deriving (Eq, Ord, Show, Functor, Foldable, Traversable)"
-    printRest (op : ops) = do
-      pr $ "| " <> strOp op
-      printRest ops
     strOp (opName, args) =
       operatorNameToConstructorName opName
         <> bool (" (" <> operatorNameToRecordName opName <> " expr)") "" (null args)
-printOperationUnionType _ = P.error "printOperationUnionType: expecting non-empty list"
 
 printOpRecordDerive :: Text -> Printer ()
 printOpRecordDerive nm =
@@ -123,24 +122,9 @@ printOpRecordDerive nm =
       <> operatorNameToRecordName nm
       <> ")"
 
-printOpRecord :: (Text, [(Text, Text)]) -> Printer ()
-printOpRecord (mlilName, xs) = do
-  pr $ "data " <> rname <> " expr = " <> rname
-  indent $ case xs of
-    [] -> pr derivingClause
-    ((argName, argType) : args) -> do
-      pr $ "{ _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
-      printRestArgs pname args
-  where
-    rname = operatorNameToRecordName mlilName
-    pname = operatorNameToPrefixName mlilName
-
 ---
 printOpUnion :: Printer ()
 printOpUnion = printOperationUnionType statementsData
-
-printOpRecords :: Printer ()
-printOpRecords = mapM_ (\x -> printOpRecord x >> pr "") statementsData
 
 printDerives :: Printer ()
 printDerives = mapM_ printOpRecordDerive (fst <$> statementsData)
@@ -151,8 +135,6 @@ printToFile fp = TextIO.writeFile fp . Printer.toText $ do
   divide
   printOpUnion
   divide
-  -- printOpRecords
-  -- divide
   printDerives
   divide
   printBuilderCases
@@ -226,7 +208,7 @@ statementsData =
   , ("MLIL_ZX", [("src", "expr")])
   , ("MLIL_LOW_PART", [("src", "expr")])
   , ("MLIL_JUMP", [("dest", "expr")])
-  , ("MLIL_JUMP_TO", [("dest", "expr"), ("targets", "address_list")])
+  , ("MLIL_JUMP_TO", [("dest", "expr"), ("targets", "target_address_list")])
   , ("MLIL_RET_HINT", [("dest", "expr")])
   , ("MLIL_CALL", [("output", "var_list"), ("dest", "expr"), ("params", "expr_list")])
   , ("MLIL_CALL_UNTYPED", [("output", "expr"), ("dest", "expr"), ("params", "expr"), ("stack", "expr")])
@@ -327,53 +309,61 @@ printModuleHeader name = do
 printModuleImports ::
   Set Text ->
   Printer ()
--- printModuleImports = mapM_ (maybe (return ()) pr . g . f) . Set.toList
 printModuleImports types = mapM_ pr imports
   where
     imports :: [Text]
-    imports = nub . mapMaybe (g . f) $ Set.toList types
+    imports = sort . fmap formatImport . combineImports . mapMaybe (qualid . norm) $ Set.toList types
 
-    f :: Text -> Text
-    f "var" = "Variable"
-    f "var_list" = "Variable"
-    f "var_ssa" = "SSAVariable"
-    f "var_ssa_list" = "SSAVariable"
-    f "var_ssa_dest_and_src" = "SSAVariableDestAndSrc"
-    f "intrinsic" = "Intrinsic"
-    f _ = ""
+    norm :: Text -> Text
+    norm "var" = "Variable"
+    norm "var_list" = "Variable"
+    norm "var_ssa" = "SSAVariable"
+    norm "var_ssa_list" = "SSAVariable"
+    norm "var_ssa_dest_and_src" = "SSAVariableDestAndSrc"
+    norm "intrinsic" = "Intrinsic"
+    norm _ = ""
 
-    g :: Text -> Maybe Text
-    g "Variable" = Just "import Binja.Types.Variable (Variable)"
-    g "SSAVariable" = Just "import Binja.Types.MLIL.Common (SSAVariable)"
-    g "SSAVariableDestAndSrc" = Just "import Binja.Types.MLIL.Common (SSAVariableDestAndSrc)"
-    g "Intrinsic" = Just "import Binja.Types.MLIL.Common (Intrinsic)"
-    g _ = Nothing
+    qualid :: Text -> Maybe (Text, Text)
+    qualid "Variable" = Just ("Binja.Types.Variable", "Variable")
+    qualid "SSAVariable" = Just ("Binja.Types.MLIL.Common", "SSAVariable")
+    qualid "SSAVariableDestAndSrc" = Just ("Binja.Types.MLIL.Common", "SSAVariableDestAndSrc")
+    qualid "Intrinsic" = Just ("Binja.Types.MLIL.Common", "Intrinsic")
+    qualid _ = Nothing
+
+    combineImports :: [(Text, Text)] -> [(Text, [Text])]
+    combineImports = fmap (second (sort . Set.toList)) . Map.toList . Map.unionsWith Set.union . fmap (uncurry Map.singleton . second Set.singleton)
+
+    formatImport :: (Text, [Text]) -> Text
+    formatImport (mod', ids) = "import " <> mod' <> " (" <> Text.intercalate ", " ids <> ")"
 
 printRecordModule :: (Text, [(Text, Text)]) -> Printer ()
-printRecordModule (mlilName, xs) = do
+printRecordModule (opName, fields) = do
   printModuleHeader rname
   br
-  printModuleImports . Set.fromList . fmap snd $ xs
+  printModuleImports . Set.fromList . fmap snd $ fields
   br
-  pr $ "data " <> rname <> " expr = " <> rname
-  indent $ case xs of
-    [] -> pr derivingClause
-    ((argName, argType) : args) -> do
-      pr $ "{ _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
-      printRestArgs pname args
-  br
-  pr $ "instance Hashable a => Hashable (" <> rname <> " a)"
+  pr $ declType <> " " <> rname <> " expr = " <> rname
+  indent $ do
+    forM_ (zip ("{" : repeat ",") fields) $ \(c, (argName, argType)) ->
+      pr $ c <> " _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
+    unless (null fields) $ pr "}"
+    traverse_ pr derivingClause
   where
-    rname = operatorNameToRecordName mlilName
-    pname = operatorNameToPrefixName mlilName
+    rname = operatorNameToRecordName opName
+    pname = operatorNameToPrefixName opName
+    (declType, derivingClause) =
+      case fields of
+        [_] -> ("newtype", newtypeDerivingClause)
+        _ -> ("data", dataDerivingClause)
+
 
 writeRecordModule :: FilePath -> (Text, [(Text, Text)]) -> IO ()
-writeRecordModule outDir v@(mlilName, _) =
+writeRecordModule outDir v@(opName, _) =
   TextIO.writeFile outModulePath $ Printer.toText (printRecordModule v) <> "\n"
   where
     outModulePath = outDir </> recordName <.> ".hs"
       where
-        recordName = Text.unpack $ operatorNameToRecordName mlilName
+        recordName = Text.unpack $ operatorNameToRecordName opName
 
 writeRecords :: FilePath -> IO ()
 writeRecords outDir = do

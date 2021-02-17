@@ -6,6 +6,6 @@ import Binja.Prelude
 data TestBitOp expr = TestBitOp
     { _testBitOpLeft :: expr
     , _testBitOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (TestBitOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

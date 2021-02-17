@@ -8,6 +8,6 @@ data SetVarFieldOp expr = SetVarFieldOp
     { _setVarFieldOpDest :: Variable
     , _setVarFieldOpOffset :: Int64
     , _setVarFieldOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (SetVarFieldOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

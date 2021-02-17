@@ -8,6 +8,6 @@ data TailcallUntypedOp expr = TailcallUntypedOp
     , _tailcallUntypedOpDest :: expr
     , _tailcallUntypedOpParams :: expr
     , _tailcallUntypedOpStack :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (TailcallUntypedOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

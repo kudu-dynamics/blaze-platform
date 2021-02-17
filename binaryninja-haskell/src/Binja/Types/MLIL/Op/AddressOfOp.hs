@@ -4,8 +4,8 @@ import Binja.Prelude
 
 import Binja.Types.Variable (Variable)
 
-data AddressOfOp expr = AddressOfOp
+newtype AddressOfOp expr = AddressOfOp
     { _addressOfOpSrc :: Variable
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (AddressOfOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

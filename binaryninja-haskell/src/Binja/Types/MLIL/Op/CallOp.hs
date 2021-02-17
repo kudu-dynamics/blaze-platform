@@ -8,6 +8,6 @@ data CallOp expr = CallOp
     { _callOpOutput :: [Variable]
     , _callOpDest :: expr
     , _callOpParams :: [expr]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CallOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

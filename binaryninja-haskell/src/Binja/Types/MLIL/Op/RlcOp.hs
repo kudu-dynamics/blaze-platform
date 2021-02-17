@@ -7,6 +7,6 @@ data RlcOp expr = RlcOp
     { _rlcOpLeft :: expr
     , _rlcOpRight :: expr
     , _rlcOpCarry :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (RlcOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

@@ -3,8 +3,8 @@ module Binja.Types.MLIL.Op.FtruncOp where
 import Binja.Prelude
 
 
-data FtruncOp expr = FtruncOp
+newtype FtruncOp expr = FtruncOp
     { _ftruncOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (FtruncOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

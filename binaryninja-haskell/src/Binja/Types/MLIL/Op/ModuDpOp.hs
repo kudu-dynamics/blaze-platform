@@ -6,6 +6,6 @@ import Binja.Prelude
 data ModuDpOp expr = ModuDpOp
     { _moduDpOpLeft :: expr
     , _moduDpOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (ModuDpOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

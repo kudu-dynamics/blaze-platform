@@ -4,8 +4,8 @@ import Binja.Prelude
 
 import Binja.Types.Variable (Variable)
 
-data CallOutputOp expr = CallOutputOp
+newtype CallOutputOp expr = CallOutputOp
     { _callOutputOpDest :: [Variable]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CallOutputOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

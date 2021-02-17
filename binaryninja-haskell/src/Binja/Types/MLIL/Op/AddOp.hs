@@ -6,6 +6,6 @@ import Binja.Prelude
 data AddOp expr = AddOp
     { _addOpLeft :: expr
     , _addOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (AddOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

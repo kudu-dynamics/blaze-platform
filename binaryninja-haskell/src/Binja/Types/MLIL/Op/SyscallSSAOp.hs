@@ -7,6 +7,6 @@ data SyscallSSAOp expr = SyscallSSAOp
     { _syscallSSAOpOutput :: expr
     , _syscallSSAOpParams :: [expr]
     , _syscallSSAOpSrc_memory :: Int64
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (SyscallSSAOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

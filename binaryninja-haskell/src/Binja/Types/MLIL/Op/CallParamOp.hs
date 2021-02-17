@@ -4,8 +4,8 @@ import Binja.Prelude
 
 import Binja.Types.Variable (Variable)
 
-data CallParamOp expr = CallParamOp
+newtype CallParamOp expr = CallParamOp
     { _callParamOpSrc :: [Variable]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CallParamOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

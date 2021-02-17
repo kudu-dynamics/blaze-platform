@@ -7,6 +7,6 @@ import Binja.Types.Variable (Variable)
 data AddressOfFieldOp expr = AddressOfFieldOp
     { _addressOfFieldOpSrc :: Variable
     , _addressOfFieldOpOffset :: Int64
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (AddressOfFieldOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

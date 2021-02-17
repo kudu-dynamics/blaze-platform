@@ -3,8 +3,8 @@ module Binja.Types.MLIL.Op.ConstOp where
 import Binja.Prelude
 
 
-data ConstOp expr = ConstOp
+newtype ConstOp expr = ConstOp
     { _constOpConstant :: Int64
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (ConstOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)
