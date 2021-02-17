@@ -26,22 +26,22 @@ variables:
     - dind
   timeout: 1h
   before_script:
-    - echo -e "section_start:`date +%s`:bootstrap[collapsed=true]\r\e[0KBootstrap build dependencies"
+    - echo -e "section_start:`date +%s`:bootstrap\r\e[0KBootstrap build dependencies"
     - |
       if [ -f /etc/alpine-release ]; then
         apk add git coreutils python3
         apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
       fi
-    - echo -e "section_end:`date +%s`:bootstrap[collapsed=true]\r\e[0K"
+    - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
 
-    - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
+    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - uname -a
     - env
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
-    - echo -e "section_end:`date +%s`:pre-env[collapsed=true]\r\e[0K"
+    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
 
-    - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
+    - echo -e "section_start:`date +%s`:setup\r\e[0KProject Setup"
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     - |
       cat <<EOF >../.dockerignore
@@ -69,12 +69,12 @@ variables:
         rm -rf "../${project}"
         git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
       done
-    - echo -e "section_end:`date +%s`:setup[collapsed=true]\r\e[0K"
+    - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
-    - echo -e "section_start:`date +%s`:post-env[collapsed=true]\r\e[0KEnvironment info (after_script)"
+    - echo -e "section_start:`date +%s`:post-env\r\e[0KEnvironment info (after_script)"
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
-    - echo -e "section_end:`date +%s`:post-env[collapsed=true]\r\e[0K"
+    - echo -e "section_end:`date +%s`:post-env\r\e[0K"
 
 .haskell-job:
   extends: .dind
