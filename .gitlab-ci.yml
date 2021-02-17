@@ -81,6 +81,15 @@ variables:
   before_script: []
   after_script: []
 
+lint:
+  stage: build
+  extends: .dind
+  image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
+  needs: []
+  script:
+    - hlint --color=always src test demo
+  allow_failure: true
+
 build:branch:
   stage: build
   extends: .dind
