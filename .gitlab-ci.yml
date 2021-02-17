@@ -1,4 +1,5 @@
 stages:
+  - lint
   - build
   - test
   - push
@@ -82,7 +83,7 @@ variables:
   after_script: []
 
 lint:
-  stage: build
+  stage: lint
   extends: .dind
   image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
   needs: []
