@@ -15,9 +15,12 @@ workflow:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 variables:
+  # The base of this repo's docker registry
   REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
+  # The image name of binaryninja-haskell-base
   BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE:
     ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops/binaryninja-haskell-base
+  # Enable buildkit for more efficient layer caching
   DOCKER_BUILDKIT: "1"
 
 .dind:
@@ -26,6 +29,8 @@ variables:
     - dind
   timeout: 1h
   before_script:
+    # TODO gitlab 13.5 pre-collapse debug/environment info sections to reduce log noise
+    # Potential build dependencies for the dind host
     - echo -e "section_start:`date +%s`:bootstrap\r\e[0KBootstrap build dependencies"
     - |
       if [ -f /etc/alpine-release ]; then
@@ -34,6 +39,7 @@ variables:
       fi
     - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
 
+    # Print runner environment info for debugging
     - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - uname -a
     - env
@@ -41,8 +47,12 @@ variables:
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
 
+    # Setup source dependencies
     - echo -e "section_start:`date +%s`:setup\r\e[0KProject Setup"
+    # Login to gitlab so we can clone
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+    # Write a .dockerignore to the build context (../). This ignores everything there except for
+    # our source dependencies, since gitlab runner will have cloned our other repos to ../
     - |
       cat <<EOF >../.dockerignore
       *
@@ -64,6 +74,7 @@ variables:
       **/Dockerfile*
       **/.dockerignore
       EOF
+    # Clone each source dependency
     - |
       for project in binary-analysis; do
         rm -rf "../${project}"
@@ -71,6 +82,7 @@ variables:
       done
     - echo -e "section_end:`date +%s`:setup\r\e[0K"
   after_script:
+    # Print runner environment info after main script as well
     - echo -e "section_start:`date +%s`:post-env\r\e[0KEnvironment info (after_script)"
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
@@ -79,6 +91,8 @@ variables:
 .haskell-job:
   extends: .dind
   image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:commit-${CI_COMMIT_SHA}
+  # Skip .dind before_script and after_script, especially the environment info, since we don't
+  # care about most of it after the build stage
   before_script: []
   after_script: []
 
@@ -91,6 +105,17 @@ lint:
     - hlint --color=always src test demo
   allow_failure: true
 
+# We need 2 build jobs: one for branch pipelines and one for MR pipelines
+# - build:branch pushes to
+#   - ${image}:commit-${CI_COMMIT_SHA}
+#   - ${image}:branch-${CI_COMMIT_REF_SLUG}
+#   For instance, binaryninja-haskell:branch-feature-foo and binaryninja-haskell:commit-1a2b3c4...
+# - build:detached pushes to
+#   - ${image}:merge-${CI_MERGE_REQUEST_IID}
+#   For instance, binaryninja-haskell:merge-71
+# In either case, we should first try pulling the latest image for this branch or MR,
+# and if that fails, pull :latest. This ensures we have cached layers downloaded
+  
 build:branch:
   stage: build
   extends: .dind
@@ -125,6 +150,9 @@ build:detached:
       -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
     - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
 
+# Likewise, we need 2 test jobs. The test:branch job uses the ${image}:commit-... image,
+# and the test:detached uses the ${image}:merge-... image
+
 test:branch:
   stage: test
   extends: .haskell-job
@@ -142,6 +170,7 @@ test:branch:
 test:detached:
   stage: test
   extends: .haskell-job
+  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:merge-${CI_MERGE_REQUEST_IID}
   rules:
     - if: $CI_MERGE_REQUEST_IID
   needs:
@@ -153,6 +182,8 @@ test:detached:
     - cd /blaze/binaryninja-haskell
     - STACK_TEST_TIMEOUT=1800 python3 .ci/scripts/run_stack_test.py
 
+# If we just pushed to the default branch, tag the image as :latest and push
+    
 push:latest:
   stage: push
   extends: .dind

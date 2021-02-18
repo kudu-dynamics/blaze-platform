@@ -13,9 +13,7 @@ ARG BLAZE_BINJA_CHANNEL=dev
 ARG BLAZE_BINJA_VERSION=LATEST
 ARG BLAZE_BINJA_API_COMMIT=origin/dev
 RUN /usr/local/bin/binja_api_update "${BLAZE_BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
-RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
+RUN /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
 WORKDIR /blaze/binaryninja-haskell
-RUN stack build --only-dependencies
-
 RUN stack build --test --no-run-tests

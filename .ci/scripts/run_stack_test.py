@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+'''
+Run `stack test [ARGUMENTS...]` but don't wait for the spec to exit. Instead,
+search the output for either /examples?, 0 failure/ or /examples?, [1-9][0-9]* failure/
+and determine the correct exit code based on that. Then promptly killall stack and binja-test,
+because otherwise killing just stack leaves orphaned processes that would otherwise never
+exit.
+
+For this reason, it is recommended to not run this script on a dev machine locally,
+as any process matching `stack` or `binja-test` will be killed, not necessarily just
+children of this process. If you really want to anyway, set the environment variable
+CI=true
+'''
 
 import sys
 import os
@@ -7,8 +19,9 @@ import time
 import re
 
 if os.environ.get('CI') != 'true':
-    print('It is not advised to run this script except in a container',
-          file=sys.stderr)
+    print(
+        'It is not advised to run this script except in a container. See the docstring of this script',
+        file=sys.stderr)
     exit(1)
 
 job_timeout = int(os.environ.get('STACK_TEST_TIMEOUT', 0))
@@ -32,10 +45,10 @@ def cleanup_and_exit(retcode):
         print('Stack did not terminate. Killing instead...')
         stack.kill()
 
-    print('pkill stack')
-    subprocess.run(['pkill', 'stack'])
-    print('pkill binja-test')
-    subprocess.run(['pkill', 'binja-test'])
+    print('killall stack')
+    subprocess.run(['killall', 'stack'])
+    print('killall binja-test')
+    subprocess.run(['killall', 'binja-test'])
     print('done!')
 
     exit(retcode)
