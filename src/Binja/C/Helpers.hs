@@ -101,12 +101,16 @@ getVariableType :: BNFunction -> BNVariable -> IO BNTypeWithConfidence
 getVariableType fn var' =
   allocAndPeek $ wrapBNGetVariableType fn var'
 
-getFunctionParameterVariables' :: BNFunction -> IO BNParameterVariablesWithConfidence
-getFunctionParameterVariables' fn = alloca $ \ptr -> do
+getFunctionParameterVariables_ :: BNFunction -> IO BNParameterVariablesWithConfidence
+getFunctionParameterVariables_ fn = alloca $ \ptr -> do
   wrapBNGetFunctionParameterVariables fn ptr
   r <- peek ptr
   freeParameterVariables (castPtr ptr)
   return r
+
+functionHasVariableArguments_ :: BNFunction -> IO BNBoolWithConfidence 
+functionHasVariableArguments_ fn = 
+  allocAndPeek $ wrapBNFunctionHasVariableArguments fn
   
 getChildType :: BNType -> IO BNTypeWithConfidence
 getChildType = allocAndPeek . wrapBNGetChildType
