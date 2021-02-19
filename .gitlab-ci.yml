@@ -189,6 +189,7 @@ push:latest:
     GIT_CLEAN_FLAGS: none
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker pull "${image}:commit-${CI_COMMIT_SHA}"
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
