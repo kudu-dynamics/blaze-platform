@@ -2,7 +2,7 @@ Dockerfile*
 .dockerignore
 
 .git
-.gitlab-ci/yml
+.gitlab-ci.yml
 
 .stack-work
 *.cabal
