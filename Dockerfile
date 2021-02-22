@@ -26,5 +26,5 @@ RUN z3 --version && which z3
 RUN stack upgrade --binary-only
 
 COPY ./ /blaze/blaze
-RUN cd /blaze/blaze && \
-    stack build --only-dependencies --test --no-run-tests
+WORKDIR /blaze/blaze
+RUN stack build --test --no-run-tests --ghc-options -fdiagnostics-color=always
