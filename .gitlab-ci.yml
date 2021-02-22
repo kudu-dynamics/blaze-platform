@@ -3,7 +3,7 @@ stages:
   - build
   - test
   - push
-  - deploy
+  - docs
 
 # FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
 # case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
@@ -164,9 +164,9 @@ push:latest:
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
 
-deploy:pages:
+docs:
   extends: .haskell-job
-  stage: deploy
+  stage: docs
   rules:
     # - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
     - if: $CI_COMMIT_REF_NAME == "haddock" && $CI_MERGE_REQUEST_ID == null
