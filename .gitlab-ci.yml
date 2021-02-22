@@ -179,9 +179,11 @@ deploy:pages:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - cd /blaze/blaze
+    - pushd /blaze/blaze
     - stack haddock
-    - cp -arT "$(stack path --snapshot-doc-root)" public
+    - docs_dir=$(stack path --snapshot-doc-root)
+    - popd
+    - cp -arT "$docs_dir" public
   allow_failure: true
   artifacts:
     paths:
