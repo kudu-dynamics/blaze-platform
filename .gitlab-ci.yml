@@ -132,7 +132,7 @@ test:branch:
 test:detached:
   stage: test
   extends: .haskell-job
-  image: ${REPO_DOCKER_REGISTRY}blaze:merge-${CI_MERGE_REQUEST_IID}
+  image: ${REPO_DOCKER_REGISTRY}/blaze:merge-${CI_MERGE_REQUEST_IID}
   rules:
     - if: $CI_MERGE_REQUEST_IID
   needs:
