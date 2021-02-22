@@ -1,10 +1,8 @@
 stages:
-  - base
-  - push-base
+  - lint
   - build
   - test
-  - docs
-  - deploy
+  - push
 
 # FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
 # case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
@@ -17,151 +15,150 @@ workflow:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 variables:
+  # The base of this repo's docker registry
   REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
-  GROUP_DOCKER_REGISTRY: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}
+  # The image name of binaryninja-haskell image
+  BLAZE_BINARYNINJA_HASKELL_IMAGE:
+    ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/binaryninja-haskell/binaryninja-haskell
+  # Enable buildkit for more efficient layer caching
   DOCKER_BUILDKIT: "1"
 
-.job:
+.dind:
+  image: docker:dind
+  tags:
+    - dind
   timeout: 1h
   before_script:
-    - echo -e "section_start:`date +%s`:bootstrap[collapsed=true]\r\e[0KBootstrap build dependencies"
+    # TODO gitlab 13.5 pre-collapse debug/environment info sections to reduce log noise
+    # Potential build dependencies for the dind host
+    - echo -e "section_start:`date +%s`:bootstrap\r\e[0KBootstrap build dependencies"
     - |
       if [ -f /etc/alpine-release ]; then
-        apk add git coreutils
+        apk add git coreutils python3
         apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
       fi
     - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
 
-    - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
+    # Print runner environment info for debugging
+    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
     - uname -a
     - env
     - ls -al
     - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
     - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
 
-    - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
-    - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
-    - mkdir -p .stack-work.deps
-    - |
-      cat <<EOF >../.dockerignore
-      *
-
-      !blaze
-      !binaryninja-haskell
-      !binary-analysis
-
-      **/.git
-      **/.gitlab-ci.yml
-
-      **/.stack
-      **/.stack-work*
-
-      **/*.cabal
-
-      **/dist-newstyle
-      **/dist
-
-      **/Dockerfile*
-      **/.dockerignore
-      EOF
-    - |
-      for project in binary-analysis binaryninja-haskell; do
-        rm -rf "../$project"
-        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/$project.git" "../$project"
-        (
-          cd "../$project" >/dev/null
-          mkdir -p ../blaze/.stack-work.deps/"$project"
-          ln -sf ../blaze/.stack-work.deps/"$project" .stack-work
-          ls -al "../$project" || true  # FIXME see coreutils issue
-        )
-      done
-    - echo -e "section_end:`date +%s`:setup\r\e[0K"
-  after_script:
-    - echo -e "section_start:`date +%s`:post-env[collapsed=true]\r\e[0KEnvironment info (after_script)"
-    - ls -al
-    - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
-    - echo -e "section_end:`date +%s`:post-env\r\e[0K"
-
 .haskell-job:
-  extends: .job
-  #image: ${CI_REGISTRY}/blaze/blaze-system/haskell-binaryninja-base:ci
-  image: ${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}
-  tags:
-    - dind
-  variables:
-  #  STACK_ROOT: ${CI_PROJECT_DIR}/.stack
-    CACHE_FALLBACK_KEY: ${CI_DEFAULT_BRANCH}
-  cache:
-    key: ${CI_COMMIT_REF_SLUG}
-    paths:
-      #- .stack/
-      - .stack-work/
-      - .stack-work.deps/
+  extends: .dind
+  image: ${REPO_DOCKER_REGISTRY}/blaze:commit-${CI_COMMIT_SHA}
+  # Skip .dind before_script, especially the environment info, since we don't
+  # care about most of it after the build stage
+  before_script: []
 
-Build base image:
-  extends: .job
-  stage: base
-  image: docker:dind
-  tags:
-    - dind
-  # rules:
-  #   - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
-  #     changes:
-  #       - "**/Dockerfile*"
-  #       - "**/.gitlab-ci.yml"
-  #       - "**/stack.yaml"
-  #       - "**/stack.yaml.lock"
-  #       - "**/package.yaml"
-  #       - "**/*.cabal"
+lint:
+  stage: lint
+  extends: .dind
+  image: ${BLAZE_BINARYNINJA_HASKELL_IMAGE}
+  needs: []
   script:
-    - git ls-files --others
-    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:latest" || true
-    - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}" || true
-    - \time -v docker build --pull .. -f Dockerfile.base
-      --build-arg DEVOPS_DOCKER_REGISTRY=${GROUP_DOCKER_REGISTRY}/devops
-      -t "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
-      -t "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}"
-    - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
-    - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:branch-${CI_COMMIT_REF_SLUG}"
+    - hlint --color=always src test demo
+  allow_failure: true
 
-Push latest base image:
-  stage: push-base
-  extends: .job
+# We need 2 build jobs: one for branch pipelines and one for MR pipelines
+# - build:branch pushes to
+#   - ${image}:commit-${CI_COMMIT_SHA}
+#   - ${image}:branch-${CI_COMMIT_REF_SLUG}
+#   For instance, ${project}:branch-feature-foo and ${project}:commit-1a2b3c4...
+# - build:detached pushes to
+#   - ${image}:merge-${CI_MERGE_REQUEST_IID}
+#   For instance, ${project}:merge-71
+# In either case, we should first try pulling the latest image for this branch or MR,
+# and if that fails, pull :latest. This ensures we have cached layers downloaded
+  
+build:branch:
+  stage: build
+  extends: .dind
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_MERGE_REQUEST_IID == null
+  needs: []
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/blaze
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker pull "${image}:branch-${CI_COMMIT_REF_SLUG}" ||
+      docker pull "${image}:latest" ||
+      true
+    - \time -v docker build --pull . -f Dockerfile
+      --build-arg "CI_REGISTRY=${CI_REGISTRY}"
+      --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
+      -t "${image}:commit-${CI_COMMIT_SHA}"
+      -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
+    - docker push "${image}:commit-${CI_COMMIT_SHA}"
+    - docker push "${image}:branch-${CI_COMMIT_REF_SLUG}"
+
+build:detached:
+  stage: build
+  extends: .dind
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+  needs: []
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/blaze
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker pull "${image}:merge-${CI_MERGE_REQUEST_IID}" ||
+      docker pull "${image}:latest" ||
+      true
+    - \time -v docker build --pull . -f Dockerfile
+      --build-arg "CI_REGISTRY=${CI_REGISTRY}"
+      --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
+      -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
+    - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
+
+# Likewise, we need 2 test jobs. The test:branch job uses the ${image}:commit-... image,
+# and the test:detached uses the ${image}:merge-... image
+
+test:branch:
+  stage: test
+  extends: .haskell-job
+  rules:
+    - if: $CI_MERGE_REQUEST_IID == null
+  needs:
+    - build:branch
   variables:
     GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
   script:
-    - docker pull "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}"
-    - docker tag "${REPO_DOCKER_REGISTRY}/blaze-base:commit-${CI_COMMIT_SHA}" "${REPO_DOCKER_REGISTRY}/blaze-base:latest"
-    - docker push "${REPO_DOCKER_REGISTRY}/blaze-base:latest"
+    - cd /blaze/blaze
+    - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py
 
-build:
-  extends: .haskell-job
-  stage: build
-  script:
-    #- "( cd ../haskell-binja && make header && git diff --stat; )"
-    - stack build
-
-test:
-  extends: .haskell-job
+test:detached:
   stage: test
-  script:
-    - stack test
-  allow_failure: true
-
-pages:
   extends: .haskell-job
-  stage: deploy
+  image: ${REPO_DOCKER_REGISTRY}blaze:merge-${CI_MERGE_REQUEST_IID}
   rules:
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
-      when: on_success
-    - when: manual
+    - if: $CI_MERGE_REQUEST_IID
+  needs:
+    - build:detached
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
   script:
-    - stack haddock
-    - cp -arT "$(stack path --snapshot-doc-root)" public
-  allow_failure: true
-  artifacts:
-    paths:
-      - public
+    - cd /blaze/blaze
+    - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py
+
+# If we just pushed to the default branch, tag the image as :latest and push
+    
+push:latest:
+  stage: push
+  extends: .dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - test:branch
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/blaze
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker pull "${image}:commit-${CI_COMMIT_SHA}"
+    - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
+    - docker push "${image}:latest"
