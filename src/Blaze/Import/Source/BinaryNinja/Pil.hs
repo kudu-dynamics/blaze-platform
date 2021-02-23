@@ -86,13 +86,10 @@ data ConverterState = ConverterState
   }
   deriving (Eq, Show, Generic)
 
-createStartCtx :: Func.Function -> Ctx
-createStartCtx func' = Ctx func' 0
-
 -- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
 --       accepting a map from the user.
-mkConverterState :: BNBinaryView -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> AlgaPath -> ConverterState
-mkConverterState bv knownFuncDefs_ addrSize_ f p =
+mkConverterState :: BNBinaryView -> CtxIndex -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> AlgaPath -> ConverterState
+mkConverterState bv startCtxId knownFuncDefs_ addrSize_ f p =
   ConverterState
     p
     (startCtx ^. #ctxIndex)
@@ -107,7 +104,7 @@ mkConverterState bv knownFuncDefs_ addrSize_ f p =
     bv
  where
   startCtx :: Ctx
-  startCtx = createStartCtx f
+  startCtx = Ctx f startCtxId
 
 runConverter :: Converter a -> ConverterState -> IO (a, ConverterState)
 runConverter m = runStateT $ _runConverter m
@@ -488,7 +485,7 @@ getFuncStatementsIndexed bv func' = do
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
     Just bnFunc -> do
       addrSize' <- BN.getViewAddressSize bv
-      let st = mkConverterState bv Pil.knownFuncDefs addrSize' func' AlgaPath.empty
+      let st = mkConverterState bv (Pil.CtxIndex 0) Pil.knownFuncDefs addrSize' func' AlgaPath.empty
       fst <$> runConverter (convertFunction bnFunc) st
 
 getFuncStatements :: BNBinaryView -> Func.Function -> IO [Stmt]

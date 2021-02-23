@@ -32,7 +32,7 @@ import Blaze.Types.Cfg (
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
-import Blaze.Types.Pil (Stmt)
+import Blaze.Types.Pil (Stmt, CtxIndex)
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.DList (DList)
 import qualified Data.DList as DList
@@ -181,8 +181,8 @@ importCfg func' bnNodes bnEdges = do
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
-getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-getCfgAlt bv func' = do
+getCfgAlt :: BNBinaryView -> CtxIndex -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt bv _ctxIndex func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of
     Nothing ->
@@ -197,17 +197,18 @@ getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
+  CtxIndex ->
   Function ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
-getCfg imp bv fun = do
-  result <- getCfgAlt bv fun
+getCfg imp bv ctxIndex_ fun = do
+  result <- getCfgAlt bv ctxIndex_ fun
   case result of
     Nothing -> return Nothing
     Just (ImportResult mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
-      pilRootNode <- convertToPilNode imp mlilRefMap mlilRootNode
-      pilRestNodes <- traverse (convertToPilNode imp mlilRefMap) mlilRestNodes
+      pilRootNode <- convertToPilNode imp ctxIndex_ mlilRefMap mlilRootNode
+      pilRestNodes <- traverse (convertToPilNode imp ctxIndex_ mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
           pilEdges = traverse (convertToPilEdge mlilToPilNodeMap . mkEdge) (G.edges mlilCfg)
@@ -225,28 +226,30 @@ getCfg imp bv fun = do
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
+  CtxIndex ->
   MlilNodeRefMap ->
   CfNode (NonEmpty MlilSsaInstruction) ->
   IO [Stmt]
-getPilFromNode imp nodeMap node =
+getPilFromNode imp ctxIndex_ nodeMap node =
   case HMap.lookup node nodeMap of
     Nothing -> error $ "No entry for node: " <> show node <> "."
     Just codeRef -> do
-      getCodeRefStatements imp codeRef
+      getCodeRefStatements imp ctxIndex_ codeRef
 
 convertToPilNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
+  CtxIndex ->
   MlilNodeRefMap ->
   MlilSsaCfNode ->
   IO PilNode
-convertToPilNode imp mapping mlilSsaNode = do
+convertToPilNode imp ctxIndex_ mapping mlilSsaNode = do
   case mlilSsaNode of
     BasicBlock (BasicBlockNode fun startAddr lastAddr _) -> do
-      stmts <- getPilFromNode imp mapping mlilSsaNode
+      stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr stmts)
     Call (CallNode fun startAddr _) -> do
-      stmts <- getPilFromNode imp mapping mlilSsaNode
+      stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
       return $ Call (CallNode fun startAddr stmts)
 
 convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe PilEdge
