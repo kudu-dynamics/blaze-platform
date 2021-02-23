@@ -10,6 +10,7 @@ import Blaze.Types.CallGraph as Exports
 import Blaze.Import.CallGraph (CallGraphImporter, getCallSites)
 import qualified Blaze.Types.Graph as G
 import qualified Streamly.Prelude as S
+import Blaze.Types.Function (Function)
 
 getCallGraph :: CallGraphImporter a => a -> [Function] -> IO CallGraph
 getCallGraph = getCallGraphStreaming

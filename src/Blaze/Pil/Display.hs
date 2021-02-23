@@ -5,7 +5,7 @@ import qualified Binja.MLIL
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
-import qualified Blaze.Types.CallGraph as CG
+import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (OperationSize)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
@@ -113,7 +113,7 @@ instance Disp Pil.OperationSize where
 
 instance Disp a => Disp (Pil.CallDest a) where
   disp dest = case dest of
-    (Pil.CallConstPtr ptr) -> show (ptr ^. #constant)
+    (Pil.CallAddr addr) -> show addr
     (Pil.CallExpr e) -> disp e
     (Pil.CallExprs es) -> show $ fmap disp es
     (Pil.CallFunc fn) -> disp fn
@@ -302,7 +302,7 @@ instance Disp Pil.StackOffset where
     <-> paren (disp (x ^. #ctx))
 
 
-instance Disp CG.Function where
+instance Disp Function where
   disp f = Text.pack $ printf "func \"%s\" %s" name start
     where
       name = f ^. #name

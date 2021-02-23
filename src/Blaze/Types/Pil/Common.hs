@@ -1,7 +1,7 @@
 module Blaze.Types.Pil.Common where
 
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.CallGraph (Function)
+import Blaze.Types.Function (Function)
 
 newtype StmtIndex = StmtIndex { val :: Int }
   deriving (Eq, Ord, Show, Generic)

@@ -2,7 +2,7 @@ module Blaze.Import.Pil where
 
 import Blaze.Prelude
 
-import Blaze.Types.CallGraph (Function)
+import Blaze.Types.Function (Function)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil (Stmt)
 import Blaze.Types.Cfg (CodeReference)

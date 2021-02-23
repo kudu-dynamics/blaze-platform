@@ -1,14 +1,14 @@
 module Blaze.Types.Pil.Checker where
 
-import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import Blaze.Types.Pil ( ExprOp
-                       , Statement
-                       , PilVar
-                       , StackOffset
-                       )
-import Blaze.Types.Pil.Function ( FuncVar )
+import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
+import Blaze.Types.Pil (
+  ExprOp,
+  FuncVar,
+  PilVar,
+  StackOffset,
+  Statement,
+ )
 import qualified Data.HashMap.Strict as HashMap
-
 
 type BitWidth = Bits
 type ByteWidth = Bytes

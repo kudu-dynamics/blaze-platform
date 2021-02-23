@@ -3,10 +3,11 @@ module Blaze.Types.Cfg where
 import Blaze.Graph (Graph)
 import qualified Blaze.Graph as Graph
 import Blaze.Prelude hiding (pred)
-import Blaze.Types.CallGraph (Function)
+import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
-import Blaze.Types.Pil (Stmt)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp)
+import Blaze.Types.Pil.Common (Ctx)
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
@@ -42,26 +43,61 @@ data CallNode a = CallNode
   deriving anyclass (Hashable)
 
 data EnterFuncNode a = EnterFuncNode
-  { prevFunc :: Function
-  , nextFunc :: Function
+  { prevCtx :: Ctx
+  , nextCtx :: Ctx
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
 data LeaveFuncNode a = LeaveFuncNode
-  { prevFunc :: Function
-  , nextFunc :: Function
+  { prevCtx :: Ctx
+  , nextCtx :: Ctx
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
+{- |Terminal nodes are nodes in CFG that have no successor.
+In a function, these nodes correspond to either: a return statement that
+resumes control flow to the caller; an exit statement (see NORET in MLIL SSA)
+that terminates normal control flow of the program (i.e., there may be signal handlers);
+and a tail call where control flow moves to the call target. 
+-}
+data TerminalNode a 
+  = TermRet (ReturnNode a)
+  | TermExit (ExitNode a)
+  | TermTailCall (TailCallNode a)
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data ReturnNode a = ReturnNode
+  { basicBlock :: BasicBlockNode a
+  , retOp :: RetOp Expression
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+newtype ExitNode a = ExitNode
+  { basicBlock :: BasicBlockNode a
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data TailCallNode a = TailCallNode
+  { basicBlock :: BasicBlockNode a
+  , tailCallOp :: TailCallOp Expression
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
 -- TODO: Consider moving the interprocedural nodes into a separate type
---       specific to InterCfg.
+--       specific to InterCfg. Especially now with EnterFunc/LeaveFunc
 -- TODO: Once the Cfg only needs to support PIL statements, remove type parameter
 --       a and use more-specific definitions of the various node types. E.g.,
 --       a CallNode should have a single CallStatement entry, not a nodeData of type a.
+-- TODO: Consider the different needs of CFG representations. E.g., a CFG corresponding
+--       to a function vs. a CFG corresponding to an arbitrary function CFG subgraph
 data CfNode a
   = BasicBlock (BasicBlockNode a)
   | Call (CallNode a)
@@ -150,3 +186,40 @@ instance Ord a => Graph BranchType (CfNode a) (Cfg a) where
 
   -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?
   subgraph pred = over #graph $ Graph.subgraph pred
+
+data FuncContext = FuncContext
+  { func :: Function
+  , uuid :: UUID
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data LoopContext = LoopContext
+  { funcCtx :: FuncContext
+  , uuid :: UUID
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- TODO: Merge with Ctx in Blaze.Types.Common
+--       This version provides more information but use
+--       existing Ctx to avoid too many changes at once.
+data Context 
+  = FuncCtx FuncContext
+  | LoopCtx LoopContext 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- |Track an incrementing counter for use in generating variable names.
+newtype Counter a = Counter (State Int a)
+  deriving (Functor)
+  deriving newtype (Applicative, Monad, MonadState Int)
+
+runCounter :: Counter a -> Int -> (a, Int)
+runCounter (Counter s) = runState s
+
+nextVal :: Counter Int
+nextVal = do
+  x <- get
+  put (x + 1)
+  return x 

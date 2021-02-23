@@ -3,19 +3,19 @@
 module Blaze.Types.IndirectCallResolution where
     
 import Blaze.Prelude
-import qualified Blaze.Types.CallGraph as Cg
+import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (Stmt)
 import Blaze.Types.VTable (VTable)
-import Blaze.Types.Function (CallInstruction)
+import Blaze.Import.Source.BinaryNinja.Types (CallInstruction)
 
 data ClassConstructor = ClassConstructor
-    { _cFunction :: Cg.Function
+    { _cFunction :: Function
     , _instruction :: Stmt
     , _vtable :: VTable
     } deriving (Eq, Show)
 
 data IndirectCall = IndirectCall
-    { _iFunction :: Cg.Function
+    { _iFunction :: Function
     , _callInstr :: CallInstruction
     } deriving (Eq, Show)
 

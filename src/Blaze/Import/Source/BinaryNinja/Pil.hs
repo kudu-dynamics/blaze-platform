@@ -2,68 +2,96 @@ module Blaze.Import.Source.BinaryNinja.Pil where
 
 import Blaze.Prelude hiding (Symbol)
 
-import qualified Prelude as P
-import Blaze.Pil as Pil
-import qualified Blaze.Types.Function as Func
-import qualified Data.BinaryAnalysis as BA
-import Binja.Function (Function)
-import qualified Binja.Core as BN
+import qualified Binja.BasicBlock as BB
 import Binja.Core (BNBinaryView)
+import qualified Binja.Core as BN
+import Binja.Function (Function)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
--- import Blaze.Import.Pil
+import qualified Blaze.Pil as Pil
+import qualified Data.BinaryAnalysis as BA
+import qualified Prelude as P
 import Blaze.Types.Pil
-  ( BranchCondOp (BranchCondOp),
-    CallOp (CallOp),
-    Ctx(Ctx),
-    DefOp (DefOp),
-    DefPhiOp (DefPhiOp),
-    Expression (Expression),
-    PilVar (PilVar),
-    Statement
-      ( BranchCond,
-        Call,
-        Def,
-        DefPhi,
-        Nop,
-        Store,
-        Undef,
-        UnimplInstr,
-        UnimplMem
-      ),
-    Stmt,
-    StoreOp (StoreOp),
-    Symbol,
-    UnimplMemOp (UnimplMemOp),
-  )
+    ( BranchCondOp(BranchCondOp),
+      CallOp(CallOp),
+      Ctx(Ctx),
+      DefOp(DefOp),
+      DefPhiOp(DefPhiOp),
+      Expression(Expression),
+      PilVar(PilVar),
+      RetOp(RetOp),
+      Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
+                UnimplInstr, UnimplMem),
+      Stmt,
+      StoreOp(StoreOp),
+      Symbol,
+      UnimplMemOp(UnimplMemOp),
+      Ctx,
+      CtxIndex,
+      Expression,
+      PilVar )
 
-import Blaze.Types.Path.AlgaPath (AlgaPath)
-import qualified Blaze.Types.Pil as Pil
-import Blaze.Import.Source.BinaryNinja.Types
-import qualified Blaze.Types.CallGraph as CG
-import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
-import qualified Data.HashMap.Strict as HMap
-import qualified Binja.Variable as BNVar
 import Binja.Variable (Variable)
-import Blaze.Types.Function (CallInstruction, FuncInfo)
+import qualified Binja.Variable as BNVar
+import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
+import Blaze.Import.Source.BinaryNinja.Types
+import qualified Blaze.Types.Function as Func
+import Blaze.Types.Path.AlgaPath (AlgaPath)
+import qualified Blaze.Types.Path.AlgaPath as AlgaPath
+import qualified Blaze.Types.Pil as Pil
+import Blaze.Util.GenericConv (GConv, gconv)
+import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
-import Blaze.Util.GenericConv (GConv, gconv)
-import qualified Blaze.Types.Path.AlgaPath as AlgaPath
-
--- $(makeFieldsNoPrefix ''ConverterState)
 
 -- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
-  deriving (Functor) 
+  deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
 
-createStartCtx :: CG.Function -> Ctx
+-- TODO: Conversions sometimes occur without need for
+--       a path. Identify and refactor appropriately.
+data ConverterState = ConverterState
+  { -- | The path being converted.
+    path :: AlgaPath
+  , -- | The maximum context ID used so far
+    ctxMaxIdx :: CtxIndex
+  , -- | The current context should be on the top of the stack.
+    -- I.e., the stack should never be empty.
+    ctxStack :: NonEmpty Ctx
+  , -- | The current context
+    ctx :: Ctx
+  , -- | Currently known defined PilVars for all contexts.
+    -- This is assumed to be ordered by most recently defined first.
+    -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
+    --       This could happen for synthesized PilVars with a Nothing context.
+    definedVars :: [PilVar]
+  , -- | All PilVars referenced for all contexts.
+    -- This differs from _definedVars, as order is not preserved and referenced,
+    -- but undefined, PilVars are included
+    usedVars :: HashSet PilVar
+  , -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
+    --       when moving to a PilImporter instance.
+    -- TODO: Does this need to be a set or just a single variable?
+
+    -- | A mapping of PilVars to the a variable from the import source.
+    sourceVars :: HashMap PilVar SSAVariableRef
+  , -- | Map of known functions with parameter access information
+    knownFuncs :: HashMap Text Func.FuncInfo
+  , -- | Address size based on target platform
+    addrSize :: AddressWidth
+  , -- | Default variable size, usually based on platform default
+    defaultVarSize :: Bits
+  , binaryView :: BN.BNBinaryView
+  }
+  deriving (Eq, Show, Generic)
+
+createStartCtx :: Func.Function -> Ctx
 createStartCtx func' = Ctx func' 0
 
 -- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
 --       accepting a map from the user.
-mkConverterState :: BNBinaryView -> HashMap Text FuncInfo -> AddressWidth -> CG.Function -> AlgaPath -> ConverterState
+mkConverterState :: BNBinaryView -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> AlgaPath -> ConverterState
 mkConverterState bv knownFuncDefs_ addrSize_ f p =
   ConverterState
     p
@@ -246,12 +274,12 @@ convertExpr expr = do
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
 
-convertToBinjaFunction :: CG.Function -> Converter (Maybe BNFunc.Function)
+convertToBinjaFunction :: Func.Function -> Converter (Maybe BNFunc.Function)
 convertToBinjaFunction cgFunc = do
   bv <- use #binaryView
   liftIO $ BNCG.toBinjaFunction bv cgFunc
 
-unsafeConvertToBinjaFunction :: CG.Function -> Converter BNFunc.Function
+unsafeConvertToBinjaFunction :: Func.Function -> Converter BNFunc.Function
 unsafeConvertToBinjaFunction cgFunc = convertToBinjaFunction cgFunc >>= maybe err return
   where
     err = P.error $ "Could not convert to Binja Func: " <> show cgFunc
@@ -341,7 +369,7 @@ convertInstrOp op' = do
       defVars <- use #definedVars
       -- Not using all the phi vars, so don't need to log them all
       srcVars <- HSet.fromList <$> traverse convertToPilVar (x ^. MLIL.src)
-      let latestVar = getLastDefined defVars srcVars
+      let latestVar = Pil.getLastDefined defVars srcVars
       case latestVar of
         Nothing -> return []
         Just lVar -> do
@@ -365,6 +393,12 @@ convertInstrOp op' = do
       return [UnimplMem $ UnimplMemOp expr]
     MLIL.UNDEF -> return [Undef]
     MLIL.NOP -> return [Nop]
+    (MLIL.RET x) -> do
+      -- TODO: Figure out when/if return every has multiple values
+      -- NB: A function with void type still has a return with register
+      --     (rax/eax) for x64/x86.
+      expr <- convertExpr $ head (x ^. MLIL.src)
+      return [Ret $ RetOp expr]
     _ -> return [UnimplInstr $ show op']
 
 -- | intercepts VAR_PHI and converts it to PIL DefPhi
@@ -376,13 +410,13 @@ convertInstrOpSplitPhi = \case
     srcs <- mapM convertToPilVarAndLog $ x ^. MLIL.src
     return [DefPhi $ DefPhiOp vdest srcs]
   x -> convertInstrOp x
-    
+
 convertInstr :: MLIL.Instruction t -> Converter [Stmt]
 convertInstr = convertInstrOp . view MLIL.op
 
 convertInstrSplitPhi :: MLIL.Instruction F -> Converter [Stmt]
-convertInstrSplitPhi instr = case Func.toCallInstruction instr of
-  Nothing -> convertInstrOpSplitPhi . view MLIL.op $ instr
+convertInstrSplitPhi instr_ = case toCallInstruction instr_ of
+  Nothing -> convertInstrOpSplitPhi . view MLIL.op $ instr_
   Just x -> convertCallInstruction x
 
 convertInstrs :: [MLIL.Instruction t] -> Converter [Stmt]
@@ -395,9 +429,7 @@ convertInstrsSplitPhi = concatMapM convertInstrSplitPhi
 convertCallInstruction :: CallInstruction -> Converter [Stmt]
 convertCallInstruction ci = do
   -- TODO: Better handling of possible Nothing value
-
   targetExpr <- convertExpr (fromJust (ci ^. #dest))
-
   target <- case targetExpr ^. #op of
       (Pil.CONST_PTR c) -> do
         bv <- use #binaryView
@@ -406,23 +438,14 @@ convertCallInstruction ci = do
           . fromIntegral
           $ c ^. #constant :: Converter (Maybe BNFunc.Function)
         case mfunc of
-          Nothing -> return $ Pil.CallConstPtr c
+          Nothing -> return $ Pil.CallAddr . fromIntegral $ c ^. #constant
           Just bnf -> do
             fn <- liftIO $ BNCG.convertFunction bv bnf
             return $ Pil.CallFunc fn
       _ -> return $ Pil.CallExpr targetExpr
-  
   params <- sequence [convertExpr p | p <- ci ^. #params]
-  
+
   let mname = target ^? #_CallFunc . #name
-
-  -- getFuncName_ <- use #getFuncName
-  -- -- TODO: Is there a way to write this without case matching?
-  -- mname <- liftIO $ case getCallDestAddr c of
-  --   -- Just destAddr -> (view CG.name <$>) <$> _ destAddr
-  --   Just destAddr -> getFuncName_ destAddr
-  --   Nothing -> return Nothing
-
   funcDefs <- use #knownFuncs
   let outStores = getOutStores mname funcDefs params
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get
@@ -439,8 +462,8 @@ convertCallInstruction ci = do
       let resultSize = dest ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
           opSize = typeWidthToOperationSize resultSize
       return $ Def (DefOp dest' (callExpr & #size .~ opSize)) : outStores
-  where 
-    getOutStores :: Maybe Text -> HashMap Text FuncInfo -> [Expression] -> [Stmt]
+  where
+    getOutStores :: Maybe Text -> HashMap Text Func.FuncInfo -> [Expression] -> [Stmt]
     getOutStores mname funcInfos args =
       case mname >>= (`HMap.lookup` funcInfos) of
         Nothing -> []
@@ -458,7 +481,7 @@ convertFunction func' = do
     f (mlilIndex, mlilInstr) =
       fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
 
-getFuncStatementsIndexed :: BNBinaryView -> CG.Function -> IO [(Int, Stmt)]
+getFuncStatementsIndexed :: BNBinaryView -> Func.Function -> IO [(Int, Stmt)]
 getFuncStatementsIndexed bv func' = do
   mBnFunc <- BNCG.toBinjaFunction bv func'
   case mBnFunc of
@@ -468,5 +491,50 @@ getFuncStatementsIndexed bv func' = do
       let st = mkConverterState bv Pil.knownFuncDefs addrSize' func' AlgaPath.empty
       fst <$> runConverter (convertFunction bnFunc) st
 
-getFuncStatements :: BNBinaryView -> CG.Function -> IO [Stmt]
+getFuncStatements :: BNBinaryView -> Func.Function -> IO [Stmt]
 getFuncStatements bv func' = fmap snd <$> getFuncStatementsIndexed bv func'
+
+getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
+getDestOp CallInstruction{dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'
+getDestOp _ = Nothing
+
+isDirectCall :: CallInstruction -> Bool
+isDirectCall c = case getDestOp c of
+  Just (MLIL.CONST_PTR _) -> True
+  Just (MLIL.IMPORT _) -> True
+  _ -> False
+
+-- createCallSite :: BNBinaryView -> Function -> CallInstruction -> IO CallSite
+-- createCallSite bv func c = CallSite func c <$>
+--   case c ^. #dest of
+--     Just dexpr -> case (dexpr ^. MLIL.op :: MLIL.Operation (MLIL.Expression F)) of
+--       (MLIL.CONST_PTR cpOp) ->
+--         maybe (Pil.CallAddr addr) Pil.CallFunc <$>
+--           BNFunc.getFunctionStartingAt bv Nothing addr
+--         where
+--           addr :: Address
+--           addr = fromIntegral $ cpOp ^. MLIL.constant
+--       _ -> return $ Pil.CallExpr dexpr
+--     Nothing -> return $ Pil.CallExprs [] --- probably should be a failure
+
+getCallsInFunction :: BNFunc.Function -> IO [CallInstruction]
+getCallsInFunction fn = do
+  bbs <- BNFunc.getMLILSSAFunction fn >>= BB.getBasicBlocks
+  concat <$> traverse callsPerBB bbs
+  where
+    callsPerBB bb = mapMaybe toCallInstruction <$> MLIL.fromBasicBlock bb
+
+getIndirectCallsInFunction :: BNFunc.Function -> IO [CallInstruction]
+getIndirectCallsInFunction fn = do
+  calls <- getCallsInFunction fn
+  return $ filter (not . isDirectCall) calls
+
+getIndirectCallSites :: [BNFunc.Function] -> IO [(BNFunc.Function, CallInstruction)]
+getIndirectCallSites fns = do
+  indirectCalls <- traverse getIndirectCallsInFunction fns
+  return . getTupleList $ zip fns indirectCalls
+  where
+    getTupleList :: [(BNFunc.Function, [CallInstruction])] -> [(BNFunc.Function, CallInstruction)]
+    getTupleList = concat <$> map (uncurry createTuple)
+    createTuple fn (i:is) = [(fn, i)] <> createTuple fn is
+    createTuple _ [] = []

@@ -66,7 +66,7 @@ genCallOutputStores paramInfos params =
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. #dest of
-  (Pil.CallConstPtr _) -> True
+  (Pil.CallAddr _) -> True
   _ -> False
 
 -- TODO: Move to external file/module of definitions
@@ -79,7 +79,7 @@ knownFuncDefs =
           "asprintf"
           [ FuncParamInfo $ ParamInfo "ret" Out,
             FuncParamInfo $ ParamInfo "fmt" In,
-            FuncVarArgInfo
+            FuncVarArgInfo $ ParamInfo "args" In
           ]
           (ResultInfo "result")
       ),
@@ -89,7 +89,7 @@ knownFuncDefs =
           "cgc_sprintf"
           [ FuncParamInfo $ ParamInfo "ret" Out,
             FuncParamInfo $ ParamInfo "fmt" In,
-            FuncVarArgInfo
+            FuncVarArgInfo $ ParamInfo "args" In
           ]
           (ResultInfo "result")
       )

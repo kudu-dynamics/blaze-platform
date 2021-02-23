@@ -1,24 +1,21 @@
 module Blaze.Pil.Checker.Constraints where
 
-import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import qualified Prelude as P
-import Blaze.Types.Pil
-  ( Expression (Expression),
-    PilVar,
-    StackOffset,
-    Statement,
-  )
+import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
+import Blaze.Types.Pil (
+  Expression (Expression),
+  FuncVar (FuncParam, FuncResult),
+  ParamPosition (ParamPosition),
+  PilVar,
+  StackOffset,
+  Statement,
+ )
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil.Function
-  ( FuncVar (FuncParam, FuncResult),
-    FuncVar,
-    ParamPosition (ParamPosition),
-  )
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
+import qualified Prelude as P
 
-import Blaze.Types.Pil.Checker hiding (params, ret)
 import Blaze.Pil.Function (mkCallTarget)
+import Blaze.Types.Pil.Checker hiding (params, ret)
 
 
 constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])

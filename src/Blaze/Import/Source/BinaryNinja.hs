@@ -13,7 +13,7 @@ import Blaze.Import.Pil (PilImporter (..))
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as CallGraph
 import qualified Blaze.Import.Source.BinaryNinja.Cfg as Cfg
 import qualified Blaze.Import.Source.BinaryNinja.Pil as PilImp
-import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
+-- import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
 import Blaze.Import.Source.BinaryNinja.Types as Exports
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
@@ -56,7 +56,8 @@ instance PilImporter BNImporter where
     PilImp.getFuncStatements (imp ^. #binaryView)
 
   getPathStatements imp =
-    Path.convertPath (imp ^. #binaryView)
+    -- Path.convertPath (imp ^. #binaryView)
+    error "Not supported."
 
   getCodeRefStatements imp codeRef = do
     let fn = codeRef ^. #function

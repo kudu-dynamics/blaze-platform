@@ -4,9 +4,9 @@ module Blaze.Types.Pil
   ) where
 
 import Blaze.Prelude hiding (Symbol, Type)
+import Blaze.Types.Function (Function)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
-import qualified Blaze.Types.CallGraph as CG
 
 data ExprOp expr
     = ADC (AdcOp expr)
@@ -131,16 +131,6 @@ data VarJoinOp expr = VarJoinOp
 
 --TODO: address_of and address_of_field
 ---------------
--- TODO: Consider removing the CallConstPtr data constructor
---       as const ptrs can juse be an expression.
---       The purpose was to disambiguate between static 
---       and dynamic call destinations, but perhaps this could
---       be represented in a better way?
-data CallDest expr = CallConstPtr (ConstPtrOp expr)
-                   | CallFunc CG.Function
-                   | CallExpr expr
-                   | CallExprs [expr]
-  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data CallOp expr = CallOp
   { dest :: CallDest expr
@@ -239,6 +229,22 @@ data BranchCondOp expr = BranchCondOp
   { cond :: expr
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
+newtype RetOp expr = RetOp
+  { value :: expr
+  }
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+  deriving anyclass (Hashable)
+  deriving newtype (ToJSON, FromJSON)
+
+data TailCallOp expr = TailCallOp
+  { dest :: CallDest expr
+  , name :: Maybe Text
+  , args :: [expr]
+  }
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
+data GotoOp expr = GotoOp
+
 type Stmt = Statement Expression
 
 data Statement expr
@@ -255,12 +261,17 @@ data Statement expr
   | Call (CallOp expr)
   | DefPhi (DefPhiOp expr)
   | BranchCond (BranchCondOp expr)
+  | Ret (RetOp expr)
+  | Exit
+  | TailCall (TailCallOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
 data CallStatement = CallStatement
   { stmt :: Statement Expression
   , callOp :: CallOp Expression
+  , args :: [Expression]
+  , resultVar :: Maybe PilVar
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
@@ -268,15 +279,15 @@ data CallStatement = CallStatement
 mkCallStatement :: Stmt -> Maybe CallStatement
 mkCallStatement stmt' = case stmt' of
   Call callOp' ->
-    Just $ CallStatement stmt' callOp'
-  Def (DefOp _ (Expression _sz (CALL callOp'))) ->
-    Just $ CallStatement stmt' callOp'
+    Just $ CallStatement stmt' callOp' (callOp' ^. #params) Nothing
+  Def (DefOp resultVar (Expression _sz (CALL callOp'))) ->
+    Just $ CallStatement stmt' callOp' (callOp' ^. #params) (Just resultVar)
   _ ->
     Nothing
 
 mkCallDest :: HasField' "op" expr (ExprOp expr) => expr -> CallDest expr
 mkCallDest x = case x ^. #op of
-  (CONST_PTR c) -> CallConstPtr c
+  (CONST_PTR c) -> CallAddr . fromIntegral $ c ^. #constant
   _ -> CallExpr x
 
 getCallDest :: CallStatement -> CallDest Expression
@@ -293,3 +304,131 @@ mkFieldOffsetExprAddr addrExpr offst =
         $ offst
     )
 
+data Access = In | Out | InOut | Unknown
+  deriving (Enum, Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- | Parameter positions start at position 1.
+newtype ParamPosition = ParamPosition Int
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data PositionalParameter = PositionalParameter
+  { var :: PilVar
+  , access :: Access
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data VarArgParameter
+  = VarArgParameter
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data FunctionInfo = FunctionInfo
+  { name :: Symbol
+  , start :: Address
+  , params :: [PositionalParameter]
+  , varparam :: Maybe VarArgParameter
+  , locals :: [PilVar]
+  , globals :: [PilVar]
+  , result :: Maybe PilVar
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+{- | Used to reference a function by symbol and address.
+ In particular, useful when the function body is unavailable
+ or awkward to include.
+-}
+data FuncRef = FuncRef
+  { name :: Symbol
+  , start :: Address
+  , params :: [PositionalParameter]
+  , varparam :: Maybe VarArgParameter
+  , hasResult :: Bool
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+{- | Used for type inference of functions to assign
+ shared type variables to function parameters.
+-}
+data FuncVar expr
+  = FuncParam (CallTarget expr) ParamPosition
+  | FuncResult (CallTarget expr)
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+{- | A call target has an expression destination
+ along with parameter and result information.
+ Used when a function cannot be resolved (e.g., indirect call)
+ or when it simple has not been resolved.
+ A CallTarget can be used to group call sites that share
+ the same call destination and expectations around
+ call arguments and results.
+-}
+data CallTarget expr = CallTarget
+  { dest :: CallDest expr
+  , numArgs :: Int
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+newtype ResultInfo = ResultInfo
+  { name :: Text }
+  deriving (Eq, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- TODO: Consider extending this to support
+--       the call expression as the result.
+newtype CallResult = CallResult
+  { var :: PilVar }
+
+-- TODO: Remove this?
+-- TODO: Should outputDest just be a single PilVar?
+--       The list is a holdover from MLIL SSA
+data CallStmt = CallStmt
+  { stmt :: Stmt
+  , address :: Address
+  , index :: StmtIndex
+  , size :: OperationSize
+  , args :: [Expression]
+  , dest :: CallDest Expression
+  , outputDest :: [PilVar]
+  } 
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass Hashable
+
+-- TODO: Consider removing the CallConstPtr data constructor
+--       as const ptrs can juse be an expression.
+--       The purpose was to disambiguate between static 
+--       and dynamic call destinations, but perhaps this could
+--       be represented in a better way?
+-- TODO: Need a syscall dest?
+data CallDest expr = CallAddr Address
+                   | CallFunc Function
+                   | CallExpr expr
+                   | CallExprs [expr]
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
+-- TODO: Consider removing separate DestCollAddr constructor
+--       and then replacing DestCollOpt with just Expression.
+--       One awkward effect of the change is needing to wrap addresses
+--       from a jump table or vtable with a PIL expression, but that may
+--       be preferred anyway?
+-- data DestCollOpt = DestCollAddr Address
+--                  | DestCollExpr Expression
+--                  deriving (Eq, Ord, Show, Generic)
+
+-- data CallDest = DestAddr Address
+--               | DestFunc Function
+--               | DestExpr Expression
+--               | DestColl (Set DestCollOpt)
+--               deriving (Eq, Ord, Show, Generic)
+
+data CallSite = CallSite
+  { caller :: Function
+  , callStmt :: CallStmt
+  , callDest :: CallDest Expression
+  } deriving (Eq, Ord, Show, Generic)

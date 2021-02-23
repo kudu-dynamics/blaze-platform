@@ -1,7 +1,7 @@
 module Blaze.Import.Cfg where
 
 import Blaze.Prelude
-import Blaze.Types.CallGraph (Function)
+import Blaze.Types.Function (Function)
 import Blaze.Types.Cfg
 import Blaze.Types.Import (ImportResult)
 

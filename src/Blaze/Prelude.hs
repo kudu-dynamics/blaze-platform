@@ -88,7 +88,7 @@ import Data.SBV.Internals (SBV (SBV, unSBV), SVal)
 import Data.SBV.Tools.Overflow (ArithOverflow (bvAddO, bvDivO, bvMulO, bvMulOFast, bvNegO, bvSubO))
 import Data.SBV.Trans (SBool, SInt, SWord)
 import Data.String.Conversions as Exports (cs)
-import qualified Data.Text.Lazy as L (Text)
+import qualified Data.Text.Lazy as LT (Text)
 import Data.UUID as Exports (UUID)
 import qualified Data.UUID as UUID
 import Protolude as Exports hiding ( Bits
@@ -153,7 +153,7 @@ liftMaybeTIO m = liftIO m >>= maybe mzero return
 ppOptions :: PP.OutputOptions
 ppOptions = PP.defaultOutputOptionsNoColor {PP.outputOptionsIndentAmount = 2}
 
-pshow :: Show a => a -> L.Text
+pshow :: Show a => a -> LT.Text
 pshow = PP.pShowOpt ppOptions
 
 pprint :: Show a => a -> IO ()

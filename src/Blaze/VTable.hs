@@ -6,7 +6,7 @@ import qualified Binja.Function as BNFunc
 import Binja.Function (getFunctionStartingAt)
 import qualified Binja.Reference as BR
 import Binja.View (getDefaultReader)
-import Blaze.CallGraph (Function)
+import Blaze.Function (Function)
 import Blaze.Import.Source.BinaryNinja.CallGraph (convertFunction)
 import Blaze.Prelude
 import qualified Blaze.Types.Pil as Pil

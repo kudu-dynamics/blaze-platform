@@ -9,10 +9,6 @@ import qualified Blaze.Graph as G
 import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
 import Blaze.Import.Source.BinaryNinja.Types
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.CallGraph (
-  Function,
- )
-import qualified Blaze.Types.CallGraph as CG
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
   BranchType (
@@ -27,11 +23,14 @@ import Blaze.Types.Cfg (
     Call
   ),
   Cfg,
+  PilCfg,
+  PilEdge,
+  PilNode,
   mkCfg,
-  mkEdge, PilCfg, PilNode, PilEdge
+  mkEdge,
  )
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Function (CallInstruction, toCallInstruction)
+import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt)
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
@@ -182,7 +181,7 @@ importCfg func' bnNodes bnEdges = do
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
-getCfgAlt :: BNBinaryView -> CG.Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 getCfgAlt bv func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of
@@ -198,7 +197,7 @@ getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
-  CG.Function ->
+  Function ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
 getCfg imp bv fun = do
   result <- getCfgAlt bv fun
