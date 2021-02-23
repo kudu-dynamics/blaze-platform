@@ -7,7 +7,7 @@ module Blaze.Cfg (
 import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg as Exports
-import Blaze.Types.Pil (Statement (Exit), Stmt, Expression, BranchCondOp)
+import Blaze.Types.Pil (Statement (Exit, BranchCond), Stmt, Expression, BranchCondOp)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
 import qualified Data.Graph.Dom as Dlt
@@ -128,6 +128,14 @@ parseTerminalNode node = do
   (TermRet <$> parseReturnNode bb)
     <|> (TermExit <$> parseExitNode bb)
     <|> (TermTailCall <$> parseTailCallNode bb)
+
+parseBranchNode :: CfNode [Stmt] -> Maybe (BranchNode [Stmt])
+parseBranchNode node = do
+  bb <- node ^? #_BasicBlock
+  lastStmt <- lastStmtFrom bb
+  case lastStmt of
+    BranchCond op -> Just $ BranchNode bb op
+    _ -> Nothing
 
 -- |Get all terminal blocks. An error is raised if a CFG does not contain at least
 -- one terminal block.

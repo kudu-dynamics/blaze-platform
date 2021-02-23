@@ -47,8 +47,9 @@ mkParamVar ctx funcParam =
  where
   sym :: Symbol
   sym = case funcParam of
-    FuncParamInfo paramInfo -> coerce $ paramInfo ^. #name
-    FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name
+    -- Append #0 since MLIL SSA vars have versions in the name
+    FuncParamInfo paramInfo -> coerce $ paramInfo ^. #name <> "#0"
+    FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name <> "#0"
 
 -- | Create a node that indicates a context switch between two function contexts.
 mkEnterFuncNode :: Ctx -> Ctx -> CallStatement -> EnterFuncNode [Stmt]
@@ -113,13 +114,14 @@ expandCall ::
   Builder a (Maybe InterCfg)
 expandCall callerCtx calleeCtx icfg callNode = do
   getCfg_ <- use #getCfg
-  ctxIndex <- getNextCtxIndex
+  -- ctxIndex <- getNextCtxIndex
   case getCallStmt callNode of
     Just callStmt ->
       -- TODO: CallNode should provide the call statement from a record field
       case getCallTarget callStmt of
         Just targetFunc -> do
-          result <- liftIO $ getCfg_ ctxIndex targetFunc
+          -- result <- liftIO $ getCfg_ ctxIndex targetFunc
+          result <- liftIO $ getCfg_ (calleeCtx ^. #ctxIndex) targetFunc
           case result of
             Just (ImportResult targetCfg _) -> do
               let (targetCfg', leaveFunc) = expandCall_ callerCtx calleeCtx callStmt targetCfg

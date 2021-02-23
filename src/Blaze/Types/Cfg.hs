@@ -6,7 +6,7 @@ import Blaze.Prelude hiding (pred)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
-import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
 import Blaze.Types.Pil.Common (Ctx)
 
 type PilNode = CfNode [Stmt]
@@ -87,6 +87,13 @@ newtype ExitNode a = ExitNode
 data TailCallNode a = TailCallNode
   { basicBlock :: BasicBlockNode a
   , tailCallOp :: TailCallOp Expression
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+data BranchNode a = BranchNode
+  { basicBlock :: BasicBlockNode a
+  , branchCondOp :: BranchCondOp Expression
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
