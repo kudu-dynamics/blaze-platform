@@ -148,7 +148,7 @@ newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a
  A user of this API probably wants to work with the 'Cfg' type that
  includes additional information about the CFG.
 -}
-type ControlFlowGraph a = AlgaGraph BranchType (CfNode a)
+type ControlFlowGraph a = AlgaGraph BranchType a (CfNode a)
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
 mkControlFlowGraph :: Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> ControlFlowGraph a
@@ -173,7 +173,7 @@ mkCfg root' rest es =
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Ord a => Graph BranchType (CfNode a) (Cfg a) where
+instance Ord a => Graph BranchType a (CfNode a) (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
@@ -183,6 +183,9 @@ instance Ord a => Graph BranchType (CfNode a) (Cfg a) where
   edges = Graph.edges . view #graph
   getEdgeLabel edge = Graph.getEdgeLabel edge . view #graph
   setEdgeLabel label edge cfg = cfg & #graph %~ Graph.setEdgeLabel label edge
+  getNodeAttr node = Graph.getNodeAttr node . view #graph
+  setNodeAttr attr node cfg = cfg & #graph %~ Graph.setNodeAttr attr node
+  
   removeEdge edge = over #graph $ Graph.removeEdge edge
   removeNode node = over #graph $ Graph.removeNode node
   addNodes nodes = over #graph $ Graph.addNodes nodes

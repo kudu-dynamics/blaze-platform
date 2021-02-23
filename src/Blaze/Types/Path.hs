@@ -58,7 +58,7 @@ mkLastIsAbstractCall p = do
 newtype PathGraph g = PathGraph g
   deriving (Eq, Ord, Show, Generic)
 
-deriving newtype instance (Graph () Node g) => Graph () Node (PathGraph g)
+deriving newtype instance (Graph () () Node g) => Graph () () Node (PathGraph g)
 
 -- expandAbstractCall :: Path p => AbstractCallNode -> p -> p -> p
 -- expandAbstractCall = expandAbstractCall_ True
@@ -137,7 +137,7 @@ callTwaddle = 999
 retTwaddle :: Word32
 retTwaddle = 500
 
-instance (Graph () Node g) => Path (PathGraph g) where
+instance (Graph () () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
     Nothing -> []
     Just x -> x : getRest (succ x g)
