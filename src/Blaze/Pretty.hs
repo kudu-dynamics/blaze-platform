@@ -328,21 +328,24 @@ instance (Pretty a, Pretty b) => Pretty (HashMap a b) where
 
 instance Pretty a => Pretty (Pil.Statement a) where
   pretty stmt = case stmt of
-    (Pil.Def x) -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
-    (Pil.Constraint x) -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
-    (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
+    Pil.Def x -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
+    Pil.Constraint x -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
+    Pil.Store x -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
     Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> t <> "\")"
-    (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
+    Pil.UnimplMem x -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
     Pil.Undef -> "Undefined"
     Pil.Nop -> "Nop"
-    (Pil.Annotation t) -> "Annotation: " <> t
-    (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. #ctx)
-    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
-    (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
-    (Pil.DefPhi x) -> Text.pack $ printf "%s = %s"
+    Pil.Annotation t -> "Annotation: " <> t
+    Pil.EnterContext x -> "----> Entering " <> pretty (x ^. #ctx)
+    Pil.ExitContext x -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
+    Pil.Call x -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
+    Pil.DefPhi x -> Text.pack $ printf "%s = %s"
                       (pretty $ x ^. #dest)
                       (asList . fmap pretty $ x ^. #src)
-    (Pil.BranchCond x) -> "Branch cond: " <> pretty (x ^. #cond)
+    Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
+    Pil.Ret x -> "Ret " <> pretty (x ^. #value)
+    Pil.Exit -> "Exit"
+    Pil.TailCall x -> "Tail call | " <> pretty (x ^. #dest) <> "(" <> pretty (x ^. #args) <> ")"
 
 instance Pretty Pil.CallSite where
   pretty x = pretty (x ^. #caller) <> " -> "

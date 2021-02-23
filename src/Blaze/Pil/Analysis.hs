@@ -249,25 +249,30 @@ data ConstPropState = ConstPropState
   , _stmts :: Set Stmt
   }
 
-constantProp :: [Stmt] -> [Stmt]
-constantProp xs =
+buildConstPropState :: [Stmt] -> ConstPropState
+buildConstPropState =
+  foldl' f (ConstPropState HMap.empty Set.empty)
+ where
+  addConst s stmt var cnst =
+    ConstPropState
+      { _exprMap = HMap.insert var cnst (_exprMap s)
+      , _stmts = Set.insert stmt (_stmts s)
+      }
+  f constPropState stmt =
+    case stmt of
+      (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) ->
+        addConst constPropState stmt var (Pil.Expression sz (Pil.CONST constOp))
+      _ ->
+        constPropState
+
+_constantProp :: ConstPropState -> [Stmt] -> [Stmt]
+_constantProp constPropState xs =
   substVarExpr
-    (\v -> HMap.lookup v (_exprMap constPropResult))
-    [x | x <- xs, not . Set.member x $ _stmts constPropResult]
-  where
-    addConst s stmt var cnst =
-      ConstPropState
-        { _exprMap = HMap.insert var cnst (_exprMap s)
-        , _stmts = Set.insert stmt (_stmts s)
-        }
-    constPropResult = foldr f (ConstPropState HMap.empty Set.empty) xs
-      where
-        f stmt constPropState =
-          case stmt of
-            (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) ->
-              addConst constPropState stmt var (Pil.Expression sz (Pil.CONST constOp))
-            _ ->
-              constPropState
+    (\v -> HMap.lookup v (_exprMap constPropState))
+    [x | x <- xs, not . Set.member x $ _stmts constPropState]
+
+constantProp :: [Stmt] -> [Stmt]
+constantProp xs = _constantProp (buildConstPropState xs) xs
 
 ---- Copy Propagation
 type ExprMap = HashMap Expression Expression
@@ -298,6 +303,17 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
         , copyStmts = Set.insert stmt (s ^. #copyStmts)
         }
 
+buildCopyPropState :: [Stmt] -> CopyPropState
+buildCopyPropState stmts =
+  let initialState = _foldCopyPropState stmts
+  in initialState {mapping = reduceMap (initialState ^. #mapping)}
+
+_copyProp :: CopyPropState -> [Stmt] -> [Stmt]
+_copyProp copyPropState xs =
+  substExprs
+    (\(e :: Expression) -> HMap.lookup e (copyPropState ^. #mapping))
+    [x | x <- xs, not . Set.member x $ copyPropState ^. #copyStmts]
+
 -- | Perform copy propagation on a sequence of statements.
 --
 --  NB: Copy propagation operates on expressions, while Def statements refer to the lhs as a PilVar.
@@ -305,13 +321,7 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
 --      will be replaced with var_b and only the single assignment of var_a to var_b is represented
 --      as a PilVar rather than an expression wrapping a PilVar.
 copyProp :: [Stmt] -> [Stmt]
-copyProp xs =
-  substExprs
-    (\(e :: Expression) -> HMap.lookup e (copyPropResult' ^. #mapping))
-    [x | x <- xs, not . Set.member x $ copyPropResult' ^. #copyStmts]
-  where
-    copyPropResult = _foldCopyPropState xs
-    copyPropResult' = copyPropResult {mapping = reduceMap (copyPropResult ^. #mapping)}
+copyProp xs = _copyProp (buildCopyPropState xs) xs
     
 isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
 isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
