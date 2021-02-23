@@ -59,7 +59,7 @@ instance PilImporter BNImporter where
     -- Path.convertPath (imp ^. #binaryView)
     error "Not supported."
 
-  getCodeRefStatements imp codeRef = do
+  getCodeRefStatements imp ctxIndex codeRef = do
     let fn = codeRef ^. #function
         funcAddr = fn ^. #address
     mBnFunc <- BnFunc.getFunctionStartingAt bv Nothing funcAddr
@@ -74,6 +74,7 @@ instance PilImporter BNImporter where
         let convSt =
               PilImp.mkConverterState
                 bv
+                ctxIndex
                 Pil.knownFuncDefs
                 addrWidth
                 fn

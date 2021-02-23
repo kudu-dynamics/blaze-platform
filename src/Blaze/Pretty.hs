@@ -27,6 +27,9 @@ import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
 
 import qualified Data.HashMap.Strict as HashMap
+import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType)
+import qualified Blaze.Cfg as Cfg
+import Blaze.Graph (LEdge)
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -406,6 +409,38 @@ instance Pretty Cg.CallSite where
 instance Pretty Func.Function where
   pretty (Func.Function _ name _addr _) = name -- <> "@" <> showHex addr
 
+--- CFG
+instance Pretty PilNode where
+  pretty = \case
+    BasicBlock n -> pretty n
+    Call n -> pretty n
+    EnterFunc n -> pretty n
+    LeaveFunc n -> pretty n
+
+instance Pretty (BasicBlockNode a) where
+  pretty (Cfg.BasicBlockNode f start end _) =
+    pretty f
+      <> "@[" <> pretty start <> ", " <> pretty end <> "]"
+
+instance Pretty (CallNode a) where
+  pretty (Cfg.CallNode f start _) =
+    pretty f
+      <> "@" <> pretty start
+
+instance Pretty (EnterFuncNode a) where
+  pretty (Cfg.EnterFuncNode prevCtx nextCtx _) =
+    "EnterFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
+
+instance Pretty (LeaveFuncNode a) where
+  pretty (Cfg.LeaveFuncNode prevCtx nextCtx _) =
+    "LeaveFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
+
+instance Pretty BranchType where
+  pretty = show
+
+-- instance Pretty (LEdge BranchType PilNode) where
+--   pretty (branchType, (srcNode, dstNode)) =
+--     pretty srcNode <> " -- " <> show branchType <> " -> " <> pretty dstNode
 --- Path
 -- instance Pretty Path.Node where
 --   pretty (Path.SubBlock x) =

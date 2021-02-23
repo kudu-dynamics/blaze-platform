@@ -21,9 +21,13 @@ import Blaze.Types.Pil (
   Statement (Def, DefPhi),
   Stmt,
   Symbol,
-  mkCallStatement,
+  mkCallStatement, CtxIndex
  )
 import qualified Data.List.NonEmpty as NEList
+import qualified Data.Set as Set
+import qualified Debug.Trace as Trace
+import Control.Lens.Setter (set)
+import Blaze.Graph (LEdge)
 
 getCallTarget :: CallStatement -> Maybe Function
 getCallTarget callStmt = do
@@ -85,11 +89,11 @@ generateVars ctx baseName id (expr : rest) =
   (PilVar (baseName <> show id) (Just ctx), expr) : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 
-getNextCtx :: Function -> Builder a Ctx
-getNextCtx fun = do
-  ctx <- Ctx fun <$> use #nextId
+getNextCtxIndex :: Builder a CtxIndex
+getNextCtxIndex = do
+  ctxIndex <- use #nextId
   #nextId %= (+ 1)
-  return ctx
+  return ctxIndex
 
 -- getTargetFunc :: PilCallNode -> (Function -> IO (Maybe (ImportResult PilCfg a))) -> IO (Maybe PilCfg)
 -- getTargetCfg callNode getCfg = do
@@ -109,16 +113,17 @@ expandCall ::
   Builder a (Maybe InterCfg)
 expandCall callerCtx calleeCtx icfg callNode = do
   getCfg_ <- use #getCfg
+  ctxIndex <- getNextCtxIndex
   case getCallStmt callNode of
     Just callStmt ->
       -- TODO: CallNode should provide the call statement from a record field
       case getCallTarget callStmt of
         Just targetFunc -> do
-          result <- liftIO $ getCfg_ targetFunc
+          result <- liftIO $ getCfg_ ctxIndex targetFunc
           case result of
             Just (ImportResult targetCfg _) -> do
-              let targetCfg' = expandCall_ callerCtx calleeCtx callStmt targetCfg
-              return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg')
+              let (targetCfg', leaveFunc) = expandCall_ callerCtx calleeCtx callStmt targetCfg
+              return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg') leaveFunc
             Nothing -> return Nothing
         Nothing -> return Nothing
     Nothing -> return Nothing
@@ -128,39 +133,73 @@ expandCall_ ::
   Ctx ->
   CallStatement ->
   PilCfg ->
-  PilCfg
-expandCall_ callerCtx calleeCtx callStmt targetCfg =
+  (PilCfg, PilNode)
+expandCall_ callerCtx calleeCtx callStmt targetCfg = 
+  (targetCfg', leaveFunc)
   -- Connect the enter and leave function nodes to the targetCfg
-  foldl'
-    linkRetNodes
-    ( G.addEdge (UnconditionalBranch, (enterFunc, prevRoot)) $
-        targetCfg & #root .~ enterFunc
-    )
-    retNodes
  where
   enterFunc = EnterFunc $ mkEnterFuncNode callerCtx calleeCtx callStmt
   leaveFunc = LeaveFunc $ mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
   prevRoot = targetCfg ^. #root
-  retNodes = mapMaybe (\tn -> tn ^? #_TermRet) $ NEList.toList (getTerminalBlocks targetCfg)
+  retNodes = getRetNodes targetCfg
   linkRetNodes :: PilCfg -> ReturnNode [Stmt] -> PilCfg
   linkRetNodes cfg retNode =
     G.addEdge
       (UnconditionalBranch, (BasicBlock $ retNode ^. #basicBlock, leaveFunc))
       cfg
+  targetCfg' :: PilCfg
+  targetCfg' = 
+    foldl'
+      linkRetNodes
+      ( G.addEdge (UnconditionalBranch, (enterFunc, prevRoot)) $
+          targetCfg & #root .~ enterFunc
+      )
+      retNodes
+
+getRetNodes :: PilCfg -> [ReturnNode [Stmt]]
+getRetNodes cfg = 
+  mapMaybe (\tn -> tn ^? #_TermRet) $ NEList.toList (getTerminalBlocks cfg)
 
 -- | Substitute a node with another interprocedural CFG.
-substNode :: InterCfg -> PilNode -> InterCfg -> InterCfg
+substNode :: InterCfg -> PilNode -> InterCfg -> PilNode -> InterCfg
 substNode
   (InterCfg (Cfg outerGraph outerRoot))
   node
-  (InterCfg (Cfg innerGraph innerRoot)) =
+  (InterCfg (Cfg innerGraph innerRoot))
+  exitNode =
     -- Check if the node we are substituting is the outer CFG's root
     if outerRoot /= node
-      then InterCfg (Cfg graph outerRoot)
-      else
-        let newRoot :: PilNode
-            newRoot = innerRoot
-         in InterCfg (Cfg graph innerRoot)
+      then InterCfg (Cfg graph_ outerRoot)
+      else InterCfg (Cfg graph_ innerRoot)
    where
-    graph :: ControlFlowGraph [Stmt]
-    graph = undefined
+    -- TODO: Improve Graph API for fetching edges
+    predEdges :: [LEdge BranchType PilNode]
+    predEdges = filter (\(_, (_, dest)) -> dest == node) $ G.edges outerGraph
+    succEdges :: [LEdge BranchType PilNode]
+    succEdges = filter (\(_, (source, _)) -> source == node) $ G.edges outerGraph
+    newPredEdges :: [LEdge BranchType PilNode]
+    newPredEdges = set (_2 . _2) innerRoot <$> predEdges
+    -- retNodes :: [ReturnNode [Stmt]]
+    -- retNodes = getRetNodes innerCfg
+    -- newSuccEdges :: [LEdge BranchType PilNode]
+    -- newSuccEdges = 
+    --   concatMap 
+    --     (\retNode -> set (_2 . _1) (BasicBlock $ retNode ^. #basicBlock) <$> succEdges) 
+    --     retNodes
+    newSuccEdges :: [LEdge BranchType PilNode]
+    newSuccEdges = set (_2 . _1) exitNode <$> succEdges
+    graph_ :: ControlFlowGraph [Stmt]
+    graph_ = 
+      G.removeNode node
+      . G.addNodes (Set.toList $ G.nodes innerGraph)
+      . G.addEdges (G.edges innerGraph) 
+      . G.addEdges newPredEdges
+      . G.addEdges newSuccEdges $ outerGraph
+
+-- deriveEdges ::
+--   ControlFlowGraph [Stmt] ->
+--   PilNode ->
+--   PilNode ->
+--   [PilNode] ->
+--   [(BranchType, (PilNode, PilNode))]
+-- deriveEdges graph oldNode newNode
