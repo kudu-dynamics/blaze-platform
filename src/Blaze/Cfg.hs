@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+
 module Blaze.Cfg (
   module Exports,
   module Blaze.Cfg,
@@ -7,16 +8,16 @@ module Blaze.Cfg (
 import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg as Exports
-import Blaze.Types.Pil (Statement (Exit, BranchCond), Stmt, Expression, BranchCondOp)
+import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
 import qualified Data.HashSet as Hs
 import qualified Data.IntMap.Strict as Im
-import qualified Data.Set as Set
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
+import qualified Data.Set as Set
 
 type DltMap a = IntMap (CfNode a)
 
@@ -129,16 +130,21 @@ parseTerminalNode node = do
     <|> (TermExit <$> parseExitNode bb)
     <|> (TermTailCall <$> parseTailCallNode bb)
 
-parseBranchNode :: CfNode [Stmt] -> Maybe (BranchNode [Stmt])
-parseBranchNode node = do
+parseBranchNode ::
+  ( CfNode [Stmt] -> Maybe [Stmt]
+  ) ->
+  CfNode [Stmt] ->
+  Maybe (BranchNode [Stmt])
+parseBranchNode getStmts node = do
   bb <- node ^? #_BasicBlock
-  lastStmt <- lastStmtFrom bb
+  lastStmt <- lastMay =<< getStmts node
   case lastStmt of
     BranchCond op -> Just $ BranchNode bb op
     _ -> Nothing
 
--- |Get all terminal blocks. An error is raised if a CFG does not contain at least
--- one terminal block.
+{- |Get all terminal blocks. An error is raised if a CFG does not contain at least
+ one terminal block.
+-}
 getTerminalBlocks :: PilCfg -> NonEmpty (TerminalNode [Stmt])
 getTerminalBlocks cfg =
   -- TODO: We may want to add a 'FuncCfg' type so that arbitrary CFGs that may not correspond
@@ -148,8 +154,10 @@ getTerminalBlocks cfg =
     else NEList.fromList nodes
  where
   nodes :: [TerminalNode [Stmt]]
-  nodes = mapMaybe parseTerminalNode 
-    (Set.toList $ G.nodes (cfg ^. #graph))
+  nodes =
+    mapMaybe
+      parseTerminalNode
+      (Set.toList $ G.nodes (cfg ^. #graph))
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]
@@ -162,7 +170,7 @@ getRetExprs cfg =
 evalCondition :: BranchCondOp Expression -> Maybe Bool
 evalCondition bn = case bn ^. #cond . #op of
   Pil.CONST_BOOL x -> Just $ x ^. #constant
-  Pil.CONST x -> Just . not . (==0) $ x ^. #constant
+  Pil.CONST x -> Just . not . (== 0) $ x ^. #constant
   Pil.CMP_E x -> intBinOp x (==)
   Pil.CMP_NE x -> intBinOp x (/=)
   Pil.CMP_SGE x -> intBinOp x (>=)
@@ -174,15 +182,17 @@ evalCondition bn = case bn ^. #cond . #op of
   Pil.CMP_ULE x -> intBinOp x (<=)
   Pil.CMP_ULT x -> intBinOp x (<)
   _ -> Nothing
-  where
-    intBinOp :: ( HasField' "left" x Expression
-                , HasField' "right" x Expression
-                )
-             => x
-             -> (forall a. Ord a => a -> a -> Bool)
-             -> Maybe Bool
-    intBinOp x p = p <$> getConstArg (x ^. #left)
-                     <*> getConstArg (x ^. #right)
+ where
+  intBinOp ::
+    ( HasField' "left" x Expression
+    , HasField' "right" x Expression
+    ) =>
+    x ->
+    (forall a. Ord a => a -> a -> Bool) ->
+    Maybe Bool
+  intBinOp x p =
+    p <$> getConstArg (x ^. #left)
+      <*> getConstArg (x ^. #right)
 
-    getConstArg :: Expression ->  Maybe Int64
-    getConstArg x = x ^? #op . #_CONST . #constant
+  getConstArg :: Expression -> Maybe Int64
+  getConstArg x = x ^? #op . #_CONST . #constant
