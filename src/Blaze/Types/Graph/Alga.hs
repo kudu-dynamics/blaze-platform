@@ -9,22 +9,24 @@ import qualified Data.Map as Map
 import Blaze.Types.Graph
 import qualified Algebra.Graph.Export.Dot as Dot
 
-data AlgaGraph e a = AlgaGraph
-  { adjacencyMap :: G.AdjacencyMap a
-  , edgeMap :: Map (a, a) e
+data AlgaGraph e n attr = AlgaGraph
+  { adjacencyMap :: G.AdjacencyMap n
+  , edgeMap :: Map (n, n) e
+  , nodeAttrMap :: Map n attr
   } deriving (Generic, Show, Ord, Eq)
 
 -- TODO: see if G.AdjacencyMap's Eq is good enough
 -- I think that two graphs with identitcal nodes and edges will not be equal
 
-instance (NFData e, NFData a) => NFData (AlgaGraph e a)
+instance (NFData e, NFData n, NFData attr) => NFData (AlgaGraph e n attr)
 
-instance (Ord n) => Graph e n (AlgaGraph e n) where
-  empty = AlgaGraph G.empty Map.empty
-  fromNode = flip AlgaGraph Map.empty . G.vertex
+instance (Ord n) => Graph e n attr (AlgaGraph e n attr) where
+  empty = AlgaGraph G.empty Map.empty Map.empty
+  fromNode node = AlgaGraph (G.vertex node) Map.empty Map.empty
   fromEdges ledges = AlgaGraph
     { adjacencyMap = G.edges . map snd $ ledges
     , edgeMap = Map.fromList . fmap swap $ ledges
+    , nodeAttrMap = Map.empty
     }
   succs n = G.postSet n . adjacencyMap
   preds n = G.preSet n . adjacencyMap
@@ -32,13 +34,19 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
   edges g = mapMaybe (\p -> (,p) <$> Map.lookup p (edgeMap g)) . G.edgeList . adjacencyMap $ g
   getEdgeLabel edge = Map.lookup edge . edgeMap
   setEdgeLabel label edge g = g { edgeMap = Map.insert edge label $ edgeMap g }
+
+  getNodeAttr node = Map.lookup node . nodeAttrMap
+  
+
   removeEdge e@(n1, n2) g = AlgaGraph
     { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
     , edgeMap = Map.delete e $ edgeMap g
+    , nodeAttrMap = nodeAttrMap g
     }
   removeNode n g = AlgaGraph
     { adjacencyMap = G.removeVertex n $ adjacencyMap g
     , edgeMap = foldl' (flip Map.delete) (edgeMap g) edgesToRemove
+    , nodeAttrMap = Map.delete n $ nodeAttrMap g
     }
       where
         edgesToRemove :: [(n, n)]
@@ -47,10 +55,13 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
 
   addNodes ns g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.vertices ns
-    , edgeMap = edgeMap g}
+    , edgeMap = edgeMap g
+    , nodeAttrMap = nodeAttrMap g
+    }
   addEdge (e, (n1, n2)) g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
     , edgeMap = Map.insert (n1, n2) e $ edgeMap g
+    , nodeAttrMap = nodeAttrMap g
     }
   hasNode n = G.hasVertex n . adjacencyMap
   transpose g = g {adjacencyMap = G.transpose $ adjacencyMap g}
@@ -58,6 +69,8 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
   subgraph pred g = AlgaGraph 
     { adjacencyMap = subgraphAdjMap
     , edgeMap = Map.restrictKeys (edgeMap g) subgraphEdges
+    , nodeAttrMap = flip Map.mapMaybeWithKey (nodeAttrMap g) $ \k v ->
+        if pred k then Just v else Nothing
     }
       where
         subgraphAdjMap :: G.AdjacencyMap n
@@ -65,12 +78,12 @@ instance (Ord n) => Graph e n (AlgaGraph e n) where
         subgraphEdges :: Set (n, n)
         subgraphEdges = Set.fromList $ G.edgeList subgraphAdjMap
 
-toDot :: Ord n => (n -> Text) -> AlgaGraph e n -> Text
+toDot :: Ord n => (n -> Text) -> AlgaGraph e n attr -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
 
-isAcyclic :: Ord n => AlgaGraph e n -> Bool
+isAcyclic :: Ord n => AlgaGraph e n attr -> Bool
 isAcyclic = GA.isAcyclic . adjacencyMap
 
-reachable :: Ord n => n -> AlgaGraph e n -> [n]
+reachable :: Ord n => n -> AlgaGraph e n attr -> [n]
 reachable x = GA.reachable x . adjacencyMap
 
