@@ -33,7 +33,7 @@ isGotoNode bb = do
   return $ bb ^. BB.end - bb ^. BB.start == 1 && b
 
 collapseGotoBlocks ::
-  (Graph (BlockEdge F) (BasicBlock F) () g) =>
+  (Graph (BlockEdge F) () (BasicBlock F) g) =>
   g ->
   IO g
 collapseGotoBlocks g =
@@ -62,7 +62,7 @@ succsToEdges xs = do
   return (e, (x, y))
 
 constructBasicBlockGraph ::
-  (Graph (BlockEdge t) (BasicBlock t) () g, BasicBlockFunction t) =>
+  (Graph (BlockEdge t) () (BasicBlock t) g, BasicBlockFunction t) =>
   t ->
   IO g
 constructBasicBlockGraph fn = do
@@ -89,7 +89,7 @@ isBackEdge be = case be ^. BB.target of
     src = be ^. BB.src
 
 constructBasicBlockGraphWithoutBackEdges ::
-  (Graph (BlockEdge t) (BasicBlock t) () g, BasicBlockFunction t, Eq t) =>
+  (Graph (BlockEdge t) () (BasicBlock t) g, BasicBlockFunction t, Eq t) =>
   t ->
   IO g
 constructBasicBlockGraphWithoutBackEdges fn = do

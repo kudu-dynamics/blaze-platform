@@ -9,7 +9,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 
-getNodesWithTwoChildren :: forall e n g. (Graph e n g) => g -> [(n, (n, n))]
+getNodesWithTwoChildren :: forall e attr n g. (Graph e attr n g) => g -> [(n, (n, n))]
 getNodesWithTwoChildren g = mapMaybe f . Set.toList . G.nodes $ g
   where
     f :: n -> Maybe (n, (n, n))
@@ -31,7 +31,7 @@ getChain hm origin = case Map.lookup origin hm of
 chainMapToLists :: (Ord n) => Map n n -> [[n]]
 chainMapToLists hm = fmap (getChain hm) . Set.toList $ chainMapOrigins hm
 
-getIfChainNodes :: forall e n g. ( Graph e n g, Ord n )
+getIfChainNodes :: forall e attr n g. ( Graph e attr n g, Ord n )
                 => g -> [IfChainNode n]
 getIfChainNodes g = do
   (n, (c1, c2)) <- twoKidsList
@@ -57,8 +57,8 @@ getIfChainNodes g = do
     twoKidsMap = Map.fromList twoKidsList
 
 
-getIfChains :: forall e n g.
-               ( Graph e n g, Ord n )
+getIfChains :: forall e attr n g.
+               ( Graph e attr n g, Ord n )
             => g -> [IfChain n]
 getIfChains g = do
   xs <- chainMapToLists chainMapping
@@ -86,8 +86,8 @@ getIfChains g = do
       where
         f n = (view parent n, view self n)
 
-toFirGraph :: forall e n g g'.
-              ( Graph e n g, Ord n, Graph (FirEdgeLabel e) (FirNode n) g')
+toFirGraph :: forall e attr n g g'.
+              ( Graph e attr n g, Ord n, Graph (FirEdgeLabel e) attr (FirNode n) g')
            => [IfChain n] -> g -> g'
 toFirGraph ifChains g = case Set.toList $ G.nodes g of
   [bb] -> G.fromNode $ FirBasicBlock bb

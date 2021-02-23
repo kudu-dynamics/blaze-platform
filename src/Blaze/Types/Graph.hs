@@ -11,7 +11,7 @@ type LEdge label node = (label, (node, node))
 type Edge node = (node, node)
 
 -- TODO: Switch to HashSet from Set for type class
-class Graph e n attr g | g -> e n attr where
+class Graph e attr n g | g -> e attr n where
   empty :: g
   fromNode :: n -> g
   fromEdges :: [(e, (n, n))] -> g
@@ -33,7 +33,7 @@ class Graph e n attr g | g -> e n attr where
   subgraph :: (n -> Bool) -> g -> g
 
 
-findNonRepeatPaths' :: (Graph e n attr g, Ord n) => Set n -> n -> g -> [[n]]
+findNonRepeatPaths' :: (Graph e attr n g, Ord n) => Set n -> n -> g -> [[n]]
 findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of
   [] -> [[start']]
   xs -> xs
@@ -42,28 +42,28 @@ findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of
 
     succsPaths = concatMap (\s -> findNonRepeatPaths' (Set.insert s seen) s g) succs'
 
-findNonRepeatPaths :: (Graph e n attr g, Ord n) => n -> g -> [[n]]
+findNonRepeatPaths :: (Graph e attr n g, Ord n) => n -> g -> [[n]]
 findNonRepeatPaths start' = findNonRepeatPaths' (Set.singleton start') start'
 
 -- | finds all paths up until a repeat or a node with no succs
-findAllNonRepeatPaths :: (Graph e node attr g, Ord node) => g -> [[node]]
+findAllNonRepeatPaths :: (Graph e attr node g, Ord node) => g -> [[node]]
 findAllNonRepeatPaths g 
   | length (nodes g) == 1 = [Set.toList $ nodes g]
   | otherwise = do
       src <- Set.toList $ sources g
       findNonRepeatPaths src g
 
-findSimplePaths' :: (Graph e n attr g, Ord n) => Set n -> n -> n -> g -> [[n]]
+findSimplePaths' :: (Graph e attr n g, Ord n) => Set n -> n -> n -> g -> [[n]]
 findSimplePaths' seen start' end' g = fmap (start':) $ do
   succ' <- Set.toList $ succs start' g `Set.difference` seen
   if succ' == end'
     then return [succ']
     else findSimplePaths' (Set.insert succ' seen) succ' end' g
 
-findSimplePaths :: (Graph e node attr g, Ord node) => node -> node -> g -> [[node]]
+findSimplePaths :: (Graph e attr node g, Ord node) => node -> node -> g -> [[node]]
 findSimplePaths = findSimplePaths' Set.empty
 
-findAllSimplePaths :: (Graph e node attr g, Ord node) => g -> [[node]]
+findAllSimplePaths :: (Graph e attr node g, Ord node) => g -> [[node]]
 findAllSimplePaths g 
   | length (nodes g) == 1 = [Set.toList $ nodes g]
   | otherwise = do
@@ -71,26 +71,26 @@ findAllSimplePaths g
       sink <- Set.toList $ sinks g
       findSimplePaths src sink g
 
-sources :: Graph e n attr g => g -> Set n
+sources :: Graph e attr n g => g -> Set n
 sources g = Set.filter ((== 0) . Set.size . flip preds g) . nodes $ g
 
-sinks :: Graph e n attr g => g -> Set n
+sinks :: Graph e attr n g => g -> Set n
 sinks g = Set.filter ((== 0) . Set.size . flip succs g) . nodes $ g
 
-removeEdges :: Graph e n attr g => [(n, n)] -> g -> g
+removeEdges :: Graph e attr n g => [(n, n)] -> g -> g
 removeEdges = flip $ foldr removeEdge
 
-addEdges :: Graph e n attr g => [(e, (n, n))] -> g -> g
+addEdges :: Graph e attr n g => [(e, (n, n))] -> g -> g
 addEdges = flip $ foldr addEdge
 
-reverseSpan :: Graph e n attr g => g -> Int -> n -> [[n]]
+reverseSpan :: Graph e attr n g => g -> Int -> n -> [[n]]
 reverseSpan _ 0 node = [[node]]
 reverseSpan g depth node = case Set.toList $ preds node g of
   [] -> [[node]]
   xs -> fmap (node:) . concatMap (reverseSpan g (depth - 1)) $ xs
   
 
-findAllSimplePaths2 :: forall e node attr g. (Graph e node attr g, Ord node)
+findAllSimplePaths2 :: forall e attr node g. (Graph e attr node g, Ord node)
                     => g -> node -> [[node]]
 findAllSimplePaths2 g startNode =
   let m = mkNonLoopingNodeMap m (Set.toList $ nodes g) in
@@ -106,7 +106,7 @@ findAllSimplePaths2 g startNode =
       return (n, succPaths)
 
 
-countAllSimplePaths :: forall e node attr g. (Graph e node attr g, Ord node)
+countAllSimplePaths :: forall e attr node g. (Graph e attr node g, Ord node)
                     => g -> Map node Integer
 countAllSimplePaths g =
   let m = mkNonLoopingNodeMap m (Set.toList $ nodes g) in
@@ -121,7 +121,7 @@ countAllSimplePaths g =
             xs -> sum . fmap (m !) $ xs
       return (n, x)
 
-maxSimplePaths :: forall e node attr g. (Graph e node attr g, Ord node)
+maxSimplePaths :: forall e attr node g. (Graph e attr node g, Ord node)
                => g -> Integer
 maxSimplePaths = foldr max 0 . countAllSimplePaths
 
@@ -144,7 +144,7 @@ maxSimplePaths = foldr max 0 . countAllSimplePaths
 newtype DescendentsMap node = DescendentsMap (Map node (Set node))
   deriving (Eq, Ord, Show)
 
-calcDescendentsMap :: forall e node attr g. (Graph e node attr g, Ord node)
+calcDescendentsMap :: forall e attr node g. (Graph e attr node g, Ord node)
             => g -> DescendentsMap node
 calcDescendentsMap g =
   let m = mkNonLoopingNodeMap m (Set.toList $ nodes g) in
@@ -160,7 +160,7 @@ calcDescendentsMap g =
       return (n, x)
 
 -- assumes DescendentMap contains start node and is derived from g...
-searchBetween_ :: forall e node attr g. (Graph e node attr g, Ord node)
+searchBetween_ :: forall e attr node g. (Graph e attr node g, Ord node)
               => g -> DescendentsMap node -> node -> node -> [[node]]
 searchBetween_ g (DescendentsMap dm) start end
   | start == end = return [end]
@@ -171,7 +171,7 @@ searchBetween_ g (DescendentsMap dm) start end
   | otherwise = []
 
 {- HLINT ignore searchBetween "Eta reduce" -}
-searchBetween :: forall e node attr g. (Graph e node attr g, Ord node)
+searchBetween :: forall e attr node g. (Graph e attr node g, Ord node)
               => g -> node -> node -> [[node]]
 searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
 
@@ -182,12 +182,12 @@ searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
 --           => g -> HashMap n (HashSet n)
           
 
-siblings :: forall e node attr g. (Graph e node attr g, Ord node)
+siblings :: forall e attr node g. (Graph e attr node g, Ord node)
          => node -> node -> g -> Set node
 siblings child parent g = Set.delete child $ succs parent g
 
 
--- TODO: Get these working with node attrs.
+-- TODO: Get these working with attr nodes.
 -- Currently not used anywhere.
 -- mapGraph :: (Graph e n g, Graph e' n' g')
 --          => (e -> e') -> (n -> n') -> g -> g'
@@ -203,7 +203,7 @@ siblings child parent g = Set.delete child $ succs parent g
 -- mapNodes = mapGraph identity
 
 
-updateNodeAttr :: (Graph e n attr g) => (attr -> attr) -> n -> g -> g
+updateNodeAttr :: (Graph e attr n g) => (attr -> attr) -> n -> g -> g
 updateNodeAttr f n g = case getNodeAttr n g of
   Nothing -> g
   Just attr -> setNodeAttr (f attr) n g

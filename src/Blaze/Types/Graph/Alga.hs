@@ -9,7 +9,7 @@ import qualified Data.Map as Map
 import Blaze.Types.Graph
 import qualified Algebra.Graph.Export.Dot as Dot
 
-data AlgaGraph e n attr = AlgaGraph
+data AlgaGraph e attr n = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap n
   , edgeMap :: Map (n, n) e
   , nodeAttrMap :: Map n attr
@@ -18,9 +18,9 @@ data AlgaGraph e n attr = AlgaGraph
 -- TODO: see if G.AdjacencyMap's Eq is good enough
 -- I think that two graphs with identitcal nodes and edges will not be equal
 
-instance (NFData e, NFData n, NFData attr) => NFData (AlgaGraph e n attr)
+instance (NFData e, NFData n, NFData attr) => NFData (AlgaGraph e attr n)
 
-instance (Ord n) => Graph e n attr (AlgaGraph e n attr) where
+instance (Ord n) => Graph e attr n (AlgaGraph e attr n) where
   empty = AlgaGraph G.empty Map.empty Map.empty
   fromNode node = AlgaGraph (G.vertex node) Map.empty Map.empty
   fromEdges ledges = AlgaGraph
@@ -35,8 +35,9 @@ instance (Ord n) => Graph e n attr (AlgaGraph e n attr) where
   getEdgeLabel edge = Map.lookup edge . edgeMap
   setEdgeLabel label edge g = g { edgeMap = Map.insert edge label $ edgeMap g }
 
+
   getNodeAttr node = Map.lookup node . nodeAttrMap
-  
+  setNodeAttr attr node g = g & #nodeAttrMap %~ Map.insert node attr
 
   removeEdge e@(n1, n2) g = AlgaGraph
     { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
@@ -78,12 +79,12 @@ instance (Ord n) => Graph e n attr (AlgaGraph e n attr) where
         subgraphEdges :: Set (n, n)
         subgraphEdges = Set.fromList $ G.edgeList subgraphAdjMap
 
-toDot :: Ord n => (n -> Text) -> AlgaGraph e n attr -> Text
+toDot :: Ord n => (n -> Text) -> AlgaGraph e attr n -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
 
-isAcyclic :: Ord n => AlgaGraph e n attr -> Bool
+isAcyclic :: Ord n => AlgaGraph e attr n -> Bool
 isAcyclic = GA.isAcyclic . adjacencyMap
 
-reachable :: Ord n => n -> AlgaGraph e n attr -> [n]
+reachable :: Ord n => n -> AlgaGraph e attr n -> [n]
 reachable x = GA.reachable x . adjacencyMap
 
