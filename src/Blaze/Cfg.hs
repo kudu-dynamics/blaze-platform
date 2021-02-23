@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Blaze.Cfg (
   module Exports,
   module Blaze.Cfg,
@@ -6,7 +7,8 @@ module Blaze.Cfg (
 import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg as Exports
-import Blaze.Types.Pil (Statement (Exit), Stmt, Expression)
+import Blaze.Types.Pil (Statement (Exit), Stmt, Expression, BranchCondOp)
+import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
@@ -148,3 +150,31 @@ getRetExprs cfg =
  where
   retBlocks :: [ReturnNode [Stmt]]
   retBlocks = mapMaybe (preview #_TermRet) (NEList.toList $ getTerminalBlocks cfg)
+
+evalCondition :: BranchCondOp Expression -> Maybe Bool
+evalCondition bn = case bn ^. #cond . #op of
+  Pil.CONST_BOOL x -> Just $ x ^. #constant
+  Pil.CONST x -> Just . not . (==0) $ x ^. #constant
+  Pil.CMP_E x -> intBinOp x (==)
+  Pil.CMP_NE x -> intBinOp x (/=)
+  Pil.CMP_SGE x -> intBinOp x (>=)
+  Pil.CMP_SGT x -> intBinOp x (>)
+  Pil.CMP_SLE x -> intBinOp x (<=)
+  Pil.CMP_SLT x -> intBinOp x (<)
+  Pil.CMP_UGE x -> intBinOp x (>=)
+  Pil.CMP_UGT x -> intBinOp x (>)
+  Pil.CMP_ULE x -> intBinOp x (<=)
+  Pil.CMP_ULT x -> intBinOp x (<)
+  _ -> Nothing
+  where
+    intBinOp :: ( HasField' "left" x Expression
+                , HasField' "right" x Expression
+                )
+             => x
+             -> (forall a. Ord a => a -> a -> Bool)
+             -> Maybe Bool
+    intBinOp x p = p <$> getConstArg (x ^. #left)
+                     <*> getConstArg (x ^. #right)
+
+    getConstArg :: Expression ->  Maybe Int64
+    getConstArg x = x ^? #op . #_CONST . #constant
