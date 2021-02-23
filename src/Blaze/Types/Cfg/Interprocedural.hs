@@ -11,6 +11,10 @@ import Data.HashMap.Strict as HMap
 import Blaze.Types.Pil.Common (CtxIndex)
 import Control.Monad (MonadFail)
 
+-- TODO : Instead of wrapping PilCfg to create an InterCfg, assume
+--        every Cfg could be an InterCfg and instead introduce a type
+--        to indicate a CFG is for a single function? Possibly a different
+--        type if it's contained in a function but not all blocks?
 newtype InterCfg = InterCfg {unInterCfg :: PilCfg}
   deriving (Eq, Show, Generic)
 
