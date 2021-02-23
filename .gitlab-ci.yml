@@ -164,7 +164,7 @@ push:latest:
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
 
-pages:
+.pages:
   extends: .haskell-job
   stage: docs
   rules:
@@ -187,3 +187,4 @@ pages:
   artifacts:
     paths:
       - public
+    expires_in: 12 hours
