@@ -164,6 +164,7 @@ push:latest:
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
 
+# Disabled for now because the artifact it creates is larger than the instance maximum
 .pages:
   extends: .haskell-job
   stage: docs
