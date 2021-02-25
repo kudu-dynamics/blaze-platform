@@ -1,0 +1,10 @@
+Dockerfile*
+.dockerignore
+
+.git
+.gitlab-ci.yml
+
+.stack-work
+*.cabal
+**/dist-newstyle
+**/dist
