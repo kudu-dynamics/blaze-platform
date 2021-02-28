@@ -3,6 +3,7 @@ stages:
   - build
   - test
   - push
+  - docs
 
 # FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
 # case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
@@ -108,7 +109,7 @@ lint:
 #   For instance, binaryninja-haskell:merge-71
 # In either case, we should first try pulling the latest image for this branch or MR,
 # and if that fails, pull :latest. This ensures we have cached layers downloaded
-  
+
 build:branch:
   stage: build
   extends: .dind
@@ -176,7 +177,7 @@ test:detached:
     - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py
 
 # If we just pushed to the default branch, tag the image as :latest and push
-    
+
 push:latest:
   stage: push
   extends: .dind
@@ -193,3 +194,28 @@ push:latest:
     - docker pull "${image}:commit-${CI_COMMIT_SHA}"
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
+
+pages:
+  extends: .haskell-job
+  stage: docs
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_MERGE_REQUEST_ID == null
+      when: on_success
+    - if: $CI_MERGE_REQUEST_ID == null
+      when: manual
+  needs:
+    - test:branch
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - pushd /blaze/blaze-ui/server
+    - stack haddock --no-haddock-deps
+    - docs_dir=$(stack path --snapshot-doc-root)
+    - popd
+    - cp -arT "$docs_dir" public
+  allow_failure: true
+  artifacts:
+    paths:
+      - public
+    expire_in: 12 hours
