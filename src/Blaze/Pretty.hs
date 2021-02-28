@@ -27,9 +27,8 @@ import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
 
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType)
+import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
 import qualified Blaze.Cfg as Cfg
-import Blaze.Graph (LEdge)
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -419,6 +418,12 @@ instance Pretty PilNode where
     Call n -> pretty n
     EnterFunc n -> pretty n
     LeaveFunc n -> pretty n
+
+instance Pretty PilEdge where
+  pretty edge =
+    pretty (edge ^. #src) 
+      <> " ---> " <> pretty (edge ^. #dst) 
+      <> "  |" <> pretty (edge ^. #branchType) <> "|"
 
 instance Pretty (BasicBlockNode a) where
   pretty (Cfg.BasicBlockNode f start end _) =
