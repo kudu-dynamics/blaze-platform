@@ -74,7 +74,7 @@ lint:
 #   For instance, ${project}:merge-71
 # In either case, we should first try pulling the latest image for this branch or MR,
 # and if that fails, pull :latest. This ensures we have cached layers downloaded
-  
+
 build:branch:
   stage: build
   extends: .dind
@@ -146,7 +146,7 @@ test:detached:
     - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py
 
 # If we just pushed to the default branch, tag the image as :latest and push
-    
+
 push:latest:
   stage: push
   extends: .dind
@@ -164,7 +164,6 @@ push:latest:
     - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
     - docker push "${image}:latest"
 
-# Disabled for now because the artifact it creates is larger than the instance maximum
 .pages:
   extends: .haskell-job
   stage: docs
@@ -180,7 +179,7 @@ push:latest:
     GIT_CLEAN_FLAGS: none
   script:
     - pushd /blaze/blaze
-    - stack haddock
+    - stack haddock --no-haddock-deps
     - docs_dir=$(stack path --snapshot-doc-root)
     - popd
     - cp -arT "$docs_dir" public
