@@ -152,7 +152,7 @@ convertCallNode n = do
   argExprs <- traverse Pil.convertExpr (callInstr ^. #params)
   enterNewCtx cgDestFunc
   ctx <- use #ctx
-  params <- liftIO $ BNVar.getFunctionParameterVariables destFunc
+  params <- liftIO $ BNFunc.getFunctionParameterVariables destFunc
   let paramSyms = createParamSymbol 0 <$> params
   defs <- zipWithM defSymbol paramSyms argExprs
   return $ (Pil.EnterContext . Pil.EnterContextOp $ ctx) : defs
