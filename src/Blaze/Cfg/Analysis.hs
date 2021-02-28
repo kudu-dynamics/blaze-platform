@@ -31,7 +31,7 @@ getStmts = \case
 copyProp :: InterCfg -> InterCfg
 copyProp icfg =
   -- PA._copyProp copyPropState <$> nodesStmts
-  InterCfg $ 
+  InterCfg $
     foldl'
       ( \cfg_ node ->
           case G.getNodeAttr node cfg_ of
@@ -63,7 +63,7 @@ copyProp icfg =
 constantProp :: InterCfg -> InterCfg
 constantProp icfg =
   -- PA._constantProp constPropState <$> nodesStmts
-  InterCfg $ 
+  InterCfg $
     foldl'
       ( \cfg_ node ->
           case G.getNodeAttr node cfg_ of
