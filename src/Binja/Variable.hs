@@ -6,8 +6,8 @@
 
 module Binja.Variable
   ( module Exports
+  , fromBNVariable
   , getVariableFromIdentifier
-  , getFunctionParameterVariables
   , getVarType
   , getVarType'
   ) where
@@ -16,9 +16,8 @@ import           Binja.Prelude                   hiding ( handle )
 
 import qualified Data.Text            as Text
 import qualified Binja.C.Main         as BN
-import Binja.C.Helpers ( getFunctionParameterVariables' )
-import qualified Binja.Function       as Func
-import           Binja.Types.Function
+import qualified Binja.Types.Function as Func
+import Binja.Types.Function (Function)
 import           Binja.Types.Variable as Exports
 
 getVarType' :: BN.BNType -> Confidence -> IO VarType
@@ -63,11 +62,3 @@ fromBNVariable fn bnvar = do
                     }
   where
     fptr = fn ^. Func.handle
-
-
-getFunctionParameterVariables :: Function -> IO [Variable]
-getFunctionParameterVariables fn = do
-  r <- getFunctionParameterVariables' $ fn ^. Func.handle
-  traverse (fromBNVariable fn) $ r ^. vars
-  
-  
