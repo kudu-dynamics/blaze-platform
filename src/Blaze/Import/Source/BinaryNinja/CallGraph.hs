@@ -8,7 +8,7 @@ import qualified Binja.Reference as Ref
 import qualified Binja.Variable as BnVar
 import qualified Binja.View
 import qualified Blaze.Types.Function as Func
-import Blaze.Import.Source.BinaryNinja.Types hiding (CallSite)
+import Blaze.Import.Source.BinaryNinja.Types hiding (callInstr, caller, address, params, CallSite)
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.CallGraph (
   CallSite (
@@ -18,7 +18,7 @@ import Blaze.Types.CallGraph (
 import qualified Blaze.Types.CallGraph as CG
 import Blaze.Types.Function (
   Function,
-  FuncParamInfo (FuncParamInfo),
+  FuncParamInfo (FuncParamInfo, FuncVarArgInfo),
   ParamInfo (ParamInfo),
  )
 import Control.Monad.Extra (mapMaybeM)
@@ -51,13 +51,29 @@ convertFunction bv bnf = do
       address = bnf ^. BnFunc.start
   symbol <- convertSymbol =<< Binja.View.getSymbolAtAddress bv address Nothing
   bnParams <- BnFunc.getFunctionParameterVariables bnf
-  hasVarArgs <- BnFunc.hasVariableArguments bnf
+  hasVarArgs <- BnVar._value <$> BnFunc.hasVariableArguments bnf
+  -- Append "#0" as we are importing MLIL SSA vars with versions embedded in the name,
+  -- but BN uses the Variable (rather than SSAVariable) to refer to the parameters.
+  let params =
+        if hasVarArgs
+          then
+            let posParams =
+                  fmap (FuncParamInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name)
+                    <$> initMay bnParams
+                varArgParam =
+                  FuncVarArgInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name
+                    <$> lastMay bnParams
+             in fromMaybe [] (fmap (++) posParams <*> sequence [varArgParam])
+          else
+            FuncParamInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name
+              <$> bnParams
+  -- varParam = FuncParamInfo (ParamInfo )
   return
     Func.Function
       { symbol = symbol
       , name = name
       , address = address
-      , params = FuncParamInfo . (`ParamInfo` Func.Unknown) . view BnVar.name <$> bnParams
+      , params = params
       }
 
 getCallInstruction :: BnFunc.Function -> Ref.ReferenceSource -> IO (Maybe CallInstruction)

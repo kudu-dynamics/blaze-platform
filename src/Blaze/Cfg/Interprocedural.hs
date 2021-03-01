@@ -47,9 +47,8 @@ mkParamVar ctx funcParam =
  where
   sym :: Symbol
   sym = case funcParam of
-    -- Append #0 since MLIL SSA vars have versions in the name
-    FuncParamInfo paramInfo -> coerce $ paramInfo ^. #name <> "#0"
-    FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name <> "#0"
+    FuncParamInfo paramInfo -> coerce $ paramInfo ^. #name
+    FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name
 
 -- | Create a node that indicates a context switch between two function contexts.
 mkEnterFuncNode :: Ctx -> Ctx -> CallStatement -> EnterFuncNode [Stmt]
