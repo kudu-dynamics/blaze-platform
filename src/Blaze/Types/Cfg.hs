@@ -21,7 +21,7 @@ data BranchType
   = TrueBranch
   | FalseBranch
   | UnconditionalBranch
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 instance Hashable BranchType
 
@@ -31,7 +31,7 @@ data BasicBlockNode a = BasicBlockNode
   , end :: Address
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data CallNode a = CallNode
@@ -39,7 +39,7 @@ data CallNode a = CallNode
   , start :: Address
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data EnterFuncNode a = EnterFuncNode
@@ -47,7 +47,7 @@ data EnterFuncNode a = EnterFuncNode
   , nextCtx :: Ctx
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data LeaveFuncNode a = LeaveFuncNode
@@ -55,7 +55,7 @@ data LeaveFuncNode a = LeaveFuncNode
   , nextCtx :: Ctx
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 {- |Terminal nodes are nodes in CFG that have no successor.
@@ -68,34 +68,34 @@ data TerminalNode a
   = TermRet (ReturnNode a)
   | TermExit (ExitNode a)
   | TermTailCall (TailCallNode a)
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data ReturnNode a = ReturnNode
   { basicBlock :: BasicBlockNode a
   , retOp :: RetOp Expression
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 newtype ExitNode a = ExitNode
   { basicBlock :: BasicBlockNode a
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data TailCallNode a = TailCallNode
   { basicBlock :: BasicBlockNode a
   , tailCallOp :: TailCallOp Expression
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data BranchNode a = BranchNode
   { basicBlock :: BasicBlockNode a
   , branchCondOp :: BranchCondOp Expression
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 -- TODO: Consider moving the interprocedural nodes into a separate type
@@ -110,7 +110,7 @@ data CfNode a
   | Call (CallNode a)
   | EnterFunc (EnterFuncNode a)
   | LeaveFunc (LeaveFuncNode a)
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data CfEdge a = CfEdge
