@@ -7,8 +7,10 @@ module Binja.Function
   , getLLILSSAFunction
   , getMLILFunction
   , getMLILSSAFunction
+  , getFunctionParameterVariables
   , getFunctionStartingAt
   , getFunctionDataBinaryView
+  , hasVariableArguments
   , FromFunction(fromFunction)
   , ToFunction(toFunction)
   ) where
@@ -17,9 +19,15 @@ import Binja.Prelude hiding (onException, handle)
 
 import qualified Data.Text as Text
 
+
+import Binja.C.Helpers ( getFunctionParameterVariables_, functionHasVariableArguments_ )
 import qualified Binja.C.Main as BN
 import Binja.C.Pointers
+import qualified Binja.Types.Function as Func
 import Binja.Types.Function as Exports
+import qualified Binja.Types.Variable as Var
+import Binja.Types.Variable (Variable, BNBoolWithConfidence)
+import Binja.Variable (fromBNVariable)
 
 createFunction :: FromFunction fun => BNFunction -> IO fun
 createFunction ptr = do
@@ -106,6 +114,11 @@ getFunctionStartingAt bv mplat addr = do
 getFunctionDataBinaryView :: Function -> IO BNBinaryView
 getFunctionDataBinaryView = BN.getFunctionData . view handle
 
+getFunctionParameterVariables :: Function -> IO [Variable]
+getFunctionParameterVariables fn = do
+  r <- getFunctionParameterVariables_ $ fn ^. Func.handle
+  traverse (fromBNVariable fn) $ r ^. Var.vars
 
--- convertFunction :: (ToFunction a, FromFunction b)
---                 -> 
+hasVariableArguments :: Function -> IO BNBoolWithConfidence
+hasVariableArguments fn = do
+  functionHasVariableArguments_ $ fn ^. Func.handle

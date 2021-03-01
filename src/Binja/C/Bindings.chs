@@ -155,7 +155,9 @@ import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 {#fun unsafe BNGetAnalysisFunction as getGetAnalysisFunction {withPtr* `BNBinaryView', withPtr* `BNPlatform', fromIntegral `Address'} -> `Maybe BNFunction' nilable* #}
 
 #c
-void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesWithConfidence* t) { *t = BNGetFunctionParameterVariables(func); }
+void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesWithConfidence* pvs) { 
+  *pvs = BNGetFunctionParameterVariables(func); 
+}
 #endc
 
 {#fun unsafe wrapBNGetFunctionParameterVariables as wrapBNGetFunctionParameterVariables {withPtr* `BNFunction', castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
@@ -163,6 +165,14 @@ void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesW
 {#fun unsafe BNFreeParameterVariables as freeParameterVariables {castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
 
 {#fun unsafe BNGetFunctionType as getFunctionType {withPtr* `BNFunction'} -> `BNType' safePtr* #}
+
+#c
+void wrapBNFunctionHasVariableArguments(BNFunction* func, BNBoolWithConfidence* b) {
+  *b = BNFunctionHasVariableArguments(func);
+}
+#endc
+
+{#fun unsafe wrapBNFunctionHasVariableArguments as wrapBNFunctionHasVariableArguments {withPtr* `BNFunction', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
 
 ---- symbols
 
