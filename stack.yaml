@@ -3,8 +3,8 @@ compiler: ghc-8.8.2
 
 packages:
 - .
+- binja-header-cleaner
 
 extra-deps:
-- binja-header-cleaner
 - ../binary-analysis
 - c2hs-0.28.7
