@@ -109,6 +109,7 @@ executables:
       - base
       - binja-header-cleaner
       - filepath
+      - directory
       - text
 
 

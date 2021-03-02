@@ -1,19 +1,21 @@
 module Main where
 
-import Binja.Prelude hiding (onException, handle, (<.>), FilePath)
+import Binja.Header.Prelude hiding (FilePath, handle, onException, (<.>))
 import qualified Prelude as P
 
 -- import qualified System.Filepath as Path
-import System.FilePath (FilePath, (</>), (<.>))
 
-import qualified Data.Text as Text
-import Data.List (nub)
-import qualified Text.Casing as Casing
-import qualified Data.Char as Char
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath (FilePath, (<.>), (</>))
+
+import Binja.Header.Types.Printer (Printer, br, indent, pr)
 import qualified Binja.Header.Types.Printer as Printer
+import qualified Data.Char as Char
+import Data.List (nub)
 import qualified Data.Set as Set
-import Binja.Header.Types.Printer (Printer, pr, indent, br)
+import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import qualified Text.Casing as Casing
 
 main :: IO ()
 main = do
@@ -54,34 +56,42 @@ opTypeBuilder ot = case ot of
 
 capFirst :: String -> String
 capFirst "" = ""
-capFirst (x:xs) = Char.toUpper x : xs
+capFirst (x : xs) = Char.toUpper x : xs
 
 capFirstText :: Text -> Text
 capFirstText = Text.pack . capFirst . Text.unpack
-
 
 operatorNameToConstructorName :: Text -> Text
 operatorNameToConstructorName =
   Text.pack . Casing.toScreamingSnake . Casing.dropPrefix . Casing.fromSnake . Text.unpack
 
 operatorNameToPrefixName :: Text -> Text
-operatorNameToPrefixName = Text.replace "Ssa" "SSA"
-  . (<>"Op") . Text.pack
-  . Casing.toCamel . Casing.dropPrefix . Casing.fromSnake
-  . Text.unpack
+operatorNameToPrefixName =
+  Text.replace "Ssa" "SSA"
+    . (<> "Op")
+    . Text.pack
+    . Casing.toCamel
+    . Casing.dropPrefix
+    . Casing.fromSnake
+    . Text.unpack
 
 operatorNameToRecordName :: Text -> Text
-operatorNameToRecordName = Text.replace "Ssa" "SSA"
-  . (<>"Op") . Text.pack
-  . capFirst . Casing.toCamel . Casing.dropPrefix . Casing.fromSnake
-  . Text.unpack
+operatorNameToRecordName =
+  Text.replace "Ssa" "SSA"
+    . (<> "Op")
+    . Text.pack
+    . capFirst
+    . Casing.toCamel
+    . Casing.dropPrefix
+    . Casing.fromSnake
+    . Text.unpack
 
 operatorRecordList :: [Text]
 operatorRecordList = operatorNameToRecordName . fst <$> statementsData
 
 printRestArgs :: Text -> [(Text, Text)] -> Printer ()
 printRestArgs _ [] = pr $ "} " <> derivingClause
-printRestArgs pname ((argName, argType):args) = do
+printRestArgs pname ((argName, argType) : args) = do
   pr $ ", _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
   printRestArgs pname args
 
@@ -89,30 +99,34 @@ derivingClause :: Text
 derivingClause = "deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)"
 
 printOperationUnionType :: [(Text, [(Text, Text)])] -> Printer ()
-printOperationUnionType (firstOp:moreOps) = do
+printOperationUnionType (firstOp : moreOps) = do
   pr "data Operation expr"
   indent $ do
     pr $ "= " <> strOp firstOp
     printRest moreOps
   where
     printRest [] = pr "deriving (Eq, Ord, Show, Functor, Foldable, Traversable)"
-    printRest (op:ops) = do
+    printRest (op : ops) = do
       pr $ "| " <> strOp op
       printRest ops
-    strOp (opName, args) = operatorNameToConstructorName opName
-      <> bool (" (" <> operatorNameToRecordName opName <> " expr)") "" (null args)
+    strOp (opName, args) =
+      operatorNameToConstructorName opName
+        <> bool (" (" <> operatorNameToRecordName opName <> " expr)") "" (null args)
 printOperationUnionType _ = P.error "printOperationUnionType: expecting non-empty list"
-    
+
 printOpRecordDerive :: Text -> Printer ()
-printOpRecordDerive nm = pr $ "$(makeFields ''"
-  <> operatorNameToRecordName nm <> ")"
+printOpRecordDerive nm =
+  pr $
+    "$(makeFields ''"
+      <> operatorNameToRecordName nm
+      <> ")"
 
 printOpRecord :: (Text, [(Text, Text)]) -> Printer ()
 printOpRecord (mlilName, xs) = do
   pr $ "data " <> rname <> " expr = " <> rname
   indent $ case xs of
     [] -> pr derivingClause
-    ((argName, argType):args) -> do
+    ((argName, argType) : args) -> do
       pr $ "{ _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
       printRestArgs pname args
   where
@@ -144,19 +158,22 @@ printToFile fp = TextIO.writeFile fp . Printer.toText $ do
     divide = br >> br >> br
 
 printBuilderCase :: (Text, [(Text, Text)]) -> Printer ()
-printBuilderCase (opName, []) = pr $
-  "BN." <> opName <> " -> return " <> operatorNameToConstructorName opName
+printBuilderCase (opName, []) =
+  pr $
+    "BN." <> opName <> " -> return " <> operatorNameToConstructorName opName
 printBuilderCase (opName, args) = do
   pr $ "BN." <> opName <> " ->"
-  indent . pr $ "fmap " <> operatorNameToConstructorName opName <> " $ "
-    <> operatorNameToRecordName opName
-    <> " <$> " <> Text.intercalate " <*> " (opTypeBuilder . snd <$> args)
+  indent . pr $
+    "fmap " <> operatorNameToConstructorName opName <> " $ "
+      <> operatorNameToRecordName opName
+      <> " <$> "
+      <> Text.intercalate " <*> " (opTypeBuilder . snd <$> args)
 
 printBuilderCases :: Printer ()
 printBuilderCases = indent $ mapM_ printBuilderCase statementsData
 
 statementsData :: [(Text, [(Text, Text)])]
-statementsData = 
+statementsData =
   [ ("MLIL_NOP", [])
   , ("MLIL_SET_VAR", [("dest", "var"), ("src", "expr")])
   , ("MLIL_SET_VAR_FIELD", [("dest", "var"), ("offset", "int"), ("src", "expr")])
@@ -290,7 +307,6 @@ statementsData =
   , ("MLIL_MEM_PHI", [("dest_memory", "int"), ("src_memory", "int_list")])
   ]
 
-
 ---------------
 
 printRecordImport :: Text -> Printer ()
@@ -305,8 +321,9 @@ printModuleHeader name = do
   br
   pr "import Binja.Prelude"
 
-printModuleImports :: Set Text
-                   -> Printer ()
+printModuleImports ::
+  Set Text ->
+  Printer ()
 -- printModuleImports = mapM_ (maybe (return ()) pr . g . f) . Set.toList
 printModuleImports types = mapM_ pr imports
   where
@@ -338,7 +355,7 @@ printRecordModule (mlilName, xs) = do
   pr $ "data " <> rname <> " expr = " <> rname
   indent $ case xs of
     [] -> pr derivingClause
-    ((argName, argType):args) -> do
+    ((argName, argType) : args) -> do
       pr $ "{ _" <> pname <> capFirstText argName <> " :: " <> opTypeType argType
       printRestArgs pname args
   br
@@ -351,8 +368,13 @@ writeRecordModule :: FilePath -> (Text, [(Text, Text)]) -> IO ()
 writeRecordModule outDir v@(mlilName, _) =
   TextIO.writeFile outModulePath $ (Printer.toText $ printRecordModule v) <> "\n"
   where
-    outModulePath = outDir </> recordName <.> ".hs" where
-      recordName = Text.unpack $ operatorNameToRecordName mlilName
+    outModulePath = outDir </> recordName <.> ".hs"
+      where
+        recordName = Text.unpack $ operatorNameToRecordName mlilName
 
 writeRecords :: FilePath -> IO ()
-writeRecords outDir = mapM_ (writeRecordModule outDir) statementsData
+writeRecords outDir = do
+  putStr $ "Writing to " <> outDir <> "... "
+  createDirectoryIfMissing True outDir
+  mapM_ (writeRecordModule outDir) statementsData
+  putStrLn ("done" :: String)
