@@ -34,7 +34,6 @@ if len(sys.argv) < 2:
 stack_test_executable = sys.argv[1]
 stack_args = sys.argv[2:]
 
-job_timeout = int(os.environ.get('STACK_TEST_TIMEOUT', 0))
 start_time = time.time()
 stack = subprocess.Popen(
     [
