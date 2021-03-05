@@ -159,7 +159,8 @@ test:branch:
     GIT_CLEAN_FLAGS: none
   script:
     - cd /blaze/binaryninja-haskell
-    - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py
+    - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py binja-header-cleaner-test binja-header-cleaner
+    - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py binja-test binaryninja
 
 test:detached:
   stage: test
