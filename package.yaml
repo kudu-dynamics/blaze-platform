@@ -222,25 +222,6 @@ library:
   - Binja.Types.MLIL.Op.MemPhiOp
   - Binja.Types.TypeLibrary
 
-executables:
-  gen-mlil-op-modules:
-    main: Main.hs
-    source-dirs:
-      - app/gen-mlil-op-modules
-      - binja-header-cleaner/src
-    ghc-options:
-      - -Wall
-      - -Wincomplete-record-updates
-      - -Wincomplete-uni-patterns
-      - -Wredundant-constraints
-      - -j
-    dependencies:
-      - base
-      - binaryninja
-      - filepath
-      - text
-
-
 build-tools:
   - c2hs
 
