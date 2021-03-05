@@ -162,6 +162,9 @@ test:branch:
     - .ci/scripts/run_stack_test.py binja-header-cleaner-test binja-header-cleaner
     - .ci/scripts/run_stack_test.py binja-test binaryninja
 
+    # Test gen-mlil-op-modules
+    - make ops
+
 test:detached:
   stage: test
   extends: .haskell-job
@@ -177,6 +180,9 @@ test:detached:
     - cd /blaze/binaryninja-haskell
     - .ci/scripts/run_stack_test.py binja-header-cleaner-test binja-header-cleaner
     - .ci/scripts/run_stack_test.py binja-test binaryninja
+
+    # Test gen-mlil-op-modules
+    - make ops
 
 # If we just pushed to the default branch, tag the image as :latest and push
 
