@@ -1,5 +1,6 @@
 module Blaze.Import.Source.BinaryNinja.Cfg where
 
+import qualified Prelude as P
 import qualified Binja.BasicBlock as BNBb
 import qualified Binja.C.Enums as BNEnums
 import Binja.Core (BNBinaryView)
@@ -42,8 +43,8 @@ import qualified Data.Set as Set
 import Data.Tuple.Extra ((***))
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
-toMlilSsaInstr instr =
-  maybe (MlilSsaNonCall $ NonCallInstruction instr) MlilSsaCall (toCallInstruction instr)
+toMlilSsaInstr instr' =
+  maybe (MlilSsaNonCall $ NonCallInstruction instr') MlilSsaCall (toCallInstruction instr')
 
 runNodeConverter :: NodeConverter a -> IO (a, DList MlilNodeRefMapEntry)
 runNodeConverter = runWriterT
@@ -73,20 +74,20 @@ nodeFromInstrs func' instrs = do
   return node
 
 nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
-nodeFromCallInstr func' callInstr = do
+nodeFromCallInstr func' callInstr' = do
   let node =
         Call $
           CallNode
             { function = func'
-            , start = callInstr ^. #address
-            , nodeData = callInstr ^. #instr :| []
+            , start = callInstr' ^. #address
+            , nodeData = callInstr' ^. #instr :| []
             }
   tellEntry
     ( node
     , Cfg.CodeReference
         { function = func'
-        , startIndex = callInstr ^. #index
-        , endIndex = callInstr ^. #index
+        , startIndex = callInstr' ^. #index
+        , endIndex = callInstr' ^. #index
         }
     )
   return node
@@ -251,6 +252,8 @@ convertToPilNode imp ctxIndex_ mapping mlilSsaNode = do
     Call (CallNode fun startAddr _) -> do
       stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
       return $ Call (CallNode fun startAddr stmts)
+    Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
+    Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
 
 convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe PilEdge
 convertToPilEdge nodeMap mlilSsaEdge =

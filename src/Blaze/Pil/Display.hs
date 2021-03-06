@@ -172,6 +172,17 @@ instance Disp a => Disp (Pil.Statement a) where
       where
         var = disp $ op ^. #dest
         val = asList . fmap disp $ op ^. #src
+    (Pil.Ret op) -> "Ret" <-> paren (disp $ op ^. #value)
+    Pil.Exit -> "Exit"
+    (Pil.TailCall op) -> case op ^. #name of
+      (Just name) -> Text.pack $ printf "Tailcall (%s) %s" name args
+      Nothing -> Text.pack $ printf "Tailcall (Nothing) (%s) %s" dest args
+      where
+        dest = disp $ op ^. #dest
+        args :: Text
+        args = show $ fmap disp $ op ^. #args
+
+
 
 dispExprOp :: Disp a => Pil.ExprOp a -> Pil.OperationSize -> Text
 dispExprOp exprOp size = case exprOp of
@@ -283,6 +294,7 @@ dispExprOp exprOp size = case exprOp of
   -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
   (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. #src)) (op ^. #offset)
+
 
 instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = dispExprOp exprOp size

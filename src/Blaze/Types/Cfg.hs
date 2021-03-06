@@ -81,8 +81,8 @@ data ReturnNode a = ReturnNode
 newtype ExitNode a = ExitNode
   { basicBlock :: BasicBlockNode a
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
-  deriving anyclass (Hashable)
+  deriving (Eq, Ord, Show, Generic, Functor)
+  deriving anyclass (Hashable, FromJSON, ToJSON)
 
 data TailCallNode a = TailCallNode
   { basicBlock :: BasicBlockNode a

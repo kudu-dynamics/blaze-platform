@@ -13,7 +13,7 @@ import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (
   CallDest (CallFunc),
   CallStatement,
-  Ctx (Ctx),
+  Ctx,
   DefOp (DefOp),
   DefPhiOp (DefPhiOp),
   Expression,
@@ -25,7 +25,6 @@ import Blaze.Types.Pil (
  )
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
-import qualified Debug.Trace as Trace
 import Control.Lens.Setter (set)
 import Blaze.Graph (LEdge)
 

@@ -329,8 +329,8 @@ convertInstrOp op' = do
     (MLIL.SET_VAR_SPLIT_SSA x) -> do
       pvarHigh <- convertToPilVarAndLog $ x ^. MLIL.high
       pvarLow <- convertToPilVarAndLog $ x ^. MLIL.low
-      expr@(Expression size _) <- convertExpr (x ^. MLIL.src)
-      let halfSize = size `div` 2
+      expr@(Expression size' _) <- convertExpr (x ^. MLIL.src)
+      let halfSize = size' `div` 2
           highExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr (fromIntegral halfSize)
           lowExpr = Expression halfSize . Pil.Extract $ Pil.ExtractOp expr 0
       #definedVars %= (pvarHigh :)
@@ -440,25 +440,25 @@ convertCallInstruction ci = do
             fn <- liftIO $ BNCG.convertFunction bv bnf
             return $ Pil.CallFunc fn
       _ -> return $ Pil.CallExpr targetExpr
-  params <- sequence [convertExpr p | p <- ci ^. #params]
+  params' <- sequence [convertExpr p | p <- ci ^. #params]
 
   let mname = target ^? #_CallFunc . #name
   funcDefs <- use #knownFuncs
-  let outStores = getOutStores mname funcDefs params
+  let outStores = getOutStores mname funcDefs params'
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get
   -- actual size. This is done below when handling the case for a return value.
   let callExpr = Expression (toPilOpSize $ ci ^. #size) . Pil.CALL
-                 $ Pil.CallOp target mname params
+                 $ Pil.CallOp target mname params'
   case ci ^. #outputDest of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
-    [] -> return $ Call (CallOp target mname params) : outStores
-    (dest : _) -> do
-      dest' <- convertToPilVarAndLog dest
+    [] -> return $ Call (CallOp target mname params') : outStores
+    (dest' : _) -> do
+      dest'' <- convertToPilVarAndLog dest'
           -- TODO: Make this safe. We currently bail if there's no type provided.
           --       Change MediumLevelILInsutrction._size to be Maybe OperationSize
-      let resultSize = dest ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
+      let resultSize = dest' ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
           opSize = typeWidthToOperationSize resultSize
-      return $ Def (DefOp dest' (callExpr & #size .~ opSize)) : outStores
+      return $ Def (DefOp dest'' (callExpr & #size .~ opSize)) : outStores
   where
     getOutStores :: Maybe Text -> HashMap Text Func.FuncInfo -> [Expression] -> [Stmt]
     getOutStores mname funcInfos args =

@@ -1,3 +1,5 @@
+{- HLINT ignore "Reduce duplication" -}
+
 module Blaze.Cfg.Analysis where
 
 import qualified Blaze.Graph as G

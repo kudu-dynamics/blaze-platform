@@ -170,7 +170,7 @@ getRetExprs cfg =
 evalCondition :: BranchCondOp Expression -> Maybe Bool
 evalCondition bn = case bn ^. #cond . #op of
   Pil.CONST_BOOL x -> Just $ x ^. #constant
-  Pil.CONST x -> Just . not . (== 0) $ x ^. #constant
+  Pil.CONST x -> Just . (/= 0) $ x ^. #constant
   Pil.CMP_E x -> intBinOp x (==)
   Pil.CMP_NE x -> intBinOp x (/=)
   Pil.CMP_SGE x -> intBinOp x (>=)

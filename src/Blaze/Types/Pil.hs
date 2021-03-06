@@ -280,8 +280,8 @@ mkCallStatement :: Stmt -> Maybe CallStatement
 mkCallStatement stmt' = case stmt' of
   Call callOp' ->
     Just $ CallStatement stmt' callOp' (callOp' ^. #params) Nothing
-  Def (DefOp resultVar (Expression _sz (CALL callOp'))) ->
-    Just $ CallStatement stmt' callOp' (callOp' ^. #params) (Just resultVar)
+  Def (DefOp resultVar' (Expression _sz (CALL callOp'))) ->
+    Just $ CallStatement stmt' callOp' (callOp' ^. #params) (Just resultVar')
   _ ->
     Nothing
 
