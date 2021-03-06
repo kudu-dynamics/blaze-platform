@@ -96,6 +96,23 @@ executables:
       - base
       - binja-header-cleaner
 
+  gen-mlil-op-modules:
+    main: Main.hs
+    source-dirs: app/gen-mlil-op-modules
+    ghc-options:
+      - -Wall
+      - -Wincomplete-record-updates
+      - -Wincomplete-uni-patterns
+      - -Wredundant-constraints
+      - -j
+    dependencies:
+      - base
+      - binja-header-cleaner
+      - filepath
+      - directory
+      - text
+
+
 include-dirs:
   - "src"
 
