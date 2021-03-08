@@ -55,7 +55,6 @@ module Blaze.Import.Source.BinaryNinja.Pil.Path where
 --   #ctxMaxIdx %= incIndex
 --   i <- use #ctxMaxIdx
 --   outerCtx <- use #ctx
-  
 --   let innerCtx = newCtx i outerCtx
 --   #ctx .= innerCtx
 --   pushCtx innerCtx
@@ -94,7 +93,7 @@ module Blaze.Import.Source.BinaryNinja.Pil.Path where
 --   stack <- use #ctxStack
 --   return $ headMay . NE.tail $ stack
 
--- convertBinjaFunc :: Function -> Converter Func.Function
+-- convertBinjaFunc :: Function -> Converter CG.Function
 -- convertBinjaFunc func' = do
 --   bv <- use #binaryView
 --   liftIO $ BNCG.convertFunction bv func'
@@ -123,7 +122,7 @@ module Blaze.Import.Source.BinaryNinja.Pil.Path where
 -- -- TODO: Check this earlier in the conversion process? 
 -- getCallDestFunc :: CallSite -> Function
 -- getCallDestFunc x = case x ^. #callDest of
---   (Pil.CallFunc f) -> f
+--   (Func.DestFunc f) -> f
 --   _ -> error "Only calls to known functions may be expanded."
 
 -- defSymbol :: Pil.Symbol -> Pil.Expression -> Converter Stmt
@@ -145,13 +144,13 @@ module Blaze.Import.Source.BinaryNinja.Pil.Path where
 
 -- convertCallNode :: CallNode -> Converter [Stmt]
 -- convertCallNode n = do
---   let destFunc = n ^. #callSite . #callDest . #_CallFunc
+--   let destFunc = getCallDestFunc $ n ^. #callSite
 --       callInstr = n ^. (#callSite . #callInstr)
 --   -- The argument expressions should be converted in the caller's context.
 --   -- Convert before entering the new callee's context.
---   -- cgDestFunc <- convertBinjaFunc destFunc
+--   cgDestFunc <- convertBinjaFunc destFunc
 --   argExprs <- traverse Pil.convertExpr (callInstr ^. #params)
---   enterNewCtx destFunc
+--   enterNewCtx cgDestFunc
 --   ctx <- use #ctx
 --   params <- liftIO $ BNFunc.getFunctionParameterVariables destFunc
 --   let paramSyms = createParamSymbol 0 <$> params

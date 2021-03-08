@@ -30,8 +30,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
 import qualified Blaze.Cfg as Cfg
 
-import Blaze.Types.Graph (LEdge)
-
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
 
@@ -448,9 +446,41 @@ instance Pretty (LeaveFuncNode a) where
 instance Pretty BranchType where
   pretty = show
 
-instance Pretty (LEdge BranchType PilNode) where
-  pretty (branchType, (srcNode, dstNode)) =
-    pretty srcNode <> " -- " <> show branchType <> " -> " <> pretty dstNode
+--- Path
+-- instance Pretty Path.Node where
+--   pretty (Path.SubBlock x) =
+--     bracket (pretty (x ^. #start) <> "-" <> pretty (x ^. #end - 1)) <> " : SubBlock"
+--   pretty (Path.Call x) =
+--     "-------Expanding call: " <> pretty (x ^. #callSite)
+--   pretty (Path.Ret x) =
+--     "-------Returning to " <> pretty (x ^. #func) <> " from " <> pretty (x ^. #callSite . #callDest)
+--   pretty (Path.AbstractCall x) = pretty x
+--   pretty (Path.AbstractPath _) = "AbstractPath"
+--   pretty (Path.Condition x) =
+--     "Condition: " <> bool "NOT " "" (x ^. #trueOrFalseBranch)
+--     <> pretty (x ^. #condition)
+
+-- instance Pretty Path.AbstractCallNode where
+--   pretty x = bracket (pretty $ x ^. #callSite . #callInstr . #index)
+--     <> " : "
+--     <> pretty (x ^. #callSite)
+
+
+--- AlgaPath
+-- instance Pretty AlgaPath.AlgaPath where
+--   pretty p = case uncons (Path.toList p) of
+--     Nothing -> ""
+--     Just (x, xs) ->
+--       "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
+--         <> f (x : xs)
+--     where
+--       f [] = ""
+--       f (x : xs) = pretty x <> "\n" <> f xs
+
+-- instance Pretty (AlgaGraph () Func.Function) where
+--   pretty = asMultilineList . fmap (ptup . snd) . G.edges
+--     where
+--       ptup (a, b) = paren $ pretty a <-> "->" <-> pretty b
 
 prettyStmts :: (MonadIO m, Pretty a) => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts
