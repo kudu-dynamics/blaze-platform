@@ -4,7 +4,7 @@ module Blaze.Types.VTable where
   
 
 import Binja.Core (BNBinaryReader, BNBinaryView)
-import Blaze.CallGraph (Function)
+import Blaze.Function (Function)
 import Blaze.Prelude
 
 type Ctx = ReaderT VTContext IO

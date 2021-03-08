@@ -14,13 +14,9 @@ import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas, asMultilineList)
-import qualified Blaze.Types.Path.AlgaPath as AlgaPath
-import qualified Blaze.Types.Path as Path
+import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as Func
-import qualified Blaze.Types.Graph as G
-import Blaze.Types.Graph.Alga (AlgaGraph)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -31,6 +27,8 @@ import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
 
 import qualified Data.HashMap.Strict as HashMap
+import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
+import qualified Blaze.Cfg as Cfg
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -103,7 +101,7 @@ instance Pretty Pil.OperationSize where
 
 instance Pretty a => Pretty (Pil.CallDest a) where
   pretty dest = case dest of
-    (Pil.CallConstPtr ptr) -> show (ptr ^. #constant)
+    (Pil.CallAddr addr) -> show addr
     (Pil.CallExpr e) -> pretty e
     (Pil.CallExprs es) -> show $ fmap pretty es
     (Pil.CallFunc fn) -> pretty fn
@@ -329,22 +327,28 @@ instance (Pretty a, Pretty b) => Pretty (HashMap a b) where
 
 instance Pretty a => Pretty (Pil.Statement a) where
   pretty stmt = case stmt of
-    (Pil.Def x) -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
-    (Pil.Constraint x) -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
-    (Pil.Store x) -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
+    Pil.Def x -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
+    Pil.Constraint x -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
+    Pil.Store x -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
     Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> t <> "\")"
-    (Pil.UnimplMem x) -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
+    Pil.UnimplMem x -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
     Pil.Undef -> "Undefined"
     Pil.Nop -> "Nop"
-    (Pil.Annotation t) -> "Annotation: " <> t
-    (Pil.EnterContext x) -> "----> Entering " <> pretty (x ^. #ctx)
-    (Pil.ExitContext x) -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
-    (Pil.Call x) -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
-    (Pil.DefPhi x) -> Text.pack $ printf "%s = %s"
+    Pil.Annotation t -> "Annotation: " <> t
+    Pil.EnterContext x -> "----> Entering " <> pretty (x ^. #ctx)
+    Pil.ExitContext x -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
+    Pil.Call x -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
+    Pil.DefPhi x -> Text.pack $ printf "%s = %s"
                       (pretty $ x ^. #dest)
                       (asList . fmap pretty $ x ^. #src)
-    (Pil.BranchCond x) -> "Branch cond: " <> pretty (x ^. #cond)
+    Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
+    Pil.Ret x -> "Ret " <> pretty (x ^. #value)
+    Pil.Exit -> "Exit"
+    Pil.TailCall x -> "Tail call | " <> pretty (x ^. #dest) <> "(" <> pretty (x ^. #args) <> ")"
 
+instance Pretty Pil.CallSite where
+  pretty x = pretty (x ^. #caller) <> " -> "
+             <> pretty (x ^. #callDest)
 
 newtype PStmts a = PStmts [Pil.Statement a]
 
@@ -366,6 +370,9 @@ instance Pretty Pil.StackOffset where
     "stackOffset"
       <-> show (x ^. #offset)
       <-> paren (pretty (x ^. #ctx))
+
+instance Pretty Pil.StmtIndex where
+  pretty x = show x
 
 instance Pretty t => Pretty (PI.PilType t) where
   pretty = \case
@@ -391,9 +398,6 @@ instance Pretty t => Pretty (PI.PilType t) where
     PI.TVSign b -> if b then "Signed" else "Unsigned"
 
 --- CallGraph
-instance Pretty Cg.Function where
-  pretty (Cg.Function _ name _addr) = name -- <> "@" <> showHex addr
-
 instance Pretty Cg.CallDest where
   pretty (Cg.DestFunc x) = pretty x
 
@@ -403,57 +407,80 @@ instance Pretty Cg.CallSite where
       <> "@" <> pretty (x ^. #address)
       <> " -> " <> pretty (x ^. #dest)
 
-
 --- Function
-instance Pretty Func.DestCollOpt where
-  pretty (Func.DestCollAddr x) = pretty x
-  pretty (Func.DestCollExpr x) = pretty x
+instance Pretty Func.Function where
+  pretty (Func.Function _ name _addr _) = name -- <> "@" <> showHex addr
 
-instance Pretty Func.CallDest where
-  pretty (Func.DestAddr x) = pretty x
-  pretty (Func.DestFunc x) = pretty x
-  pretty (Func.DestExpr x) = pretty x
-  pretty (Func.DestColl x) = pretty x
+--- CFG
+instance Pretty PilNode where
+  pretty = \case
+    BasicBlock n -> pretty n
+    Call n -> pretty n
+    EnterFunc n -> pretty n
+    LeaveFunc n -> pretty n
 
-instance Pretty Func.CallSite where
-  pretty x = pretty (x ^. #caller) <> " -> "
-             <> pretty (x ^. #callDest)
+instance Pretty PilEdge where
+  pretty edge =
+    pretty (edge ^. #src) 
+      <> " ---> " <> pretty (edge ^. #dst) 
+      <> "  |" <> pretty (edge ^. #branchType) <> "|"
+
+instance Pretty (BasicBlockNode a) where
+  pretty (Cfg.BasicBlockNode f start end _) =
+    pretty f
+      <> "@[" <> pretty start <> ", " <> pretty end <> "]"
+
+instance Pretty (CallNode a) where
+  pretty (Cfg.CallNode f start _) =
+    pretty f
+      <> "@" <> pretty start
+
+instance Pretty (EnterFuncNode a) where
+  pretty (Cfg.EnterFuncNode prevCtx nextCtx _) =
+    "EnterFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
+
+instance Pretty (LeaveFuncNode a) where
+  pretty (Cfg.LeaveFuncNode prevCtx nextCtx _) =
+    "LeaveFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
+
+instance Pretty BranchType where
+  pretty = show
 
 --- Path
-instance Pretty Path.Node where
-  pretty (Path.SubBlock x) =
-    Path.brack (pretty (x ^. #start) <> "-" <> pretty (x ^. #end - 1)) <> " : SubBlock"
-  pretty (Path.Call x) =
-    "-------Expanding call: " <> pretty (x ^. #callSite)
-  pretty (Path.Ret x) =
-    "-------Returning to " <> pretty (x ^. #func) <> " from " <> pretty (x ^. #callSite . #callDest)
-  pretty (Path.AbstractCall x) = pretty x
-  pretty (Path.AbstractPath _) = "AbstractPath"
-  pretty (Path.Condition x) =
-    "Condition: " <> bool "NOT " "" (x ^. #trueOrFalseBranch)
-    <> pretty (x ^. #condition)
+-- instance Pretty Path.Node where
+--   pretty (Path.SubBlock x) =
+--     bracket (pretty (x ^. #start) <> "-" <> pretty (x ^. #end - 1)) <> " : SubBlock"
+--   pretty (Path.Call x) =
+--     "-------Expanding call: " <> pretty (x ^. #callSite)
+--   pretty (Path.Ret x) =
+--     "-------Returning to " <> pretty (x ^. #func) <> " from " <> pretty (x ^. #callSite . #callDest)
+--   pretty (Path.AbstractCall x) = pretty x
+--   pretty (Path.AbstractPath _) = "AbstractPath"
+--   pretty (Path.Condition x) =
+--     "Condition: " <> bool "NOT " "" (x ^. #trueOrFalseBranch)
+--     <> pretty (x ^. #condition)
 
-instance Pretty Path.AbstractCallNode where
-  pretty x = Path.brack (pretty $ x ^. #callSite . #callInstr . #index)
-    <> " : "
-    <> pretty (x ^. #callSite)
+-- instance Pretty Path.AbstractCallNode where
+--   pretty x = bracket (pretty $ x ^. #callSite . #callInstr . #index)
+--     <> " : "
+--     <> pretty (x ^. #callSite)
 
 
 --- AlgaPath
-instance Pretty AlgaPath.AlgaPath where
-  pretty p = case uncons (Path.toList p) of
-    Nothing -> ""
-    Just (x, xs) ->
-      "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
-        <> f (x : xs)
-    where
-      f [] = ""
-      f (x : xs) = pretty x <> "\n" <> f xs
+-- instance Pretty AlgaPath.AlgaPath where
+--   pretty p = case uncons (Path.toList p) of
+--     Nothing -> ""
+--     Just (x, xs) ->
+--       "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
+--         <> f (x : xs)
+--     where
+--       f [] = ""
+--       f (x : xs) = pretty x <> "\n" <> f xs
 
-instance Pretty (AlgaGraph () Cg.Function) where
-  pretty = asMultilineList . fmap (ptup . snd) . G.edges
-    where
-      ptup (a, b) = paren $ pretty a <-> "->" <-> pretty b
+-- instance Pretty (AlgaGraph () Func.Function) where
+--   pretty = asMultilineList . fmap (ptup . snd) . G.edges
+--     where
+--       ptup (a, b) = paren $ pretty a <-> "->" <-> pretty b
 
 prettyStmts :: (MonadIO m, Pretty a) => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts

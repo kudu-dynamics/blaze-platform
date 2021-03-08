@@ -1,15 +1,14 @@
 module Blaze.Pil.Function where
 
 import Blaze.Prelude
-import Blaze.Types.Pil (CallOp)
-import Blaze.Types.Pil.Function (
-  CallTarget (CallTarget),
-  FuncRef (FuncRef),
-  Function,
+import Blaze.Types.Pil (
+  CallOp,
+  CallTarget (CallTarget, dest, numArgs),
+  FuncRef (FuncRef, name, hasResult, params, start, varparam),
+  FunctionInfo,
  )
-import qualified Blaze.Types.Pil.Function as Func
 
-funcRefFromFunc :: Function -> FuncRef
+funcRefFromFunc :: FunctionInfo -> FuncRef
 funcRefFromFunc func =
   FuncRef
     { name = func ^. #name

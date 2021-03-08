@@ -7,13 +7,13 @@ import Blaze.Prelude hiding (empty)
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Path
+import Blaze.Types.Path (Path, PathGraph, Node)
 import qualified Blaze.Types.Path as Path
 import qualified Prelude as P
 
-newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () Node))
+newtype AlgaPath = AlgaPath (PathGraph (AlgaGraph () () Node))
   deriving Ord
-  deriving newtype (Graph () Node, Path)
+  deriving newtype (Graph () () Node, Path)
 
 -- converts to list because for some reason two identical graphs aren't equal
 -- TODO: this is bad, because toList is slow for AlgaPath

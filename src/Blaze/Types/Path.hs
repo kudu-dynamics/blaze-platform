@@ -6,7 +6,7 @@ import Binja.Core (InstructionIndex)
 import Binja.Function (Function, MLILSSAFunction)
 import qualified Binja.MLIL as MLIL
 
-import Blaze.Types.Function (CallSite)
+import Blaze.Import.Source.BinaryNinja.Types (CallSite)
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
 
@@ -58,7 +58,7 @@ mkLastIsAbstractCall p = do
 newtype PathGraph g = PathGraph g
   deriving (Eq, Ord, Show, Generic)
 
-deriving newtype instance (Graph () Node g) => Graph () Node (PathGraph g)
+deriving newtype instance (Graph () () Node g) => Graph () () Node (PathGraph g)
 
 -- expandAbstractCall :: Path p => AbstractCallNode -> p -> p -> p
 -- expandAbstractCall = expandAbstractCall_ True
@@ -123,19 +123,6 @@ data AbstractCallNode = AbstractCallNode
   , uuid :: UUID
   } deriving (Eq, Ord, Show, Generic)
 
-
-paren :: Text -> Text
-paren t = "(" <> t <> ")"
-
-brack :: Text -> Text
-brack t = "[" <> t <> "]"
-
-quote :: Text -> Text
-quote t = "\"" <> t <> "\""
-
-quote' :: Text -> Text
-quote' t = "'" <> t <> "'"
-
 getNodeFunc :: Node -> Function
 getNodeFunc (SubBlock x) = x ^. #func
 getNodeFunc (Call x) = x ^. #func
@@ -150,7 +137,7 @@ callTwaddle = 999
 retTwaddle :: Word32
 retTwaddle = 500
 
-instance (Graph () Node g) => Path (PathGraph g) where
+instance (Graph () () Node g) => Path (PathGraph g) where
   toList g = case firstNode g of
     Nothing -> []
     Just x -> x : getRest (succ x g)
@@ -226,14 +213,10 @@ instance (Graph () Node g) => Path (PathGraph g) where
       ppart = insertableFullPath ip
       ppartList = toList ppart
       ppartEdges = zip ppartList (drop 1 ppartList)
-
-  
-
-
+      
   contains = G.hasNode
 
   -- snipAfter n p = maybe G.empty identity $ do
 
 startFunction :: Path p => p -> Maybe Function
 startFunction p = getNodeFunc <$> firstNode p
-

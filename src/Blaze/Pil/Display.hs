@@ -5,7 +5,7 @@ import qualified Binja.MLIL
 import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
-import qualified Blaze.Types.CallGraph as CG
+import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (OperationSize)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
@@ -113,7 +113,7 @@ instance Disp Pil.OperationSize where
 
 instance Disp a => Disp (Pil.CallDest a) where
   disp dest = case dest of
-    (Pil.CallConstPtr ptr) -> show (ptr ^. #constant)
+    (Pil.CallAddr addr) -> show addr
     (Pil.CallExpr e) -> disp e
     (Pil.CallExprs es) -> show $ fmap disp es
     (Pil.CallFunc fn) -> disp fn
@@ -172,6 +172,17 @@ instance Disp a => Disp (Pil.Statement a) where
       where
         var = disp $ op ^. #dest
         val = asList . fmap disp $ op ^. #src
+    (Pil.Ret op) -> "Ret" <-> paren (disp $ op ^. #value)
+    Pil.Exit -> "Exit"
+    (Pil.TailCall op) -> case op ^. #name of
+      (Just name) -> Text.pack $ printf "Tailcall (%s) %s" name args
+      Nothing -> Text.pack $ printf "Tailcall (Nothing) (%s) %s" dest args
+      where
+        dest = disp $ op ^. #dest
+        args :: Text
+        args = show $ fmap disp $ op ^. #args
+
+
 
 dispExprOp :: Disp a => Pil.ExprOp a -> Pil.OperationSize -> Text
 dispExprOp exprOp size = case exprOp of
@@ -284,6 +295,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
   (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. #src)) (op ^. #offset)
 
+
 instance Disp Pil.Expression where
   disp (Pil.Expression size exprOp) = dispExprOp exprOp size
 
@@ -302,7 +314,7 @@ instance Disp Pil.StackOffset where
     <-> paren (disp (x ^. #ctx))
 
 
-instance Disp CG.Function where
+instance Disp Function where
   disp f = Text.pack $ printf "func \"%s\" %s" name start
     where
       name = f ^. #name

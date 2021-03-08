@@ -13,7 +13,7 @@ import Blaze.Import.Pil (PilImporter (..))
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as CallGraph
 import qualified Blaze.Import.Source.BinaryNinja.Cfg as Cfg
 import qualified Blaze.Import.Source.BinaryNinja.Pil as PilImp
-import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
+-- import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
 import Blaze.Import.Source.BinaryNinja.Types as Exports
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
@@ -41,13 +41,13 @@ instance CallGraphImporter BNImporter where
   getCallSites imp = CallGraph.getCallSites (imp ^. #binaryView)
 
 instance CfgImporter BNImporterAlt where
-  type NodeType BNImporterAlt = NonEmpty MlilSsaInstruction
+  type NodeDataType BNImporterAlt = NonEmpty MlilSsaInstruction
   type NodeMapType BNImporterAlt = MlilNodeRefMap
   getCfg imp = Cfg.getCfgAlt (imp ^. #bnImporter . #binaryView)
 
 instance CfgImporter BNImporter where
-  type NodeType BNImporter = [Stmt]
-  type NodeMapType BNImporter = PilNodeMap
+  type NodeDataType BNImporter = [Stmt]
+  type NodeMapType BNImporter = PilMlilNodeMap
   getCfg imp = Cfg.getCfg imp (imp ^. #binaryView)
 
 instance PilImporter BNImporter where
@@ -55,10 +55,11 @@ instance PilImporter BNImporter where
   getFuncStatements imp =
     PilImp.getFuncStatements (imp ^. #binaryView)
 
-  getPathStatements imp =
-    Path.convertPath (imp ^. #binaryView)
+  getPathStatements _imp =
+    -- Path.convertPath (imp ^. #binaryView)
+    error "Not supported."
 
-  getCodeRefStatements imp codeRef = do
+  getCodeRefStatements imp ctxIndex' codeRef = do
     let fn = codeRef ^. #function
         funcAddr = fn ^. #address
     mBnFunc <- BnFunc.getFunctionStartingAt bv Nothing funcAddr
@@ -73,6 +74,7 @@ instance PilImporter BNImporter where
         let convSt =
               PilImp.mkConverterState
                 bv
+                ctxIndex'
                 Pil.knownFuncDefs
                 addrWidth
                 fn

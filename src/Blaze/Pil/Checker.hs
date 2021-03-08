@@ -2,15 +2,11 @@
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import Blaze.Types.Pil ( Expression
-                       , Statement
-                       , PilVar
-                       )
+import Blaze.Types.Pil ( Expression, Statement, PilVar, FuncVar )
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker
-import Blaze.Types.Pil.Function (FuncVar)
 import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Analysis ( originMapToGroupMap )
@@ -69,7 +65,7 @@ addAllConstraints ::
     ( [Statement SymExpression],
       ConstraintGenState
     )
-addAllConstraints indexedStmts = 
+addAllConstraints indexedStmts =
   fmap (, gst) er
   where
     er :: Either ConstraintGenError [Statement SymExpression]
@@ -165,6 +161,6 @@ removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmt
 --       below where we split a [(Int, Stmt)] to process all [Stmt] and then
 --       reassemble.
 checkFunction :: [(Int, Pil.Stmt)] -> Either ConstraintGenError TypeReport
-checkFunction funcStmts = 
+checkFunction funcStmts =
   checkIndexedStmts . removeUnusedPhi $
     zip (fmap fst funcStmts) (Analysis.substAddrs $ fmap snd funcStmts)

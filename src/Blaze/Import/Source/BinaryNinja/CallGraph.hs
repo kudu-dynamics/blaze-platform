@@ -1,24 +1,30 @@
 module Blaze.Import.Source.BinaryNinja.CallGraph where
-  
-import qualified Binja.Core as Binja
+
 import Binja.Core (BNBinaryView, BNSymbol)
-import qualified Binja.Function as BNFunc
+import qualified Binja.Core as Binja
+import qualified Binja.Function as BnFunc
 import qualified Binja.MLIL as Mlil
 import qualified Binja.Reference as Ref
+import qualified Binja.Variable as BnVar
 import qualified Binja.View
-import Blaze.Types.Function (CallInstruction, toCallInstruction)
+import qualified Blaze.Types.Function as Func
+import Blaze.Import.Source.BinaryNinja.Types hiding (callInstr, caller, address, params, CallSite)
 import Blaze.Prelude hiding (Symbol)
+import Blaze.Types.CallGraph (
+  CallSite (
+    CallSite
+  ),
+ )
 import qualified Blaze.Types.CallGraph as CG
-import Blaze.Types.CallGraph
-  ( CallSite
-      ( CallSite
-      ),
-  )
+import Blaze.Types.Function (
+  Function,
+  FuncParamInfo (FuncParamInfo, FuncVarArgInfo),
+  ParamInfo (ParamInfo),
+ )
 import Control.Monad.Extra (mapMaybeM)
 import Data.BinaryAnalysis (Symbol (Symbol, _symbolName, _symbolRawName))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Blaze.Import.Source.BinaryNinja.Types
 
 -- TODO: Have a proper Symbol type in BN bindings with fields already populated
 --       so that IO is not needed here
@@ -35,29 +41,48 @@ convertSymbol mbns = case mbns of
           }
   Nothing -> return Nothing
 
-toBinjaFunction :: BNBinaryView -> CG.Function -> IO (Maybe BNFunc.Function)
+toBinjaFunction :: BNBinaryView -> Function -> IO (Maybe BnFunc.Function)
 toBinjaFunction bv cgFunc =
-  BNFunc.getFunctionStartingAt bv Nothing (cgFunc ^. #address)
+  BnFunc.getFunctionStartingAt bv Nothing (cgFunc ^. #address)
 
-convertFunction :: BNBinaryView -> BNFunc.Function -> IO CG.Function
+convertFunction :: BNBinaryView -> BnFunc.Function -> IO Function
 convertFunction bv bnf = do
-  let name = bnf ^. BNFunc.name
-      address = bnf ^. BNFunc.start
+  let name = bnf ^. BnFunc.name
+      address = bnf ^. BnFunc.start
   symbol <- convertSymbol =<< Binja.View.getSymbolAtAddress bv address Nothing
+  bnParams <- BnFunc.getFunctionParameterVariables bnf
+  hasVarArgs <- BnVar._value <$> BnFunc.hasVariableArguments bnf
+  -- Append "#0" as we are importing MLIL SSA vars with versions embedded in the name,
+  -- but BN uses the Variable (rather than SSAVariable) to refer to the parameters.
+  let params =
+        if hasVarArgs
+          then
+            let posParams =
+                  fmap (FuncParamInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name)
+                    <$> initMay bnParams
+                varArgParam =
+                  FuncVarArgInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name
+                    <$> lastMay bnParams
+             in fromMaybe [] (fmap (++) posParams <*> sequence [varArgParam])
+          else
+            FuncParamInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name
+              <$> bnParams
+  -- varParam = FuncParamInfo (ParamInfo )
   return
-    CG.Function
+    Func.Function
       { symbol = symbol
       , name = name
       , address = address
+      , params = params
       }
 
-getCallInstruction :: BNFunc.Function -> Ref.ReferenceSource -> IO (Maybe CallInstruction)
+getCallInstruction :: BnFunc.Function -> Ref.ReferenceSource -> IO (Maybe CallInstruction)
 getCallInstruction caller ref = do
-  llilFunc <- BNFunc.getLLILFunction caller
+  llilFunc <- BnFunc.getLLILFunction caller
   llilIndex <- Binja.getLLILInstructionIndexAtAddress caller (ref ^. Ref.arch) (ref ^. Ref.addr)
   mlilIndex <- Mlil.getMLILFromLLIL llilFunc llilIndex
-  mlilFunc <- BNFunc.getMLILFunction caller
-  mlilSSAFunc <- BNFunc.getMLILSSAFunction caller
+  mlilFunc <- BnFunc.getMLILFunction caller
+  mlilSSAFunc <- BnFunc.getMLILSSAFunction caller
   mlilSSAIndex <- Mlil.getMLILSSSAFromMLIL mlilFunc mlilIndex
   toCallInstruction <$> Mlil.instruction mlilSSAFunc mlilSSAIndex
 
@@ -70,7 +95,7 @@ getCallDestAddr ci =
         _ -> Nothing
     _ -> Nothing
 
-createCallSite :: BNBinaryView -> BNFunc.Function -> CallInstruction -> IO (Maybe CallSite)
+createCallSite :: BNBinaryView -> BnFunc.Function -> CallInstruction -> IO (Maybe CallSite)
 createCallSite bv bnCaller callInstr = do
   caller <- convertFunction bv bnCaller
   let instrAddr = callInstr ^. #address
@@ -78,42 +103,41 @@ createCallSite bv bnCaller callInstr = do
   case mDestAddr of
     Nothing -> return Nothing
     Just addr -> do
-      mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing addr
+      mBnFunc <- BnFunc.getFunctionStartingAt bv Nothing addr
       case mBnFunc of
         Nothing -> return Nothing
         Just bnFunc -> do
           callee <- convertFunction bv bnFunc
           return $
             Just
-              (CallSite
-                 { caller = caller
-                 , address = instrAddr
-                 , dest = CG.DestFunc callee
-                 })
+              ( CallSite
+                  { caller = caller
+                  , address = instrAddr
+                  , dest = CG.DestFunc callee
+                  }
+              )
 
-getFunction :: BNBinaryView -> Address -> IO (Maybe CG.Function)
+getFunction :: BNBinaryView -> Address -> IO (Maybe Function)
 getFunction bv addr = do
-  func' <- BNFunc.getFunctionStartingAt bv Nothing addr :: IO (Maybe BNFunc.Function)
+  func' <- BnFunc.getFunctionStartingAt bv Nothing addr :: IO (Maybe BnFunc.Function)
   traverse (convertFunction bv) func'
 
-getFunctions :: BNBinaryView -> IO [CG.Function]
-getFunctions bv = BNFunc.getFunctions bv >>= traverse (convertFunction bv)
+getFunctions :: BNBinaryView -> IO [Function]
+getFunctions bv = BnFunc.getFunctions bv >>= traverse (convertFunction bv)
 
-getCallSites :: BNBinaryView -> CG.Function -> IO [CallSite]
+getCallSites :: BNBinaryView -> Function -> IO [CallSite]
 getCallSites bv func' = do
   refs <- Ref.getCodeReferences bv (func' ^. #address)
   concatMapM getCallSites' refs
-  where
-    getMaybeCallerAndInstr :: BNFunc.Function -> Maybe CallInstruction -> Maybe (BNFunc.Function, CallInstruction)
-    getMaybeCallerAndInstr bnFunc maybeInstr = (,) <$> Just bnFunc <*> maybeInstr
+ where
+  getMaybeCallerAndInstr :: BnFunc.Function -> Maybe CallInstruction -> Maybe (BnFunc.Function, CallInstruction)
+  getMaybeCallerAndInstr bnFunc maybeInstr = (,) <$> Just bnFunc <*> maybeInstr
 
-    getCallSites' :: Ref.ReferenceSource -> IO [CG.CallSite]
-    getCallSites' ref = do
-      callers <- Set.toList <$> Binja.getFunctionsContaining bv (ref ^. Ref.addr)
-      mCallInstrs <- mapM (`getCallInstruction` ref) callers
-      -- TODO: Is there a better way to link non-Nothing callers and call instructions?
-      --       Right now we're fmap'ing a tuple constructor over them. This seems excessive.
-      let callSiteArgs = catMaybes $ uncurry getMaybeCallerAndInstr <$> zip callers mCallInstrs
-      mapMaybeM (uncurry $ createCallSite bv) callSiteArgs
-
-  
+  getCallSites' :: Ref.ReferenceSource -> IO [CG.CallSite]
+  getCallSites' ref = do
+    callers <- Set.toList <$> Binja.getFunctionsContaining bv (ref ^. Ref.addr)
+    mCallInstrs <- mapM (`getCallInstruction` ref) callers
+    -- TODO: Is there a better way to link non-Nothing callers and call instructions?
+    --       Right now we're fmap'ing a tuple constructor over them. This seems excessive.
+    let callSiteArgs = catMaybes $ uncurry getMaybeCallerAndInstr <$> zip callers mCallInstrs
+    mapMaybeM (uncurry $ createCallSite bv) callSiteArgs
