@@ -94,13 +94,6 @@ getNextCtxIndex = do
   #nextId %= (+ 1)
   return ctxIndex
 
--- getTargetFunc :: PilCallNode -> (Function -> IO (Maybe (ImportResult PilCfg a))) -> IO (Maybe PilCfg)
--- getTargetCfg callNode getCfg = do
---   callStmt <- lift $ getCallStmt callNode
---   targetFunc <- getCallTarget callStmt
---   ImportResult targetCfg _ <- getCfg targetFunc
---   return targetCfg
-
 {- | Expand a call by substituting a call node with the CFG corresponding to the
  call destination.
 -}
