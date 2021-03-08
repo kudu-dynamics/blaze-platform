@@ -172,13 +172,6 @@ substNode
     succEdges = filter (\(_, (source, _)) -> source == node) $ G.edges outerGraph
     newPredEdges :: [LEdge BranchType PilNode]
     newPredEdges = set (_2 . _2) innerRoot <$> predEdges
-    -- retNodes :: [ReturnNode [Stmt]]
-    -- retNodes = getRetNodes innerCfg
-    -- newSuccEdges :: [LEdge BranchType PilNode]
-    -- newSuccEdges = 
-    --   concatMap 
-    --     (\retNode -> set (_2 . _1) (BasicBlock $ retNode ^. #basicBlock) <$> succEdges) 
-    --     retNodes
     newSuccEdges :: [LEdge BranchType PilNode]
     newSuccEdges = set (_2 . _1) exitNode <$> succEdges
     graph_ :: ControlFlowGraph [Stmt]
@@ -188,11 +181,3 @@ substNode
       . G.addEdges (G.edges innerGraph) 
       . G.addEdges newPredEdges
       . G.addEdges newSuccEdges $ outerGraph
-
--- deriveEdges ::
---   ControlFlowGraph [Stmt] ->
---   PilNode ->
---   PilNode ->
---   [PilNode] ->
---   [(BranchType, (PilNode, PilNode))]
--- deriveEdges graph oldNode newNode
