@@ -88,12 +88,6 @@ generateVars ctx baseName id (expr : rest) =
   (PilVar (baseName <> show id) (Just ctx), expr) : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 
-getNextCtxIndex :: Builder a CtxIndex
-getNextCtxIndex = do
-  ctxIndex <- use #nextId
-  #nextId %= (+ 1)
-  return ctxIndex
-
 {- | Expand a call by substituting a call node with the CFG corresponding to the
  call destination.
 -}
@@ -105,7 +99,6 @@ expandCall ::
   Builder a (Maybe InterCfg)
 expandCall callerCtx calleeCtx icfg callNode = do
   getCfg_ <- use #getCfg
-  -- ctxIndex <- getNextCtxIndex
   case getCallStmt callNode of
     Just callStmt ->
       -- TODO: CallNode should provide the call statement from a record field

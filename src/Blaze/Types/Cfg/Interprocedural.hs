@@ -27,12 +27,9 @@ newtype Builder a b = Builder
 -- TODO: Consider replacing CtxIndex with UUID
 data BuilderState a = BuilderState
   {
-  -- | Track an ID used for creating contexts
-  -- (and use for PIL statement contexts?)
-    nextId :: CtxIndex
   -- | Presumably using a CfgImporter instance, provide a import result with a
   -- PIL CFG given a function
-  , getCfg :: CtxIndex -> Function -> IO (Maybe (ImportResult PilCfg a))
+    getCfg :: CtxIndex -> Function -> IO (Maybe (ImportResult PilCfg a))
   -- |A mapping from UUIDs to a map that maps CFG nodes to import source locations
   , importMap :: HashMap CtxIndex a
   }
@@ -43,12 +40,10 @@ mkBuilderState ::
   , NodeDataType a ~ [Stmt]
   , NodeMapType a ~ b) =>
   a ->
-  CtxIndex ->
   BuilderState b
-mkBuilderState imp startId =
+mkBuilderState imp =
   BuilderState 
-    { nextId = startId
-    , getCfg = CfgImp.getCfg imp
+    { getCfg = CfgImp.getCfg imp
     , importMap = HMap.empty}
 
 runBuilder :: Builder a b -> BuilderState a -> IO (b, BuilderState a)
