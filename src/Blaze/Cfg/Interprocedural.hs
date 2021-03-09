@@ -21,7 +21,7 @@ import Blaze.Types.Pil (
   Statement (Def, DefPhi),
   Stmt,
   Symbol,
-  mkCallStatement, CtxIndex
+  mkCallStatement,
  )
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
