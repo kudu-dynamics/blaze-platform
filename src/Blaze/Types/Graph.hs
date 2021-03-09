@@ -6,27 +6,39 @@ import qualified Data.Set as Set
 import qualified Data.Map.Lazy as Map
 import Data.Map.Lazy ((!))
 
-type LEdge label node = (label, (node, node))
+data Edge node = Edge
+  { src :: node
+  , dst :: node
+  } deriving (Eq, Ord, Show, Generic, NFData)
 
-type Edge node = (node, node)
+toTupleEdge :: Edge node -> (node, node)
+toTupleEdge e = (e ^. #src, e ^. #dst)
+
+fromTupleEdge :: (node, node) -> Edge node
+fromTupleEdge (a, b) = Edge a b
+
+data LEdge label node = LEdge
+  { edge :: Edge node
+  , label :: label
+  } deriving (Eq, Ord, Show, Generic, NFData)
 
 -- TODO: Switch to HashSet from Set for type class
 class Graph e attr n g | g -> e attr n where
   empty :: g
   fromNode :: n -> g
-  fromEdges :: [(e, (n, n))] -> g
+  fromEdges :: [LEdge e n] -> g
   succs :: n -> g -> Set n
   preds :: n -> g -> Set n
   nodes :: g -> Set n
-  edges :: g -> [(e, (n, n))]
-  getEdgeLabel :: (n, n) -> g -> Maybe e
-  setEdgeLabel :: e -> (n, n) -> g -> g
+  edges :: g -> [LEdge e n]
+  getEdgeLabel :: Edge n -> g -> Maybe e
+  setEdgeLabel :: e -> Edge n -> g -> g
   getNodeAttr :: n -> g -> Maybe attr
   setNodeAttr :: attr -> n -> g -> g
-  removeEdge :: (n, n) -> g -> g
+  removeEdge :: Edge n -> g -> g
   removeNode :: n -> g -> g
   addNodes :: [n] -> g -> g
-  addEdge :: (e, (n, n)) -> g -> g
+  addEdge :: LEdge e n -> g -> g
   hasNode :: n -> g -> Bool
   transpose :: g -> g
   bfs :: [n] -> g -> [[n]]
@@ -50,8 +62,8 @@ findAllNonRepeatPaths :: (Graph e attr node g, Ord node) => g -> [[node]]
 findAllNonRepeatPaths g 
   | length (nodes g) == 1 = [Set.toList $ nodes g]
   | otherwise = do
-      src <- Set.toList $ sources g
-      findNonRepeatPaths src g
+      src' <- Set.toList $ sources g
+      findNonRepeatPaths src' g
 
 findSimplePaths' :: (Graph e attr n g, Ord n) => Set n -> n -> n -> g -> [[n]]
 findSimplePaths' seen start' end' g = fmap (start':) $ do
@@ -67,9 +79,9 @@ findAllSimplePaths :: (Graph e attr node g, Ord node) => g -> [[node]]
 findAllSimplePaths g 
   | length (nodes g) == 1 = [Set.toList $ nodes g]
   | otherwise = do
-      src <- Set.toList $ sources g
+      src' <- Set.toList $ sources g
       sink <- Set.toList $ sinks g
-      findSimplePaths src sink g
+      findSimplePaths src' sink g
 
 sources :: Graph e attr n g => g -> Set n
 sources g = Set.filter ((== 0) . Set.size . flip preds g) . nodes $ g
@@ -77,10 +89,10 @@ sources g = Set.filter ((== 0) . Set.size . flip preds g) . nodes $ g
 sinks :: Graph e attr n g => g -> Set n
 sinks g = Set.filter ((== 0) . Set.size . flip succs g) . nodes $ g
 
-removeEdges :: Graph e attr n g => [(n, n)] -> g -> g
+removeEdges :: Graph e attr n g => [Edge n] -> g -> g
 removeEdges = flip $ foldr removeEdge
 
-addEdges :: Graph e attr n g => [(e, (n, n))] -> g -> g
+addEdges :: Graph e attr n g => [LEdge e n] -> g -> g
 addEdges = flip $ foldr addEdge
 
 reverseSpan :: Graph e attr n g => g -> Int -> n -> [[n]]

@@ -6,12 +6,12 @@ import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Blaze.Types.Graph
+import Blaze.Types.Graph hiding (edge, label, src, dst)
 import qualified Algebra.Graph.Export.Dot as Dot
 
 data AlgaGraph e attr n = AlgaGraph
   { adjacencyMap :: G.AdjacencyMap n
-  , edgeMap :: Map (n, n) e
+  , edgeMap :: Map (Edge n) e
   , nodeAttrMap :: Map n attr
   } deriving (Generic, Show, Ord, Eq)
 
@@ -24,14 +24,17 @@ instance (Ord n) => Graph e attr n (AlgaGraph e attr n) where
   empty = AlgaGraph G.empty Map.empty Map.empty
   fromNode node = AlgaGraph (G.vertex node) Map.empty Map.empty
   fromEdges ledges = AlgaGraph
-    { adjacencyMap = G.edges . map snd $ ledges
-    , edgeMap = Map.fromList . fmap swap $ ledges
+    { adjacencyMap = G.edges . fmap (toTupleEdge . view #edge) $ ledges
+    , edgeMap = Map.fromList $ (\e -> (e ^. #edge, e ^. #label)) <$> ledges
     , nodeAttrMap = Map.empty
     }
   succs n = G.postSet n . adjacencyMap
   preds n = G.preSet n . adjacencyMap
   nodes = Set.fromList . G.vertexList . adjacencyMap
-  edges g = mapMaybe (\p -> (,p) <$> Map.lookup p (edgeMap g)) . G.edgeList . adjacencyMap $ g
+  edges g = mapMaybe (f . fromTupleEdge) . G.edgeList . adjacencyMap $ g
+    where
+      f e = LEdge e <$> Map.lookup e (edgeMap g)
+
   getEdgeLabel edge = Map.lookup edge . edgeMap
   setEdgeLabel label edge g = g { edgeMap = Map.insert edge label $ edgeMap g }
 
@@ -39,7 +42,7 @@ instance (Ord n) => Graph e attr n (AlgaGraph e attr n) where
   getNodeAttr node = Map.lookup node . nodeAttrMap
   setNodeAttr attr node g = g & #nodeAttrMap %~ Map.insert node attr
 
-  removeEdge e@(n1, n2) g = AlgaGraph
+  removeEdge e@(Edge n1 n2) g = AlgaGraph
     { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
     , edgeMap = Map.delete e $ edgeMap g
     , nodeAttrMap = nodeAttrMap g
@@ -50,18 +53,19 @@ instance (Ord n) => Graph e attr n (AlgaGraph e attr n) where
     , nodeAttrMap = Map.delete n $ nodeAttrMap g
     }
       where
-        edgesToRemove :: [(n, n)]
-        edgesToRemove = ((n, ) <$> Set.toList (succs n g)) 
-          ++ (( ,n) <$> Set.toList (preds n g))
+        edgesToRemove :: [Edge n]
+        edgesToRemove = (Edge n <$> Set.toList (succs n g)) 
+          ++ ((`Edge` n) <$> Set.toList (preds n g))
 
   addNodes ns g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.vertices ns
     , edgeMap = edgeMap g
     , nodeAttrMap = nodeAttrMap g
     }
-  addEdge (e, (n1, n2)) g = AlgaGraph
-    { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge n1 n2
-    , edgeMap = Map.insert (n1, n2) e $ edgeMap g
+
+  addEdge (LEdge e lbl) g = AlgaGraph
+    { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge (e ^. #src) (e ^. #dst)
+    , edgeMap = Map.insert e lbl $ edgeMap g
     , nodeAttrMap = nodeAttrMap g
     }
   hasNode n = G.hasVertex n . adjacencyMap
@@ -76,8 +80,8 @@ instance (Ord n) => Graph e attr n (AlgaGraph e attr n) where
       where
         subgraphAdjMap :: G.AdjacencyMap n
         subgraphAdjMap = G.induce pred (adjacencyMap g)
-        subgraphEdges :: Set (n, n)
-        subgraphEdges = Set.fromList $ G.edgeList subgraphAdjMap
+        subgraphEdges :: Set (Edge n)
+        subgraphEdges = Set.fromList . fmap (uncurry Edge) $ G.edgeList subgraphAdjMap
 
 toDot :: Ord n => (n -> Text) -> AlgaGraph e attr n -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)

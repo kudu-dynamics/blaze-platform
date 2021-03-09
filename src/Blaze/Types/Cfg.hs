@@ -8,6 +8,7 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import Control.Arrow ((&&&))
 import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
 import Blaze.Types.Pil.Common (Ctx)
+import qualified Data.HashMap.Strict as HMap
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
@@ -114,8 +115,8 @@ data CfNode a
   deriving anyclass (Hashable)
 
 data CfEdge a = CfEdge
-  { src :: CfNode a
-  , dst :: CfNode a
+  { src :: a
+  , dst :: a
   , branchType :: BranchType
   }
   deriving (Eq, Ord, Show, Generic)
@@ -142,17 +143,32 @@ newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
 newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a)))
   deriving (Eq, Ord, Show, Generic)
 
+newtype NodeId = NodeId UUID
+  deriving (Eq, Ord, Show, Generic)
+
+genNodeId :: MonadIO m => m NodeId
+genNodeId = NodeId <$> liftIO randomIO
+
 {- | A non-empty graph that consists of a strongly-connected component
  with a single root node (a node with no incoming edges).
  This is intended to be the graph representation of a CFG.
  A user of this API probably wants to work with the 'Cfg' type that
  includes additional information about the CFG.
 -}
-type ControlFlowGraph a = AlgaGraph BranchType a (CfNode a)
+type ControlFlowGraph a = AlgaGraph BranchType (CfNode a) NodeId
+
+-- mkControlFlowGraph :: Ord a => CfNode a ->
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> ControlFlowGraph a
-mkControlFlowGraph root' ns es =
+mkControlFlowGraph :: Ord a => CfNode a -> [CfNode a] -> [CfEdge (CfNode a)] -> IO (ControlFlowGraph a)
+mkControlFlowGraph root' ns es = do
+  nodeUuids <- traverse (\_ -> genNodeId) ns
+  let nodeToIdMap = HMap.fromList $ zip ns nodeUuids
+      idToNodeMap = HMap.fromList $ zip nodeUuids ns
+  
+  let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
+      rootId = getNodeId root'
+      edges' = fmap getNodeId <$> es
   Graph.addNodes (root' : ns) . Graph.fromEdges $
     (view #branchType &&& (view #src &&& view #dst)) <$> es
 
