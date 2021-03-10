@@ -169,7 +169,7 @@ mkControlFlowGraph root' ns es = do
   let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
       rootId = getNodeId root'
       edges' = fmap getNodeId <$> es
-  Graph.addNodes (root' : ns) . Graph.fromEdges $
+  Graph.addNodes (rootId : ns) . Graph.fromEdges $
     (view #branchType &&& (view #src &&& view #dst)) <$> es
 
 -- TODO: Consider removing type parameter once a PIL CFG can be constructed

@@ -11,16 +11,23 @@ data Edge node = Edge
   , dst :: node
   } deriving (Eq, Ord, Show, Generic, NFData)
 
+data LEdge label node = LEdge
+  { edge :: Edge node
+  , label :: label
+  } deriving (Eq, Ord, Show, Generic, NFData)
+
 toTupleEdge :: Edge node -> (node, node)
 toTupleEdge e = (e ^. #src, e ^. #dst)
 
 fromTupleEdge :: (node, node) -> Edge node
 fromTupleEdge (a, b) = Edge a b
 
-data LEdge label node = LEdge
-  { edge :: Edge node
-  , label :: label
-  } deriving (Eq, Ord, Show, Generic, NFData)
+toTupleLEdge :: LEdge label node -> (label, (node, node))
+toTupleLEdge (LEdge e lbl) = (lbl, toTupleEdge e)
+
+fromTupleLEdge :: (label, (node, node)) -> LEdge label node
+fromTupleLEdge (lbl, e) = LEdge (fromTupleEdge e) lbl
+
 
 -- TODO: Switch to HashSet from Set for type class
 class Graph e attr n g | g -> e attr n where

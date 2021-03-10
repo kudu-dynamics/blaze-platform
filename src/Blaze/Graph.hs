@@ -15,7 +15,7 @@ import Binja.Function (MLILSSAFunction)
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Graph as Exports
+import Blaze.Types.Graph as Exports hiding (edge, label, src, dst)
 import qualified Data.Set as Set
 
 type F = MLILSSAFunction
@@ -44,12 +44,13 @@ collapseGotoBlocks g =
       let es = G.edges g
       return . G.fromEdges $ foldr (f gotos) [] es
   where
-    f gotos edge@(be, (bbSrc, bbDst)) xs
+    f gotos edge@(G.LEdge (G.Edge bbSrc bbDst) be) xs
       | Set.member bbSrc gotos = xs
       | Set.member bbDst gotos = case Set.toList $ G.succs bbDst g of
         [bbTgt] ->
-          ( be & BB.target ?~ bbTgt,
-            (bbSrc, bbTgt)
+          ( G.LEdge
+            (G.Edge bbSrc bbTgt)
+            (be & BB.target ?~ bbTgt)
           )
             : xs
         _ -> edge : xs
@@ -71,7 +72,7 @@ constructBasicBlockGraph fn = do
     [bb] -> return $ G.fromNode bb
     _ -> do
       succs' <- traverse cleanSuccs bbs
-      return . G.fromEdges . succsToEdges $ succs'
+      return . G.fromEdges . fmap fromTupleLEdge .succsToEdges $ succs'
   where
     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
     cleanSuccs bb =
@@ -100,7 +101,7 @@ constructBasicBlockGraphWithoutBackEdges fn = do
     _ -> do
       succs' <- traverse cleanSuccs bbs
       es <- filterM (fmap not . isBackEdge . fst) . succsToEdges $ succs'
-      return $ G.fromEdges es
+      return . G.fromEdges . fmap fromTupleLEdge $ es
   where
     cleanSuccs :: BasicBlockFunction t => BasicBlock t -> IO (BasicBlock t, [(BlockEdge t, BasicBlock t)])
     cleanSuccs bb =

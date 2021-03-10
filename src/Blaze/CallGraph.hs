@@ -16,15 +16,15 @@ getCallGraph :: CallGraphImporter a => a -> [Function] -> IO CallGraph
 getCallGraph = getCallGraphStreaming
 
 getUndirectedCallGraph :: CallGraph -> CallGraph
-getUndirectedCallGraph cg = G.addNodes (toList $ G.nodes cg) . G.fromEdges . fmap ((),) $ edges <> map inverseEdge edges
+getUndirectedCallGraph cg = G.addNodes (toList $ G.nodes cg) . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges <> map inverseEdge edges
   where
-    edges = snd <$> G.edges cg
+    edges = snd <$> (G.toTupleLEdge <$> G.edges cg)
     inverseEdge (a,b) = (b,a)
 
 getCallGraphStreaming :: CallGraphImporter a => a -> [Function] -> IO CallGraph
 getCallGraphStreaming importer funcs = do
   edges <- S.toList . asyncly $ getCallGraphEdges importer funcs
-  let g = G.addNodes funcs . G.fromEdges . fmap ((),) $ edges
+  let g = G.addNodes funcs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges
   return g
 
 getCallGraphEdges ::
