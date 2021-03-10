@@ -189,7 +189,7 @@ mkCfg root' rest es =
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Ord a => Graph BranchType a (CfNode a) (Cfg a) where
+instance Ord a => Graph BranchType (CfNode a) NodeId (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
