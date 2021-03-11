@@ -25,7 +25,14 @@ type CfMap a = HashMap (CfNode a) Int
 
 buildNodeMap :: Ord a => Cfg a -> DltMap a
 buildNodeMap cfg =
-  Im.fromList $ zip [0 ..] (Set.toList . G.nodes . view #graph $ cfg)
+  Im.fromList
+  . zip [0 ..]
+  . mapMaybe (`G.getNodeAttr` g)
+  . Set.toList
+  . G.nodes
+  $ g
+  where
+    g = cfg ^. #graph
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =

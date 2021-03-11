@@ -9,12 +9,14 @@ import Data.Map.Lazy ((!))
 data Edge node = Edge
   { src :: node
   , dst :: node
-  } deriving (Eq, Ord, Show, Generic, NFData)
+  } deriving (Eq, Ord, Show, Generic, NFData, Functor)
+  deriving anyclass (Hashable)
 
 data LEdge label node = LEdge
   { edge :: Edge node
   , label :: label
-  } deriving (Eq, Ord, Show, Generic, NFData)
+  } deriving (Eq, Ord, Show, Generic, NFData, Functor)
+  deriving anyclass (Hashable)
 
 toTupleEdge :: Edge node -> (node, node)
 toTupleEdge e = (e ^. #src, e ^. #dst)
@@ -45,6 +47,7 @@ class Graph e attr n g | g -> e attr n where
   removeEdge :: Edge n -> g -> g
   removeNode :: n -> g -> g
   addNodes :: [n] -> g -> g
+  addNodesWithAttrs :: [(n, attr)] -> g -> g
   addEdge :: LEdge e n -> g -> g
   hasNode :: n -> g -> Bool
   transpose :: g -> g
@@ -226,3 +229,4 @@ updateNodeAttr :: (Graph e attr n g) => (attr -> attr) -> n -> g -> g
 updateNodeAttr f n g = case getNodeAttr n g of
   Nothing -> g
   Just attr -> setNodeAttr (f attr) n g
+

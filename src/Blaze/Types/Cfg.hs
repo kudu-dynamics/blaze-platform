@@ -2,10 +2,10 @@ module Blaze.Types.Cfg where
 
 import Blaze.Graph (Graph)
 import qualified Blaze.Graph as Graph
+import qualified Blaze.Types.Graph as G
 import Blaze.Prelude hiding (pred)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Control.Arrow ((&&&))
 import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
 import Blaze.Types.Pil.Common (Ctx)
 import qualified Data.HashMap.Strict as HMap
@@ -115,12 +115,18 @@ data CfNode a
   deriving anyclass (Hashable)
 
 data CfEdge a = CfEdge
-  { src :: a
-  , dst :: a
+  { src :: CfNode a
+  , dst :: CfNode a
   , branchType :: BranchType
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
+
+toLEdge :: CfEdge a -> G.LEdge BranchType (CfNode a)
+toLEdge e = G.LEdge
+  { label = e ^. #branchType
+  , edge = G.Edge { src = e ^. #src, dst = e ^. #dst }
+  }
 
 mkEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
 mkEdge (bt, (s, d)) =
@@ -145,6 +151,7 @@ newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a
 
 newtype NodeId = NodeId UUID
   deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 genNodeId :: MonadIO m => m NodeId
 genNodeId = NodeId <$> liftIO randomIO
@@ -160,36 +167,40 @@ type ControlFlowGraph a = AlgaGraph BranchType (CfNode a) NodeId
 -- mkControlFlowGraph :: Ord a => CfNode a ->
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: Ord a => CfNode a -> [CfNode a] -> [CfEdge (CfNode a)] -> IO (ControlFlowGraph a)
+mkControlFlowGraph :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [CfEdge a] -> IO (NodeId, ControlFlowGraph a)
 mkControlFlowGraph root' ns es = do
-  nodeUuids <- traverse (\_ -> genNodeId) ns
-  let nodeToIdMap = HMap.fromList $ zip ns nodeUuids
-      idToNodeMap = HMap.fromList $ zip nodeUuids ns
+  nodeUuids <- traverse (\_ -> genNodeId) allNodes
+  let nodeToIdMap = HMap.fromList $ zip allNodes nodeUuids
+      idNodePairs = zip nodeUuids allNodes
+      
   
   let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
       rootId = getNodeId root'
-      edges' = fmap getNodeId <$> es
-  Graph.addNodes (rootId : ns) . Graph.fromEdges $
-    (view #branchType &&& (view #src &&& view #dst)) <$> es
-
+      edges' = fmap getNodeId . toLEdge <$> es
+  return (rootId, Graph.addNodesWithAttrs idNodePairs . Graph.fromEdges $ edges')
+    
+--    (view #branchType &&& (view #src &&& view #dst)) <$> es
+  where
+    allNodes = root' : ns
 -- TODO: Consider removing type parameter once a PIL CFG can be constructed
 --       w/o an intermediate MLIL SSA CFG.
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
-  , root :: CfNode a
+  , root :: NodeId
   }
   deriving (Eq, Show, Generic)
 
-mkCfg :: forall a. Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
-mkCfg root' rest es =
-  Cfg
-    { graph = mkControlFlowGraph root' rest es
-    , root = root'
+mkCfg :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [CfEdge a] -> IO (Cfg a)
+mkCfg root' rest es = do
+  (rootId, g) <- mkControlFlowGraph root' rest es
+  return $ Cfg
+    { graph = g
+    , root = rootId
     }
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Ord a => Graph BranchType (CfNode a) NodeId (Cfg a) where
+instance Graph BranchType (CfNode a) NodeId (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
@@ -205,6 +216,7 @@ instance Ord a => Graph BranchType (CfNode a) NodeId (Cfg a) where
   removeEdge edge = over #graph $ Graph.removeEdge edge
   removeNode node = over #graph $ Graph.removeNode node
   addNodes nodes = over #graph $ Graph.addNodes nodes
+  addNodesWithAttrs nodes = over #graph $ Graph.addNodesWithAttrs nodes
   addEdge lblEdge = over #graph $ Graph.addEdge lblEdge
   hasNode node = Graph.hasNode node . view #graph
   transpose = over #graph Graph.transpose
