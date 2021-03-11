@@ -4,6 +4,7 @@ stages:
   - test
   - push
   - docs
+  - trigger
 
 # FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
 # case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
@@ -227,3 +228,9 @@ pages:
     paths:
       - public
     expire_in: 12 hours
+
+trigger-blaze:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  stage: trigger
+  trigger: ${CI_PROJECT_NAMESPACE}/blaze
