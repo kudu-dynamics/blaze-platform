@@ -16,39 +16,46 @@ workflow:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-variables:
+# Not making these global variables because they would get overridden in multi-project pipelines
+.variables: &variables
   # The base of this repo's docker registry
   REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
   # The image name of binaryninja-haskell-base
-  BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE:
-    ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops/binaryninja-haskell-base
+  BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops/binaryninja-haskell-base
   # Enable buildkit for more efficient layer caching
   DOCKER_BUILDKIT: "1"
+
+# TODO gitlab 13.5 pre-collapse debug/environment info sections to reduce log noise
+
+# Potential build dependencies for the dind host
+.script-bootstrap-dind: &script-bootstrap-dind
+  - echo -e "section_start:`date +%s`:bootstrap\r\e[0KBootstrap build dependencies"
+  - |
+    if [ -f /etc/alpine-release ]; then
+      apk add git coreutils python3
+      apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
+    fi
+  - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
+
+# Print runner environment info for debugging
+.script-before-info: &script-before-info
+  - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
+  - uname -a
+  - env
+  - ls -al
+  - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
+  - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
 
 .dind:
   image: docker:dind
   tags:
     - dind
   timeout: 1h
+  variables:
+    <<: *variables
   before_script:
-    # TODO gitlab 13.5 pre-collapse debug/environment info sections to reduce log noise
-    # Potential build dependencies for the dind host
-    - echo -e "section_start:`date +%s`:bootstrap\r\e[0KBootstrap build dependencies"
-    - |
-      if [ -f /etc/alpine-release ]; then
-        apk add git coreutils python3
-        apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
-      fi
-    - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
-
-    # Print runner environment info for debugging
-    - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
-    - uname -a
-    - env
-    - ls -al
-    - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
-    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
-
+    - *script-bootstrap-dind
+    - *script-before-info
     # Setup source dependencies
     - echo -e "section_start:`date +%s`:setup\r\e[0KProject Setup"
     # Login to gitlab so we can clone
@@ -89,7 +96,8 @@ variables:
   image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:commit-${CI_COMMIT_SHA}
   # Skip .dind before_script, especially the environment info, since we don't
   # care about most of it after the build stage
-  before_script: []
+  before_script:
+    - *script-before-info
 
 lint:
   stage: lint
@@ -156,6 +164,7 @@ test:branch:
   needs:
     - build:branch
   variables:
+    <<: *variables
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
@@ -175,6 +184,7 @@ test:detached:
   needs:
     - build:detached
   variables:
+    <<: *variables
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
@@ -195,6 +205,7 @@ push:latest:
   needs:
     - test:branch
   variables:
+    <<: *variables
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
@@ -215,6 +226,7 @@ pages:
   needs:
     - test:branch
   variables:
+    <<: *variables
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
