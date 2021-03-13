@@ -230,11 +230,14 @@ pages:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - pushd /blaze/blaze-ui/server
-    - stack haddock --no-haddock-deps
-    - docs_dir=$(stack path --snapshot-doc-root)
+    - haddock_flags=(--no-haddock-deps)
+    - pushd /blaze/binaryninja-haskell
+    - stack haddock "${haddock_flags[@]}"
+    - docs_dir=$(stack path --snapshot-doc-root "${haddock_flags[@]}")
     - popd
-    - cp -arT "$docs_dir" public
+    # - cp -arT "$docs_dir" public
+    - mkdir oublic
+    - touch public/index.html
   allow_failure: true
   artifacts:
     paths:
