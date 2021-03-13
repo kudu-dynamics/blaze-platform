@@ -198,12 +198,12 @@ pages:
     - stack haddock "${haddock_flags[@]}"
     - docs_dir=$(stack path --snapshot-doc-root "${haddock_flags[@]}")
     - popd
-    - cp -arT "$docs_dir" public
+    # - cp -arT "$docs_dir" public
   allow_failure: true
-  # artifacts:
-  #   paths:
-  #     - public
-  #   expire_in: 12 hours
+  artifacts:
+    paths:
+      - public
+    expire_in: 12 hours
 
 trigger-blaze-ui:
   rules:
