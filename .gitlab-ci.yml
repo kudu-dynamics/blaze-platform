@@ -236,7 +236,7 @@ pages:
     - docs_dir=$(stack path --snapshot-doc-root "${haddock_flags[@]}")
     - popd
     # - cp -arT "$docs_dir" public
-    - mkdir oublic
+    - mkdir public
     - touch public/index.html
   allow_failure: true
   artifacts:
