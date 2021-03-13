@@ -200,6 +200,7 @@ pages:
     - popd
     # - cp -arT "$docs_dir" public
     - mkdir public
+    - touch public/index.html
   allow_failure: true
   artifacts:
     paths:
