@@ -6,60 +6,39 @@ import qualified Blaze.Graph as G
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude
-import Blaze.Types.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), PilCfg, PilNode)
+import Blaze.Types.Cfg (PilCfg)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg), unInterCfg)
 import Blaze.Types.Pil (Stmt)
 import qualified Data.Set as Set
 
-getStmts :: PilNode -> [Stmt]
-getStmts = \case
-  BasicBlock n -> n ^. #nodeData
-  Call n -> n ^. #nodeData
-  EnterFunc n -> n ^. #nodeData
-  LeaveFunc n -> n ^. #nodeData
-
 copyProp :: InterCfg -> InterCfg
 copyProp icfg =
   InterCfg $
-    foldl'
-      ( \cfg_ node ->
-          case G.getNodeAttr node cfg_ of
-            Just stmts ->
-              G.setNodeAttr (PA._copyProp copyPropState stmts) node cfg_
-            Nothing ->
-              cfg_
-      )
-      cfg
-      (Set.toList $ G.nodes cfg)
+    foldr
+    (G.updateNodeAttr (PA._copyProp copyPropState <$>))
+    cfg
+    (Set.toList $ G.nodes cfg)
  where
   cfg :: PilCfg
   cfg = unInterCfg icfg
-  nodesStmts :: [[Stmt]]
-  nodesStmts = mapMaybe (`G.getNodeAttr` cfg) $ Set.toList (G.nodes cfg)
   allStmts :: [Stmt]
-  allStmts = concat nodesStmts
+  allStmts = concatMap (maybe [] concat . (`G.getNodeAttr` cfg))
+             $ Set.toList (G.nodes cfg)
   copyPropState :: CopyPropState
   copyPropState = PA.buildCopyPropState allStmts
 
 constantProp :: InterCfg -> InterCfg
 constantProp icfg =
   InterCfg $
-    foldl'
-      ( \cfg_ node ->
-          case G.getNodeAttr node cfg_ of
-            Just stmts ->
-              G.setNodeAttr (PA._constantProp constPropState stmts) node cfg_
-            Nothing ->
-              cfg_
-      )
-      cfg
-      (Set.toList $ G.nodes cfg)
+    foldr
+    (G.updateNodeAttr (PA._constantProp constPropState <$>))
+    cfg
+    (Set.toList $ G.nodes cfg)
  where
   cfg :: PilCfg
   cfg = unInterCfg icfg
-  nodesStmts :: [[Stmt]]
-  nodesStmts = mapMaybe (`G.getNodeAttr` cfg) $ Set.toList (G.nodes cfg)
   allStmts :: [Stmt]
-  allStmts = concat nodesStmts
+  allStmts = concatMap (maybe [] concat . (`G.getNodeAttr` cfg))
+             $ Set.toList (G.nodes cfg)
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts

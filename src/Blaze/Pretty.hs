@@ -27,7 +27,7 @@ import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
 
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
+import Blaze.Cfg (PilNode, CfNode, NodeType (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
 import qualified Blaze.Cfg as Cfg
 
 -- TODO: make pretty return a monad instead of text,
@@ -413,17 +413,17 @@ instance Pretty Func.Function where
 
 --- CFG
 instance Pretty PilNode where
-  pretty = \case
+  pretty n = case n ^. #nodeType of
     BasicBlock n -> pretty n
     Call n -> pretty n
     EnterFunc n -> pretty n
     LeaveFunc n -> pretty n
 
 instance Pretty PilEdge where
-  pretty edge =
-    pretty (edge ^. #src) 
-      <> " ---> " <> pretty (edge ^. #dst) 
-      <> "  |" <> pretty (edge ^. #branchType) <> "|"
+  pretty e =
+    pretty (e ^. #edge . #src)
+      <> " ---> " <> pretty (e ^. #edge . #dst) 
+      <> "  |" <> pretty (e ^. #label) <> "|"
 
 instance Pretty (BasicBlockNode a) where
   pretty (Cfg.BasicBlockNode f start end _) =

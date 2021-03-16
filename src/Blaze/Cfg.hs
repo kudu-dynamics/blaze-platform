@@ -3,11 +3,13 @@
 module Blaze.Cfg (
   module Exports,
   module Blaze.Cfg,
+  module Cfg
 ) where
 
 import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg as Exports
+import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
@@ -17,22 +19,17 @@ import qualified Data.HashSet as Hs
 import qualified Data.IntMap.Strict as Im
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
-import qualified Data.Set as Set
+
 
 type DltMap a = IntMap (CfNode a)
 
 type CfMap a = HashMap (CfNode a) Int
 
-buildNodeMap :: Ord a => Cfg a -> DltMap a
-buildNodeMap cfg =
+buildNodeMap :: Cfg a -> DltMap a
+buildNodeMap =
   Im.fromList
   . zip [0 ..]
-  . mapMaybe (`G.getNodeAttr` g)
-  . Set.toList
-  . G.nodes
-  $ g
-  where
-    g = cfg ^. #graph
+  . Cfg.nodes
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
@@ -59,15 +56,15 @@ buildDltGraph ::
 buildDltGraph cfg dltMap =
   -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
   -- that don't have outgoing edges.
-  (cfMap Hm.! view #root cfg, Dlt.fromAdj dltAdj)
+  (cfMap Hm.! Cfg.getRoot cfg, Dlt.fromAdj dltAdj)
  where
   cfMap :: CfMap a
   cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
   dltNodes :: [Dlt.Node]
-  dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes . view #graph $ cfg)
+  dltNodes = (cfMap Hm.!) <$> Cfg.nodes cfg
   dltEdges :: [Dlt.Edge]
   dltEdges = do
-    (_, (src_, dst_)) <- G.edges . view #graph $ cfg
+    (G.LEdge _ (G.Edge src_ dst_)) <- Cfg.edges cfg
     return (cfMap Hm.! src_, cfMap Hm.! dst_)
   dltAdj :: [(Dlt.Node, [Dlt.Node])]
   dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
@@ -132,7 +129,7 @@ parseTailCallNode node = do
 
 parseTerminalNode :: CfNode [Stmt] -> Maybe (TerminalNode [Stmt])
 parseTerminalNode node = do
-  bb <- node ^? #_BasicBlock
+  bb <- node ^? #nodeType . #_BasicBlock
   (TermRet <$> parseReturnNode bb)
     <|> (TermExit <$> parseExitNode bb)
     <|> (TermTailCall <$> parseTailCallNode bb)
@@ -143,7 +140,7 @@ parseBranchNode ::
   CfNode [Stmt] ->
   Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
-  bb <- node ^? #_BasicBlock
+  bb <- node ^? #nodeType . #_BasicBlock
   lastStmt <- lastMay =<< getStmts node
   case lastStmt of
     BranchCond op -> Just $ BranchNode bb op
@@ -156,15 +153,12 @@ getTerminalBlocks :: PilCfg -> NonEmpty (TerminalNode [Stmt])
 getTerminalBlocks cfg =
   -- TODO: We may want to add a 'FuncCfg' type so that arbitrary CFGs that may not correspond
   --       to an entire function do not cause errors.
-  if List.null nodes
+  if List.null nodes'
     then error "CFGs should always have at least one terminal basic block."
-    else NEList.fromList nodes
+    else NEList.fromList nodes'
  where
-  nodes :: [TerminalNode [Stmt]]
-  nodes =
-    mapMaybe
-      parseTerminalNode
-      (Set.toList $ G.nodes (cfg ^. #graph))
+  nodes' :: [TerminalNode [Stmt]]
+  nodes' = mapMaybe parseTerminalNode $ Cfg.nodes cfg
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]

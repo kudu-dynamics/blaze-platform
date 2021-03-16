@@ -19,7 +19,8 @@ import Blaze.Types.Cfg (
   ),
   CallNode (CallNode),
   CfEdge (CfEdge),
-  CfNode (
+  CfNode,
+  NodeType (
     BasicBlock,
     Call
   ),
@@ -176,11 +177,10 @@ importCfg func' bnNodes bnEdges = do
           bnNodeMap = HMap.fromList $ zip bnNodes cfNodeGroups
           cfEdgesFromBnCfg = convertEdge bnNodeMap <$> bnEdges
           cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
+      cfg <- mkCfg cfRoot cfRest cfEdges
       return
         . Just
-        $ ImportResult
-          (mkCfg cfRoot cfRest cfEdges)
-          (HMap.fromList . DList.toList $ mapEntries)
+        $ ImportResult cfg (HMap.fromList . DList.toList $ mapEntries)
 
 getCfgAlt :: BNBinaryView -> CtxIndex -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 getCfgAlt bv _ctxIndex func' = do
@@ -219,9 +219,10 @@ getCfg imp bv ctxIndex_ fun = do
                   *** identity
               )
                 <$> HMap.toList mlilRefMap
+      cfg <- mkCfg pilRootNode pilRestNodes <$> pilEdges
       return $
         ImportResult
-          <$> (mkCfg pilRootNode pilRestNodes <$> pilEdges)
+          <$> cfg
           <*> Just pilStmtsMap
 
 getPilFromNode ::

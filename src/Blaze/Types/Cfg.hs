@@ -1,5 +1,6 @@
 module Blaze.Types.Cfg where
 
+import qualified Prelude as P
 import Blaze.Graph (Graph)
 import qualified Blaze.Graph as Graph
 import qualified Blaze.Types.Graph as G
@@ -9,6 +10,7 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
 import Blaze.Types.Pil.Common (Ctx)
 import qualified Data.HashMap.Strict as HMap
+import qualified Data.Set as Set
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
@@ -32,7 +34,7 @@ data BasicBlockNode a = BasicBlockNode
   , end :: Address
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data CallNode a = CallNode
@@ -40,7 +42,7 @@ data CallNode a = CallNode
   , start :: Address
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data EnterFuncNode a = EnterFuncNode
@@ -48,7 +50,7 @@ data EnterFuncNode a = EnterFuncNode
   , nextCtx :: Ctx
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data LeaveFuncNode a = LeaveFuncNode
@@ -56,7 +58,7 @@ data LeaveFuncNode a = LeaveFuncNode
   , nextCtx :: Ctx
   , nodeData :: a
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 {- |Terminal nodes are nodes in CFG that have no successor.
@@ -69,34 +71,34 @@ data TerminalNode a
   = TermRet (ReturnNode a)
   | TermExit (ExitNode a)
   | TermTailCall (TailCallNode a)
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data ReturnNode a = ReturnNode
   { basicBlock :: BasicBlockNode a
   , retOp :: RetOp Expression
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 newtype ExitNode a = ExitNode
   { basicBlock :: BasicBlockNode a
   }
-  deriving (Eq, Ord, Show, Generic, Functor)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass (Hashable, FromJSON, ToJSON)
 
 data TailCallNode a = TailCallNode
   { basicBlock :: BasicBlockNode a
   , tailCallOp :: TailCallOp Expression
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 data BranchNode a = BranchNode
   { basicBlock :: BasicBlockNode a
   , branchCondOp :: BranchCondOp Expression
   }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
 -- TODO: Consider moving the interprocedural nodes into a separate type
@@ -106,31 +108,38 @@ data BranchNode a = BranchNode
 --       a CallNode should have a single CallStatement entry, not a nodeData of type a.
 -- TODO: Consider the different needs of CFG representations. E.g., a CFG corresponding
 --       to a function vs. a CFG corresponding to an arbitrary function CFG subgraph
-data CfNode a
+data NodeType a
   = BasicBlock (BasicBlockNode a)
   | Call (CallNode a)
   | EnterFunc (EnterFuncNode a)
   | LeaveFunc (LeaveFuncNode a)
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
-data CfEdge a = CfEdge
-  { src :: CfNode a
-  , dst :: CfNode a
-  , branchType :: BranchType
+data CfNode a = CfNode
+  { nodeType :: NodeType a
+  , nodeId :: NodeId
   }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable, Hashable)
 
-toLEdge :: CfEdge a -> G.LEdge BranchType (CfNode a)
-toLEdge e = G.LEdge
-  { label = e ^. #branchType
-  , edge = G.Edge { src = e ^. #src, dst = e ^. #dst }
-  }
+type CfEdge a = G.LEdge BranchType (NodeType a)
+-- data CfEdge a = CfEdge
+--   { src :: NodeType a
+--   , dst :: NodeType a
+--   , branchType :: BranchType
+--   }
+--   deriving (Eq, Ord, Show, Generic)
+--   deriving anyclass (Hashable)
 
-mkEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
-mkEdge (bt, (s, d)) =
-  CfEdge s d bt
+-- toLEdge :: CfEdge a -> G.LEdge BranchType (NodeType a)
+-- toLEdge e = G.LEdge
+--   { label = e ^. #branchType
+--   , edge = G.Edge { src = e ^. #src, dst = e ^. #dst }
+--   }
+
+-- mkEdge :: (BranchType, (NodeType a, NodeType a)) -> CfEdge a
+-- mkEdge (bt, (s, d)) =
+--   G.LEdge bt (G.Edge s d)
 
 data CodeReference a = CodeReference
   { function :: Function
@@ -151,7 +160,7 @@ newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a
 
 newtype NodeId = NodeId UUID
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, FromJSON, ToJSON)
 
 genNodeId :: MonadIO m => m NodeId
 genNodeId = NodeId <$> liftIO randomIO
@@ -162,12 +171,12 @@ genNodeId = NodeId <$> liftIO randomIO
  A user of this API probably wants to work with the 'Cfg' type that
  includes additional information about the CFG.
 -}
-type ControlFlowGraph a = AlgaGraph BranchType (CfNode a) NodeId
+type ControlFlowGraph a = AlgaGraph BranchType (NodeType a) NodeId
 
 -- mkControlFlowGraph :: Ord a => CfNode a ->
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [CfEdge a] -> IO (NodeId, ControlFlowGraph a)
+mkControlFlowGraph :: forall a. (Hashable a, Ord a) => NodeType a -> [NodeType a] -> [CfEdge a] -> IO (NodeId, ControlFlowGraph a)
 mkControlFlowGraph root' ns es = do
   nodeUuids <- traverse (\_ -> genNodeId) allNodes
   let nodeToIdMap = HMap.fromList $ zip allNodes nodeUuids
@@ -176,7 +185,7 @@ mkControlFlowGraph root' ns es = do
   
   let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
       rootId = getNodeId root'
-      edges' = fmap getNodeId . toLEdge <$> es
+      edges' = fmap getNodeId <$> es
   return (rootId, Graph.addNodesWithAttrs idNodePairs . Graph.fromEdges $ edges')
     
 --    (view #branchType &&& (view #src &&& view #dst)) <$> es
@@ -190,7 +199,7 @@ data Cfg a = Cfg
   }
   deriving (Eq, Show, Generic)
 
-mkCfg :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [CfEdge a] -> IO (Cfg a)
+mkCfg :: forall a. (Hashable a, Ord a) => NodeType a -> [NodeType a] -> [CfEdge a] -> IO (Cfg a)
 mkCfg root' rest es = do
   (rootId, g) <- mkControlFlowGraph root' rest es
   return $ Cfg
@@ -198,9 +207,30 @@ mkCfg root' rest es = do
     , root = rootId
     }
 
+-- Maybe we should flip NodeId and Cfg arg ordering here?
+-- (instead of flipping it every time it's called)
+getNode :: NodeId -> Cfg a -> Maybe (CfNode a)
+getNode nid = fmap (flip CfNode nid) . G.getNodeAttr nid
+
+-- TODO: make sure it's impossible to construct Cfg without a node attr
+-- for each node.
+getRoot :: Cfg a -> CfNode a
+getRoot cfg = case flip getNode cfg $ cfg ^. #root of
+  Nothing -> P.error "Root node in CFG lacks accompanying node attr"
+  Just n -> n
+
+nodes :: Cfg a -> [CfNode a]
+nodes g = mapMaybe (flip getNode g)
+          . Set.toList
+          $ G.nodes g
+
+edges :: Cfg a -> [G.LEdge BranchType (CfNode a)]
+edges g = mapMaybe (traverse $ flip getNode g)
+          $ G.edges g
+
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Graph BranchType (CfNode a) NodeId (Cfg a) where
+instance Graph BranchType (NodeType a) NodeId (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
@@ -215,8 +245,8 @@ instance Graph BranchType (CfNode a) NodeId (Cfg a) where
   
   removeEdge edge = over #graph $ Graph.removeEdge edge
   removeNode node = over #graph $ Graph.removeNode node
-  addNodes nodes = over #graph $ Graph.addNodes nodes
-  addNodesWithAttrs nodes = over #graph $ Graph.addNodesWithAttrs nodes
+  addNodes nodes' = over #graph $ Graph.addNodes nodes'
+  addNodesWithAttrs nodes' = over #graph $ Graph.addNodesWithAttrs nodes'
   addEdge lblEdge = over #graph $ Graph.addEdge lblEdge
   hasNode node = Graph.hasNode node . view #graph
   transpose = over #graph Graph.transpose

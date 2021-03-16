@@ -33,7 +33,7 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
   nodes = Set.fromList . G.vertexList . adjacencyMap
   edges g = mapMaybe (f . fromTupleEdge) . G.edgeList . adjacencyMap $ g
     where
-      f e = LEdge e <$> HMap.lookup e (edgeMap g)
+      f e = flip LEdge e <$> HMap.lookup e (edgeMap g)
 
   getEdgeLabel edge = HMap.lookup edge . edgeMap
   setEdgeLabel label edge g = g { edgeMap = HMap.insert edge label $ edgeMap g }
@@ -74,7 +74,7 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
     , nodeAttrMap = HMap.union (HMap.fromList ns) $ nodeAttrMap g
     }
  
-  addEdge (LEdge e lbl) g = AlgaGraph
+  addEdge (LEdge lbl e) g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge (e ^. #src) (e ^. #dst)
     , edgeMap = HMap.insert e lbl $ edgeMap g
     , nodeAttrMap = nodeAttrMap g

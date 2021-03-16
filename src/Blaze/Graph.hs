@@ -44,13 +44,13 @@ collapseGotoBlocks g =
       let es = G.edges g
       return . G.fromEdges $ foldr (f gotos) [] es
   where
-    f gotos edge@(G.LEdge (G.Edge bbSrc bbDst) be) xs
+    f gotos edge@(G.LEdge be (G.Edge bbSrc bbDst)) xs
       | Set.member bbSrc gotos = xs
       | Set.member bbDst gotos = case Set.toList $ G.succs bbDst g of
         [bbTgt] ->
           ( G.LEdge
-            (G.Edge bbSrc bbTgt)
             (be & BB.target ?~ bbTgt)
+            (G.Edge bbSrc bbTgt)
           )
             : xs
         _ -> edge : xs

@@ -9,13 +9,13 @@ import Data.Map.Lazy ((!))
 data Edge node = Edge
   { src :: node
   , dst :: node
-  } deriving (Eq, Ord, Show, Generic, NFData, Functor)
+  } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
   deriving anyclass (Hashable)
 
 data LEdge label node = LEdge
-  { edge :: Edge node
-  , label :: label
-  } deriving (Eq, Ord, Show, Generic, NFData, Functor)
+  { label :: label
+  , edge :: Edge node
+  } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
   deriving anyclass (Hashable)
 
 toTupleEdge :: Edge node -> (node, node)
@@ -25,10 +25,10 @@ fromTupleEdge :: (node, node) -> Edge node
 fromTupleEdge (a, b) = Edge a b
 
 toTupleLEdge :: LEdge label node -> (label, (node, node))
-toTupleLEdge (LEdge e lbl) = (lbl, toTupleEdge e)
+toTupleLEdge (LEdge lbl e) = (lbl, toTupleEdge e)
 
 fromTupleLEdge :: (label, (node, node)) -> LEdge label node
-fromTupleLEdge (lbl, e) = LEdge (fromTupleEdge e) lbl
+fromTupleLEdge (lbl, e) = LEdge lbl (fromTupleEdge e)
 
 
 -- TODO: Switch to HashSet from Set for type class
