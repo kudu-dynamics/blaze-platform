@@ -1,19 +1,19 @@
 module Blaze.Types.Cfg where
 
-import qualified Prelude as P
-import Blaze.Graph (Graph)
 import qualified Blaze.Graph as Graph
+import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
+import qualified Blaze.Types.Graph.Unique as U
+import Blaze.Types.Graph.Unique (UniqueGraph, Unique)
 import Blaze.Prelude hiding (pred)
 import Blaze.Types.Function (Function)
-import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
 import Blaze.Types.Pil.Common (Ctx)
-import qualified Data.HashMap.Strict as HMap
-import qualified Data.Set as Set
 
 type PilNode = CfNode [Stmt]
+type PilNodeWithId = CfNodeWithId [Stmt]
 type PilEdge = CfEdge [Stmt]
+type PilEdgeWithId = CfEdgeWithId [Stmt]
 type PilCallNode = CallNode [Stmt]
 type PilBbNode = BasicBlockNode [Stmt]
 type PilNodeMapEntry = (PilNode, [Stmt])
@@ -108,7 +108,7 @@ data BranchNode a = BranchNode
 --       a CallNode should have a single CallStatement entry, not a nodeData of type a.
 -- TODO: Consider the different needs of CFG representations. E.g., a CFG corresponding
 --       to a function vs. a CFG corresponding to an arbitrary function CFG subgraph
-data NodeType a
+data CfNode a
   = BasicBlock (BasicBlockNode a)
   | Call (CallNode a)
   | EnterFunc (EnterFuncNode a)
@@ -116,30 +116,26 @@ data NodeType a
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
-data CfNode a = CfNode
-  { nodeType :: NodeType a
+data CfNodeWithId a = CfNodeWithId
+  { nodeType :: CfNode a
   , nodeId :: NodeId
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable, Hashable)
 
-type CfEdge a = G.LEdge BranchType (NodeType a)
+type CfEdge a = G.LEdge BranchType (CfNode a)
+type CfEdgeWithId a = G.LEdge BranchType (CfNodeWithId a)
+
 -- data CfEdge a = CfEdge
---   { src :: NodeType a
---   , dst :: NodeType a
+--   { src :: CfNode a
+--   , dst :: CfNode a
 --   , branchType :: BranchType
 --   }
 --   deriving (Eq, Ord, Show, Generic)
 --   deriving anyclass (Hashable)
 
--- toLEdge :: CfEdge a -> G.LEdge BranchType (NodeType a)
--- toLEdge e = G.LEdge
---   { label = e ^. #branchType
---   , edge = G.Edge { src = e ^. #src, dst = e ^. #dst }
---   }
-
--- mkEdge :: (BranchType, (NodeType a, NodeType a)) -> CfEdge a
--- mkEdge (bt, (s, d)) =
---   G.LEdge bt (G.Edge s d)
+mkLEdge :: (BranchType, (CfNode a, CfNode a)) -> G.LEdge BranchType (CfNode a)
+mkLEdge (bt, (s, d)) =
+  G.LEdge bt (G.Edge s d)
 
 data CodeReference a = CodeReference
   { function :: Function
@@ -152,10 +148,10 @@ type NodeRefMap a b = HashMap a b
 
 type NodeRefMapEntry a b = (a, b)
 
-newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
+newtype Dominators a = Dominators (HashMap (CfNodeWithId a) (HashSet (CfNodeWithId a)))
   deriving (Eq, Ord, Show, Generic)
 
-newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a)))
+newtype PostDominators a = PostDominators (HashMap (CfNodeWithId a) (HashSet (CfNodeWithId a)))
   deriving (Eq, Ord, Show, Generic)
 
 newtype NodeId = NodeId UUID
@@ -171,66 +167,62 @@ genNodeId = NodeId <$> liftIO randomIO
  A user of this API probably wants to work with the 'Cfg' type that
  includes additional information about the CFG.
 -}
-type ControlFlowGraph a = AlgaGraph BranchType (NodeType a) NodeId
+type ControlFlowGraph a = UniqueGraph BranchType (CfNode a)
 
--- mkControlFlowGraph :: Ord a => CfNode a ->
+mkControlFlowGraph' :: forall a. (Hashable a, Ord a)
+  => Unique (CfNode a)
+  -> [Unique (CfNode a)]
+  -> [G.LEdge BranchType (Unique (CfNode a))]
+  -> ControlFlowGraph a
+mkControlFlowGraph' root' ns es = do
+  Graph.addNodes (root' : ns) . G.fromEdges $ es
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: forall a. (Hashable a, Ord a) => NodeType a -> [NodeType a] -> [CfEdge a] -> IO (NodeId, ControlFlowGraph a)
-mkControlFlowGraph root' ns es = do
-  nodeUuids <- traverse (\_ -> genNodeId) allNodes
-  let nodeToIdMap = HMap.fromList $ zip allNodes nodeUuids
-      idNodePairs = zip nodeUuids allNodes
+-- | Automatically makes nodes and edges unique. Returns (root node, graph)
+mkControlFlowGraph :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [G.LEdge BranchType (CfNode a)] -> IO (Unique (CfNode a), ControlFlowGraph a)
+mkControlFlowGraph root' ns es = U.build $ do
+  rootNode <- U.add root'
+  nodes <- traverse U.add ns
+  edges <- traverse (traverse U.add) es 
+  return (rootNode, mkControlFlowGraph' rootNode nodes edges)
+
+  
+--   nodeUuids <- traverse (\_ -> genNodeId) allNodes
+--   let nodeToIdMap = HMap.fromList $ zip allNodes nodeUuids
+--       idNodePairs = zip nodeUuids allNodes
       
   
-  let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
-      rootId = getNodeId root'
-      edges' = fmap getNodeId <$> es
-  return (rootId, Graph.addNodesWithAttrs idNodePairs . Graph.fromEdges $ edges')
+--   let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
+--       rootId = getNodeId root'
+--       edges' = fmap getNodeId <$> es
+--   return (rootId, Graph.addNodesWithAttrs idNodePairs . Graph.fromEdges $ edges')
     
---    (view #branchType &&& (view #src &&& view #dst)) <$> es
-  where
-    allNodes = root' : ns
+-- --    (view #branchType &&& (view #src &&& view #dst)) <$> es
+--   where
+--     allNodes = root' : ns
+
 -- TODO: Consider removing type parameter once a PIL CFG can be constructed
 --       w/o an intermediate MLIL SSA CFG.
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
-  , root :: NodeId
+  , root :: Unique (CfNode a)
   }
   deriving (Eq, Show, Generic)
 
-mkCfg :: forall a. (Hashable a, Ord a) => NodeType a -> [NodeType a] -> [CfEdge a] -> IO (Cfg a)
-mkCfg root' rest es = do
-  (rootId, g) <- mkControlFlowGraph root' rest es
+mkCfg :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [G.LEdge BranchType (CfNode a)] -> IO (Cfg a)
+mkCfg root' rest es = U.build $ do
+  rootNode <- U.add root'
+  nodes <- traverse U.add rest
+  edges <- traverse (traverse U.add) es 
   return $ Cfg
-    { graph = g
-    , root = rootId
+    { graph = mkControlFlowGraph' rootNode nodes edges
+    , root = rootNode
     }
 
--- Maybe we should flip NodeId and Cfg arg ordering here?
--- (instead of flipping it every time it's called)
-getNode :: NodeId -> Cfg a -> Maybe (CfNode a)
-getNode nid = fmap (flip CfNode nid) . G.getNodeAttr nid
-
--- TODO: make sure it's impossible to construct Cfg without a node attr
--- for each node.
-getRoot :: Cfg a -> CfNode a
-getRoot cfg = case flip getNode cfg $ cfg ^. #root of
-  Nothing -> P.error "Root node in CFG lacks accompanying node attr"
-  Just n -> n
-
-nodes :: Cfg a -> [CfNode a]
-nodes g = mapMaybe (flip getNode g)
-          . Set.toList
-          $ G.nodes g
-
-edges :: Cfg a -> [G.LEdge BranchType (CfNode a)]
-edges g = mapMaybe (traverse $ flip getNode g)
-          $ G.edges g
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Graph BranchType (NodeType a) NodeId (Cfg a) where
+instance Ord n => Graph BranchType () (Unique (CfNode n)) (Cfg n) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."

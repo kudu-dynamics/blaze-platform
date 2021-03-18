@@ -21,9 +21,9 @@ import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
 
 
-type DltMap a = IntMap (CfNode a)
+type DltMap a = IntMap (CfNodeWithId a)
 
-type CfMap a = HashMap (CfNode a) Int
+type CfMap a = HashMap (CfNodeWithId a) Int
 
 buildNodeMap :: Cfg a -> DltMap a
 buildNodeMap =
@@ -86,14 +86,14 @@ domHelper ::
   (Hashable a, Ord a) =>
   (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) ->
   Cfg a ->
-  HashMap (CfNode a) (HashSet (CfNode a))
+  HashMap (CfNodeWithId a) (HashSet (CfNodeWithId a))
 domHelper f cfg =
   Hm.fromList . ((Hs.fromList <$>) <$>) $ domList
  where
   dltRooted :: Dlt.Rooted
   dltMap :: DltMap a
   (dltRooted, dltMap) = dltGraphFromCfg cfg
-  domList :: [(CfNode a, [CfNode a])]
+  domList :: [(CfNodeWithId a, [CfNodeWithId a])]
   domList = bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
 
 {- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
@@ -127,7 +127,7 @@ parseTailCallNode node = do
   tailCallOp_ <- lastStmtFrom node >>= preview #_TailCall
   return $ TailCallNode node tailCallOp_
 
-parseTerminalNode :: CfNode [Stmt] -> Maybe (TerminalNode [Stmt])
+parseTerminalNode :: CfNodeWithId [Stmt] -> Maybe (TerminalNode [Stmt])
 parseTerminalNode node = do
   bb <- node ^? #nodeType . #_BasicBlock
   (TermRet <$> parseReturnNode bb)
@@ -135,9 +135,9 @@ parseTerminalNode node = do
     <|> (TermTailCall <$> parseTailCallNode bb)
 
 parseBranchNode ::
-  ( CfNode [Stmt] -> Maybe [Stmt]
+  ( CfNodeWithId [Stmt] -> Maybe [Stmt]
   ) ->
-  CfNode [Stmt] ->
+  CfNodeWithId [Stmt] ->
   Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
   bb <- node ^? #nodeType . #_BasicBlock
