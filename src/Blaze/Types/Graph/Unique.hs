@@ -5,7 +5,6 @@ import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph (Graph)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import qualified Blaze.Types.Graph.Alga as Alga
 import System.Random (Random)
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
@@ -69,7 +68,10 @@ newtype UniqueGraph e n = UniqueGraph (AlgaGraph e n NodeId)
 setUniqueAttr :: Unique n -> UniqueGraph e n -> UniqueGraph e n
 setUniqueAttr n (UniqueGraph g) = UniqueGraph $ G.setNodeAttr (n ^. #node) (n ^. #nodeId) g
 
-setUniqueAttrs :: [Unique n] -> UniqueGraph e n -> UniqueGraph e n
+setUniqueAttrs :: Foldable t
+  => t (Unique n)
+  -> UniqueGraph e n
+  -> UniqueGraph e n
 setUniqueAttrs xs g = foldr setUniqueAttr g xs
 
 getUnique :: AlgaGraph e n NodeId -> NodeId -> Unique n
@@ -99,8 +101,24 @@ instance Ord n => Graph e () (Unique n) (UniqueGraph e n) where
   edges (UniqueGraph g) = fmap (fmap $ getUnique g) $ G.edges g
   getEdgeLabel e (UniqueGraph g) = G.getEdgeLabel (unUnique e) g
   setEdgeLabel lbl e (UniqueGraph g) = UniqueGraph $ G.setEdgeLabel lbl (unUnique e) g
-  -- TODO: finish other methods
-
+  getNodeAttr _ _ = Just ()
+  setNodeAttr _ _ g = g
+  removeEdge e (UniqueGraph g) = UniqueGraph $ G.removeEdge (unUnique e) g
+  removeNode n (UniqueGraph g) = UniqueGraph $ G.removeNode (n ^. #nodeId) g
+  addNodes xs (UniqueGraph g) = setUniqueAttrs xs
+    . UniqueGraph
+    . G.addNodes (fmap (view #nodeId) xs)
+    $ g
+  addNodesWithAttrs _ g = g
+  addEdge e (UniqueGraph g) = setUniqueAttrs e
+    . UniqueGraph
+    $ G.addEdge (unUnique e) g
+  hasNode n (UniqueGraph g) = G.hasNode (n ^. #nodeId) g
+  transpose (UniqueGraph g) = UniqueGraph $ G.transpose g
+  bfs xs (UniqueGraph g) = fmap (getUnique g) <$> G.bfs (view #nodeId <$> xs) g
+  subgraph p (UniqueGraph g) = UniqueGraph
+    . G.subgraph (p . getUnique g)
+    $ g
 
 updateNode :: (n -> n) -> Unique n -> UniqueGraph e n -> UniqueGraph e n
 updateNode f n (UniqueGraph g) = UniqueGraph
