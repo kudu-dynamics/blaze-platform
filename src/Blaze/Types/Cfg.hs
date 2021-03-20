@@ -228,6 +228,13 @@ instance Ord n => Graph BranchType () (Unique (CfNode n)) (Cfg n) where
   -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?
   subgraph pred = over #graph $ Graph.subgraph pred
 
+updateNode :: (CfNode n -> CfNode n) -> Unique (CfNode n) -> Cfg n -> Cfg n
+updateNode f n g = g & #graph %~ U.updateNode f n
+
+setNode :: CfNode n -> Unique (CfNode n) -> Cfg n -> Cfg n
+setNode n' n g = g & #graph %~ U.setNode n' n
+
+
 data FuncContext = FuncContext
   { func :: Function
   , uuid :: UUID

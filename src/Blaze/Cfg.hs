@@ -18,18 +18,20 @@ import qualified Data.HashMap.Strict as Hm
 import qualified Data.HashSet as Hs
 import qualified Data.IntMap.Strict as Im
 import qualified Data.List as List
+import qualified Data.Set as Set
 import qualified Data.List.NonEmpty as NEList
+import Blaze.Types.Graph.Unique (Unique)
 
+type DltMap a = IntMap (Unique (CfNode a))
 
-type DltMap a = IntMap (CfNodeWithId a)
+type CfMap a = HashMap (Unique (CfNode a)) Int
 
-type CfMap a = HashMap (CfNodeWithId a) Int
-
-buildNodeMap :: Cfg a -> DltMap a
+buildNodeMap :: Ord a => Cfg a -> DltMap a
 buildNodeMap =
   Im.fromList
   . zip [0 ..]
-  . Cfg.nodes
+  . Set.toList
+  . G.nodes
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
@@ -56,15 +58,15 @@ buildDltGraph ::
 buildDltGraph cfg dltMap =
   -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
   -- that don't have outgoing edges.
-  (cfMap Hm.! Cfg.getRoot cfg, Dlt.fromAdj dltAdj)
+  (cfMap Hm.! (cfg ^. #root), Dlt.fromAdj dltAdj)
  where
   cfMap :: CfMap a
   cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
   dltNodes :: [Dlt.Node]
-  dltNodes = (cfMap Hm.!) <$> Cfg.nodes cfg
+  dltNodes = (cfMap Hm.!) <$> (Set.toList $ G.nodes cfg)
   dltEdges :: [Dlt.Edge]
   dltEdges = do
-    (G.LEdge _ (G.Edge src_ dst_)) <- Cfg.edges cfg
+    (G.LEdge _ (G.Edge src_ dst_)) <- G.edges cfg
     return (cfMap Hm.! src_, cfMap Hm.! dst_)
   dltAdj :: [(Dlt.Node, [Dlt.Node])]
   dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
@@ -86,14 +88,14 @@ domHelper ::
   (Hashable a, Ord a) =>
   (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) ->
   Cfg a ->
-  HashMap (CfNodeWithId a) (HashSet (CfNodeWithId a))
+  HashMap (Unique (CfNode a)) (HashSet (Unique (CfNode a)))
 domHelper f cfg =
   Hm.fromList . ((Hs.fromList <$>) <$>) $ domList
  where
   dltRooted :: Dlt.Rooted
   dltMap :: DltMap a
   (dltRooted, dltMap) = dltGraphFromCfg cfg
-  domList :: [(CfNodeWithId a, [CfNodeWithId a])]
+  domList :: [(Unique (CfNode a), [Unique (CfNode a)])]
   domList = bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
 
 {- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
@@ -127,20 +129,20 @@ parseTailCallNode node = do
   tailCallOp_ <- lastStmtFrom node >>= preview #_TailCall
   return $ TailCallNode node tailCallOp_
 
-parseTerminalNode :: CfNodeWithId [Stmt] -> Maybe (TerminalNode [Stmt])
+parseTerminalNode :: CfNode [Stmt] -> Maybe (TerminalNode [Stmt])
 parseTerminalNode node = do
-  bb <- node ^? #nodeType . #_BasicBlock
+  bb <- node ^? #_BasicBlock
   (TermRet <$> parseReturnNode bb)
     <|> (TermExit <$> parseExitNode bb)
     <|> (TermTailCall <$> parseTailCallNode bb)
 
 parseBranchNode ::
-  ( CfNodeWithId [Stmt] -> Maybe [Stmt]
+  ( CfNode [Stmt] -> Maybe [Stmt]
   ) ->
-  CfNodeWithId [Stmt] ->
+  CfNode [Stmt] ->
   Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
-  bb <- node ^? #nodeType . #_BasicBlock
+  bb <- node ^? #_BasicBlock
   lastStmt <- lastMay =<< getStmts node
   case lastStmt of
     BranchCond op -> Just $ BranchNode bb op
@@ -158,7 +160,10 @@ getTerminalBlocks cfg =
     else NEList.fromList nodes'
  where
   nodes' :: [TerminalNode [Stmt]]
-  nodes' = mapMaybe parseTerminalNode $ Cfg.nodes cfg
+  nodes' = mapMaybe parseTerminalNode
+    . fmap (view #node)
+    . Set.toList
+    $ G.nodes cfg
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]

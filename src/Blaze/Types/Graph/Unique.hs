@@ -10,7 +10,7 @@ import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
 
 newtype NodeId a = NodeId UUID
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   deriving newtype (Random)
   deriving anyclass (Hashable, FromJSON, ToJSON)
 
@@ -55,7 +55,7 @@ add n = do
 data Unique n = Unique
   { nodeId :: NodeId n
   , node :: n
-  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Functor, Foldable, Traversable)
 
 -- TODO: change this to some MTL class for just doing UUIDs
 mkUnique :: MonadIO m => n -> m (Unique n)

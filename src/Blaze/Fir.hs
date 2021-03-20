@@ -92,7 +92,7 @@ toFirGraph :: forall e attr n g g'.
 toFirGraph ifChains g = case Set.toList $ G.nodes g of
   [bb] -> G.fromNode $ FirBasicBlock bb
   _ -> G.fromEdges . (ifChainEdges <>) $ do
-    (e, (src, dst)) <- G.edges g
+    (G.LEdge e (G.Edge src dst)) <- G.edges g
     guard . not $ Set.member src nodeSet
     case Map.lookup dst startNodeMap of
       Nothing -> return (NormalEdge e, (FirBasicBlock src, FirBasicBlock dst))

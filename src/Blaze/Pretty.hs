@@ -27,8 +27,9 @@ import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
 
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Cfg (PilNode, CfNode, NodeType (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
+import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
 import qualified Blaze.Cfg as Cfg
+import Blaze.Types.Graph.Unique (Unique)
 
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
@@ -411,9 +412,15 @@ instance Pretty Cg.CallSite where
 instance Pretty Func.Function where
   pretty (Func.Function _ name _addr _) = name -- <> "@" <> showHex addr
 
+
+-- not really sure how to display this.
+-- I don't really want to show the whole NodeId
+instance Pretty n => Pretty (Unique n) where
+  pretty x = "U" <> (paren . pretty $ x ^. #node)
+
 --- CFG
 instance Pretty PilNode where
-  pretty n = case n ^. #nodeType of
+  pretty = \case
     BasicBlock n -> pretty n
     Call n -> pretty n
     EnterFunc n -> pretty n
