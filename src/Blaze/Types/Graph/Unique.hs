@@ -9,16 +9,16 @@ import System.Random (Random)
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
 
-newtype NodeId = NodeId UUID
+newtype NodeId a = NodeId UUID
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Random)
   deriving anyclass (Hashable, FromJSON, ToJSON)
 
-genNodeId :: MonadIO m => m NodeId
+genNodeId :: forall m a. MonadIO m => m (NodeId a)
 genNodeId = NodeId <$> liftIO randomIO
 
 newtype BuilderState n = BuilderState
-  { nodeToIdMap :: HashMap n NodeId
+  { nodeToIdMap :: HashMap n (NodeId n)
   } deriving (Eq, Ord, Show, Generic)
 
 emptyBuilderState :: BuilderState n
@@ -53,7 +53,7 @@ add n = do
       
 
 data Unique n = Unique
-  { nodeId :: NodeId
+  { nodeId :: NodeId n
   , node :: n
   } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
 
@@ -61,7 +61,7 @@ data Unique n = Unique
 mkUnique :: MonadIO m => n -> m (Unique n)
 mkUnique n = flip Unique n  <$> liftIO randomIO
 
-newtype UniqueGraph e n = UniqueGraph (AlgaGraph e n NodeId)
+newtype UniqueGraph e n = UniqueGraph (AlgaGraph e n (NodeId n))
   deriving (Generic, Show, Ord, Eq)
 
 -- | sets unique attr for existing NodeId
@@ -74,13 +74,13 @@ setUniqueAttrs :: Foldable t
   -> UniqueGraph e n
 setUniqueAttrs xs g = foldr setUniqueAttr g xs
 
-getUnique :: AlgaGraph e n NodeId -> NodeId -> Unique n
+getUnique :: AlgaGraph e n (NodeId n) -> (NodeId n) -> Unique n
 getUnique g nid = Unique nid . fromJust $ G.getNodeAttr nid g
 
-getUniqueSet :: Ord n => AlgaGraph e n NodeId -> Set NodeId -> Set (Unique n)
+getUniqueSet :: Ord n => AlgaGraph e n (NodeId n) -> Set (NodeId n) -> Set (Unique n)
 getUniqueSet g = Set.fromList . fmap (getUnique g) . Set.toList
 
-unUnique :: Functor f => f (Unique n) -> f NodeId
+unUnique :: Functor f => f (Unique n) -> f (NodeId n)
 unUnique = fmap $ view #nodeId
 
 instance Ord n => Graph e () (Unique n) (UniqueGraph e n) where

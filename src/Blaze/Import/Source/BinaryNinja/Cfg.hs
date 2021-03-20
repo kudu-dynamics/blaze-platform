@@ -19,7 +19,6 @@ import Blaze.Types.Cfg (
   ),
   CallNode (CallNode),
   CfEdge,
-  CfNodeWithId (CfNodeWithId),
   CfNode (
     BasicBlock,
     Call
@@ -28,10 +27,10 @@ import Blaze.Types.Cfg (
   PilCfg,
   PilEdge,
   PilNode,
-  PilNodeType,
   mkCfg,
  )
 import qualified Blaze.Types.Cfg as Cfg
+import qualified Blaze.Types.Graph.Unique as U
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt, CtxIndex)
@@ -55,7 +54,7 @@ tellEntry :: MlilNodeRefMapEntry -> NodeConverter ()
 tellEntry = tell . DList.singleton
 
 -- | Assumes instructions are consecutive
-nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (NodeType (NonEmpty MlilSsaInstruction))
+nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromInstrs func' instrs = do
   let node =
         BasicBlock $
@@ -75,7 +74,7 @@ nodeFromInstrs func' instrs = do
     )
   return node
 
-nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (NodeType (NonEmpty MlilSsaInstruction))
+nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromCallInstr func' callInstr' = do
   let node =
         Call $
@@ -94,7 +93,7 @@ nodeFromCallInstr func' callInstr' = do
     )
   return node
 
-nodeFromGroup :: Function -> InstrGroup -> NodeConverter (NodeType (NonEmpty MlilSsaInstruction))
+nodeFromGroup :: Function -> InstrGroup -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromGroup func' = \case
   (SingleCall x) -> nodeFromCallInstr func' x
   (ManyNonCalls xs) -> nodeFromInstrs func' xs
@@ -129,24 +128,26 @@ groupInstrs xs = mconcat (parseAndSplit <$> groupedInstrs)
     -- in the group.
     _ -> [ManyNonCalls . NEList.fromList . mapMaybe parseNonCall . NEList.toList $ g]
 
-nodesFromInstrs :: Function -> [MlilSsaInstruction] -> NodeConverter [MlilSsaCfNodeType]
+nodesFromInstrs :: Function -> [MlilSsaInstruction] -> NodeConverter [MlilSsaCfNode]
 nodesFromInstrs func' instrs = do
   let instrGroups = groupInstrs $ toMlilSsaInstr <$> instrs
   mapM (nodeFromGroup func') instrGroups
 
-convertNode :: Function -> MlilSsaBlock -> NodeConverter [MlilSsaCfNodeType]
+convertNode :: Function -> MlilSsaBlock -> NodeConverter [MlilSsaCfNode]
 convertNode func' bnBlock = do
   instrs <- liftIO $ Mlil.fromBasicBlock bnBlock
   nodesFromInstrs func' instrs
 
-createEdgesForNodeGroup :: [MlilSsaCfNodeType] -> [MlilSsaCfEdge]
+createEdgesForNodeGroup :: [MlilSsaCfNode] -> [MlilSsaCfEdge]
 createEdgesForNodeGroup ns =
-  maybe [] (($ UnconditionalBranch) . uncurry G.Edge <$>) (maybeNodePairs =<< NEList.nonEmpty ns)
- where
-  maybeNodePairs :: NonEmpty MlilSsaCfNode -> Maybe [(MlilSsaCfNode, MlilSsaCfNode)]
-  maybeNodePairs = \case
-    _ :| [] -> Nothing
-    nodes -> Just $ zip (NEList.toList nodes) (NEList.tail nodes)
+  maybe []
+  (G.LEdge UnconditionalBranch . uncurry G.Edge <$>)
+  (maybeNodePairs =<< NEList.nonEmpty ns)
+  where
+    maybeNodePairs :: NonEmpty MlilSsaCfNode -> Maybe [(MlilSsaCfNode, MlilSsaCfNode)]
+    maybeNodePairs = \case
+      _ :| [] -> Nothing
+      nodes -> Just $ zip (NEList.toList nodes) (NEList.tail nodes)
 
 convertBranchType :: BNEnums.BNBranchType -> BranchType
 convertBranchType = \case
@@ -161,7 +162,7 @@ convertEdge nodeMap bnEdge = do
   bnDst <- bnEdge ^. BNBb.target
   cfSrc <- lastMay =<< HMap.lookup bnSrc nodeMap
   cfDst <- headMay =<< HMap.lookup bnDst nodeMap
-  return $ Cfg.mkLEdge (convertBranchType $ bnEdge ^. BNBb.branchType) cfSrc cfDst
+  return $ Cfg.mkEdge' (convertBranchType $ bnEdge ^. BNBb.branchType) cfSrc cfDst
 
 importCfg ::
   Function ->
@@ -207,25 +208,30 @@ getCfg imp bv ctxIndex_ fun = do
   case result of
     Nothing -> return Nothing
     Just (ImportResult mlilCfg mlilRefMap) -> do
-      let mlilRootNode = Cfg.getRoot mlilCfg
-          mlilRestNodes = List.delete mlilRootNode . Cfg.nodes $ mlilCfg
-      pilRootNodeType <- convertToPilNodeType imp ctxIndex_ mlilRefMap mlilRootNode
-      pilRestNodeTypes <- traverse (convertToPilNodeType imp ctxIndex_ mlilRefMap) mlilRestNodes
-      let mlilToPilNodeTypeMap =
-            HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNodeType : pilRestNodeTypes)
-          pilEdges = fromMaybe [] . traverse (convertToPilEdge mlilToPilNodeTypeMap) $ Cfg.edges mlilCfg
-          pilStmtsMap =
-            HMap.fromList $
-              ( (fromJust . (`HMap.lookup` mlilToPilNodeTypeMap))
-                  *** identity
-              )
-              <$> HMap.toList mlilRefMap
-      cfg <- Cfg.mkCfg pilRootNodeType pilRestNodeTypes pilEdges
-      return undefined
-      -- return $
-      --   ImportResult
-      --     <$> cfg
-      --     <*> Just pilStmtsMap
+      let mlilRootNode = mlilCfg ^. #root . #node
+          mlilRestNodes = List.delete mlilRootNode
+            . fmap (view #node)
+            . Set.toList
+            . G.nodes
+            $ mlilCfg
+      pilRootNode <- convertToPilNode imp ctxIndex_ mlilRefMap mlilRootNode
+      pilRestNodes <- traverse (convertToPilNode imp ctxIndex_ mlilRefMap) mlilRestNodes
+      let mlilToPilNodeMap =
+            HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
+          pilEdges = fromMaybe [] . traverse (convertToPilEdge mlilToPilNodeMap) . fmap (fmap $ view #node) $ G.edges mlilCfg
+      ((uRoot, uNodes, uEdges), bs) <- U.build' U.emptyBuilderState $ do
+        uRoot <- U.add pilRootNode
+        uNodes <- traverse U.add pilRestNodes
+        uEdges <- traverse (traverse U.add) pilEdges
+        return (uRoot, uNodes, uEdges)
+      let cfg = Cfg.mkCfg' uRoot uNodes uEdges
+          mapping = HMap.fromList
+            . fmap (\(mnode, pnode) ->
+                      ( fromJust . HMap.lookup pnode $ bs ^. #nodeToIdMap
+                      , fromJust $ HMap.lookup mnode mlilRefMap ))
+            . HMap.toList
+            $ mlilToPilNodeMap
+      return . Just $ ImportResult cfg mapping
 
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
@@ -240,15 +246,15 @@ getPilFromNode imp ctxIndex_ nodeMap node =
     Just codeRef -> do
       getCodeRefStatements imp ctxIndex_ codeRef
 
-convertToPilNodeType ::
+convertToPilNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   CtxIndex ->
   MlilNodeRefMap ->
   MlilSsaCfNode ->
-  IO PilNodeType
-convertToPilNodeType imp ctxIndex_ mapping mlilSsaNode = do
-  case mlilSsaNode ^. #nodeType of
+  IO PilNode
+convertToPilNode imp ctxIndex_ mapping mlilSsaNode = do
+  case mlilSsaNode of
     BasicBlock (BasicBlockNode fun startAddr lastAddr _) -> do
       stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr stmts)
@@ -258,7 +264,7 @@ convertToPilNodeType imp ctxIndex_ mapping mlilSsaNode = do
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
     Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
 
-convertToPilEdge :: HashMap MlilSsaCfNode PilNodeType -> MlilSsaCfEdge -> Maybe (G.LEdge BranchType (NodeType [Stmt]))
+convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe (G.LEdge BranchType (CfNode [Stmt]))
 convertToPilEdge nodeMap mlilSsaEdge =
   G.LEdge (mlilSsaEdge ^. #label)
   <$> (G.Edge <$> HMap.lookup (mlilSsaEdge ^. #edge . #src) nodeMap

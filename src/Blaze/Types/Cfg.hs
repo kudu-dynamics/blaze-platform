@@ -11,9 +11,7 @@ import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
 import Blaze.Types.Pil.Common (Ctx)
 
 type PilNode = CfNode [Stmt]
-type PilNodeWithId = CfNodeWithId [Stmt]
 type PilEdge = CfEdge [Stmt]
-type PilEdgeWithId = CfEdgeWithId [Stmt]
 type PilCallNode = CallNode [Stmt]
 type PilBbNode = BasicBlockNode [Stmt]
 type PilNodeMapEntry = (PilNode, [Stmt])
@@ -116,14 +114,8 @@ data CfNode a
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
-data CfNodeWithId a = CfNodeWithId
-  { nodeType :: CfNode a
-  , nodeId :: NodeId
-  }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable, Hashable)
 
 type CfEdge a = G.LEdge BranchType (CfNode a)
-type CfEdgeWithId a = G.LEdge BranchType (CfNodeWithId a)
 
 -- data CfEdge a = CfEdge
 --   { src :: CfNode a
@@ -133,9 +125,13 @@ type CfEdgeWithId a = G.LEdge BranchType (CfNodeWithId a)
 --   deriving (Eq, Ord, Show, Generic)
 --   deriving anyclass (Hashable)
 
-mkLEdge :: (BranchType, (CfNode a, CfNode a)) -> G.LEdge BranchType (CfNode a)
-mkLEdge (bt, (s, d)) =
+mkEdge' :: BranchType -> CfNode a -> CfNode a -> G.LEdge BranchType (CfNode a)
+mkEdge' bt s d =
   G.LEdge bt (G.Edge s d)
+
+mkEdge :: (BranchType, (CfNode a, CfNode a)) -> G.LEdge BranchType (CfNode a)
+mkEdge (bt, (s, d)) = mkEdge' bt s d
+
 
 data CodeReference a = CodeReference
   { function :: Function
@@ -148,18 +144,11 @@ type NodeRefMap a b = HashMap a b
 
 type NodeRefMapEntry a b = (a, b)
 
-newtype Dominators a = Dominators (HashMap (CfNodeWithId a) (HashSet (CfNodeWithId a)))
+newtype Dominators a = Dominators (HashMap (Unique (CfNode a)) (HashSet (Unique (CfNode a))))
   deriving (Eq, Ord, Show, Generic)
 
-newtype PostDominators a = PostDominators (HashMap (CfNodeWithId a) (HashSet (CfNodeWithId a)))
+newtype PostDominators a = PostDominators (HashMap (Unique (CfNode a)) (HashSet (Unique (CfNode a))))
   deriving (Eq, Ord, Show, Generic)
-
-newtype NodeId = NodeId UUID
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
-
-genNodeId :: MonadIO m => m NodeId
-genNodeId = NodeId <$> liftIO randomIO
 
 {- | A non-empty graph that consists of a strongly-connected component
  with a single root node (a node with no incoming edges).
@@ -169,7 +158,7 @@ genNodeId = NodeId <$> liftIO randomIO
 -}
 type ControlFlowGraph a = UniqueGraph BranchType (CfNode a)
 
-mkControlFlowGraph' :: forall a. (Hashable a, Ord a)
+mkControlFlowGraph' :: forall a. Ord a
   => Unique (CfNode a)
   -> [Unique (CfNode a)]
   -> [G.LEdge BranchType (Unique (CfNode a))]
@@ -186,20 +175,6 @@ mkControlFlowGraph root' ns es = U.build $ do
   edges <- traverse (traverse U.add) es 
   return (rootNode, mkControlFlowGraph' rootNode nodes edges)
 
-  
---   nodeUuids <- traverse (\_ -> genNodeId) allNodes
---   let nodeToIdMap = HMap.fromList $ zip allNodes nodeUuids
---       idNodePairs = zip nodeUuids allNodes
-      
-  
---   let getNodeId n = fromJust $ HMap.lookup n nodeToIdMap
---       rootId = getNodeId root'
---       edges' = fmap getNodeId <$> es
---   return (rootId, Graph.addNodesWithAttrs idNodePairs . Graph.fromEdges $ edges')
-    
--- --    (view #branchType &&& (view #src &&& view #dst)) <$> es
---   where
---     allNodes = root' : ns
 
 -- TODO: Consider removing type parameter once a PIL CFG can be constructed
 --       w/o an intermediate MLIL SSA CFG.
@@ -214,10 +189,16 @@ mkCfg root' rest es = U.build $ do
   rootNode <- U.add root'
   nodes <- traverse U.add rest
   edges <- traverse (traverse U.add) es 
-  return $ Cfg
-    { graph = mkControlFlowGraph' rootNode nodes edges
-    , root = rootNode
-    }
+  return $ mkCfg' rootNode nodes edges
+
+mkCfg' :: forall a. Ord a
+       => Unique (CfNode a)
+       -> [Unique (CfNode a)]
+       -> [G.LEdge BranchType (Unique (CfNode a))] -> Cfg a
+mkCfg' rootNode nodes edges = Cfg
+  { graph = mkControlFlowGraph' rootNode nodes edges
+  , root = rootNode
+  }
 
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
