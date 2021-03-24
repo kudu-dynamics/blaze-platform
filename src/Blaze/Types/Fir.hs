@@ -38,7 +38,7 @@ data IfChain n = IfChain
   { _commonEscape :: n
   , _destination :: n
   , _nodes :: [n]
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 $(makeFieldsNoPrefix ''IfChain)
 
@@ -59,7 +59,7 @@ type ChainMapping n = Map (ChainNode n) (ChainNode n)
 
 data FirNode a = FirBasicBlock a
                | FirIfChain (IfChain a)
-               deriving (Eq, Ord, Show)
+               deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable)
 
 data FirEdgeLabel e = ChainEscapeEdge
                     | ChainDestinationEdge

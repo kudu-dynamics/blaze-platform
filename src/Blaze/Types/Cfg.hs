@@ -12,6 +12,7 @@ import Blaze.Types.Pil.Common (Ctx)
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
+type PilEdgeUnique = CfEdgeUnique [Stmt]
 type PilCallNode = CallNode [Stmt]
 type PilBbNode = BasicBlockNode [Stmt]
 type PilNodeMapEntry = (PilNode, [Stmt])
@@ -117,6 +118,8 @@ data CfNode a
 
 type CfEdge a = G.LEdge BranchType (CfNode a)
 
+type CfEdgeUnique a = G.LEdge BranchType (Unique (CfNode a))
+ 
 -- data CfEdge a = CfEdge
 --   { src :: CfNode a
 --   , dst :: CfNode a

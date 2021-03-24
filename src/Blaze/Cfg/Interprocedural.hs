@@ -9,6 +9,7 @@ import Blaze.Cfg
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
 import qualified Blaze.Graph as G
 import Blaze.Types.Cfg.Interprocedural as Exports
+import Blaze.Types.Graph.Unique (Unique, mkUnique)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (
   CallDest (CallFunc),
@@ -26,7 +27,7 @@ import Blaze.Types.Pil (
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
 import Control.Lens.Setter (set)
-import Blaze.Graph (LEdge)
+import Blaze.Graph (LEdge(LEdge), Edge(Edge))
 
 getCallTarget :: CallStatement -> Maybe Function
 getCallTarget callStmt = do
@@ -95,11 +96,11 @@ expandCall ::
   Ctx ->
   Ctx ->
   InterCfg ->
-  PilCallNode ->
+  Unique PilCallNode ->
   Builder a (Maybe InterCfg)
 expandCall callerCtx calleeCtx icfg callNode = do
   getCfg_ <- use #getCfg
-  case getCallStmt callNode of
+  case getCallStmt $ callNode ^. #node of
     Just callStmt ->
       -- TODO: CallNode should provide the call statement from a record field
       case getCallTarget callStmt of
@@ -108,65 +109,74 @@ expandCall callerCtx calleeCtx icfg callNode = do
           result <- liftIO $ getCfg_ (calleeCtx ^. #ctxIndex) targetFunc
           case result of
             Just (ImportResult targetCfg _) -> do
-              let (targetCfg', leaveFunc) = expandCall_ callerCtx calleeCtx callStmt targetCfg
-              return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg') leaveFunc
+              (targetCfg', leaveFunc) <- expandCall_ callerCtx calleeCtx callStmt targetCfg
+              return . Just $ substNode icfg (Call <$> callNode) (InterCfg targetCfg') leaveFunc
             Nothing -> return Nothing
         Nothing -> return Nothing
     Nothing -> return Nothing
 
+-- TODO: Change `MonadIO` to be some UUID generator mtl constraint
 expandCall_ ::
+  (MonadIO m) =>
   Ctx ->
   Ctx ->
   CallStatement ->
   PilCfg ->
-  (PilCfg, PilNode)
-expandCall_ callerCtx calleeCtx callStmt targetCfg = 
-  (targetCfg', leaveFunc)
+  m (PilCfg, Unique PilNode)
+expandCall_ callerCtx calleeCtx callStmt targetCfg = do
+  enterFuncNode <- mkUnique enterFunc
+  leaveFuncNode <- mkUnique leaveFunc
+  return ( targetCfg' enterFuncNode leaveFuncNode
+         , leaveFuncNode)
   -- Connect the enter and leave function nodes to the targetCfg
- where
-  enterFunc = EnterFunc $ mkEnterFuncNode callerCtx calleeCtx callStmt
-  leaveFunc = LeaveFunc $ mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
-  prevRoot = targetCfg ^. #root
-  retNodes = getRetNodes targetCfg
-  linkRetNodes :: PilCfg -> ReturnNode [Stmt] -> PilCfg
-  linkRetNodes cfg retNode =
-    G.addEdge
-      (UnconditionalBranch, (BasicBlock $ retNode ^. #basicBlock, leaveFunc))
+  where
+    enterFunc :: PilNode
+    enterFunc = EnterFunc $ mkEnterFuncNode callerCtx calleeCtx callStmt
+    leaveFunc :: PilNode
+    leaveFunc = LeaveFunc $ mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
+    prevRoot :: Unique PilNode
+    prevRoot = targetCfg ^. #root
+    retNodes :: [Unique (ReturnNode [Stmt])]
+    retNodes = getRetNodes targetCfg
+    linkRetNodes :: Unique PilNode -> PilCfg -> Unique (ReturnNode [Stmt]) -> PilCfg
+    linkRetNodes leaveFuncNode cfg retNode =
+      G.addEdge
+      (G.LEdge UnconditionalBranch (G.Edge (fmap (\n -> BasicBlock $ n ^. #basicBlock) retNode) leaveFuncNode))
       cfg
-  targetCfg' :: PilCfg
-  targetCfg' = 
-    foldl'
-      linkRetNodes
-      ( G.addEdge (UnconditionalBranch, (enterFunc, prevRoot)) $
-          targetCfg & #root .~ enterFunc
-      )
-      retNodes
+    targetCfg' :: Unique PilNode -> Unique PilNode -> PilCfg
+    targetCfg' enterFuncNode leaveFuncNode = 
+      foldl'
+        (linkRetNodes leaveFuncNode)
+        ( G.addEdge (LEdge UnconditionalBranch (Edge enterFuncNode prevRoot))
+          $ targetCfg & #root .~ enterFuncNode
+        )
+        retNodes
 
-getRetNodes :: PilCfg -> [ReturnNode [Stmt]]
+getRetNodes :: PilCfg -> [Unique (ReturnNode [Stmt])]
 getRetNodes cfg = 
-  mapMaybe (\tn -> tn ^? #_TermRet) $ NEList.toList (getTerminalBlocks cfg)
+  mapMaybe (traverse (^? #_TermRet)) $ NEList.toList (getTerminalBlocks cfg)
 
 -- | Substitute a node with another interprocedural CFG.
-substNode :: InterCfg -> PilNode -> InterCfg -> PilNode -> InterCfg
+substNode :: InterCfg -> Unique PilNode -> InterCfg -> Unique PilNode -> InterCfg
 substNode
   (InterCfg (Cfg outerGraph outerRoot))
   node
   (InterCfg (Cfg innerGraph innerRoot))
   exitNode =
     -- Check if the node we are substituting is the outer CFG's root
-    if outerRoot /= node
+    if outerRoot ^. #node /= node ^. #node
       then InterCfg (Cfg graph_ outerRoot)
       else InterCfg (Cfg graph_ innerRoot)
    where
     -- TODO: Improve Graph API for fetching edges
-    predEdges :: [LEdge BranchType PilNode]
-    predEdges = filter (\(_, (_, dest)) -> dest == node) $ G.edges outerGraph
-    succEdges :: [LEdge BranchType PilNode]
-    succEdges = filter (\(_, (source, _)) -> source == node) $ G.edges outerGraph
-    newPredEdges :: [LEdge BranchType PilNode]
-    newPredEdges = set (_2 . _2) innerRoot <$> predEdges
-    newSuccEdges :: [LEdge BranchType PilNode]
-    newSuccEdges = set (_2 . _1) exitNode <$> succEdges
+    predEdges :: [LEdge BranchType (Unique PilNode)]
+    predEdges = filter (\(LEdge _ (Edge _ dest)) -> dest == node) $ G.edges outerGraph
+    succEdges :: [LEdge BranchType (Unique PilNode)]
+    succEdges = filter (\(LEdge _ (Edge source _)) -> source == node) $ G.edges outerGraph
+    newPredEdges :: [LEdge BranchType (Unique PilNode)]
+    newPredEdges = set (#edge . #dst) innerRoot <$> predEdges
+    newSuccEdges :: [LEdge BranchType (Unique PilNode)]
+    newSuccEdges = set (#edge . #src) exitNode <$> succEdges
     graph_ :: ControlFlowGraph [Stmt]
     graph_ = 
       G.removeNode node

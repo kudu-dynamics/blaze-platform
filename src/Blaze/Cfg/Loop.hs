@@ -8,7 +8,7 @@ import Blaze.Cfg (getDominators)
 import Blaze.Prelude
 import Blaze.Types.Cfg
   ( BranchType,
-    CfEdge (CfEdge),
+    CfEdgeUnique,
     CfNode,
     Cfg(root),
     Dominators,
@@ -27,18 +27,20 @@ import Blaze.Types.Cfg.Loop as Exports hiding
 import qualified Blaze.Types.Graph as G
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
+import Blaze.Types.Graph.Unique (Unique)
 
 -- | Check if an edge is a back edge using graph dominators.
 --  We assume the dominators include the nodes referenced in the edge.
 --  If that assumption is wrong, isBackEdge defaults to False.
-isBackEdge :: (Hashable a, Ord a) => Dominators a -> CfEdge a -> Bool
+isBackEdge :: (Hashable a, Ord a) => Dominators a -> CfEdgeUnique a -> Bool
 isBackEdge domMap edge =
-  case HM.lookup (edge ^. #src) (coerce domMap) of
+  case HM.lookup (edge ^. #edge . #src) (coerce domMap) of
     Nothing -> False
-    (Just domNodes) -> HS.member (edge ^. #dst) domNodes
+    (Just domNodes) -> HS.member (edge ^. #edge . #dst) domNodes
 
-fromGraphEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
-fromGraphEdge (bType, (srcNode, dstNode)) = CfEdge srcNode dstNode bType
+fromGraphEdge :: G.LEdge BranchType (Unique (CfNode a)) -> CfEdgeUnique a
+fromGraphEdge (G.LEdge bType (G.Edge srcNode dstNode)) =
+  G.LEdge bType (G.Edge srcNode dstNode)
 
 getBackEdges :: forall a. (Hashable a, Ord a) => Cfg a -> [BackEdge a]
 getBackEdges cfg' =
@@ -52,7 +54,7 @@ getBackEdges cfg' =
 
 -- | Find body nodes of loop. If an empty list is returned, the loop
 --  only contains a head(er) node and a tail node.
-getBodyNodes :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> HashSet (CfNode a)
+getBodyNodes :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> HashSet (Unique (CfNode a))
 getBodyNodes cfg' backEdge =
   HS.delete header
     . HS.delete tail
@@ -63,16 +65,16 @@ getBodyNodes cfg' backEdge =
     . G.removeNode header
     $ cfg'
   where
-    header :: CfNode a
-    header = backEdge ^. (#edge . #dst)
-    tail :: CfNode a
-    tail = backEdge ^. (#edge . #src)
+    header :: Unique (CfNode a)
+    header = backEdge ^. (#edge . #edge . #dst)
+    tail :: Unique (CfNode a)
+    tail = backEdge ^. (#edge . #edge . #src)
 
 getLoopBody :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> LoopBody a
 getLoopBody cfg' backEdge =
   LoopBody bodyNodes
   where
-    bodyNodes :: HashSet (CfNode a)
+    bodyNodes :: HashSet (Unique (CfNode a))
     bodyNodes = getBodyNodes cfg' backEdge
 
 getLoopCfg :: forall a. (Hashable a, Ord a) => Cfg a -> LoopHeader a -> LoopNodes a -> LoopCfg a
@@ -87,11 +89,11 @@ fromBackEdge cfg' backEdge =
   NatLoop header body tail loopCfg backEdge
   where
     header :: LoopHeader a
-    header = LoopHeader $ backEdge ^. (#edge . #dst)
+    header = LoopHeader $ backEdge ^. #edge . #edge . #dst
     body :: LoopBody a
     body = getLoopBody cfg' backEdge
     tail :: LoopTail a
-    tail = LoopTail $ backEdge ^. (#edge . #src)
+    tail = LoopTail $ backEdge ^. #edge . #edge . #src
     loopNodes :: LoopNodes a
     loopNodes = LoopNodes $ HS.insert (header ^. #node) . HS.insert (tail ^. #node) $ (body ^. #nodes)
     loopCfg :: LoopCfg a

@@ -151,7 +151,7 @@ parseBranchNode getStmts node = do
 {- |Get all terminal blocks. An error is raised if a CFG does not contain at least
  one terminal block.
 -}
-getTerminalBlocks :: PilCfg -> NonEmpty (TerminalNode [Stmt])
+getTerminalBlocks :: PilCfg -> NonEmpty (Unique (TerminalNode [Stmt]))
 getTerminalBlocks cfg =
   -- TODO: We may want to add a 'FuncCfg' type so that arbitrary CFGs that may not correspond
   --       to an entire function do not cause errors.
@@ -159,9 +159,8 @@ getTerminalBlocks cfg =
     then error "CFGs should always have at least one terminal basic block."
     else NEList.fromList nodes'
  where
-  nodes' :: [TerminalNode [Stmt]]
-  nodes' = mapMaybe parseTerminalNode
-    . fmap (view #node)
+  nodes' :: [Unique (TerminalNode [Stmt])]
+  nodes' = mapMaybe (traverse parseTerminalNode)
     . Set.toList
     $ G.nodes cfg
 
@@ -171,7 +170,9 @@ getRetExprs cfg =
   view (#retOp . #value) <$> retBlocks
  where
   retBlocks :: [ReturnNode [Stmt]]
-  retBlocks = mapMaybe (preview #_TermRet) (NEList.toList $ getTerminalBlocks cfg)
+  retBlocks = mapMaybe (preview #_TermRet)
+              ( NEList.toList . fmap (view #node)
+                $ getTerminalBlocks cfg)
 
 evalCondition :: BranchCondOp Expression -> Maybe Bool
 evalCondition bn = case bn ^. #cond . #op of

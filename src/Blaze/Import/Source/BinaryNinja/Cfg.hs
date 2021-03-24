@@ -18,14 +18,12 @@ import Blaze.Types.Cfg (
     UnconditionalBranch
   ),
   CallNode (CallNode),
-  CfEdge,
   CfNode (
     BasicBlock,
     Call
   ),
   Cfg,
   PilCfg,
-  PilEdge,
   PilNode,
   mkCfg,
  )
@@ -40,7 +38,6 @@ import qualified Data.DList as DList
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
-import Data.Tuple.Extra ((***))
 import qualified Data.List as List
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr

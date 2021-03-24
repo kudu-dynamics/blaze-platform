@@ -57,6 +57,14 @@ data Unique n = Unique
   , node :: n
   } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Functor, Foldable, Traversable)
 
+metaMap :: (Unique a -> b) -> Unique a -> Unique b
+metaMap f x = (const $ f x) <$> x
+
+metaTraverse :: Monad m => (Unique a -> m b) -> Unique a -> m (Unique b)
+metaTraverse f x = do
+  b <- f x
+  return $ const b <$> x
+
 -- TODO: change this to some MTL class for just doing UUIDs
 mkUnique :: MonadIO m => n -> m (Unique n)
 mkUnique n = flip Unique n  <$> liftIO randomIO
