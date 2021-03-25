@@ -187,12 +187,30 @@ data Cfg a = Cfg
   }
   deriving (Eq, Show, Generic)
 
-mkCfg :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [G.LEdge BranchType (CfNode a)] -> IO (Cfg a)
-mkCfg root' rest es = U.build $ do
+buildEdge :: (MonadIO m, Eq a, Hashable a)
+          => CfEdge a
+          -> U.Builder (CfNode a) m (CfEdgeUnique a)
+buildEdge = traverse U.add
+
+buildNode :: (MonadIO m, Eq a, Hashable a)
+          => CfNode a
+          -> U.Builder (CfNode a) m (Unique (CfNode a))
+buildNode = U.add
+
+
+buildCfg :: forall m a. (Hashable a, Ord a, MonadIO m)
+         => CfNode a
+         -> [CfNode a]
+         -> [G.LEdge BranchType (CfNode a)]
+         -> U.Builder (CfNode a) m (Cfg a)
+buildCfg root' rest es = do
   rootNode <- U.add root'
   nodes <- traverse U.add rest
   edges <- traverse (traverse U.add) es 
   return $ mkCfg' rootNode nodes edges
+
+mkCfg :: forall a. (Hashable a, Ord a) => CfNode a -> [CfNode a] -> [G.LEdge BranchType (CfNode a)] -> IO (Cfg a)
+mkCfg root' rest es = U.build $ buildCfg root' rest es
 
 mkCfg' :: forall a. Ord a
        => Unique (CfNode a)

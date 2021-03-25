@@ -5,7 +5,7 @@ import Blaze.Types.Cfg (CfEdgeUnique, CfNode, Cfg)
 import Blaze.Types.Graph.Unique (Unique)
 
 newtype BackEdge a = BackEdge {edge :: CfEdgeUnique a}
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
   deriving anyclass Hashable
 
 -- TODO: Consider using a type that can only be a basic block node?
