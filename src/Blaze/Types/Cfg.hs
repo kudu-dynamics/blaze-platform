@@ -119,7 +119,9 @@ data CfNode a
 type CfEdge a = G.LEdge BranchType (CfNode a)
 
 type CfEdgeUnique a = G.LEdge BranchType (Unique (CfNode a))
- 
+
+stripCfEdgeUnique :: CfEdgeUnique a -> CfEdge a
+stripCfEdgeUnique = fmap (view #node)
 -- data CfEdge a = CfEdge
 --   { src :: CfNode a
 --   , dst :: CfNode a

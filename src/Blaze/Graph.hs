@@ -48,10 +48,9 @@ collapseGotoBlocks g =
       | Set.member bbSrc gotos = xs
       | Set.member bbDst gotos = case Set.toList $ G.succs bbDst g of
         [bbTgt] ->
-          ( G.LEdge
+          G.LEdge
             (be & BB.target ?~ bbTgt)
-            (G.Edge bbSrc bbTgt)
-          )
+            (G.Edge bbSrc bbTgt)            
             : xs
         _ -> edge : xs
       | otherwise = edge : xs

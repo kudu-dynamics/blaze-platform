@@ -84,7 +84,7 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
   bfs startNodes g = GA.bfs startNodes . adjacencyMap $ g
   subgraph pred g = AlgaGraph 
     { adjacencyMap = subgraphAdjMap
-    , edgeMap = (`HMap.filterWithKey` (edgeMap g)) $ \k _ ->
+    , edgeMap = (`HMap.filterWithKey` edgeMap g) $ \k _ ->
         Set.member k subgraphEdges
     , nodeAttrMap = flip HMap.mapMaybeWithKey (nodeAttrMap g) $ \k v ->
         if pred k then Just v else Nothing

@@ -63,7 +63,7 @@ buildDltGraph cfg dltMap =
   cfMap :: CfMap a
   cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
   dltNodes :: [Dlt.Node]
-  dltNodes = (cfMap Hm.!) <$> (Set.toList $ G.nodes cfg)
+  dltNodes = (cfMap Hm.!) <$> Set.toList (G.nodes cfg)
   dltEdges :: [Dlt.Edge]
   dltEdges = do
     (G.LEdge _ (G.Edge src_ dst_)) <- G.edges cfg

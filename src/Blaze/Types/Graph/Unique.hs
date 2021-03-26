@@ -22,7 +22,7 @@ newtype BuilderState n = BuilderState
   } deriving (Eq, Ord, Show, Generic)
 
 emptyBuilderState :: BuilderState n
-emptyBuilderState = BuilderState $ HMap.empty
+emptyBuilderState = BuilderState HMap.empty
 
 newtype Builder n m a = Builder
   { _runBuilder :: StateT (BuilderState n) m a }
@@ -58,12 +58,12 @@ data Unique n = Unique
   } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Functor, Foldable, Traversable)
 
 metaMap :: (Unique a -> b) -> Unique a -> Unique b
-metaMap f x = (const $ f x) <$> x
+metaMap f x = f x <$ x
 
 metaTraverse :: Monad m => (Unique a -> m b) -> Unique a -> m (Unique b)
 metaTraverse f x = do
   b <- f x
-  return $ const b <$> x
+  return $ b <$ x
 
 -- TODO: change this to some MTL class for just doing UUIDs
 mkUnique :: MonadIO m => n -> m (Unique n)
@@ -82,7 +82,7 @@ setUniqueAttrs :: Foldable t
   -> UniqueGraph e n
 setUniqueAttrs xs g = foldr setUniqueAttr g xs
 
-getUnique :: AlgaGraph e n (NodeId n) -> (NodeId n) -> Unique n
+getUnique :: AlgaGraph e n (NodeId n) -> NodeId n -> Unique n
 getUnique g nid = Unique nid . fromJust $ G.getNodeAttr nid g
 
 getUniqueSet :: Ord n => AlgaGraph e n (NodeId n) -> Set (NodeId n) -> Set (Unique n)
@@ -106,7 +106,7 @@ instance Ord n => Graph e () (Unique n) (UniqueGraph e n) where
   preds n (UniqueGraph g) =
     getUniqueSet g $ G.preds (n ^. #nodeId) g
   nodes (UniqueGraph g) = getUniqueSet g $ G.nodes g
-  edges (UniqueGraph g) = fmap (fmap $ getUnique g) $ G.edges g
+  edges (UniqueGraph g) = fmap (getUnique g) <$> G.edges g
   getEdgeLabel e (UniqueGraph g) = G.getEdgeLabel (unUnique e) g
   setEdgeLabel lbl e (UniqueGraph g) = UniqueGraph $ G.setEdgeLabel lbl (unUnique e) g
   getNodeAttr _ _ = Just ()
@@ -133,4 +133,4 @@ updateNode f n (UniqueGraph g) = UniqueGraph
   $ G.updateNodeAttr f (n ^. #nodeId) g
 
 setNode :: n -> Unique n -> UniqueGraph e n -> UniqueGraph e n
-setNode n' n g = updateNode (const n') n g
+setNode n' = updateNode (const n')

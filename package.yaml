@@ -152,6 +152,7 @@ library:
   - Blaze.Types.Pil.Solver
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
+  - Blaze.Util.Spec
   - Blaze.VTable
   
 include-dirs:
