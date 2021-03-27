@@ -29,8 +29,8 @@ import qualified Data.HashSet as HSet
 copyProp :: InterCfg -> InterCfg
 copyProp icfg =
   InterCfg $
-    foldr
-    (Cfg.updateNode (PA._copyProp copyPropState <$>))
+    foldl'
+    (flip $ Cfg.updateNode (PA._copyProp copyPropState <$>))
     cfg
     (Set.toList $ G.nodes cfg)
  where
@@ -44,8 +44,8 @@ copyProp icfg =
 constantProp :: InterCfg -> InterCfg
 constantProp icfg =
   InterCfg $
-    foldr
-    (Cfg.updateNode (PA._constantProp constPropState <$>))
+    foldl'
+    (flip $ Cfg.updateNode (PA._constantProp constPropState <$>))
     cfg
     (Set.toList $ G.nodes cfg)
  where

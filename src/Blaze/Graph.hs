@@ -42,7 +42,7 @@ collapseGotoBlocks g =
     ns -> do
       gotos <- fmap Set.fromList . filterM isGotoNode $ ns
       let es = G.edges g
-      return . G.fromEdges $ foldr (f gotos) [] es
+      return . G.fromEdges $ foldl' (flip $ f gotos) [] es
   where
     f gotos edge@(G.LEdge be (G.Edge bbSrc bbDst)) xs
       | Set.member bbSrc gotos = xs

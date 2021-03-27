@@ -66,9 +66,9 @@ getBodyNodes cfg' backEdge =
     $ cfg'
   where
     header :: Unique (CfNode a)
-    header = backEdge ^. (#edge . #edge . #dst)
+    header = backEdge ^. #edge . #edge . #dst
     tail :: Unique (CfNode a)
-    tail = backEdge ^. (#edge . #edge . #src)
+    tail = backEdge ^. #edge . #edge . #src
 
 getLoopBody :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> LoopBody a
 getLoopBody cfg' backEdge =

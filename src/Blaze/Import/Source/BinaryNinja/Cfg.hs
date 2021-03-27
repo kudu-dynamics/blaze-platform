@@ -38,7 +38,7 @@ import qualified Data.DList as DList
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
-import qualified Data.List as List
+
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
 toMlilSsaInstr instr' =
@@ -206,9 +206,9 @@ getCfg imp bv ctxIndex_ fun = do
     Nothing -> return Nothing
     Just (ImportResult mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root . #node
-          mlilRestNodes = List.delete mlilRootNode
-            . fmap (view #node)
+          mlilRestNodes = fmap (view #node)
             . Set.toList
+            . Set.delete (mlilCfg ^. #root)
             . G.nodes
             $ mlilCfg
       pilRootNode <- convertToPilNode imp ctxIndex_ mlilRefMap mlilRootNode

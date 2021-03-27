@@ -10,13 +10,13 @@ data Edge node = Edge
   { src :: node
   , dst :: node
   } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, ToJSON, FromJSON)
 
 data LEdge label node = LEdge
   { label :: label
   , edge :: Edge node
   } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, ToJSON, FromJSON)
 
 toTupleEdge :: Edge node -> (node, node)
 toTupleEdge e = (e ^. #src, e ^. #dst)
