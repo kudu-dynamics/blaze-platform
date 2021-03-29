@@ -52,7 +52,7 @@ constantProp icfg =
   cfg :: PilCfg
   cfg = unInterCfg icfg
   allStmts :: [Stmt]
-  allStmts = concatMap (concatMap concat) . Set.toList . G.nodes $ cfg
+  allStmts = concatMap concat . Set.toList . G.nodes $ cfg
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts
 
