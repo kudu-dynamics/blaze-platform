@@ -30,7 +30,6 @@ toTupleLEdge (LEdge lbl e) = (lbl, toTupleEdge e)
 fromTupleLEdge :: (label, (node, node)) -> LEdge label node
 fromTupleLEdge (lbl, e) = LEdge lbl (fromTupleEdge e)
 
-
 -- TODO: Switch to HashSet from Set for type class
 class Graph e attr n g | g -> e attr n where
   empty :: g

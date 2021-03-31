@@ -1,14 +1,14 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Blaze.Cfg (
-  module Exports,
+  module Cfg,
   module Blaze.Cfg,
 ) where
 
 import qualified Blaze.Graph as G
 import Blaze.Prelude
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Cfg as Exports
+import Blaze.Types.Cfg hiding (nodes)
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)

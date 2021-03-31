@@ -7,8 +7,7 @@ where
 import Blaze.Cfg (getDominators)
 import Blaze.Prelude
 import Blaze.Types.Cfg
-  ( BranchType,
-    CfEdge (CfEdge),
+  ( CfEdge,
     CfNode,
     Cfg(root),
     Dominators,

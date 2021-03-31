@@ -3,10 +3,12 @@ module Blaze.Types.Cfg
   , G.succs
   , G.preds
   , G.nodes
+  , G.removeNode
   , G.addNodes
   , G.hasNode
   , G.transpose
   , G.bfs
+  , G.sinks
   ) where
 
 import Blaze.Graph (Graph)
@@ -190,14 +192,11 @@ getFullNode' g n = fromJust $ G.getNodeAttr n g
 getFullNode :: Cfg a -> CfNode () -> CfNode a
 getFullNode g =  getFullNode' $ g ^. #graph
 
+getFullEdge :: Ord a => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
+getFullEdge cfg e = CfEdge (e ^. #src) (e ^. #dst) <$> G.getEdgeLabel e cfg
 
--- sadly inefficient
 toFullNodeSet :: Ord a => Cfg a -> Set (CfNode ()) -> Set (CfNode a)
-toFullNodeSet g s = Set.fromList
-  . fmap (getFullNode g)
-  . Set.toList
-  $ s
-
+toFullNodeSet g = Set.map $ getFullNode g
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
 mkControlFlowGraph :: forall a. CfNode a -> [CfNode a] -> [CfEdge a] -> ControlFlowGraph a
@@ -234,6 +233,24 @@ removeEdge e = G.removeEdge $ toLEdge e ^. #edge
 
 addEdge :: Ord a => CfEdge a -> Cfg a -> Cfg a
 addEdge e = G.addEdge $ toLEdge e
+
+addEdges :: Ord a => [CfEdge a] -> Cfg a -> Cfg a
+addEdges xs cfg = foldl' (flip addEdge) cfg xs
+
+removeEdges :: Ord a => [CfEdge a] -> Cfg a -> Cfg a
+removeEdges xs cfg = foldl' (flip removeEdge) cfg xs
+  
+-- TODO: move this to Graph class
+predEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
+predEdges n cfg = Set.map (\p -> fromJust . getFullEdge cfg $ G.Edge p n)
+  . G.preds n
+  $ cfg
+
+-- TODO: move this to Graph class
+succEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
+succEdges n cfg = Set.map (\p -> fromJust . getFullEdge cfg $ G.Edge p n)
+  . G.succs n
+  $ cfg
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
