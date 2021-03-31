@@ -332,20 +332,21 @@ removeUnusedPhi stmts = filter (not . isUnusedPhi refs) stmts
   where
     refs = getRefVars stmts
 
-reducePhi :: HashSet PilVar -> Stmt -> Stmt
+reducePhi :: HashSet PilVar -> Stmt -> Maybe Stmt
 reducePhi undefVars stmt = case stmt of
   Pil.DefPhi (Pil.DefPhiOp dstVar vars) ->
     case vars' of
-      [x] ->
+      [] -> Nothing
+      [x] -> Just $
         Pil.Def $
           Pil.DefOp
             dstVar
             -- TODO: Don't hardcode expression size
             (Pil.Expression (Pil.OperationSize $ Bytes 8) (Pil.VAR (Pil.VarOp x)))
-      xs -> Pil.DefPhi $ Pil.DefPhiOp dstVar xs
+      xs -> Just $ Pil.DefPhi $ Pil.DefPhiOp dstVar xs
    where
     vars' = filter (not . (`HSet.member` undefVars)) vars
-  _ -> stmt
+  _ -> Just stmt
 
 --------------- MEMORY --------------------
 
