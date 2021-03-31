@@ -3,13 +3,12 @@
 module Blaze.Cfg (
   module Exports,
   module Blaze.Cfg,
-  module Cfg
 ) where
 
 import qualified Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Cfg as Exports
 import qualified Blaze.Types.Cfg as Cfg
+import Blaze.Types.Cfg as Exports
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
@@ -18,20 +17,16 @@ import qualified Data.HashMap.Strict as Hm
 import qualified Data.HashSet as Hs
 import qualified Data.IntMap.Strict as Im
 import qualified Data.List as List
-import qualified Data.Set as Set
 import qualified Data.List.NonEmpty as NEList
-import Blaze.Types.Graph.Unique (Unique)
+import qualified Data.Set as Set
 
-type DltMap a = IntMap (Unique (CfNode a))
+type DltMap a = IntMap (CfNode a)
 
-type CfMap a = HashMap (Unique (CfNode a)) Int
+type CfMap a = HashMap (CfNode a) Int
 
 buildNodeMap :: Ord a => Cfg a -> DltMap a
-buildNodeMap =
-  Im.fromList
-  . zip [0 ..]
-  . Set.toList
-  . G.nodes
+buildNodeMap cfg =
+  Im.fromList $ zip [0 ..] (Set.toList . Cfg.nodes $ cfg)
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
@@ -58,15 +53,15 @@ buildDltGraph ::
 buildDltGraph cfg dltMap =
   -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
   -- that don't have outgoing edges.
-  (cfMap Hm.! (cfg ^. #root), Dlt.fromAdj dltAdj)
+  (cfMap Hm.! view #root cfg, Dlt.fromAdj dltAdj)
  where
   cfMap :: CfMap a
   cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
   dltNodes :: [Dlt.Node]
-  dltNodes = (cfMap Hm.!) <$> Set.toList (G.nodes cfg)
+  dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes $ cfg)
   dltEdges :: [Dlt.Edge]
   dltEdges = do
-    (G.LEdge _ (G.Edge src_ dst_)) <- G.edges cfg
+    (CfEdge src_ dst_ _) <- Cfg.edges cfg
     return (cfMap Hm.! src_, cfMap Hm.! dst_)
   dltAdj :: [(Dlt.Node, [Dlt.Node])]
   dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
@@ -88,14 +83,14 @@ domHelper ::
   (Hashable a, Ord a) =>
   (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) ->
   Cfg a ->
-  HashMap (Unique (CfNode a)) (HashSet (Unique (CfNode a)))
+  HashMap (CfNode a) (HashSet (CfNode a))
 domHelper f cfg =
   Hm.fromList . ((Hs.fromList <$>) <$>) $ domList
  where
   dltRooted :: Dlt.Rooted
   dltMap :: DltMap a
   (dltRooted, dltMap) = dltGraphFromCfg cfg
-  domList :: [(Unique (CfNode a), [Unique (CfNode a)])]
+  domList :: [(CfNode a, [CfNode a])]
   domList = bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
 
 {- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
@@ -151,18 +146,19 @@ parseBranchNode getStmts node = do
 {- |Get all terminal blocks. An error is raised if a CFG does not contain at least
  one terminal block.
 -}
-getTerminalBlocks :: PilCfg -> NonEmpty (Unique (TerminalNode [Stmt]))
+getTerminalBlocks :: PilCfg -> NonEmpty (TerminalNode [Stmt])
 getTerminalBlocks cfg =
   -- TODO: We may want to add a 'FuncCfg' type so that arbitrary CFGs that may not correspond
   --       to an entire function do not cause errors.
-  if List.null nodes'
+  if List.null nodes
     then error "CFGs should always have at least one terminal basic block."
-    else NEList.fromList nodes'
+    else NEList.fromList nodes
  where
-  nodes' :: [Unique (TerminalNode [Stmt])]
-  nodes' = mapMaybe (traverse parseTerminalNode)
-    . Set.toList
-    $ G.nodes cfg
+  nodes :: [TerminalNode [Stmt]]
+  nodes =
+    mapMaybe
+      parseTerminalNode
+      (Set.toList $ Cfg.nodes cfg)
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]
@@ -170,9 +166,7 @@ getRetExprs cfg =
   view (#retOp . #value) <$> retBlocks
  where
   retBlocks :: [ReturnNode [Stmt]]
-  retBlocks = mapMaybe (preview #_TermRet)
-              ( NEList.toList . fmap (view #node)
-                $ getTerminalBlocks cfg)
+  retBlocks = mapMaybe (preview #_TermRet) (NEList.toList $ getTerminalBlocks cfg)
 
 evalCondition :: BranchCondOp Expression -> Maybe Bool
 evalCondition bn = case bn ^. #cond . #op of
@@ -203,3 +197,4 @@ evalCondition bn = case bn ^. #cond . #op of
 
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
+
