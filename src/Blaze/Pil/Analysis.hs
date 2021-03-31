@@ -327,12 +327,25 @@ isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
 isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
 isUnusedPhi _ _ = False
 
-
 removeUnusedPhi :: [Stmt] -> [Stmt]
 removeUnusedPhi stmts = filter (not . isUnusedPhi refs) stmts
   where
     refs = getRefVars stmts
 
+reducePhi :: HashSet PilVar -> Stmt -> Stmt
+reducePhi undefVars stmt = case stmt of
+  Pil.DefPhi (Pil.DefPhiOp dstVar vars) ->
+    case vars' of
+      [x] ->
+        Pil.Def $
+          Pil.DefOp
+            dstVar
+            -- TODO: Don't hardcode expression size
+            (Pil.Expression (Pil.OperationSize $ Bytes 8) (Pil.VAR (Pil.VarOp x)))
+      xs -> Pil.DefPhi $ Pil.DefPhiOp dstVar xs
+   where
+    vars' = filter (not . (`HSet.member` undefVars)) vars
+  _ -> stmt
 
 --------------- MEMORY --------------------
 
