@@ -428,26 +428,26 @@ instance Pretty PilNode where
 
 instance Pretty PilEdge where
   pretty e =
-    pretty (e ^. #edge . #src)
-      <> " ---> " <> pretty (e ^. #edge . #dst) 
-      <> "  |" <> pretty (e ^. #label) <> "|"
+    pretty (e ^. #src)
+      <> " ---> " <> pretty (e ^. #dst) 
+      <> "  |" <> pretty (e ^. #branchType) <> "|"
 
 instance Pretty (BasicBlockNode a) where
-  pretty (Cfg.BasicBlockNode f start end _) =
+  pretty (Cfg.BasicBlockNode f start end _ _) =
     pretty f
       <> "@[" <> pretty start <> ", " <> pretty end <> "]"
 
 instance Pretty (CallNode a) where
-  pretty (Cfg.CallNode f start _) =
+  pretty (Cfg.CallNode f start _ _) =
     pretty f
       <> "@" <> pretty start
 
 instance Pretty (EnterFuncNode a) where
-  pretty (Cfg.EnterFuncNode prevCtx nextCtx _) =
+  pretty (Cfg.EnterFuncNode prevCtx nextCtx _ _) =
     "EnterFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
 
 instance Pretty (LeaveFuncNode a) where
-  pretty (Cfg.LeaveFuncNode prevCtx nextCtx _) =
+  pretty (Cfg.LeaveFuncNode prevCtx nextCtx _ _) =
     "LeaveFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
 
 instance Pretty BranchType where

@@ -252,6 +252,20 @@ succEdges n cfg = Set.map (\p -> fromJust . getFullEdge cfg $ G.Edge p n)
   . G.succs n
   $ cfg
 
+getNodeData :: CfNode a -> Maybe a
+getNodeData = \case
+  BasicBlock x -> Just $ x ^. #nodeData
+  Call x -> Just $ x ^. #nodeData
+  EnterFunc x -> Just $ x ^. #nodeData
+  LeaveFunc x -> Just $ x ^. #nodeData
+
+setNodeData :: Ord a => a -> CfNode a -> Cfg a -> Cfg a
+setNodeData a n = G.setNodeAttr (fmap (const a) n) n
+
+updateNodeData :: Ord a => (a -> a) -> CfNode a -> Cfg a -> Cfg a
+updateNodeData f n cfg =
+  maybe cfg (\x -> setNodeData (f x) n cfg) $ getNodeData n
+
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
 instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where

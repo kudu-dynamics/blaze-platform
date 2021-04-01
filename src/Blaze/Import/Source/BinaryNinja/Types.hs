@@ -5,13 +5,12 @@ import qualified Binja.Core as Binja
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Cfg (CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry, PilNode, PilNode, CfNode, CfEdge)
+import Blaze.Types.Cfg (CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry, PilNode)
 import Blaze.Types.Pil (
   CallDest,
   Expression,
  )
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Graph.Unique (NodeId)
 import Control.Monad.Trans.Writer.Lazy (WriterT)
 import Data.DList (DList)
 
@@ -58,7 +57,7 @@ type MlilNodeRefMap = NodeRefMap MlilNode MlilCodeReference
 type MlilNodeRefMapEntry = NodeRefMapEntry MlilNode MlilCodeReference
 type NodeConverter a = WriterT (DList MlilNodeRefMapEntry) IO a
 
-type PilMlilNodeMap = HashMap (NodeId PilNode) MlilCodeReference
+type PilMlilNodeMap = HashMap PilNode MlilCodeReference
 
 ----- Pil
 
@@ -166,3 +165,4 @@ data CallSite = CallSite
   , callInstr :: CallInstruction
   , callDest :: CallDest Expression
   } deriving (Eq, Ord, Show, Generic, Hashable)
+
