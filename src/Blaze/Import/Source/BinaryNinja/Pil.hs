@@ -92,7 +92,7 @@ mkConverterState :: BNBinaryView -> CtxId -> HashMap Text Func.FuncInfo -> Addre
 mkConverterState bv startCtxId knownFuncDefs_ addrSize_ f p =
   ConverterState
     p
-    (startCtx ^. #ctxIndex)
+    (startCtx ^. #ctxId)
     (startCtx :| [])
     startCtx
     []
@@ -285,7 +285,7 @@ convertToPilVar :: MLIL.SSAVariable -> Converter PilVar
 convertToPilVar v = do
   ctx' <- use #ctx
   bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
-  let sourceVar = SSAVariableRef v bnfunc (ctx' ^. #ctxIndex)
+  let sourceVar = SSAVariableRef v bnfunc (ctx' ^. #ctxId)
       pilVar = PilVar (getSymbol v) (Just ctx')
   #sourceVars %= HMap.insert pilVar sourceVar
   return pilVar
