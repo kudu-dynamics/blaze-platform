@@ -38,7 +38,7 @@ data BranchType
 instance Hashable BranchType
 
 data BasicBlockNode a = BasicBlockNode
-  { function :: Function
+  { ctx :: Ctx
   , start :: Address
   , end :: Address
   , uuid :: UUID
@@ -48,7 +48,7 @@ data BasicBlockNode a = BasicBlockNode
   deriving anyclass (Hashable)
 
 data CallNode a = CallNode
-  { function :: Function
+  { ctx :: Ctx
   , start :: Address
   , uuid :: UUID
   , nodeData :: a

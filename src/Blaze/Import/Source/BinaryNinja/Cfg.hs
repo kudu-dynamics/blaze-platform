@@ -52,8 +52,8 @@ tellEntry :: MlilNodeRefMapEntry -> NodeConverter ()
 tellEntry = tell . DList.singleton
 
 -- | Assumes instructions are consecutive
-nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
-nodeFromInstrs func' instrs = do
+nodeFromInstrs :: Ctx -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+nodeFromInstrs ctx instrs = do
   uuid' <- liftIO randomIO
   let node =
         BasicBlock $
