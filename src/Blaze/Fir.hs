@@ -1,10 +1,9 @@
 module Blaze.Fir where
 
-import           Blaze.Prelude
-import           Blaze.Types.Graph                 ( Graph )
-import qualified Blaze.Types.Graph    as G
+import Blaze.Prelude
 import Blaze.Types.Fir hiding (dest)
-
+import Blaze.Types.Graph (Edge(Edge), Graph, LEdge(LEdge))
+import qualified Blaze.Types.Graph as G
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -92,24 +91,24 @@ toFirGraph :: forall e attr n g g'.
 toFirGraph ifChains g = case Set.toList $ G.nodes g of
   [bb] -> G.fromNode $ FirBasicBlock bb
   _ -> G.fromEdges . (ifChainEdges <>) $ do
-    (e, (src, dst)) <- G.edges g
+    (G.LEdge e (G.Edge src dst)) <- G.edges g
     guard . not $ Set.member src nodeSet
     case Map.lookup dst startNodeMap of
-      Nothing -> return (NormalEdge e, (FirBasicBlock src, FirBasicBlock dst))
-      (Just ifc) -> return ( NormalEdge e
-                           , (FirBasicBlock src, FirIfChain ifc))
+      Nothing -> return (LEdge (NormalEdge e) (Edge (FirBasicBlock src) (FirBasicBlock dst)))
+      (Just ifc) -> return
+        $ LEdge (NormalEdge e) (Edge (FirBasicBlock src) (FirIfChain ifc))
   where
     nodeSet :: Set n
     nodeSet = Set.fromList $ concatMap (view nodes) ifChains
 
-    ifChainEdges :: [(FirEdgeLabel e, (FirNode n, FirNode n))]
+    ifChainEdges :: [G.LEdge (FirEdgeLabel e) (FirNode n)]
     ifChainEdges = do
       ifc <- ifChains
-      [   ( ChainEscapeEdge
-          , (FirIfChain ifc, maybeSwap $ ifc ^. commonEscape))
-        , ( ChainDestinationEdge
-          , (FirIfChain ifc, maybeSwap $ ifc ^. destination))
-        ] 
+      [ LEdge ChainEscapeEdge
+        $ Edge (FirIfChain ifc) (maybeSwap $ ifc ^. commonEscape)
+        , LEdge ChainDestinationEdge
+          $ Edge (FirIfChain ifc) (maybeSwap $ ifc ^. destination)
+        ]
 
     maybeSwap :: n -> FirNode n
     maybeSwap n = maybe (FirBasicBlock n) FirIfChain $ Map.lookup n startNodeMap

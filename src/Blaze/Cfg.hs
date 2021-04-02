@@ -1,13 +1,14 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Blaze.Cfg (
-  module Exports,
+  module Cfg,
   module Blaze.Cfg,
 ) where
 
 import qualified Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Cfg as Exports
+import qualified Blaze.Types.Cfg as Cfg
+import Blaze.Types.Cfg hiding (nodes)
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
@@ -25,7 +26,7 @@ type CfMap a = HashMap (CfNode a) Int
 
 buildNodeMap :: Ord a => Cfg a -> DltMap a
 buildNodeMap cfg =
-  Im.fromList $ zip [0 ..] (Set.toList . G.nodes . view #graph $ cfg)
+  Im.fromList $ zip [0 ..] (Set.toList . Cfg.nodes $ cfg)
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
@@ -57,10 +58,10 @@ buildDltGraph cfg dltMap =
   cfMap :: CfMap a
   cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
   dltNodes :: [Dlt.Node]
-  dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes . view #graph $ cfg)
+  dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes $ cfg)
   dltEdges :: [Dlt.Edge]
   dltEdges = do
-    (_, (src_, dst_)) <- G.edges . view #graph $ cfg
+    (CfEdge src_ dst_ _) <- Cfg.edges cfg
     return (cfMap Hm.! src_, cfMap Hm.! dst_)
   dltAdj :: [(Dlt.Node, [Dlt.Node])]
   dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
@@ -157,7 +158,7 @@ getTerminalBlocks cfg =
   nodes =
     mapMaybe
       parseTerminalNode
-      (Set.toList $ G.nodes (cfg ^. #graph))
+      (Set.toList $ Cfg.nodes cfg)
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]
@@ -196,3 +197,4 @@ evalCondition bn = case bn ^. #cond . #op of
 
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
+

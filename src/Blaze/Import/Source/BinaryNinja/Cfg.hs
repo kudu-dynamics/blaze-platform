@@ -28,7 +28,6 @@ import Blaze.Types.Cfg (
   PilEdge,
   PilNode,
   mkCfg,
-  mkEdge,
  )
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Function (Function)
@@ -55,6 +54,7 @@ tellEntry = tell . DList.singleton
 -- | Assumes instructions are consecutive
 nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromInstrs func' instrs = do
+  uuid' <- liftIO randomIO
   let node =
         BasicBlock $
           BasicBlockNode
@@ -62,6 +62,7 @@ nodeFromInstrs func' instrs = do
             , start = (view Mlil.address . unNonCallInstruction) . NEList.head $ instrs
             , end = (view Mlil.address . unNonCallInstruction) . NEList.last $ instrs
             , nodeData = unNonCallInstruction <$> instrs
+            , uuid = uuid'
             }
   tellEntry
     ( node
@@ -75,12 +76,14 @@ nodeFromInstrs func' instrs = do
 
 nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromCallInstr func' callInstr' = do
+  uuid' <- liftIO randomIO
   let node =
         Call $
           CallNode
             { function = func'
             , start = callInstr' ^. #address
             , nodeData = callInstr' ^. #instr :| []
+            , uuid = uuid'
             }
   tellEntry
     ( node
@@ -212,7 +215,7 @@ getCfg imp bv ctxIndex_ fun = do
       pilRestNodes <- traverse (convertToPilNode imp ctxIndex_ mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
-          pilEdges = traverse (convertToPilEdge mlilToPilNodeMap . mkEdge) (G.edges mlilCfg)
+          pilEdges = traverse (convertToPilEdge mlilToPilNodeMap) (Cfg.edges mlilCfg)
           pilStmtsMap =
             HMap.fromList $
               ( (fromJust . (`HMap.lookup` mlilToPilNodeMap))
@@ -246,12 +249,14 @@ convertToPilNode ::
   IO PilNode
 convertToPilNode imp ctxIndex_ mapping mlilSsaNode = do
   case mlilSsaNode of
-    BasicBlock (BasicBlockNode fun startAddr lastAddr _) -> do
+    BasicBlock (BasicBlockNode fun startAddr lastAddr _ _) -> do
       stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
-      return $ BasicBlock (BasicBlockNode fun startAddr lastAddr stmts)
-    Call (CallNode fun startAddr _) -> do
+      uuid' <- randomIO
+      return $ BasicBlock (BasicBlockNode fun startAddr lastAddr uuid' stmts)
+    Call (CallNode fun startAddr _ _) -> do
       stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
-      return $ Call (CallNode fun startAddr stmts)
+      uuid' <- randomIO
+      return $ Call (CallNode fun startAddr uuid' stmts)
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
     Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
 
@@ -261,3 +266,4 @@ convertToPilEdge nodeMap mlilSsaEdge =
     <$> HMap.lookup (mlilSsaEdge ^. #src) nodeMap
     <*> HMap.lookup (mlilSsaEdge ^. #dst) nodeMap
     <*> Just (mlilSsaEdge ^. #branchType)
+

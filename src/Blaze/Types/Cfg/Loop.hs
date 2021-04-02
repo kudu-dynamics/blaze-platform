@@ -31,3 +31,4 @@ data NatLoop a b = NatLoop
   , backEdge :: BackEdge a
   }
   deriving (Eq, Show, Generic)
+

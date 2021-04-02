@@ -16,10 +16,15 @@ newtype OperationSize = OperationSize Bytes
   deriving newtype (Num, Real, Enum, Integral)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
-newtype CtxIndex = CtxIndex Int
+newtype CtxIndex = CtxIndex UUID
   deriving (Eq, Ord, Show, Generic)
-  deriving newtype Num
   deriving anyclass (Hashable, ToJSON, FromJSON)
+
+genCtxIndex :: MonadIO m => m CtxIndex
+genCtxIndex = liftIO $ CtxIndex <$> randomIO
+
+createCtx :: MonadIO m => Function -> m Ctx
+createCtx fn = Ctx fn <$> genCtxIndex
 
 data Ctx = Ctx
   { func :: Function

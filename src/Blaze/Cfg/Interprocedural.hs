@@ -7,8 +7,8 @@ import Blaze.Prelude hiding (Symbol, sym)
 
 import Blaze.Cfg
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
-import qualified Blaze.Graph as G
 import Blaze.Types.Cfg.Interprocedural as Exports
+import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (
   CallDest (CallFunc),
@@ -21,12 +21,12 @@ import Blaze.Types.Pil (
   Statement (Def, DefPhi),
   Stmt,
   Symbol,
-  mkCallStatement, CtxIndex
+  mkCallStatement,
  )
 import qualified Data.List.NonEmpty as NEList
 import qualified Data.Set as Set
 import Control.Lens.Setter (set)
-import Blaze.Graph (LEdge)
+
 
 getCallTarget :: CallStatement -> Maybe Function
 getCallTarget callStmt = do
@@ -50,14 +50,15 @@ mkParamVar ctx funcParam =
     FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name
 
 -- | Create a node that indicates a context switch between two function contexts.
-mkEnterFuncNode :: Ctx -> Ctx -> CallStatement -> EnterFuncNode [Stmt]
-mkEnterFuncNode outerCtx calleeCtx callStmt =
-  EnterFuncNode outerCtx calleeCtx stmts
- where
-  paramVars :: [PilVar]
-  paramVars = mkParamVar calleeCtx <$> calleeCtx ^. #func . #params
-  stmts :: [Stmt]
-  stmts = Def . uncurry DefOp <$> zip paramVars (callStmt ^. #args)
+mkEnterFuncNode :: MonadIO m => Ctx -> Ctx -> CallStatement -> m (EnterFuncNode [Stmt])
+mkEnterFuncNode outerCtx calleeCtx callStmt = do
+  uuid' <- liftIO randomIO
+  return $ EnterFuncNode outerCtx calleeCtx uuid' stmts
+  where
+    paramVars :: [PilVar]
+    paramVars = mkParamVar calleeCtx <$> calleeCtx ^. #func . #params
+    stmts :: [Stmt]
+    stmts = Def . uncurry DefOp <$> zip paramVars (callStmt ^. #args)
 
 {- |Generate a defintion for the result variable in the outer (caller) context
 where the a phi function containing variables that reference all the possible
@@ -66,33 +67,28 @@ Since a return statement may return an expression, we first ensure a variable re
 the expressions is available by generating one for each expression. This may end up
 introducing spurious variable copies which can be reduced with copy propagation.
 -}
-mkLeaveFuncNode :: Ctx -> Ctx -> CallStatement -> [Expression] -> LeaveFuncNode [Stmt]
-mkLeaveFuncNode outerCtx calleeCtx callStmt retExprs =
-  LeaveFuncNode calleeCtx outerCtx stmts
- where
-  resultVar :: Maybe PilVar
-  resultVar = callStmt ^. #resultVar
-  retVars :: [(PilVar, Expression)]
-  retVars = generateVars calleeCtx "retVar_" 0 retExprs
-  retDefs :: [Stmt]
-  retDefs = Def . uncurry DefOp <$> retVars
-  resultDef :: Maybe Stmt
-  resultDef = DefPhi <$> (DefPhiOp <$> resultVar <*> Just (fst <$> retVars))
-  stmts :: [Stmt]
-  stmts = case resultDef of
-    Just stmt -> retDefs ++ [stmt]
-    Nothing -> []
+mkLeaveFuncNode :: MonadIO m => Ctx -> Ctx -> CallStatement -> [Expression] -> m (LeaveFuncNode [Stmt])
+mkLeaveFuncNode outerCtx calleeCtx callStmt retExprs = do
+  uuid' <- liftIO randomIO
+  return $ LeaveFuncNode calleeCtx outerCtx uuid' stmts
+  where
+    resultVar :: Maybe PilVar
+    resultVar = callStmt ^. #resultVar
+    retVars :: [(PilVar, Expression)]
+    retVars = generateVars calleeCtx "retVar_" 0 retExprs
+    retDefs :: [Stmt]
+    retDefs = Def . uncurry DefOp <$> retVars
+    resultDef :: Maybe Stmt
+    resultDef = DefPhi <$> (DefPhiOp <$> resultVar <*> Just (fst <$> retVars))
+    stmts :: [Stmt]
+    stmts = case resultDef of
+      Just stmt -> retDefs ++ [stmt]
+      Nothing -> []
 
 generateVars :: Ctx -> Text -> Int -> [Expression] -> [(PilVar, Expression)]
 generateVars ctx baseName id (expr : rest) =
   (PilVar (baseName <> show id) (Just ctx), expr) : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
-
-getNextCtxIndex :: Builder a CtxIndex
-getNextCtxIndex = do
-  ctxIndex <- use #nextId
-  #nextId %= (+ 1)
-  return ctxIndex
 
 {- | Expand a call by substituting a call node with the CFG corresponding to the
  call destination.
@@ -115,37 +111,38 @@ expandCall callerCtx calleeCtx icfg callNode = do
           result <- liftIO $ getCfg_ (calleeCtx ^. #ctxIndex) targetFunc
           case result of
             Just (ImportResult targetCfg _) -> do
-              let (targetCfg', leaveFunc) = expandCall_ callerCtx calleeCtx callStmt targetCfg
+              (targetCfg', leaveFunc) <- expandCall_ callerCtx calleeCtx callStmt targetCfg
               return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg') leaveFunc
             Nothing -> return Nothing
         Nothing -> return Nothing
     Nothing -> return Nothing
 
 expandCall_ ::
+  MonadIO m =>
   Ctx ->
   Ctx ->
   CallStatement ->
   PilCfg ->
-  (PilCfg, PilNode)
-expandCall_ callerCtx calleeCtx callStmt targetCfg = 
-  (targetCfg', leaveFunc)
+  m (PilCfg, PilNode)
+expandCall_ callerCtx calleeCtx callStmt targetCfg = do
+  enterFunc <- EnterFunc <$> mkEnterFuncNode callerCtx calleeCtx callStmt
+  leaveFunc <- LeaveFunc <$> mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
+  return (targetCfg' enterFunc leaveFunc, leaveFunc)
   -- Connect the enter and leave function nodes to the targetCfg
  where
-  enterFunc = EnterFunc $ mkEnterFuncNode callerCtx calleeCtx callStmt
-  leaveFunc = LeaveFunc $ mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
   prevRoot = targetCfg ^. #root
   retNodes = getRetNodes targetCfg
-  linkRetNodes :: PilCfg -> ReturnNode [Stmt] -> PilCfg
-  linkRetNodes cfg retNode =
-    G.addEdge
-      (UnconditionalBranch, (BasicBlock $ retNode ^. #basicBlock, leaveFunc))
+  linkRetNodes :: PilNode -> PilCfg -> ReturnNode [Stmt] -> PilCfg
+  linkRetNodes leaveFunc cfg retNode =
+    Cfg.addEdge
+      (CfEdge (BasicBlock $ retNode ^. #basicBlock) leaveFunc UnconditionalBranch)
       cfg
-  targetCfg' :: PilCfg
-  targetCfg' = 
+  targetCfg' :: PilNode -> PilNode -> PilCfg
+  targetCfg' enterFunc leaveFunc =
     foldl'
-      linkRetNodes
-      ( G.addEdge (UnconditionalBranch, (enterFunc, prevRoot)) $
-          targetCfg & #root .~ enterFunc
+      (linkRetNodes leaveFunc)
+      ( Cfg.addEdge (CfEdge enterFunc prevRoot UnconditionalBranch)
+        $ targetCfg & #root .~ enterFunc
       )
       retNodes
 
@@ -156,28 +153,29 @@ getRetNodes cfg =
 -- | Substitute a node with another interprocedural CFG.
 substNode :: InterCfg -> PilNode -> InterCfg -> PilNode -> InterCfg
 substNode
-  (InterCfg (Cfg outerGraph outerRoot))
+  (InterCfg outerCfg@(Cfg _ outerRoot))
   node
-  (InterCfg (Cfg innerGraph innerRoot))
+  (InterCfg innerCfg@(Cfg _ innerRoot))
   exitNode =
     -- Check if the node we are substituting is the outer CFG's root
-    if outerRoot /= node
-      then InterCfg (Cfg graph_ outerRoot)
-      else InterCfg (Cfg graph_ innerRoot)
+    if asIdNode outerRoot /= asIdNode node
+       then InterCfg $ newCfg & #root .~ outerRoot
+       else InterCfg $ newCfg & #root .~ innerRoot
    where
     -- TODO: Improve Graph API for fetching edges
-    predEdges :: [LEdge BranchType PilNode]
-    predEdges = filter (\(_, (_, dest)) -> dest == node) $ G.edges outerGraph
-    succEdges :: [LEdge BranchType PilNode]
-    succEdges = filter (\(_, (source, _)) -> source == node) $ G.edges outerGraph
-    newPredEdges :: [LEdge BranchType PilNode]
-    newPredEdges = set (_2 . _2) innerRoot <$> predEdges
-    newSuccEdges :: [LEdge BranchType PilNode]
-    newSuccEdges = set (_2 . _1) exitNode <$> succEdges
-    graph_ :: ControlFlowGraph [Stmt]
-    graph_ = 
-      G.removeNode node
-      . G.addNodes (Set.toList $ G.nodes innerGraph)
-      . G.addEdges (G.edges innerGraph) 
-      . G.addEdges newPredEdges
-      . G.addEdges newSuccEdges $ outerGraph
+    predEdges' :: [CfEdge [Stmt]]
+    predEdges' = Set.toList $ Cfg.predEdges node outerCfg
+    succEdges' :: [CfEdge [Stmt]]
+    succEdges' = Set.toList $ Cfg.predEdges node outerCfg
+    
+    newPredEdges :: [CfEdge [Stmt]]
+    newPredEdges = set #dst innerRoot <$> predEdges'
+    newSuccEdges :: [CfEdge [Stmt]]
+    newSuccEdges = set #src exitNode <$> succEdges'
+    newCfg :: Cfg [Stmt]
+    newCfg = 
+      Cfg.removeNode node
+      . Cfg.addNodes (Set.toList $ Cfg.nodes innerCfg)
+      . Cfg.addEdges (Cfg.edges innerCfg) 
+      . Cfg.addEdges newPredEdges
+      . Cfg.addEdges newSuccEdges $ outerCfg

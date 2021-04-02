@@ -9,8 +9,8 @@ import Blaze.Types.Pil (CtxIndex)
 class CfgImporter a where
   type NodeDataType a
   type NodeMapType a
-  getCfg ::
-    a ->
-    CtxIndex ->
-    Function ->
-    IO (Maybe (ImportResult (Cfg (NodeDataType a)) (NodeMapType a)))
+  getCfg
+    :: a
+    -> CtxIndex
+    -> Function
+    -> IO (Maybe (ImportResult (Cfg (NodeDataType a)) (NodeMapType a)))

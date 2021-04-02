@@ -78,7 +78,8 @@ data Node = SubBlock SubBlockNode
           | AbstractCall AbstractCallNode
           | AbstractPath AbstractPathNode
           | Condition ConditionNode
-          deriving (Eq, Ord, Show, Generic)
+          deriving (Eq, Ord, Show, Generic, Hashable)
+
 
 
 data ConditionNode = ConditionNode
@@ -86,7 +87,7 @@ data ConditionNode = ConditionNode
   , trueOrFalseBranch :: Bool
   , condition :: MLIL.Expression F
   , uuid :: UUID
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data SubBlockNode = SubBlockNode
   { func :: Function
@@ -94,19 +95,19 @@ data SubBlockNode = SubBlockNode
   , start :: InstructionIndex F
   , end :: InstructionIndex F
   , uuid :: UUID
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data CallNode = CallNode
   { func :: Function
   , callSite :: CallSite
   , uuid :: UUID
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data RetNode = RetNode
   { func :: Function
   , callSite :: CallSite
   , uuid :: UUID
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- we are unsure if this will be useful
 data AbstractPathNode = AbstractPathNode
@@ -114,14 +115,14 @@ data AbstractPathNode = AbstractPathNode
   , startNode :: Node
   , endNode :: Node
   , uuid :: UUID
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- use this instead of the old CallNode / AbstractPathNode / RetNode combo
 data AbstractCallNode = AbstractCallNode
   { func :: Function
   , callSite :: CallSite
   , uuid :: UUID
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 getNodeFunc :: Node -> Function
 getNodeFunc (SubBlock x) = x ^. #func
@@ -147,7 +148,7 @@ instance (Graph () () Node g) => Path (PathGraph g) where
 
   fromList [] = G.empty
   fromList [a] = G.fromNode a
-  fromList (x:xs) = G.fromEdges . fmap ((),) $ zip (x:xs) xs
+  fromList (x:xs) = G.fromEdges . fmap G.fromTupleLEdge . fmap ((),)  $ zip (x:xs) xs
 
   succ node g = case Set.toList $ G.succs node g of
     [] -> Nothing
@@ -174,7 +175,7 @@ instance (Graph () () Node g) => Path (PathGraph g) where
   -- this probably shouldn't just return 'p' if it fails..
   expandAbstractCall acn ip p =
     flip G.addEdges (G.removeNode n p)
-    . fmap ((),) . (<> ppartEdges) . concat
+    . fmap G.fromTupleLEdge . fmap ((),) . (<> ppartEdges) . concat
     $ [ maybe [] ((:[]) . (, cnode)) mpred
       , [ (cnode, firstN) ]
       , concat [ [(lastN, rnode)]
@@ -199,7 +200,7 @@ instance (Graph () () Node g) => Path (PathGraph g) where
 
   expandLast ip lac =
     flip G.addEdges (G.removeNode n p)
-    . fmap ((),) . (<> ppartEdges) . concat
+    . fmap G.fromTupleLEdge . fmap ((),) . (<> ppartEdges) . concat
     $ [ maybe [] ((:[]) . (, cnode)) mpred
       , [ (cnode, firstN) ]
       ]

@@ -7,13 +7,12 @@ where
 import Blaze.Cfg (getDominators)
 import Blaze.Prelude
 import Blaze.Types.Cfg
-  ( BranchType,
-    CfEdge (CfEdge),
+  ( CfEdge,
     CfNode,
     Cfg(root),
     Dominators,
   )
-import qualified Blaze.Types.Cfg as TCfg
+import qualified Blaze.Types.Cfg as Cfg
 -- Hiding some names commonly used as variables,
 -- re-exporting eplicitly.
 import Blaze.Types.Cfg.Loop as Exports hiding
@@ -37,13 +36,10 @@ isBackEdge domMap edge =
     Nothing -> False
     (Just domNodes) -> HS.member (edge ^. #dst) domNodes
 
-fromGraphEdge :: (BranchType, (CfNode a, CfNode a)) -> CfEdge a
-fromGraphEdge (bType, (srcNode, dstNode)) = CfEdge srcNode dstNode bType
-
 getBackEdges :: forall a. (Hashable a, Ord a) => Cfg a -> [BackEdge a]
 getBackEdges cfg' =
   [ BackEdge e
-    | e <- fromGraphEdge <$> G.edges cfg',
+    | e <- Cfg.edges cfg',
       isBackEdge doms e
   ]
   where

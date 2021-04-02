@@ -481,11 +481,12 @@ convertFunction func' = do
 getFuncStatementsIndexed :: BNBinaryView -> Func.Function -> IO [(Int, Stmt)]
 getFuncStatementsIndexed bv func' = do
   mBnFunc <- BNCG.toBinjaFunction bv func'
+  ctxIx <- Pil.genCtxIndex
   case mBnFunc of
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
     Just bnFunc -> do
       addrSize' <- BN.getViewAddressSize bv
-      let st = mkConverterState bv (Pil.CtxIndex 0) Pil.knownFuncDefs addrSize' func' AlgaPath.empty
+      let st = mkConverterState bv ctxIx Pil.knownFuncDefs addrSize' func' AlgaPath.empty
       fst <$> runConverter (convertFunction bnFunc) st
 
 getFuncStatements :: BNBinaryView -> Func.Function -> IO [Stmt]

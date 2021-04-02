@@ -164,4 +164,5 @@ data CallSite = CallSite
   { caller :: BNFunc.Function
   , callInstr :: CallInstruction
   , callDest :: CallDest Expression
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
+
