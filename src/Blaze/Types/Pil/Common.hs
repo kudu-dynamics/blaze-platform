@@ -28,12 +28,12 @@ createCtx fn = Ctx fn <$> genCtxId
 
 data Ctx = Ctx
   { func :: Function
-  , ctxIndex :: CtxId
+  , ctxId :: CtxId
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
--- Maybe is used to wrap _func and _ctxIndex since
+-- Maybe is used to wrap _func and _ctxId since
 -- contextual information may not be available or desirable
 -- when introducing "synthetic" variables. (I.e., variables
 -- which do not correspond to variables in the source program.)

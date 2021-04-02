@@ -131,7 +131,7 @@ instance Disp Pil.Ctx where
       func :: Text
       func = disp $ ctx ^. #func
       idx :: Text
-      idx = show $ ctx ^. #ctxIndex
+      idx = show $ ctx ^. #ctxId
 
 instance Disp a => Disp (Pil.Statement a) where
   disp stmt = case stmt of
@@ -305,7 +305,7 @@ instance Disp Pil.Expression where
 --     where
 --       fname = maybe "<Unknown Function>" identity
 --               . fmap (view Func.name) $ ctx ^. Pil.func
---       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxIndex
+--       i = maybe "" (("#" <>) . show) $ ctx ^. Pil.ctxId
 
 instance Disp Pil.StackOffset where
   disp x =

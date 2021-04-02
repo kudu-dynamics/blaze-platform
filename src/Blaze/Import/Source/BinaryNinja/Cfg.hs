@@ -186,7 +186,7 @@ importCfg func' bnNodes bnEdges = do
           (HMap.fromList . DList.toList $ mapEntries)
 
 getCfgAlt :: BNBinaryView -> CtxId -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-getCfgAlt bv _ctxIndex func' = do
+getCfgAlt bv _ctxId func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of
     Nothing ->
@@ -204,15 +204,15 @@ getCfg ::
   CtxId ->
   Function ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
-getCfg imp bv ctxIndex_ fun = do
-  result <- getCfgAlt bv ctxIndex_ fun
+getCfg imp bv ctxId_ fun = do
+  result <- getCfgAlt bv ctxId_ fun
   case result of
     Nothing -> return Nothing
     Just (ImportResult mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
-      pilRootNode <- convertToPilNode imp ctxIndex_ mlilRefMap mlilRootNode
-      pilRestNodes <- traverse (convertToPilNode imp ctxIndex_ mlilRefMap) mlilRestNodes
+      pilRootNode <- convertToPilNode imp ctxId_ mlilRefMap mlilRootNode
+      pilRestNodes <- traverse (convertToPilNode imp ctxId_ mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
           pilEdges = traverse (convertToPilEdge mlilToPilNodeMap) (Cfg.edges mlilCfg)
@@ -234,11 +234,11 @@ getPilFromNode ::
   MlilNodeRefMap ->
   CfNode (NonEmpty MlilSsaInstruction) ->
   IO [Stmt]
-getPilFromNode imp ctxIndex_ nodeMap node =
+getPilFromNode imp ctxId_ nodeMap node =
   case HMap.lookup node nodeMap of
     Nothing -> error $ "No entry for node: " <> show node <> "."
     Just codeRef -> do
-      getCodeRefStatements imp ctxIndex_ codeRef
+      getCodeRefStatements imp ctxId_ codeRef
 
 convertToPilNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
@@ -247,14 +247,14 @@ convertToPilNode ::
   MlilNodeRefMap ->
   MlilSsaCfNode ->
   IO PilNode
-convertToPilNode imp ctxIndex_ mapping mlilSsaNode = do
+convertToPilNode imp ctxId_ mapping mlilSsaNode = do
   case mlilSsaNode of
     BasicBlock (BasicBlockNode fun startAddr lastAddr _ _) -> do
-      stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
+      stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
       uuid' <- randomIO
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr uuid' stmts)
     Call (CallNode fun startAddr _ _) -> do
-      stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
+      stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
       uuid' <- randomIO
       return $ Call (CallNode fun startAddr uuid' stmts)
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"

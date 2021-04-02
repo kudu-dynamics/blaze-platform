@@ -119,7 +119,7 @@ instance Pretty Pil.Ctx where
       func :: Text
       func = pretty (ctx ^. #func)
       idx :: Text
-      idx = show (ctx ^. #ctxIndex)
+      idx = show (ctx ^. #ctxId)
 
 prettyBinop ::
   ( Pretty b,
