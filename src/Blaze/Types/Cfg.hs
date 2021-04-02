@@ -41,7 +41,7 @@ data BasicBlockNode a = BasicBlockNode
   { function :: Function
   , start :: Address
   , end :: Address
-  , uuid :: Maybe UUID
+  , uuid :: UUID
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
@@ -50,7 +50,7 @@ data BasicBlockNode a = BasicBlockNode
 data CallNode a = CallNode
   { function :: Function
   , start :: Address
-  , uuid :: Maybe UUID
+  , uuid :: UUID
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
@@ -59,7 +59,7 @@ data CallNode a = CallNode
 data EnterFuncNode a = EnterFuncNode
   { prevCtx :: Ctx
   , nextCtx :: Ctx
-  , uuid :: Maybe UUID
+  , uuid :: UUID
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
@@ -68,7 +68,7 @@ data EnterFuncNode a = EnterFuncNode
 data LeaveFuncNode a = LeaveFuncNode
   { prevCtx :: Ctx
   , nextCtx :: Ctx
-  , uuid :: Maybe UUID
+  , uuid :: UUID
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
@@ -132,7 +132,7 @@ data CfNode a
 -- | Attempts to set uuid field for cfnode constructor
 mkUniqueNode :: CfNode a -> IO (CfNode a)
 mkUniqueNode n = do
-  uuid' <- Just <$> randomIO
+  uuid' <- randomIO
   return $ case n of
     BasicBlock x -> BasicBlock $ x & #uuid .~ uuid'
     Call x -> Call $ x & #uuid .~ uuid'

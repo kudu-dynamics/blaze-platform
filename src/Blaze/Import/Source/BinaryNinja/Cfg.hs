@@ -54,7 +54,7 @@ tellEntry = tell . DList.singleton
 -- | Assumes instructions are consecutive
 nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromInstrs func' instrs = do
-  uuid' <- Just <$> liftIO randomIO
+  uuid' <- liftIO randomIO
   let node =
         BasicBlock $
           BasicBlockNode
@@ -76,7 +76,7 @@ nodeFromInstrs func' instrs = do
 
 nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
 nodeFromCallInstr func' callInstr' = do
-  uuid' <- Just <$> liftIO randomIO
+  uuid' <- liftIO randomIO
   let node =
         Call $
           CallNode
@@ -251,11 +251,11 @@ convertToPilNode imp ctxIndex_ mapping mlilSsaNode = do
   case mlilSsaNode of
     BasicBlock (BasicBlockNode fun startAddr lastAddr _ _) -> do
       stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
-      uuid' <- Just <$> randomIO
+      uuid' <- randomIO
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr uuid' stmts)
     Call (CallNode fun startAddr _ _) -> do
       stmts <- getPilFromNode imp ctxIndex_ mapping mlilSsaNode
-      uuid' <- Just <$> randomIO
+      uuid' <- randomIO
       return $ Call (CallNode fun startAddr uuid' stmts)
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
     Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"

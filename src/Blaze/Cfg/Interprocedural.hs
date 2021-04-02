@@ -52,7 +52,7 @@ mkParamVar ctx funcParam =
 -- | Create a node that indicates a context switch between two function contexts.
 mkEnterFuncNode :: MonadIO m => Ctx -> Ctx -> CallStatement -> m (EnterFuncNode [Stmt])
 mkEnterFuncNode outerCtx calleeCtx callStmt = do
-  uuid' <- Just <$> liftIO randomIO
+  uuid' <- liftIO randomIO
   return $ EnterFuncNode outerCtx calleeCtx uuid' stmts
   where
     paramVars :: [PilVar]
@@ -69,7 +69,7 @@ introducing spurious variable copies which can be reduced with copy propagation.
 -}
 mkLeaveFuncNode :: MonadIO m => Ctx -> Ctx -> CallStatement -> [Expression] -> m (LeaveFuncNode [Stmt])
 mkLeaveFuncNode outerCtx calleeCtx callStmt retExprs = do
-  uuid' <- Just <$> liftIO randomIO
+  uuid' <- liftIO randomIO
   return $ LeaveFuncNode calleeCtx outerCtx uuid' stmts
   where
     resultVar :: Maybe PilVar

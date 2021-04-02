@@ -141,7 +141,6 @@ library:
   - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
-  - Blaze.Types.Graph.Unique
   - Blaze.Types.Path.AlgaPath
   - Blaze.Types.Import
   - Blaze.Types.IndirectCallResolution
