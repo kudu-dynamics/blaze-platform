@@ -32,7 +32,7 @@ import Blaze.Types.Cfg (
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
-import Blaze.Types.Pil (Stmt, CtxIndex)
+import Blaze.Types.Pil (Stmt, CtxId)
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.DList (DList)
 import qualified Data.DList as DList
@@ -185,7 +185,7 @@ importCfg func' bnNodes bnEdges = do
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
-getCfgAlt :: BNBinaryView -> CtxIndex -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt :: BNBinaryView -> CtxId -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 getCfgAlt bv _ctxIndex func' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
   case mBnFunc of
@@ -201,7 +201,7 @@ getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
-  CtxIndex ->
+  CtxId ->
   Function ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
 getCfg imp bv ctxIndex_ fun = do
@@ -230,7 +230,7 @@ getCfg imp bv ctxIndex_ fun = do
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
-  CtxIndex ->
+  CtxId ->
   MlilNodeRefMap ->
   CfNode (NonEmpty MlilSsaInstruction) ->
   IO [Stmt]
@@ -243,7 +243,7 @@ getPilFromNode imp ctxIndex_ nodeMap node =
 convertToPilNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
-  CtxIndex ->
+  CtxId ->
   MlilNodeRefMap ->
   MlilSsaCfNode ->
   IO PilNode

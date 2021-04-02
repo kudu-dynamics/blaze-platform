@@ -8,7 +8,7 @@ import Blaze.Types.Import (ImportResult)
 import Blaze.Import.Cfg (CfgImporter (NodeMapType, NodeDataType))
 import qualified Blaze.Import.Cfg as CfgImp
 import Data.HashMap.Strict as HMap
-import Blaze.Types.Pil.Common (CtxIndex)
+import Blaze.Types.Pil.Common (CtxId)
 import Control.Monad (MonadFail)
 
 -- TODO : Instead of wrapping PilCfg to create an InterCfg, assume
@@ -24,14 +24,14 @@ newtype Builder a b = Builder
   deriving newtype (Applicative, Monad, 
     MonadState (BuilderState a), MonadIO, MonadFail)
 
--- TODO: Consider replacing CtxIndex with UUID
+-- TODO: Consider replacing CtxId with UUID
 data BuilderState a = BuilderState
   {
   -- | Presumably using a CfgImporter instance, provide a import result with a
   -- PIL CFG given a function
-    getCfg :: CtxIndex -> Function -> IO (Maybe (ImportResult PilCfg a))
+    getCfg :: CtxId -> Function -> IO (Maybe (ImportResult PilCfg a))
   -- |A mapping from UUIDs to a map that maps CFG nodes to import source locations
-  , importMap :: HashMap CtxIndex a
+  , importMap :: HashMap CtxId a
   }
   deriving (Generic)
 

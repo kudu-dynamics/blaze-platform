@@ -27,7 +27,7 @@ import Blaze.Types.Pil
       Symbol,
       UnimplMemOp(UnimplMemOp),
       Ctx,
-      CtxIndex,
+      CtxId,
       Expression,
       PilVar )
 
@@ -55,7 +55,7 @@ data ConverterState = ConverterState
   { -- | The path being converted.
     path :: AlgaPath
   , -- | The maximum context ID used so far
-    ctxMaxIdx :: CtxIndex
+    ctxMaxIdx :: CtxId
   , -- | The current context should be on the top of the stack.
     -- I.e., the stack should never be empty.
     ctxStack :: NonEmpty Ctx
@@ -88,7 +88,7 @@ data ConverterState = ConverterState
 
 -- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
 --       accepting a map from the user.
-mkConverterState :: BNBinaryView -> CtxIndex -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> AlgaPath -> ConverterState
+mkConverterState :: BNBinaryView -> CtxId -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> AlgaPath -> ConverterState
 mkConverterState bv startCtxId knownFuncDefs_ addrSize_ f p =
   ConverterState
     p
@@ -481,7 +481,7 @@ convertFunction func' = do
 getFuncStatementsIndexed :: BNBinaryView -> Func.Function -> IO [(Int, Stmt)]
 getFuncStatementsIndexed bv func' = do
   mBnFunc <- BNCG.toBinjaFunction bv func'
-  ctxIx <- Pil.genCtxIndex
+  ctxIx <- Pil.genCtxId
   case mBnFunc of
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
     Just bnFunc -> do

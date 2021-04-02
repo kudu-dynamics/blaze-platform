@@ -41,7 +41,7 @@ pilVarName pv = pv ^. #symbol
   <> maybe "" (("@"<>) . view (#func . #name)) mCtx
   <> maybe "" (("."<>) . show . f . view #ctxIndex) mCtx
   where
-    f (Pil.CtxIndex n) = n
+    f (Pil.CtxId n) = n
     mCtx :: Maybe Pil.Ctx
     mCtx = pv ^. #ctx
 
