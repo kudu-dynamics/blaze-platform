@@ -184,7 +184,7 @@ newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a
 type ControlFlowGraph a = AlgaGraph BranchType (CfNode a) (CfNode ())
 
 asIdNode :: CfNode a -> CfNode ()
-asIdNode = fmap $ const ()
+asIdNode = void
 
 getFullNode' :: ControlFlowGraph a -> CfNode () -> CfNode a
 getFullNode' g n = fromJust $ G.getNodeAttr n g
@@ -226,7 +226,7 @@ mkCfg root' rest es =
     }
 
 edges :: Ord a => Cfg a -> [CfEdge a]
-edges cfg = fmap fromLEdge . G.edges $ cfg
+edges = fmap fromLEdge . G.edges
 
 removeEdge :: Ord a => CfEdge a -> Cfg a -> Cfg a
 removeEdge e = G.removeEdge $ toLEdge e ^. #edge

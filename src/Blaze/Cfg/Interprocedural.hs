@@ -127,7 +127,7 @@ expandCall_ ::
 expandCall_ callerCtx calleeCtx callStmt targetCfg = do
   enterFunc <- EnterFunc <$> mkEnterFuncNode callerCtx calleeCtx callStmt
   leaveFunc <- LeaveFunc <$> mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
-  return $ (targetCfg' enterFunc leaveFunc, leaveFunc)
+  return (targetCfg' enterFunc leaveFunc, leaveFunc)
   -- Connect the enter and leave function nodes to the targetCfg
  where
   prevRoot = targetCfg ^. #root

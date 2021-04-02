@@ -26,7 +26,7 @@ copyProp icfg =
   cfg :: PilCfg
   cfg = unInterCfg icfg
   allStmts :: [Stmt]
-  allStmts = concat . fmap concat . Set.toList .  Cfg.nodes $ cfg
+  allStmts = concatMap concat . Set.toList .  Cfg.nodes $ cfg
   copyPropState :: CopyPropState
   copyPropState = PA.buildCopyPropState allStmts
 
@@ -41,7 +41,7 @@ constantProp icfg =
   cfg :: PilCfg
   cfg = unInterCfg icfg
   allStmts :: [Stmt]
-  allStmts = concat . fmap concat . Set.toList .  Cfg.nodes $ cfg
+  allStmts = concatMap concat . Set.toList .  Cfg.nodes $ cfg
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts
 
