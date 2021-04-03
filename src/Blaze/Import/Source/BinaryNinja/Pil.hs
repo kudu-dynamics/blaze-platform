@@ -54,8 +54,6 @@ newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
 data ConverterState = ConverterState
   { -- | The path being converted.
     path :: AlgaPath
-  , -- | The maximum context ID used so far
-    ctxMaxIdx :: CtxId
   , -- | The current context should be on the top of the stack.
     -- I.e., the stack should never be empty.
     ctxStack :: NonEmpty Ctx
@@ -92,7 +90,6 @@ mkConverterState :: BNBinaryView -> CtxId -> HashMap Text Func.FuncInfo -> Addre
 mkConverterState bv startCtxId knownFuncDefs_ addrSize_ f p =
   ConverterState
     p
-    (startCtx ^. #ctxId)
     (startCtx :| [])
     startCtx
     []
