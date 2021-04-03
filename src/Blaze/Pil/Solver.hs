@@ -39,9 +39,9 @@ import Data.SBV.Internals (SBV(SBV), unSBV)
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. #symbol
   <> maybe "" (("@"<>) . view (#func . #name)) mCtx
-  <> maybe "" (("."<>) . show . f . view #ctxIndex) mCtx
+  <> maybe "" (("."<>) . show . f . view #ctxId) mCtx
   where
-    f (Pil.CtxIndex n) = n
+    f (Pil.CtxId n) = n
     mCtx :: Maybe Pil.Ctx
     mCtx = pv ^. #ctx
 

@@ -64,7 +64,7 @@ type PilMlilNodeMap = HashMap PilNode MlilCodeReference
 data SSAVariableRef = SSAVariableRef
   { var :: Mlil.SSAVariable
   , func :: BNFunc.Function
-  , ctxIndex :: Pil.CtxIndex
+  , ctxId :: Pil.CtxId
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)

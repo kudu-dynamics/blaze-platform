@@ -101,14 +101,14 @@ expandCall ::
   Builder a (Maybe InterCfg)
 expandCall callerCtx calleeCtx icfg callNode = do
   getCfg_ <- use #getCfg
-  -- ctxIndex <- getNextCtxIndex
+  -- ctxId <- getNextCtxIndex
   case getCallStmt callNode of
     Just callStmt ->
       -- TODO: CallNode should provide the call statement from a record field
       case getCallTarget callStmt of
         Just targetFunc -> do
-          -- result <- liftIO $ getCfg_ ctxIndex targetFunc
-          result <- liftIO $ getCfg_ (calleeCtx ^. #ctxIndex) targetFunc
+          -- result <- liftIO $ getCfg_ ctxId targetFunc
+          result <- liftIO $ getCfg_ (calleeCtx ^. #ctxId) targetFunc
           case result of
             Just (ImportResult targetCfg _) -> do
               (targetCfg', leaveFunc) <- expandCall_ callerCtx calleeCtx callStmt targetCfg

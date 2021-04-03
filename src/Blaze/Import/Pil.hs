@@ -6,7 +6,7 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Path.AlgaPath (AlgaPath)
 import Blaze.Types.Pil (Stmt)
 import Blaze.Types.Cfg (CodeReference)
-import Blaze.Types.Pil.Common (CtxIndex)
+import Blaze.Types.Pil.Common (CtxId)
 
 type Path = AlgaPath
 
@@ -14,4 +14,4 @@ class PilImporter a where
   type IndexType a
   getFuncStatements :: a -> Function -> IO [Stmt]
   getPathStatements :: a -> Path -> IO [Stmt]
-  getCodeRefStatements :: a -> CtxIndex -> CodeReference (IndexType a) -> IO [Stmt]
+  getCodeRefStatements :: a -> CtxId -> CodeReference (IndexType a) -> IO [Stmt]

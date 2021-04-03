@@ -16,24 +16,24 @@ newtype OperationSize = OperationSize Bytes
   deriving newtype (Num, Real, Enum, Integral)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
-newtype CtxIndex = CtxIndex UUID
+newtype CtxId = CtxId UUID
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
-genCtxIndex :: MonadIO m => m CtxIndex
-genCtxIndex = liftIO $ CtxIndex <$> randomIO
+genCtxId :: MonadIO m => m CtxId
+genCtxId = liftIO $ CtxId <$> randomIO
 
 createCtx :: MonadIO m => Function -> m Ctx
-createCtx fn = Ctx fn <$> genCtxIndex
+createCtx fn = Ctx fn <$> genCtxId
 
 data Ctx = Ctx
   { func :: Function
-  , ctxIndex :: CtxIndex
+  , ctxId :: CtxId
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
--- Maybe is used to wrap _func and _ctxIndex since
+-- Maybe is used to wrap _func and _ctxId since
 -- contextual information may not be available or desirable
 -- when introducing "synthetic" variables. (I.e., variables
 -- which do not correspond to variables in the source program.)

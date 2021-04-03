@@ -62,7 +62,7 @@ module Blaze.Import.Source.BinaryNinja.Pil.Path where
 --   where
 --     newCtx :: CtxIndex -> Ctx -> Ctx
 --     newCtx i ctx = ctx & #func .~ fn
---                        & #ctxIndex .~ i
+--                        & #ctxId .~ i
 --     incIndex :: CtxIndex -> CtxIndex
 --     incIndex = (+ 1)
 --     pushCtx :: Ctx -> Converter ()
