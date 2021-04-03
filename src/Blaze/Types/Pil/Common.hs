@@ -2,6 +2,7 @@ module Blaze.Types.Pil.Common where
 
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Function (Function)
+import System.Random (Random)
 
 newtype StmtIndex = StmtIndex { val :: Int }
   deriving (Eq, Ord, Show, Generic)
@@ -18,6 +19,7 @@ newtype OperationSize = OperationSize Bytes
 
 newtype CtxId = CtxId UUID
   deriving (Eq, Ord, Show, Generic)
+  deriving newtype (Random)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
 genCtxId :: MonadIO m => m CtxId

@@ -30,7 +30,6 @@ import Blaze.Types.Cfg (
   mkCfg,
  )
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt, CtxId, Ctx)
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
@@ -195,7 +194,7 @@ getCfgAlt bv ctx = do
       bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
       bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
       bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
-      importCfg func' bnMlilBbs bnMlilBbEdges
+      importCfg ctx bnMlilBbs bnMlilBbEdges
 
 getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
@@ -204,14 +203,14 @@ getCfg ::
   Ctx ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
 getCfg imp bv ctx = do
-  result <- getCfgAlt bv ctxId_ fun
+  result <- getCfgAlt bv ctx
   case result of
     Nothing -> return Nothing
     Just (ImportResult mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
-      pilRootNode <- convertToPilNode imp ctxId_ mlilRefMap mlilRootNode
-      pilRestNodes <- traverse (convertToPilNode imp ctxId_ mlilRefMap) mlilRestNodes
+      pilRootNode <- convertToPilNode imp (ctx ^. #ctxId)  mlilRefMap mlilRootNode
+      pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
           pilEdges = traverse (convertToPilEdge mlilToPilNodeMap) (Cfg.edges mlilCfg)

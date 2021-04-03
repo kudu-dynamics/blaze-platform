@@ -2,8 +2,7 @@ module Blaze.Types.Cfg.Interprocedural where
 
 import Blaze.Prelude
 import Blaze.Types.Cfg (PilCfg)
-import Blaze.Types.Pil (Stmt)
-import Blaze.Function (Function)
+import Blaze.Types.Pil (Stmt, Ctx)
 import Blaze.Types.Import (ImportResult)
 import Blaze.Import.Cfg (CfgImporter (NodeMapType, NodeDataType))
 import qualified Blaze.Import.Cfg as CfgImp
@@ -29,7 +28,7 @@ data BuilderState a = BuilderState
   {
   -- | Presumably using a CfgImporter instance, provide a import result with a
   -- PIL CFG given a function
-    getCfg :: CtxId -> Function -> IO (Maybe (ImportResult PilCfg a))
+    getCfg :: Ctx -> IO (Maybe (ImportResult PilCfg a))
   -- |A mapping from UUIDs to a map that maps CFG nodes to import source locations
   , importMap :: HashMap CtxId a
   }
