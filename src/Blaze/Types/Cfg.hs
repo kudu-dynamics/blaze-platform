@@ -17,9 +17,10 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Prelude hiding (pred)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp, CallDest)
 import Blaze.Types.Pil.Common (Ctx)
 import qualified Data.Set as Set
+
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
@@ -47,9 +48,12 @@ data BasicBlockNode a = BasicBlockNode
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
+-- TODO: maybe one day add `expr` parameter to this type
+-- to be used instead of `()` in `CallDest ()`
 data CallNode a = CallNode
   { ctx :: Ctx
   , start :: Address
+  , callDest :: CallDest ()
   , uuid :: UUID
   , nodeData :: a
   }

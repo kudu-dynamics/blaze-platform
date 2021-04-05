@@ -48,6 +48,9 @@ class Pretty x where
 showHex :: (Integral a, Show a) => a -> Text
 showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
 
+instance Pretty () where
+  pretty = show
+
 instance Pretty Int where
   pretty = show
 
@@ -426,14 +429,14 @@ instance Pretty PilEdge where
       <> "  |" <> pretty (e ^. #branchType) <> "|"
 
 instance Pretty (BasicBlockNode a) where
-  pretty (Cfg.BasicBlockNode f start end _ _) =
-    pretty f
+  pretty (Cfg.BasicBlockNode ctx start end _ _) =
+    pretty ctx
       <> "@[" <> pretty start <> ", " <> pretty end <> "]"
 
 instance Pretty (CallNode a) where
-  pretty (Cfg.CallNode f start _ _) =
-    pretty f
-      <> "@" <> pretty start
+  pretty (Cfg.CallNode ctx start dest _ _) =
+    pretty ctx
+      <> "@" <> pretty start <> " -> " <> pretty dest
 
 instance Pretty (EnterFuncNode a) where
   pretty (Cfg.EnterFuncNode prevCtx nextCtx _ _) =

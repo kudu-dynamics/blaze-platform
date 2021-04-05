@@ -8,7 +8,7 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
 import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
-import Blaze.Import.Source.BinaryNinja.Types
+import Blaze.Import.Source.BinaryNinja.Types hiding (callDest)
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
@@ -32,6 +32,7 @@ import Blaze.Types.Cfg (
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt, CtxId, Ctx)
+import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.DList (DList)
 import qualified Data.DList as DList
@@ -81,6 +82,7 @@ nodeFromCallInstr ctx callInstr' = do
           CallNode
             { ctx = ctx
             , start = callInstr' ^. #address
+            , callDest = Pil.CallExpr ()
             , nodeData = callInstr' ^. #instr :| []
             , uuid = uuid'
             }
@@ -251,10 +253,14 @@ convertToPilNode imp ctxId_ mapping mlilSsaNode = do
       stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
       uuid' <- randomIO
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr uuid' stmts)
-    Call (CallNode fun startAddr _ _) -> do
+    Call (CallNode fun startAddr _ _ _) -> do
       stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
+      let callDest = fromMaybe (Pil.CallExpr ()) $ do
+            stmt <- headMay stmts
+            callStmt <- Pil.mkCallStatement stmt
+            return $ const () <$> Pil.getCallDest callStmt
       uuid' <- randomIO
-      return $ Call (CallNode fun startAddr uuid' stmts)
+      return $ Call (CallNode fun startAddr callDest uuid' stmts)
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
     Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
 
