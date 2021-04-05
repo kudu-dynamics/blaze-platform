@@ -5,7 +5,7 @@ module Blaze.Cfg.Interprocedural (
 
 import Blaze.Prelude hiding (Symbol, sym)
 
-import Blaze.Cfg hiding (BasicBlockNode(ctx), CallNode(ctx))
+import Blaze.Cfg hiding (BasicBlockNode(ctx), CallNode(ctx), callDest)
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
 import Blaze.Types.Cfg.Interprocedural as Exports
 import qualified Blaze.Types.Cfg as Cfg
@@ -21,7 +21,6 @@ import Blaze.Types.Pil (
   Statement (Def, DefPhi),
   Stmt,
   Symbol,
-  createCtx,
   mkCallStatement,
  )
 import qualified Data.List.NonEmpty as NEList
@@ -107,11 +106,10 @@ expandCall callerCtx icfg callNode = do
       -- TODO: CallNode should provide the call statement from a record field
       case getCallTarget callStmt of
         Just targetFunc -> do
-          calleeCtx <- createCtx targetFunc
           -- result <- liftIO $ getCfg_ ctxId targetFunc
-          result <- liftIO $ getCfg_ calleeCtx
+          result <- liftIO $ getCfg_ targetFunc
           case result of
-            Just (ImportResult targetCfg _) -> do
+            Just (ImportResult calleeCtx targetCfg _) -> do
               (targetCfg', leaveFunc) <- expandCall_ callerCtx calleeCtx callStmt targetCfg
               return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg') leaveFunc
             Nothing -> return Nothing

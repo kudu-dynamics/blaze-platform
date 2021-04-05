@@ -1,9 +1,14 @@
-module Blaze.Types.Import where
+module Blaze.Types.Import
+  ( ImportResult(ImportResult)
+  ) where
 
 import Blaze.Prelude
 
+import Blaze.Types.Pil (Ctx)
+
 data ImportResult a b = ImportResult
-  { result :: a
+  { ctx :: Ctx
+  , result :: a
   , mapping :: b
   }
   deriving (Eq, Ord, Show, Generic)

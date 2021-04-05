@@ -8,7 +8,7 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
 import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
-import Blaze.Import.Source.BinaryNinja.Types hiding (callDest)
+import Blaze.Import.Source.BinaryNinja.Types hiding (callDest, func)
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
@@ -30,6 +30,7 @@ import Blaze.Types.Cfg (
   mkCfg,
  )
 import qualified Blaze.Types.Cfg as Cfg
+import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt, CtxId, Ctx)
 import qualified Blaze.Types.Pil as Pil
@@ -166,11 +167,12 @@ convertEdge nodeMap bnEdge = do
   return $ CfEdge cfSrc cfDst (convertBranchType $ bnEdge ^. BNBb.branchType)
 
 importCfg ::
-  Ctx ->
+  Function ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
   IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-importCfg ctx bnNodes bnEdges = do
+importCfg func bnNodes bnEdges = do
+  ctx <- Pil.createCtx func
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode ctx) bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
   case mCfNodes of
@@ -182,13 +184,13 @@ importCfg ctx bnNodes bnEdges = do
           cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
       return
         . Just
-        $ ImportResult
+        $ ImportResult ctx
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
-getCfgAlt :: BNBinaryView -> Ctx -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-getCfgAlt bv ctx = do
-  mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (ctx ^. #func . #address)
+getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt bv func = do
+  mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
   case mBnFunc of
     Nothing ->
       return Nothing
@@ -196,19 +198,20 @@ getCfgAlt bv ctx = do
       bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
       bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
       bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
-      importCfg ctx bnMlilBbs bnMlilBbEdges
+      importCfg func bnMlilBbs bnMlilBbEdges
 
 getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
-  Ctx ->
+  Function ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
-getCfg imp bv ctx = do
-  result <- getCfgAlt bv ctx
+getCfg imp bv func = do
+  result <- getCfgAlt bv func
+  ctx <- Pil.createCtx func
   case result of
     Nothing -> return Nothing
-    Just (ImportResult mlilCfg mlilRefMap) -> do
+    Just (ImportResult _mlilCtx mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
       pilRootNode <- convertToPilNode imp (ctx ^. #ctxId)  mlilRefMap mlilRootNode
@@ -223,9 +226,10 @@ getCfg imp bv ctx = do
               )
                 <$> HMap.toList mlilRefMap
       return $
-        ImportResult
+        ImportResult ctx
           <$> (mkCfg pilRootNode pilRestNodes <$> pilEdges)
           <*> Just pilStmtsMap
+          
 
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
