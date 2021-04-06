@@ -8,7 +8,7 @@ import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
 import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
-import Blaze.Import.Source.BinaryNinja.Types
+import Blaze.Import.Source.BinaryNinja.Types hiding (callDest, func)
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
@@ -32,7 +32,8 @@ import Blaze.Types.Cfg (
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
-import Blaze.Types.Pil (Stmt, CtxId)
+import Blaze.Types.Pil (Stmt, CtxId, Ctx)
+import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.DList (DList)
 import qualified Data.DList as DList
@@ -52,13 +53,13 @@ tellEntry :: MlilNodeRefMapEntry -> NodeConverter ()
 tellEntry = tell . DList.singleton
 
 -- | Assumes instructions are consecutive
-nodeFromInstrs :: Function -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
-nodeFromInstrs func' instrs = do
+nodeFromInstrs :: Ctx -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+nodeFromInstrs ctx instrs = do
   uuid' <- liftIO randomIO
   let node =
         BasicBlock $
           BasicBlockNode
-            { function = func'
+            { ctx = ctx
             , start = (view Mlil.address . unNonCallInstruction) . NEList.head $ instrs
             , end = (view Mlil.address . unNonCallInstruction) . NEList.last $ instrs
             , nodeData = unNonCallInstruction <$> instrs
@@ -67,38 +68,39 @@ nodeFromInstrs func' instrs = do
   tellEntry
     ( node
     , Cfg.CodeReference
-        { function = func'
+        { function = ctx ^. #func
         , startIndex = view Mlil.index . unNonCallInstruction . NEList.head $ instrs
         , endIndex = view Mlil.index . unNonCallInstruction . NEList.last $ instrs
         }
     )
   return node
 
-nodeFromCallInstr :: Function -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
-nodeFromCallInstr func' callInstr' = do
+nodeFromCallInstr :: Ctx -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+nodeFromCallInstr ctx callInstr' = do
   uuid' <- liftIO randomIO
   let node =
         Call $
           CallNode
-            { function = func'
+            { ctx = ctx
             , start = callInstr' ^. #address
+            , callDest = Pil.CallExpr ()
             , nodeData = callInstr' ^. #instr :| []
             , uuid = uuid'
             }
   tellEntry
     ( node
     , Cfg.CodeReference
-        { function = func'
+        { function = ctx ^. #func
         , startIndex = callInstr' ^. #index
         , endIndex = callInstr' ^. #index
         }
     )
   return node
 
-nodeFromGroup :: Function -> InstrGroup -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
-nodeFromGroup func' = \case
-  (SingleCall x) -> nodeFromCallInstr func' x
-  (ManyNonCalls xs) -> nodeFromInstrs func' xs
+nodeFromGroup :: Ctx -> InstrGroup -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+nodeFromGroup ctx = \case
+  (SingleCall x) -> nodeFromCallInstr ctx x
+  (ManyNonCalls xs) -> nodeFromInstrs ctx xs
 
 -- | Parse a list of MlilSsaInstr into groups
 groupInstrs :: [MlilSsaInstr] -> [InstrGroup]
@@ -130,15 +132,15 @@ groupInstrs xs = mconcat (parseAndSplit <$> groupedInstrs)
     -- in the group.
     _ -> [ManyNonCalls . NEList.fromList . mapMaybe parseNonCall . NEList.toList $ g]
 
-nodesFromInstrs :: Function -> [MlilSsaInstruction] -> NodeConverter [MlilSsaCfNode]
-nodesFromInstrs func' instrs = do
+nodesFromInstrs :: Ctx -> [MlilSsaInstruction] -> NodeConverter [MlilSsaCfNode]
+nodesFromInstrs ctx instrs = do
   let instrGroups = groupInstrs $ toMlilSsaInstr <$> instrs
-  mapM (nodeFromGroup func') instrGroups
+  mapM (nodeFromGroup ctx) instrGroups
 
-convertNode :: Function -> MlilSsaBlock -> NodeConverter [MlilSsaCfNode]
-convertNode func' bnBlock = do
+convertNode :: Ctx -> MlilSsaBlock -> NodeConverter [MlilSsaCfNode]
+convertNode ctx bnBlock = do
   instrs <- liftIO $ Mlil.fromBasicBlock bnBlock
-  nodesFromInstrs func' instrs
+  nodesFromInstrs ctx instrs
 
 createEdgesForNodeGroup :: [MlilSsaCfNode] -> [MlilSsaCfEdge]
 createEdgesForNodeGroup ns =
@@ -169,8 +171,9 @@ importCfg ::
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
   IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-importCfg func' bnNodes bnEdges = do
-  (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode func') bnNodes
+importCfg func bnNodes bnEdges = do
+  ctx <- Pil.createCtx func
+  (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode ctx) bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
   case mCfNodes of
     Nothing -> return Nothing
@@ -181,13 +184,13 @@ importCfg func' bnNodes bnEdges = do
           cfEdges = cfEdgesFromNodeGroups ++ catMaybes cfEdgesFromBnCfg
       return
         . Just
-        $ ImportResult
+        $ ImportResult ctx
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
-getCfgAlt :: BNBinaryView -> CtxId -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-getCfgAlt bv _ctxId func' = do
-  mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func' ^. #address)
+getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt bv func = do
+  mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
   case mBnFunc of
     Nothing ->
       return Nothing
@@ -195,24 +198,24 @@ getCfgAlt bv _ctxId func' = do
       bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
       bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
       bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
-      importCfg func' bnMlilBbs bnMlilBbEdges
+      importCfg func bnMlilBbs bnMlilBbEdges
 
 getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
-  CtxId ->
   Function ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
-getCfg imp bv ctxId_ fun = do
-  result <- getCfgAlt bv ctxId_ fun
+getCfg imp bv func = do
+  result <- getCfgAlt bv func
+  ctx <- Pil.createCtx func
   case result of
     Nothing -> return Nothing
-    Just (ImportResult mlilCfg mlilRefMap) -> do
+    Just (ImportResult _mlilCtx mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
-      pilRootNode <- convertToPilNode imp ctxId_ mlilRefMap mlilRootNode
-      pilRestNodes <- traverse (convertToPilNode imp ctxId_ mlilRefMap) mlilRestNodes
+      pilRootNode <- convertToPilNode imp (ctx ^. #ctxId)  mlilRefMap mlilRootNode
+      pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
           pilEdges = traverse (convertToPilEdge mlilToPilNodeMap) (Cfg.edges mlilCfg)
@@ -223,9 +226,10 @@ getCfg imp bv ctxId_ fun = do
               )
                 <$> HMap.toList mlilRefMap
       return $
-        ImportResult
+        ImportResult ctx
           <$> (mkCfg pilRootNode pilRestNodes <$> pilEdges)
           <*> Just pilStmtsMap
+          
 
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
@@ -253,10 +257,14 @@ convertToPilNode imp ctxId_ mapping mlilSsaNode = do
       stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
       uuid' <- randomIO
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr uuid' stmts)
-    Call (CallNode fun startAddr _ _) -> do
+    Call (CallNode fun startAddr _ _ _) -> do
       stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
+      let callDest = fromMaybe (Pil.CallExpr ()) $ do
+            stmt <- headMay stmts
+            callStmt <- Pil.mkCallStatement stmt
+            return $ const () <$> Pil.getCallDest callStmt
       uuid' <- randomIO
-      return $ Call (CallNode fun startAddr uuid' stmts)
+      return $ Call (CallNode fun startAddr callDest uuid' stmts)
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
     Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
 

@@ -5,7 +5,7 @@ module Blaze.Cfg.Interprocedural (
 
 import Blaze.Prelude hiding (Symbol, sym)
 
-import Blaze.Cfg
+import Blaze.Cfg hiding (BasicBlockNode(ctx), CallNode(ctx), callDest)
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
 import Blaze.Types.Cfg.Interprocedural as Exports
 import qualified Blaze.Types.Cfg as Cfg
@@ -95,11 +95,10 @@ generateVars _ _ _ [] = []
 -}
 expandCall ::
   Ctx ->
-  Ctx ->
   InterCfg ->
   PilCallNode ->
   Builder a (Maybe InterCfg)
-expandCall callerCtx calleeCtx icfg callNode = do
+expandCall callerCtx icfg callNode = do
   getCfg_ <- use #getCfg
   -- ctxId <- getNextCtxIndex
   case getCallStmt callNode of
@@ -108,9 +107,9 @@ expandCall callerCtx calleeCtx icfg callNode = do
       case getCallTarget callStmt of
         Just targetFunc -> do
           -- result <- liftIO $ getCfg_ ctxId targetFunc
-          result <- liftIO $ getCfg_ (calleeCtx ^. #ctxId) targetFunc
+          result <- liftIO $ getCfg_ targetFunc
           case result of
-            Just (ImportResult targetCfg _) -> do
+            Just (ImportResult calleeCtx targetCfg _) -> do
               (targetCfg', leaveFunc) <- expandCall_ callerCtx calleeCtx callStmt targetCfg
               return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg') leaveFunc
             Nothing -> return Nothing
