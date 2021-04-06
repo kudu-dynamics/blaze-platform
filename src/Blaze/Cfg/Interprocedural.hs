@@ -94,12 +94,12 @@ generateVars _ _ _ [] = []
  call destination.
 -}
 expandCall ::
-  Ctx ->
   InterCfg ->
   PilCallNode ->
   Builder a (Maybe InterCfg)
-expandCall callerCtx icfg callNode = do
+expandCall icfg callNode = do
   getCfg_ <- use #getCfg
+  let callerCtx = callNode ^. #ctx
   -- ctxId <- getNextCtxIndex
   case getCallStmt callNode of
     Just callStmt ->
