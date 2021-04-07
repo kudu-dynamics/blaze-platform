@@ -190,11 +190,14 @@ type ControlFlowGraph a = AlgaGraph BranchType (CfNode a) (CfNode ())
 asIdNode :: CfNode a -> CfNode ()
 asIdNode = void
 
-getFullNode' :: ControlFlowGraph a -> CfNode () -> CfNode a
-getFullNode' g n = fromJust $ G.getNodeAttr n g
+getFullNode' :: ControlFlowGraph a -> CfNode () -> Maybe (CfNode a)
+getFullNode' g n = G.getNodeAttr n g
 
 getFullNode :: Cfg a -> CfNode () -> CfNode a
-getFullNode g =  getFullNode' $ g ^. #graph
+getFullNode g = fromJust . getFullNode' (g ^. #graph)
+
+getFullNodeMay :: Cfg a -> CfNode () -> Maybe (CfNode a)
+getFullNodeMay g = getFullNode' $ g ^. #graph
 
 getFullEdge :: Ord a => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
 getFullEdge cfg e = CfEdge (e ^. #src) (e ^. #dst) <$> G.getEdgeLabel e cfg
