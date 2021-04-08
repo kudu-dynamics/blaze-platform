@@ -200,8 +200,9 @@ removeGotoBlocks cfg = foldl' removeAndRebindEdges cfg gotoNodes
         succs = Set.toList $ Cfg.succs n cfg'
         newEdges = do
           pred <- preds
+          let bt = fromJust $ G.getEdgeLabel (G.Edge pred n) cfg'
           succ <- succs
-          return $ CfEdge pred succ Cfg.UnconditionalBranch
+          return $ CfEdge pred succ bt
 
     isGotoBlock (Cfg.BasicBlock bb) = NEList.length (bb ^. #nodeData) == 1 &&
       case (NEList.head $ bb ^. #nodeData) ^. Mlil.op of
