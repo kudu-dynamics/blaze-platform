@@ -165,7 +165,7 @@ substNode
     predEdges' :: [CfEdge [Stmt]]
     predEdges' = Set.toList $ Cfg.predEdges node outerCfg
     succEdges' :: [CfEdge [Stmt]]
-    succEdges' = Set.toList $ Cfg.predEdges node outerCfg
+    succEdges' = Set.toList $ Cfg.succEdges node outerCfg
     
     newPredEdges :: [CfEdge [Stmt]]
     newPredEdges = set #dst innerRoot <$> predEdges'
