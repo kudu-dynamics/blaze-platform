@@ -9,7 +9,7 @@ import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
 import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
 import Blaze.Import.Source.BinaryNinja.Types hiding (callDest, func)
-import Blaze.Prelude hiding (Symbol)
+import Blaze.Prelude hiding (Symbol, succ, pred)
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
   BranchType (
@@ -188,6 +188,29 @@ importCfg func bnNodes bnEdges = do
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
+removeGotoBlocks :: Cfg (NonEmpty MlilSsaInstruction) -> Cfg (NonEmpty MlilSsaInstruction)
+removeGotoBlocks cfg = foldl' removeAndRebindEdges cfg gotoNodes
+  where
+    removeAndRebindEdges cfg' n =
+      Cfg.removeNode n
+      . Cfg.addEdges newEdges
+      $ cfg'
+      where
+        preds = Set.toList $ Cfg.preds n cfg'
+        succs = Set.toList $ Cfg.succs n cfg'
+        newEdges = do
+          pred <- preds
+          succ <- succs
+          return $ CfEdge pred succ Cfg.UnconditionalBranch
+
+    isGotoBlock (Cfg.BasicBlock bb) = NEList.length (bb ^. #nodeData) == 1 &&
+      case (NEList.head $ bb ^. #nodeData) ^. Mlil.op of
+        Mlil.GOTO _ -> True
+        _ -> False
+    isGotoBlock _ = False
+    
+    gotoNodes = filter isGotoBlock . Set.toList . Cfg.nodes $ cfg
+
 getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 getCfgAlt bv func = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
@@ -214,11 +237,12 @@ getCfg imp bv func = do
     Just (ImportResult _mlilCtx mlilCfg mlilRefMap) -> do
       let mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
+          mlilCfgSansGotos = removeGotoBlocks mlilCfg
       pilRootNode <- convertToPilNode imp (ctx ^. #ctxId)  mlilRefMap mlilRootNode
       pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
-          pilEdges = traverse (convertToPilEdge mlilToPilNodeMap) (Cfg.edges mlilCfg)
+          pilEdges = traverse (convertToPilEdge mlilToPilNodeMap) (Cfg.edges mlilCfgSansGotos)
           pilStmtsMap =
             HMap.fromList $
               ( (fromJust . (`HMap.lookup` mlilToPilNodeMap))
