@@ -333,7 +333,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
     Pil.Def x -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
     Pil.Constraint x -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
     Pil.Store x -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
-    Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> t <> "\")"
+    Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> Text.take 10 t <> "...\")"
     Pil.UnimplMem x -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
     Pil.Undef -> "Undefined"
     Pil.Nop -> "Nop"

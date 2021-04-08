@@ -147,7 +147,7 @@ instance Disp a => Disp (Pil.Statement a) where
       where
         addr = disp $ op ^. #addr
         val = disp $ op ^. #value
-    Pil.UnimplInstr t -> Text.pack $ printf "unimplInstr (\"%s\")" t
+    Pil.UnimplInstr t -> "unimplInstr (\"" <> t <> "...\")"
     (Pil.UnimplMem op) -> Text.pack $ printf "unimplMem (%s)" src
       where
         src = disp $ op ^. #src
