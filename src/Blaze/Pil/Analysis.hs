@@ -269,7 +269,8 @@ _constantProp :: ConstPropState -> [Stmt] -> [Stmt]
 _constantProp constPropState xs =
   substVarExpr
     (\v -> HMap.lookup v (_exprMap constPropState))
-    [x | x <- xs, not . Set.member x $ _stmts constPropState]
+    xs 
+    -- [x | x <- xs, not . Set.member x $ _stmts constPropState]
 
 constantProp :: [Stmt] -> [Stmt]
 constantProp xs = _constantProp (buildConstPropState xs) xs

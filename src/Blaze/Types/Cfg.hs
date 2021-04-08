@@ -262,7 +262,7 @@ predEdges n cfg = Set.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
 
 -- TODO: move this to Graph class
 succEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
-succEdges n cfg = Set.map (fromJust . getFullEdge cfg $ G.Edge n succ)
+succEdges n cfg = Set.map (fromJust . getFullEdge cfg . G.Edge n)
   . G.succs n
   $ cfg
 
