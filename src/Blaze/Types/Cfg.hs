@@ -280,6 +280,22 @@ updateNodeData :: Ord a => (a -> a) -> CfNode a -> Cfg a -> Cfg a
 updateNodeData f n cfg =
   maybe cfg (\x -> setNodeData (f x) n cfg) $ getNodeData n
 
+-- | removes a node and makes edges from preds to succs
+--   uses pred->node branch type for pred->succ
+removeAndRebindEdges :: Ord a => CfNode a -> Cfg a -> Cfg a
+removeAndRebindEdges n cfg' = G.removeNode n
+  . addEdges newEdges
+  $ cfg'
+  where
+    preds = Set.toList $ G.preds n cfg'
+    succs = Set.toList $ G.succs n cfg'
+    newEdges = do
+      pred <- preds
+      let bt = fromJust $ G.getEdgeLabel (G.Edge pred n) cfg'
+      succ <- succs
+      return $ CfEdge pred succ bt
+
+
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
 instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
