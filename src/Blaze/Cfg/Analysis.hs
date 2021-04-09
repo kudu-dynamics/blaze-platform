@@ -10,7 +10,7 @@ import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CfEdge(CfEdge))
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg), unInterCfg)
-import Blaze.Types.Pil (Stmt, PilVar)
+import Blaze.Types.Pil (Stmt)
 import qualified Data.Set as Set
 import qualified Data.HashSet as HSet
 
@@ -45,19 +45,6 @@ constantProp icfg =
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts
 
-reducePhi :: InterCfg -> InterCfg 
-reducePhi icfg =
-  InterCfg $
-    foldl'
-      (flip $ Cfg.updateNodeData (PA.reducePhis undefVars))
-      cfg
-      (Set.toList $ G.nodes cfg)
-    where
-      cfg :: PilCfg
-      cfg = unInterCfg icfg
-      undefVars :: HashSet PilVar
-      undefVars = PA.getFreeVars . concat $ getStmts icfg
-
 getStmts :: InterCfg -> [[Stmt]]
 getStmts (InterCfg cfg) =
   fmap concat . Set.toList $ Cfg.nodes cfg
@@ -70,17 +57,6 @@ prune icfg =
   icfg' = constantProp . copyProp $ icfg
   deadBranches :: [PilEdge]
   deadBranches = getDeadBranches icfg'
-
-fixedPrune :: InterCfg -> InterCfg
-fixedPrune icfg =
-  if icfg' == icfg'' 
-  then icfg'
-  else fixedPrune icfg''
-    where
-      icfg' :: InterCfg
-      icfg' = prune icfg
-      icfg'' :: InterCfg
-      icfg'' = reducePhi icfg'
 
 getDeadBranches :: InterCfg -> [PilEdge]
 getDeadBranches icfg =

@@ -348,10 +348,6 @@ reducePhi undefVars stmt = case stmt of
     vars' = filter (not . (`HSet.member` undefVars)) vars
   _ -> Just stmt
 
-reducePhis :: HashSet PilVar -> [Stmt] -> [Stmt]
-reducePhis undefVars =
-  mapMaybe (reducePhi undefVars)
-
 --------------- MEMORY --------------------
 
 usesAddr :: MemAddr -> Stmt -> Bool
