@@ -190,7 +190,7 @@ importCfg func bnNodes bnEdges = do
 
 isGotoBlock :: CfNode (NonEmpty MlilSsaInstruction) -> Bool
 isGotoBlock (Cfg.BasicBlock bb) = NEList.length (bb ^. #nodeData) == 1 &&
-  case (NEList.head $ bb ^. #nodeData) ^. Mlil.op of
+  case NEList.head (bb ^. #nodeData) ^. Mlil.op of
     Mlil.GOTO _ -> True
     _ -> False
 isGotoBlock _ = False
