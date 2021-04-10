@@ -45,7 +45,6 @@ constantProp icfg =
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts
 
-
 getStmts :: InterCfg -> [[Stmt]]
 getStmts (InterCfg cfg) =
   fmap concat . Set.toList $ Cfg.nodes cfg

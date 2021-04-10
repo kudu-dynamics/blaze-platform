@@ -14,13 +14,12 @@ module Blaze.Types.Cfg
 import Blaze.Graph (Graph)
 import qualified Blaze.Graph as Graph
 import qualified Blaze.Types.Graph as G
-import Blaze.Prelude hiding (pred)
+import Blaze.Prelude hiding (pred, succ)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp, CallDest)
 import Blaze.Types.Pil.Common (Ctx)
 import qualified Data.Set as Set
-
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
@@ -206,13 +205,21 @@ toFullNodeSet :: Ord a => Cfg a -> Set (CfNode ()) -> Set (CfNode a)
 toFullNodeSet g = Set.map $ getFullNode g
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: forall a. CfNode a -> [CfNode a] -> [CfEdge a] -> ControlFlowGraph a
+mkControlFlowGraph :: forall a .Ord a
+                   => CfNode a
+                   -> [CfNode a]
+                   -> [CfEdge a]
+                   -> ControlFlowGraph a
 mkControlFlowGraph root' ns es = Graph.addNodesWithAttrs attrList
   . Graph.fromEdges
   $ fmap asIdNode . toLEdge <$> es
   where
+    nodesInEdges = concatMap (\e -> [e ^. #src, e ^. #dst]) es
+    allNodes :: [CfNode a]
+    allNodes = Set.toList . Set.fromList $ (root' : ns) <> nodesInEdges
+
     attrList :: [(CfNode (), CfNode a)]
-    attrList = (\n -> (asIdNode n, n)) <$> (root' : ns)
+    attrList = (\n -> (asIdNode n, n)) <$> allNodes
 
 asAttrTuple :: CfNode a -> (CfNode (), CfNode a)
 asAttrTuple x = (asIdNode x, x)
@@ -225,7 +232,7 @@ data Cfg a = Cfg
   }
   deriving (Eq, Show, Generic)
 
-mkCfg :: forall a. CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
+mkCfg :: forall a. Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
 mkCfg root' rest es =
   Cfg
     { graph = mkControlFlowGraph root' rest es
@@ -249,13 +256,13 @@ removeEdges xs cfg = foldl' (flip removeEdge) cfg xs
   
 -- TODO: move this to Graph class
 predEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
-predEdges n cfg = Set.map (\p -> fromJust . getFullEdge cfg $ G.Edge p n)
+predEdges n cfg = Set.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
   . G.preds n
   $ cfg
 
 -- TODO: move this to Graph class
 succEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
-succEdges n cfg = Set.map (\p -> fromJust . getFullEdge cfg $ G.Edge p n)
+succEdges n cfg = Set.map (fromJust . getFullEdge cfg . G.Edge n)
   . G.succs n
   $ cfg
 
@@ -273,6 +280,22 @@ updateNodeData :: Ord a => (a -> a) -> CfNode a -> Cfg a -> Cfg a
 updateNodeData f n cfg =
   maybe cfg (\x -> setNodeData (f x) n cfg) $ getNodeData n
 
+-- | removes a node and makes edges from preds to succs
+--   uses pred->node branch type for pred->succ
+removeAndRebindEdges :: Ord a => CfNode a -> Cfg a -> Cfg a
+removeAndRebindEdges n cfg' = G.removeNode n
+  . addEdges newEdges
+  $ cfg'
+  where
+    preds = Set.toList $ G.preds n cfg'
+    succs = Set.toList $ G.succs n cfg'
+    newEdges = do
+      pred <- preds
+      let bt = fromJust $ G.getEdgeLabel (G.Edge pred n) cfg'
+      succ <- succs
+      return $ CfEdge pred succ bt
+
+
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
 instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
@@ -280,7 +303,8 @@ instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
   succs node g = toFullNodeSet g 
-    . G.succs (asIdNode node) . view #graph
+    . G.succs (asIdNode node)
+    . view #graph
     $ g
   preds node g = toFullNodeSet g
     . G.preds (asIdNode node)

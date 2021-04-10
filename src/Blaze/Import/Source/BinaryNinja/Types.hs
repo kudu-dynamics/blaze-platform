@@ -85,6 +85,7 @@ data CallOperation = CALL (Mlil.CallOp (Mlil.Expression F))
                    | SYSCALL_UNTYPED_SSA (Mlil.SyscallUntypedSSAOp (Mlil.Expression F))
                    deriving (Eq, Ord, Show, Generic)
                    deriving anyclass Hashable
+
 data CallInstruction = CallInstruction
   { instr :: Mlil.Instruction F
   , address :: Address

@@ -9,7 +9,7 @@ import qualified Binja.MLIL as Mlil
 import qualified Blaze.Graph as G
 import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
 import Blaze.Import.Source.BinaryNinja.Types hiding (callDest, func)
-import Blaze.Prelude hiding (Symbol)
+import Blaze.Prelude hiding (Symbol, succ, pred)
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
   BranchType (
@@ -188,6 +188,19 @@ importCfg func bnNodes bnEdges = do
           (mkCfg cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
+isGotoBlock :: CfNode (NonEmpty MlilSsaInstruction) -> Bool
+isGotoBlock (Cfg.BasicBlock bb) = NEList.length (bb ^. #nodeData) == 1 &&
+  case NEList.head (bb ^. #nodeData) ^. Mlil.op of
+    Mlil.GOTO _ -> True
+    _ -> False
+isGotoBlock _ = False
+
+removeGotoBlocks :: Cfg (NonEmpty MlilSsaInstruction)
+                 -> Cfg (NonEmpty MlilSsaInstruction)
+removeGotoBlocks cfg = foldl' (flip Cfg.removeAndRebindEdges) cfg gotoNodes
+  where
+    gotoNodes = filter isGotoBlock . Set.toList . Cfg.nodes $ cfg
+
 getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 getCfgAlt bv func = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
@@ -211,10 +224,13 @@ getCfg imp bv func = do
   ctx <- Pil.createCtx func
   case result of
     Nothing -> return Nothing
-    Just (ImportResult _mlilCtx mlilCfg mlilRefMap) -> do
-      let mlilRootNode = mlilCfg ^. #root
+    Just (ImportResult _mlilCtx mlilCfgWithGotos mlilRefMapWithGotos) -> do
+      let mlilCfg = removeGotoBlocks mlilCfgWithGotos
+          mlilRefMap = HMap.filterWithKey (\k _ -> not $ isGotoBlock k) mlilRefMapWithGotos
+          mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
-      pilRootNode <- convertToPilNode imp (ctx ^. #ctxId)  mlilRefMap mlilRootNode
+          
+      pilRootNode <- convertToPilNode imp (ctx ^. #ctxId) mlilRefMap mlilRootNode
       pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
             HMap.fromList $ zip (mlilRootNode : mlilRestNodes) (pilRootNode : pilRestNodes)
