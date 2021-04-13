@@ -109,11 +109,11 @@ def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
-defCall :: Symbol -> Expression -> [Expression] -> OperationSize -> Stmt
+defCall :: Symbol -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
 defCall sym dest args size = def sym callExpr
   where
     callExpr :: Expression
-    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp (Pil.mkCallDest dest) Nothing args 
+    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest Nothing args
 
 defPhi :: Symbol -> [Symbol] -> Stmt
 defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
@@ -123,3 +123,6 @@ store addr val = Pil.Store (Pil.StoreOp addr val)
 
 constraint :: Expression -> Stmt
 constraint e = Pil.Constraint (Pil.ConstraintOp e)
+
+ret :: Expression -> Stmt
+ret = Pil.Ret . Pil.RetOp
