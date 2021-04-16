@@ -6,15 +6,17 @@ module Blaze.Pretty
     prettyStmts,
     prettyIndexedStmts,
     showHex,
+    PrettyShow(PrettyShow),
   )
 where
 
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
+import qualified Prelude (show)
 import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas)
+import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas, asCurlyList)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as Func
 
@@ -25,11 +27,12 @@ import qualified Numeric
 import Text.Printf
 import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
+import qualified Blaze.Graph as G
 
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Cfg (PilNode, CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, PilEdge)
+import Blaze.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, CfEdge, Cfg)
+import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg))
 import qualified Blaze.Cfg as Cfg
-
 -- TODO: make pretty return a monad instead of text,
 -- which can do things like `indent`
 
@@ -341,9 +344,9 @@ instance Pretty a => Pretty (Pil.Statement a) where
     Pil.EnterContext x -> "----> Entering " <> pretty (x ^. #ctx)
     Pil.ExitContext x -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
     Pil.Call x -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
-    Pil.DefPhi x -> Text.pack $ printf "%s = %s"
+    Pil.DefPhi x -> Text.pack $ printf "%s = φ%s"
                       (pretty $ x ^. #dest)
-                      (asList . fmap pretty $ x ^. #src)
+                      (asCurlyList . fmap pretty $ x ^. #src)
     Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
     Pil.Ret x -> "Ret " <> pretty (x ^. #value)
     Pil.Exit -> "Exit"
@@ -415,14 +418,14 @@ instance Pretty Func.Function where
   pretty (Func.Function _ name _addr _) = name -- <> "@" <> showHex addr
 
 --- CFG
-instance Pretty PilNode where
+instance Pretty (CfNode a) where
   pretty = \case
     BasicBlock n -> pretty n
     Call n -> pretty n
     EnterFunc n -> pretty n
     LeaveFunc n -> pretty n
 
-instance Pretty PilEdge where
+instance Pretty (CfEdge a) where
   pretty e =
     pretty (e ^. #src)
       <> " ---> " <> pretty (e ^. #dst) 
@@ -448,6 +451,58 @@ instance Pretty (LeaveFuncNode a) where
 
 instance Pretty BranchType where
   pretty = show
+
+instance Pretty InterCfg where
+  pretty (InterCfg cfg) = pretty cfg
+  
+-- | This matches each node to an Int and uses the Int to show the edges
+instance forall a. Pretty a => Pretty (Cfg a) where
+  pretty cfg =
+    "---CFG---\n"
+    <> "--- Node Mapping:\n"
+    <> showNodeMapping
+    <> "--- Edges:\n"
+    <> showEdges
+    <> "--- Attrs:\n"
+    <> showAttrs
+    where
+      cflow = cfg ^. #graph
+
+      nodeMapList :: [(CfNode (), Int)]
+      nodeMapList = zip (Set.toList $ G.nodes cflow) [0..]
+      
+      nodeMap :: HashMap (CfNode ()) Int
+      nodeMap = HashMap.fromList nodeMapList
+      
+      showNodeMapping = Text.intercalate "\n" $ showNode <$> nodeMapList
+
+      showNode (node, id) =
+        show id
+        <> " : "
+        <> (pretty . fromJust $ G.getNodeAttr node cflow)
+
+      showEdges = Text.concat
+        . fmap (cs . pshow)
+        . fmap (fmap $ fromJust . flip HashMap.lookup nodeMap)
+        . G.edges
+        $ cflow
+
+      showAttrs = Text.intercalate "\n" $ mapMaybe showAttr nodeMapList
+
+      showAttr (node, id) = do
+        attr <- G.getNodeAttr node cflow
+        return $
+          show id
+          <> " : "
+          <> pretty (foldr (:) [] attr)
+
+-- newtype PrettyCfgWithAttrs a = PrettyCfgWithAttrs (Cfg a)
+
+-- instance Pretty a => Pretty (PrettyCfgWithAttrs a) where
+--   pretty (PrettyCfgWithAttrs cfg) =
+--     pretty cfg
+--     <> "--- Attrs: \n"
+--     <> 
 
 --- Path
 -- instance Pretty Path.Node where
@@ -497,3 +552,9 @@ prettyPrint = putText . pretty
 
 pp :: (MonadIO m, Pretty a) => a -> m ()
 pp = prettyPrint
+
+newtype PrettyShow a = PrettyShow a
+  deriving (Eq, Ord, Generic)
+
+instance Pretty a => Show (PrettyShow a) where
+  show (PrettyShow x) = cs $ pretty x

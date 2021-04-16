@@ -60,6 +60,9 @@ constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral ad
 constStr :: Text -> OperationSize -> Expression
 constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
 
+var' :: PilVar -> OperationSize -> Expression
+var' pv size = mkExpr size (Pil.VAR $ Pil.VarOp pv)
+
 var :: Symbol -> OperationSize -> Expression
 var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
 
@@ -106,6 +109,9 @@ stackLocalAddr base offset size =
 ---- Statements
 def :: Symbol -> Expression -> Stmt
 def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
+
+def' :: PilVar -> Expression -> Stmt
+def' pv val = Pil.Def (Pil.DefOp pv val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.

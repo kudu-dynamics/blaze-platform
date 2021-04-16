@@ -79,11 +79,17 @@ paren t = "(" <> t <> ")"
 bracket :: Text -> Text
 bracket t = "[" <> t <> "]"
 
+curly :: Text -> Text
+curly t = "{" <> t <> "}"
+
 commas :: [Text] -> Text
 commas = Text.intercalate ", "
 
 asList :: [Text] -> Text
 asList = bracket . commas
+
+asCurlyList :: [Text] -> Text
+asCurlyList = curly . commas
 
 asMultilineList :: [Text] -> Text
 asMultilineList = bracket . Text.cons ' ' . Text.intercalate "\n, "
