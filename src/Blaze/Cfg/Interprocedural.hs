@@ -148,8 +148,6 @@ expandCall_
         targetCtx
         callStmt
         targetCfg
-    
-
 
 data WrappedTargetCfg = WrappedTargetCfg
   { wrappedCfg :: PilCfg
