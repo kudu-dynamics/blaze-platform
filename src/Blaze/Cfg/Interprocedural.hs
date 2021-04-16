@@ -190,12 +190,6 @@ wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg
            targetCfg & #root .~ enterFunc')
         retNodes
 
--- expandCallWith :: UUID -> UUID -> PilCallNode -> InterCfg -> InterCfg -> Maybe InterCfg
--- expandCallWith enterFuncUUID leaveFuncUUID pcall callerCfg calleeCfg =
---   case getCallTarget $ pcall ^. #callDest of
---     Nothing -> Left "CallNode missing function target"
---     Just fn -> 
-
 getRetNodes :: PilCfg -> [ReturnNode [Stmt]]
 getRetNodes cfg = 
   mapMaybe (\tn -> tn ^? #_TermRet) $ NEList.toList (getTerminalBlocks cfg)
