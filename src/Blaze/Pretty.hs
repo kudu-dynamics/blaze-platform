@@ -496,14 +496,6 @@ instance forall a. Pretty a => Pretty (Cfg a) where
           <> " : "
           <> pretty (foldr (:) [] attr)
 
--- newtype PrettyCfgWithAttrs a = PrettyCfgWithAttrs (Cfg a)
-
--- instance Pretty a => Pretty (PrettyCfgWithAttrs a) where
---   pretty (PrettyCfgWithAttrs cfg) =
---     pretty cfg
---     <> "--- Attrs: \n"
---     <> 
-
 --- Path
 -- instance Pretty Path.Node where
 --   pretty (Path.SubBlock x) =
