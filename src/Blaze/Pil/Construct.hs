@@ -11,6 +11,13 @@ import Blaze.Types.Pil
     Symbol,
   )
 
+pilVar' :: Symbol -> Pil.Ctx -> PilVar
+pilVar' s ctx =
+  PilVar
+    { symbol = s
+    , ctx = Just ctx
+    }
+
 pilVar :: Symbol -> PilVar
 pilVar s =
   PilVar
@@ -108,18 +115,23 @@ stackLocalAddr base offset size =
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt
-def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
+def sym = def' $ pilVar sym
 
 def' :: PilVar -> Expression -> Stmt
 def' pv val = Pil.Def (Pil.DefOp pv val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
-defCall :: Symbol -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
-defCall sym dest args size = def sym callExpr
+defCall' :: PilVar -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
+defCall' pv dest args size = def' pv callExpr
   where
     callExpr :: Expression
     callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest Nothing args
+
+-- TODO: This helper assumes the only output of the call operation
+--       is the variable being defined.
+defCall :: Symbol -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
+defCall sym = defCall' $ pilVar sym
 
 defPhi :: Symbol -> [Symbol] -> Stmt
 defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
