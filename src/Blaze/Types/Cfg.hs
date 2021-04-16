@@ -53,8 +53,6 @@ data CallNode a = CallNode
   { ctx :: Ctx
   , start :: Address
   , callDest :: CallDest ()
-  -- , args :: [Expression]
-  -- , resultVar :: Maybe PilVar
   , uuid :: UUID
   , nodeData :: a
   }
