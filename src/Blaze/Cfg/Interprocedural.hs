@@ -88,7 +88,7 @@ generateVars _ _ _ [] = []
 
 data ExpandCallError = NotCallStatement [Stmt]
                      | CallDestNotFunction (CallDest ())
-                     | FailToCreateCfg Function
+                     | FailedToCreateCfg Function
                      deriving (Eq, Ord, Show, Generic)
 
 {- | Expand a call by substituting a call node with the CFG corresponding to the
@@ -107,7 +107,7 @@ expandCall callerCfg callNode = do
     targetFunc <- liftMaybe (CallDestNotFunction $ callNode ^. #callDest)
       . getCallTargetFunction
       $ callNode ^. #callDest
-    (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailToCreateCfg targetFunc)
+    (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailedToCreateCfg targetFunc)
       $ getCfg_ targetFunc
     enterFuncUUID <- liftIO randomIO
     leaveFuncUUID <- liftIO randomIO
