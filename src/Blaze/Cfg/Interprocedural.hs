@@ -28,12 +28,10 @@ import qualified Data.Set as Set
 import Control.Lens.Setter (set)
 
 
-getCallTarget :: CallStatement -> Maybe Function
-getCallTarget callStmt = do
-  let callDest = callStmt ^. #callOp . #dest
-  case callDest of
-    CallFunc fun -> Just fun
-    _ -> Nothing
+getCallTargetFunction :: CallDest a -> Maybe Function
+getCallTargetFunction = \case
+  CallFunc fun -> Just fun
+  _ -> Nothing
 
 getCallStmt :: PilCallNode -> Maybe CallStatement
 getCallStmt node = do
@@ -50,10 +48,9 @@ mkParamVar ctx funcParam =
     FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name
 
 -- | Create a node that indicates a context switch between two function contexts.
-mkEnterFuncNode :: MonadIO m => Ctx -> Ctx -> CallStatement -> m (EnterFuncNode [Stmt])
-mkEnterFuncNode outerCtx calleeCtx callStmt = do
-  uuid' <- liftIO randomIO
-  return $ EnterFuncNode outerCtx calleeCtx uuid' stmts
+mkEnterFuncNode :: UUID -> Ctx -> Ctx -> CallStatement -> EnterFuncNode [Stmt]
+mkEnterFuncNode uuid' outerCtx calleeCtx callStmt =
+  EnterFuncNode outerCtx calleeCtx uuid' stmts
   where
     paramVars :: [PilVar]
     paramVars = mkParamVar calleeCtx <$> calleeCtx ^. #func . #params
@@ -67,10 +64,9 @@ Since a return statement may return an expression, we first ensure a variable re
 the expressions is available by generating one for each expression. This may end up
 introducing spurious variable copies which can be reduced with copy propagation.
 -}
-mkLeaveFuncNode :: MonadIO m => Ctx -> Ctx -> CallStatement -> [Expression] -> m (LeaveFuncNode [Stmt])
-mkLeaveFuncNode outerCtx calleeCtx callStmt retExprs = do
-  uuid' <- liftIO randomIO
-  return $ LeaveFuncNode calleeCtx outerCtx uuid' stmts
+mkLeaveFuncNode :: UUID -> Ctx -> Ctx -> CallStatement -> [Expression] -> LeaveFuncNode [Stmt]
+mkLeaveFuncNode uuid' outerCtx calleeCtx callStmt retExprs =
+  LeaveFuncNode calleeCtx outerCtx uuid' stmts
   where
     resultVar :: Maybe PilVar
     resultVar = callStmt ^. #resultVar
@@ -90,60 +86,107 @@ generateVars ctx baseName id (expr : rest) =
   (PilVar (baseName <> show id) (Just ctx), expr) : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 
+data ExpandCallError = NotCallStatement [Stmt]
+                     | CallDestNotFunction (CallDest ())
+                     | FailedToCreateCfg Function
+                     deriving (Eq, Ord, Show, Generic)
+
 {- | Expand a call by substituting a call node with the CFG corresponding to the
  call destination.
 -}
 expandCall ::
   InterCfg ->
   PilCallNode ->
-  Builder a (Maybe InterCfg)
-expandCall icfg callNode = do
+  Builder a (Either ExpandCallError InterCfg)
+expandCall callerCfg callNode = do
   getCfg_ <- use #getCfg
-  let callerCtx = callNode ^. #ctx
   -- ctxId <- getNextCtxIndex
-  case getCallStmt callNode of
-    Just callStmt ->
-      -- TODO: CallNode should provide the call statement from a record field
-      case getCallTarget callStmt of
-        Just targetFunc -> do
-          -- result <- liftIO $ getCfg_ ctxId targetFunc
-          result <- liftIO $ getCfg_ targetFunc
-          case result of
-            Just (ImportResult calleeCtx targetCfg _) -> do
-              (targetCfg', leaveFunc) <- expandCall_ callerCtx calleeCtx callStmt targetCfg
-              return $ Just $ substNode icfg (Call callNode) (InterCfg targetCfg') leaveFunc
-            Nothing -> return Nothing
-        Nothing -> return Nothing
-    Nothing -> return Nothing
+  runExceptT $ do
+    callStmt <- liftMaybe (NotCallStatement $ callNode ^. #nodeData)
+      $ getCallStmt callNode
+    targetFunc <- liftMaybe (CallDestNotFunction $ callNode ^. #callDest)
+      . getCallTargetFunction
+      $ callNode ^. #callDest
+    (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailedToCreateCfg targetFunc)
+      $ getCfg_ targetFunc
+    enterFuncUUID <- liftIO randomIO
+    leaveFuncUUID <- liftIO randomIO
+    return $ expandCall_
+      callerCfg
+      callNode
+      callStmt
+      (InterCfg targetCfg)
+      targetCtx
+      enterFuncUUID
+      leaveFuncUUID
 
-expandCall_ ::
-  MonadIO m =>
-  Ctx ->
-  Ctx ->
-  CallStatement ->
-  PilCfg ->
-  m (PilCfg, PilNode)
-expandCall_ callerCtx calleeCtx callStmt targetCfg = do
-  enterFunc <- EnterFunc <$> mkEnterFuncNode callerCtx calleeCtx callStmt
-  leaveFunc <- LeaveFunc <$> mkLeaveFuncNode callerCtx calleeCtx callStmt (getRetExprs targetCfg)
-  return (targetCfg' enterFunc leaveFunc, leaveFunc)
-  -- Connect the enter and leave function nodes to the targetCfg
- where
-  prevRoot = targetCfg ^. #root
-  retNodes = getRetNodes targetCfg
-  linkRetNodes :: PilNode -> PilCfg -> ReturnNode [Stmt] -> PilCfg
-  linkRetNodes leaveFunc cfg retNode =
-    Cfg.addEdge
-      (CfEdge (BasicBlock $ retNode ^. #basicBlock) leaveFunc UnconditionalBranch)
-      cfg
-  targetCfg' :: PilNode -> PilNode -> PilCfg
-  targetCfg' enterFunc leaveFunc =
-    foldl'
-      (linkRetNodes leaveFunc)
-      ( Cfg.addEdge (CfEdge enterFunc prevRoot UnconditionalBranch)
-        $ targetCfg & #root .~ enterFunc
-      )
-      retNodes
+expandCall_
+  :: InterCfg
+  -> PilCallNode
+  -> CallStatement
+  -> InterCfg
+  -> Ctx
+  -> UUID
+  -> UUID
+  -> InterCfg
+expandCall_
+  (InterCfg callerCfg)
+  callNode
+  callStmt
+  (InterCfg targetCfg)
+  targetCtx
+  enterFuncUUID
+  leaveFuncUUID
+  = substNode (InterCfg callerCfg) (Call callNode) (InterCfg wrappedTargetCfg) leaveFunc
+  where
+    callerCtx = callNode ^. #ctx
+    (WrappedTargetCfg wrappedTargetCfg leaveFunc) =
+      wrapTargetCfg
+        enterFuncUUID
+        leaveFuncUUID
+        callerCtx
+        targetCtx
+        callStmt
+        targetCfg
+
+data WrappedTargetCfg = WrappedTargetCfg
+  { wrappedCfg :: PilCfg
+  , exitNode :: PilNode
+  } deriving (Eq, Show, Generic)
+
+wrapTargetCfg
+  :: UUID
+  -> UUID
+  -> Ctx
+  -> Ctx
+  -> CallStatement
+  -> PilCfg
+  -> WrappedTargetCfg
+wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg =
+  WrappedTargetCfg (targetCfg' enterFunc leaveFunc) leaveFunc
+  where
+    enterFunc = EnterFunc
+      $ mkEnterFuncNode enterFuncUUID callerCtx calleeCtx callStmt
+    leaveFunc = LeaveFunc
+      . mkLeaveFuncNode leaveFuncUUID callerCtx calleeCtx callStmt
+      $ getRetExprs targetCfg
+      
+    -- Connect the enter and leave function nodes to the targetCfg
+
+    prevRoot = targetCfg ^. #root
+    retNodes = getRetNodes targetCfg
+    linkRetNodes :: PilNode -> PilCfg -> ReturnNode [Stmt] -> PilCfg
+    linkRetNodes leaveFunc' cfg retNode =
+      Cfg.addEdge
+        (CfEdge (BasicBlock $ retNode ^. #basicBlock) leaveFunc' UnconditionalBranch)
+        cfg
+    targetCfg' :: PilNode -> PilNode -> PilCfg
+    targetCfg' enterFunc' leaveFunc' =
+      foldl'
+        (linkRetNodes leaveFunc')
+        (Cfg.addEdge (CfEdge enterFunc' prevRoot UnconditionalBranch) $
+           targetCfg & #root .~ enterFunc')
+        retNodes
 
 getRetNodes :: PilCfg -> [ReturnNode [Stmt]]
 getRetNodes cfg = 
@@ -155,7 +198,7 @@ substNode
   (InterCfg outerCfg@(Cfg _ outerRoot))
   node
   (InterCfg innerCfg@(Cfg _ innerRoot))
-  exitNode =
+  exitNode' =
     -- Check if the node we are substituting is the outer CFG's root
     if asIdNode outerRoot /= asIdNode node
        then InterCfg $ newCfg & #root .~ outerRoot
@@ -170,7 +213,7 @@ substNode
     newPredEdges :: [CfEdge [Stmt]]
     newPredEdges = set #dst innerRoot <$> predEdges'
     newSuccEdges :: [CfEdge [Stmt]]
-    newSuccEdges = set #src exitNode <$> succEdges'
+    newSuccEdges = set #src exitNode' <$> succEdges'
     newCfg :: Cfg [Stmt]
     newCfg = 
       Cfg.removeNode node

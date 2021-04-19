@@ -11,6 +11,13 @@ import Blaze.Types.Pil
     Symbol,
   )
 
+pilVar' :: Symbol -> Pil.Ctx -> PilVar
+pilVar' s ctx =
+  PilVar
+    { symbol = s
+    , ctx = Just ctx
+    }
+
 pilVar :: Symbol -> PilVar
 pilVar s =
   PilVar
@@ -60,6 +67,9 @@ constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral ad
 constStr :: Text -> OperationSize -> Expression
 constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
 
+var' :: PilVar -> OperationSize -> Expression
+var' pv size = mkExpr size (Pil.VAR $ Pil.VarOp pv)
+
 var :: Symbol -> OperationSize -> Expression
 var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
 
@@ -105,15 +115,23 @@ stackLocalAddr base offset size =
 
 ---- Statements
 def :: Symbol -> Expression -> Stmt
-def sym val = Pil.Def (Pil.DefOp (pilVar sym) val)
+def sym = def' $ pilVar sym
+
+def' :: PilVar -> Expression -> Stmt
+def' pv val = Pil.Def (Pil.DefOp pv val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
-defCall :: Symbol -> Expression -> [Expression] -> OperationSize -> Stmt
-defCall sym dest args size = def sym callExpr
+defCall' :: PilVar -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
+defCall' pv dest args size = def' pv callExpr
   where
     callExpr :: Expression
-    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp (Pil.mkCallDest dest) Nothing args 
+    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest Nothing args
+
+-- TODO: This helper assumes the only output of the call operation
+--       is the variable being defined.
+defCall :: Symbol -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
+defCall sym = defCall' $ pilVar sym
 
 defPhi :: Symbol -> [Symbol] -> Stmt
 defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
@@ -123,3 +141,6 @@ store addr val = Pil.Store (Pil.StoreOp addr val)
 
 constraint :: Expression -> Stmt
 constraint e = Pil.Constraint (Pil.ConstraintOp e)
+
+ret :: Expression -> Stmt
+ret = Pil.Ret . Pil.RetOp
