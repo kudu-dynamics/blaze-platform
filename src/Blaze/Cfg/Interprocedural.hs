@@ -86,39 +86,39 @@ generateVars ctx baseName id (expr : rest) =
   (PilVar (baseName <> show id) (Just ctx), expr) : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 
+data ExpandCallError = NotCallStatement [Stmt]
+                     | CallDestNotFunction (CallDest ())
+                     | FailToCreateCfg Function
+                     deriving (Eq, Ord, Show, Generic)
+
 {- | Expand a call by substituting a call node with the CFG corresponding to the
  call destination.
 -}
 expandCall ::
   InterCfg ->
   PilCallNode ->
-  Builder a (Maybe InterCfg)
+  Builder a (Either ExpandCallError InterCfg)
 expandCall callerCfg callNode = do
   getCfg_ <- use #getCfg
   -- ctxId <- getNextCtxIndex
-  case getCallStmt callNode of
-    Just callStmt ->
-      -- TODO: CallNode should provide the call statement from a record field
-      case getCallTargetFunction $ callNode ^. #callDest of
-        Just targetFunc -> do
-          -- result <- liftIO $ getCfg_ ctxId targetFunc
-          result <- liftIO $ getCfg_ targetFunc
-          case result of
-            Just (ImportResult targetCtx targetCfg _) -> do
-              enterFuncUUID <- liftIO randomIO
-              leaveFuncUUID <- liftIO randomIO
-              return . Just
-                $ expandCall_
-                    callerCfg
-                    callNode
-                    callStmt
-                    (InterCfg targetCfg)
-                    targetCtx                   
-                    enterFuncUUID
-                    leaveFuncUUID
-            Nothing -> return Nothing
-        Nothing -> return Nothing
-    Nothing -> return Nothing
+  runExceptT $ do
+    callStmt <- liftMaybe (NotCallStatement $ callNode ^. #nodeData)
+      $ getCallStmt callNode
+    targetFunc <- liftMaybe (CallDestNotFunction $ callNode ^. #callDest)
+      . getCallTargetFunction
+      $ callNode ^. #callDest
+    (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailToCreateCfg targetFunc)
+      $ getCfg_ targetFunc
+    enterFuncUUID <- liftIO randomIO
+    leaveFuncUUID <- liftIO randomIO
+    return $ expandCall_
+      callerCfg
+      callNode
+      callStmt
+      (InterCfg targetCfg)
+      targetCtx
+      enterFuncUUID
+      leaveFuncUUID
 
 expandCall_
   :: InterCfg

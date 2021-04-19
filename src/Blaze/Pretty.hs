@@ -456,7 +456,7 @@ instance Pretty InterCfg where
   pretty (InterCfg cfg) = pretty cfg
   
 -- | This matches each node to an Int and uses the Int to show the edges
-instance forall a. Pretty a => Pretty (Cfg a) where
+instance Pretty a => Pretty (Cfg a) where
   pretty cfg =
     "---CFG---\n"
     <> "--- Node Mapping:\n"
