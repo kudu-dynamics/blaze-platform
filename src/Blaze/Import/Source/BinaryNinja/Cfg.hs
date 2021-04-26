@@ -282,7 +282,7 @@ convertToPilNode imp ctxId_ mapping mlilSsaNode = do
       uuid' <- randomIO
       return $ Call (CallNode fun startAddr callDest uuid' stmts)
     Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
-    Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
+    Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have LeaveFunc node"
 
 convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe PilEdge
 convertToPilEdge nodeMap mlilSsaEdge =
