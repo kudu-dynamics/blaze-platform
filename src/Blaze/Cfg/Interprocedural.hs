@@ -109,7 +109,6 @@ expandCall callerCfg callNode = do
       $ callNode ^. #callDest
     (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailedToCreateCfg targetFunc)
       $ getCfg_ targetFunc
-    enterFuncUUID <- liftIO randomIO
     leaveFuncUUID <- liftIO randomIO
     return $ expandCall_
       callerCfg
@@ -117,7 +116,6 @@ expandCall callerCfg callNode = do
       callStmt
       (InterCfg targetCfg)
       targetCtx
-      enterFuncUUID
       leaveFuncUUID
 
 expandCall_
@@ -127,7 +125,6 @@ expandCall_
   -> InterCfg
   -> Ctx
   -> UUID
-  -> UUID
   -> InterCfg
 expandCall_
   (InterCfg callerCfg)
@@ -135,14 +132,13 @@ expandCall_
   callStmt
   (InterCfg targetCfg)
   targetCtx
-  enterFuncUUID
   leaveFuncUUID
   = substNode (InterCfg callerCfg) (Call callNode) (InterCfg wrappedTargetCfg) leaveFunc
   where
     callerCtx = callNode ^. #ctx
     (WrappedTargetCfg wrappedTargetCfg leaveFunc) =
       wrapTargetCfg
-        enterFuncUUID
+        (callNode ^. #uuid)
         leaveFuncUUID
         callerCtx
         targetCtx
