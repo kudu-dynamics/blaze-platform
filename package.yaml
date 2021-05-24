@@ -1,6 +1,5 @@
 name:                binaryninja
 version:             0.1.0.0
-github:              "binaryninja-haskell"
 license:             LicenseRef-AllRightsReserved
 author:              "Matt Parker"
 maintainer:          "mp@kududyn.com"
