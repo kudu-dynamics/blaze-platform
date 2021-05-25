@@ -29,7 +29,7 @@ workflow:
 
 # Potential build dependencies for the dind host
 .script-bootstrap-dind: &script-bootstrap-dind
-  - echo -e "section_start:`date +%s`:bootstrap\r\e[0KBootstrap build dependencies"
+  - echo -e "section_start:`date +%s`:bootstrap[collapsed=true]\r\e[0KBootstrap build dependencies"
   - |
     if [ -f /etc/alpine-release ]; then
       apk add git coreutils python3
@@ -39,7 +39,7 @@ workflow:
 
 # Print runner environment info for debugging
 .script-before-info: &script-before-info
-  - echo -e "section_start:`date +%s`:pre-env\r\e[0KEnvironment info (before_script)"
+  - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
   - uname -a
   - env
   - ls -al
@@ -57,7 +57,7 @@ workflow:
     - *script-bootstrap-dind
     - *script-before-info
     # Setup source dependencies
-    - echo -e "section_start:`date +%s`:setup\r\e[0KProject Setup"
+    - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
     # Login to gitlab so we can clone
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
     # Write a .dockerignore to the build context (../). This ignores everything there except for
@@ -127,15 +127,24 @@ build:branch:
   needs: []
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+
+    - echo -e "section_start:`date +%s`:docker-pull[collapsed=true]\r\e[0KPull docker images for caching"
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker pull "${image}:branch-${CI_COMMIT_REF_SLUG}" ||
       docker pull "${image}:latest" ||
       true
+    - echo -e "section_end:`date +%s`:docker-pull\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:docker-build\r\e[0KBuild docker image"
     - \time -v docker build --pull .. -f Dockerfile
       -t "${image}:commit-${CI_COMMIT_SHA}"
       -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
+    - echo -e "section_end:`date +%s`:docker-build\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:docker-push[collapsed=true]\r\e[0KPush new docker image"
     - docker push "${image}:commit-${CI_COMMIT_SHA}"
     - docker push "${image}:branch-${CI_COMMIT_REF_SLUG}"
+    - echo -e "section_end:`date +%s`:docker-push\r\e[0K"
 
 build:detached:
   stage: build
@@ -145,13 +154,22 @@ build:detached:
   needs: []
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+
+    - echo -e "section_start:`date +%s`:docker-pull[collapsed=true]\r\e[0KPull docker images for caching"
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker pull "${image}:merge-${CI_MERGE_REQUEST_IID}" ||
       docker pull "${image}:latest" ||
       true
+    - echo -e "section_end:`date +%s`:docker-pull\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:docker-build\r\e[0KBuild docker image"
     - \time -v docker build --pull .. -f Dockerfile
       -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
+    - echo -e "section_end:`date +%s`:docker-build\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:docker-push[collapsed=true]\r\e[0KPush new docker image"
     - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
+    - echo -e "section_end:`date +%s`:docker-push\r\e[0K"
 
 # Likewise, we need 2 test jobs. The test:branch job uses the ${image}:commit-... image,
 # and the test:detached uses the ${image}:merge-... image
