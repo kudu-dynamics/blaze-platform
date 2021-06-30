@@ -8,7 +8,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
-import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CfEdge(CfEdge))
+import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CfEdge(CfEdge), Cfg)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg), unInterCfg)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Data.Set as Set
@@ -75,8 +75,9 @@ reducePhi icfg =
 
 prune :: InterCfg -> InterCfg
 prune icfg =
-  removeDeadNodes $ foldl' (flip cutEdge) icfg' deadBranches
+  removeDeadNodes . removeEmptyBasicBlockNodes' $ foldl' (flip cutEdge) icfg' deadBranches
  where
+  removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
   icfg' :: InterCfg
   icfg' = constantProp . copyProp $ icfg
   deadBranches :: [PilEdge]
@@ -126,3 +127,9 @@ getDeadNodes cfg =
 cutEdge :: PilEdge -> InterCfg -> InterCfg
 cutEdge edge (InterCfg cfg) =
   InterCfg $ Cfg.removeEdge edge cfg
+
+removeEmptyBasicBlockNodes :: forall a. Ord a => Cfg [a] -> Cfg [a]
+removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
+  where
+    f (Cfg.BasicBlock x) = null $ x ^. #nodeData
+    f _ = False
