@@ -51,6 +51,10 @@ class Pretty x where
 showHex :: (Integral a, Show a) => a -> Text
 showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
 
+showStackLocalByteOffset :: ByteOffset -> Text
+showStackLocalByteOffset x = bool "-" "" (x < 0)
+  <> (Text.pack . flip Numeric.showHex "" . abs $ x)
+
 instance Pretty () where
   pretty = show
 
@@ -255,7 +259,7 @@ prettyExprOp exprOp _size = case exprOp of
   -- TODO: Need to add carry
   (Pil.RRC op) -> prettyBinop "rrc" op
   (Pil.SBB op) -> prettyBinop "sbb" op
-  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (pretty $ op ^. #stackOffset)
+  (Pil.STACK_LOCAL_ADDR op) -> "&var_" <> showStackLocalByteOffset (op ^. #stackOffset . #offset)
   (Pil.SUB op) -> prettyBinop "sub" op
   (Pil.SX op) -> prettyUnop "sx" op
   (Pil.TEST_BIT op) -> prettyBinop "testBit" op
