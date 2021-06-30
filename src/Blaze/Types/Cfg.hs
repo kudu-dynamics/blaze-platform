@@ -11,6 +11,7 @@ module Blaze.Types.Cfg
   , G.sinks
   ) where
 
+import qualified Prelude as P
 import Blaze.Graph (Graph)
 import qualified Blaze.Graph as Graph
 import qualified Blaze.Types.Graph as G
@@ -280,10 +281,28 @@ updateNodeData :: Ord a => (a -> a) -> CfNode a -> Cfg a -> Cfg a
 updateNodeData f n cfg =
   maybe cfg (\x -> setNodeData (f x) n cfg) $ getNodeData n
 
--- | removes a node and makes edges from preds to succs
+mergeBranchTypeDefault :: BranchType -> BranchType -> BranchType
+mergeBranchTypeDefault UnconditionalBranch UnconditionalBranch = UnconditionalBranch
+mergeBranchTypeDefault TrueBranch FalseBranch = UnconditionalBranch
+mergeBranchTypeDefault FalseBranch TrueBranch = UnconditionalBranch
+mergeBranchTypeDefault bt1 bt2 = P.error
+  $ "removeAndRebindEdges: cannot merge branch types: "
+  <> show bt1 <> " "
+  <> show bt2
+
+-- | Removes a node and makes edges from preds to succs
 --   uses pred->node branch type for pred->succ
 removeAndRebindEdges :: Ord a => CfNode a -> Cfg a -> Cfg a
-removeAndRebindEdges n cfg' = G.removeNode n
+removeAndRebindEdges = removeAndRebindEdges_ mergeBranchTypeDefault
+
+-- | Removes a node and makes edges from preds to succs
+--   uses pred->node branch type for pred->succ
+--   mergeBranchType specifies how to merge branch type of
+--   newly created edge with possible existing edge
+removeAndRebindEdges_ :: Ord a
+  => (BranchType -> BranchType -> BranchType)
+  -> CfNode a -> Cfg a -> Cfg a
+removeAndRebindEdges_ mergeBranchType n cfg' = G.removeNode n
   . addEdges newEdges
   $ cfg'
   where
@@ -293,8 +312,26 @@ removeAndRebindEdges n cfg' = G.removeNode n
       pred <- preds
       let bt = fromJust $ G.getEdgeLabel (G.Edge pred n) cfg'
       succ <- succs
-      return $ CfEdge pred succ bt
+      case G.getEdgeLabel (G.Edge pred succ) cfg' of
+        Nothing -> return $ CfEdge pred succ bt
+        Just preexistingEdgeType -> return
+          . CfEdge pred succ
+          $ mergeBranchType bt preexistingEdgeType
 
+-- | Removes any nodes where predicate is True, except root node.
+removeNodesBy
+  :: Ord a
+  => (BranchType -> BranchType -> BranchType)
+  -> (CfNode a -> Bool)
+  -> Cfg a
+  -> Cfg a
+removeNodesBy branchMerge p cfg = foldl'
+  (flip $ removeAndRebindEdges_ branchMerge)
+  cfg
+  targetNodes
+  where
+    targetNodes = filter g . Set.toList $ G.nodes cfg
+    g x = x /= (cfg ^. #root) && p x
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
