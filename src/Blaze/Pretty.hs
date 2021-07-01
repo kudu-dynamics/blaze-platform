@@ -351,6 +351,12 @@ instance Pretty a => Pretty (Pil.Statement a) where
     Pil.DefPhi x -> Text.pack $ printf "%s = φ%s"
                       (pretty $ x ^. #dest)
                       (asCurlyList . fmap pretty $ x ^. #src)
+    Pil.DefMemPhi x -> Text.pack $ printf "%s = φ%s"
+                       (showMem $ x ^. #destMemory)                     
+                       (asCurlyList . fmap showMem $ x ^. #srcMemory)
+      where
+        showMem :: Int64 -> Text
+        showMem n = "mem#" <> show n
     Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
     Pil.Ret x -> "Ret " <> pretty (x ^. #value)
     Pil.Exit -> "Exit"

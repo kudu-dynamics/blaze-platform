@@ -178,6 +178,12 @@ instance Disp a => Disp (Pil.Statement a) where
       where
         var = disp $ op ^. #dest
         val = asList . fmap disp $ op ^. #src
+    (Pil.DefMemPhi op) -> Text.pack $ printf "defMemPhi \"%s\" %s" var val
+      where
+        showMem :: Int64 -> Text
+        showMem n = "mem#" <> show n
+        var = showMem $ op ^. #destMemory
+        val = asList . fmap showMem $ op ^. #srcMemory
     (Pil.Ret op) -> "Ret" <-> paren (disp $ op ^. #value)
     Pil.Exit -> "Exit"
     (Pil.TailCall op) -> case op ^. #name of
