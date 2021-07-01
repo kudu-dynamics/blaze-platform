@@ -17,11 +17,12 @@ import Blaze.Types.Pil
       Ctx(Ctx),
       DefOp(DefOp),
       DefPhiOp(DefPhiOp),
+      DefMemPhiOp(DefMemPhiOp),
       Expression(Expression),
       PilVar(PilVar),
       RetOp(RetOp),
       Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
-                UnimplInstr, UnimplMem),
+                UnimplInstr, UnimplMem, DefMemPhi),
       Stmt,
       StoreOp(StoreOp),
       Symbol,
@@ -297,16 +298,16 @@ convertInstrOp :: MLIL.Operation (MLIL.Expression t) -> Converter [Statement Exp
 convertInstrOp op' = do
   defVarSize <- use #defaultVarSize
   case op' of
-    (MLIL.IF x) -> do
+    MLIL.IF x -> do
       condition <- convertExpr (x ^. MLIL.condition)
       return [BranchCond $ BranchCondOp condition]
-    (MLIL.SET_VAR_SSA x) -> do
+    MLIL.SET_VAR_SSA x -> do
       pvar <- convertToPilVarAndLog $ x ^. MLIL.dest
       expr <- convertExpr (x ^. MLIL.src)
       #definedVars %= (pvar :)
       return [Def $ DefOp pvar expr]
     -- TODO: Need some way to merge with previous version and include offset
-    (MLIL.SET_VAR_SSA_FIELD x) -> do
+    MLIL.SET_VAR_SSA_FIELD x -> do
       pvarDest <- convertToPilVarAndLog destVar
       pvarSrc <- convertToPilVarAndLog srcVar
       chunkExpr <- convertExpr (x ^. MLIL.src)
@@ -323,7 +324,7 @@ convertInstrOp op' = do
         varSize =
           maybe (Pil.OperationSize . toBytes $ defVarSize) fromIntegral $
             getVarWidth destVar <|> getVarWidth srcVar
-    (MLIL.SET_VAR_SPLIT_SSA x) -> do
+    MLIL.SET_VAR_SPLIT_SSA x -> do
       pvarHigh <- convertToPilVarAndLog $ x ^. MLIL.high
       pvarLow <- convertToPilVarAndLog $ x ^. MLIL.low
       expr@(Expression size' _) <- convertExpr (x ^. MLIL.src)
@@ -337,29 +338,29 @@ convertInstrOp op' = do
           Def $ DefOp pvarLow lowExpr
         ]
     -- note: prev.src and prev.dest are the same except memory ssa version
-    (MLIL.SET_VAR_ALIASED x) -> do
+    MLIL.SET_VAR_ALIASED x -> do
       expr <- convertExpr (x ^. MLIL.src)
       addrExpr <- varToStackLocalAddr (x ^. MLIL.prev . MLIL.src . MLIL.var)
       return [Store $ StoreOp addrExpr expr]
-    (MLIL.SET_VAR_ALIASED_FIELD x) -> do
+    MLIL.SET_VAR_ALIASED_FIELD x -> do
       srcExpr <- convertExpr (x ^. MLIL.src)
       addrExpr <- varToStackLocalAddr (x ^. MLIL.prev . MLIL.src . MLIL.var)
       let destAddrExpr = Pil.mkFieldOffsetExprAddr addrExpr
                          $ x ^. MLIL.offset
 
       return [Store $ StoreOp destAddrExpr srcExpr]
-    (MLIL.STORE_SSA x) -> do
+    MLIL.STORE_SSA x -> do
       exprSrc <- convertExpr (x ^. MLIL.src)
       exprDest <- convertExpr (x ^. MLIL.dest)
       return [Store $ StoreOp exprDest exprSrc]
-    (MLIL.STORE_STRUCT_SSA x) -> do
+    MLIL.STORE_STRUCT_SSA x -> do
       destExpr <- (`Pil.mkFieldOffsetExprAddr` (x ^. MLIL.offset)) <$> convertExpr (x ^. MLIL.dest)
       srcExpr <- convertExpr (x ^. MLIL.src)
       return [Store $ StoreOp destExpr srcExpr]
     -- TODO: How should we organize handling path-sensitive vs -insensitive conversions of phi nodes?
     --       Consider introducing a PIL phi instruction here and using Pil.Analysis to resolve for paths during simplification
     --       phase.
-    (MLIL.VAR_PHI x) -> do
+    MLIL.VAR_PHI x -> do
       defVars <- use #definedVars
       -- Not using all the phi vars, so don't need to log them all
       srcVars <- HSet.fromList <$> traverse convertToPilVar (x ^. MLIL.src)
@@ -382,7 +383,7 @@ convertInstrOp op' = do
                   (Pil.VAR $ Pil.VarOp lVar)
             ]
     MLIL.UNIMPL -> return [UnimplInstr "UNIMPL"]
-    (MLIL.UNIMPL_MEM x) -> do
+    MLIL.UNIMPL_MEM x -> do
       expr <- convertExpr (x ^. MLIL.src)
       return [UnimplMem $ UnimplMemOp expr]
     MLIL.UNDEF -> return [Undef]
@@ -393,6 +394,8 @@ convertInstrOp op' = do
       --     (rax/eax) for x64/x86.
       expr <- convertExpr $ head (x ^. MLIL.src)
       return [Ret $ RetOp expr]
+    MLIL.MEM_PHI (MLIL.MemPhiOp dst srcs) ->
+      return [DefMemPhi $ DefMemPhiOp dst srcs]
     MLIL.GOTO _ -> return []
     _ -> return [UnimplInstr $ show op']
 

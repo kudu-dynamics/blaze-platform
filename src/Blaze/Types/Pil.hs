@@ -224,6 +224,11 @@ data DefPhiOp expr = DefPhiOp
   , src :: [PilVar]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
+data DefMemPhiOp expr = DefMemPhiOp
+  { destMemory :: Int64
+  , srcMemory :: [Int64]
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
 {- HLINT ignore BranchCondOp "Use newtype instead of data" -}
 data BranchCondOp expr = BranchCondOp
   { cond :: expr
@@ -260,6 +265,7 @@ data Statement expr
   | ExitContext (ExitContextOp expr)
   | Call (CallOp expr)
   | DefPhi (DefPhiOp expr)
+  | DefMemPhi (DefMemPhiOp expr)
   | BranchCond (BranchCondOp expr)
   | Ret (RetOp expr)
   | Exit
