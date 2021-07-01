@@ -331,7 +331,7 @@ removeNodesBy branchMerge p cfg = foldl'
   targetNodes
   where
     targetNodes = filter g . Set.toList $ G.nodes cfg
-    g x = x /= (cfg ^. #root) && p x
+    g x = asIdNode x /= asIdNode (cfg ^. #root) && p x
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
