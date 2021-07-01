@@ -387,12 +387,13 @@ convertInstrOp op' = do
       return [UnimplMem $ UnimplMemOp expr]
     MLIL.UNDEF -> return [Undef]
     MLIL.NOP -> return [Nop]
-    (MLIL.RET x) -> do
+    MLIL.RET x -> do
       -- TODO: Figure out when/if return every has multiple values
       -- NB: A function with void type still has a return with register
       --     (rax/eax) for x64/x86.
       expr <- convertExpr $ head (x ^. MLIL.src)
       return [Ret $ RetOp expr]
+    MLIL.GOTO _ -> return []
     _ -> return [UnimplInstr $ show op']
 
 -- | intercepts VAR_PHI and converts it to PIL DefPhi
