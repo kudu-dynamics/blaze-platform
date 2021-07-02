@@ -185,6 +185,7 @@ instance Disp a => Disp (Pil.Statement a) where
         var = showMem $ op ^. #destMemory
         val = asList . fmap showMem $ op ^. #srcMemory
     (Pil.Ret op) -> "Ret" <-> paren (disp $ op ^. #value)
+    Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
     (Pil.TailCall op) -> case op ^. #name of
       (Just name) -> Text.pack $ printf "Tailcall (%s) %s" name args

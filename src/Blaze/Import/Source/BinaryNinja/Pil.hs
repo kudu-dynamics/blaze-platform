@@ -22,7 +22,7 @@ import Blaze.Types.Pil
       PilVar(PilVar),
       RetOp(RetOp),
       Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
-                UnimplInstr, UnimplMem, DefMemPhi),
+                UnimplInstr, UnimplMem, DefMemPhi, NoRet),
       Stmt,
       StoreOp(StoreOp),
       Symbol,
@@ -394,6 +394,7 @@ convertInstrOp op' = do
       --     (rax/eax) for x64/x86.
       expr <- convertExpr $ head (x ^. MLIL.src)
       return [Ret $ RetOp expr]
+    MLIL.NORET -> return [ NoRet ]
     MLIL.MEM_PHI (MLIL.MemPhiOp dst srcs) ->
       return [DefMemPhi $ DefMemPhiOp dst srcs]
     MLIL.GOTO _ -> return []

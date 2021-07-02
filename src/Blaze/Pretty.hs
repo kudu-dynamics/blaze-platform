@@ -359,6 +359,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
         showMem n = "mem#" <> show n
     Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
     Pil.Ret x -> "Ret " <> pretty (x ^. #value)
+    Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
     Pil.TailCall x -> "Tail call | " <> pretty (x ^. #dest) <> "(" <> pretty (x ^. #args) <> ")"
 

@@ -268,6 +268,7 @@ data Statement expr
   | DefMemPhi (DefMemPhiOp expr)
   | BranchCond (BranchCondOp expr)
   | Ret (RetOp expr)
+  | NoRet
   | Exit
   | TailCall (TailCallOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
