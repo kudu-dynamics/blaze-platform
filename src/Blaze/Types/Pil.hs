@@ -97,6 +97,7 @@ data ExprOp expr
     -- memory address specifier ops
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
     | CONST_BOOL (ConstBoolOp expr)
+    | UNIT
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data Expression = Expression

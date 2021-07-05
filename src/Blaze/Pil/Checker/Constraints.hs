@@ -368,6 +368,9 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.XOR x -> bitVectorBinOp x
   Pil.ZX x -> integralExtendOp x
+
+  Pil.UNIT -> ret [ (r, CSType TUnit) ]
+
 --   -- _ -> unknown
 
 --   Extract _ -> bitvecRet

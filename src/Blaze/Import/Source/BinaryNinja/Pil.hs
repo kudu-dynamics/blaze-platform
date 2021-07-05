@@ -389,10 +389,9 @@ convertInstrOp op' = do
     MLIL.UNDEF -> return [Undef]
     MLIL.NOP -> return [Nop]
     MLIL.RET x -> do
-      -- TODO: Figure out when/if return every has multiple values
-      -- NB: A function with void type still has a return with register
-      --     (rax/eax) for x64/x86.
-      expr <- convertExpr $ head (x ^. MLIL.src)
+      -- TODO: Figure out when/if return ever has multiple values
+      expr <- maybe (return $ Expression 0 Pil.UNIT) convertExpr
+              $ headMay (x ^. MLIL.src)
       return [Ret $ RetOp expr]
     MLIL.NORET -> return [ NoRet ]
     MLIL.MEM_PHI (MLIL.MemPhiOp dst srcs) ->
