@@ -65,6 +65,7 @@ deepSymTypeToKind t = case t of
     Ch.TBitVector bwt -> KBounded <$> pure False <*> getBitWidth bwt
     Ch.TPointer bwt _pt -> KBounded <$> pure False <*> getBitWidth bwt
     Ch.TRecord _ -> err "Can't handle Record type"
+    Ch.TUnit -> return $ KTuple []
     Ch.TBottom s -> err $ "TBottom " <> show s
     Ch.TFunction _ _ -> err "Can't handle Function type"
 

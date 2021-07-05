@@ -7,7 +7,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker
     ( Constraint(Constraint),
       SymType(SType, SVar),
-      PilType(TVSign, TBottom, TBitVector, TFloat, TInt, TChar, TBool,
+      PilType(TVSign, TBottom, TBitVector, TFloat, TInt, TChar, TBool, TUnit,
               TPointer, TArray, TFunction, TRecord, TVBitWidth, TVLength),
       Sym,
       charSize,
@@ -151,6 +151,9 @@ isTypeDescendent (TRecord _) t = case t of
   TRecord _ -> True
   TBottom _ -> True
   _ -> False
+isTypeDescendent TUnit t = case t of
+  TUnit -> True
+  _ -> False
 isTypeDescendent (TBottom _) t = case t of
   TBottom _ -> True
   _ -> False
@@ -176,7 +179,10 @@ unifyPilTypes pt1 pt2 =
   case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
     (False, False) -> err
     (False, True) -> unifyPilTypes pt2 pt1
-    _ -> case pt1 of        
+    _ -> case pt1 of
+      TUnit -> case pt2 of
+        TUnit -> return TUnit
+        _ -> err
       TArray len1 et1 -> case pt2 of
         TArray len2 et2 ->
           TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2

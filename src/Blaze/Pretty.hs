@@ -294,6 +294,7 @@ prettyExprOp exprOp _size = case exprOp of
     -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
   (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (pretty (op ^. #src)) (op ^. #offset)
+  Pil.UNIT -> "()"
 
 instance Pretty PI.SymType where
   pretty (PI.SVar s) = pretty s
@@ -358,7 +359,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
         showMem :: Int64 -> Text
         showMem n = "mem#" <> show n
     Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
-    Pil.Ret x -> "Ret " <> pretty (x ^. #value)
+    Pil.Ret x -> "return " <> pretty (x ^. #value)
     Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
     Pil.TailCall x -> "Tail call | " <> pretty (x ^. #dest) <> "(" <> pretty (x ^. #args) <> ")"

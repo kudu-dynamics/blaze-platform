@@ -47,9 +47,13 @@ data PilType t = TBool
 
                -- first record field or array index, or itself
                -- t is type of first thing
+
+               | TUnit
                
                -- Bottom is labeled with error info
+               -- it only results from a unification error
                | TBottom Sym
+
                | TFunction { ret :: t, params :: [t] }
               
                -- type level values for some dependent-type action
