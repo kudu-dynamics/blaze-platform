@@ -59,13 +59,13 @@ widthToSize x = Pil.OperationSize $ toBytes x
 sizeToWidth :: Pil.OperationSize -> Bits
 sizeToWidth (Pil.OperationSize x) = toBits x
 
-getDefinedVar_ :: Stmt -> Maybe PilVar
-getDefinedVar_ (Def d) = Just $ d ^. #var
-getDefinedVar_ (Pil.DefPhi d) = Just $ d ^. #dest
-getDefinedVar_ _ = Nothing
+getDefinedVar :: Stmt -> Maybe PilVar
+getDefinedVar (Def d) = Just $ d ^. #var
+getDefinedVar (Pil.DefPhi d) = Just $ d ^. #dest
+getDefinedVar _ = Nothing
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
-getDefinedVars = HSet.fromList . mapMaybe getDefinedVar_
+getDefinedVars = HSet.fromList . mapMaybe getDefinedVar
 
 getVarsFromExpr_ :: Expression -> [PilVar]
 getVarsFromExpr_ e = case e ^. #op of
@@ -78,10 +78,6 @@ getVarsFromExpr_ e = case e ^. #op of
 
 getVarsFromExpr :: Expression -> HashSet PilVar
 getVarsFromExpr = HSet.fromList . getVarsFromExpr_
-
-getDefinedVar :: Stmt -> Maybe PilVar
-getDefinedVar (Def d) = Just $ d ^. #var
-getDefinedVar _ = Nothing
 
 getVarsFromStmt :: Stmt -> HashSet PilVar
 getVarsFromStmt s = foldr f init s
@@ -327,10 +323,11 @@ isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
 isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
 isUnusedPhi _ _ = False
 
-removeUnusedPhi :: [Stmt] -> [Stmt]
-removeUnusedPhi stmts = filter (not . isUnusedPhi refs) stmts
-  where
-    refs = getRefVars stmts
+-- | Checks if the variable assigned to in a DefPhi statement is ever used. If not, remove the
+-- the entire DefPhi. Such DefPhi statments are often introduced when a variable is defined and
+-- used in the same basic block (e.g., defined and then used for a conditional branch).
+removeUnusedPhi :: HashSet PilVar -> [Stmt] -> [Stmt]
+removeUnusedPhi usedVars = filter (not . isUnusedPhi usedVars)
 
 reducePhi :: HashSet PilVar -> Stmt -> Maybe Stmt
 reducePhi undefVars stmt = case stmt of
