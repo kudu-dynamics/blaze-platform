@@ -17,12 +17,11 @@ import Blaze.Types.Pil
       Ctx(Ctx),
       DefOp(DefOp),
       DefPhiOp(DefPhiOp),
-      DefMemPhiOp(DefMemPhiOp),
       Expression(Expression),
       PilVar(PilVar),
       RetOp(RetOp),
       Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
-                UnimplInstr, UnimplMem, DefMemPhi, NoRet),
+                UnimplInstr, UnimplMem, NoRet),
       Stmt,
       StoreOp(StoreOp),
       Symbol,
@@ -393,9 +392,11 @@ convertInstrOp op' = do
       expr <- maybe (return $ Expression 0 Pil.UNIT) convertExpr
               $ headMay (x ^. MLIL.src)
       return [Ret $ RetOp expr]
+    MLIL.MEM_PHI (MLIL.MemPhiOp _dst _srcs) ->
+      -- Temporarily ignore for now, because we don't use them
+      -- return [DefMemPhi $ DefMemPhiOp dst srcs]
+      return []
     MLIL.NORET -> return [ NoRet ]
-    MLIL.MEM_PHI (MLIL.MemPhiOp dst srcs) ->
-      return [DefMemPhi $ DefMemPhiOp dst srcs]
     MLIL.GOTO _ -> return []
     _ -> return [UnimplInstr $ show op']
 
