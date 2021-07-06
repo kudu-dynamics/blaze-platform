@@ -60,6 +60,21 @@ fixedPrune icfg =
       icfg'' :: InterCfg
       icfg'' = reducePhi icfg'
 
+-- TODO: Generalize this to support all assingment statements
+-- | Remove all DefPhi statements where the assigned variable is not used.
+removeUnusedPhi :: InterCfg -> InterCfg 
+removeUnusedPhi icfg =
+  InterCfg $ 
+  foldl'
+    (flip $ Cfg.updateNodeData (PA.removeUnusedPhi usedVars))
+    cfg
+    (Set.toList $ G.nodes cfg)
+  where
+    cfg :: PilCfg
+    cfg = unInterCfg icfg
+    usedVars :: HashSet PilVar
+    usedVars = PA.getRefVars . concat $ getStmts icfg
+
 reducePhi :: InterCfg -> InterCfg 
 reducePhi icfg =
   InterCfg $
@@ -75,7 +90,8 @@ reducePhi icfg =
 
 prune :: InterCfg -> InterCfg
 prune icfg =
-  removeDeadNodes . removeEmptyBasicBlockNodes' $ foldl' (flip cutEdge) icfg' deadBranches
+  removeUnusedPhi . removeDeadNodes . removeEmptyBasicBlockNodes' $
+    foldl' (flip cutEdge) icfg' deadBranches
  where
   removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
   icfg' :: InterCfg
