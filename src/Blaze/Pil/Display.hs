@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Blaze.Pil.Display where
 
 import qualified Binja.Function
@@ -73,6 +74,24 @@ dispVar sym op sz = Text.pack $ printf "%s \"%s\" %s" sym src $ disp sz
   where
     src = disp (op ^. #src)
 
+-- | True if expr is complex enough to need parens
+needsParens :: Pil.ExprOp a -> Bool
+needsParens = \case
+  Pil.CONST _ -> False
+  Pil.CONST_PTR _ -> False
+  Pil.CONST_FLOAT _ -> False
+  Pil.LOAD _ -> False
+  Pil.STACK_LOCAL_ADDR _ -> False
+  Pil.VAR _ -> False
+  Pil.VAR_FIELD _ -> False
+  Pil.ConstStr _ -> False
+  _ -> True
+
+parenExpr :: (Disp a, HasField' "op" a (Pil.ExprOp a)) => a -> Text
+parenExpr x = if needsParens $ x ^. #op
+  then paren (disp x)
+  else disp x
+
 paren :: Text -> Text
 paren t = "(" <> t <> ")"
 
@@ -87,6 +106,9 @@ commas = Text.intercalate ", "
 
 asList :: [Text] -> Text
 asList = bracket . commas
+
+asTuple :: [Text] -> Text
+asTuple = paren . commas
 
 asCurlyList :: [Text] -> Text
 asCurlyList = curly . commas
@@ -139,7 +161,7 @@ instance Disp Pil.Ctx where
       idx :: Text
       idx = show $ ctx ^. #ctxId
 
-instance Disp a => Disp (Pil.Statement a) where
+instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) where
   disp stmt = case stmt of
     Pil.BranchCond op -> Text.pack $ printf "branch (%s)" cond
       where 
@@ -178,13 +200,13 @@ instance Disp a => Disp (Pil.Statement a) where
       where
         var = disp $ op ^. #dest
         val = asList . fmap disp $ op ^. #src
+    (Pil.Ret op) -> "Ret" <-> parenExpr (op ^. #value)
     (Pil.DefMemPhi op) -> Text.pack $ printf "defMemPhi \"%s\" %s" var val
       where
         showMem :: Int64 -> Text
         showMem n = "mem#" <> show n
         var = showMem $ op ^. #destMemory
         val = asList . fmap showMem $ op ^. #srcMemory
-    (Pil.Ret op) -> "Ret" <-> paren (disp $ op ^. #value)
     Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
     (Pil.TailCall op) -> case op ^. #name of
@@ -195,7 +217,10 @@ instance Disp a => Disp (Pil.Statement a) where
         args :: Text
         args = show $ fmap disp $ op ^. #args
 
-dispExprOp :: Disp a => Pil.ExprOp a -> Pil.OperationSize -> Text
+dispExprOp :: (Disp a, HasField' "op" a (Pil.ExprOp a))
+           => Pil.ExprOp a
+           -> Pil.OperationSize
+           -> Text
 dispExprOp exprOp size = case exprOp of
   (Pil.ADC op) -> dispBinop "adc" op size
   (Pil.ADD op) -> dispBinop "add" op size
@@ -235,8 +260,8 @@ dispExprOp exprOp size = case exprOp of
   (Pil.FDIV op) -> dispBinop "fdiv" op size
   (Pil.FIELD_ADDR op) ->
     "fieldAddr"
-    <-> paren (disp $ op ^. #baseAddr)
-    <-> paren (disp $ op ^. #offset)
+    <-> parenExpr (op ^. #baseAddr)
+    <-> disp (op ^. #offset)
   (Pil.FLOAT_CONV op) -> dispUnop "floatConv" op size
   (Pil.FLOAT_TO_INT op) -> dispUnop "floatToInt" op size
   (Pil.FLOOR op) -> dispUnop "floor" op size
@@ -277,9 +302,9 @@ dispExprOp exprOp size = case exprOp of
   (Pil.UNIMPL t) -> "unimpl" <-> paren t
   (Pil.UPDATE_VAR op) ->
     "updateVar"
-    <-> paren (disp $ op ^. #dest)
-    <-> paren (disp $ op ^. #offset)
-    <-> paren (disp $ op ^. #src)
+    <-> disp (op ^. #dest)
+    <-> disp (op ^. #offset)
+    <-> parenExpr (op ^. #src)
   (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (disp (op ^. #dest)) srcs
     where
       srcs :: Text

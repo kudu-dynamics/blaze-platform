@@ -16,7 +16,7 @@ import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import qualified Binja.Variable
-import Blaze.Pil.Display ((<->), Symbol, disp, paren, asList, commas, asCurlyList)
+import Blaze.Pil.Display ((<->), Symbol, paren, asList, asTuple, commas, asCurlyList, needsParens)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as Func
 
@@ -54,6 +54,11 @@ showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
 showStackLocalByteOffset :: ByteOffset -> Text
 showStackLocalByteOffset x = bool "-" "" (x < 0)
   <> (Text.pack . flip Numeric.showHex "" . abs $ x)
+
+parenExpr :: (Pretty a, HasField' "op" a (Pil.ExprOp a)) => a -> Text
+parenExpr x = if needsParens $ x ^. #op
+  then paren (pretty x)
+  else pretty x
 
 instance Pretty () where
   pretty = show
@@ -131,29 +136,45 @@ instance Pretty Pil.Ctx where
       idx :: Text
       idx = show (ctx ^. #ctxId)
 
-prettyBinop ::
-  ( Pretty b,
-    HasField' "left" a b,
-    HasField' "right" a b
-  ) =>
-  Symbol ->
-  a ->
-  Text
-prettyBinop sym op = Text.pack $ printf "%s (%s) (%s)" sym left right
+prettyBinop
+  :: ( Pretty b
+     , HasField' "left" a b
+     , HasField' "right" a b
+     , HasField' "op" b (Pil.ExprOp b)
+     )
+  => Symbol
+  -> a
+  -> Text
+prettyBinop sym op = Text.pack $ printf "%s %s %s" sym left right
   where
-    left = pretty (op ^. #left)
-    right = pretty (op ^. #right)
+    left = parenExpr (op ^. #left)
+    right = parenExpr (op ^. #right)
 
-prettyUnop ::
-  ( HasField' "src" a b,
-    Pretty b
-  ) =>
-  Symbol ->
-  a ->
-  Text
-prettyUnop sym op = Text.pack $ printf "%s(%s)" sym src
+prettyBinopInfix
+  :: ( Pretty b
+     , HasField' "left" a b
+     , HasField' "right" a b
+     , HasField' "op" b (Pil.ExprOp b)
+     )
+  => Symbol
+  -> a
+  -> Text
+prettyBinopInfix sym op = Text.pack $ printf "%s %s %s" left sym right
   where
-    src = pretty (op ^. #src)
+    left = parenExpr (op ^. #left)
+    right = parenExpr (op ^. #right)
+
+prettyUnop
+  :: ( HasField' "src" a b
+     , Pretty b
+     , HasField' "op" b (Pil.ExprOp b)
+     )
+  => Symbol
+  -> a
+  -> Text
+prettyUnop sym op = Text.pack $ printf "%s %s" sym src
+  where
+    src = parenExpr (op ^. #src)
 
 prettyConst ::
   ( HasField' "constant" a b,
@@ -184,73 +205,76 @@ prettyField op = Text.pack $ printf "%s[%s]" src offset
     offset :: Text
     offset = show (op ^. #offset)
 
-prettyExprOp :: Pretty a => Pil.ExprOp a -> Pil.OperationSize -> Text
+prettyExprOp :: (Pretty a, HasField' "op" a (Pil.ExprOp a))
+             => Pil.ExprOp a
+             -> Pil.OperationSize
+             -> Text
 prettyExprOp exprOp _size = case exprOp of
   (Pil.ADC op) -> prettyBinop "adc" op
-  (Pil.ADD op) -> prettyBinop "add" op
-  (Pil.ADD_OVERFLOW op) -> prettyBinop "addOf" op
-  (Pil.AND op) -> prettyBinop "and" op
+  (Pil.ADD op) -> prettyBinopInfix "+" op
+  (Pil.ADD_OVERFLOW op) -> prettyBinopInfix "&+" op
+  (Pil.AND op) -> prettyBinopInfix "&&" op
   (Pil.ASR op) -> prettyBinop "asr" op
   (Pil.BOOL_TO_INT op) -> prettyUnop "boolToInt" op
   (Pil.CEIL op) -> prettyUnop "ceil" op
   (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. #constant)
-  (Pil.CMP_E op) -> prettyBinop "cmpE" op
-  (Pil.CMP_NE op) -> prettyBinop "cmpNE" op
-  (Pil.CMP_SGE op) -> prettyBinop "cmpSGE" op
-  (Pil.CMP_SGT op) -> prettyBinop "cmpSGT" op
-  (Pil.CMP_SLE op) -> prettyBinop "cmpSLE" op
-  (Pil.CMP_SLT op) -> prettyBinop "cmpSLT" op
-  (Pil.CMP_UGE op) -> prettyBinop "cmpUGE" op
-  (Pil.CMP_UGT op) -> prettyBinop "cmpUGT" op
-  (Pil.CMP_ULE op) -> prettyBinop "cmpULE" op
-  (Pil.CMP_ULT op) -> prettyBinop "cmpULT" op
+  (Pil.CMP_E op) -> prettyBinopInfix "==" op
+  (Pil.CMP_NE op) -> prettyBinopInfix "!=" op
+  (Pil.CMP_SGE op) -> prettyBinopInfix ">=" op
+  (Pil.CMP_SGT op) -> prettyBinopInfix ">" op
+  (Pil.CMP_SLE op) -> prettyBinopInfix "<=" op
+  (Pil.CMP_SLT op) -> prettyBinopInfix "<" op
+  (Pil.CMP_UGE op) -> prettyBinopInfix "u>=" op
+  (Pil.CMP_UGT op) -> prettyBinopInfix "u>" op
+  (Pil.CMP_ULE op) -> prettyBinopInfix "u<=" op
+  (Pil.CMP_ULT op) -> prettyBinopInfix "u<" op
   (Pil.CONST op) -> prettyConst op
   (Pil.CONST_PTR op) -> prettyConst op
-  (Pil.DIVS op) -> prettyBinop "divs" op
+  (Pil.DIVS op) -> prettyBinopInfix "/" op
   (Pil.DIVS_DP op) -> prettyBinop "divsDP" op
-  (Pil.DIVU op) -> prettyBinop "divu" op
+  (Pil.DIVU op) -> prettyBinopInfix "u/" op
   (Pil.DIVU_DP op) -> prettyBinop "divuDP" op
   (Pil.FABS op) -> prettyUnop "fabs" op
-  (Pil.FADD op) -> prettyBinop "fadd" op
-  (Pil.FCMP_E op) -> prettyBinop "fcmpE" op
-  (Pil.FCMP_GE op) -> prettyBinop "fcmpGE" op
-  (Pil.FCMP_GT op) -> prettyBinop "fcmpGT" op
-  (Pil.FCMP_LE op) -> prettyBinop "fcmpLE" op
-  (Pil.FCMP_LT op) -> prettyBinop "fcmpLT" op
-  (Pil.FCMP_NE op) -> prettyBinop "fcmpNE" op
+  (Pil.FADD op) -> prettyBinopInfix "f+" op
+  (Pil.FCMP_E op) -> prettyBinopInfix "f==" op
+  (Pil.FCMP_GE op) -> prettyBinopInfix "f>=" op
+  (Pil.FCMP_GT op) -> prettyBinopInfix "f>" op
+  (Pil.FCMP_LE op) -> prettyBinopInfix "f<=" op
+  (Pil.FCMP_LT op) -> prettyBinopInfix "f<" op
+  (Pil.FCMP_NE op) -> prettyBinopInfix "f!=" op
   (Pil.FCMP_O op) -> prettyBinop "fcmpO" op
   (Pil.FCMP_UO op) -> prettyBinop "fcmpUO" op
-  (Pil.FDIV op) -> prettyBinop "fdiv" op
+  (Pil.FDIV op) -> prettyBinopInfix "f/" op
   (Pil.FIELD_ADDR op) ->
     "fieldAddr"
-    <-> paren (pretty $ op ^. #baseAddr)
-    <-> paren (pretty $ op ^. #offset)
+    <-> parenExpr (op ^. #baseAddr)
+    <-> pretty (op ^. #offset)
   (Pil.CONST_FLOAT op) -> prettyConst op
   (Pil.FLOAT_CONV op) -> prettyUnop "floatConv" op
   (Pil.FLOAT_TO_INT op) -> prettyUnop "floatToInt" op
   (Pil.FLOOR op) -> prettyUnop "floor" op
-  (Pil.FMUL op) -> prettyBinop "fmul" op
+  (Pil.FMUL op) -> prettyBinopInfix "f*" op
   (Pil.FNEG op) -> prettyUnop "fneg" op
   (Pil.FSQRT op) -> prettyUnop "fsqrt" op
-  (Pil.FSUB op) -> prettyBinop "fsub" op
+  (Pil.FSUB op) -> prettyBinopInfix "f-" op
   (Pil.FTRUNC op) -> prettyUnop "ftrunc" op
   (Pil.IMPORT op) -> prettyConst op
   (Pil.INT_TO_FLOAT op) -> prettyUnop "intToFloat" op
-  (Pil.LOAD op) -> Text.pack $ printf "[%s]" $ Text.unpack (pretty (op ^. #src))
+  (Pil.LOAD op) -> Text.pack . printf "[%s]" . Text.unpack . pretty $ op ^. #src
   -- TODO: add memory versions for all SSA ops
   (Pil.LOW_PART op) -> prettyUnop "lowPart" op
   (Pil.LSL op) -> prettyBinop "lsl" op
   (Pil.LSR op) -> prettyBinop "lsr" op
-  (Pil.MODS op) -> prettyBinop "mods" op
+  (Pil.MODS op) -> prettyBinopInfix "%" op
   (Pil.MODS_DP op) -> prettyBinop "modsDP" op
-  (Pil.MODU op) -> prettyBinop "modu" op
+  (Pil.MODU op) -> prettyBinopInfix "u%" op
   (Pil.MODU_DP op) -> prettyBinop "moduDP" op
-  (Pil.MUL op) -> prettyBinop "mul" op
+  (Pil.MUL op) -> prettyBinopInfix "*" op
   (Pil.MULS_DP op) -> prettyBinop "mulsDP" op
   (Pil.MULU_DP op) -> prettyBinop "muluDP" op
   (Pil.NEG op) -> prettyUnop "neg" op
   (Pil.NOT op) -> prettyUnop "not" op
-  (Pil.OR op) -> prettyBinop "or" op
+  (Pil.OR op) -> prettyBinopInfix "|" op
   -- TODO: Need to add carry
   (Pil.RLC op) -> prettyBinop "rlc" op
   (Pil.ROL op) -> prettyBinop "rol" op
@@ -260,16 +284,16 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.RRC op) -> prettyBinop "rrc" op
   (Pil.SBB op) -> prettyBinop "sbb" op
   (Pil.STACK_LOCAL_ADDR op) -> "&var_" <> showStackLocalByteOffset (op ^. #stackOffset . #offset)
-  (Pil.SUB op) -> prettyBinop "sub" op
+  (Pil.SUB op) -> prettyBinop "-" op
   (Pil.SX op) -> prettyUnop "sx" op
   (Pil.TEST_BIT op) -> prettyBinop "testBit" op
   (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
   (Pil.UPDATE_VAR op) ->
     "updateVar"
-    <-> paren (pretty $ op ^. #dest)
+    <-> pretty (op ^. #dest)
     <-> paren (pretty $ op ^. #offset)
-    <-> paren (pretty $ op ^. #src)
-  (Pil.VAR_PHI op) -> Text.pack $ printf "2%s <- %s" (pretty (op ^. #dest)) srcs
+    <-> parenExpr (op ^. #src)
+  (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (pretty (op ^. #dest)) srcs
     where
       srcs :: Text
       srcs = show (fmap pretty (op ^. #src))
@@ -282,17 +306,17 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.XOR op) -> prettyBinop "xor" op
   (Pil.ZX op) -> prettyUnop "zx" op
   (Pil.CALL op) -> case op ^. #name of
-    (Just name) -> Text.pack $ printf "call %s %s %s" name dest params
-    Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest params
+    (Just name) -> Text.pack $ printf "%s%s" name params
+    Nothing -> Text.pack $ printf "call %s%s" dest params
     where
       dest = pretty (op ^. #dest)
       params :: Text
-      params = asList (fmap pretty (op ^. #params))
+      params = asTuple (fmap pretty (op ^. #params))
   (Pil.StrCmp op) -> prettyBinop "strcmp" op
   (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s" (op ^. #len) (pretty (op ^. #left)) (pretty (op ^. #right))
   (Pil.MemCmp op) -> prettyBinop "memcmp" op
     -- TODO: Should ConstStr also use const rather than value as field name?
-  (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
+  (Pil.ConstStr op) -> Text.pack $ printf "\"%s\"" $ op ^. #value
   (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (pretty (op ^. #src)) (op ^. #offset)
   Pil.UNIT -> "()"
 
@@ -348,7 +372,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
     Pil.Annotation t -> "Annotation: " <> t
     Pil.EnterContext x -> "----> Entering " <> pretty (x ^. #ctx)
     Pil.ExitContext x -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
-    Pil.Call x -> Text.pack $ printf "%s (\n%s\n)" (pretty $ x ^. #dest) (pretty $ x ^. #params)
+    Pil.Call x -> Text.pack $ printf "%s%s" (pretty $ x ^. #dest) (asTuple . fmap pretty $ x ^. #params)
     Pil.DefPhi x -> Text.pack $ printf "%s = φ%s"
                       (pretty $ x ^. #dest)
                       (asCurlyList . fmap pretty $ x ^. #src)
@@ -358,7 +382,7 @@ instance Pretty a => Pretty (Pil.Statement a) where
       where
         showMem :: Int64 -> Text
         showMem n = "mem#" <> show n
-    Pil.BranchCond x -> "Branch cond | " <> pretty (x ^. #cond)
+    Pil.BranchCond x -> "if" <-> paren (pretty $ x ^. #cond)
     Pil.Ret x -> "return " <> pretty (x ^. #value)
     Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
@@ -381,7 +405,7 @@ instance Pretty a => Pretty (PIndexedStmts a) where
       f (i, stmt) = show i <> ":" <-> pretty stmt
 
 instance Pretty ByteOffset where
-  pretty = disp
+  pretty (ByteOffset n) = show n 
 
 instance Pretty Pil.StackOffset where
   pretty x =
@@ -409,6 +433,7 @@ instance Pretty t => Pretty (PI.PilType t) where
         rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
 
     PI.TBottom s -> paren $ "Bottom" <-> pretty s
+    PI.TUnit -> "Unit"
     PI.TFunction _ret _params -> "Func"
 
     PI.TVBitWidth (Bits bitWidth) -> show bitWidth <> "w"
