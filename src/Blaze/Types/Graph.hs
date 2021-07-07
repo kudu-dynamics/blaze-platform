@@ -1,6 +1,6 @@
 module Blaze.Types.Graph where
 
-import Blaze.Prelude
+import Blaze.Prelude hiding (transpose)
 
 import qualified Data.Set as Set
 import qualified Data.Map.Lazy as Map
@@ -52,6 +52,7 @@ class Graph e attr n g | g -> e attr n where
   transpose :: g -> g
   bfs :: [n] -> g -> [[n]]
   subgraph :: (n -> Bool) -> g -> g
+  reachable :: n -> g -> [n]
 
 
 findNonRepeatPaths' :: (Graph e attr n g, Ord n) => Set n -> n -> g -> [[n]]
@@ -229,3 +230,17 @@ updateNodeAttr f n g = case getNodeAttr n g of
   Nothing -> g
   Just attr -> setNodeAttr (f attr) n g
 
+
+-- | All nodes that can reach node and that can be reached by node
+connectedNodes :: (Graph e attr n g, Ord n) => n -> g -> Set n
+connectedNodes n g = Set.fromList reachedNodes <> Set.fromList reachingNodes
+  where
+    reachedNodes = reachable n g
+    reachingNodes = reachable n $ transpose g
+
+-- | Removes all nodes/edges that don't lead to or can't be reached by node
+focus :: (Graph e attr n g, Ord n) => n -> g -> g
+focus n g = foldl' (flip removeNode) g
+  . Set.difference (nodes g)
+  . connectedNodes n
+  $ g

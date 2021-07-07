@@ -95,12 +95,10 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
         subgraphEdges :: Set (Edge n)
         subgraphEdges = Set.fromList . fmap (uncurry Edge) $ G.edgeList subgraphAdjMap
 
+  reachable n g = GA.reachable n (adjacencyMap g)
+
 toDot :: Ord n => (n -> Text) -> AlgaGraph e attr n -> Text
 toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
 
 isAcyclic :: Ord n => AlgaGraph e attr n -> Bool
 isAcyclic = GA.isAcyclic . adjacencyMap
-
-reachable :: Ord n => n -> AlgaGraph e attr n -> [n]
-reachable x = GA.reachable x . adjacencyMap
-
