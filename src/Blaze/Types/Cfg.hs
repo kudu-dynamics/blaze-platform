@@ -379,6 +379,10 @@ instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   subgraph pred cfg =
     cfg & #graph %~ Graph.subgraph (pred . getFullNode cfg)
 
+  reachable n cfg = fmap (getFullNode cfg)
+    . Graph.reachable (asIdNode n)
+    $ cfg ^. #graph
+
 data FuncContext = FuncContext
   { func :: Function
   , uuid :: UUID
@@ -416,3 +420,5 @@ nextVal = do
   put (x + 1)
   return x 
 
+focus :: CfNode a -> Cfg a -> Cfg a
+focus n = over #graph . G.focus $ asIdNode n
