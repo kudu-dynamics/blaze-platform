@@ -123,7 +123,7 @@ substVarsInExpr f e = case e ^. #op of
         ( x & #high %~ f
             & #low %~ f
         )
-  _ -> e
+  _ -> e & #op %~ fmap (substVarsInExpr f)
 
 -- | ignores left side of Def, Store, and DefPhi
 substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
@@ -158,7 +158,6 @@ substExprInExprM :: (Expression -> Analysis Expression)
 substExprInExprM f x = do
   op <- traverse (substExprInExprM f) $ x ^. #op
   f (x & #op .~ op)
-
 
 substExpr :: (Expression -> Maybe Expression) -> Stmt -> Stmt
 substExpr f = fmap $ substExprInExpr f
@@ -262,15 +261,15 @@ buildConstPropState =
         constPropState
 
 _constantProp :: ConstPropState -> [Stmt] -> [Stmt]
-_constantProp constPropState xs =
+_constantProp constPropState =
   substVarExpr
     (\v -> HMap.lookup v (_exprMap constPropState))
-    [x | x <- xs, not . Set.member x $ _stmts constPropState]
 
 constantProp :: [Stmt] -> [Stmt]
 constantProp xs = _constantProp (buildConstPropState xs) xs
 
 ---- Copy Propagation
+type VarMap = HashMap PilVar PilVar
 type ExprMap = HashMap Expression Expression
 
 reduceMap :: (Eq a, Hashable a) => HashMap a a -> HashMap a a
@@ -279,7 +278,7 @@ reduceMap m = fmap reduceKey m
     reduceKey v = maybe v reduceKey (HMap.lookup v m)
 
 data CopyPropState = CopyPropState
-  { mapping :: ExprMap
+  { mapping :: VarMap
   , copyStmts :: Set Stmt
   } deriving (Generic)
 
@@ -289,10 +288,10 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
     f :: Stmt -> CopyPropState -> CopyPropState
     f stmt copyPropState =
       case stmt of
-        (Pil.Def (Pil.DefOp lh_var rh_expr@(Pil.Expression sz (Pil.VAR (Pil.VarOp _))))) ->
-          addCopy copyPropState stmt (Pil.Expression sz (Pil.VAR (Pil.VarOp lh_var))) rh_expr
+        (Pil.Def (Pil.DefOp lh_var (Pil.Expression _ (Pil.VAR (Pil.VarOp rh_var))))) ->
+          addCopy copyPropState stmt lh_var rh_var
         _ -> copyPropState
-    addCopy :: CopyPropState -> Stmt -> Expression -> Expression -> CopyPropState
+    addCopy :: CopyPropState -> Stmt -> PilVar -> PilVar -> CopyPropState
     addCopy s stmt copy orig =
       CopyPropState
         { mapping = HMap.insert copy orig (s ^. #mapping)
@@ -306,8 +305,8 @@ buildCopyPropState stmts =
 
 _copyProp :: CopyPropState -> [Stmt] -> [Stmt]
 _copyProp copyPropState xs =
-  substExprs
-    (\(e :: Expression) -> HMap.lookup e (copyPropState ^. #mapping))
+  substVars
+    (\(pv :: PilVar) -> HMap.lookupDefault pv pv (copyPropState ^. #mapping))
     [x | x <- xs, not . Set.member x $ copyPropState ^. #copyStmts]
 
 -- | Perform copy propagation on a sequence of statements.
@@ -323,8 +322,8 @@ isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
 isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
 isUnusedPhi _ _ = False
 
--- | Checks if the variable assigned to in a DefPhi statement is ever used. If not, remove the
--- the entire DefPhi. Such DefPhi statments are often introduced when a variable is defined and
+-- | Checks if the variable assigned to in a 'DefPhi' statement is ever used. If not, remove the
+-- the entire 'DefPhi'. Such 'DefPhi' statments are often introduced when a variable is defined and
 -- used in the same basic block (e.g., defined and then used for a conditional branch).
 removeUnusedPhi :: HashSet PilVar -> [Stmt] -> [Stmt]
 removeUnusedPhi usedVars = filter (not . isUnusedPhi usedVars)
