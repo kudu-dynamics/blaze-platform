@@ -9,39 +9,37 @@ import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CfEdge(CfEdge), Cfg)
-import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg), unInterCfg)
+import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Data.Set as Set
 import qualified Data.HashSet as HSet
 
-
-copyProp :: InterCfg -> InterCfg
-copyProp icfg =
+transformStmts :: ([Stmt] -> [Stmt]) -> InterCfg -> InterCfg
+transformStmts f icfg =
   InterCfg $
     foldl'
-      (flip $ Cfg.updateNodeData (PA._copyProp copyPropState))
+      (flip $ Cfg.updateNodeData f)
       cfg
       (Set.toList $ G.nodes cfg)
  where
   cfg :: PilCfg
   cfg = unInterCfg icfg
+
+copyProp :: InterCfg -> InterCfg
+copyProp icfg =
+  transformStmts (PA._copyProp copyPropState) icfg
+ where
   allStmts :: [Stmt]
-  allStmts = concatMap concat . Set.toList .  Cfg.nodes $ cfg
+  allStmts = concat . getStmts $ icfg
   copyPropState :: CopyPropState
   copyPropState = PA.buildCopyPropState allStmts
 
 constantProp :: InterCfg -> InterCfg
 constantProp icfg =
-  InterCfg $
-    foldl'
-      (flip $ Cfg.updateNodeData (PA._constantProp constPropState))
-      cfg
-      (Set.toList $ G.nodes cfg)
+  transformStmts (PA._constantProp constPropState) icfg
  where
-  cfg :: PilCfg
-  cfg = unInterCfg icfg
   allStmts :: [Stmt]
-  allStmts = concatMap concat . Set.toList .  Cfg.nodes $ cfg
+  allStmts = concat . getStmts $ icfg
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts
 
@@ -49,55 +47,54 @@ getStmts :: InterCfg -> [[Stmt]]
 getStmts (InterCfg cfg) =
   fmap concat . Set.toList $ Cfg.nodes cfg
 
+fixed :: Eq a => (a -> a) -> a -> a
+fixed f x =
+  if x == x'
+    then x
+    else f x'
+ where
+  x' = f x
+
+-- TODO: Checking for fixed point by running prune means prune is always run at least twice.
+--       I.e., prune will always be run one more time than necessary.
+--       As an alternative, consider whether we can either identify when an additional prune
+--       call is needed or what specific portion of a prune needs to be rerun.
 fixedPrune :: InterCfg -> InterCfg
-fixedPrune icfg =
-  if icfg' == icfg'' 
-  then icfg'
-  else fixedPrune icfg''
-    where
-      icfg' :: InterCfg
-      icfg' = prune icfg
-      icfg'' :: InterCfg
-      icfg'' = reducePhi icfg'
+fixedPrune = fixed prune
 
 -- TODO: Generalize this to support all assingment statements
 -- | Remove all DefPhi statements where the assigned variable is not used.
 removeUnusedPhi :: InterCfg -> InterCfg 
 removeUnusedPhi icfg =
-  InterCfg $ 
-  foldl'
-    (flip $ Cfg.updateNodeData (PA.removeUnusedPhi usedVars))
-    cfg
-    (Set.toList $ G.nodes cfg)
+  transformStmts (PA.removeUnusedPhi usedVars) icfg
   where
-    cfg :: PilCfg
-    cfg = unInterCfg icfg
     usedVars :: HashSet PilVar
     usedVars = PA.getRefVars . concat $ getStmts icfg
 
-reducePhi :: InterCfg -> InterCfg 
-reducePhi icfg =
-  InterCfg $
-    foldl'
-      (flip $ Cfg.updateNodeData (PA.reducePhis undefVars))
-      cfg
-      (Set.toList $ G.nodes cfg)
-    where
-      cfg :: PilCfg
-      cfg = unInterCfg icfg
-      undefVars :: HashSet PilVar
-      undefVars = PA.getFreeVars . concat $ getStmts icfg
+-- | Reduce all 'DefPhi' statements by removing selected variables from the
+-- 'src' list. If the 'src' list is reduced to holding a single item, the
+-- 'DefPhi' statement will be transferred to a 'Def' statement.
+reducePhi :: HashSet PilVar -> InterCfg -> InterCfg 
+reducePhi removedVars =
+  transformStmts (PA.reducePhis removedVars)
 
 prune :: InterCfg -> InterCfg
 prune icfg =
-  removeUnusedPhi . removeDeadNodes . removeEmptyBasicBlockNodes' $
-    foldl' (flip cutEdge) icfg' deadBranches
+  removeEmptyBasicBlockNodes'
+    . reducePhi removedVars
+    . fixed removeUnusedPhi
+    . removeNodes deadNodes
+    $ foldl' (flip cutEdge) icfg' deadBranches
  where
   removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
   icfg' :: InterCfg
   icfg' = constantProp . copyProp $ icfg
   deadBranches :: [PilEdge]
   deadBranches = getDeadBranches icfg'
+  deadNodes :: [PilNode]
+  deadNodes = getDeadNodes (unInterCfg icfg')
+  removedVars :: HashSet PilVar
+  removedVars = PA.getDefinedVars (concatMap concat deadNodes)
 
 getDeadBranches :: InterCfg -> [PilEdge]
 getDeadBranches icfg =
@@ -125,9 +122,12 @@ getDeadBranches icfg =
       )
       deadSuccs
 
+removeNodes :: [PilNode] -> InterCfg -> InterCfg
+removeNodes nodes icfg = 
+  InterCfg $ foldl' (flip G.removeNode) (unInterCfg icfg) nodes
+
 removeDeadNodes :: InterCfg -> InterCfg
-removeDeadNodes icfg =
-  InterCfg $ foldl' (flip G.removeNode) (unInterCfg icfg) deadNodes
+removeDeadNodes icfg = removeNodes deadNodes icfg
  where
   deadNodes = getDeadNodes $ unInterCfg icfg
 
