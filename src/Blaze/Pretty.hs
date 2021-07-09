@@ -203,7 +203,7 @@ prettyField op = Text.pack $ printf "%s[%s]" src offset
   where
     src = pretty (op ^. #src)
     offset :: Text
-    offset = show (op ^. #offset)
+    offset = pretty (op ^. #offset)
 
 prettyExprOp :: (Pretty a, HasField' "op" a (Pil.ExprOp a))
              => Pil.ExprOp a
@@ -284,15 +284,14 @@ prettyExprOp exprOp _size = case exprOp of
   (Pil.RRC op) -> prettyBinop "rrc" op
   (Pil.SBB op) -> prettyBinop "sbb" op
   (Pil.STACK_LOCAL_ADDR op) -> "&var_" <> showStackLocalByteOffset (op ^. #stackOffset . #offset)
-  (Pil.SUB op) -> prettyBinop "-" op
+  (Pil.SUB op) -> prettyBinopInfix "-" op
   (Pil.SX op) -> prettyUnop "sx" op
   (Pil.TEST_BIT op) -> prettyBinop "testBit" op
   (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
-  (Pil.UPDATE_VAR op) ->
-    "updateVar"
-    <-> pretty (op ^. #dest)
-    <-> paren (pretty $ op ^. #offset)
-    <-> parenExpr (op ^. #src)
+  (Pil.UPDATE_VAR op) -> Text.pack $ printf "updateVar(var: %s, offset: %s, val: %s)"
+    (pretty $ op ^. #dest)
+    (pretty $ op ^. #offset)
+    (pretty $ op ^. #src)
   (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (pretty (op ^. #dest)) srcs
     where
       srcs :: Text
