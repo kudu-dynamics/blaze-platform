@@ -84,15 +84,18 @@ prune icfg =
     . reducePhi removedVars
     . fixed removeUnusedPhi
     . removeNodes deadNodes
-    $ foldl' (flip cutEdge) icfg' deadBranches
+    $ icfg''
  where
   removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
   icfg' :: InterCfg
   icfg' = constantProp . copyProp $ icfg
   deadBranches :: [PilEdge]
   deadBranches = getDeadBranches icfg'
+  icfg'' :: InterCfg
+  icfg'' = foldl' (flip cutEdge) icfg' deadBranches
+  -- Need deadNodes to compute removedVars and to actually remove the dead nodes
   deadNodes :: [PilNode]
-  deadNodes = getDeadNodes (unInterCfg icfg')
+  deadNodes = getDeadNodes (unInterCfg icfg'')
   removedVars :: HashSet PilVar
   removedVars = PA.getDefinedVars (concatMap concat deadNodes)
 
