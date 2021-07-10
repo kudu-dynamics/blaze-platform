@@ -8,8 +8,6 @@ import Binja.Function (MLILSSAFunction)
 
 import           Blaze.Pretty
 
-import qualified Data.Text            as Text
-
 type F = MLILSSAFunction
 
 data IfChainNode n = IfChainNode
@@ -44,14 +42,23 @@ $(makeFieldsNoPrefix ''IfChain)
 
 instance Hashable n => Hashable (IfChain n)
 
-instance Pretty (IfChain (BasicBlock F)) where
-  pretty (IfChain esc dest ns) =
-    "IfChain { esc: " <> showStart esc
-    <> ", dest: " <> showStart dest
-    <> ", nodes: [" <> Text.intercalate ", " (showStart <$> ns)
-    <> "] }"
+instance Tokenizable (IfChain (BasicBlock F)) where
+  tokenize (IfChain esc dest ns) =
+    [kt "IfChain", tt " { "] ++
+    arg "esc" ++
+    tokStart esc ++
+    [tt ", "] ++
+    arg "dest" ++
+    tokStart dest ++
+    [tt ", "] ++
+    arg "nodes" ++
+    delimitedList [tt "["] [tt ", "] [tt "]"] (tokStart <$> ns) ++
+    [tt " }"]
     where
-      showStart bb = show (fromIntegral $ bb ^. BB.start :: Integer)
+      tokStart bb = [tt $ show (fromIntegral $ bb ^. BB.start :: Integer)]
+      tt = textToken
+      kt = keywordToken
+      arg a = [plainToken ArgumentNameToken a, tt ": "]
 
 
 type ChainMapping n = Map (ChainNode n) (ChainNode n)

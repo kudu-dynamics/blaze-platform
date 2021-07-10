@@ -1,9 +1,26 @@
 {-# LANGUAGE UndecidableInstances #-}
+{- HLINT ignore "Use :" -}
+
 module Blaze.Pretty
-  ( Pretty (pretty),
+  ( TokenType(..),
+    TokenContext(..),
+    Token(..),
+    Tokenizable(tokenize),
+    plainToken,
+    varToken,
+    addressToken,
+    stringToken,
+    textToken,
+    keywordToken,
+    paren,
+    delimitedList,
+    tokenizeAsList,
+    tokenizeAsTuple,
+    tokenizeAsCurlyList,
+    pretty,
     prettyPrint,
     pp,
-    PStmts (PStmts),
+    PStmts(PStmts),
     prettyStmts,
     prettyIndexedStmts,
     showHex,
@@ -13,11 +30,8 @@ where
 
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
 import qualified Prelude (show)
-import Binja.Core (InstructionIndex (InstructionIndex))
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
-import qualified Binja.Variable
-import Blaze.Pil.Display ((<->), Symbol, paren, asList, asTuple, commas, asCurlyList, needsParens)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as Func
 
@@ -25,7 +39,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Numeric
-import Text.Printf
 import qualified Blaze.Types.Pil.Checker as PI
 import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Graph as G
@@ -34,20 +47,150 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNode, CallNode, EnterFuncNode, LeaveFuncNode, BranchType, CfEdge, Cfg)
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg))
 import qualified Blaze.Cfg as Cfg
--- TODO: make pretty return a monad instead of text,
+import Blaze.Pil.Display (needsParens)
+-- TODO: make tokenize return a monad instead of text,
 -- which can do things like `indent`
 
--- class Pretty' t x | x -> t where
---   pretty' :: x -> Text
+-- class Tokenizable' t x | x -> t where
+--   tokenize' :: x -> Text
 
--- instance Pretty' Text Int where
---   pretty' n = show n
+-- instance Tokenizable' Text Int where
+--   tokenize' n = show n
 
--- instance Pretty' () Int where
---   pretty' n = show (n + 1)
+-- instance Tokenizable' () Int where
+--   tokenize' n = show (n + 1)
 
-class Pretty x where
-  pretty :: x -> Text
+data TokenType =
+    TextToken
+  | InstructionToken
+  | OperandSeparatorToken
+  | RegisterToken
+  | IntegerToken
+  | PossibleAddressToken
+  | BeginMemoryOperandToken
+  | EndMemoryOperandToken
+  | FloatingPointToken
+  | AnnotationToken
+  | CodeRelativeAddressToken
+  | ArgumentNameToken
+  | HexDumpByteValueToken
+  | HexDumpSkippedByteToken
+  | HexDumpInvalidByteToken
+  | HexDumpTextToken
+  | OpcodeToken
+  | StringToken
+  | CharacterConstantToken
+  | KeywordToken
+  | TypeNameToken
+  | FieldNameToken
+  | NameSpaceToken
+  | NameSpaceSeparatorToken
+  | TagToken
+  | StructOffsetToken
+  | StructOffsetByteValueToken
+  | StructureHexDumpTextToken
+  | GotoLabelToken
+  | CommentToken
+  | PossibleValueToken
+  | PossibleValueTypeToken
+  | ArrayIndexToken
+  | IndentationToken
+  | CodeSymbolToken
+  | DataSymbolToken
+  | LocalVariableToken
+  | ImportToken
+  | AddressDisplayToken
+  | IndirectImportToken
+  | ExternalSymbolToken
+  deriving (Eq, Ord, Show, Enum)
+
+data TokenContext =
+    NoTokenContext
+ |  LocalVariableTokenContext
+ |  DataVariableTokenContext
+ |  FunctionReturnTokenContext
+ |  InstructionAddressTokenContext
+ |  ILInstructionIndexTokenContext
+ deriving (Eq, Ord, Show, Enum)
+
+data Token = Token
+  { tokenType :: TokenType
+  , text :: Text
+  , value :: Integer
+  , size :: Int
+  , operand :: Integer
+  , context :: TokenContext
+  -- , confidence :: Int
+  , address :: Address
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+class Tokenizable a where
+  tokenize :: a -> [Token]
+
+plainToken :: TokenType -> Text -> Token
+plainToken typ t = Token
+  { tokenType = typ
+  , text = t
+  , value = 0
+  , size = 0
+  , operand = 0xffffffff
+  , context = NoTokenContext
+  , address = 0
+  }
+
+-- XXX Figure out value and operand here
+varToken :: Text -> Token
+varToken t = Token
+  { tokenType = LocalVariableToken
+  , text = t
+  , value = 0
+  , size = 0
+  , operand = 0
+  , context = LocalVariableTokenContext
+  , address = 0
+  }
+
+addressToken :: Maybe Text -> Address -> Token
+addressToken t addr = Token
+  { tokenType = LocalVariableToken
+  , text = fromMaybe (showHex addr) t
+  , value = toInteger addr
+  , size = 0
+  , operand = 0xffffffff
+  , context = InstructionAddressTokenContext
+  , address = 0
+  }
+
+stringToken :: Text -> Token
+stringToken = plainToken StringToken . show
+
+textToken :: Text -> Token
+textToken = plainToken TextToken
+
+tt :: Text -> Token
+tt = textToken
+
+keywordToken :: Text -> Token
+keywordToken = plainToken KeywordToken
+
+paren :: [Token] -> [Token]
+paren ts = [tt "("] ++ ts ++ [tt ")"]
+
+delimitedList :: [Token] -> [Token] -> [Token] -> [[Token]] -> [Token]
+delimitedList start sep end xs = start ++ concat (intersperse sep xs) ++ end
+
+tokenizeAsList :: Tokenizable a => [a] -> [Token]
+tokenizeAsList = delimitedList [tt "["] [tt ", "] [tt "]"] . fmap tokenize
+
+tokenizeAsTuple :: Tokenizable a => [a] -> [Token]
+tokenizeAsTuple = delimitedList [tt "("] [tt ", "] [tt ")"] . fmap tokenize
+
+tokenizeAsCurlyList :: Tokenizable a => [a] -> [Token]
+tokenizeAsCurlyList = delimitedList [tt "{"] [tt ", "] [tt "}"] . fmap tokenize
+
+pretty :: Tokenizable a => a -> Text
+pretty a = foldMap (view #text) $ tokenize a
 
 showHex :: (Integral a, Show a) => a -> Text
 showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
@@ -56,457 +199,514 @@ showStackLocalByteOffset :: ByteOffset -> Text
 showStackLocalByteOffset x = bool "-" "" (x < 0)
   <> (Text.pack . flip Numeric.showHex "" . abs $ x)
 
-parenExpr :: (Pretty a, HasField' "op" a (Pil.ExprOp a)) => a -> Text
+parenExpr :: (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => a -> [Token]
 parenExpr x = if needsParens $ x ^. #op
-  then paren (pretty x)
-  else pretty x
+  then paren (tokenize x)
+  else tokenize x
 
-instance Pretty () where
-  pretty = show
+instance Tokenizable a => Tokenizable [a] where
+  tokenize = tokenizeAsList
 
-instance Pretty Int where
-  pretty = show
+instance Tokenizable () where
+  tokenize () = [tt "()"]
 
-instance Pretty (InstructionIndex a) where
-  pretty (InstructionIndex x) = show x
+instance Tokenizable Token where
+  tokenize t = [t]
 
-instance Pretty Address where
-  pretty (Address x) = showHex x
+instance (Tokenizable k, Tokenizable v) => Tokenizable (Map k v) where
+  tokenize m = [keywordToken "Map: "] ++ tokenizeAsList (Map.toList m)
 
-instance Pretty a => Pretty [a] where
-  pretty ys = "[" <> f ys <> "]"
-    where
-      f [] = ""
-      f [x] = pretty x
-      f (x : xs) = pretty x <> ", " <> f xs
+instance Tokenizable a => Tokenizable (Set a) where
+  tokenize = delimitedList [tt "#{"] [tt ", "] [tt "}"] . fmap tokenize . Set.toList
 
-instance (Pretty k, Pretty v) => Pretty (Map k v) where
-  pretty m = "Map: " <> pretty (Map.toList m)
+instance Tokenizable (MLIL.Expression a) where
+  tokenize _ = [tt "(TODO: MLIL Expression)"]
 
-instance Pretty a => Pretty (Set a) where
-  pretty ys = "#{" <> f (Set.toList ys) <> "}"
-    where
-      f [] = ""
-      f [x] = pretty x
-      f (x : xs) = pretty x <> ", " <> f xs
-
-instance Pretty (MLIL.Expression a) where
-  pretty _ = "(TODO: MLIL Expression)"
-
-instance (Pretty a, Pretty b) => Pretty (a, b) where
-  pretty (a, b) = "(" <> pretty a <> ", " <> pretty b <> ")"
+instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
+  tokenize (a, b) = paren $ tokenize a ++ [tt ", "] ++ tokenize b
 
 ---- PIL
 
-instance Pretty Binja.Variable.Variable where
-  pretty v = v ^. Binja.Variable.name
+instance Tokenizable a => Tokenizable (Pil.CallDest a) where
+  tokenize dest = case dest of
+    (Pil.CallAddr addr) -> [addressToken Nothing addr]
+    (Pil.CallExpr e) -> tokenize e
+    (Pil.CallExprs es) -> tokenizeAsList es
+    (Pil.CallFunc fn) -> tokenize fn
 
-instance Pretty MLIL.SSAVariable where
-  pretty ssaVar = Text.pack $ printf "%s@%s" name version
+instance Tokenizable Binja.Function.Function where
+  tokenize f =
+    [ Token
+      { tokenType = CodeSymbolToken
+      , text = f ^. Binja.Function.name
+      , value = toInteger start
+      , size = 0
+      , operand = 0xffffffff
+      , context = NoTokenContext
+      , address = 0
+      }
+    ]
     where
-      name :: Text
-      name = pretty (ssaVar ^. MLIL.var)
-      version :: Text
-      version = show (ssaVar ^. MLIL.version)
-
-instance Pretty Pil.PilVar where
-  pretty v = v ^. #symbol
-
-instance Pretty Pil.OperationSize where
-  pretty (Pil.OperationSize sz) = show sz
-
-instance Pretty a => Pretty (Pil.CallDest a) where
-  pretty dest = case dest of
-    (Pil.CallAddr addr) -> show addr
-    (Pil.CallExpr e) -> pretty e
-    (Pil.CallExprs es) -> show $ fmap pretty es
-    (Pil.CallFunc fn) -> pretty fn
-
-instance Pretty Binja.Function.Function where
-  pretty f = Text.pack $ printf "%s @0x%x" name start
-    where
-      name = f ^. Binja.Function.name
       start :: Word64
       (Address (Bytes start)) = f ^. Binja.Function.start
 
-instance Pretty Pil.Ctx where
-  pretty ctx = Text.pack $ printf "ctx (%s) %s" func idx
+instance Tokenizable Pil.Ctx where
+  tokenize ctx =
+    [keywordToken "ctx "] ++
+    paren func ++
+    [plainToken IntegerToken idx]
     where
-      func :: Text
-      func = pretty (ctx ^. #func)
+      func :: [Token]
+      func = tokenize (ctx ^. #func)
       idx :: Text
       idx = show (ctx ^. #ctxId)
 
-prettyBinop
-  :: ( Pretty b
+instance Tokenizable Pil.PilVar where
+  tokenize var = [varToken (var ^. #symbol)]
+
+tokenizeBinop
+  :: ( Tokenizable b
      , HasField' "left" a b
      , HasField' "right" a b
      , HasField' "op" b (Pil.ExprOp b)
      )
-  => Symbol
+  => Text
   -> a
-  -> Text
-prettyBinop sym op = Text.pack $ printf "%s %s %s" sym left right
+  -> [Token]
+tokenizeBinop sym op = [tt $ sym <> " "] ++ left ++ [tt " "] ++ right
   where
     left = parenExpr (op ^. #left)
     right = parenExpr (op ^. #right)
 
-prettyBinopInfix
-  :: ( Pretty b
+tokenizeBinopInfix
+  :: ( Tokenizable b
      , HasField' "left" a b
      , HasField' "right" a b
      , HasField' "op" b (Pil.ExprOp b)
      )
-  => Symbol
+  => Text
   -> a
-  -> Text
-prettyBinopInfix sym op = Text.pack $ printf "%s %s %s" left sym right
+  -> [Token]
+tokenizeBinopInfix sym op = left ++ [tt $ " " <> sym <> " "] ++ right
   where
     left = parenExpr (op ^. #left)
     right = parenExpr (op ^. #right)
 
-prettyUnop
+tokenizeUnop
   :: ( HasField' "src" a b
-     , Pretty b
+     , Tokenizable b
      , HasField' "op" b (Pil.ExprOp b)
      )
-  => Symbol
+  => Text
   -> a
-  -> Text
-prettyUnop sym op = Text.pack $ printf "%s %s" sym src
+  -> [Token]
+tokenizeUnop sym op = [tt $ " " <> sym] ++ src
   where
     src = parenExpr (op ^. #src)
 
-prettyConst ::
-  ( HasField' "constant" a b,
-    Show b
-  ) =>
-  a ->
-  Text
-prettyConst op = Text.pack $ printf "%s" const
+tokenizeConst
+  :: ( HasField' "constant" a b
+     , Show b
+     )
+  => a
+  -> [Token]
+tokenizeConst op = [tt const]
   where
     const :: Text
     const = show (op ^. #constant)
 
-prettyVar :: (HasField' "src" a Pil.PilVar) => a -> Text
-prettyVar op = Text.pack $ printf "%s" src
+tokenizeField ::
+  ( HasField' "src" a b
+  , Tokenizable b
+  , HasField' "offset" a ByteOffset
+  )
+  => a
+  -> [Token]
+tokenizeField op = src ++ [tt "["] ++ offset ++ [tt "]"]
   where
-    src = pretty (op ^. #src)
+    src = tokenize (op ^. #src)
+    offset = tokenize (op ^. #offset)
 
-prettyField ::
-  ( HasField' "src" a b,
-    Pretty b,
-    HasField' "offset" a ByteOffset
-  ) =>
-  a ->
-  Text
-prettyField op = Text.pack $ printf "%s[%s]" src offset
-  where
-    src = pretty (op ^. #src)
-    offset :: Text
-    offset = pretty (op ^. #offset)
-
-prettyExprOp :: (Pretty a, HasField' "op" a (Pil.ExprOp a))
-             => Pil.ExprOp a
-             -> Pil.OperationSize
-             -> Text
-prettyExprOp exprOp _size = case exprOp of
-  (Pil.ADC op) -> prettyBinop "adc" op
-  (Pil.ADD op) -> prettyBinopInfix "+" op
-  (Pil.ADD_OVERFLOW op) -> prettyBinopInfix "&+" op
-  (Pil.AND op) -> prettyBinopInfix "&&" op
-  (Pil.ASR op) -> prettyBinop "asr" op
-  (Pil.BOOL_TO_INT op) -> prettyUnop "boolToInt" op
-  (Pil.CEIL op) -> prettyUnop "ceil" op
-  (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. #constant)
-  (Pil.CMP_E op) -> prettyBinopInfix "==" op
-  (Pil.CMP_NE op) -> prettyBinopInfix "!=" op
-  (Pil.CMP_SGE op) -> prettyBinopInfix ">=" op
-  (Pil.CMP_SGT op) -> prettyBinopInfix ">" op
-  (Pil.CMP_SLE op) -> prettyBinopInfix "<=" op
-  (Pil.CMP_SLT op) -> prettyBinopInfix "<" op
-  (Pil.CMP_UGE op) -> prettyBinopInfix "u>=" op
-  (Pil.CMP_UGT op) -> prettyBinopInfix "u>" op
-  (Pil.CMP_ULE op) -> prettyBinopInfix "u<=" op
-  (Pil.CMP_ULT op) -> prettyBinopInfix "u<" op
-  (Pil.CONST op) -> prettyConst op
-  (Pil.CONST_PTR op) -> prettyConst op
-  (Pil.DIVS op) -> prettyBinopInfix "/" op
-  (Pil.DIVS_DP op) -> prettyBinop "divsDP" op
-  (Pil.DIVU op) -> prettyBinopInfix "u/" op
-  (Pil.DIVU_DP op) -> prettyBinop "divuDP" op
-  (Pil.FABS op) -> prettyUnop "fabs" op
-  (Pil.FADD op) -> prettyBinopInfix "f+" op
-  (Pil.FCMP_E op) -> prettyBinopInfix "f==" op
-  (Pil.FCMP_GE op) -> prettyBinopInfix "f>=" op
-  (Pil.FCMP_GT op) -> prettyBinopInfix "f>" op
-  (Pil.FCMP_LE op) -> prettyBinopInfix "f<=" op
-  (Pil.FCMP_LT op) -> prettyBinopInfix "f<" op
-  (Pil.FCMP_NE op) -> prettyBinopInfix "f!=" op
-  (Pil.FCMP_O op) -> prettyBinop "fcmpO" op
-  (Pil.FCMP_UO op) -> prettyBinop "fcmpUO" op
-  (Pil.FDIV op) -> prettyBinopInfix "f/" op
+tokenizeExprOp ::
+  (Tokenizable a, HasField' "op" a (Pil.ExprOp a))
+  => Pil.ExprOp a
+  -> Pil.OperationSize
+  -> [Token]
+tokenizeExprOp exprOp _size = case exprOp of
+  (Pil.ADC op) -> tokenizeBinop "adc" op
+  (Pil.ADD op) -> tokenizeBinopInfix "+" op
+  (Pil.ADD_OVERFLOW op) -> tokenizeBinopInfix "&+" op
+  (Pil.AND op) -> tokenizeBinopInfix "&&" op
+  (Pil.ASR op) -> tokenizeBinop "asr" op
+  (Pil.BOOL_TO_INT op) -> tokenizeUnop "boolToInt" op
+  (Pil.CEIL op) -> tokenizeUnop "ceil" op
+  (Pil.CONST_BOOL op) -> [tt . show $ op ^. #constant]
+  (Pil.CMP_E op) -> tokenizeBinopInfix "==" op
+  (Pil.CMP_NE op) -> tokenizeBinopInfix "!=" op
+  (Pil.CMP_SGE op) -> tokenizeBinopInfix ">=" op
+  (Pil.CMP_SGT op) -> tokenizeBinopInfix ">" op
+  (Pil.CMP_SLE op) -> tokenizeBinopInfix "<=" op
+  (Pil.CMP_SLT op) -> tokenizeBinopInfix "<" op
+  (Pil.CMP_UGE op) -> tokenizeBinopInfix "u>=" op
+  (Pil.CMP_UGT op) -> tokenizeBinopInfix "u>" op
+  (Pil.CMP_ULE op) -> tokenizeBinopInfix "u<=" op
+  (Pil.CMP_ULT op) -> tokenizeBinopInfix "u<" op
+  (Pil.CONST op) -> tokenizeConst op
+  (Pil.CONST_PTR op) -> tokenizeConst op
+  (Pil.DIVS op) -> tokenizeBinopInfix "/" op
+  (Pil.DIVS_DP op) -> tokenizeBinop "divsDP" op
+  (Pil.DIVU op) -> tokenizeBinopInfix "u/" op
+  (Pil.DIVU_DP op) -> tokenizeBinop "divuDP" op
+  (Pil.FABS op) -> tokenizeUnop "fabs" op
+  (Pil.FADD op) -> tokenizeBinopInfix "f+" op
+  (Pil.FCMP_E op) -> tokenizeBinopInfix "f==" op
+  (Pil.FCMP_GE op) -> tokenizeBinopInfix "f>=" op
+  (Pil.FCMP_GT op) -> tokenizeBinopInfix "f>" op
+  (Pil.FCMP_LE op) -> tokenizeBinopInfix "f<=" op
+  (Pil.FCMP_LT op) -> tokenizeBinopInfix "f<" op
+  (Pil.FCMP_NE op) -> tokenizeBinopInfix "f!=" op
+  (Pil.FCMP_O op) -> tokenizeBinop "fcmpO" op
+  (Pil.FCMP_UO op) -> tokenizeBinop "fcmpUO" op
+  (Pil.FDIV op) -> tokenizeBinopInfix "f/" op
   (Pil.FIELD_ADDR op) ->
-    "fieldAddr"
-    <-> parenExpr (op ^. #baseAddr)
-    <-> pretty (op ^. #offset)
-  (Pil.CONST_FLOAT op) -> prettyConst op
-  (Pil.FLOAT_CONV op) -> prettyUnop "floatConv" op
-  (Pil.FLOAT_TO_INT op) -> prettyUnop "floatToInt" op
-  (Pil.FLOOR op) -> prettyUnop "floor" op
-  (Pil.FMUL op) -> prettyBinopInfix "f*" op
-  (Pil.FNEG op) -> prettyUnop "fneg" op
-  (Pil.FSQRT op) -> prettyUnop "fsqrt" op
-  (Pil.FSUB op) -> prettyBinopInfix "f-" op
-  (Pil.FTRUNC op) -> prettyUnop "ftrunc" op
-  (Pil.IMPORT op) -> prettyConst op
-  (Pil.INT_TO_FLOAT op) -> prettyUnop "intToFloat" op
-  (Pil.LOAD op) -> Text.pack . printf "[%s]" . Text.unpack . pretty $ op ^. #src
+    [tt "["] ++
+    parenExpr (op ^. #baseAddr) ++
+    [tt " + ", keywordToken "offset "] ++
+    tokenize (op ^. #offset) ++
+    [tt "]"]
+  (Pil.CONST_FLOAT op) -> tokenizeConst op
+  (Pil.FLOAT_CONV op) -> tokenizeUnop "floatConv" op
+  (Pil.FLOAT_TO_INT op) -> tokenizeUnop "floatToInt" op
+  (Pil.FLOOR op) -> tokenizeUnop "floor" op
+  (Pil.FMUL op) -> tokenizeBinopInfix "f*" op
+  (Pil.FNEG op) -> tokenizeUnop "fneg" op
+  (Pil.FSQRT op) -> tokenizeUnop "fsqrt" op
+  (Pil.FSUB op) -> tokenizeBinopInfix "f-" op
+  (Pil.FTRUNC op) -> tokenizeUnop "ftrunc" op
+  (Pil.IMPORT op) -> tokenizeConst op
+  (Pil.INT_TO_FLOAT op) -> tokenizeUnop "intToFloat" op
+  (Pil.LOAD op) -> [tt "["]  ++ tokenize (op ^. #src) ++ [tt "]"]
   -- TODO: add memory versions for all SSA ops
-  (Pil.LOW_PART op) -> prettyUnop "lowPart" op
-  (Pil.LSL op) -> prettyBinop "lsl" op
-  (Pil.LSR op) -> prettyBinop "lsr" op
-  (Pil.MODS op) -> prettyBinopInfix "%" op
-  (Pil.MODS_DP op) -> prettyBinop "modsDP" op
-  (Pil.MODU op) -> prettyBinopInfix "u%" op
-  (Pil.MODU_DP op) -> prettyBinop "moduDP" op
-  (Pil.MUL op) -> prettyBinopInfix "*" op
-  (Pil.MULS_DP op) -> prettyBinop "mulsDP" op
-  (Pil.MULU_DP op) -> prettyBinop "muluDP" op
-  (Pil.NEG op) -> prettyUnop "neg" op
-  (Pil.NOT op) -> prettyUnop "not" op
-  (Pil.OR op) -> prettyBinopInfix "|" op
+  (Pil.LOW_PART op) -> tokenizeUnop "lowPart" op
+  (Pil.LSL op) -> tokenizeBinop "lsl" op
+  (Pil.LSR op) -> tokenizeBinop "lsr" op
+  (Pil.MODS op) -> tokenizeBinopInfix "%" op
+  (Pil.MODS_DP op) -> tokenizeBinop "modsDP" op
+  (Pil.MODU op) -> tokenizeBinopInfix "u%" op
+  (Pil.MODU_DP op) -> tokenizeBinop "moduDP" op
+  (Pil.MUL op) -> tokenizeBinopInfix "*" op
+  (Pil.MULS_DP op) -> tokenizeBinop "mulsDP" op
+  (Pil.MULU_DP op) -> tokenizeBinop "muluDP" op
+  (Pil.NEG op) -> tokenizeUnop "neg" op
+  (Pil.NOT op) -> tokenizeUnop "not" op
+  (Pil.OR op) -> tokenizeBinopInfix "|" op
   -- TODO: Need to add carry
-  (Pil.RLC op) -> prettyBinop "rlc" op
-  (Pil.ROL op) -> prettyBinop "rol" op
-  (Pil.ROR op) -> prettyBinop "ror" op
-  (Pil.ROUND_TO_INT op) -> prettyUnop "roundToInt" op
+  (Pil.RLC op) -> tokenizeBinop "rlc" op
+  (Pil.ROL op) -> tokenizeBinop "rol" op
+  (Pil.ROR op) -> tokenizeBinop "ror" op
+  (Pil.ROUND_TO_INT op) -> tokenizeUnop "roundToInt" op
   -- TODO: Need to add carry
-  (Pil.RRC op) -> prettyBinop "rrc" op
-  (Pil.SBB op) -> prettyBinop "sbb" op
-  (Pil.STACK_LOCAL_ADDR op) -> "&var_" <> showStackLocalByteOffset (op ^. #stackOffset . #offset)
-  (Pil.SUB op) -> prettyBinopInfix "-" op
-  (Pil.SX op) -> prettyUnop "sx" op
-  (Pil.TEST_BIT op) -> prettyBinop "testBit" op
-  (Pil.UNIMPL t) -> "unimpl (" <> t <> ")"
-  (Pil.UPDATE_VAR op) -> Text.pack $ printf "updateVar(var: %s, offset: %s, val: %s)"
-    (pretty $ op ^. #dest)
-    (pretty $ op ^. #offset)
-    (pretty $ op ^. #src)
-  (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (pretty (op ^. #dest)) srcs
+  (Pil.RRC op) -> tokenizeBinop "rrc" op
+  (Pil.SBB op) -> tokenizeBinop "sbb" op
+  (Pil.STACK_LOCAL_ADDR op) ->
+    [ tt "&"
+    , varToken $ "var" <> showStackLocalByteOffset (op ^. #stackOffset . #offset)
+    ]
+  (Pil.SUB op) -> tokenizeBinopInfix "-" op
+  (Pil.SX op) -> tokenizeUnop "sx" op
+  (Pil.TEST_BIT op) -> tokenizeBinop "testBit" op
+  (Pil.UNIMPL t) -> [keywordToken "unimpl"] ++ paren [tt t]
+  (Pil.UPDATE_VAR op) ->
+    [keywordToken "updateVar"] ++
+    paren
+      ( arg "var" ++
+        [varToken $ op ^. #dest . #symbol] ++
+        [tt ", "] ++
+        arg "offset" ++
+        tokenize (op ^. #offset) ++
+        [tt ", "] ++
+        arg "val" ++
+        tokenize (op ^. #src)
+      )
     where
-      srcs :: Text
-      srcs = show (fmap pretty (op ^. #src))
-  (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s" (pretty (op ^. #high)) (pretty (op ^. #low))
-  -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (pretty $ op ^. #src) (pretty)
+      arg a = [plainToken ArgumentNameToken a, tt ": "]
+  (Pil.VAR_PHI op) -> [tt (op ^. #dest ^. #symbol), tt " <- "] ++ srcs
+    where
+      srcs :: [Token]
+      srcs = tt . view #symbol <$> (op ^. #src)
+  (Pil.VAR_JOIN op) ->
+    [tt "varJoin "] ++
+    tokenize (op ^. #high) ++
+    [tt " "] ++
+    tokenize (op ^. #low)
   -- TODO: Need added
-  (Pil.VAR op) -> prettyVar op
+  (Pil.VAR op) -> tokenize (op ^. #src)
   -- TODO: Add field offset
-  (Pil.VAR_FIELD op) -> prettyField op
-  (Pil.XOR op) -> prettyBinop "xor" op
-  (Pil.ZX op) -> prettyUnop "zx" op
-  (Pil.CALL op) -> case op ^. #name of
-    (Just name) -> Text.pack $ printf "%s%s" name params
-    Nothing -> Text.pack $ printf "call %s%s" dest params
-    where
-      dest = pretty (op ^. #dest)
-      params :: Text
-      params = asTuple (fmap pretty (op ^. #params))
-  (Pil.StrCmp op) -> prettyBinop "strcmp" op
-  (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s" (op ^. #len) (pretty (op ^. #left)) (pretty (op ^. #right))
-  (Pil.MemCmp op) -> prettyBinop "memcmp" op
+  (Pil.VAR_FIELD op) -> tokenizeField op
+  (Pil.XOR op) -> tokenizeBinop "xor" op
+  (Pil.ZX op) -> tokenizeUnop "zx" op
+  (Pil.CALL op) -> tokenize op
+  (Pil.StrCmp op) -> tokenizeBinop "strcmp" op
+  (Pil.StrNCmp op) ->
+    [tt "strncmp ", plainToken IntegerToken (show $ op ^. #len), tt " "] ++
+    tokenize (op ^. #left) ++
+    [tt " "] ++
+    tokenize (op ^. #right)
+  (Pil.MemCmp op) -> tokenizeBinop "memcmp" op
     -- TODO: Should ConstStr also use const rather than value as field name?
-  (Pil.ConstStr op) -> Text.pack $ printf "\"%s\"" $ op ^. #value
-  (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (pretty (op ^. #src)) (op ^. #offset)
-  Pil.UNIT -> "()"
+  (Pil.ConstStr op) -> [stringToken $ op ^. #value]
+  (Pil.Extract op) ->
+    [keywordToken "extract "] ++
+    tokenize (op ^. #src) ++
+    [tt " "] ++
+    tokenize (op ^. #offset)
+  Pil.UNIT -> [tt "()"]
 
-instance Pretty PI.SymType where
-  pretty (PI.SVar s) = pretty s
-  pretty (PI.SType t) = pretty t
+instance Tokenizable PI.SymType where
+  tokenize (PI.SVar s) = tokenize s
+  tokenize (PI.SType t) = tokenize t
 
-instance Pretty PI.DeepSymType where
-  pretty (PI.DSVar s) = pretty s
-  pretty (PI.DSType t) = pretty t
-  pretty (PI.DSRecursive s dst) = paren ("Rec" <-> pretty s <> ":" <-> pretty dst)
+instance Tokenizable PI.DeepSymType where
+  tokenize (PI.DSVar s) = tokenize s
+  tokenize (PI.DSType t) = tokenize t
+  tokenize (PI.DSRecursive s dst) =
+    paren $
+    [keywordToken "Rec "] ++
+    tokenize s ++
+    [tt ": "] ++
+    tokenize dst
 
-instance Pretty PI.Sym where
-  pretty (PI.Sym n) = "s" <> show n
+instance Tokenizable PI.Sym where
+  tokenize (PI.Sym n) = [tt $ "s" <> show n]
 
-instance Pretty (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
-  pretty (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
---    "{" <> pretty s <> "}" <->
-    prettyExprOp op (coerce $ bitwidth * 8) <->
-    "::" <->
-    paren (pretty s <-> "|" <-> maybe "Unknown" pretty mstype)
+instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
+  tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
+    tokenizeExprOp op (coerce $ bitwidth * 8) ++
+    [tt " :: "] ++
+    paren
+      ( tokenize s ++
+        [tt " | "] ++
+        maybe [keywordToken "Unknown"] tokenize mstype
+      )
 
-instance Pretty (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) where
-  pretty (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
---    "{" <> pretty s <> "}" <->
-    prettyExprOp op (coerce $ bitwidth * 8) <->
-    "::" <->
-    paren (pretty s <-> "|" <-> maybe "Unknown" pretty mstype)
+instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) where
+  tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
+    tokenizeExprOp op (coerce $ bitwidth * 8) ++
+    [tt " :: "] ++
+    paren
+     (  tokenize s ++
+        [tt " | "] ++
+        maybe [keywordToken "Unknown"] tokenize mstype
+     )
 
+instance Tokenizable (PI.InfoExpression PI.SymInfo) where
+  tokenize (PI.InfoExpression (PI.SymInfo bitwidth (PI.Sym n)) op) =
+    [tt (show n), tt ":"] ++ paren (tokenizeExprOp op (coerce $ bitwidth * 8))
 
-instance Pretty (PI.InfoExpression PI.SymInfo) where
-  pretty (PI.InfoExpression (PI.SymInfo bitwidth (PI.Sym n)) op) =
-    show n <> ":" <> paren (prettyExprOp op (coerce $ bitwidth * 8))
+instance Tokenizable Pil.Expression where
+  tokenize (Pil.Expression size' exprOp) = tokenizeExprOp exprOp size'
 
-instance Pretty Pil.Expression where
-  pretty (Pil.Expression size exprOp) = prettyExprOp exprOp size
-
-instance (Pretty a, Pretty b) => Pretty (HashMap a b) where
-  pretty m = "HashMap:\n"
-    <> Text.intercalate "\n" (f <$> HashMap.toList m)
+instance (Tokenizable a, Tokenizable b) => Tokenizable (HashMap a b) where
+  tokenize m =
+    [keywordToken "HashMap:\n"] ++ intercalate [tt "\n"] (f <$> HashMap.toList m)
     where
-      f (a, b) = "  " <> paren (pretty a <> "," <-> pretty b)
+      f (a, b) = [tt "  "] ++ paren (tokenize a ++ [tt ", "] ++ tokenize b)
 
-instance (Pretty a, HasField' "op" a (Pil.ExprOp a)) => Pretty (Pil.Statement a) where
-  pretty stmt = case stmt of
-    Pil.Def x -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
-    Pil.Constraint x -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
-    Pil.Store x -> Text.pack $ printf "[%s] = %s" (pretty $ x ^. #addr) (pretty $ x ^. #value)
-    Pil.UnimplInstr t -> "Unimplemented Instruction (\"" <> Text.take 10 t <> "...\")"
-    Pil.UnimplMem x -> Text.pack $ printf "Unimplemented Memory: [%s]" (pretty $ x ^. #src)
-    Pil.Undef -> "Undefined"
-    Pil.Nop -> "Nop"
-    Pil.Annotation t -> "Annotation: " <> t
-    Pil.EnterContext x -> "----> Entering " <> pretty (x ^. #ctx)
-    Pil.ExitContext x -> "<---- Leaving " <> pretty (x ^. #leavingCtx)
-    Pil.Call x -> Text.pack $ printf "%s%s" (pretty $ x ^. #dest) (asTuple . fmap pretty $ x ^. #params)
-    Pil.DefPhi x -> Text.pack $ printf "%s = φ%s"
-                      (pretty $ x ^. #dest)
-                      (asCurlyList . fmap pretty $ x ^. #src)
-    Pil.DefMemPhi x -> Text.pack $ printf "%s = φ%s"
-                       (showMem $ x ^. #destMemory)                     
-                       (asCurlyList . fmap showMem $ x ^. #srcMemory)
-      where
-        showMem :: Int64 -> Text
-        showMem n = "mem#" <> show n
-    Pil.BranchCond x -> "if" <-> paren (pretty $ x ^. #cond)
-    Pil.Jump x -> "jump" <-> parenExpr (x ^. #dest)
-    Pil.JumpTo x -> "jumpTo" <-> parenExpr (x ^. #dest) <-> asList (pretty <$> x ^. #targets)
-    Pil.Ret x -> "return " <> pretty (x ^. #value)
-    Pil.NoRet -> "NoRet"
-    Pil.Exit -> "Exit"
-    Pil.TailCall x -> "Tail call | " <> pretty (x ^. #dest) <> "(" <> pretty (x ^. #args) <> ")"
+instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.Statement a) where
+  tokenize stmt = case stmt of
+    Pil.Def x -> tokenize (x ^. #var) ++ [tt " = "] ++ tokenize (x ^. #value)
+    Pil.Constraint x -> [tt "?: "] ++ tokenize (x ^. #condition)
+    Pil.Store x ->
+      [tt "["] ++
+      tokenize (x ^. #addr) ++
+      [tt "]", tt " = "] ++
+      tokenize (x ^. #value)
+    Pil.UnimplInstr t ->
+      let shortRepr = show $ Text.take 10 t in
+        [ tt "Unimplemented Instruction (\""
+        , tt (Text.dropEnd 1 . Text.drop 1 $ shortRepr)
+        , tt "..."
+        , tt "\")"
+        ]
+    Pil.UnimplMem x -> [tt "Unimplemented Memory: ", tt "["] ++ tokenize (x ^. #src)
+    Pil.Undef -> [keywordToken "Undefined"]
+    Pil.Nop -> [keywordToken "Nop"]
+    Pil.Annotation t -> [tt "Annotation: ", plainToken CommentToken t]
+    Pil.EnterContext x -> [tt "----> Entering "] ++ tokenize (x ^. #ctx)
+    Pil.ExitContext x -> [tt "<---- Leaving "] ++ tokenize (x ^. #leavingCtx)
+    Pil.Call callOp -> tokenize callOp
+    Pil.DefPhi x ->
+      tokenize (x ^. #dest) ++
+      [tt " = ", tt "φ"] ++
+      tokenizeAsCurlyList (x ^. #src)
+    Pil.DefMemPhi x ->
+      [varToken ("mem#" <> show (x ^. #destMemory)), tt " = ", tt "φ"] ++
+      tokenizeAsCurlyList ((\m -> varToken $ "mem#" <> show m) <$> (x ^. #srcMemory))
+    Pil.BranchCond x -> [keywordToken "if "] ++ paren (tokenize $ x ^. #cond)
+    Pil.Jump x -> [keywordToken "jump "] ++ parenExpr (x ^. #dest)
+    Pil.JumpTo x ->
+      [keywordToken "jumpTo "] ++
+      parenExpr (x ^. #dest) ++
+      tokenizeAsList (x ^. #targets)
+    Pil.Ret x -> [keywordToken "return "] ++ tokenize (x ^. #value)
+    Pil.NoRet -> [keywordToken "NoRet"]
+    Pil.Exit -> [keywordToken "Exit"]
+    Pil.TailCall x ->
+      [keywordToken "Tail call", tt " | "] ++ tokenize (x ^. #dest) ++ tokenizeAsList (x ^. #args)
 
-instance Pretty Pil.CallSite where
-  pretty x = pretty (x ^. #caller) <> " -> "
-             <> pretty (x ^. #callDest)
+instance Tokenizable a => Tokenizable (Pil.CallOp a) where
+  tokenize op = case (op ^. #name, op ^. #dest) of
+    (Just name, Pil.CallAddr addr) -> [addressToken (Just name) addr] ++ params
+    _ -> [keywordToken "call "] ++ dest ++ params
+    where
+      dest = tokenize (op ^. #dest)
+      params :: [Token]
+      params = tokenizeAsTuple (op ^. #params)
+
+instance Tokenizable Pil.CallSite where
+  tokenize x = tokenize (x ^. #caller) ++ [tt " -> "] ++ tokenize (x ^. #callDest)
 
 newtype PStmts a = PStmts [Pil.Statement a]
 
 newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
 
-instance (Pretty a, HasField' "op" a (Pil.ExprOp a)) => Pretty (PStmts a) where
-  pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
+instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PStmts a) where
+  tokenize (PStmts stmts) = intercalate [tt "\n"] (tokenize <$> stmts)
 
-instance (Pretty a, HasField' "op" a (Pil.ExprOp a)) => Pretty (PIndexedStmts a) where
-  pretty (PIndexedStmts stmts) = Text.intercalate "\n" . fmap f $ stmts
+instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndexedStmts a) where
+  tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] (f <$> stmts)
     where
-      f (i, stmt) = show i <> ":" <-> pretty stmt
+      f :: (Int, Pil.Statement a) -> [Token]
+      f (i, stmt) = [plainToken IntegerToken (show i), tt ": "] ++ tokenize stmt
 
-instance Pretty ByteOffset where
-  pretty (ByteOffset n) = show n 
+instance Tokenizable ByteOffset where
+  tokenize (ByteOffset n) = [plainToken IntegerToken $ show n]
 
-instance Pretty Int64 where
-  pretty = show
+instance Tokenizable Int64 where
+  tokenize n = [plainToken IntegerToken $ show n]
 
-instance Pretty Pil.StackOffset where
-  pretty x =
-    "stackOffset"
-      <-> show (x ^. #offset)
-      <-> paren (pretty (x ^. #ctx))
+instance Tokenizable Pil.StackOffset where
+  tokenize x =
+    [tt "stackOffset "] ++ tokenize (x ^. #offset) ++ paren (tokenize (x ^. #ctx))
 
-instance Pretty Pil.StmtIndex where
-  pretty x = show x
+instance Tokenizable Pil.StmtIndex where
+  tokenize x = [plainToken IntegerToken $ show x]
 
-instance Pretty t => Pretty (PI.PilType t) where
-  pretty = \case
-    PI.TArray len elemType -> "Array" <-> pretty len <-> pretty elemType
---    PI.TZeroField pt -> "ZeroField" <-> paren (pretty pt)
-    PI.TBool -> "Bool"
-    PI.TChar -> "Char"
+instance Tokenizable t => Tokenizable (PI.PilType t) where
+  tokenize = \case
+    PI.TArray len elemType -> [keywordToken "Array "] ++ tokenize len ++ [tt " "] ++ tokenize elemType
+--    PI.TZeroField pt -> "ZeroField" <-> paren (tokenize pt)
+    PI.TBool -> [keywordToken "Bool"]
+    PI.TChar -> [keywordToken "Char"]
     -- PI.TQueryChar -> "QueryChar"
-    PI.TInt bitWidth signed -> "Int" <-> pretty bitWidth <-> pretty signed
-    PI.TFloat bitWidth -> "Float" <-> pretty bitWidth
-    PI.TBitVector bitWidth -> "BitVector" <-> pretty bitWidth
-    PI.TPointer bitWidth pointeeType -> "Pointer" <-> pretty bitWidth
-                                        <-> paren (pretty pointeeType)
-    PI.TRecord m -> "Record" <-> asList (rfield <$> HashMap.toList m)
+    PI.TInt bitWidth signed -> [keywordToken "Int "] ++ tokenize bitWidth ++ [tt " "] ++ tokenize signed
+    PI.TFloat bitWidth -> [keywordToken "Float "] ++ tokenize bitWidth
+    PI.TBitVector bitWidth -> [keywordToken "BitVector "] ++ tokenize bitWidth
+    PI.TPointer bitWidth pointeeType ->
+      [keywordToken "Pointer "] ++ tokenize bitWidth ++ [tt " "] ++ paren (tokenize pointeeType)
+    PI.TRecord m ->
+      [keywordToken "Record "] ++
+      delimitedList [tt "["] [tt ", "] [tt "]"] (rfield <$> HashMap.toList m)
       where
-        rfield (BitOffset n, t) = paren $ commas [show n, pretty t]
+        rfield (BitOffset n, t) = paren ([tt (show n), tt ", "] ++ tokenize t)
 
-    PI.TBottom s -> paren $ "Bottom" <-> pretty s
-    PI.TUnit -> "Unit"
-    PI.TFunction _ret _params -> "Func"
+    PI.TBottom s -> paren ([keywordToken "Bottom "] ++ tokenize s)
+    PI.TUnit -> [keywordToken "Unit"]
+    PI.TFunction _ret _params -> [keywordToken "Func"]
 
-    PI.TVBitWidth (Bits bitWidth) -> show bitWidth <> "w"
-    PI.TVLength n -> show n
-    PI.TVSign b -> if b then "Signed" else "Unsigned"
+    PI.TVBitWidth (Bits bitWidth) -> [tt $ show bitWidth <> "w"]
+    PI.TVLength n -> [plainToken IntegerToken (show n)]
+    PI.TVSign b -> [keywordToken (if b then "Signed" else "Unsigned")]
 
 --- CallGraph
-instance Pretty Cg.CallDest where
-  pretty (Cg.DestFunc x) = pretty x
+instance Tokenizable Cg.CallDest where
+  tokenize (Cg.DestFunc x) = tokenize x
 
-instance Pretty Cg.CallSite where
-  pretty x =
-    pretty (x ^. #caller) 
-      <> "@" <> pretty (x ^. #address)
-      <> " -> " <> pretty (x ^. #dest)
+instance Tokenizable Cg.CallSite where
+  tokenize x = tokenize (x ^. #caller) ++ [tt " -> "] ++ tokenize (x ^. #dest)
 
 --- Function
-instance Pretty Func.Function where
-  pretty (Func.Function _ name _addr _) = name -- <> "@" <> showHex addr
+instance Tokenizable Func.Function where
+  tokenize (Func.Function _ name addr _) =
+    [ Token
+      { tokenType = CodeSymbolToken
+      , text = name
+      , value = toInteger addr
+      , size = 0
+      , operand = 0xffffffff
+      , context = NoTokenContext
+      , address = 0
+      }
+    ]
 
 --- CFG
-instance Pretty (CfNode a) where
-  pretty = \case
-    BasicBlock n -> pretty n
-    Call n -> pretty n
-    EnterFunc n -> pretty n
-    LeaveFunc n -> pretty n
+instance Tokenizable (CfNode a) where
+  tokenize = \case
+    BasicBlock n -> tokenize n
+    Call n -> tokenize n
+    EnterFunc n -> tokenize n
+    LeaveFunc n -> tokenize n
 
-instance Pretty (CfEdge a) where
-  pretty e =
-    pretty (e ^. #src)
-      <> " ---> " <> pretty (e ^. #dst) 
-      <> "  |" <> pretty (e ^. #branchType) <> "|"
+instance Tokenizable (CfEdge a) where
+  tokenize e =
+    tokenize (e ^. #src) ++
+    [tt " ---> "] ++
+    tokenize (e ^. #dst) ++
+    [tt "  |"] ++
+    tokenize (e ^. #branchType) ++
+    [tt "|"]
 
-instance Pretty (BasicBlockNode a) where
-  pretty (Cfg.BasicBlockNode ctx start end _ _) =
-    pretty ctx
-      <> "@[" <> pretty start <> ", " <> pretty end <> "]"
+instance Tokenizable (BasicBlockNode a) where
+  tokenize (Cfg.BasicBlockNode ctx start end _ _) =
+    tokenize ctx ++
+    [ tt "@["
+    , addressToken Nothing start
+    , tt ", "
+    , addressToken Nothing end
+    , tt "]"
+    ]
 
-instance Pretty (CallNode a) where
-  pretty (Cfg.CallNode ctx start dest _ _) =
-    pretty ctx
-      <> "@" <> pretty start <> " -> " <> pretty dest
+instance Tokenizable (CallNode a) where
+  tokenize (Cfg.CallNode ctx start dest _ _) =
+    tokenize ctx ++
+    [ tt "@"
+    , addressToken Nothing start
+    , tt " -> "
+    ] ++
+    tokenize dest
 
-instance Pretty (EnterFuncNode a) where
-  pretty (Cfg.EnterFuncNode prevCtx nextCtx _ _) =
-    "EnterFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
+instance Tokenizable (EnterFuncNode a) where
+  tokenize (Cfg.EnterFuncNode prevCtx nextCtx _ _) =
+    [tt "EnterFunc Ctx: "] ++
+    tokenize prevCtx ++
+    [tt " -> "] ++
+    tokenize nextCtx
 
-instance Pretty (LeaveFuncNode a) where
-  pretty (Cfg.LeaveFuncNode prevCtx nextCtx _ _) =
-    "LeaveFunc Ctx: " <> pretty prevCtx <> " -> " <> pretty nextCtx 
+instance Tokenizable (LeaveFuncNode a) where
+  tokenize (Cfg.LeaveFuncNode prevCtx nextCtx _ _) =
+    [tt "LeaveFunc Ctx: "] ++
+    tokenize prevCtx ++
+    [tt " -> "] ++
+    tokenize nextCtx
 
-instance Pretty BranchType where
-  pretty = show
+instance Tokenizable BranchType where
+  tokenize bt = [tt (show bt)]
 
-instance Pretty InterCfg where
-  pretty (InterCfg cfg) = pretty cfg
+-- instance Tokenizable [Pil.Stmt] where
+--   tokenize = intercalate [tt "\n"] . fmap tokenize
+
+instance Tokenizable InterCfg where
+  tokenize (InterCfg cfg) = tokenize cfg
   
 -- | This matches each node to an Int and uses the Int to show the edges
-instance Pretty a => Pretty (Cfg a) where
-  pretty cfg =
-    "---CFG---\n"
-    <> "--- Node Mapping:\n"
-    <> showNodeMapping
-    <> "--- Edges:\n"
-    <> showEdges
-    <> "--- Attrs:\n"
-    <> showAttrs
+instance Tokenizable a => Tokenizable (Cfg a) where
+  tokenize cfg =
+    [tt "---CFG---\n", tt "--- Node Mapping:\n"] ++
+    showNodeMapping ++
+    [tt "--- Edges:\n"] ++
+    showEdges ++
+    [tt "--- Attrs:\n"] ++
+    showAttrs
     where
       cflow = cfg ^. #graph
 
@@ -515,82 +715,48 @@ instance Pretty a => Pretty (Cfg a) where
       
       nodeMap :: HashMap (CfNode ()) Int
       nodeMap = HashMap.fromList nodeMapList
-      
-      showNodeMapping = Text.intercalate "\n" $ showNode <$> nodeMapList
+
+      showNodeMapping :: [Token]
+      showNodeMapping = intercalate [tt "\n"] $ showNode <$> nodeMapList
 
       showNode (node, id) =
-        show id
-        <> " : "
-        <> (pretty . fromJust $ G.getNodeAttr node cflow)
+        [tt (show id), tt " : "] ++
+        (tokenize . fromJust $ G.getNodeAttr node cflow)
 
-      showEdges = Text.concat
-        . fmap (cs . pshow)
-        . fmap (fmap $ fromJust . flip HashMap.lookup nodeMap)
-        . G.edges
-        $ cflow
+      showEdges :: [Token]
+      showEdges =
+        [ tt
+          . Text.concat
+          . fmap (cs . pshow)
+          . fmap (fmap $ fromJust . flip HashMap.lookup nodeMap)
+          . G.edges
+          $ cflow
+        ]
 
-      showAttrs = Text.intercalate "\n" $ mapMaybe showAttr nodeMapList
+      showAttrs :: [Token]
+      showAttrs = intercalate [tt "\n"] $ mapMaybe showAttr nodeMapList
 
       showAttr (node, id) = do
         attr <- G.getNodeAttr node cflow
-        return $
-          show id
-          <> " : "
-          <> pretty (foldr (:) [] attr)
+        return $ [tt (show id), tt " : "] ++ tokenizeAsList (toList attr)
 
---- Path
--- instance Pretty Path.Node where
---   pretty (Path.SubBlock x) =
---     bracket (pretty (x ^. #start) <> "-" <> pretty (x ^. #end - 1)) <> " : SubBlock"
---   pretty (Path.Call x) =
---     "-------Expanding call: " <> pretty (x ^. #callSite)
---   pretty (Path.Ret x) =
---     "-------Returning to " <> pretty (x ^. #func) <> " from " <> pretty (x ^. #callSite . #callDest)
---   pretty (Path.AbstractCall x) = pretty x
---   pretty (Path.AbstractPath _) = "AbstractPath"
---   pretty (Path.Condition x) =
---     "Condition: " <> bool "NOT " "" (x ^. #trueOrFalseBranch)
---     <> pretty (x ^. #condition)
-
--- instance Pretty Path.AbstractCallNode where
---   pretty x = bracket (pretty $ x ^. #callSite . #callInstr . #index)
---     <> " : "
---     <> pretty (x ^. #callSite)
-
-
---- AlgaPath
--- instance Pretty AlgaPath.AlgaPath where
---   pretty p = case uncons (Path.toList p) of
---     Nothing -> ""
---     Just (x, xs) ->
---       "========= Starting in: " <> pretty (Path.getNodeFunc x) <> " =========\n"
---         <> f (x : xs)
---     where
---       f [] = ""
---       f (x : xs) = pretty x <> "\n" <> f xs
-
--- instance Pretty (AlgaGraph () Func.Function) where
---   pretty = asMultilineList . fmap (ptup . snd) . G.edges
---     where
---       ptup (a, b) = paren $ pretty a <-> "->" <-> pretty b
-
-prettyStmts :: (MonadIO m, Pretty a, HasField' "op" a (Pil.ExprOp a))
+prettyStmts :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a))
             => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts
 
-prettyIndexedStmts :: (MonadIO m, Pretty a, HasField' "op" a (Pil.ExprOp a))
+prettyIndexedStmts :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a))
                    => [(Int, Pil.Statement a)] -> m ()
 prettyIndexedStmts = prettyPrint . PIndexedStmts
 
--- | Pretty print to IO.
-prettyPrint :: (MonadIO m, Pretty a) => a -> m ()
+-- | Tokenizable print to IO.
+prettyPrint :: (MonadIO m, Tokenizable a) => a -> m ()
 prettyPrint = putText . pretty
 
-pp :: (MonadIO m, Pretty a) => a -> m ()
+pp :: (MonadIO m, Tokenizable a) => a -> m ()
 pp = prettyPrint
 
 newtype PrettyShow a = PrettyShow a
   deriving (Eq, Ord, Generic)
 
-instance Pretty a => Show (PrettyShow a) where
+instance Tokenizable a => Show (PrettyShow a) where
   show (PrettyShow x) = cs $ pretty x
