@@ -21,7 +21,7 @@ import Blaze.Types.Pil
       PilVar(PilVar),
       RetOp(RetOp),
       Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
-                UnimplInstr, UnimplMem, NoRet),
+                UnimplInstr, UnimplMem, NoRet, Jump, JumpTo),
       Stmt,
       StoreOp(StoreOp),
       Symbol,
@@ -29,7 +29,7 @@ import Blaze.Types.Pil
       Ctx,
       CtxId,
       Expression,
-      PilVar )
+      PilVar, JumpOp (JumpOp), JumpToOp (JumpToOp) )
 
 import Binja.Variable (Variable)
 import qualified Binja.Variable as BNVar
@@ -62,7 +62,7 @@ data ConverterState = ConverterState
   , -- | Currently known defined PilVars for all contexts.
     -- This is assumed to be ordered by most recently defined first.
     -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
-    --       This could happen for synthesized PilVars with a Nothing context.
+  --       This could happen for synthesized PilVars with a Nothing context.
     definedVars :: [PilVar]
   , -- | All PilVars referenced for all contexts.
     -- This differs from _definedVars, as order is not preserved and referenced,
@@ -398,6 +398,12 @@ convertInstrOp op' = do
       return []
     MLIL.NORET -> return [ NoRet ]
     MLIL.GOTO _ -> return []
+    MLIL.JUMP x -> do
+      destExpr <- convertExpr (x ^. MLIL.dest)
+      return [ Jump $ JumpOp destExpr ] 
+    MLIL.JUMP_TO x -> do
+      destExpr <- convertExpr (x ^. MLIL.dest)
+      return [ JumpTo $ JumpToOp destExpr (x ^. MLIL.targets)]
     _ -> return [UnimplInstr $ show op']
 
 -- | intercepts VAR_PHI and converts it to PIL DefPhi

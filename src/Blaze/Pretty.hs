@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 module Blaze.Pretty
   ( Pretty (pretty),
     prettyPrint,
@@ -359,7 +360,7 @@ instance (Pretty a, Pretty b) => Pretty (HashMap a b) where
     where
       f (a, b) = "  " <> paren (pretty a <> "," <-> pretty b)
 
-instance Pretty a => Pretty (Pil.Statement a) where
+instance (Pretty a, HasField' "op" a (Pil.ExprOp a)) => Pretty (Pil.Statement a) where
   pretty stmt = case stmt of
     Pil.Def x -> Text.pack $ printf "%s = %s" (pretty $ x ^. #var) (pretty $ x ^. #value)
     Pil.Constraint x -> Text.pack $ printf "?: %s" (pretty $ x ^. #condition)
@@ -382,6 +383,8 @@ instance Pretty a => Pretty (Pil.Statement a) where
         showMem :: Int64 -> Text
         showMem n = "mem#" <> show n
     Pil.BranchCond x -> "if" <-> paren (pretty $ x ^. #cond)
+    Pil.Jump x -> "jump" <-> parenExpr (x ^. #dest)
+    Pil.JumpTo x -> "jumpTo" <-> parenExpr (x ^. #dest) <-> asList (pretty <$> x ^. #targets)
     Pil.Ret x -> "return " <> pretty (x ^. #value)
     Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
@@ -395,16 +398,19 @@ newtype PStmts a = PStmts [Pil.Statement a]
 
 newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
 
-instance Pretty a => Pretty (PStmts a) where
+instance (Pretty a, HasField' "op" a (Pil.ExprOp a)) => Pretty (PStmts a) where
   pretty (PStmts stmts) = Text.intercalate "\n" . fmap pretty $ stmts
 
-instance Pretty a => Pretty (PIndexedStmts a) where
+instance (Pretty a, HasField' "op" a (Pil.ExprOp a)) => Pretty (PIndexedStmts a) where
   pretty (PIndexedStmts stmts) = Text.intercalate "\n" . fmap f $ stmts
     where
       f (i, stmt) = show i <> ":" <-> pretty stmt
 
 instance Pretty ByteOffset where
   pretty (ByteOffset n) = show n 
+
+instance Pretty Int64 where
+  pretty = show
 
 instance Pretty Pil.StackOffset where
   pretty x =
@@ -568,10 +574,12 @@ instance Pretty a => Pretty (Cfg a) where
 --     where
 --       ptup (a, b) = paren $ pretty a <-> "->" <-> pretty b
 
-prettyStmts :: (MonadIO m, Pretty a) => [Pil.Statement a] -> m ()
+prettyStmts :: (MonadIO m, Pretty a, HasField' "op" a (Pil.ExprOp a))
+            => [Pil.Statement a] -> m ()
 prettyStmts = prettyPrint . PStmts
 
-prettyIndexedStmts :: (MonadIO m, Pretty a) => [(Int, Pil.Statement a)] -> m ()
+prettyIndexedStmts :: (MonadIO m, Pretty a, HasField' "op" a (Pil.ExprOp a))
+                   => [(Int, Pil.Statement a)] -> m ()
 prettyIndexedStmts = prettyPrint . PIndexedStmts
 
 -- | Pretty print to IO.

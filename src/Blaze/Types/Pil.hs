@@ -235,6 +235,17 @@ data BranchCondOp expr = BranchCondOp
   { cond :: expr
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
+{- HLINT ignore JumpOp "Use newtype instead of data" -}
+data JumpOp expr = JumpOp
+  { dest :: expr
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
+{- HLINT ignore JumpToOp "Use newtype instead of data" -}
+data JumpToOp expr = JumpToOp
+  { dest :: expr
+  , targets :: [Int64]
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
 newtype RetOp expr = RetOp
   { value :: expr
   }
@@ -268,6 +279,8 @@ data Statement expr
   | DefPhi (DefPhiOp expr)
   | DefMemPhi (DefMemPhiOp expr)
   | BranchCond (BranchCondOp expr)
+  | Jump (JumpOp expr)
+  | JumpTo (JumpToOp expr)
   | Ret (RetOp expr)
   | NoRet
   | Exit
