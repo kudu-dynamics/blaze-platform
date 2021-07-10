@@ -133,6 +133,9 @@ instance Disp Binja.MLIL.SSAVariable where
       version :: Text
       version = show (ssaVar ^. Binja.MLIL.version)
 
+instance Disp Int64 where
+  disp x = show x
+
 instance Disp Pil.PilVar where
   disp v = v ^. #symbol
 
@@ -166,6 +169,13 @@ instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) whe
     Pil.BranchCond op -> Text.pack $ printf "branch (%s)" cond
       where 
         cond = disp $ op ^. #cond
+    Pil.Jump op -> Text.pack $ printf "jump (%s)" dest
+      where
+        dest = disp $ op ^. #dest
+    Pil.JumpTo op -> Text.pack $ printf "jump_to (%s) %s" dest targets
+      where
+        dest = disp $ op ^. #dest
+        targets = asList $ disp <$> op ^. #targets
     (Pil.Def op) -> Text.pack $ printf "def \"%s\" (%s)" var val
       where
         var = disp $ op ^. #var
