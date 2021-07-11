@@ -91,22 +91,23 @@ data ExpandCallError = NotCallStatement [Stmt]
                      | FailedToCreateCfg Function
                      deriving (Eq, Ord, Show, Generic)
 
+getTargetFunc :: PilCallNode -> Maybe Function
+getTargetFunc callNode = getCallTargetFunction $ callNode ^. #callDest
+
 {- | Expand a call by substituting a call node with the CFG corresponding to the
  call destination.
 -}
 expandCall ::
   InterCfg ->
   PilCallNode ->
+  Function -> 
   Builder a (Either ExpandCallError InterCfg)
-expandCall callerCfg callNode = do
+expandCall callerCfg callNode targetFunc = do
   getCfg_ <- use #getCfg
   -- ctxId <- getNextCtxIndex
   runExceptT $ do
     callStmt <- liftMaybe (NotCallStatement $ callNode ^. #nodeData)
       $ getCallStmt callNode
-    targetFunc <- liftMaybe (CallDestNotFunction $ callNode ^. #callDest)
-      . getCallTargetFunction
-      $ callNode ^. #callDest
     (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailedToCreateCfg targetFunc)
       $ getCfg_ targetFunc
     leaveFuncUUID <- liftIO randomIO
