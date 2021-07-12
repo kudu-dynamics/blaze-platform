@@ -300,7 +300,7 @@ tokenizeUnop
   => Text
   -> a
   -> [Token]
-tokenizeUnop sym op = [tt $ " " <> sym] ++ src
+tokenizeUnop sym op = [tt $ sym <> " "] ++ src
   where
     src = parenExpr (op ^. #src)
 
