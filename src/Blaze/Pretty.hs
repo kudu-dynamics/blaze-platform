@@ -153,7 +153,7 @@ varToken t = Token
 
 addressToken :: Maybe Text -> Address -> Token
 addressToken t addr = Token
-  { tokenType = LocalVariableToken
+  { tokenType = PossibleAddressToken
   , text = fromMaybe (showHex addr) t
   , value = toInteger addr
   , size = 0
@@ -196,7 +196,7 @@ showHex :: (Integral a, Show a) => a -> Text
 showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
 
 showStackLocalByteOffset :: ByteOffset -> Text
-showStackLocalByteOffset x = bool "-" "" (x < 0)
+showStackLocalByteOffset x = bool "arg_" "var_" (x < 0)
   <> (Text.pack . flip Numeric.showHex "" . abs $ x)
 
 parenExpr :: (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => a -> [Token]
@@ -304,17 +304,6 @@ tokenizeUnop sym op = [tt $ " " <> sym] ++ src
   where
     src = parenExpr (op ^. #src)
 
-tokenizeConst
-  :: ( HasField' "constant" a b
-     , Show b
-     )
-  => a
-  -> [Token]
-tokenizeConst op = [tt const]
-  where
-    const :: Text
-    const = show (op ^. #constant)
-
 tokenizeField ::
   ( HasField' "src" a b
   , Tokenizable b
@@ -351,8 +340,8 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.CMP_UGT op) -> tokenizeBinopInfix "u>" op
   (Pil.CMP_ULE op) -> tokenizeBinopInfix "u<=" op
   (Pil.CMP_ULT op) -> tokenizeBinopInfix "u<" op
-  (Pil.CONST op) -> tokenizeConst op
-  (Pil.CONST_PTR op) -> tokenizeConst op
+  (Pil.CONST op) -> [plainToken IntegerToken $ show (op ^. #constant)]
+  (Pil.CONST_PTR op) -> [addressToken Nothing $ fromIntegral (op ^. #constant)]
   (Pil.DIVS op) -> tokenizeBinopInfix "/" op
   (Pil.DIVS_DP op) -> tokenizeBinop "divsDP" op
   (Pil.DIVU op) -> tokenizeBinopInfix "u/" op
@@ -374,7 +363,7 @@ tokenizeExprOp exprOp _size = case exprOp of
     [tt " + ", keywordToken "offset "] ++
     tokenize (op ^. #offset) ++
     [tt "]"]
-  (Pil.CONST_FLOAT op) -> tokenizeConst op
+  (Pil.CONST_FLOAT op) -> [plainToken FloatingPointToken $ show (op ^. #constant)]
   (Pil.FLOAT_CONV op) -> tokenizeUnop "floatConv" op
   (Pil.FLOAT_TO_INT op) -> tokenizeUnop "floatToInt" op
   (Pil.FLOOR op) -> tokenizeUnop "floor" op
@@ -383,7 +372,7 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.FSQRT op) -> tokenizeUnop "fsqrt" op
   (Pil.FSUB op) -> tokenizeBinopInfix "f-" op
   (Pil.FTRUNC op) -> tokenizeUnop "ftrunc" op
-  (Pil.IMPORT op) -> tokenizeConst op
+  (Pil.IMPORT op) -> [addressToken Nothing $ fromIntegral (op ^. #constant)]
   (Pil.INT_TO_FLOAT op) -> tokenizeUnop "intToFloat" op
   (Pil.LOAD op) -> [tt "["]  ++ tokenize (op ^. #src) ++ [tt "]"]
   -- TODO: add memory versions for all SSA ops
@@ -410,7 +399,7 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.SBB op) -> tokenizeBinop "sbb" op
   (Pil.STACK_LOCAL_ADDR op) ->
     [ tt "&"
-    , varToken $ "var" <> showStackLocalByteOffset (op ^. #stackOffset . #offset)
+    , varToken $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
     ]
   (Pil.SUB op) -> tokenizeBinopInfix "-" op
   (Pil.SX op) -> tokenizeUnop "sx" op
@@ -537,7 +526,7 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
     Pil.Call callOp -> tokenize callOp
     Pil.DefPhi x ->
       tokenize (x ^. #dest) ++
-      [tt " = ", tt "φ"] ++
+      [tt " = ", keywordToken "φ"] ++
       tokenizeAsCurlyList (x ^. #src)
     Pil.DefMemPhi x ->
       [varToken ("mem#" <> show (x ^. #destMemory)), tt " = ", tt "φ"] ++
