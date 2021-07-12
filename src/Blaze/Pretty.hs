@@ -102,7 +102,7 @@ data TokenType =
   | AddressDisplayToken
   | IndirectImportToken
   | ExternalSymbolToken
-  deriving (Eq, Ord, Show, Enum)
+  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON)
 
 data TokenContext =
     NoTokenContext
@@ -111,7 +111,7 @@ data TokenContext =
  |  FunctionReturnTokenContext
  |  InstructionAddressTokenContext
  |  ILInstructionIndexTokenContext
- deriving (Eq, Ord, Show, Enum)
+ deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON)
 
 data Token = Token
   { tokenType :: TokenType
@@ -123,7 +123,7 @@ data Token = Token
   -- , confidence :: Int
   , address :: Address
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 class Tokenizable a where
   tokenize :: a -> [Token]
