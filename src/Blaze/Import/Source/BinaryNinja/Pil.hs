@@ -8,6 +8,7 @@ import qualified Binja.Core as BN
 import Binja.Function (Function)
 import qualified Binja.Function as BNFunc
 import qualified Binja.MLIL as MLIL
+import qualified Binja.View as BNView
 import qualified Blaze.Pil as Pil
 import qualified Data.BinaryAnalysis as BA
 import qualified Prelude as P
@@ -160,7 +161,12 @@ convertExpr expr = do
     (MLIL.CMP_ULE x) -> mkExpr . Pil.CMP_ULE <$> f x
     (MLIL.CMP_ULT x) -> mkExpr . Pil.CMP_ULT <$> f x
     (MLIL.CONST x) -> mkExpr . Pil.CONST <$> f x
-    (MLIL.CONST_PTR x) -> mkExpr . Pil.CONST_PTR <$> f x
+    (MLIL.CONST_PTR x) -> do
+      bv <- use #binaryView
+      r <- liftIO . BNView.getStringAtAddress bv . fromIntegral $ x ^. MLIL.constant
+      case r of
+        Nothing -> mkExpr . Pil.CONST_PTR <$> f x
+        Just t -> return . mkExpr . Pil.ConstStr . Pil.ConstStrOp $ t
     (MLIL.DIVS x) -> mkExpr . Pil.DIVS <$> f x
     (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
     (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
