@@ -241,9 +241,11 @@ getCfg imp bv func = do
                   *** identity
               )
                 <$> HMap.toList mlilRefMap
+      let mPilCfg = mkCfg pilRootNode pilRestNodes <$> pilEdges
+      mPilCfg' <- traverse Cfg.splitTailCallNodes mPilCfg
       return $
         ImportResult ctx
-          <$> (mkCfg pilRootNode pilRestNodes <$> pilEdges)
+          <$> mPilCfg'
           <*> Just pilStmtsMap
           
 

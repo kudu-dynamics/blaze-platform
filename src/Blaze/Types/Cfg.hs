@@ -18,9 +18,11 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Prelude hiding (pred, succ)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Pil (Stmt, RetOp, Expression, TailCallOp, BranchCondOp, CallDest)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest)
+import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Common (Ctx)
 import qualified Data.Set as Set
+import Control.Lens (ix)
 
 type PilNode = CfNode [Stmt]
 type PilEdge = CfEdge [Stmt]
@@ -87,7 +89,6 @@ and a tail call where control flow moves to the call target.
 data TerminalNode a 
   = TermRet (ReturnNode a)
   | TermExit (ExitNode a)
-  | TermTailCall (TailCallNode a)
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
@@ -103,13 +104,6 @@ newtype ExitNode a = ExitNode
   }
   deriving (Eq, Ord, Show, Generic, Functor)
   deriving anyclass (Hashable, FromJSON, ToJSON)
-
-data TailCallNode a = TailCallNode
-  { basicBlock :: BasicBlockNode a
-  , tailCallOp :: TailCallOp Expression
-  }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
-  deriving anyclass (Hashable)
 
 data BranchNode a = BranchNode
   { basicBlock :: BasicBlockNode a
@@ -333,6 +327,22 @@ removeNodesBy branchMerge p cfg = foldl'
     targetNodes = filter g . Set.toList $ G.nodes cfg
     g x = asIdNode x /= asIdNode (cfg ^. #root) && p x
 
+-- | Insert node between two other nodes.
+insertNodeBetween :: Ord a
+  => CfNode a
+  -> CfNode a
+  -> CfNode a
+  -> Cfg a
+  -> Cfg a
+insertNodeBetween nodeA nodeB nodeMiddle cfg' =
+  case G.getEdgeLabel (G.Edge nodeA nodeB) cfg' of
+    Nothing -> cfg'
+    Just lbl -> G.addEdge (G.LEdge lbl $ G.Edge nodeA nodeMiddle)
+      . G.addEdge (G.LEdge lbl $ G.Edge nodeMiddle nodeB)
+      . G.addNodes [nodeMiddle]
+      . G.removeEdge (G.Edge nodeA nodeB)
+      $ cfg'
+
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
 instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
@@ -356,7 +366,13 @@ instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   -- Sort of pointless. Could just return `node`
   getNodeAttr node = G.getNodeAttr (asIdNode node) . view #graph
 
-  setNodeAttr attr node cfg = cfg & #graph %~ G.setNodeAttr attr (asIdNode node)
+  setNodeAttr attr node cfg = cfg
+    & #graph %~ G.setNodeAttr attr (asIdNode node)
+    & #root %~ updateRoot
+    where
+      updateRoot oldRoot
+        | asIdNode oldRoot == asIdNode node = attr
+        | otherwise = oldRoot
   
   removeEdge edge = over #graph $ G.removeEdge (asIdNode <$> edge)
   removeNode node = over #graph $ G.removeNode (asIdNode node)
@@ -422,3 +438,60 @@ nextVal = do
 
 focus :: CfNode a -> Cfg a -> Cfg a
 focus n = over #graph . G.focus $ asIdNode n
+
+-- | Turns CallNode with TailCall op into two nodes:
+-- 1. Regular callnode with Def/Call
+-- 2. BasicBlockNode with return
+splitTailCallNodes :: forall m. MonadIO m => Cfg [Stmt] -> m (Cfg [Stmt])
+splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
+  where
+    splitTailCall :: Cfg [Stmt]
+                  -> ( CfNode [Stmt]
+                     , CallNode [Stmt]
+                     , Pil.TailCallOp Pil.Expression
+                     )
+                  -> m (Cfg [Stmt])
+    splitTailCall cfg (n, call, tc) = case tc ^. #ret of
+      Nothing ->
+        return $ setNodeData ([Pil.Call callOp] <> outStores) n cfg
+      Just (pv, sz) -> do
+        uuid' <- liftIO randomIO
+        let retNode = BasicBlock $ BasicBlockNode
+              { ctx = call ^. #ctx
+              , start = call ^. #start
+              , end = call ^. #start
+              , uuid = uuid'
+              , nodeData = outStores 
+                           <> [ Pil.Ret . Pil.RetOp
+                                . Pil.Expression sz
+                                . Pil.VAR . Pil.VarOp
+                                $ pv
+                              ]
+              }
+        case Set.toList $ G.succs n cfg of
+          [] -> return
+            . setNodeData [callStmt] n
+            . G.addEdge (G.LEdge UnconditionalBranch $ G.Edge n retNode)
+            $ cfg
+          [succ] -> return
+            . setNodeData [callStmt] n
+            . insertNodeBetween n succ retNode
+            $ cfg
+          _ -> P.error "splitTailCallNodes: TailCall node has multiple successors"
+        where
+          callStmt = Pil.Def . Pil.DefOp pv
+            . Pil.Expression sz . Pil.CALL
+            $ callOp
+      where
+        outStores = drop 1 $ call ^. #nodeData
+        callOp :: Pil.CallOp Pil.Expression
+        callOp = Pil.CallOp (tc ^. #dest) (tc ^. #name) (tc ^. #args)
+
+    getTcNodeOp :: CfNode [Stmt]
+                -> Maybe ( CfNode [Stmt]
+                         , CallNode [Stmt]
+                         , Pil.TailCallOp Pil.Expression
+                         )
+    getTcNodeOp n = (n,,) <$> n ^? #_Call <*> n ^? #_Call . #nodeData . ix 0 . #_TailCall
+
+    tcNodes = mapMaybe getTcNodeOp . Set.toList $ G.nodes ogCfg

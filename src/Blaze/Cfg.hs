@@ -119,17 +119,10 @@ parseExitNode node = do
     Exit -> return $ ExitNode node
     _ -> Nothing
 
-parseTailCallNode :: BasicBlockNode [Stmt] -> Maybe (TailCallNode [Stmt])
-parseTailCallNode node = do
-  tailCallOp_ <- lastStmtFrom node >>= preview #_TailCall
-  return $ TailCallNode node tailCallOp_
-
 parseTerminalNode :: CfNode [Stmt] -> Maybe (TerminalNode [Stmt])
 parseTerminalNode node = do
   bb <- node ^? #_BasicBlock
-  (TermRet <$> parseReturnNode bb)
-    <|> (TermExit <$> parseExitNode bb)
-    <|> (TermTailCall <$> parseTailCallNode bb)
+  (TermRet <$> parseReturnNode bb) <|> (TermExit <$> parseExitNode bb)
 
 parseBranchNode ::
   ( CfNode [Stmt] -> Maybe [Stmt]
