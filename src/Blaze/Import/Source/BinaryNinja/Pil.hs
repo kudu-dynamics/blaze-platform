@@ -14,6 +14,7 @@ import qualified Prelude as P
 import Blaze.Types.Pil
     ( BranchCondOp(BranchCondOp),
       CallOp(CallOp),
+      TailCallOp(TailCallOp),
       Ctx(Ctx),
       DefOp(DefOp),
       DefPhiOp(DefPhiOp),
@@ -21,7 +22,7 @@ import Blaze.Types.Pil
       PilVar(PilVar),
       RetOp(RetOp),
       Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
-                UnimplInstr, UnimplMem, NoRet, Jump, JumpTo),
+                UnimplInstr, UnimplMem, NoRet, TailCall, Jump, JumpTo),
       Stmt,
       StoreOp(StoreOp),
       Symbol,
@@ -54,32 +55,32 @@ newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
 data ConverterState = ConverterState
   { -- | The path being converted.
     path :: AlgaPath
-  , -- | The current context should be on the top of the stack.
+    -- | The current context should be on the top of the stack.
     -- I.e., the stack should never be empty.
-    ctxStack :: NonEmpty Ctx
-  , -- | The current context
-    ctx :: Ctx
-  , -- | Currently known defined PilVars for all contexts.
+  ,  ctxStack :: NonEmpty Ctx
+    -- | The current context
+  ,  ctx :: Ctx
+    -- | Currently known defined PilVars for all contexts.
     -- This is assumed to be ordered by most recently defined first.
     -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
-  --       This could happen for synthesized PilVars with a Nothing context.
-    definedVars :: [PilVar]
-  , -- | All PilVars referenced for all contexts.
+    --       This could happen for synthesized PilVars with a Nothing context.
+  , definedVars :: [PilVar]
+    -- | All PilVars referenced for all contexts.
     -- This differs from _definedVars, as order is not preserved and referenced,
     -- but undefined, PilVars are included
-    usedVars :: HashSet PilVar
-  , -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
+  , usedVars :: HashSet PilVar
+    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
     --       when moving to a PilImporter instance.
     -- TODO: Does this need to be a set or just a single variable?
 
     -- | A mapping of PilVars to the a variable from the import source.
-    sourceVars :: HashMap PilVar SSAVariableRef
-  , -- | Map of known functions with parameter access information
-    knownFuncs :: HashMap Text Func.FuncInfo
-  , -- | Address size based on target platform
-    addrSize :: AddressWidth
-  , -- | Default variable size, usually based on platform default
-    defaultVarSize :: Bits
+  , sourceVars :: HashMap PilVar SSAVariableRef
+    -- | Map of known functions with parameter access information
+  , knownFuncs :: HashMap Text Func.FuncInfo
+    -- | Address size based on target platform
+  , addrSize :: AddressWidth
+    -- | Default variable size, usually based on platform default
+  , defaultVarSize :: Bits
   , binaryView :: BN.BNBinaryView
   }
   deriving (Eq, Show, Generic)
@@ -430,6 +431,14 @@ convertInstrs = concatMapM convertInstr
 convertInstrsSplitPhi :: [MLIL.Instruction F] -> Converter [Stmt]
 convertInstrsSplitPhi = concatMapM convertInstrSplitPhi
 
+isTailCall :: CallOperation -> Bool
+isTailCall = \case
+  TAILCALL _ -> True
+  TAILCALL_SSA _ -> True
+  TAILCALL_UNTYPED _ -> True
+  TAILCALL_UNTYPED_SSA _ -> True
+  _ -> False
+
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
 convertCallInstruction :: CallInstruction -> Converter [Stmt]
 convertCallInstruction ci = do
@@ -455,18 +464,24 @@ convertCallInstruction ci = do
   let outStores = getOutStores mname funcDefs params'
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get
   -- actual size. This is done below when handling the case for a return value.
-  let callExpr = Expression (toPilOpSize $ ci ^. #size) . Pil.CALL
-                 $ Pil.CallOp target mname params'
-  case ci ^. #outputDest of
+  let callOp = CallOp target mname params'
+  case (ci ^. #outputDest, isTailCall $ ci ^. #op) of
     -- TODO: Try to merge Nothing and an empty list, consider changing outputDest to NonEmpty
-    [] -> return $ Call (CallOp target mname params') : outStores
-    (dest' : _) -> do
+    ([], False) -> return $ Call callOp : outStores
+    ([], True) -> return $ TailCall (TailCallOp target mname params' Nothing) : outStores
+    (dest' : _, tc) -> do
       dest'' <- convertToPilVarAndLog dest'
-          -- TODO: Make this safe. We currently bail if there's no type provided.
-          --       Change MediumLevelILInsutrction._size to be Maybe OperationSize
+        -- TODO: Make this safe. We currently bail if there's no type provided.
+        --       Change MediumLevelILInsutrction._size to be Maybe OperationSize
       let resultSize = dest' ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
           opSize = typeWidthToOperationSize resultSize
-      return $ Def (DefOp dest'' (callExpr & #size .~ opSize)) : outStores
+          callExpr = Expression opSize
+                     . Pil.CALL
+                     $ Pil.CallOp target mname params'
+          callStmt = if tc
+            then TailCall . TailCallOp target mname params' $ Just (dest'', opSize)
+            else Def . DefOp dest'' $ callExpr
+      return $ callStmt : outStores
   where
     getOutStores :: Maybe Text -> HashMap Text Func.FuncInfo -> [Expression] -> [Stmt]
     getOutStores mname funcInfos args =

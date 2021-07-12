@@ -257,6 +257,7 @@ data TailCallOp expr = TailCallOp
   { dest :: CallDest expr
   , name :: Maybe Text
   , args :: [expr]
+  , ret :: Maybe (PilVar, OperationSize)
   }
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
