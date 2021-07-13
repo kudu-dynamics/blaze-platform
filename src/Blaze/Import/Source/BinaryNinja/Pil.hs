@@ -162,11 +162,11 @@ convertExpr expr = do
     (MLIL.CMP_ULT x) -> mkExpr . Pil.CMP_ULT <$> f x
     (MLIL.CONST x) -> mkExpr . Pil.CONST <$> f x
     (MLIL.CONST_PTR x) -> do
+      let addr = fromIntegral $ x ^. MLIL.constant 
       bv <- use #binaryView
-      r <- liftIO . BNView.getStringAtAddress bv . fromIntegral $ x ^. MLIL.constant
-      case r of
-        Nothing -> mkExpr . Pil.CONST_PTR <$> f x
+      liftIO (BNView.getStringAtAddress bv addr) >>= \case
         Just t -> return . mkExpr . Pil.ConstStr . Pil.ConstStrOp $ t
+        Nothing -> mkExpr . Pil.CONST_PTR <$> f x
     (MLIL.DIVS x) -> mkExpr . Pil.DIVS <$> f x
     (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
     (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
@@ -445,27 +445,38 @@ isTailCall = \case
   TAILCALL_UNTYPED_SSA _ -> True
   _ -> False
 
+getConstFuncPtrOp :: Address -> Converter Pil.ConstFuncPtrOp
+getConstFuncPtrOp addr = do
+  bv <- use #binaryView
+  msym <- liftIO $ BNView.getSymbolAtAddress bv addr Nothing
+  mname <- traverse (fmap cs . liftIO . BN.getSymbolShortName) msym
+  return $ Pil.ConstFuncPtrOp addr mname
+
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
 convertCallInstruction :: CallInstruction -> Converter [Stmt]
 convertCallInstruction ci = do
   -- TODO: Better handling of possible Nothing value
   targetExpr <- convertExpr (fromJust (ci ^. #dest))
   target <- case targetExpr ^. #op of
-      (Pil.CONST_PTR c) -> do
-        bv <- use #binaryView
-        mfunc <- liftIO $ BNFunc.getFunctionStartingAt bv Nothing
-          . Address
+    (Pil.IMPORT c) -> do
+      Pil.CallAddr <$> getConstFuncPtrOp (fromIntegral $ c ^. #constant)
+    (Pil.CONST_PTR c) -> do
+      bv <- use #binaryView
+      mfunc <- liftIO $ BNFunc.getFunctionStartingAt bv Nothing
+        . Address
+        . fromIntegral
+        $ c ^. #constant :: Converter (Maybe BNFunc.Function)
+      case mfunc of
+        Nothing -> fmap Pil.CallAddr
+          . getConstFuncPtrOp
           . fromIntegral
-          $ c ^. #constant :: Converter (Maybe BNFunc.Function)
-        case mfunc of
-          Nothing -> return $ Pil.CallAddr . fromIntegral $ c ^. #constant
-          Just bnf -> do
-            fn <- liftIO $ BNCG.convertFunction bv bnf
-            return $ Pil.CallFunc fn
-      _ -> return $ Pil.CallExpr targetExpr
+          $ c ^. #constant
+        Just bnf -> fmap Pil.CallFunc . liftIO $ BNCG.convertFunction bv bnf
+    _ -> return $ Pil.CallExpr targetExpr
   params' <- sequence [convertExpr p | p <- ci ^. #params]
 
-  let mname = target ^? #_CallFunc . #name
+  let mname = (target ^? #_CallFunc . #name)
+              <|> (target ^? #_CallAddr . #symbol . _Just)
   funcDefs <- use #knownFuncs
   let outStores = getOutStores mname funcDefs params'
   -- The size of a function call is always 0 according to BN. Need to look at result var types to get

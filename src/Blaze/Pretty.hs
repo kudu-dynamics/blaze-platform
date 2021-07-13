@@ -229,7 +229,7 @@ instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
 
 instance Tokenizable a => Tokenizable (Pil.CallDest a) where
   tokenize dest = case dest of
-    (Pil.CallAddr addr) -> [addressToken Nothing addr]
+    (Pil.CallAddr fptr) -> tokenize fptr
     (Pil.CallExpr e) -> tokenize e
     (Pil.CallExprs es) -> tokenizeAsList es
     (Pil.CallFunc fn) -> tokenize fn
@@ -444,6 +444,7 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.MemCmp op) -> tokenizeBinop "memcmp" op
     -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> [stringToken $ op ^. #value]
+  (Pil.ConstFuncPtr op) -> tokenize op
   (Pil.Extract op) ->
     [keywordToken "extract "] ++
     tokenize (op ^. #src) ++
@@ -545,7 +546,8 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
 
 instance Tokenizable a => Tokenizable (Pil.CallOp a) where
   tokenize op = case (op ^. #name, op ^. #dest) of
-    (Just name, Pil.CallAddr addr) -> [addressToken (Just name) addr] ++ params
+    (Just name, Pil.CallAddr fptr) ->
+      [addressToken (Just name) $ fptr ^. #address] ++ params
     _ -> [keywordToken "call "] ++ dest ++ params
     where
       dest = tokenize (op ^. #dest)
@@ -627,6 +629,9 @@ instance Tokenizable Func.Function where
       , address = 0
       }
     ]
+
+instance Tokenizable Pil.ConstFuncPtrOp where
+  tokenize x = [addressToken (x ^. #symbol) (x ^. #address)]
 
 --- CFG
 instance Tokenizable (CfNode a) where

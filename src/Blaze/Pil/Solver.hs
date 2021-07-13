@@ -446,6 +446,8 @@ solveExpr (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catchFallbackAndWa
     . fromIntegral $ x ^. #constant
 
   Pil.ConstStr x -> return . unSBV $ SBV.literal (cs $ x ^. #value :: String)
+  Pil.ConstFuncPtr x -> return . svInteger (KBounded False $ fromIntegral sz)
+    . fromIntegral $ x ^. #address
 
   -- TODO: do we need to do anything special for the DP versions?
   Pil.DIVS x -> integralBinOpMatchSecondArgToFirst x svDivide
