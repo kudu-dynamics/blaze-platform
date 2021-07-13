@@ -215,6 +215,9 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
              $ x ^. #value )
            ( CSType TChar ))]
 
+  -- TODO: get param cound and make this pointer point to TFunction
+  Pil.ConstFuncPtr _ -> retPointer 
+
   -- Don't remember if this is correct, or the above
   -- Pil.ConstStr x -> return [(r, CSType $ TArray
   --                               ( CSType . TVLength . fromIntegral . Text.length

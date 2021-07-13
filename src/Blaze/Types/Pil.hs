@@ -92,6 +92,7 @@ data ExprOp expr
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
     | ConstStr (ConstStrOp expr)
+    | ConstFuncPtr ConstFuncPtrOp
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
     | UPDATE_VAR (UpdateVarOp expr)
     -- memory address specifier ops
@@ -165,6 +166,11 @@ data MemCmpOp expr = MemCmpOp
 data ConstStrOp expr = ConstStrOp
   { value :: Text
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
+data ConstFuncPtrOp = ConstFuncPtrOp
+  { address :: Address
+  , symbol :: Maybe Symbol
+  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
 
 {- HLINT ignore StackLocalAddrOp "Use newtype instead of data" -}
 data StackLocalAddrOp expr = StackLocalAddrOp
@@ -304,16 +310,23 @@ mkCallStatement stmt' = case stmt' of
     Just $ CallStatement stmt' callOp' (callOp' ^. #params) Nothing
   Def (DefOp resultVar' (Expression _sz (CALL callOp'))) ->
     Just $ CallStatement stmt' callOp' (callOp' ^. #params) (Just resultVar')
+  TailCall tc ->
+    Just $ CallStatement stmt' callOp' (tc ^. #args) Nothing
+    where
+      callOp' = CallOp (tc ^. #dest) (tc ^. #name) (tc ^. #args)
   _ ->
     Nothing
 
-mkCallDest :: HasField' "op" expr (ExprOp expr) => expr -> CallDest expr
-mkCallDest x = case x ^. #op of
-  (CONST_PTR c) -> CallAddr . fromIntegral $ c ^. #constant
-  _ -> CallExpr x
-
 getCallDest :: CallStatement -> CallDest Expression
 getCallDest = view (#callOp . #dest)
+
+mkCallDest :: HasField' "op" expr (ExprOp expr) => expr -> CallDest expr
+mkCallDest x = case x ^. #op of
+  (CONST_PTR c) ->
+    CallAddr
+      . ConstFuncPtrOp (fromIntegral $ c ^. #constant)
+      $ Nothing
+  _ -> CallExpr x
 
 ------------------------
 
@@ -428,7 +441,7 @@ data CallStmt = CallStmt
 --       and dynamic call destinations, but perhaps this could
 --       be represented in a better way?
 -- TODO: Need a syscall dest?
-data CallDest expr = CallAddr Address
+data CallDest expr = CallAddr ConstFuncPtrOp
                    | CallFunc Function
                    | CallExpr expr
                    | CallExprs [expr]

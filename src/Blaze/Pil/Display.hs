@@ -85,6 +85,7 @@ needsParens = \case
   Pil.VAR _ -> False
   Pil.VAR_FIELD _ -> False
   Pil.ConstStr _ -> False
+  Pil.ConstFuncPtr _ -> False
   _ -> True
 
 parenExpr :: (Disp a, HasField' "op" a (Pil.ExprOp a)) => a -> Text
@@ -339,6 +340,9 @@ dispExprOp exprOp size = case exprOp of
   (Pil.MemCmp op) -> dispBinop "memcmp" op size
   -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
+  (Pil.ConstFuncPtr op) -> Text.pack $ printf "constFuncPtr %s %s"
+                           (maybe "Nothing" (("Just" <>) . cs) $ op ^. #symbol :: Text)
+                           (show $ op ^. #address :: Text)
   (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. #src)) (op ^. #offset)
   Pil.UNIT -> "UNIT"
 
