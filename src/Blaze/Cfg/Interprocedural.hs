@@ -24,7 +24,7 @@ import Blaze.Types.Pil (
   mkCallStatement,
  )
 import qualified Data.List.NonEmpty as NEList
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import Control.Lens.Setter (set)
 
 
@@ -203,9 +203,9 @@ substNode
    where
     -- TODO: Improve Graph API for fetching edges
     predEdges' :: [CfEdge [Stmt]]
-    predEdges' = Set.toList $ Cfg.predEdges node outerCfg
+    predEdges' = HashSet.toList $ Cfg.predEdges node outerCfg
     succEdges' :: [CfEdge [Stmt]]
-    succEdges' = Set.toList $ Cfg.succEdges node outerCfg
+    succEdges' = HashSet.toList $ Cfg.succEdges node outerCfg
     
     newPredEdges :: [CfEdge [Stmt]]
     newPredEdges = set #dst innerRoot <$> predEdges'
@@ -214,7 +214,7 @@ substNode
     newCfg :: Cfg [Stmt]
     newCfg = 
       Cfg.removeNode node
-      . Cfg.addNodes (Set.toList $ Cfg.nodes innerCfg)
+      . Cfg.addNodes (HashSet.toList $ Cfg.nodes innerCfg)
       . Cfg.addEdges (Cfg.edges innerCfg) 
       . Cfg.addEdges newPredEdges
       . Cfg.addEdges newSuccEdges $ outerCfg

@@ -16,7 +16,7 @@ import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph as Exports hiding (edge, label, src, dst)
-import qualified Data.Set as Set
+import qualified Data.HashSet as HSet
 
 type F = MLILSSAFunction
 
@@ -37,16 +37,16 @@ collapseGotoBlocks ::
   g ->
   IO g
 collapseGotoBlocks g =
-  case Set.toList $ G.nodes g of
+  case HSet.toList $ G.nodes g of
     [_] -> return g
     ns -> do
-      gotos <- fmap Set.fromList . filterM isGotoNode $ ns
+      gotos <- fmap HSet.fromList . filterM isGotoNode $ ns
       let es = G.edges g
       return . G.fromEdges $ foldl' (flip $ f gotos) [] es
   where
     f gotos edge@(G.LEdge be (G.Edge bbSrc bbDst)) xs
-      | Set.member bbSrc gotos = xs
-      | Set.member bbDst gotos = case Set.toList $ G.succs bbDst g of
+      | HSet.member bbSrc gotos = xs
+      | HSet.member bbDst gotos = case HSet.toList $ G.succs bbDst g of
         [bbTgt] ->
           G.LEdge
             (be & BB.target ?~ bbTgt)

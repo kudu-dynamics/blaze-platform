@@ -36,7 +36,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as Func
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 import qualified Numeric
 import qualified Blaze.Types.Pil.Checker as PI
@@ -216,8 +216,8 @@ instance Tokenizable Token where
 instance (Tokenizable k, Tokenizable v) => Tokenizable (Map k v) where
   tokenize m = [keywordToken "Map: "] ++ tokenizeAsList (Map.toList m)
 
-instance Tokenizable a => Tokenizable (Set a) where
-  tokenize = delimitedList [tt "#{"] [tt ", "] [tt "}"] . fmap tokenize . Set.toList
+instance Tokenizable a => Tokenizable (HashSet a) where
+  tokenize = delimitedList [tt "#{"] [tt ", "] [tt "}"] . fmap tokenize . HashSet.toList
 
 instance Tokenizable (MLIL.Expression a) where
   tokenize _ = [tt "(TODO: MLIL Expression)"]
@@ -705,7 +705,7 @@ instance Tokenizable a => Tokenizable (Cfg a) where
       cflow = cfg ^. #graph
 
       nodeMapList :: [(CfNode (), Int)]
-      nodeMapList = zip (Set.toList $ G.nodes cflow) [0..]
+      nodeMapList = zip (HashSet.toList $ G.nodes cflow) [0..]
       
       nodeMap :: HashMap (CfNode ()) Int
       nodeMap = HashMap.fromList nodeMapList
