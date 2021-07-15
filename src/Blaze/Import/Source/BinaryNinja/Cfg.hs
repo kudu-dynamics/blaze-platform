@@ -39,7 +39,7 @@ import Data.DList (DList)
 import qualified Data.DList as DList
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import Data.Tuple.Extra ((***))
 
 toMlilSsaInstr :: MlilSsaInstruction -> MlilSsaInstr
@@ -199,7 +199,7 @@ removeGotoBlocks :: Cfg (NonEmpty MlilSsaInstruction)
                  -> Cfg (NonEmpty MlilSsaInstruction)
 removeGotoBlocks cfg = foldl' (flip Cfg.removeAndRebindEdges) cfg gotoNodes
   where
-    gotoNodes = filter isGotoBlock . Set.toList . Cfg.nodes $ cfg
+    gotoNodes = filter isGotoBlock . HashSet.toList . Cfg.nodes $ cfg
 
 getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
 getCfgAlt bv func = do
@@ -228,7 +228,7 @@ getCfg imp bv func = do
       let mlilCfg = removeGotoBlocks mlilCfgWithGotos
           mlilRefMap = HMap.filterWithKey (\k _ -> not $ isGotoBlock k) mlilRefMapWithGotos
           mlilRootNode = mlilCfg ^. #root
-          mlilRestNodes = Set.toList $ (Set.delete mlilRootNode . G.nodes) mlilCfg
+          mlilRestNodes = HashSet.toList $ (HashSet.delete mlilRootNode . G.nodes) mlilCfg
           
       pilRootNode <- convertToPilNode imp (ctx ^. #ctxId) mlilRefMap mlilRootNode
       pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes

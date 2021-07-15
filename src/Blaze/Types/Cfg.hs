@@ -21,7 +21,7 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Common (Ctx)
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import Control.Lens (ix)
 
 type PilNode = CfNode [Stmt]
@@ -193,14 +193,14 @@ getFullNode g = fromJust . getFullNode' (g ^. #graph)
 getFullNodeMay :: Cfg a -> CfNode () -> Maybe (CfNode a)
 getFullNodeMay g = getFullNode' $ g ^. #graph
 
-getFullEdge :: Ord a => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
+getFullEdge :: (Hashable a, Eq a) => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
 getFullEdge cfg e = CfEdge (e ^. #src) (e ^. #dst) <$> G.getEdgeLabel e cfg
 
-toFullNodeSet :: Ord a => Cfg a -> Set (CfNode ()) -> Set (CfNode a)
-toFullNodeSet g = Set.map $ getFullNode g
+toFullNodeSet :: (Hashable a, Eq a) => Cfg a -> HashSet (CfNode ()) -> HashSet (CfNode a)
+toFullNodeSet g = HashSet.map $ getFullNode g
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: forall a .Ord a
+mkControlFlowGraph :: forall a .(Hashable a, Eq a)
                    => CfNode a
                    -> [CfNode a]
                    -> [CfEdge a]
@@ -211,7 +211,7 @@ mkControlFlowGraph root' ns es = Graph.addNodesWithAttrs attrList
   where
     nodesInEdges = concatMap (\e -> [e ^. #src, e ^. #dst]) es
     allNodes :: [CfNode a]
-    allNodes = Set.toList . Set.fromList $ (root' : ns) <> nodesInEdges
+    allNodes = HashSet.toList . HashSet.fromList $ (root' : ns) <> nodesInEdges
 
     attrList :: [(CfNode (), CfNode a)]
     attrList = (\n -> (asIdNode n, n)) <$> allNodes
@@ -227,37 +227,37 @@ data Cfg a = Cfg
   }
   deriving (Eq, Show, Generic)
 
-mkCfg :: forall a. Ord a => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
+mkCfg :: forall a. (Hashable a, Eq a) => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
 mkCfg root' rest es =
   Cfg
     { graph = mkControlFlowGraph root' rest es
     , root = root'
     }
 
-edges :: Ord a => Cfg a -> [CfEdge a]
+edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
 edges = fmap fromLEdge . G.edges
 
-removeEdge :: Ord a => CfEdge a -> Cfg a -> Cfg a
+removeEdge :: (Hashable a, Eq a) => CfEdge a -> Cfg a -> Cfg a
 removeEdge e = G.removeEdge $ toLEdge e ^. #edge
 
-addEdge :: Ord a => CfEdge a -> Cfg a -> Cfg a
+addEdge :: (Hashable a, Eq a) => CfEdge a -> Cfg a -> Cfg a
 addEdge e = G.addEdge $ toLEdge e
 
-addEdges :: Ord a => [CfEdge a] -> Cfg a -> Cfg a
+addEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
 addEdges xs cfg = foldl' (flip addEdge) cfg xs
 
-removeEdges :: Ord a => [CfEdge a] -> Cfg a -> Cfg a
+removeEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
 removeEdges xs cfg = foldl' (flip removeEdge) cfg xs
   
 -- TODO: move this to Graph class
-predEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
-predEdges n cfg = Set.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
+predEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
+predEdges n cfg = HashSet.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
   . G.preds n
   $ cfg
 
 -- TODO: move this to Graph class
-succEdges :: Ord a => CfNode a -> Cfg a -> Set (CfEdge a)
-succEdges n cfg = Set.map (fromJust . getFullEdge cfg . G.Edge n)
+succEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
+succEdges n cfg = HashSet.map (fromJust . getFullEdge cfg . G.Edge n)
   . G.succs n
   $ cfg
 
@@ -268,10 +268,10 @@ getNodeData = \case
   EnterFunc x -> Just $ x ^. #nodeData
   LeaveFunc x -> Just $ x ^. #nodeData
 
-setNodeData :: Ord a => a -> CfNode a -> Cfg a -> Cfg a
+setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
 
-updateNodeData :: Ord a => (a -> a) -> CfNode a -> Cfg a -> Cfg a
+updateNodeData :: (Hashable a, Eq a) => (a -> a) -> CfNode a -> Cfg a -> Cfg a
 updateNodeData f n cfg =
   maybe cfg (\x -> setNodeData (f x) n cfg) $ getNodeData n
 
@@ -286,22 +286,22 @@ mergeBranchTypeDefault bt1 bt2 = P.error
 
 -- | Removes a node and makes edges from preds to succs
 --   uses pred->node branch type for pred->succ
-removeAndRebindEdges :: Ord a => CfNode a -> Cfg a -> Cfg a
+removeAndRebindEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> Cfg a
 removeAndRebindEdges = removeAndRebindEdges_ mergeBranchTypeDefault
 
 -- | Removes a node and makes edges from preds to succs
 --   uses pred->node branch type for pred->succ
 --   mergeBranchType specifies how to merge branch type of
 --   newly created edge with possible existing edge
-removeAndRebindEdges_ :: Ord a
+removeAndRebindEdges_ :: (Hashable a, Eq a)
   => (BranchType -> BranchType -> BranchType)
   -> CfNode a -> Cfg a -> Cfg a
 removeAndRebindEdges_ mergeBranchType n cfg' = G.removeNode n
   . addEdges newEdges
   $ cfg'
   where
-    preds = Set.toList $ G.preds n cfg'
-    succs = Set.toList $ G.succs n cfg'
+    preds = HashSet.toList $ G.preds n cfg'
+    succs = HashSet.toList $ G.succs n cfg'
     newEdges = do
       pred <- preds
       let bt = fromJust $ G.getEdgeLabel (G.Edge pred n) cfg'
@@ -314,7 +314,7 @@ removeAndRebindEdges_ mergeBranchType n cfg' = G.removeNode n
 
 -- | Removes any nodes where predicate is True, except root node.
 removeNodesBy
-  :: Ord a
+  :: (Hashable a, Eq a)
   => (BranchType -> BranchType -> BranchType)
   -> (CfNode a -> Bool)
   -> Cfg a
@@ -324,11 +324,11 @@ removeNodesBy branchMerge p cfg = foldl'
   cfg
   targetNodes
   where
-    targetNodes = filter g . Set.toList $ G.nodes cfg
+    targetNodes = filter g . HashSet.toList $ G.nodes cfg
     g x = asIdNode x /= asIdNode (cfg ^. #root) && p x
 
 -- | Insert node between two other nodes.
-insertNodeBetween :: Ord a
+insertNodeBetween :: (Hashable a, Eq a)
   => CfNode a
   -> CfNode a
   -> CfNode a
@@ -345,7 +345,7 @@ insertNodeBetween nodeA nodeB nodeMiddle cfg' =
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance Ord a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
+instance (Hashable a, Eq a) => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
@@ -468,7 +468,7 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
                                 $ pv
                               ]
               }
-        case Set.toList $ G.succs n cfg of
+        case HashSet.toList $ G.succs n cfg of
           [] -> return
             . setNodeData [callStmt] n
             . G.addEdge (G.LEdge UnconditionalBranch $ G.Edge n retNode)
@@ -494,4 +494,4 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
                          )
     getTcNodeOp n = (n,,) <$> n ^? #_Call <*> n ^? #_Call . #nodeData . ix 0 . #_TailCall
 
-    tcNodes = mapMaybe getTcNodeOp . Set.toList $ G.nodes ogCfg
+    tcNodes = mapMaybe getTcNodeOp . HashSet.toList $ G.nodes ogCfg

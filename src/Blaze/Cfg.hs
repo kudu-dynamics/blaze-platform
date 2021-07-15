@@ -14,19 +14,19 @@ import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as Hm
-import qualified Data.HashSet as Hs
+import qualified Data.HashSet as HashSet
 import qualified Data.IntMap.Strict as Im
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
-import qualified Data.Set as Set
+
 
 type DltMap a = IntMap (CfNode a)
 
 type CfMap a = HashMap (CfNode a) Int
 
-buildNodeMap :: Ord a => Cfg a -> DltMap a
+buildNodeMap :: (Hashable a, Eq a) => Cfg a -> DltMap a
 buildNodeMap cfg =
-  Im.fromList $ zip [0 ..] (Set.toList . Cfg.nodes $ cfg)
+  Im.fromList $ zip [0 ..] (HashSet.toList . Cfg.nodes $ cfg)
 
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
@@ -46,7 +46,7 @@ buildAdjMap ns =
 -}
 buildDltGraph ::
   forall a.
-  (Hashable a, Ord a) =>
+  (Hashable a, Eq a) =>
   Cfg a ->
   DltMap a ->
   Dlt.Rooted
@@ -58,7 +58,7 @@ buildDltGraph cfg dltMap =
   cfMap :: CfMap a
   cfMap = Hm.fromList $ swap <$> Im.assocs dltMap
   dltNodes :: [Dlt.Node]
-  dltNodes = (cfMap Hm.!) <$> (Set.toList . G.nodes $ cfg)
+  dltNodes = (cfMap Hm.!) <$> (HashSet.toList . G.nodes $ cfg)
   dltEdges :: [Dlt.Edge]
   dltEdges = do
     (CfEdge src_ dst_ _) <- Cfg.edges cfg
@@ -69,7 +69,7 @@ buildDltGraph cfg dltMap =
 -- | Convert a Blaze CFG to a dom-lt flow graph
 dltGraphFromCfg ::
   forall a.
-  (Hashable a, Ord a) =>
+  (Hashable a, Eq a) =>
   Cfg a ->
   (Dlt.Rooted, DltMap a)
 dltGraphFromCfg cfg =
@@ -80,12 +80,12 @@ dltGraphFromCfg cfg =
 
 domHelper ::
   forall a.
-  (Hashable a, Ord a) =>
+  (Hashable a, Eq a) =>
   (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)]) ->
   Cfg a ->
   HashMap (CfNode a) (HashSet (CfNode a))
 domHelper f cfg =
-  Hm.fromList . ((Hs.fromList <$>) <$>) $ domList
+  Hm.fromList . ((HashSet.fromList <$>) <$>) $ domList
  where
   dltRooted :: Dlt.Rooted
   dltMap :: DltMap a
@@ -98,10 +98,10 @@ domHelper f cfg =
  Per dom-lt, the complexity is:
  O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
 -}
-getDominators :: (Hashable a, Ord a) => Cfg a -> Dominators a
+getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators a
 getDominators = Dominators . domHelper Dlt.dom
 
-getPostDominators :: (Hashable a, Ord a) => Cfg a -> PostDominators a
+getPostDominators :: (Hashable a, Eq a) => Cfg a -> PostDominators a
 getPostDominators = PostDominators . domHelper Dlt.pdom
 
 lastStmtFrom :: (HasField' "nodeData" n [Stmt]) => n -> Maybe Stmt
@@ -151,7 +151,7 @@ getTerminalBlocks cfg =
   nodes =
     mapMaybe
       parseTerminalNode
-      (Set.toList $ Cfg.nodes cfg)
+      (HashSet.toList $ Cfg.nodes cfg)
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]
@@ -182,7 +182,7 @@ evalCondition bn = case bn ^. #cond . #op of
     , HasField' "right" x Expression
     ) =>
     x ->
-    (forall a. Ord a => a -> a -> Bool) ->
+    (forall a. (Hashable a, Ord a) => a -> a -> Bool) ->
     Maybe Bool
   intBinOp x p =
     p <$> getConstArg (x ^. #left)

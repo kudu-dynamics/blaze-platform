@@ -83,6 +83,7 @@ import Data.Generics.Labels as Exports ()
 import Data.Generics.Product.Fields as Exports (HasField(field), HasField'(field'))
 import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
+
 import Data.Maybe as Exports (fromJust)
 import Data.SBV.Internals (SBV (SBV, unSBV), SVal)
 import Data.SBV.Tools.Overflow (ArithOverflow (bvAddO, bvDivO, bvMulO, bvMulOFast, bvNegO, bvSubO))
@@ -213,3 +214,4 @@ unsafeFromRight :: Either a b -> b
 unsafeFromRight = \case
   Left _ -> P.error "unsafeFromRight: got Left"
   Right x -> x
+

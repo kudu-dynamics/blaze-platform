@@ -10,7 +10,7 @@ import Blaze.Import.Source.BinaryNinja.Types (CallSite)
 import Blaze.Types.Graph (Graph)
 import qualified Blaze.Types.Graph as G
 
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import qualified Prelude as P
 import Blaze.Prelude hiding (succ, pred, toList)
 
@@ -150,24 +150,24 @@ instance (Graph () () Node g) => Path (PathGraph g) where
   fromList [a] = G.fromNode a
   fromList (x:xs) = G.fromEdges . fmap G.fromTupleLEdge . fmap ((),)  $ zip (x:xs) xs
 
-  succ node g = case Set.toList $ G.succs node g of
+  succ node g = case HashSet.toList $ G.succs node g of
     [] -> Nothing
     [x] -> Just x
     _ -> P.error "Path node has multiple successors. Bad!"
 
-  pred node g = case Set.toList $ G.preds node g of
+  pred node g = case HashSet.toList $ G.preds node g of
     [] -> Nothing
     [x] -> Just x
     _ -> P.error "Path node has multiple predecessors. Bad!"
 
   -- TODO: VERY inefficent! change datatype to include first and last node
-  firstNode g = case Set.toList $ G.sources g of
+  firstNode g = case HashSet.toList $ G.sources g of
     [] -> Nothing
     [x] -> Just x
     _ -> P.error "Path has multiple source nodes. Bad!"
 
   -- TODO: VERY inefficent! change datatype to include first and last node
-  lastNode g = case Set.toList $ G.sinks g of
+  lastNode g = case HashSet.toList $ G.sinks g of
     [] -> Nothing
     [x] -> Just x
     _ -> P.error "Path has multiple sink nodes. Bad!"

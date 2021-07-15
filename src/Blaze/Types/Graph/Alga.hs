@@ -6,6 +6,7 @@ import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
+import qualified Data.HashSet as HSet
 import Blaze.Types.Graph hiding (edge, label, src, dst)
 import qualified Algebra.Graph.Export.Dot as Dot
 
@@ -28,9 +29,9 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
     , edgeMap = HMap.fromList $ (\e -> (e ^. #edge, e ^. #label)) <$> ledges
     , nodeAttrMap = HMap.empty
     }
-  succs n = G.postSet n . adjacencyMap
-  preds n = G.preSet n . adjacencyMap
-  nodes = Set.fromList . G.vertexList . adjacencyMap
+  succs n = HSet.fromList . Set.toList . G.postSet n . adjacencyMap
+  preds n = HSet.fromList . Set.toList . G.preSet n . adjacencyMap
+  nodes = HSet.fromList . G.vertexList . adjacencyMap
   edges g = mapMaybe (f . fromTupleEdge) . G.edgeList . adjacencyMap $ g
     where
       f e = flip LEdge e <$> HMap.lookup e (edgeMap g)
@@ -54,8 +55,8 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
     }
       where
         edgesToRemove :: [Edge n]
-        edgesToRemove = (Edge n <$> Set.toList (succs n g)) 
-          ++ ((`Edge` n) <$> Set.toList (preds n g))
+        edgesToRemove = (Edge n <$> HSet.toList (succs n g)) 
+          ++ ((`Edge` n) <$> HSet.toList (preds n g))
 
   addNodes ns g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g)

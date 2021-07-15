@@ -11,8 +11,7 @@ import Blaze.Prelude hiding (succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CfEdge(CfEdge), Cfg)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg)
 import Blaze.Types.Pil (Stmt, PilVar)
-import qualified Data.Set as Set
-import qualified Data.HashSet as HSet
+import qualified Data.HashSet as HashSet
 
 transformStmts :: ([Stmt] -> [Stmt]) -> InterCfg -> InterCfg
 transformStmts f icfg =
@@ -20,7 +19,7 @@ transformStmts f icfg =
     foldl'
       (flip $ Cfg.updateNodeData f)
       cfg
-      (Set.toList $ G.nodes cfg)
+      (HashSet.toList $ G.nodes cfg)
  where
   cfg :: PilCfg
   cfg = unInterCfg icfg
@@ -45,7 +44,7 @@ constantProp icfg =
 
 getStmts :: InterCfg -> [[Stmt]]
 getStmts (InterCfg cfg) =
-  fmap concat . Set.toList $ Cfg.nodes cfg
+  fmap concat . HashSet.toList $ Cfg.nodes cfg
 
 fixed :: Eq a => (a -> a) -> a -> a
 fixed f x =
@@ -105,14 +104,14 @@ getDeadBranches icfg =
  where
   branchNodes :: [BranchNode [Stmt]]
   branchNodes = mapMaybe (Cfg.parseBranchNode Cfg.getNodeData)
-    $ Set.toList (G.nodes (unInterCfg icfg))
+    $ HashSet.toList (G.nodes (unInterCfg icfg))
   getDeadBranchesForNode :: InterCfg -> BranchNode [Stmt] -> Maybe [PilEdge]
   getDeadBranchesForNode _g branchNode = do
     constVal <- Cfg.evalCondition (branchNode ^. #branchCondOp)
     let constBranchType = if constVal then Cfg.TrueBranch else Cfg.FalseBranch
         cfg = unInterCfg icfg
         cfNode = BasicBlock $ branchNode ^. #basicBlock
-        succs = Set.toList $ Cfg.succs cfNode cfg
+        succs = HashSet.toList $ Cfg.succs cfNode cfg
         -- Probably only one since there's likely just a pair of edges,
         -- could change later
         deadSuccs =
@@ -136,18 +135,18 @@ removeDeadNodes icfg = removeNodes deadNodes icfg
 
 getDeadNodes :: PilCfg -> [PilNode]
 getDeadNodes cfg =
-  HSet.toList $ HSet.difference origNodes reachableNodes
+  HashSet.toList $ HashSet.difference origNodes reachableNodes
  where
   origNodes :: HashSet PilNode
-  origNodes = HSet.fromList . Set.toList $ G.nodes cfg
+  origNodes = HashSet.fromList . HashSet.toList $ G.nodes cfg
   reachableNodes :: HashSet PilNode
-  reachableNodes = HSet.fromList . concat $ G.bfs [cfg ^. #root] cfg
+  reachableNodes = HashSet.fromList . concat $ G.bfs [cfg ^. #root] cfg
 
 cutEdge :: PilEdge -> InterCfg -> InterCfg
 cutEdge edge (InterCfg cfg) =
   InterCfg $ Cfg.removeEdge edge cfg
 
-removeEmptyBasicBlockNodes :: forall a. Ord a => Cfg [a] -> Cfg [a]
+removeEmptyBasicBlockNodes :: forall a. (Hashable a, Eq a) => Cfg [a] -> Cfg [a]
 removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
   where
     f (Cfg.BasicBlock x) = null $ x ^. #nodeData
