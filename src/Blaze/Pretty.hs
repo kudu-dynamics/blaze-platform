@@ -139,6 +139,19 @@ plainToken typ t = Token
   , address = 0
   }
 
+integerToken :: Integral n => n -> Token
+integerToken n = Token
+  { tokenType = IntegerToken
+  , text = showHex n'
+  , value = n'
+  , size = 0
+  , operand = 0xffffffff
+  , context = NoTokenContext
+  , address = 0
+  }
+  where
+    n' = toInteger n
+
 -- XXX Figure out value and operand here
 varToken :: Text -> Token
 varToken t = Token
@@ -252,14 +265,12 @@ instance Tokenizable Binja.Function.Function where
 
 instance Tokenizable Pil.Ctx where
   tokenize ctx =
-    [keywordToken "ctx "] ++
+    [keywordToken "ctx", tt " "] ++
     paren func ++
-    [plainToken IntegerToken idx]
+    [textToken $ show (ctx ^. #ctxId)]
     where
       func :: [Token]
       func = tokenize (ctx ^. #func)
-      idx :: Text
-      idx = show (ctx ^. #ctxId)
 
 instance Tokenizable Pil.PilVar where
   tokenize var = [varToken (var ^. #symbol)]
@@ -340,7 +351,7 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.CMP_UGT op) -> tokenizeBinopInfix "u>" op
   (Pil.CMP_ULE op) -> tokenizeBinopInfix "u<=" op
   (Pil.CMP_ULT op) -> tokenizeBinopInfix "u<" op
-  (Pil.CONST op) -> [plainToken IntegerToken $ show (op ^. #constant)]
+  (Pil.CONST op) -> [integerToken (op ^. #constant)]
   (Pil.CONST_PTR op) -> [addressToken Nothing $ fromIntegral (op ^. #constant)]
   (Pil.DIVS op) -> tokenizeBinopInfix "/" op
   (Pil.DIVS_DP op) -> tokenizeBinop "divsDP" op
@@ -358,11 +369,9 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.FCMP_UO op) -> tokenizeBinop "fcmpUO" op
   (Pil.FDIV op) -> tokenizeBinopInfix "f/" op
   (Pil.FIELD_ADDR op) ->
-    [tt "["] ++
     parenExpr (op ^. #baseAddr) ++
-    [tt " + ", keywordToken "offset "] ++
-    tokenize (op ^. #offset) ++
-    [tt "]"]
+    [tt " + ", keywordToken "offset", tt " "] ++
+    tokenize (op ^. #offset)
   (Pil.CONST_FLOAT op) -> [plainToken FloatingPointToken $ show (op ^. #constant)]
   (Pil.FLOAT_CONV op) -> tokenizeUnop "floatConv" op
   (Pil.FLOAT_TO_INT op) -> tokenizeUnop "floatToInt" op
@@ -437,7 +446,7 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.CALL op) -> tokenize op
   (Pil.StrCmp op) -> tokenizeBinop "strcmp" op
   (Pil.StrNCmp op) ->
-    [tt "strncmp ", plainToken IntegerToken (show $ op ^. #len), tt " "] ++
+    [tt "strncmp ", integerToken (op ^. #len), tt " "] ++
     tokenize (op ^. #left) ++
     [tt " "] ++
     tokenize (op ^. #right)
@@ -446,7 +455,7 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.ConstStr op) -> [stringToken $ op ^. #value]
   (Pil.ConstFuncPtr op) -> tokenize op
   (Pil.Extract op) ->
-    [keywordToken "extract "] ++
+    [keywordToken "extract", tt " "] ++
     tokenize (op ^. #src) ++
     [tt " "] ++
     tokenize (op ^. #offset)
@@ -461,7 +470,7 @@ instance Tokenizable PI.DeepSymType where
   tokenize (PI.DSType t) = tokenize t
   tokenize (PI.DSRecursive s dst) =
     paren $
-    [keywordToken "Rec "] ++
+    [keywordToken "Rec", tt " "] ++
     tokenize s ++
     [tt ": "] ++
     tokenize dst
@@ -498,7 +507,7 @@ instance Tokenizable Pil.Expression where
 
 instance (Tokenizable a, Tokenizable b) => Tokenizable (HashMap a b) where
   tokenize m =
-    [keywordToken "HashMap:\n"] ++ intercalate [tt "\n"] (f <$> HashMap.toList m)
+    [keywordToken "HashMap:", tt "\n"] ++ intercalate [tt "\n"] (f <$> HashMap.toList m)
     where
       f (a, b) = [tt "  "] ++ paren (tokenize a ++ [tt ", "] ++ tokenize b)
 
@@ -532,13 +541,13 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
     Pil.DefMemPhi x ->
       [varToken ("mem#" <> show (x ^. #destMemory)), tt " = ", tt "φ"] ++
       tokenizeAsCurlyList ((\m -> varToken $ "mem#" <> show m) <$> (x ^. #srcMemory))
-    Pil.BranchCond x -> [keywordToken "if "] ++ paren (tokenize $ x ^. #cond)
-    Pil.Jump x -> [keywordToken "jump "] ++ parenExpr (x ^. #dest)
+    Pil.BranchCond x -> [keywordToken "if", tt " "] ++ paren (tokenize $ x ^. #cond)
+    Pil.Jump x -> [keywordToken "jump", tt " "] ++ parenExpr (x ^. #dest)
     Pil.JumpTo x ->
-      [keywordToken "jumpTo "] ++
+      [keywordToken "jumpTo", tt " "] ++
       parenExpr (x ^. #dest) ++
       tokenizeAsList (x ^. #targets)
-    Pil.Ret x -> [keywordToken "return "] ++ tokenize (x ^. #value)
+    Pil.Ret x -> [keywordToken "return", tt " "] ++ tokenize (x ^. #value)
     Pil.NoRet -> [keywordToken "NoRet"]
     Pil.Exit -> [keywordToken "Exit"]
     Pil.TailCall x ->
@@ -548,7 +557,7 @@ instance Tokenizable a => Tokenizable (Pil.CallOp a) where
   tokenize op = case (op ^. #name, op ^. #dest) of
     (Just name, Pil.CallAddr fptr) ->
       [addressToken (Just name) $ fptr ^. #address] ++ params
-    _ -> [keywordToken "call "] ++ dest ++ params
+    _ -> [keywordToken "call", tt " "] ++ dest ++ params
     where
       dest = tokenize (op ^. #dest)
       params :: [Token]
@@ -568,45 +577,45 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndex
   tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] (f <$> stmts)
     where
       f :: (Int, Pil.Statement a) -> [Token]
-      f (i, stmt) = [plainToken IntegerToken (show i), tt ": "] ++ tokenize stmt
+      f (i, stmt) = [integerToken i, tt ": "] ++ tokenize stmt
 
 instance Tokenizable ByteOffset where
-  tokenize (ByteOffset n) = [plainToken IntegerToken $ show n]
+  tokenize (ByteOffset n) = [integerToken n]
 
 instance Tokenizable Int64 where
-  tokenize n = [plainToken IntegerToken $ show n]
+  tokenize n = [integerToken n]
 
 instance Tokenizable Pil.StackOffset where
   tokenize x =
     [tt "stackOffset "] ++ tokenize (x ^. #offset) ++ paren (tokenize (x ^. #ctx))
 
 instance Tokenizable Pil.StmtIndex where
-  tokenize x = [plainToken IntegerToken $ show x]
+  tokenize x = [integerToken (x ^. #val)]
 
 instance Tokenizable t => Tokenizable (PI.PilType t) where
   tokenize = \case
-    PI.TArray len elemType -> [keywordToken "Array "] ++ tokenize len ++ [tt " "] ++ tokenize elemType
+    PI.TArray len elemType -> [keywordToken "Array", tt " "] ++ tokenize len ++ [tt " "] ++ tokenize elemType
 --    PI.TZeroField pt -> "ZeroField" <-> paren (tokenize pt)
     PI.TBool -> [keywordToken "Bool"]
     PI.TChar -> [keywordToken "Char"]
     -- PI.TQueryChar -> "QueryChar"
-    PI.TInt bitWidth signed -> [keywordToken "Int "] ++ tokenize bitWidth ++ [tt " "] ++ tokenize signed
-    PI.TFloat bitWidth -> [keywordToken "Float "] ++ tokenize bitWidth
-    PI.TBitVector bitWidth -> [keywordToken "BitVector "] ++ tokenize bitWidth
+    PI.TInt bitWidth signed -> [keywordToken "Int", tt " "] ++ tokenize bitWidth ++ [tt " "] ++ tokenize signed
+    PI.TFloat bitWidth -> [keywordToken "Float", tt " "] ++ tokenize bitWidth
+    PI.TBitVector bitWidth -> [keywordToken "BitVector", tt " "] ++ tokenize bitWidth
     PI.TPointer bitWidth pointeeType ->
-      [keywordToken "Pointer "] ++ tokenize bitWidth ++ [tt " "] ++ paren (tokenize pointeeType)
+      [keywordToken "Pointer", tt " "] ++ tokenize bitWidth ++ [tt " "] ++ paren (tokenize pointeeType)
     PI.TRecord m ->
-      [keywordToken "Record "] ++
+      [keywordToken "Record", tt " "] ++
       delimitedList [tt "["] [tt ", "] [tt "]"] (rfield <$> HashMap.toList m)
       where
         rfield (BitOffset n, t) = paren ([tt (show n), tt ", "] ++ tokenize t)
 
-    PI.TBottom s -> paren ([keywordToken "Bottom "] ++ tokenize s)
+    PI.TBottom s -> paren ([keywordToken "Bottom", tt " "] ++ tokenize s)
     PI.TUnit -> [keywordToken "Unit"]
     PI.TFunction _ret _params -> [keywordToken "Func"]
 
     PI.TVBitWidth (Bits bitWidth) -> [tt $ show bitWidth <> "w"]
-    PI.TVLength n -> [plainToken IntegerToken (show n)]
+    PI.TVLength n -> [integerToken n]
     PI.TVSign b -> [keywordToken (if b then "Signed" else "Unsigned")]
 
 --- CallGraph
