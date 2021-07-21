@@ -9,11 +9,11 @@ COPY /binaryninja-haskell/ /blaze/binaryninja-haskell/
 # Update Binary Ninja. Purposely put after the COPY instructions so that we're always
 # pulling latest binary ninja
 
-ARG BLAZE_BINJA_CHANNEL=dev
-ARG BLAZE_BINJA_VERSION=LATEST
-ARG BLAZE_BINJA_API_COMMIT=origin/dev
-RUN /usr/local/bin/binja_api_update "${BLAZE_BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
-RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
+# ARG BLAZE_BINJA_CHANNEL=dev
+# ARG BLAZE_BINJA_VERSION=LATEST
+# ARG BLAZE_BINJA_API_COMMIT=origin/dev
+# RUN /usr/local/bin/binja_api_update "${BLAZE_BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
+# RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
 WORKDIR /blaze/binaryninja-haskell
 RUN stack build --test --no-run-tests --ghc-options -fdiagnostics-color=always
