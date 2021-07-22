@@ -210,8 +210,7 @@ newtype PShow a = PShow a
 instance Show a => Show (PShow a) where
   show (PShow x) = cs $ pshow x
 
-unsafeFromRight :: Either a b -> b
+unsafeFromRight :: forall e a. Show e => Either e a -> a
 unsafeFromRight = \case
-  Left _ -> P.error "unsafeFromRight: got Left"
+  Left e -> P.error $ "unsafeFromRight: got " ++ show (Left e :: Either e ())
   Right x -> x
-

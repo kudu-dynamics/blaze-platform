@@ -45,6 +45,19 @@ workflow:
   - env
   - ls -al
   - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
+  - df -h
+  - date -Iseconds
+  - |
+    if type git >/dev/null; then
+      pushd "$BLAZE_BINJA_API" >/dev/null && \
+        { git log --color --decorate HEAD^..HEAD | cat || true;
+          popd >/dev/null;
+        } || true
+    fi
+  - |
+    if type python3 >/dev/null; then
+      python3 -c 'import binaryninja; print(binaryninja.core_version())' || true
+    fi
   - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
 
 .dind:
