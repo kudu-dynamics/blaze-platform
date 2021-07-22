@@ -63,13 +63,10 @@ getFoundInstructions bv f = do
 -- convenient..
 getInstructionsWithOpAndSize :: (OpWithSize F -> Bool) -> FilePath -> IO [(Text, Int)]
 getInstructionsWithOpAndSize g binPath = do
-  ebv <- BN.getBinaryView binPath
-  case ebv of
-    Left err -> P.error . cs $ err
-    Right bv -> do
-      BN.updateAnalysisAndWait bv
-      xs <- getFoundInstructions bv g
-      return $ f <$> xs
+  bv <- unsafeFromRight <$> BN.getBinaryView binPath
+  BN.updateAnalysisAndWait bv
+  xs <- getFoundInstructions bv g
+  return $ f <$> xs
   where
     f x = ( x ^. foundFunction . Func.name
             <> " @ " <> showHex (x ^. foundFunction . Func.start)
@@ -82,13 +79,10 @@ getInstructionsWithOp f = getInstructionsWithOpAndSize $ f . view op
 -- convenience function, returns func name and statement index
 getInstructionsWithOpByName :: Text -> FilePath -> IO [(Text, Int)]
 getInstructionsWithOpByName opName binPath = do
-  ebv <- BN.getBinaryView binPath
-  case ebv of
-    Left err -> P.error . cs $ err
-    Right bv -> do
-      BN.updateAnalysisAndWait bv
-      xs <- getFoundInstructions bv (matchInstructionByName opName . view op)
-      return $ f <$> xs
+  bv <- unsafeFromRight <$> BN.getBinaryView binPath
+  BN.updateAnalysisAndWait bv
+  xs <- getFoundInstructions bv (matchInstructionByName opName . view op)
+  return $ f <$> xs
   where
     f x = ( x ^. foundFunction . Func.name
           , fromIntegral $ x ^. foundIndex
