@@ -160,13 +160,14 @@ convertExpr expr = do
     (MLIL.CMP_UGT x) -> mkExpr . Pil.CMP_UGT <$> f x
     (MLIL.CMP_ULE x) -> mkExpr . Pil.CMP_ULE <$> f x
     (MLIL.CMP_ULT x) -> mkExpr . Pil.CMP_ULT <$> f x
-    (MLIL.CONST x) -> mkExpr . Pil.CONST <$> f x
+    (MLIL.CONST x) -> do
+      let addr = fromIntegral $ x ^. MLIL.constant
+      runExceptT (mkConstStrExpr addr <|> mkConstFuncPtrExpr addr)
+        >>= either (const $ mkExpr . Pil.CONST <$> f x) return      
     (MLIL.CONST_PTR x) -> do
-      let addr = fromIntegral $ x ^. MLIL.constant 
-      bv <- use #binaryView
-      liftIO (BNView.getStringAtAddress bv addr) >>= \case
-        Just t -> return . mkExpr . Pil.ConstStr . Pil.ConstStrOp $ t
-        Nothing -> mkExpr . Pil.CONST_PTR <$> f x
+      let addr = fromIntegral $ x ^. MLIL.constant
+      runExceptT (mkConstStrExpr addr <|> mkConstFuncPtrExpr addr)
+        >>= either (const $ mkExpr . Pil.CONST_PTR <$> f x) return      
     (MLIL.DIVS x) -> mkExpr . Pil.DIVS <$> f x
     (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
     (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
@@ -271,6 +272,19 @@ convertExpr expr = do
       f = fmap gconv . traverse convertExpr
       mkExpr :: Pil.ExprOp Expression -> Expression
       mkExpr = Expression (toPilOpSize $ expr ^. MLIL.size)
+
+      mkConstFuncPtrExpr :: Address -> ExceptT () Converter Expression
+      mkConstFuncPtrExpr addr = do
+        r <- lift (getConstFuncPtrOp addr)
+        if isJust (r ^. #symbol)
+        then return . mkExpr $ Pil.ConstFuncPtr r
+        else throwError ()
+
+      mkConstStrExpr :: Address -> ExceptT () Converter Expression
+      mkConstStrExpr addr = do
+        bv <- use #binaryView
+        liftIO (BNView.getStringAtAddress bv addr)
+          >>= maybe (throwError ()) (return . mkExpr . Pil.ConstStr . Pil.ConstStrOp)
 
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
@@ -452,27 +466,35 @@ getConstFuncPtrOp addr = do
   mname <- traverse (fmap cs . liftIO . BN.getSymbolShortName) msym
   return $ Pil.ConstFuncPtrOp addr mname
 
+getCallDestFromCallTargetExpr :: Expression -> Converter (Pil.CallDest Expression)
+getCallDestFromCallTargetExpr targetExpr = case targetExpr ^. #op of
+  (Pil.IMPORT c) -> do
+    Pil.CallAddr <$> getConstFuncPtrOp (fromIntegral $ c ^. #constant)
+  (Pil.ConstFuncPtr x) -> do
+    bv <- use #binaryView
+    mfunc <- liftIO $ BNFunc.getFunctionStartingAt bv Nothing $ x ^. #address
+    case mfunc of
+      Nothing -> return $ Pil.CallAddr x
+      Just bnf -> fmap Pil.CallFunc . liftIO $ BNCG.convertFunction bv bnf
+  (Pil.CONST_PTR c) -> do
+    bv <- use #binaryView
+    mfunc <- liftIO $ BNFunc.getFunctionStartingAt bv Nothing
+      . fromIntegral
+      $ c ^. #constant
+    case mfunc of
+      Nothing -> fmap Pil.CallAddr
+        . getConstFuncPtrOp
+        . fromIntegral
+        $ c ^. #constant
+      Just bnf -> fmap Pil.CallFunc . liftIO $ BNCG.convertFunction bv bnf
+  _ -> return $ Pil.CallExpr targetExpr
+
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
 convertCallInstruction :: CallInstruction -> Converter [Stmt]
 convertCallInstruction ci = do
   -- TODO: Better handling of possible Nothing value
   targetExpr <- convertExpr (fromJust (ci ^. #dest))
-  target <- case targetExpr ^. #op of
-    (Pil.IMPORT c) -> do
-      Pil.CallAddr <$> getConstFuncPtrOp (fromIntegral $ c ^. #constant)
-    (Pil.CONST_PTR c) -> do
-      bv <- use #binaryView
-      mfunc <- liftIO $ BNFunc.getFunctionStartingAt bv Nothing
-        . Address
-        . fromIntegral
-        $ c ^. #constant :: Converter (Maybe BNFunc.Function)
-      case mfunc of
-        Nothing -> fmap Pil.CallAddr
-          . getConstFuncPtrOp
-          . fromIntegral
-          $ c ^. #constant
-        Just bnf -> fmap Pil.CallFunc . liftIO $ BNCG.convertFunction bv bnf
-    _ -> return $ Pil.CallExpr targetExpr
+  target <- getCallDestFromCallTargetExpr targetExpr
   params' <- sequence [convertExpr p | p <- ci ^. #params]
 
   let mname = (target ^? #_CallFunc . #name)
