@@ -9,7 +9,7 @@ import qualified Blaze.Graph as G
 import Blaze.Prelude
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Cfg hiding (nodes)
-import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit), Stmt)
+import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit, NoRet), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Control.Lens (preview)
 import qualified Data.Graph.Dom as Dlt
@@ -119,10 +119,19 @@ parseExitNode node = do
     Exit -> return $ ExitNode node
     _ -> Nothing
 
+parseNoRetNode :: BasicBlockNode [Stmt] -> Maybe (NoRetNode [Stmt])
+parseNoRetNode node = do
+  lastStmt <- lastStmtFrom node
+  case lastStmt of
+    NoRet -> return $ NoRetNode node
+    _ -> Nothing
+
 parseTerminalNode :: CfNode [Stmt] -> Maybe (TerminalNode [Stmt])
 parseTerminalNode node = do
   bb <- node ^? #_BasicBlock
-  (TermRet <$> parseReturnNode bb) <|> (TermExit <$> parseExitNode bb)
+  (TermRet <$> parseReturnNode bb)
+    <|> (TermExit <$> parseExitNode bb)
+    <|> (TermNoRet <$> parseNoRetNode bb)
 
 parseBranchNode ::
   ( CfNode [Stmt] -> Maybe [Stmt]

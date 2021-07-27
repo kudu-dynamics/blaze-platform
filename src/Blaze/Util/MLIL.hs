@@ -3,7 +3,6 @@ module Blaze.Util.MLIL where
 
 import Blaze.Prelude
 
-import qualified Prelude as P
 import qualified Binja.Core as BN
 import Binja.Core ( BNBinaryView, InstructionIndex )
 import Binja.Function (Function, MLILSSAFunction)
