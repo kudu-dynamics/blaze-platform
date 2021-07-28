@@ -89,6 +89,7 @@ and a tail call where control flow moves to the call target.
 data TerminalNode a 
   = TermRet (ReturnNode a)
   | TermExit (ExitNode a)
+  | TermNoRet (NoRetNode a)
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
@@ -100,6 +101,12 @@ data ReturnNode a = ReturnNode
   deriving anyclass (Hashable)
 
 newtype ExitNode a = ExitNode
+  { basicBlock :: BasicBlockNode a
+  }
+  deriving (Eq, Ord, Show, Generic, Functor)
+  deriving anyclass (Hashable, FromJSON, ToJSON)
+
+newtype NoRetNode a = NoRetNode
   { basicBlock :: BasicBlockNode a
   }
   deriving (Eq, Ord, Show, Generic, Functor)
