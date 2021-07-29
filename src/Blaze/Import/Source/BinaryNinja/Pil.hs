@@ -160,14 +160,14 @@ convertExpr expr = do
     (MLIL.CMP_UGT x) -> mkExpr . Pil.CMP_UGT <$> f x
     (MLIL.CMP_ULE x) -> mkExpr . Pil.CMP_ULE <$> f x
     (MLIL.CMP_ULT x) -> mkExpr . Pil.CMP_ULT <$> f x
-    (MLIL.CONST x) -> do
-      let addr = fromIntegral $ x ^. MLIL.constant
-      runExceptT (mkConstStrExpr addr <|> mkConstFuncPtrExpr addr)
-        >>= either (const $ mkExpr . Pil.CONST <$> f x) return      
-    (MLIL.CONST_PTR x) -> do
-      let addr = fromIntegral $ x ^. MLIL.constant
-      runExceptT (mkConstStrExpr addr <|> mkConstFuncPtrExpr addr)
-        >>= either (const $ mkExpr . Pil.CONST_PTR <$> f x) return      
+    (MLIL.CONST x) -> mkConstStrOrFuncPtr addr def
+      where
+        addr = fromIntegral $ x ^. MLIL.constant
+        def = mkExpr . Pil.CONST <$> f x
+    (MLIL.CONST_PTR x) -> mkConstStrOrFuncPtr addr def
+      where
+        addr = fromIntegral $ x ^. MLIL.constant
+        def = mkExpr . Pil.CONST_PTR <$> f x
     (MLIL.DIVS x) -> mkExpr . Pil.DIVS <$> f x
     (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
     (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
@@ -285,6 +285,12 @@ convertExpr expr = do
         bv <- use #binaryView
         liftIO (BNView.getStringAtAddress bv addr)
           >>= maybe (throwError ()) (return . mkExpr . Pil.ConstStr . Pil.ConstStrOp)
+
+      mkConstStrOrFuncPtr :: Address -> Converter Expression -> Converter Expression
+      mkConstStrOrFuncPtr addr def
+        | addr == 0 = def
+        | otherwise = runExceptT (mkConstStrExpr addr <|> mkConstFuncPtrExpr addr)
+                      >>= either (const def) return
 
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
