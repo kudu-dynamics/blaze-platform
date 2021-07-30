@@ -206,7 +206,9 @@ pretty :: Tokenizable a => a -> Text
 pretty a = foldMap (view #text) $ tokenize a
 
 showHex :: (Integral a, Show a) => a -> Text
-showHex x = Text.pack $ "0x" <> Numeric.showHex x ""
+showHex x
+  | x < 0 = Text.pack $ "-0x" <> Numeric.showHex (abs x) ""
+  | otherwise = Text.pack $ "0x" <> Numeric.showHex x ""
 
 showStackLocalByteOffset :: ByteOffset -> Text
 showStackLocalByteOffset x = bool "arg_" "var_" (x < 0)
