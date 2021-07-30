@@ -86,7 +86,8 @@ getVarsFromStmt s = foldr f init s
     f x = HSet.union (getVarsFromExpr x)
 
 getRefVars_ :: Stmt -> HashSet PilVar
-getRefVars_ = HSet.fromList . concatMap getVarsFromExpr_
+getRefVars_ (Pil.DefPhi defPhiOp) = HSet.fromList $ defPhiOp ^. #src
+getRefVars_ stmt = HSet.fromList . concatMap getVarsFromExpr_ $ stmt
 
 -- | Get all vars references in any of the provided statements.
 --   NB: Vars that are defined but not used are not considered
