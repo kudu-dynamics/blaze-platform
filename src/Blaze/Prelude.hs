@@ -16,11 +16,13 @@ module Blaze.Prelude
   , liftMaybe
   , liftMaybeM
   , liftMaybeTIO
+  , maxFunctionNameLength
   , pshow
   , pprint
   , pairs
   , indexed
   , hdebug
+  , truncateMiddle
   , twaddleUUID
   , unfoldWhileJustM
   , unsafeFromRight
@@ -113,6 +115,7 @@ import Prelude as Exports
     head,
     error,
   )
+import qualified Data.Text as Text
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 
@@ -214,3 +217,14 @@ unsafeFromRight :: forall e a. Show e => Either e a -> a
 unsafeFromRight = \case
   Left e -> P.error $ "unsafeFromRight: got " ++ show (Left e :: Either e ())
   Right x -> x
+
+maxFunctionNameLength :: Int
+maxFunctionNameLength = 48
+
+truncateMiddle :: Int -> Text -> Text
+truncateMiddle n t
+  | n <= 0 = ""
+  | Text.length t > n = Text.take n2 t <> "..." <> Text.takeEnd n2 t
+  | otherwise = t
+  where
+    n2 = n `div` 2
