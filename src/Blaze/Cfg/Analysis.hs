@@ -12,6 +12,7 @@ import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNod
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Data.HashSet as HashSet
+import Blaze.Graph (Edge)
 
 transformStmts :: ([Stmt] -> [Stmt]) -> InterCfg -> InterCfg
 transformStmts f icfg =
@@ -54,16 +55,16 @@ fixed f x =
  where
   x' = f x
 
--- TODO: Checking for fixed point by running prune means prune is always run at least twice.
---       I.e., prune will always be run one more time than necessary.
---       As an alternative, consider whether we can either identify when an additional prune
---       call is needed or what specific portion of a prune needs to be rerun.
-fixedPrune :: InterCfg -> InterCfg
-fixedPrune = fixed prune
+-- TODO: Checking for fixed point by running simplify means simplify is always run at least twice.
+--       I.e., simplify will always be run one more time than necessary.
+--       As an alternative, consider whether we can either identify when an additional simplify
+--       call is needed or what specific portion of a simplify needs to be rerun.
+fixedSimplify :: InterCfg -> InterCfg
+fixedSimplify = fixed simplify
 
--- TODO: Generalize this to support all assingment statements
+-- TODO: Generalize this to support all assignment statements
 -- | Remove all DefPhi statements where the assigned variable is not used.
-removeUnusedPhi :: InterCfg -> InterCfg 
+removeUnusedPhi :: InterCfg -> InterCfg
 removeUnusedPhi icfg =
   transformStmts (PA.removeUnusedPhi usedVars) icfg
   where
@@ -73,19 +74,29 @@ removeUnusedPhi icfg =
 -- | Reduce all 'DefPhi' statements by removing selected variables from the
 -- 'src' list. If the 'src' list is reduced to holding a single item, the
 -- 'DefPhi' statement will be transferred to a 'Def' statement.
-reducePhi :: HashSet PilVar -> InterCfg -> InterCfg 
+reducePhi :: HashSet PilVar -> InterCfg -> InterCfg
 reducePhi removedVars =
   transformStmts (PA.reducePhis removedVars)
 
-prune :: InterCfg -> InterCfg
-prune icfg =
-  removeEmptyBasicBlockNodes'
+-- | Simplificaiton helper. This function recurses until there are no
+-- additional dead nodes and thus no further simplification.
+-- NB: This function performs a little extra work in exchange for being less complex.
+--     We could check if any 'DefPhi' statements were reduced to 'Def' statements
+--     and only recurse if that check passed. In the worst case, we will attempt
+--     copy prop and const prop an extra iteration, as well as compute dead branches 
+--     and dead nodes and extra iteration.
+_simplify :: InterCfg -> InterCfg
+_simplify icfg = 
+  if HashSet.null deadNodes 
+  then
+    fixed removeUnusedPhi icfg''
+  else -- Recursing until there are no more dead nodes
+    _simplify 
     . reducePhi removedVars
     . fixed removeUnusedPhi
     . removeNodes deadNodes
     $ icfg''
  where
-  removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
   icfg' :: InterCfg
   icfg' = constantProp . copyProp $ icfg
   deadBranches :: [PilEdge]
@@ -93,8 +104,34 @@ prune icfg =
   icfg'' :: InterCfg
   icfg'' = foldl' (flip cutEdge) icfg' deadBranches
   -- Need deadNodes to compute removedVars and to actually remove the dead nodes
-  deadNodes :: [PilNode]
+  deadNodes :: HashSet PilNode
   deadNodes = getDeadNodes (unInterCfg icfg'')
+  removedVars :: HashSet PilVar
+  removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+
+simplify :: InterCfg -> InterCfg
+simplify = removeEmptyBasicBlockNodes' . _simplify
+ where
+  removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
+
+prune :: Edge PilNode -> InterCfg -> InterCfg
+prune edge icfg = simplify prunedIcfg
+  where
+    prunedIcfg :: InterCfg
+    prunedIcfg = InterCfg . G.removeEdge edge . unInterCfg $ icfg
+
+-- | Removes all nodes/edges that don't lead to or can't be reached by node.
+-- Returns a modified and simplified ICFG.
+focus :: PilNode -> InterCfg -> InterCfg
+focus focalNode icfg =
+  simplify . reducePhi removedVars . removeNodes deadNodes $ icfg
+ where
+  -- Need deadNodes to compute removedVars and to actually remove the dead nodes
+  deadNodes :: HashSet PilNode
+  deadNodes =
+    HashSet.difference
+      (G.nodes . unInterCfg $ icfg)
+      (G.connectedNodes focalNode . unInterCfg $ icfg)
   removedVars :: HashSet PilVar
   removedVars = PA.getDefinedVars (concatMap concat deadNodes)
 
@@ -124,8 +161,8 @@ getDeadBranches icfg =
       )
       deadSuccs
 
-removeNodes :: [PilNode] -> InterCfg -> InterCfg
-removeNodes nodes icfg = 
+removeNodes :: HashSet PilNode -> InterCfg -> InterCfg
+removeNodes nodes icfg =
   InterCfg $ foldl' (flip G.removeNode) (unInterCfg icfg) nodes
 
 removeDeadNodes :: InterCfg -> InterCfg
@@ -133,9 +170,9 @@ removeDeadNodes icfg = removeNodes deadNodes icfg
  where
   deadNodes = getDeadNodes $ unInterCfg icfg
 
-getDeadNodes :: PilCfg -> [PilNode]
+getDeadNodes :: PilCfg -> HashSet PilNode
 getDeadNodes cfg =
-  HashSet.toList $ HashSet.difference origNodes reachableNodes
+  HashSet.difference origNodes reachableNodes
  where
   origNodes :: HashSet PilNode
   origNodes = HashSet.fromList . HashSet.toList $ G.nodes cfg

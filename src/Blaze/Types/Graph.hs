@@ -235,16 +235,11 @@ updateNodeAttr f n g = case getNodeAttr n g of
   Just attr -> setNodeAttr (f attr) n g
 
 
--- | All nodes that can reach node and that can be reached by node
+-- | All nodes that can reach node and that can be reached by node.
+-- Formally, this is the union of the in-component and the out-component of 
+-- node n in graph g.
 connectedNodes :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
 connectedNodes n g = HashSet.fromList reachedNodes <> HashSet.fromList reachingNodes
   where
     reachedNodes = reachable n g
     reachingNodes = reachable n $ transpose g
-
--- | Removes all nodes/edges that don't lead to or can't be reached by node
-focus :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> g
-focus n g = foldl' (flip removeNode) g
-  . HashSet.difference (nodes g)
-  . connectedNodes n
-  $ g
