@@ -443,9 +443,6 @@ nextVal = do
   put (x + 1)
   return x 
 
-focus :: CfNode a -> Cfg a -> Cfg a
-focus n = over #graph . G.focus $ asIdNode n
-
 -- | Turns CallNode with TailCall op into two nodes:
 -- 1. Regular callnode with Def/Call
 -- 2. BasicBlockNode with return

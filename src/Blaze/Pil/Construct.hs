@@ -142,5 +142,8 @@ store addr val = Pil.Store (Pil.StoreOp addr val)
 constraint :: Expression -> Stmt
 constraint e = Pil.Constraint (Pil.ConstraintOp e)
 
+branchCond :: Expression -> Stmt
+branchCond e = Pil.BranchCond (Pil.BranchCondOp e)
+
 ret :: Expression -> Stmt
 ret = Pil.Ret . Pil.RetOp
