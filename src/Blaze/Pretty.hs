@@ -246,6 +246,7 @@ instance Tokenizable a => Tokenizable (Pil.CallDest a) where
     (Pil.CallExpr e) -> tokenize e
     (Pil.CallExprs es) -> tokenizeAsList es
     (Pil.CallFunc fn) -> tokenize fn
+    (Pil.CallExtern x) -> tokenize x
 
 instance Tokenizable Binja.Function.Function where
   tokenize f =
@@ -451,6 +452,7 @@ tokenizeExprOp exprOp _size = case exprOp of
     [tt " "] ++
     tokenize (op ^. #right)
   (Pil.MemCmp op) -> tokenizeBinop "memcmp" op
+  (Pil.ExternPtr op) -> tokenize op
     -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> [stringToken $ op ^. #value]
   (Pil.ConstFuncPtr op) -> tokenize op
@@ -582,6 +584,9 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndex
 instance Tokenizable ByteOffset where
   tokenize (ByteOffset n) = [integerToken n]
 
+instance Tokenizable Address where
+  tokenize (Address n) = [integerToken n]
+
 instance Tokenizable Int64 where
   tokenize n = [integerToken n]
 
@@ -641,6 +646,15 @@ instance Tokenizable Func.Function where
 
 instance Tokenizable Pil.ConstFuncPtrOp where
   tokenize x = [addressToken (x ^. #symbol) (x ^. #address)]
+
+instance Tokenizable Pil.ExternPtrOp where
+  tokenize x = [ tt "extern ", addressToken (x ^. #symbol) addr ]
+               <> moff
+    where
+      moff = case x ^. #offset of
+        0 -> []
+        n -> [tt "[", integerToken n, tt "]"]
+      addr = x ^. #address
 
 --- CFG
 instance Tokenizable (CfNode a) where

@@ -149,6 +149,13 @@ instance Disp a => Disp (Pil.CallDest a) where
     (Pil.CallExpr e) -> disp e
     (Pil.CallExprs es) -> show $ fmap disp es
     (Pil.CallFunc fn) -> disp fn
+    (Pil.CallExtern x) -> disp x
+
+instance Disp Pil.ExternPtrOp where
+  disp x = Text.pack $ printf "extern (%s) (%s) (%s)"
+           (show $ x ^. #address :: String)
+           (disp $ x ^. #offset)
+           (show $ x ^. #symbol :: String)
 
 instance Disp Binja.Function.Function where
   disp f = Text.pack $ printf "func \"%s\" %s" name start
@@ -338,6 +345,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.StrCmp op) -> dispBinop "strcmp" op size
   (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s %s" (op ^. #len) (disp (op ^. #left)) (disp (op ^. #right)) (disp size)
   (Pil.MemCmp op) -> dispBinop "memcmp" op size
+  (Pil.ExternPtr op) -> disp op
   -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> Text.pack $ printf "constStr \"%s\"" $ op ^. #value
   (Pil.ConstFuncPtr op) -> Text.pack $ printf "constFuncPtr %s %s"
@@ -370,7 +378,6 @@ instance Disp Function where
       name = f ^. #name
       start :: Text
       start = show $ f ^. #address
-
 
 instance Disp ByteOffset where
   disp (ByteOffset x) = "byteOffset " <> show x
