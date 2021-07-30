@@ -47,7 +47,7 @@ toBinjaFunction bv cgFunc =
 
 convertFunction :: BNBinaryView -> BnFunc.Function -> IO Function
 convertFunction bv bnf = do
-  let name = bnf ^. BnFunc.name
+  let name = truncateMiddle maxFunctionNameLength $ bnf ^. BnFunc.name
       address = bnf ^. BnFunc.start
   symbol <- convertSymbol =<< Binja.View.getSymbolAtAddress bv address Nothing
   bnParams <- BnFunc.getFunctionParameterVariables bnf
