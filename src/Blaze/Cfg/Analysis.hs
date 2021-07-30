@@ -78,24 +78,21 @@ reducePhi :: HashSet PilVar -> InterCfg -> InterCfg
 reducePhi removedVars =
   transformStmts (PA.reducePhis removedVars)
 
--- | Simplificaiton helper. This function recurses until there are no
--- additional dead nodes and thus no further simplification.
+-- | Simplification helper. This function recurses until reaching a fixed point 
+-- for the ICFG.
 -- NB: This function performs a little extra work in exchange for being less complex.
 --     We could check if any 'DefPhi' statements were reduced to 'Def' statements
 --     and only recurse if that check passed. In the worst case, we will attempt
 --     copy prop and const prop an extra iteration, as well as compute dead branches 
---     and dead nodes and extra iteration.
+--     and dead nodes and extra iteration. We would also need to check for removed nodes
+--     (and edges?)
 _simplify :: InterCfg -> InterCfg
-_simplify icfg = 
-  if HashSet.null deadNodes 
-  then
-    fixed removeUnusedPhi icfg''
-  else -- Recursing until there are no more dead nodes
-    _simplify 
-    . reducePhi removedVars
-    . fixed removeUnusedPhi
-    . removeNodes deadNodes
-    $ icfg''
+_simplify icfg =
+  -- TODO: Do we need to also check if statements were removed via copy prop or other statement transforms?
+  if icfg == icfg'''
+    then icfg'''
+    else -- Recursing until stmts don't change
+      _simplify icfg'''
  where
   icfg' :: InterCfg
   icfg' = constantProp . copyProp $ icfg
@@ -108,6 +105,12 @@ _simplify icfg =
   deadNodes = getDeadNodes (unInterCfg icfg'')
   removedVars :: HashSet PilVar
   removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+  icfg''' :: InterCfg
+  icfg''' =
+    reducePhi removedVars
+      . fixed removeUnusedPhi
+      . removeNodes deadNodes
+      $ icfg''
 
 simplify :: InterCfg -> InterCfg
 simplify = removeEmptyBasicBlockNodes' . _simplify
