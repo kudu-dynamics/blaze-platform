@@ -8,6 +8,7 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
 
+
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
@@ -91,6 +92,7 @@ data ExprOp expr
     | StrCmp (StrCmpOp expr)
     | StrNCmp (StrNCmpOp expr)
     | MemCmp (MemCmpOp expr)
+    | ExternPtr ExternPtrOp
     | ConstStr (ConstStrOp expr)
     | ConstFuncPtr ConstFuncPtrOp
     | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
@@ -169,6 +171,12 @@ data ConstStrOp expr = ConstStrOp
 
 data ConstFuncPtrOp = ConstFuncPtrOp
   { address :: Address
+  , symbol :: Maybe Symbol
+  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
+
+data ExternPtrOp = ExternPtrOp
+  { address :: Address
+  , offset :: ByteOffset
   , symbol :: Maybe Symbol
   } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
 
@@ -445,6 +453,7 @@ data CallDest expr = CallAddr ConstFuncPtrOp
                    | CallFunc Function
                    | CallExpr expr
                    | CallExprs [expr]
+                   | CallExtern ExternPtrOp
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 -- TODO: Consider removing separate DestCollAddr constructor

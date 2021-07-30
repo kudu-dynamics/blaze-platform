@@ -172,6 +172,11 @@ convertExpr expr = do
     (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
     (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
     (MLIL.DIVU_DP x) -> mkExpr . Pil.DIVU_DP <$> f x
+    (MLIL.EXTERN_PTR x) -> mkExpr . Pil.ExternPtr . Pil.ExternPtrOp addr off
+      <$> getSymbolAtAddress addr
+      where
+        addr = fromIntegral $ x ^. MLIL.constant
+        off = fromIntegral $ x ^. MLIL.offset
     (MLIL.FABS x) -> mkExpr . Pil.FABS <$> f x
     (MLIL.FADD x) -> mkExpr . Pil.FADD <$> f x
     (MLIL.FCMP_E x) -> mkExpr . Pil.FCMP_E <$> f x
@@ -465,15 +470,18 @@ isTailCall = \case
   TAILCALL_UNTYPED_SSA _ -> True
   _ -> False
 
-getConstFuncPtrOp :: Address -> Converter Pil.ConstFuncPtrOp
-getConstFuncPtrOp addr = do
+getSymbolAtAddress :: Address -> Converter (Maybe Symbol)
+getSymbolAtAddress addr = do
   bv <- use #binaryView
   msym <- liftIO $ BNView.getSymbolAtAddress bv addr Nothing
-  mname <- traverse (fmap cs . liftIO . BN.getSymbolShortName) msym
-  return $ Pil.ConstFuncPtrOp addr mname
+  traverse (fmap cs . liftIO . BN.getSymbolShortName) msym
+  
+getConstFuncPtrOp :: Address -> Converter Pil.ConstFuncPtrOp
+getConstFuncPtrOp addr = Pil.ConstFuncPtrOp addr <$> getSymbolAtAddress addr
 
 getCallDestFromCallTargetExpr :: Expression -> Converter (Pil.CallDest Expression)
 getCallDestFromCallTargetExpr targetExpr = case targetExpr ^. #op of
+  (Pil.ExternPtr x) -> return $ Pil.CallExtern x
   (Pil.IMPORT c) -> do
     Pil.CallAddr <$> getConstFuncPtrOp (fromIntegral $ c ^. #constant)
   (Pil.ConstFuncPtr x) -> do
