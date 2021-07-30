@@ -281,9 +281,19 @@ convertExpr expr = do
       mkConstFuncPtrExpr :: Address -> ExceptT () Converter Expression
       mkConstFuncPtrExpr addr = do
         r <- lift (getConstFuncPtrOp addr)
-        if isJust (r ^. #symbol)
-        then return . mkExpr $ Pil.ConstFuncPtr r
-        else throwError ()
+        case r ^. #symbol of
+          Just _ -> return . mkExpr $ Pil.ConstFuncPtr r
+          Nothing -> do
+            bv <- use #binaryView
+            liftIO (BNCG.getFunction bv addr) >>= \case
+              Just fn -> return
+                . mkExpr
+                . Pil.ConstFuncPtr
+                . Pil.ConstFuncPtrOp addr
+                . Just
+                . cs
+                $ fn ^. #name
+              Nothing -> throwError ()
 
       mkConstStrExpr :: Address -> ExceptT () Converter Expression
       mkConstStrExpr addr = do
@@ -294,7 +304,7 @@ convertExpr expr = do
       mkConstStrOrFuncPtr :: Address -> Converter Expression -> Converter Expression
       mkConstStrOrFuncPtr addr def
         | addr == 0 = def
-        | otherwise = runExceptT (mkConstStrExpr addr <|> mkConstFuncPtrExpr addr)
+        | otherwise = runExceptT (mkConstFuncPtrExpr addr <|> mkConstStrExpr addr)
                       >>= either (const def) return
 
 getSymbol :: MLIL.SSAVariable -> Symbol
@@ -474,8 +484,8 @@ getSymbolAtAddress :: Address -> Converter (Maybe Symbol)
 getSymbolAtAddress addr = do
   bv <- use #binaryView
   msym <- liftIO $ BNView.getSymbolAtAddress bv addr Nothing
-  traverse (fmap cs . liftIO . BN.getSymbolShortName) msym
-  
+  traverse (fmap cs . liftIO . BN.getSymbolFullName) msym
+
 getConstFuncPtrOp :: Address -> Converter Pil.ConstFuncPtrOp
 getConstFuncPtrOp addr = Pil.ConstFuncPtrOp addr <$> getSymbolAtAddress addr
 
