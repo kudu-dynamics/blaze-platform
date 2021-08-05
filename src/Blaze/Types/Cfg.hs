@@ -144,7 +144,6 @@ mkUniqueNode n = do
     EnterFunc x -> EnterFunc $ x & #uuid .~ uuid'
     LeaveFunc x -> LeaveFunc $ x & #uuid .~ uuid'
 
-
 data CfEdge a = CfEdge
   { src :: CfNode a
   , dst :: CfNode a
@@ -274,6 +273,13 @@ getNodeData = \case
   Call x -> Just $ x ^. #nodeData
   EnterFunc x -> Just $ x ^. #nodeData
   LeaveFunc x -> Just $ x ^. #nodeData
+
+getNodeUUID :: CfNode a -> UUID
+getNodeUUID = \case
+  BasicBlock x -> x ^. #uuid
+  Call x -> x ^. #uuid
+  EnterFunc x -> x ^. #uuid
+  LeaveFunc x -> x ^. #uuid
 
 setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
