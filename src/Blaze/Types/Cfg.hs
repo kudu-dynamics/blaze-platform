@@ -267,12 +267,12 @@ succEdges n cfg = HashSet.map (fromJust . getFullEdge cfg . G.Edge n)
   . G.succs n
   $ cfg
 
-getNodeData :: CfNode a -> Maybe a
+getNodeData :: CfNode a -> a
 getNodeData = \case
-  BasicBlock x -> Just $ x ^. #nodeData
-  Call x -> Just $ x ^. #nodeData
-  EnterFunc x -> Just $ x ^. #nodeData
-  LeaveFunc x -> Just $ x ^. #nodeData
+  BasicBlock x -> x ^. #nodeData
+  Call x -> x ^. #nodeData
+  EnterFunc x -> x ^. #nodeData
+  LeaveFunc x -> x ^. #nodeData
 
 getNodeUUID :: CfNode a -> UUID
 getNodeUUID = \case
@@ -285,8 +285,7 @@ setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
 
 updateNodeData :: (Hashable a, Eq a) => (a -> a) -> CfNode a -> Cfg a -> Cfg a
-updateNodeData f n cfg =
-  maybe cfg (\x -> setNodeData (f x) n cfg) $ getNodeData n
+updateNodeData f n = setNodeData (f $ getNodeData n) n
 
 mergeBranchTypeDefault :: BranchType -> BranchType -> BranchType
 mergeBranchTypeDefault UnconditionalBranch UnconditionalBranch = UnconditionalBranch
