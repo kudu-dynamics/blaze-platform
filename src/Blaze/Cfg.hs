@@ -134,13 +134,13 @@ parseTerminalNode node = do
     <|> (TermNoRet <$> parseNoRetNode bb)
 
 parseBranchNode ::
-  ( CfNode [Stmt] -> Maybe [Stmt]
+  ( CfNode [Stmt] -> [Stmt]
   ) ->
   CfNode [Stmt] ->
   Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
   bb <- node ^? #_BasicBlock
-  lastStmt <- lastMay =<< getStmts node
+  lastStmt <- lastMay $ getStmts node
   case lastStmt of
     BranchCond op -> Just $ BranchNode bb op
     _ -> Nothing
