@@ -22,6 +22,7 @@ module Blaze.Prelude
   , pairs
   , indexed
   , hdebug
+  , toSnd
   , truncateMiddle
   , twaddleUUID
   , unfoldWhileJustM
@@ -228,3 +229,9 @@ truncateMiddle n t
   | otherwise = t
   where
     n2 = n `div` 2
+
+-- taken from Relude
+toSnd :: (a -> b) -> a -> (a, b)
+toSnd f a = (a, f a)
+{-# INLINE toSnd #-}
+

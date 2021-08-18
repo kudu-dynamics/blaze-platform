@@ -6,6 +6,7 @@ import Data.HashMap.Strict ((!))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
+
 data Edge node = Edge
   { src :: node
   , dst :: node
@@ -152,9 +153,9 @@ maxSimplePaths :: forall e attr node g. (Graph e attr node g, Hashable node, Eq 
 maxSimplePaths = foldr max 0 . countAllSimplePaths
 
 -- -- The total number of 
--- descendentFrequencyCount :: forall e node g. (Graph e node g, Hashable node)
+-- descendantFrequencyCount :: forall e node g. (Graph e node g, Hashable node)
 --                     => g -> HashMap node (HashMap node Int)
--- descendentFrequencyCount g =
+-- descendantFrequencyCount g =
 --   let m = mkNonLoopingNodeMap m (HashSet.toList $ nodes g) in
 --     m
 --   where
@@ -167,14 +168,25 @@ maxSimplePaths = foldr max 0 . countAllSimplePaths
 --             xs -> foldr (+) 0 . fmap (m !) $ xs
 --       return (n, x)
 
-newtype DescendentsMap node = DescendentsMap (HashMap node (HashSet node))
-  deriving (Eq, Ord, Show)
+newtype DescendantsMap node = DescendantsMap (HashMap node (HashSet node))
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
-calcDescendentsMap :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
-            => g -> DescendentsMap node
-calcDescendentsMap g =
+-- | Slowly calculate descendants for each node. O(m * log n * n)
+calcDescendantsMap :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+            => g -> DescendantsMap node
+calcDescendantsMap g = DescendantsMap
+  . HashMap.fromList
+  . fmap (toSnd $ HashSet.fromList . flip reachable g)
+  . HashSet.toList
+  $ nodes g
+
+-- | Quicly calculate descendants for each node. Requires that g has no loops.
+calcDescendantsMapForAcyclicGraph :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+            => g -> DescendantsMap node
+calcDescendantsMapForAcyclicGraph g =
   let m = mkNonLoopingNodeMap m (HashSet.toList $ nodes g) in
-    DescendentsMap m
+    DescendantsMap m
   where
     mkNonLoopingNodeMap :: HashMap node (HashSet node) -> [node] -> HashMap node (HashSet node)
     mkNonLoopingNodeMap m ns = HashMap.fromList $ do
@@ -185,21 +197,21 @@ calcDescendentsMap g =
             xs -> foldr HashSet.union HashSet.empty . fmap (\s -> HashSet.insert s $ m ! s) $ xs
       return (n, x)
 
--- assumes DescendentMap contains start node and is derived from g...
+-- assumes DescendantMap contains start node and is derived from g...
 searchBetween_ :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
-              => g -> DescendentsMap node -> node -> node -> [[node]]
-searchBetween_ g (DescendentsMap dm) start end
+              => g -> DescendantsMap node -> node -> node -> [[node]]
+searchBetween_ g (DescendantsMap dm) start end
   | start == end = return [end]
   | HashSet.member end (dm ! start) = do
       kid <- HashSet.toList $ succs start g
-      kidPath <- searchBetween_ g (DescendentsMap dm) kid end
+      kidPath <- searchBetween_ g (DescendantsMap dm) kid end
       return $ start : kidPath      
   | otherwise = []
 
 {- HLINT ignore searchBetween "Eta reduce" -}
 searchBetween :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
               => g -> node -> node -> [[node]]
-searchBetween g start end = searchBetween_ g (calcDescendentsMap g) start end
+searchBetween g start end = searchBetween_ g (calcDescendantsMap g) start end
 
 
 -- -- finding parents is (n * log(n)) for each node

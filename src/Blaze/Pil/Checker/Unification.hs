@@ -103,29 +103,29 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
 -- | True if second is at the same level or below in the type lattice
 --   doesn't check recursive types or type sizes/signs.
 --   Used to order args for unification
-isTypeDescendent :: PilType a -> PilType a -> Bool
-isTypeDescendent (TArray _ _) t = case t of
+isTypeDescendant :: PilType a -> PilType a -> Bool
+isTypeDescendant (TArray _ _) t = case t of
   TArray _ _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent TBool t = case t of
+isTypeDescendant TBool t = case t of
   TBool -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TInt _ _) t = case t of
+isTypeDescendant (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
   -- TQueryChar -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TFloat _) t = case t of
+isTypeDescendant (TFloat _) t = case t of
   TFloat _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TBitVector _) t = case t of
+isTypeDescendant (TBitVector _) t = case t of
   TBitVector _ -> True
-  -- I think these should be descendents
+  -- I think these should be descendants
   -- TFloat _ -> True
   TInt _ _ -> True
   TPointer _ _ -> True
@@ -134,38 +134,38 @@ isTypeDescendent (TBitVector _) t = case t of
   TBool -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TPointer _ _) t = case t of
+isTypeDescendant (TPointer _ _) t = case t of
   TPointer _ _ -> True
   TArray _ _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent TChar t = case t of
+isTypeDescendant TChar t = case t of
   TChar -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TFunction _ _) t = case t of
+isTypeDescendant (TFunction _ _) t = case t of
   (TFunction _ _) -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TRecord _) t = case t of
+isTypeDescendant (TRecord _) t = case t of
   TRecord _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent TUnit t = case t of
+isTypeDescendant TUnit t = case t of
   TUnit -> True
   _ -> False
-isTypeDescendent (TBottom _) t = case t of
+isTypeDescendant (TBottom _) t = case t of
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TVBitWidth _) t = case t of
+isTypeDescendant (TVBitWidth _) t = case t of
   TVBitWidth _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TVLength _) t = case t of
+isTypeDescendant (TVLength _) t = case t of
   TVLength _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendent (TVSign _) t = case t of
+isTypeDescendant (TVSign _) t = case t of
   TVSign _ -> True
   TBottom _ -> True
   _ -> False
@@ -176,7 +176,7 @@ unifyPilTypes :: PilType Sym -> PilType Sym -> Unify (PilType Sym)
 unifyPilTypes (TBottom s) _ = return $ TBottom s 
 unifyPilTypes _ (TBottom s) = return $ TBottom s
 unifyPilTypes pt1 pt2 =
-  case (isTypeDescendent pt1 pt2, isTypeDescendent pt2 pt1) of
+  case (isTypeDescendant pt1 pt2, isTypeDescendant pt2 pt1) of
     (False, False) -> err
     (False, True) -> unifyPilTypes pt2 pt1
     _ -> case pt1 of

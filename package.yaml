@@ -135,6 +135,7 @@ library:
   - Blaze.Pil.Solver
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
+  - Blaze.Types.Cfg.Analysis
   - Blaze.Types.Cfg.Interprocedural  
   - Blaze.Types.Cfg.Loop
   - Blaze.Types.Fir
