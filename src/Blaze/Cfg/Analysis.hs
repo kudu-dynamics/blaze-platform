@@ -8,11 +8,18 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
-import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CfEdge(CfEdge), Cfg)
+import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg)
 import Blaze.Types.Pil (Stmt, PilVar)
+import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 import Blaze.Graph (Edge)
+import Blaze.Import.CallGraph (CallGraphImporter, getFunctions)
+import Blaze.CallGraph (getCallGraph)
+import Blaze.Types.Cfg.Analysis
+import Blaze.Function (Function)
+
 
 transformStmts :: ([Stmt] -> [Stmt]) -> InterCfg -> InterCfg
 transformStmts f icfg =
@@ -191,3 +198,57 @@ removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
   where
     f (Cfg.BasicBlock x) = null $ x ^. #nodeData
     f _ = False
+
+
+------------- Call Node rating --------------
+
+getCallNodeRatingCtx :: CallGraphImporter a => a -> IO CallNodeRatingCtx
+getCallNodeRatingCtx imp = do
+  funcs <- getFunctions imp
+  cg <- getCallGraph imp funcs
+  let dmap = G.calcDescendantsMap cg
+  return $ CallNodeRatingCtx cg dmap
+
+getCallNodeRatings
+  :: (Hashable a, Eq a)
+  => CallNodeRatingCtx
+  -> Target
+  -> Cfg a
+  -> HashMap (CallNode a) CallNodeRating
+getCallNodeRatings ctx tgt cfg =
+  HashMap.fromList . fmap (toSnd $ getCallNodeRating ctx tgt) $ callNodes
+  where
+    callNodes = mapMaybe isCallNode . HashSet.toList . G.nodes $ cfg
+
+    isCallNode (Cfg.Call x) = Just x
+    isCallNode _ = Nothing
+
+-- | Returns a Call Node rating between 0 and 1, where higher scores are better
+-- for reaching the target.
+-- The score will be 0 if target cannot be reached, and at least 0.5 if it can
+-- be reached through the callgraph.
+-- The range (0, 0.5) is reserved for callnodes that might reach target
+-- through indirect calls.
+getCallNodeRating :: CallNodeRatingCtx -> Target -> CallNode a -> CallNodeRating
+getCallNodeRating ctx tgt call = case call ^. #callDest of
+  Pil.CallFunc func -> getCallFuncRating ctx tgt func
+  _ -> CallNodeRating { score = 0 }
+
+getCallFuncRating :: CallNodeRatingCtx -> Target -> Function -> CallNodeRating
+getCallFuncRating ctx tgt srcFunc = CallNodeRating
+  { score = maybe 0.0 normalize shortestPath
+  }
+  where
+    maxPathLength = 20 :: Int
+    normalize :: Int -> Double
+    normalize 0 = 1.0
+    normalize n = 0.5 + (1.0
+                         - fromIntegral (min maxPathLength n)
+                         / fromIntegral maxPathLength
+                        ) / 2.0
+    dstFunc = tgt ^. #function
+    searchedBetween :: [[Function]]
+    searchedBetween = G.searchBetween_ (ctx ^. #callGraph) (ctx ^. #descendantsMap) srcFunc dstFunc
+    shortestPath = case uncons . fmap length $ searchedBetween of
+      Nothing -> Nothing
+      Just (x, xs) -> Just $ foldl' min x xs
