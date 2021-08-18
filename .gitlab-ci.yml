@@ -5,6 +5,7 @@ stages:
   - push
   - docs
   - trigger
+  - cleanup
 
 # FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
 # case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
@@ -250,3 +251,29 @@ trigger-blaze-ui:
         -F token=\"${CI_JOB_TOKEN}\"
         -F ref=master
         \"${CI_API_V4_URL}\"/projects/\"${BLAZE_UI_REPO_ID}\"/trigger/pipeline
+
+cleanup:
+  stage: cleanup
+  when: always
+  extends: .dind
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - apk add --no-cache --update bash
+    - "# Untag all images created by this pipeline so we don't waste space on CI runner"
+    - |
+      bash -c '
+        images=(${REPO_DOCKER_REGISTRY}/blaze)
+        tags=()
+        for image in "${images[@]}"; do
+          tags+=(
+            "${image}:commit-${CI_COMMIT_SHA}"
+            "${image}:branch-${CI_COMMIT_REF_SLUG}"
+            "${CI_MERGE_REQUEST_IID:+${image}:merge-${CI_MERGE_REQUEST_IID}}"
+            "${CI_COMMIT_TAG:+${image}:tag-${CI_COMMIT_TAG}}"
+            )
+        done
+        for i in "${!tags[@]}"; do if [ -z "${tags[$i]}" ]; then unset tags[$i]; fi; done
+        echo "${tags[@]}"
+        docker image rm "${tags[@]}" || true
+      '
