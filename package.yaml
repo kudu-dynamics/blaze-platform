@@ -43,7 +43,6 @@ dependencies:
   - list-t
   - mtl
   - newtype
-  - parameterized-utils
   - pretty-simple
   - protolude
   - random

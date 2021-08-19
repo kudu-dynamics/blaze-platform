@@ -9,7 +9,6 @@ import Blaze.Import.Cfg (CfgImporter (NodeMapType, NodeDataType))
 import qualified Blaze.Import.Cfg as CfgImp
 import Data.HashMap.Strict as HMap
 import Blaze.Types.Pil.Common (CtxId)
-import Control.Monad (MonadFail)
 
 -- TODO : Instead of wrapping PilCfg to create an InterCfg, assume
 --        every Cfg could be an InterCfg and instead introduce a type

@@ -84,7 +84,9 @@ deepSymTypeToKind t = case t of
     err = throwError . DeepSymTypeConversionError t
 
 makeSymVar :: Maybe Text -> Kind -> Solver SVal
-makeSymVar nm k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (cs <$> nm)
+makeSymVar nm k = case cs <$> nm of
+  Just n -> D.svNewVar k n
+  Nothing -> D.svNewVar_ k
 
 makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
 makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm
@@ -301,7 +303,7 @@ constrain :: SVal -> Solver ()
 constrain x = toSBool x >>= SBV.constrain
 
 newSymVar :: Text -> Kind -> Solver SVal
-newSymVar name' k = SBV.symbolicEnv >>= liftIO . D.svMkSymVar Nothing k (Just $ cs name')
+newSymVar name' k = D.svNewVar k (cs name')
 
 -------------------------------
 
