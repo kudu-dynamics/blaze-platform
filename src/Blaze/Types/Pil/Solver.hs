@@ -79,6 +79,7 @@ instance MonadFail Solver where
   fail = throwError . ErrorMessage . cs
 
 instance SolverContext Solver where
+  addAxiom s = liftSymbolicT . addAxiom s
   constrain = liftSymbolicT . constrain
   softConstrain = liftSymbolicT . softConstrain
   namedConstraint s = liftSymbolicT . namedConstraint s
@@ -108,7 +109,7 @@ runSolverWith_ solverCfg = flip (runSolverWith solverCfg) (emptyState, emptyCtx)
 data SolverResult = Unsat
                   | Unk
                   | Sat (HashMap Text CV)
-                  deriving (Eq, Ord, Show)
+                  deriving (Eq, Ord, Show, Generic)
 
 
 querySolverResult :: Solver SolverResult
@@ -118,6 +119,9 @@ querySolverResult = do
     case csat of
       Q.Unsat -> return Unsat
       Q.Unk -> return Unk
+      Q.DSat _precision -> do
+        model <- Q.getModel
+        return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
       Q.Sat -> do
         model <- Q.getModel
         return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
