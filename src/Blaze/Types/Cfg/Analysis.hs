@@ -12,11 +12,12 @@ data PathSearchStats = PathSearchStats
   , medianPathLength :: Int
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
-{- HLINT ignore "Use newtype instead of data" -} -- ignore b/c we'll add more info fields
-data CallNodeRating = CallNodeRating
-  { score :: Double
-  -- , pathSearchStats :: Maybe PathSearchStats
-  }
+-- TODO: add something for reachable through indirect calls
+data CallNodeRating
+  = Unreachable
+  | Reachable { score :: Double
+              -- , pathSearchStats :: Maybe PathSearchStats
+              }
   deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
 
 data CallNodeRatingCtx = CallNodeRatingCtx
