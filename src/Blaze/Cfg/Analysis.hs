@@ -199,6 +199,14 @@ removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
     f (Cfg.BasicBlock x) = null $ x ^. #nodeData
     f _ = False
 
+getNodesContainingAddress :: (Eq a, Hashable a) => Address -> Cfg a -> HashSet (CfNode a)
+getNodesContainingAddress addr = HashSet.filter containsAddr . G.nodes
+  where
+    -- TODO: confirm that bb range is [start, end)
+    containsAddr (Cfg.BasicBlock bb) = bb ^. #start <= addr && addr < bb ^. #end
+    containsAddr (Cfg.Call n) = n ^. #start == addr
+    containsAddr (Cfg.EnterFunc _) = False
+    containsAddr (Cfg.LeaveFunc _) = False
 
 ------------- Call Node rating --------------
 
@@ -232,20 +240,18 @@ getCallNodeRatings ctx tgt cfg =
 getCallNodeRating :: CallNodeRatingCtx -> Target -> CallNode a -> CallNodeRating
 getCallNodeRating ctx tgt call = case call ^. #callDest of
   Pil.CallFunc func -> getCallFuncRating ctx tgt func
-  _ -> CallNodeRating { score = 0 }
+  _ -> Unreachable
 
 getCallFuncRating :: CallNodeRatingCtx -> Target -> Function -> CallNodeRating
-getCallFuncRating ctx tgt srcFunc = CallNodeRating
-  { score = maybe 0.0 normalize shortestPath
-  }
+getCallFuncRating ctx tgt srcFunc =
+  maybe Unreachable (Reachable . (**2) . normalize) shortestPath
   where
-    maxPathLength = 20 :: Int
+    maxPathLength = 6 :: Int
     normalize :: Int -> Double
     normalize 0 = 1.0
-    normalize n = 0.5 + (1.0
-                         - fromIntegral (min maxPathLength n)
-                         / fromIntegral maxPathLength
-                        ) / 2.0
+    normalize n = 1.0
+                  - fromIntegral (min maxPathLength n)
+                  / fromIntegral maxPathLength
     dstFunc = tgt ^. #function
     searchedBetween :: [[Function]]
     searchedBetween = G.searchBetween_ (ctx ^. #callGraph) (ctx ^. #descendantsMap) srcFunc dstFunc
