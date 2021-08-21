@@ -41,8 +41,10 @@ dependencies:
   - hashable
   - lens
   - list-t
+  - megaparsec
   - mtl
   - newtype
+  - parser-combinators
   - pretty-simple
   - protolude
   - random
@@ -127,6 +129,7 @@ library:
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Pil.Function
+  - Blaze.Pil.Parse
   - Blaze.Pil.Path
   - Blaze.Prelude
   - Blaze.Pretty
