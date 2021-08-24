@@ -22,7 +22,6 @@ dependencies:
   - aeson
   - algebraic-graphs
   - async
-  - attoparsec
   - base >= 4.7 && < 5
   - binary-analysis
   - bimap
@@ -41,8 +40,10 @@ dependencies:
   - hashable
   - lens
   - list-t
+  - megaparsec
   - mtl
   - newtype
+  - parser-combinators
   - pretty-simple
   - protolude
   - random
@@ -127,6 +128,7 @@ library:
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
   - Blaze.Pil.Function
+  - Blaze.Pil.Parse
   - Blaze.Pil.Path
   - Blaze.Prelude
   - Blaze.Pretty
@@ -239,4 +241,5 @@ tests:
     - blaze
     - binaryninja
     - hspec
+    - hspec-megaparsec
     - text

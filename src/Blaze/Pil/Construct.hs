@@ -79,14 +79,38 @@ add = binOp Pil.ADD Pil.AddOp
 sub :: Expression -> Expression -> OperationSize -> Expression
 sub = binOp Pil.SUB Pil.SubOp
 
+mul :: Expression -> Expression -> OperationSize -> Expression
+mul = binOp Pil.MUL Pil.MulOp
+
 cmpE :: Expression -> Expression -> OperationSize -> Expression
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
 cmpNE :: Expression -> Expression -> OperationSize -> Expression
 cmpNE = binOp Pil.CMP_NE Pil.CmpNeOp
 
+cmpSge :: Expression -> Expression -> OperationSize -> Expression
+cmpSge = binOp Pil.CMP_SGE Pil.CmpSgeOp
+
 cmpSgt :: Expression -> Expression -> OperationSize -> Expression
 cmpSgt = binOp Pil.CMP_SGT Pil.CmpSgtOp
+
+cmpSle :: Expression -> Expression -> OperationSize -> Expression
+cmpSle = binOp Pil.CMP_SLE Pil.CmpSleOp
+
+cmpSlt :: Expression -> Expression -> OperationSize -> Expression
+cmpSlt = binOp Pil.CMP_SLT Pil.CmpSltOp
+
+cmpUge :: Expression -> Expression -> OperationSize -> Expression
+cmpUge = binOp Pil.CMP_UGE Pil.CmpUgeOp
+
+cmpUgt :: Expression -> Expression -> OperationSize -> Expression
+cmpUgt = binOp Pil.CMP_UGT Pil.CmpUgtOp
+
+cmpUle :: Expression -> Expression -> OperationSize -> Expression
+cmpUle = binOp Pil.CMP_ULE Pil.CmpUleOp
+
+cmpUlt :: Expression -> Expression -> OperationSize -> Expression
+cmpUlt = binOp Pil.CMP_ULT Pil.CmpUltOp
 
 sx :: Expression -> OperationSize -> Expression
 sx = unOp Pil.SX Pil.SxOp
@@ -96,6 +120,15 @@ zx = unOp Pil.ZX Pil.ZxOp
 
 strcmp :: Expression -> Expression -> OperationSize -> Expression
 strcmp = binOp Pil.StrCmp Pil.StrCmpOp
+
+or :: Expression -> Expression -> OperationSize -> Expression
+or = binOp Pil.OR Pil.OrOp
+
+and :: Expression -> Expression -> OperationSize -> Expression
+and = binOp Pil.AND Pil.AndOp
+
+not :: Expression -> OperationSize -> Expression
+not = unOp Pil.NOT Pil.NotOp
 
 -- TODO: Change to just Load. PIL is being updated to drop versioned memory.
 load :: Expression -> OperationSize -> Expression
