@@ -3,6 +3,7 @@ module Blaze.Pil.Parse
   , parseInt
   , parseTerm
   , parseExpr
+  , run
   ) where
 
 import Prelude (id)
@@ -84,9 +85,15 @@ parseExpr = makeExprParser parseTerm $
     ]
   ]
 
+run :: Parser a -> Text -> Either Text a
+run p input =
+  either (Left . cs . errorBundlePretty) Right $ parse p "" input
+
+
 -- -- XXX remove me
 test :: Parser a -> Text -> Either Text a
 test p input =
   either (Left . cs . errorBundlePretty) Right $ parse p "" input
 testExpr :: Text -> Text
 testExpr = either id pretty . test parseExpr
+
