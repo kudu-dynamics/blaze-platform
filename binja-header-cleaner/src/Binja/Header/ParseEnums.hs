@@ -30,17 +30,16 @@ import Data.Attoparsec.Text ( Parser
                             )
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Char (isAlphaNum)
 import qualified Data.Char as Char
 
 h :: FilePath
 h = "/tmp/kudu/binaryninja-api/binaryninjacore.h"
 
 newtype EnumName = EnumName Text
-  deriving (Eq, Ord, Read, Show, IsString)
+  deriving newtype (Eq, Ord, Read, Show, IsString)
 
 newtype EnumField = EnumField Text
-  deriving (Eq, Ord, Read, Show, IsString)
+  deriving newtype (Eq, Ord, Read, Show, IsString)
 
 data EnumVals = SimpleEnumVals [EnumField]
               | SpecificEnumVals [(EnumField, Int)]

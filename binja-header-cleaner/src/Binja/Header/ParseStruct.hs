@@ -23,9 +23,6 @@ import           Data.Attoparsec.Text                  ( Parser
                                                        , takeTill
                                                        , takeWhile
                                                        )
-import           Data.Char                             ( isAlpha
-                                                       , isAlphaNum
-                                                       )
 import qualified Data.Text            as Text
 
 type StructField = Text

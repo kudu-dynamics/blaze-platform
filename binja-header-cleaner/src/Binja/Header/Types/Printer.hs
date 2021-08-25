@@ -17,7 +17,8 @@ data PrinterState = PrinterState
   } deriving (Eq, Ord, Read, Show)
 
 newtype Printer a = Printer (State PrinterState a)
-  deriving (Functor, Applicative, Monad, MonadState PrinterState)
+  deriving newtype (Functor, Applicative, Monad, MonadState PrinterState)
+
 
 toText :: Printer a -> Text
 toText (Printer m) = let s = execState m (PrinterState 0 []) in
