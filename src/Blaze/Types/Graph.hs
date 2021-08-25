@@ -197,6 +197,35 @@ calcDescendantsMapForAcyclicGraph g =
             xs -> foldr HashSet.union HashSet.empty . fmap (\s -> HashSet.insert s $ m ! s) $ xs
       return (n, x)
 
+newtype DescendantsDistanceMap node
+  = DescendantsDistanceMap (HashMap node (HashMap node Int))
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
+-- | Slowly calculate descendants for each node. O(m * log n * n)
+calcDescendantsDistanceMap
+  :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+  => g -> DescendantsDistanceMap node
+calcDescendantsDistanceMap g = DescendantsDistanceMap
+  . HashMap.fromList
+  . fmap (toSnd $ flip calcDescendantsDistances g)
+  . HashSet.toList
+  $ nodes g
+
+calcDescendantsDistances
+  :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+  => node -> g -> HashMap node Int
+calcDescendantsDistances n = HashMap.fromList .concatMap f . zip [1..] . bfs [n]
+  where
+    f :: (Int, [node]) -> [(node, Int)]
+    f (d, ns) = fmap (,d) ns
+
+getDescendantDistance
+  :: (Eq node, Hashable node)
+  => DescendantsDistanceMap node -> node -> node -> Maybe Int
+getDescendantDistance (DescendantsDistanceMap m) srcNode dstNode =
+  HashMap.lookup srcNode m >>= HashMap.lookup dstNode
+
 -- assumes DescendantMap contains start node and is derived from g...
 searchBetween_ :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
               => g -> DescendantsMap node -> node -> node -> [[node]]

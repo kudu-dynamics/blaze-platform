@@ -214,7 +214,7 @@ getCallNodeRatingCtx :: CallGraphImporter a => a -> IO CallNodeRatingCtx
 getCallNodeRatingCtx imp = do
   funcs <- getFunctions imp
   cg <- getCallGraph imp funcs
-  let dmap = G.calcDescendantsMap cg
+  let dmap = G.calcDescendantsDistanceMap cg
   return $ CallNodeRatingCtx cg dmap
 
 getCallNodeRatings
@@ -253,8 +253,5 @@ getCallFuncRating ctx tgt srcFunc =
                   - fromIntegral (min maxPathLength n)
                   / fromIntegral maxPathLength
     dstFunc = tgt ^. #function
-    searchedBetween :: [[Function]]
-    searchedBetween = G.searchBetween_ (ctx ^. #callGraph) (ctx ^. #descendantsMap) srcFunc dstFunc
-    shortestPath = case uncons . fmap length $ searchedBetween of
-      Nothing -> Nothing
-      Just (x, xs) -> Just $ foldl' min x xs
+    
+    shortestPath = G.getDescendantDistance (ctx ^. #descendantsDistanceMap) srcFunc dstFunc
