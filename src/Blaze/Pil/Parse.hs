@@ -1,3 +1,5 @@
+{- HLINT ignore "Avoid lambda using `infix`" -}
+
 module Blaze.Pil.Parse (
   Parser,
   parseVar,
@@ -62,7 +64,7 @@ parseTerm =
 
 parseExpr :: Parser Expression
 parseExpr =
-  makeExprParser parseTerm $
+  makeExprParser parseTerm
     [
       [ binl "*" C.mul
       ]
