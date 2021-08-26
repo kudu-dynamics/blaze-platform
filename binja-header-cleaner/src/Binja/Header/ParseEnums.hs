@@ -25,6 +25,7 @@ import Data.Attoparsec.Text ( Parser
                             , skipSpace
                             , decimal
                             , sepBy1
+                            , signed
                             , space
                             , option
                             )
@@ -86,7 +87,7 @@ specificEnumVal = do
   skipSpace
   void $ char '='
   skipSpace
-  n <- hex <|> decimal
+  n <- signed $ hex <|> decimal
   return (ef, n)
 
 padded_ :: Parser a -> Parser ()

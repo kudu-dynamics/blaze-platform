@@ -114,7 +114,7 @@ buildVarList :: StatementFunction t => OpBuilder t [Variable]
 buildVarList = do
   xs <- buildIntList
   fn <- view (func . Func.func) <$> ask
-  _ <- getAndAdvanceOpIndex  -- I don't know why...
+  void getAndAdvanceOpIndex  -- I don't know why...
   liftIO $ traverse (Var.getVariableFromIdentifier fn . fromIntegral) xs
 
 asPairs :: [a] -> [(a, a)]
@@ -126,7 +126,7 @@ buildSSAVarList :: StatementFunction t => OpBuilder t [SSAVariable]
 buildSSAVarList = do
   xs <- buildIntList
   fn <- view (func . Func.func) <$> ask
-  _ <- getAndAdvanceOpIndex  -- I don't know why...
+  void getAndAdvanceOpIndex  -- I don't know why...
   liftIO . traverse (f fn) $ asPairs xs
   where
     f fn (vid, vversion) = do

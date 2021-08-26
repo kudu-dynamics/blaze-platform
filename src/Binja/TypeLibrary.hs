@@ -30,9 +30,9 @@ getFunctionTypes tl = BN.getTypeLibraryNamedObjects tl >>= mapMaybeM f
       params <- liftIO $ BN.getTypeParameters bnt
       paramsTypes <- traverse paramToVarType params
 
-      name' <- getFromMaybe . lastMay $ x ^. name ^. name
+      name' <- getFromMaybe . lastMay $ x ^. name . name
 
-      return $ FunctionType name' (x ^. name ^. name) retType paramsTypes
+      return $ FunctionType name' (x ^. name . name) retType paramsTypes
 
     paramToVarType :: BNFunctionParameter -> MaybeT IO VarType
     paramToVarType p = do

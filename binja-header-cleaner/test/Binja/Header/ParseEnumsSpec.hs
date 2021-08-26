@@ -66,3 +66,16 @@ spec = describe "Binja.Header.ParseEnumsSpec" $ do
             ]
       parseOnly parseEnumType t `shouldBe` result
 
+    it "specific enum with negative" $ do
+      let t = [r|enum BNSaveOption
+	{
+		RemoveUndoData = -1,
+		TrimSnapshots = 88
+	};|]
+          
+          result = Right . EnumType "BNSaveOption" . SpecificEnumVals $
+            [ ("RemoveUndoData", -1)
+            , ("TrimSnapshots", 88)
+            ]
+      parseOnly parseEnumType t `shouldBe` result
+
