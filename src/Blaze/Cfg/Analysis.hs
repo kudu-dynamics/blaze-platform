@@ -130,11 +130,36 @@ prune edge icfg = simplify prunedIcfg
     prunedIcfg :: InterCfg
     prunedIcfg = InterCfg . G.removeEdge edge . unInterCfg $ icfg
 
+parseJumpToPred :: InterCfg -> PilNode -> Maybe PilNode 
+parseJumpToPred icfg n = case predNodes of
+  [predNode] -> 
+    if isJust $ parseJumpTo predNode then
+      Just predNode
+    else
+      Nothing
+  _ -> Nothing
+  where
+    predNodes = HashSet.toList $ Cfg.preds n (unInterCfg icfg)
+
+parseJumpTo :: PilNode -> Maybe (Pil.JumpToOp Pil.Expression)
+parseJumpTo n = case n ^? #_BasicBlock . #nodeData of
+    Just [Pil.JumpTo jumpToOp] -> Just jumpToOp
+    _ -> Nothing
+
+simplifyJumpTo :: [Stmt] -> [Stmt]
+simplifyJumpTo xs = case xs of
+  [Pil.JumpTo jumpToOp] ->
+    [Pil.JumpTo (jumpToOp & #targets .~ [])]
+  _ -> xs
+
 -- | Removes all nodes/edges that don't lead to or can't be reached by node.
 -- Returns a modified and simplified ICFG.
 focus :: PilNode -> InterCfg -> InterCfg
 focus focalNode icfg =
-  simplify . reducePhi removedVars . removeNodes deadNodes $ icfg
+  let icfg' = simplify . reducePhi removedVars . removeNodes deadNodes $ icfg in
+      fromMaybe icfg' (do
+        jumpToPred <- parseJumpToPred icfg' focalNode
+        Just $ InterCfg $ Cfg.updateNodeData simplifyJumpTo jumpToPred (unInterCfg icfg'))
  where
   -- Need deadNodes to compute removedVars and to actually remove the dead nodes
   deadNodes :: HashSet PilNode
