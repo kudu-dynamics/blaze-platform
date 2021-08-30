@@ -17,6 +17,9 @@ import Blaze.Types.Pil.Common (CtxId)
 newtype InterCfg = InterCfg {unInterCfg :: PilCfg}
   deriving (Eq, Show, Generic)
 
+liftInter :: (PilCfg -> PilCfg) -> (InterCfg -> InterCfg)
+liftInter f = InterCfg . f . unInterCfg
+
 newtype Builder a b = Builder
   {_runBuilder :: StateT (BuilderState a) IO b}
   deriving (Functor, Generic)
