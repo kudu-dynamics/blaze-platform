@@ -8,12 +8,13 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
-import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg)
-import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg)
+import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
+import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Graph (Edge)
 import Blaze.Import.CallGraph (CallGraphImporter, getFunctions)
 import Blaze.CallGraph (getCallGraph)
@@ -155,20 +156,33 @@ simplifyJumpTo xs = case xs of
 -- | Removes all nodes/edges that don't lead to or can't be reached by node.
 -- Returns a modified and simplified ICFG.
 focus :: PilNode -> InterCfg -> InterCfg
-focus focalNode icfg =
-  let icfg' = simplify . reducePhi removedVars . removeNodes deadNodes $ icfg in
-      fromMaybe icfg' (do
-        jumpToPred <- parseJumpToPred icfg' focalNode
-        Just $ InterCfg $ Cfg.updateNodeData simplifyJumpTo jumpToPred (unInterCfg icfg'))
- where
-  -- Need deadNodes to compute removedVars and to actually remove the dead nodes
-  deadNodes :: HashSet PilNode
-  deadNodes =
-    HashSet.difference
-      (G.nodes . unInterCfg $ icfg)
-      (G.connectedNodes focalNode . unInterCfg $ icfg)
-  removedVars :: HashSet PilVar
-  removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+focus focalNode icfg = fromMaybe icfg' $ do
+  jumpToPred <- parseJumpToPred icfg' focalNode
+  return . InterCfg . Cfg.updateNodeData simplifyJumpTo jumpToPred . unInterCfg $ icfg'
+  where
+    icfg' = simplify
+            . reducePhi removedVars
+            . liftInter (Cfg.removeEdges deadEdges)
+            . removeNodes deadNodes
+            $ icfg
+    (InterCfg cfg) = icfg
+    -- Need deadNodes to compute removedVars and to actually remove the dead nodes
+    cnodes :: HashSet PilNode
+    cedges :: HashSet (G.LEdge BranchType PilNode)
+    (cnodes, cedges) = G.connectedNodesAndEdges
+                       (Proxy :: Proxy (AlgaGraph () () (G.EdgeGraphNode BranchType PilNode)))
+                       focalNode
+                       cfg
+
+    deadNodes :: HashSet PilNode
+    deadNodes = HashSet.difference (Cfg.nodes cfg) cnodes
+    deadEdges :: [PilEdge]
+    deadEdges = fmap Cfg.fromLEdge
+      . HashSet.toList
+      . HashSet.difference (HashSet.fromList $ G.edges cfg)
+      $ cedges
+    removedVars :: HashSet PilVar
+    removedVars = PA.getDefinedVars (concatMap concat deadNodes)
 
 getDeadBranches :: InterCfg -> [PilEdge]
 getDeadBranches icfg =

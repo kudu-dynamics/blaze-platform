@@ -1,3 +1,7 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Blaze.Types.Graph where
 
 import Blaze.Prelude hiding (transpose)
@@ -247,12 +251,10 @@ searchBetween g start end = searchBetween_ g (calcDescendantsMap g) start end
 -- -- this 
 -- parentMap :: forall e node g. (Graph e node g, Hashable node)
 --           => g -> HashMap n (HashSet n)
-          
 
 siblings :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
          => node -> node -> g -> HashSet node
 siblings child parent g = HashSet.delete child $ succs parent g
-
 
 -- TODO: Get these working with attr nodes.
 -- Currently not used anywhere.
@@ -269,12 +271,35 @@ siblings child parent g = HashSet.delete child $ succs parent g
 -- mapNodes :: (Graph e n g, Graph e n' g') => (n -> n') -> g -> g'
 -- mapNodes = mapGraph identity
 
-
 updateNodeAttr :: (Graph e attr n g) => (attr -> attr) -> n -> g -> g
 updateNodeAttr f n g = case getNodeAttr n g of
   Nothing -> g
   Just attr -> setNodeAttr (f attr) n g
 
+data EdgeGraphNode e n
+  = EdgeNode (LEdge e n)
+  | NodeNode n
+  deriving (Eq, Ord, Generic, Hashable)
+
+-- | Converts to graph where edges are nodes.
+toEdgeGraph :: forall e attr n g g'.
+  ( Graph e attr n g
+  , Graph () () (EdgeGraphNode e n) g'
+  ) => g -> g'
+toEdgeGraph g = addNodes nodelist $ fromEdges edges'
+     where
+       nodelist :: [EdgeGraphNode e n]
+       nodelist = fmap NodeNode . HashSet.toList . nodes $ g
+
+       edges' :: [LEdge () (EdgeGraphNode e n)]
+       edges' = concatMap f $ edges g
+         where
+           f (LEdge e (Edge a b)) =
+             [ LEdge () $ Edge (NodeNode a) edge'
+             , LEdge () $ Edge edge' (NodeNode b)
+             ]
+             where
+               edge' = EdgeNode (LEdge e $ Edge a b)
 
 -- | All nodes that can reach node and that can be reached by node.
 -- Formally, this is the union of the in-component and the out-component of 
@@ -284,3 +309,19 @@ connectedNodes n g = HashSet.fromList reachedNodes <> HashSet.fromList reachingN
   where
     reachedNodes = reachable n g
     reachingNodes = reachable n $ transpose g
+
+connectedNodesAndEdges :: forall e attr n g g'.
+  ( Graph e attr n g
+  , Graph () () (EdgeGraphNode e n) g'
+  , Hashable n
+  , Hashable e
+  , Eq n
+  , Eq e
+  ) => Proxy g' -> n -> g -> (HashSet n, HashSet (LEdge e n))
+connectedNodesAndEdges _ n g = foldr f (HashSet.empty, HashSet.empty) cnodes
+  where
+    g' = toEdgeGraph g :: g'
+    cnodes = connectedNodes (NodeNode n) g'
+    f :: EdgeGraphNode e n -> (HashSet n, HashSet (LEdge e n)) -> (HashSet n, HashSet (LEdge e n))
+    f (NodeNode x) (nodes', edges') = (HashSet.insert x nodes', edges')
+    f (EdgeNode e) (nodes', edges') = (nodes', HashSet.insert e edges')
