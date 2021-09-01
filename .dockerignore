@@ -1,6 +1,3 @@
-Dockerfile*
-.dockerignore
-
 .git
 .gitlab-ci.yml
 
@@ -8,3 +5,35 @@ Dockerfile*
 *.cabal
 **/dist-newstyle
 **/dist
+
+# From .gitignore
+*.cabal
+dist
+dist-*
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+.hpc
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+*.prof
+*.aux
+*.hp
+*.eventlog
+.stack-work/
+cabal.project.local
+cabal.project.local~
+.HTF/
+.ghc.environment.*
+.stack-work
+*.liquid
+*~
+.DS_Store
+.ghcid
+*.lock
+res/extra_bins
