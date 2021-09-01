@@ -91,9 +91,6 @@ workflow:
 
       **/dist-newstyle
       **/dist
-
-      **/Dockerfile*
-      **/.dockerignore
       EOF
     - |
       { echo -e '\n\n# From binary-analysis/.gitignore:';
