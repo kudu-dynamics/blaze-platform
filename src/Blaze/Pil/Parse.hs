@@ -36,11 +36,17 @@ binr p f = InfixR (lex p $> (\x y -> f x y 8))
 binn :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
 binn p f = InfixN (lex p $> (\x y -> f x y 8))
 
+-- NOTE if any of these characters get introduced elsewhere in the grammar,
+-- they _might_ need to be removed as valid identifier characters. Prefix
+-- operators such as "! are one example of characters that can still be
+-- valid for identifiers
 parseVar :: Parser PilVar
 parseVar = lex scan <?> "variable identifier"
   where
-    firstChar = satisfy (\c -> isLetter c || c == '_') <?> "alphanumeric character or underscore"
-    restChar = (alphaNumChar <|> oneOf ['_', '#', '\'']) <?> "alphanumeric character or one of _#'"
+    firstChar = (letterChar <|> oneOf ['_', '$'])
+                <?> "letter or one of _$"
+    restChar = (alphaNumChar <|> oneOf ['_', '$', '#', '\'', '@', ':', '.', '!', '~'])
+               <?> "alphanumeric character or one of _$#'@:.!~"
     rest = T.pack <$> many restChar
     scan = (\x y -> C.pilVar $ T.cons x y) <$> firstChar <*> rest
 
