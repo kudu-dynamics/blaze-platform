@@ -534,7 +534,7 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
     Pil.UnimplMem x -> [tt "Unimplemented Memory: ", tt "["] ++ tokenize (x ^. #src)
     Pil.Undef -> [keywordToken "Undefined"]
     Pil.Nop -> [keywordToken "Nop"]
-    Pil.Annotation t -> [tt "Annotation: ", plainToken CommentToken t]
+    Pil.Annotation t -> [plainToken CommentToken "// ", plainToken CommentToken t]
     Pil.EnterContext x -> [tt "----> Entering "] ++ tokenize (x ^. #ctx)
     Pil.ExitContext x -> [tt "<---- Leaving "] ++ tokenize (x ^. #leavingCtx)
     Pil.Call callOp -> tokenize callOp

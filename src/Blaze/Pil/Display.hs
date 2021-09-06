@@ -199,7 +199,7 @@ instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) whe
         src = disp $ op ^. #src
     Pil.Undef -> "undef"
     Pil.Nop -> "nop"
-    (Pil.Annotation ann) -> Text.pack $ printf "ann \"%s\"" ann
+    (Pil.Annotation ann) -> Text.pack $ printf "ann %s" (show ann :: String)
     (Pil.EnterContext op) -> Text.pack $ printf "enter (%s)" ctx
       where
         ctx = disp $ op ^. #ctx
