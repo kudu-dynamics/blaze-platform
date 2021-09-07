@@ -33,6 +33,8 @@ import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 
 {#fun unsafe BNUpdateAnalysisAndWait as updateAnalysisAndWait {withPtr* `BNBinaryView'} -> `()' #}
 
+{#fun unsafe BNReanalyzeAllFunctions as reanalyzeAllFunctions {withPtr* `BNBinaryView'} -> `()' #}
+
 {#fun unsafe BNGetFunctionData as getFunctionData {withPtr* `BNFunction'} -> `BNBinaryView' safePtr* #}
 
 {#fun unsafe BNUpdateAnalysis as updateAnalysis {withPtr* `BNBinaryView'} -> `()' #}

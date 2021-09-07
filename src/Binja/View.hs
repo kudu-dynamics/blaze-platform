@@ -77,3 +77,7 @@ getStringAtAddress bv addr = do
 getSymbolAtAddress :: BNBinaryView -> Address -> Maybe BNNameSpace -> IO (Maybe BNSymbol)
 getSymbolAtAddress bv addr =
   BN.getSymbolByAddress bv (coerce addr)
+
+-- | Updates the analysis for the binary view. Blocks until finished
+updateAnalysis :: BNBinaryView -> IO ()
+updateAnalysis bv = BN.reanalyzeAllFunctions bv >> BN.updateAnalysisAndWait bv
