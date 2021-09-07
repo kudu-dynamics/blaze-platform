@@ -3,8 +3,10 @@ ARG BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE=${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/
 
 FROM ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE} as base
 
-COPY /binary-analysis/ /blaze/binary-analysis/
-COPY /binaryninja-haskell/ /blaze/binaryninja-haskell/
+COPY /binary-analysis/ /blaze/build/binary-analysis/
+COPY /binary-analysis/ /blaze/src/binary-analysis/
+COPY /binaryninja-haskell/ /blaze/build/binaryninja-haskell/
+COPY /binaryninja-haskell/ /blaze/src/binaryninja-haskell/
 
 # Update Binary Ninja. Purposely put after the COPY instructions so that we're always
 # pulling latest binary ninja
@@ -15,5 +17,5 @@ COPY /binaryninja-haskell/ /blaze/binaryninja-haskell/
 # RUN /usr/local/bin/binja_api_update "${BLAZE_BINJA_API}" "${BLAZE_BINJA_API_COMMIT}"
 # RUN python3 /usr/local/bin/binjaupdater.py "${BLAZE_BINJA_CHANNEL}" "${BLAZE_BINJA_VERSION}"
 
-WORKDIR /blaze/binaryninja-haskell
+WORKDIR /blaze/build/binaryninja-haskell
 RUN stack build --test --no-run-tests --ghc-options -fdiagnostics-color=always

@@ -61,6 +61,17 @@ workflow:
     - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
     # Login to gitlab so we can clone
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+    # Clone each source dependency
+    - |
+      for project in binary-analysis; do
+        rm -rf "../${project}"
+        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
+      done
+    - echo -e "section_end:`date +%s`:setup\r\e[0K"
+
+.setup-dockerignore: &setup-dockerignore
+    - echo -e "section_start:`date +%s`:setup-dockerignore[collapsed=true]\r\e[0KSet up .dockerignore"
+
     # Write a .dockerignore to the build context (../). This ignores everything there except for
     # our source dependencies, since gitlab runner will have cloned our other repos to ../
     - |
@@ -80,17 +91,18 @@ workflow:
 
       **/dist-newstyle
       **/dist
-
-      **/Dockerfile*
-      **/.dockerignore
       EOF
-    # Clone each source dependency
     - |
-      for project in binary-analysis; do
-        rm -rf "../${project}"
-        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
-      done
-    - echo -e "section_end:`date +%s`:setup\r\e[0K"
+      { echo -e '\n\n# From binary-analysis/.gitignore:';
+        cat ../binary-analysis/.gitignore \
+        | sed -E 's|^/|/binary-analysis/|;s|^([^/])|/binary-analysis/**/\1|';
+        echo -e '\n\n# From binaryninja-haskell/.gitignore:';
+        cat ../binaryninja-haskell/.gitignore \
+        | sed -E 's|^/|/binaryninja-haskell/|;s|^([^/])|/binaryninja-haskell/**/\1|';
+      } >>../.dockerignore
+
+    - echo -e "section_end:`date +%s`:setup-dockerignore\r\e[0K"
+
 
 .haskell-job:
   extends: .dind
@@ -127,6 +139,7 @@ build:branch:
     - if: $CI_MERGE_REQUEST_IID == null
   needs: []
   script:
+    - *setup-dockerignore
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
 
     - echo -e "section_start:`date +%s`:docker-pull[collapsed=true]\r\e[0KPull docker images for caching"
@@ -137,7 +150,7 @@ build:branch:
     - echo -e "section_end:`date +%s`:docker-pull\r\e[0K"
 
     - echo -e "section_start:`date +%s`:docker-build\r\e[0KBuild docker image"
-    - \time -v docker build --pull .. -f Dockerfile
+    - docker build --pull .. -f Dockerfile
       -t "${image}:commit-${CI_COMMIT_SHA}"
       -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
     - echo -e "section_end:`date +%s`:docker-build\r\e[0K"
@@ -154,6 +167,7 @@ build:detached:
     - if: $CI_MERGE_REQUEST_IID
   needs: []
   script:
+    - *setup-dockerignore
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
 
     - echo -e "section_start:`date +%s`:docker-pull[collapsed=true]\r\e[0KPull docker images for caching"
@@ -164,7 +178,7 @@ build:detached:
     - echo -e "section_end:`date +%s`:docker-pull\r\e[0K"
 
     - echo -e "section_start:`date +%s`:docker-build\r\e[0KBuild docker image"
-    - \time -v docker build --pull .. -f Dockerfile
+    - docker build --pull .. -f Dockerfile
       -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
     - echo -e "section_end:`date +%s`:docker-build\r\e[0K"
 
@@ -187,7 +201,7 @@ test:branch:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - cd /blaze/binaryninja-haskell
+    - cd /blaze/build/binaryninja-haskell
     - .ci/scripts/run_stack_test.py binja-header-cleaner-test binja-header-cleaner
     - .ci/scripts/run_stack_test.py binja-test binaryninja
 
@@ -207,7 +221,7 @@ test:detached:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - cd /blaze/binaryninja-haskell
+    - cd /blaze/build/binaryninja-haskell
     - .ci/scripts/run_stack_test.py binja-header-cleaner-test binja-header-cleaner
     - .ci/scripts/run_stack_test.py binja-test binaryninja
 
@@ -250,7 +264,7 @@ pages:
     GIT_CLEAN_FLAGS: none
   script:
     - haddock_flags=(--no-haddock-deps)
-    - pushd /blaze/binaryninja-haskell
+    - pushd /blaze/build/binaryninja-haskell
     - stack haddock "${haddock_flags[@]}"
     - docs_dir=$(stack path --snapshot-doc-root "${haddock_flags[@]}")
     - popd
