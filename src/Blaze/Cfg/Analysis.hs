@@ -87,20 +87,21 @@ reducePhi removedVars =
   transformStmts (PA.reducePhis removedVars)
 
 -- | Simplification helper. This function recurses until reaching a fixed point 
--- for the ICFG.
+-- for the ICFG or until the 'numItersLeft' argument is zero.
 -- NB: This function performs a little extra work in exchange for being less complex.
 --     We could check if any 'DefPhi' statements were reduced to 'Def' statements
 --     and only recurse if that check passed. In the worst case, we will attempt
 --     copy prop and const prop an extra iteration, as well as compute dead branches 
 --     and dead nodes and extra iteration. We would also need to check for removed nodes
 --     (and edges?)
-_simplify :: InterCfg -> InterCfg
-_simplify icfg =
-  -- TODO: Do we need to also check if statements were removed via copy prop or other statement transforms?
-  if icfg == icfg'''
+_simplify :: Int -> InterCfg -> InterCfg
+_simplify numItersLeft icfg =
+  -- TODO: Do we need to also check if statements were removed 
+  --       via copy prop or other statement transforms?
+  if icfg == icfg''' || numItersLeft <= 0
     then icfg'''
-    else -- Recursing until stmts don't change
-      _simplify icfg'''
+    else -- Recursing until stmts don't change or no iterations left
+      _simplify (numItersLeft - 1) icfg'''
  where
   icfg' :: InterCfg
   icfg' = constantProp . copyProp $ icfg
@@ -121,8 +122,9 @@ _simplify icfg =
       $ icfg''
 
 simplify :: InterCfg -> InterCfg
-simplify = removeEmptyBasicBlockNodes' . _simplify
+simplify = removeEmptyBasicBlockNodes' . _simplify maxIters
  where
+  maxIters = 10
   removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
 
 prune :: Edge PilNode -> InterCfg -> InterCfg
