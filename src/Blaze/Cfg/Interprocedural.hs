@@ -35,7 +35,7 @@ getCallTargetFunction = \case
 
 getCallStmt :: PilCallNode -> Maybe CallStatement
 getCallStmt node = do
-  stmt <- headMay (node ^. #nodeData)
+  stmt <- lastMay (node ^. #nodeData)
   mkCallStatement stmt
 
 mkParamVar :: Ctx -> FuncParamInfo -> PilVar
