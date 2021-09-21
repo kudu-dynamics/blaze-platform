@@ -7,15 +7,11 @@ stages:
   - trigger
   - cleanup
 
-# FIXME it would be _nice_ if we could run branch pipelines _until_ branches become MRs, in which
-# case we run MR pipelines. Cf. https://gitlab.com/gitlab-org/gitlab/-/issues/34756#note_282820625
-# This may be possible starting with gitlab 13.7: https://gitlab.com/gitlab-org/gitlab/-/merge_requests/38673
 workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH && $CI_MERGE_REQUEST_ID == null
-    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
     - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Not making these global variables because they would get overridden in multi-project pipelines
 .variables: &variables
@@ -26,8 +22,6 @@ workflow:
     ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/binaryninja-haskell/binaryninja-haskell
   # Enable buildkit for more efficient layer caching
   DOCKER_BUILDKIT: "1"
-
-# TODO gitlab 13.5 pre-collapse debug/environment info sections to reduce log noise
 
 # Potential build dependencies for the dind host
 .script-bootstrap-dind: &script-bootstrap-dind
