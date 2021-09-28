@@ -273,10 +273,36 @@ constantProp xs = _constantProp (buildConstPropState xs) xs
 type VarMap = HashMap PilVar PilVar
 type ExprMap = HashMap Expression Expression
 
-reduceMap :: (Eq a, Hashable a) => HashMap a a -> HashMap a a
-reduceMap m = fmap reduceKey m
+-- | Compute copy propagation on an acyclic @HashMap@ @m@, such that the
+-- following properties hold:
+--
+-- @
+-- HMap.lookup m k == Nothing ==>
+--   HMap.lookup (reduceMap m) k == Nothing
+-- @
+--
+-- @
+-- HMap.lookup m k == Just v && HMap.lookup m v == Nothing ==>
+--   HMap.lookup (reduceMap m) k == Just v
+-- @
+--
+-- @
+-- HMap.lookup m k == Just k' && HMap.lookup (reduceMap m) k' == Just v ==>
+--   HMap.lookup (reduceMap m) k == Just v
+-- @
+--
+-- An error will be raised if the map is cyclic
+reduceMap :: forall a. (Eq a, Hashable a) => HashMap a a -> HashMap a a
+reduceMap = \m -> foldl' (reduceKey HSet.empty) m (HMap.keysSet m)
   where
-    reduceKey v = maybe v reduceKey (HMap.lookup v m)
+    reduceKey :: HashSet a -> HashMap a a -> a -> HashMap a a
+    reduceKey visited m k
+      | k `HSet.member` visited = error "reduceMap: detected cycle in map"
+      | otherwise =
+        case HMap.lookup k m of
+          Just k' -> reduceKey (HSet.insert k visited) m k'
+          -- Overwrite each key in @visited@ to point at terminus of chain
+          Nothing -> foldMap (flip HMap.singleton k) visited `HMap.union` m
 
 data CopyPropState = CopyPropState
   { mapping :: VarMap
