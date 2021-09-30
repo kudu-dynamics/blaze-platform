@@ -5,7 +5,6 @@ stages:
   - push
   - docs
   - trigger
-  - cleanup
 
 workflow:
   rules:
@@ -32,30 +31,46 @@ workflow:
     fi
   - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
 
-# Print runner environment info for debugging
-.script-before-info: &script-before-info
-  - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
-  - uname -a
-  - env
-  - ls -al
-  - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
-  - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
-
-.dind:
-  image: docker:dind
-  tags:
-    - dind
+.job:
   timeout: 1h
   variables:
     <<: *variables
+  before_script: &job-before-script
+    - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
+    - uname -a
+    - env
+    - ls -al
+    - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
+    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
+
+.docker-job:
+  extends: .job
+  image: docker:dind
   before_script:
     - *script-bootstrap-dind
-    - *script-before-info
-    # Setup source dependencies
+    - *job-before-script
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+
+.haskell-job:
+  extends: .job
+  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:pipeline-${CI_PIPELINE_IID}
+
+lint:
+  stage: lint
+  extends: .job
+  image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
+  needs: []
+  script:
+    - hlint --color=always src test demo
+  allow_failure: true
+
+build:
+  stage: build
+  extends: .docker-job
+  needs: []
+  script:
     - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
-    # Login to gitlab so we can clone
     - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
-    # Clone each source dependency
     - |
       for project in binary-analysis; do
         rm -rf "../${project}"
@@ -63,7 +78,6 @@ workflow:
       done
     - echo -e "section_end:`date +%s`:setup\r\e[0K"
 
-.setup-dockerignore: &setup-dockerignore
     - echo -e "section_start:`date +%s`:setup-dockerignore[collapsed=true]\r\e[0KSet up .dockerignore"
 
     # Write a .dockerignore to the build context (../). This ignores everything there except for
@@ -98,98 +112,18 @@ workflow:
     - echo -e "section_end:`date +%s`:setup-dockerignore\r\e[0K"
 
 
-.haskell-job:
-  extends: .dind
-  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:commit-${CI_COMMIT_SHA}
-  # Skip .dind before_script, especially the environment info, since we don't
-  # care about most of it after the build stage
-  before_script:
-    - *script-before-info
 
-lint:
-  stage: lint
-  extends: .dind
-  image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
-  needs: []
-  script:
-    - hlint --color=always src test demo
-  allow_failure: true
-
-# We need 2 build jobs: one for branch pipelines and one for MR pipelines
-# - build:branch pushes to
-#   - ${image}:commit-${CI_COMMIT_SHA}
-#   - ${image}:branch-${CI_COMMIT_REF_SLUG}
-#   For instance, binaryninja-haskell:branch-feature-foo and binaryninja-haskell:commit-1a2b3c4...
-# - build:detached pushes to
-#   - ${image}:merge-${CI_MERGE_REQUEST_IID}
-#   For instance, binaryninja-haskell:merge-71
-# In either case, we should first try pulling the latest image for this branch or MR,
-# and if that fails, pull :latest. This ensures we have cached layers downloaded
-
-build:branch:
-  stage: build
-  extends: .dind
-  rules:
-    - if: $CI_MERGE_REQUEST_IID == null
-  needs: []
-  script:
-    - *setup-dockerignore
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
-
-    - echo -e "section_start:`date +%s`:docker-pull[collapsed=true]\r\e[0KPull docker images for caching"
-    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - docker pull "${image}:branch-${CI_COMMIT_REF_SLUG}" ||
-      docker pull "${image}:latest" ||
-      true
-    - echo -e "section_end:`date +%s`:docker-pull\r\e[0K"
-
-    - echo -e "section_start:`date +%s`:docker-build\r\e[0KBuild docker image"
+    - docker pull "${image}:latest" || true
     - docker build --pull .. -f Dockerfile
-      -t "${image}:commit-${CI_COMMIT_SHA}"
-      -t "${image}:branch-${CI_COMMIT_REF_SLUG}"
-    - echo -e "section_end:`date +%s`:docker-build\r\e[0K"
+      -t "${image}:pipeline-${CI_PIPELINE_IID}"
+    - docker push "${image}:pipeline-${CI_PIPELINE_IID}"
 
-    - echo -e "section_start:`date +%s`:docker-push[collapsed=true]\r\e[0KPush new docker image"
-    - docker push "${image}:commit-${CI_COMMIT_SHA}"
-    - docker push "${image}:branch-${CI_COMMIT_REF_SLUG}"
-    - echo -e "section_end:`date +%s`:docker-push\r\e[0K"
-
-build:detached:
-  stage: build
-  extends: .dind
-  rules:
-    - if: $CI_MERGE_REQUEST_IID
-  needs: []
-  script:
-    - *setup-dockerignore
-    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
-
-    - echo -e "section_start:`date +%s`:docker-pull[collapsed=true]\r\e[0KPull docker images for caching"
-    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - docker pull "${image}:merge-${CI_MERGE_REQUEST_IID}" ||
-      docker pull "${image}:latest" ||
-      true
-    - echo -e "section_end:`date +%s`:docker-pull\r\e[0K"
-
-    - echo -e "section_start:`date +%s`:docker-build\r\e[0KBuild docker image"
-    - docker build --pull .. -f Dockerfile
-      -t "${image}:merge-${CI_MERGE_REQUEST_IID}"
-    - echo -e "section_end:`date +%s`:docker-build\r\e[0K"
-
-    - echo -e "section_start:`date +%s`:docker-push[collapsed=true]\r\e[0KPush new docker image"
-    - docker push "${image}:merge-${CI_MERGE_REQUEST_IID}"
-    - echo -e "section_end:`date +%s`:docker-push\r\e[0K"
-
-# Likewise, we need 2 test jobs. The test:branch job uses the ${image}:commit-... image,
-# and the test:detached uses the ${image}:merge-... image
-
-test:branch:
+test:
   stage: test
   extends: .haskell-job
-  rules:
-    - if: $CI_MERGE_REQUEST_IID == null
   needs:
-    - build:branch
+    - build
   variables:
     <<: *variables
     GIT_STRATEGY: none
@@ -201,57 +135,51 @@ test:branch:
 
     # Test gen-mlil-op-modules
     - make ops
-
-test:detached:
-  stage: test
-  extends: .haskell-job
-  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:merge-${CI_MERGE_REQUEST_IID}
-  rules:
-    - if: $CI_MERGE_REQUEST_IID
-  needs:
-    - build:detached
-  variables:
-    <<: *variables
-    GIT_STRATEGY: none
-    GIT_CLEAN_FLAGS: none
-  script:
-    - cd /blaze/build/binaryninja-haskell
-    - .ci/scripts/run_stack_test.py binja-header-cleaner-test binja-header-cleaner
-    - .ci/scripts/run_stack_test.py binja-test binaryninja
-
-    # Test gen-mlil-op-modules
-    - make ops
-
-# If we just pushed to the default branch, tag the image as :latest and push
 
 push:latest:
   stage: push
-  extends: .dind
+  extends: .docker-job
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
-    - test:branch
+    - test
   variables:
     <<: *variables
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
-    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
-    - docker pull "${image}:commit-${CI_COMMIT_SHA}"
-    - docker tag "${image}:commit-${CI_COMMIT_SHA}" "${image}:latest"
+    - docker pull "${image}:pipeline-${CI_PIPELINE_IID}"
+    - docker tag "${image}:pipeline-${CI_PIPELINE_IID}" "${image}:latest"
     - docker push "${image}:latest"
+
+push:tag:
+  stage: push
+  extends: .docker-job
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - test
+  variables:
+    <<: *variables
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker pull "${image}:pipeline-${CI_PIPELINE_IID}"
+    - docker tag "${image}:pipeline-${CI_PIPELINE_IID}" "${image}:tag-${CI_COMMIT_TAG}"
+    - docker push "${image}:tag-${CI_COMMIT_TAG}"
 
 pages:
   extends: .haskell-job
   stage: docs
   rules:
-    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_MERGE_REQUEST_ID == null
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_MERGE_REQUEST_ID == null
       when: on_success
     - if: $CI_MERGE_REQUEST_ID == null
       when: manual
   needs:
-    - test:branch
+    - test
   variables:
     <<: *variables
     GIT_STRATEGY: none
@@ -278,9 +206,9 @@ trigger-blaze:
   trigger: ${CI_PROJECT_NAMESPACE}/blaze
 
 cleanup:
-  stage: cleanup
+  stage: .post
   when: always
-  extends: .dind
+  extends: .docker-job
   variables:
     GIT_STRATEGY: none
   script:
@@ -293,9 +221,7 @@ cleanup:
         tags=()
         for image in "${images[@]}"; do
           tags+=(
-            "${image}:commit-${CI_COMMIT_SHA}"
-            "${image}:branch-${CI_COMMIT_REF_SLUG}"
-            "${CI_MERGE_REQUEST_IID:+${image}:merge-${CI_MERGE_REQUEST_IID}}"
+            "${image}:pipeline-${CI_PIPELINE_IID}"
             "${CI_COMMIT_TAG:+${image}:tag-${CI_COMMIT_TAG}}"
             )
         done
