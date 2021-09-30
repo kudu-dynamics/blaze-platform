@@ -51,7 +51,33 @@ workflow:
     - *job-before-script
     - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
 
-.setup-dockerignore: &setup-dockerignore
+.haskell-job:
+  extends: .job
+  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:pipeline-${CI_PIPELINE_IID}
+
+lint:
+  stage: lint
+  extends: .job
+  image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
+  needs: []
+  script:
+    - hlint --color=always src test demo
+  allow_failure: true
+
+build:
+  stage: build
+  extends: .docker-job
+  needs: []
+  script:
+    - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
+    - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+    - |
+      for project in binary-analysis; do
+        rm -rf "../${project}"
+        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
+      done
+    - echo -e "section_end:`date +%s`:setup\r\e[0K"
+
     - echo -e "section_start:`date +%s`:setup-dockerignore[collapsed=true]\r\e[0KSet up .dockerignore"
 
     # Write a .dockerignore to the build context (../). This ignores everything there except for
@@ -86,33 +112,6 @@ workflow:
     - echo -e "section_end:`date +%s`:setup-dockerignore\r\e[0K"
 
 
-.haskell-job:
-  extends: .job
-  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:pipeline-${CI_PIPELINE_IID}
-
-lint:
-  stage: lint
-  extends: .job
-  image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
-  needs: []
-  script:
-    - hlint --color=always src test demo
-  allow_failure: true
-
-build:
-  stage: build
-  extends: .docker-job
-  needs: []
-  script:
-    - *setup-dockerignore
-    - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
-    - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
-    - |
-      for project in binary-analysis; do
-        rm -rf "../${project}"
-        git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
-      done
-    - echo -e "section_end:`date +%s`:setup\r\e[0K"
 
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
     - docker pull "${image}:latest" || true
