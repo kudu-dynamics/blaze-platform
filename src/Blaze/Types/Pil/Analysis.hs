@@ -12,6 +12,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HSet
 
 import qualified Data.Text as Text
+import Blaze.Types.Graph.Alga (AlgaGraph)
 
 data MemEquivGroup = MemEquivGroup
   { store :: Maybe StoreStmt
@@ -156,4 +157,7 @@ symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
     names =
       [ Text.pack [a, b, c] | a <- letters, b <- letters, c <- letters
       ]
+
+type DataDependenceGraph = AlgaGraph () () PilVar
+
 

@@ -6,6 +6,7 @@ import qualified Blaze.Graph as G
 import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
+import Blaze.Types.Pil.Analysis (DataDependenceGraph)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
@@ -296,3 +297,8 @@ getCallFuncRating ctx tgt srcFunc =
     dstFunc = tgt ^. #function
     
     shortestPath = G.getDescendantDistance (ctx ^. #descendantsDistanceMap) srcFunc dstFunc
+
+getDataDependenceGraph :: Cfg [Stmt] -> DataDependenceGraph
+getDataDependenceGraph = PA.getDataDependenceGraph . Cfg.gatherCfgData
+
+

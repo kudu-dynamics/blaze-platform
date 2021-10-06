@@ -39,9 +39,9 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
   getEdgeLabel edge = HMap.lookup edge . edgeMap
   setEdgeLabel label edge g = g { edgeMap = HMap.insert edge label $ edgeMap g }
 
-
   getNodeAttr node = HMap.lookup node . nodeAttrMap
   setNodeAttr attr node g = g & #nodeAttrMap %~ HMap.insert node attr
+  getNodeAttrMap g = g ^. #nodeAttrMap
 
   removeEdge e@(Edge n1 n2) g = AlgaGraph
     { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
