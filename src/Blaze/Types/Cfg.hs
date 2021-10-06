@@ -22,6 +22,7 @@ import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Common (Ctx)
 import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 import Control.Lens (ix)
 
 type PilNode = CfNode [Stmt]
@@ -385,7 +386,16 @@ instance (Hashable a, Eq a) => Graph BranchType (CfNode a) (CfNode a) (Cfg a) wh
       updateRoot oldRoot
         | asIdNode oldRoot == asIdNode node = attr
         | otherwise = oldRoot
-  
+
+  -- useless since `nodes` already returns nodes with their attrs
+  getNodeAttrMap cfg = HashMap.fromList
+    . fmap f
+    . HashMap.toList
+    . G.getNodeAttrMap
+    $ cfg ^. #graph
+    where
+      f (_, b) = (b, b)
+
   removeEdge edge = over #graph $ G.removeEdge (asIdNode <$> edge)
   removeNode node = over #graph $ G.removeNode (asIdNode node)
   addNodes nodes = over #graph $
@@ -504,3 +514,6 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
     getTcNodeOp n = (n,,) <$> n ^? #_Call <*> n ^? #_Call . #nodeData . ix 0 . #_TailCall
 
     tcNodes = mapMaybe getTcNodeOp . HashSet.toList $ G.nodes ogCfg
+
+gatherCfgData :: (Hashable a, Eq a) => Cfg [a] -> [a]
+gatherCfgData = concatMap concat . HashMap.elems . G.getNodeAttrMap

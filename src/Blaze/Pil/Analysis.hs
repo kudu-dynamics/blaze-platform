@@ -21,9 +21,11 @@ import Blaze.Types.Pil
   )
 import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
+import qualified Blaze.Graph as G
 import qualified Data.List as List
 import Blaze.Types.Pil.Analysis
   ( Analysis,
+    DataDependenceGraph,
     DefLoadStmt (DefLoadStmt),
     EqMap,
     Index,
@@ -884,5 +886,28 @@ substAddrs stmts = A.runAnalysis_ $ do
   putOriginMap stmts
   stmts' <- traverse (substAddr_ substArrayOrFieldAddr) stmts
   traverse (substAddr_ substZeroOffsetFields) stmts'
-  
 
+getDataDependenceGraph :: [Stmt] -> DataDependenceGraph
+getDataDependenceGraph = foldl' (flip f) G.empty
+  where
+    f (Pil.Def d) = G.addNodes [dest] . G.addEdges edges
+      where
+        vars = getVarsFromExpr_ $ d ^. #value      
+        dest = d ^. #var
+        edges = G.LEdge () . flip G.Edge dest <$> vars
+    f (Pil.DefPhi d) = G.addNodes [dest] . G.addEdges edges
+      where
+        dest = d ^. #dest
+        edges = G.LEdge () . flip G.Edge dest <$> d ^. #src
+    f _ = identity
+
+-- | Converts a data dependence graph to a map of vars that point to
+--   any vars that share dependence.
+toDataDependenceGroups :: DataDependenceGraph -> HashMap PilVar (HashSet PilVar)
+toDataDependenceGroups = foldr f HMap.empty . G.getWeaklyConnectedComponents
+  where
+    f :: HashSet PilVar -> HashMap PilVar (HashSet PilVar) -> HashMap PilVar (HashSet PilVar)
+    f s m = foldl' (flip g) m . HSet.toList $ s
+      where
+        g :: PilVar -> HashMap PilVar (HashSet PilVar) -> HashMap PilVar (HashSet PilVar)
+        g v = HMap.insert v s

@@ -48,6 +48,7 @@ class Graph e attr n g | g -> e attr n where
   setEdgeLabel :: e -> Edge n -> g -> g
   getNodeAttr :: n -> g -> Maybe attr
   setNodeAttr :: attr -> n -> g -> g
+  getNodeAttrMap :: g -> HashMap n attr
   removeEdge :: Edge n -> g -> g
   removeNode :: n -> g -> g
   addNodes :: [n] -> g -> g
@@ -325,3 +326,48 @@ connectedNodesAndEdges _ n g = foldr f (HashSet.empty, HashSet.empty) cnodes
     f :: EdgeGraphNode e n -> (HashSet n, HashSet (LEdge e n)) -> (HashSet n, HashSet (LEdge e n))
     f (NodeNode x) (nodes', edges') = (HashSet.insert x nodes', edges')
     f (EdgeNode e) (nodes', edges') = (nodes', HashSet.insert e edges')
+
+-- | Creates a graph in which every edge from a -> b also goes for b -> a.
+--   For every (a, b), edge (b, a) is created using (a, b)'s edge label
+--   If (b, a) already exists, it retains its label.
+mkBiDirectional :: (Graph e attr n g, Hashable n, Eq n) => g -> g
+mkBiDirectional g = foldr f g edges'
+  where
+    edges' = edges g
+    edgeSet = HashSet.fromList . fmap (view #edge) $ edges'
+    f (LEdge lbl (Edge a b)) g'
+      | HashSet.member (Edge b a) edgeSet = g'
+      | otherwise = addEdge (LEdge lbl (Edge b a)) g'
+
+getWeaklyConnectedComponents
+  :: (Graph e attr n g, Hashable n, Eq n)
+  => g
+  -> [HashSet n]
+getWeaklyConnectedComponents g = snd
+  . foldr f (HashSet.empty, [])
+  . HashSet.toList
+  . nodes
+  $ bi
+  where
+    bi = mkBiDirectional g
+    f n (seen, comps)
+      | HashSet.member n seen = (seen, comps)
+      | otherwise = let s = HashSet.fromList (reachable n bi) in
+          (HashSet.union seen s, s:comps)
+
+-- | Returns all descendants of a node, excluding itself,
+-- unless a loop makes it its own descendent.
+getDescendants :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
+getDescendants v g = HashSet.fromList
+  . concat
+  . flip bfs g
+  . HashSet.toList
+  . succs v
+  $ g
+
+
+-- | Returns all ancestors of a node, excluding itself,
+-- unless a loop makes it its own ancestor.
+getAncestors :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
+getAncestors v = getDescendants v . transpose
+
