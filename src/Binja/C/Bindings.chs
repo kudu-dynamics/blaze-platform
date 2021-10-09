@@ -16,14 +16,15 @@ import Binja.C.Pointers
 import Binja.C.Structs ()
 import Binja.C.Types
 import Binja.C.Util
-import Binja.Types.MLIL
-import Binja.Types.Function
-import Binja.Types.Variable
+import Binja.Types.Analysis (BNAnalysisParameters)
 import Binja.Types.BasicBlock (BNBasicBlockEdge)
+import Binja.Types.Function
+import Binja.Types.MLIL
 import Binja.Types.Reference (BNReferenceSource(BNReferenceSource))
 import Binja.Types.StringReference (BNStringReference)
 import Binja.Types.Symbol (BNNameSpace)
 import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
+import Binja.Types.Variable
 
 #include <binaryninjacore.h>
   
@@ -31,11 +32,37 @@ import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 
 {#fun unsafe BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
+{#fun unsafe BNIsFunctionTooLarge as isFunctionTooLarge_ {withPtr* `BNFunction'} -> `Bool' toBool #}
+
+{#fun unsafe BNIsFunctionAnalysisSkipped as isFunctionAnalysisSkipped_ {withPtr* `BNFunction'} -> `Bool' toBool #}
+
+{#fun unsafe BNGetAnalysisSkipReason as getAnalysisSkipReason_ {withPtr* `BNFunction'} -> `BNAnalysisSkipReason' integralToEnum #}
+
+{#fun unsafe BNGetFunctionAnalysisSkipOverride as getFunctionAnalysisSkipOverride_ {withPtr* `BNFunction'} -> `BNFunctionAnalysisSkipOverride' integralToEnum #}
+
+{#fun unsafe BNSetFunctionAnalysisSkipOverride as setFunctionAnalysisSkipOverride_ {withPtr* `BNFunction', enumToIntegral `BNFunctionAnalysisSkipOverride'} -> `()' #}
+
+#c
+void wrapBNGetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap) { 
+  *ap = BNGetParametersForAnalysis(view); 
+}
+#endc
+
+{#fun unsafe wrapBNGetParametersForAnalysis as wrapBNGetParametersForAnalysis {withPtr* `BNBinaryView', castPtr `Ptr BNAnalysisParameters'} -> `()' #}
+
+#c
+void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap) { 
+  BNSetParametersForAnalysis(view, *ap); 
+}
+#endc
+
+{#fun unsafe wrapBNSetParametersForAnalysis as wrapBNSetParametersForAnalysis {withPtr* `BNBinaryView', castPtr `Ptr BNAnalysisParameters'} -> `()' #}
+
 {#fun unsafe BNUpdateAnalysisAndWait as updateAnalysisAndWait {withPtr* `BNBinaryView'} -> `()' #}
 
 {#fun unsafe BNReanalyzeAllFunctions as reanalyzeAllFunctions {withPtr* `BNBinaryView'} -> `()' #}
 
-{#fun unsafe BNGetFunctionData as getFunctionData {withPtr* `BNFunction'} -> `BNBinaryView' safePtr* #}
+{#fun unsafe BNGetFunctionData as getFunctionData_ {withPtr* `BNFunction'} -> `BNBinaryView' safePtr* #}
 
 {#fun unsafe BNUpdateAnalysis as updateAnalysis {withPtr* `BNBinaryView'} -> `()' #}
 
@@ -284,14 +311,15 @@ void wrapBNFromVariableIdentifier(uint64_t id, BNVariable* var) {
 {#fun unsafe BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* `BNVariable'} -> `String' #}
 
 #c
-void wrapBNGetChildType(BNType* t, BNTypeWithConfidence* tc) { *tc = BNGetChildType(t); }
+void wrapBNGetChildType(BNType* t, BNTypeWithConfidence* tc) { 
+  *tc = BNGetChildType(t); }
 #endc
 
 {#fun unsafe wrapBNGetChildType as wrapBNGetChildType {withPtr* `BNType', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
 
-
 #c
-void wrapBNGetVariableType(BNFunction* func, const BNVariable* var, BNTypeWithConfidence* t) { *t = BNGetVariableType(func, var); }
+void wrapBNGetVariableType(BNFunction* func, const BNVariable* var, BNTypeWithConfidence* t) {
+  *t = BNGetVariableType(func, var); }
 #endc
 
 {#fun unsafe wrapBNGetVariableType as wrapBNGetVariableType {withPtr* `BNFunction', withStruct* `BNVariable', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
