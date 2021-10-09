@@ -13,6 +13,7 @@ module Binja.MLIL
   ) where
 
 import           Binja.Prelude
+import qualified Prelude as P
 
 import           Data.Binary.IEEE754             ( wordToDouble
                                                  , wordToFloat
@@ -33,17 +34,24 @@ import qualified Binja.Function       as Func
 import           Binja.Types.MLIL     as Exports
 import           Binja.Types.Variable            ( Variable )
 import qualified Binja.Variable       as Var
+import Binja.C.Util (isNil)
 
 class ( Func.HasHandle fun BNMediumLevelILFunction
       , Func.HasFunc fun Function ) => StatementFunction fun where
   getExprIndex :: fun -> InstructionIndex fun -> IO (ExpressionIndex fun)
 
 instance StatementFunction MLILFunction where
-  getExprIndex fn iindex = BN.getMediumLevelILIndexForInstruction
-    (fn ^. Func.handle) (coerceInstructionIndex iindex)
+  getExprIndex fn iindex = do
+    whenM (isNil fnPtr) (P.error "Function handle is nil for MLILFunction.")
+
+    BN.getMediumLevelILIndexForInstruction fnPtr (coerceInstructionIndex iindex)
+    where
+      fnPtr = fn ^. Func.handle
 
 instance StatementFunction MLILSSAFunction where
-  getExprIndex fn iindex =
+  getExprIndex fn iindex = do
+    whenM (isNil fnPtr) (P.error "Function handle is nil MLILSSAFunction.")
+
     BN.getMediumLevelILIndexForInstruction fnPtr (coerceInstructionIndex iindex)
     >>= BN.getMediumLevelILSSAExprIndex fnPtr
     where

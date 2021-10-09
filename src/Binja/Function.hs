@@ -1,19 +1,24 @@
-module Binja.Function
-  ( module Exports
-  , convertFunction
-  , createFunction
-  , getFunctions
-  , getLLILFunction
-  , getLLILSSAFunction
-  , getMLILFunction
-  , getMLILSSAFunction
-  , getFunctionParameterVariables
-  , getFunctionStartingAt
-  , getFunctionDataBinaryView
-  , hasVariableArguments
-  , FromFunction(fromFunction)
-  , ToFunction(toFunction)
-  ) where
+module Binja.Function (
+  module Exports,
+  convertFunction,
+  createFunction,
+  getFunctions,
+  getLLILFunction,
+  getLLILSSAFunction,
+  getMLILFunction,
+  getMLILSSAFunction,
+  getFunctionParameterVariables,
+  getFunctionStartingAt,
+  getFunctionData,
+  hasVariableArguments,
+  FromFunction (fromFunction),
+  ToFunction (toFunction),
+  isFunctionTooLarge,
+  isFunctionAnalysisSkipped,
+  getAnalysisSkipReason,
+  getFunctionAnalysisSkipOverride,
+  setFunctionAnalysisSkipOverride,
+) where
 
 import Binja.Prelude hiding (onException, handle)
 
@@ -28,6 +33,9 @@ import Binja.Types.Function as Exports
 import qualified Binja.Types.Variable as Var
 import Binja.Types.Variable (Variable, BNBoolWithConfidence)
 import Binja.Variable (fromBNVariable)
+import qualified Prelude as P
+import Binja.C.Util (isNil)
+import Binja.C.Enums (BNAnalysisSkipReason, BNFunctionAnalysisSkipOverride)
 
 createFunction :: FromFunction fun => BNFunction -> IO fun
 createFunction ptr = do
@@ -60,10 +68,13 @@ getMLILFunction fn = MLILFunction
   <*> pure fn
 
 getMLILSSAFunction :: Function -> IO MLILSSAFunction
-getMLILSSAFunction fn = MLILSSAFunction
-  <$> (BN.getFunctionMediumLevelIL (fn ^. handle)  >>= BN.getMediumLevelILSSAForm)
-  <*> pure fn
-
+getMLILSSAFunction fn =
+  whenM
+    (isNil $ fn ^. handle)
+    (P.error "Function handle is nil for MLILFunction in getMLILSSAFunction.")
+    >> MLILSSAFunction
+    <$> (BN.getFunctionMediumLevelIL (fn ^. handle) >>= BN.getMediumLevelILSSAForm)
+    <*> pure fn
 
 class FromFunction fun where
   fromFunction :: Function -> IO fun
@@ -111,8 +122,8 @@ getFunctionStartingAt bv mplat addr = do
   maybe (return Nothing) (fmap Just . createFunction) mfn
 
 
-getFunctionDataBinaryView :: Function -> IO BNBinaryView
-getFunctionDataBinaryView = BN.getFunctionData . view handle
+getFunctionData :: Function -> IO BNBinaryView
+getFunctionData = BN.getFunctionData_ . view handle
 
 getFunctionParameterVariables :: Function -> IO [Variable]
 getFunctionParameterVariables fn = do
@@ -120,5 +131,19 @@ getFunctionParameterVariables fn = do
   traverse (fromBNVariable fn) $ r ^. Var.vars
 
 hasVariableArguments :: Function -> IO BNBoolWithConfidence
-hasVariableArguments fn = do
-  functionHasVariableArguments_ $ fn ^. Func.handle
+hasVariableArguments = functionHasVariableArguments_ . view handle
+
+isFunctionTooLarge :: Function -> IO Bool
+isFunctionTooLarge = BN.isFunctionTooLarge_ . view handle
+
+isFunctionAnalysisSkipped :: Function -> IO Bool
+isFunctionAnalysisSkipped = BN.isFunctionAnalysisSkipped_ . view handle
+
+getAnalysisSkipReason :: Function -> IO BNAnalysisSkipReason
+getAnalysisSkipReason = BN.getAnalysisSkipReason_ . view handle
+
+getFunctionAnalysisSkipOverride :: Function -> IO BNFunctionAnalysisSkipOverride
+getFunctionAnalysisSkipOverride = BN.getFunctionAnalysisSkipOverride_ . view handle
+
+setFunctionAnalysisSkipOverride :: Function -> BNFunctionAnalysisSkipOverride -> IO ()
+setFunctionAnalysisSkipOverride = BN.setFunctionAnalysisSkipOverride_ . view handle

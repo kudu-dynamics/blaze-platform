@@ -105,7 +105,7 @@ getFunctionParameterVariables_ :: BNFunction -> IO BNParameterVariablesWithConfi
 getFunctionParameterVariables_ fn = alloca $ \ptr -> do
   wrapBNGetFunctionParameterVariables fn ptr
   r <- peek ptr
-  freeParameterVariables (castPtr ptr)
+  freeParameterVariables ptr
   return r
 
 functionHasVariableArguments_ :: BNFunction -> IO BNBoolWithConfidence 

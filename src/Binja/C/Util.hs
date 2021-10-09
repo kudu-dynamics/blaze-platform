@@ -63,6 +63,9 @@ toStruct ptr = peek ptr'
   where
     ptr' = castPtr ptr
 
+isNil :: Pointer a => a -> IO Bool
+isNil p = withForeignPtr (pointerUnwrap p) (return . (==) nullPtr)
+
 nilable :: (Pointer a) => Ptr () -> IO (Maybe a)
 nilable ptr
   | ptr == nullPtr = return Nothing

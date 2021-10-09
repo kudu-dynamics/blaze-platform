@@ -9,6 +9,8 @@ import qualified Prelude as P
 
 import Binja.C.Util
 import Binja.Types.MLIL
+import Binja.Types.Analysis (BNAnalysisParameters(BNAnalysisParameters))
+import qualified Binja.Types.Analysis as An
 import Binja.Types.Variable ( BNVariable(BNVariable)
                             , BNTypeWithConfidence(BNTypeWithConfidence)
                             , BNBoolWithConfidence(BNBoolWithConfidence)
@@ -156,3 +158,37 @@ instance Storable BNFunctionParameter where
     let var' = BNVariable sourceType idx storage
     return $ BNFunctionParameter name fpType typeConfidence defaultLocation var'
   poke _ _ = P.error "BNFunctionParameter 'poke' not implemented"
+
+instance Storable BNAnalysisParameters where
+  sizeOf _ = {#sizeof BNAnalysisParameters#}
+  alignment _ = {#alignof BNAnalysisParameters#}
+  peek p = do
+    maxAnalysisTime <- liftM fromIntegral ({#get BNAnalysisParameters->maxAnalysisTime #} p)
+    maxFunctionSize <- liftM fromIntegral ({#get BNAnalysisParameters->maxFunctionSize #} p)
+    maxFunctionAnalysisTime <- liftM fromIntegral ({#get BNAnalysisParameters->maxFunctionAnalysisTime #} p)
+    maxFunctionUpdateCount <- liftM fromIntegral ({#get BNAnalysisParameters->maxFunctionUpdateCount #} p)
+    maxFunctionSubmitCount <- liftM fromIntegral ({#get BNAnalysisParameters->maxFunctionSubmitCount #} p)
+    suppressNewAutoFunctionAnalysis <- ({#get BNAnalysisParameters->suppressNewAutoFunctionAnalysis #} p)
+    mode <- liftM (toEnum . fromIntegral) ({#get BNAnalysisParameters->mode #} p)
+    alwaysAnalyzeIndirectBranches <- ({#get BNAnalysisParameters->alwaysAnalyzeIndirectBranches #} p)
+    advancedAnalysisCacheSize <- liftM fromIntegral ({#get BNAnalysisParameters->advancedAnalysisCacheSize #} p)
+    return $ BNAnalysisParameters 
+      maxAnalysisTime
+      maxFunctionSize
+      maxFunctionAnalysisTime
+      maxFunctionUpdateCount
+      maxFunctionSubmitCount
+      suppressNewAutoFunctionAnalysis
+      mode
+      alwaysAnalyzeIndirectBranches
+      advancedAnalysisCacheSize
+  poke p x = do
+    {#set BNAnalysisParameters->maxAnalysisTime #} p (fromIntegral $ x ^. An.maxAnalysisTime)
+    {#set BNAnalysisParameters->maxFunctionSize #} p (fromIntegral $ x ^. An.maxFunctionSize)
+    {#set BNAnalysisParameters->maxFunctionAnalysisTime #} p (fromIntegral $ x ^. An.maxFunctionAnalysisTime)
+    {#set BNAnalysisParameters->maxFunctionUpdateCount #} p (fromIntegral $ x ^. An.maxFunctionUpdateCount)
+    {#set BNAnalysisParameters->maxFunctionSubmitCount #} p (fromIntegral $ x ^. An.maxFunctionSubmitCount)
+    {#set BNAnalysisParameters->suppressNewAutoFunctionAnalysis #} p $ x ^. An.suppressNewAutoFunctionAnalysis
+    {#set BNAnalysisParameters->mode #} p (fromIntegral . fromEnum $ x ^. An.mode)
+    {#set BNAnalysisParameters->alwaysAnalyzeIndirectBranches #} p $ x ^. An.alwaysAnalyzeIndirectBranches
+    {#set BNAnalysisParameters->advancedAnalysisCacheSize #} p (fromIntegral $ x ^. An.advancedAnalysisCacheSize)
