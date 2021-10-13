@@ -10,12 +10,16 @@ import Blaze.Graph (Dominators, PostDominators)
 import Blaze.Prelude
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Cfg hiding (nodes)
-import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt)
+import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt, Ctx)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import qualified Data.HashSet as HashSet
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
+import qualified Data.HashSet as HSet
+import Data.Bimap (Bimap)
+import qualified Data.Bimap as Bimap
+import Blaze.Pil.Analysis (getVarsFromExpr)
 
 
 {- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
@@ -187,3 +191,15 @@ getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode
   . HashSet.toList
   . G.nodes
   $ typedCfg
+
+stmtCtxs :: Stmt -> HashSet Ctx
+stmtCtxs = foldMap (HSet.fromList . mapMaybe (view #ctx) . HSet.toList . getVarsFromExpr)
+
+nodeCtxs :: CfNode [Stmt] -> HashSet Ctx
+nodeCtxs = foldMap (foldMap stmtCtxs)
+
+getCtxIndices :: PilCfg -> Bimap Int Ctx
+getCtxIndices cfg = Bimap.fromList $ zip [0..] ctxs
+  where
+    ctxs = sortUnique . foldMap nodeCtxs . G.nodes $ cfg
+    sortUnique = sort . HSet.toList
