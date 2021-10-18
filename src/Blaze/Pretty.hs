@@ -363,7 +363,15 @@ instance Tokenizable Pil.Ctx where
       <++> textToken (show $ ctx ^. #ctxId)
 
 instance Tokenizable Pil.PilVar where
-  tokenize var = pure [varToken (var ^. #symbol)]
+  tokenize var = do
+    ctxIndices' <- view #ctxIndices
+    let ctxIdSuff =
+          either id id $ do
+            if Bimap.size ctxIndices' > 1 then Right () else Left ""
+            ctx <- maybeToEither "@?" (var ^. #ctx)
+            ctxIdIndex <- maybeToEither "@?" $ Bimap.lookupR ctx ctxIndices'
+            pure $ "@" <> show ctxIdIndex
+    pure [varToken $ (var ^. #symbol) <> ctxIdSuff]
 
 tokenizeBinop ::
   ( Tokenizable b
