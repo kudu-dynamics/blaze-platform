@@ -64,6 +64,7 @@ parseTerm :: Parser Expression
 parseTerm =
   choice
     [ between (lex "(") (lex ")") parseExpr
+    , (\x -> C.load x 8) <$> between (lex "[") (lex "]") parseExpr
     , (\v -> C.var' v 8) <$> parseVar
     , (\n -> C.const (fromIntegral n) 8) <$> parseInt
     ]
