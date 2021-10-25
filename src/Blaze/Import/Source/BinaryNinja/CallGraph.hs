@@ -25,6 +25,7 @@ import Control.Monad.Extra (mapMaybeM)
 import Data.BinaryAnalysis (Symbol (Symbol, _symbolName, _symbolRawName))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.List (zip3)
 
 -- TODO: Have a proper Symbol type in BN bindings with fields already populated
 --       so that IO is not needed here
@@ -95,12 +96,12 @@ getCallDestAddr ci =
         _ -> Nothing
     _ -> Nothing
 
-createCallSite :: BNBinaryView -> BnFunc.Function -> CallInstruction -> IO (Maybe CallSite)
-createCallSite bv bnCaller callInstr = do
+createCallSite :: BNBinaryView -> BnFunc.Function -> Address -> Maybe Address -> IO (Maybe CallSite)
+createCallSite bv bnCaller instrAddr destAddr = do
   caller <- convertFunction bv bnCaller
-  let instrAddr = callInstr ^. #address
-      mDestAddr = getCallDestAddr callInstr
-  case mDestAddr of
+  -- let instrAddr = callInstr ^. #address
+  --     mDestAddr = getCallDestAddr callInstr
+  case destAddr of
     Nothing -> return Nothing
     Just addr -> do
       mBnFunc <- BnFunc.getFunctionStartingAt bv Nothing addr
@@ -127,17 +128,16 @@ getFunctions bv = BnFunc.getFunctions bv >>= traverse (convertFunction bv)
 
 getCallSites :: BNBinaryView -> Function -> IO [CallSite]
 getCallSites bv func' = do
-  refs <- Ref.getCodeReferences bv (func' ^. #address)
-  concatMapM getCallSites' refs
+  refs <- Ref.getCodeReferences bv calleeAddr
+  concatMapM (getCallSites' calleeAddr) refs
  where
-  getMaybeCallerAndInstr :: BnFunc.Function -> Maybe CallInstruction -> Maybe (BnFunc.Function, CallInstruction)
-  getMaybeCallerAndInstr bnFunc maybeInstr = (,) <$> Just bnFunc <*> maybeInstr
+  calleeAddr :: Address
+  calleeAddr = func' ^. #address
 
-  getCallSites' :: Ref.ReferenceSource -> IO [CG.CallSite]
-  getCallSites' ref = do
-    callers <- Set.toList <$> Binja.getFunctionsContaining bv (ref ^. Ref.addr)
-    mCallInstrs <- mapM (`getCallInstruction` ref) callers
-    -- TODO: Is there a better way to link non-Nothing callers and call instructions?
-    --       Right now we're fmap'ing a tuple constructor over them. This seems excessive.
-    let callSiteArgs = catMaybes $ uncurry getMaybeCallerAndInstr <$> zip callers mCallInstrs
-    mapMaybeM (uncurry $ createCallSite bv) callSiteArgs
+  getCallSites' :: Address -> Ref.ReferenceSource -> IO [CG.CallSite]
+  getCallSites' destAddr ref = do
+    let callInstrAddr = ref ^. Ref.addr
+    callers <- Set.toList <$> Binja.getFunctionsContaining bv callInstrAddr
+    mapMaybeM
+      (\caller -> createCallSite bv caller callInstrAddr (Just destAddr))
+      callers
