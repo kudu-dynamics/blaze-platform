@@ -2,30 +2,70 @@
 
 module Blaze.Pil.Parse (
   Parser,
+  ParserCtx (..),
+  blankParserCtx,
+  mkParserCtx,
   parseVar,
   parseInt,
   parseTerm,
   parseExpr,
-  run,
+  runParser,
+  runParser',
+  runParserEof,
 ) where
 
-import Prelude (foldr1)
 import Data.Bifunctor (first)
+import Prelude (foldr1)
 
 import qualified Blaze.Pil.Construct as C
 import Blaze.Prelude hiding (Prefix, first, many, some, takeWhile, try)
-import Blaze.Types.Pil (Expression, OperationSize, PilVar)
+import Blaze.Types.Pil (Ctx, Expression, OperationSize, PilVar)
 
+import Blaze.Cfg (getCtxIndices)
+import Blaze.Types.Cfg (PilCfg)
 import Control.Monad.Combinators.Expr
+import qualified Data.Bimap as Bimap
+import Data.List.NonEmpty (fromList)
+import qualified Data.Set as LazySet
 import qualified Data.Text as T
-import Text.Megaparsec
-import Text.Megaparsec.Char as C
-import Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec hiding (runParser, runParser')
+import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space, string')
+import qualified Text.Megaparsec.Char.Lexer as L
 
-type Parser = Parsec Void Text
+newtype ParserCtx = ParserCtx
+  { ctxIndices :: Bimap.Bimap Int Ctx
+  }
+  deriving (Eq, Ord, Show, Generic)
+
+blankParserCtx :: ParserCtx
+blankParserCtx =
+  ParserCtx
+    { ctxIndices = Bimap.empty
+    }
+
+mkParserCtx :: PilCfg -> ParserCtx
+mkParserCtx cfg =
+  ParserCtx
+    { ctxIndices = getCtxIndices cfg
+    }
+
+type Parser = ParsecT Void Text (Reader ParserCtx)
+
+runParser' :: ParserCtx -> Parser a -> Text -> Either (ParseErrorBundle Text Void) a
+runParser' ctx p =
+  flip runReader ctx
+    . runParserT p ""
+
+runParser :: ParserCtx -> Parser a -> Text -> Either Text a
+runParser ctx p =
+  first (cs . errorBundlePretty)
+    . runParser' ctx p
+
+runParserEof :: ParserCtx -> Parser a -> Text -> Either Text a
+runParserEof ctx p = runParser ctx (p <* eof)
 
 lex :: MonadParsec e Text m => m a -> m a
-lex = L.lexeme C.space
+lex = L.lexeme space
 
 binl :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
 binl p f = InfixL (lex p $> (\x y -> f x y 8))
@@ -43,12 +83,32 @@ binn p f = InfixN (lex p $> (\x y -> f x y 8))
 parseVar :: Parser PilVar
 parseVar = lex scan <?> "variable identifier"
   where
-    firstChar = (letterChar <|> oneOf ['_', '$'])
-                <?> "letter or one of _$"
-    restChar = (alphaNumChar <|> oneOf ['_', '$', '#', '\'', '@', ':', '.', '!', '~'])
-               <?> "alphanumeric character or one of _$#'@:.!~"
-    rest = T.pack <$> many restChar
-    scan = (\x y -> C.pilVar $ T.cons x y) <$> firstChar <*> rest
+    scan :: Parser PilVar
+    scan = do
+      ctxIndices' <- view #ctxIndices
+      firstChar <-
+        (letterChar <|> oneOf ['_', '$'])
+          <?> "letter or one of _$"
+      let restChar =
+            (alphaNumChar <|> oneOf ['_', '$', '#', '\'', ':', '.', '!', '~'])
+              <?> "alphanumeric character or one of _$#':.!~"
+      rest <- T.pack <$> many restChar
+      ctxIndex' <- optional (char '@' *> L.decimal)
+      let fail =
+            failure
+              (Just . Label . fromList $ reason)
+              (LazySet.singleton . Label . fromList $ if Bimap.null ctxIndices' then expectedEmpty else expected)
+            where
+              reason = "invalid variable context index: " <> maybe "" show ctxIndex'
+              expected = "maximum variable context index: " <> (show . maximum . Bimap.keys $ ctxIndices')
+              expectedEmpty = "no contexts in scope"
+      case (ctxIndex', Bimap.null ctxIndices') of
+        (Nothing, True) -> pure $ C.pilVar (T.cons firstChar rest)
+        (Just ctxIndex, False) ->
+          case Bimap.lookup ctxIndex ctxIndices' of
+            Just ctx -> pure $ C.pilVar' (T.cons firstChar rest) ctx
+            Nothing -> fail
+        (_, _) -> fail
 
 parseInt :: Parser Integer
 parseInt =
@@ -71,7 +131,8 @@ parseTerm =
 
 parseExpr :: Parser Expression
 parseExpr =
-  makeExprParser parseTerm
+  makeExprParser
+    parseTerm
     [
       [ binl "*" C.mul
       ]
@@ -101,6 +162,3 @@ parseExpr =
       [ binr "||" C.or
       ]
     ]
-
-run :: Parser a -> Text -> Either Text a
-run p = first (cs . errorBundlePretty) . parse (p <* eof) ""
