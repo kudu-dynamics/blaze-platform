@@ -304,7 +304,7 @@ reduceMap = \m -> foldl' (reduceKey HSet.empty) m (HMap.keysSet m)
         case HMap.lookup k m of
           Just k' -> reduceKey (HSet.insert k visited) m k'
           -- Overwrite each key in @visited@ to point at terminus of chain
-          Nothing -> foldMap (flip HMap.singleton k) visited `HMap.union` m
+          Nothing -> foldMap (`HMap.singleton` k) visited `HMap.union` m
 
 data CopyPropState = CopyPropState
   { mapping :: VarMap
