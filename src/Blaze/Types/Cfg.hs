@@ -191,6 +191,9 @@ type ControlFlowGraph a = AlgaGraph BranchType (CfNode a) (CfNode ())
 asIdNode :: CfNode a -> CfNode ()
 asIdNode = void
 
+asIdEdge :: CfEdge a -> CfEdge ()
+asIdEdge = void
+
 getFullNode' :: ControlFlowGraph a -> CfNode () -> Maybe (CfNode a)
 getFullNode' g n = G.getNodeAttr n g
 
@@ -243,6 +246,9 @@ mkCfg root' rest es =
 
 edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
 edges = fmap fromLEdge . G.edges
+
+removeIdEdge :: CfEdge () -> Cfg a -> Cfg a
+removeIdEdge e cfg = cfg & #graph %~ G.removeEdge (toLEdge e ^. #edge)
 
 removeEdge :: (Hashable a, Eq a) => CfEdge a -> Cfg a -> Cfg a
 removeEdge e = G.removeEdge $ toLEdge e ^. #edge
@@ -514,6 +520,35 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
     getTcNodeOp n = (n,,) <$> n ^? #_Call <*> n ^? #_Call . #nodeData . ix 0 . #_TailCall
 
     tcNodes = mapMaybe getTcNodeOp . HashSet.toList $ G.nodes ogCfg
+
+mapAttrs :: (a -> b) -> Cfg a -> Cfg b
+mapAttrs f cfg = Cfg
+  { root = fmap f $ cfg ^. #root
+  , graph = G.mapAttrs (fmap f) $ cfg ^. #graph
+  }
+
+-- | Traverses monadic action over Cfg attrs.
+-- The first action is on the root node, the result of which is remembered
+-- and used again later when root is encountered in the nodeAttrList
+-- so that the monadic action isn't run twice for the same node.
+traverseAttrs :: Monad m => (a -> m b) -> Cfg a -> m (Cfg b)
+traverseAttrs f cfg = do
+  root' <- traverse f $ cfg ^. #root
+  attrList <- fmap HashMap.toList
+              . traverse (g root')
+              . G.getNodeAttrMap
+              $ cfg ^. #graph
+  return $ Cfg { root = root'
+               , graph = G.addNodesWithAttrs attrList
+                         . G.fromEdges
+                         . G.edges
+                         $ cfg ^. #graph
+               }
+  where
+    rootId = asIdNode $ cfg ^. #root
+    g root' n
+      | rootId == asIdNode n = return root'
+      | otherwise = traverse f n
 
 gatherCfgData :: (Hashable a, Eq a) => Cfg [a] -> [a]
 gatherCfgData = concatMap concat . HashMap.elems . G.getNodeAttrMap

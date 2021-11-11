@@ -113,8 +113,18 @@ checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
       , errors = errs
       , flatSolutions = sols
       , solutions = deepSols
+      , originMap = unSt ^. #originMap
+      , errorConstraints = errorConstraints'
+      , ogConstraints = s ^. #constraints
       }
       where
+        errorConstraints' :: HashMap Sym [Constraint]
+        errorConstraints' = HashMap.fromList
+          . fmap ( toSnd
+                   (getConstraintsForSym (unSt ^. #originMap) (s ^. #constraints))
+                   . view #sym
+                 )
+          $ errs
         originsVarSymMap :: HashMap PilVar Sym
         originsVarSymMap = varSubst eqMap <$> s ^. #varSymMap
         sols :: HashMap Sym (PilType Sym)
@@ -157,10 +167,56 @@ removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmt
   where
     refs = Analysis.getRefVars . fmap snd $ stmts'
 
+pilTypeWithSym :: HashMap Sym Sym -> Sym -> PilType Sym -> Maybe (PilType Sym)
+pilTypeWithSym originMap' s pt = do
+  sorigin <- HashMap.lookup s originMap' <|> return s
+  subst sorigin
+  where
+    f :: Sym -> Sym -> (Bool, Sym)
+    f sorigin x = maybe (False, x) (True,) $ do
+      xorigin <- HashMap.lookup x originMap'
+      if xorigin == sorigin
+        then Just xorigin
+        else Nothing
+
+    ptWithBool :: Sym -> PilType (Bool, Sym)
+    ptWithBool sorigin = fmap (f sorigin) pt
+
+    subst :: Sym -> Maybe (PilType Sym)
+    subst sorigin = if or . fmap fst $ ptWithBool sorigin
+      then return . fmap snd $ ptWithBool sorigin
+      else Nothing
+
+
+symTypeWithSym :: HashMap Sym Sym -> Sym -> SymType -> Maybe SymType
+symTypeWithSym originMap' s stype = case stype of
+  SVar s' -> case originMatch s s' of
+    Nothing -> Nothing
+    Just _ -> return stype
+  SType pt -> SType <$> pilTypeWithSym originMap' s pt
+  where
+    originMatch a b = do
+      aOrigin <- HashMap.lookup a originMap'
+      bOrigin <- HashMap.lookup b originMap'
+      if aOrigin == bOrigin then Just aOrigin else Nothing
+
+-- | Returns a constraint that contains the given symbol,
+-- or that contains a symbol determined to be equivalent during unification
+constraintWithSym :: HashMap Sym Sym -> Sym -> Constraint -> Maybe Constraint
+constraintWithSym originMap' s c@(Constraint stmtIndex s' stype)
+  | s == s' = return c
+  | HashMap.lookup s originMap' == HashMap.lookup s' originMap' =
+      return $ Constraint stmtIndex s stype
+  | otherwise = Constraint stmtIndex s' <$> symTypeWithSym originMap' s stype
+
+getConstraintsForSym
+  :: HashMap Sym Sym
+  -> [Constraint]
+  -> Sym
+  -> [Constraint]
+getConstraintsForSym originMap' xs s = mapMaybe (constraintWithSym originMap' s) xs
+
 -- TODO: Consider introducing an IndexedStmt type to avoid the awkwardness
 --       below where we split a [(Int, Stmt)] to process all [Stmt] and then
 --       reassemble.
-checkFunction :: [(Int, Pil.Stmt)] -> Either ConstraintGenError TypeReport
-checkFunction funcStmts =
-  checkIndexedStmts . removeUnusedPhi $
-    zip (fmap fst funcStmts) (Analysis.substAddrs $ fmap snd funcStmts)
+

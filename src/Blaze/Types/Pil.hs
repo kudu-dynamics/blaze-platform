@@ -106,7 +106,7 @@ data ExprOp expr
 data Expression = Expression
   { size :: OperationSize
   , op :: ExprOp Expression
-  } 
+  }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 

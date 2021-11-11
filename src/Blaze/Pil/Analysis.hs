@@ -357,6 +357,18 @@ isUnusedPhi _ _ = False
 removeUnusedPhi :: HashSet PilVar -> [Stmt] -> [Stmt]
 removeUnusedPhi usedVars = filter (not . isUnusedPhi usedVars)
 
+-- | Removes phi defs where the dest var is only referenced in other unused phi defs
+fixedRemoveUnusedPhi_ :: Int -> [Stmt] -> [Stmt]
+fixedRemoveUnusedPhi_ itersLeft stmts
+  | itersLeft <= 0 = P.error "fixedRemoveUnusedPhi_: possible infinite loop"
+  | stmts == stmts' = stmts
+  | otherwise = fixedRemoveUnusedPhi_ (itersLeft - 1) stmts'
+  where
+    stmts' = removeUnusedPhi (getRefVars stmts) stmts
+    
+fixedRemoveUnusedPhi :: [Stmt] -> [Stmt]    
+fixedRemoveUnusedPhi = fixedRemoveUnusedPhi_ 100
+
 reducePhi :: HashSet PilVar -> Stmt -> Maybe Stmt
 reducePhi undefVars stmt = case stmt of
   Pil.DefPhi (Pil.DefPhiOp dstVar vars) ->

@@ -25,7 +25,6 @@ import Control.Monad.Extra (mapMaybeM)
 import Data.BinaryAnalysis (Symbol (Symbol, _symbolName, _symbolRawName))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.List (zip3)
 
 -- TODO: Have a proper Symbol type in BN bindings with fields already populated
 --       so that IO is not needed here

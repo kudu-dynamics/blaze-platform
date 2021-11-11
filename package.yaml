@@ -104,8 +104,10 @@ library:
   - Blaze.CallGraph
   - Blaze.Cfg
   - Blaze.Cfg.Analysis
+  - Blaze.Cfg.Checker
   - Blaze.Cfg.Interprocedural
   - Blaze.Cfg.Loop
+  - Blaze.Cfg.Solver.General
   - Blaze.Fir
   - Blaze.Function
   - Blaze.Graph

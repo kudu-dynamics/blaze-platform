@@ -300,5 +300,3 @@ getCallFuncRating ctx tgt srcFunc =
 
 getDataDependenceGraph :: Cfg [Stmt] -> DataDependenceGraph
 getDataDependenceGraph = PA.getDataDependenceGraph . Cfg.gatherCfgData
-
-

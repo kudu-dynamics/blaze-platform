@@ -272,6 +272,19 @@ siblings child parent g = HashSet.delete child $ succs parent g
 -- mapNodes :: (Graph e n g, Graph e n' g') => (n -> n') -> g -> g'
 -- mapNodes = mapGraph identity
 
+mapAttrs :: (Graph e attr n g, Graph e attr' n g') => (attr -> attr') -> g -> g'
+mapAttrs f g = addNodesWithAttrs attrList . fromEdges . edges $ g
+  where
+    attrList = HashMap.toList . HashMap.map f . getNodeAttrMap $ g
+
+traverseAttrs :: (Graph e attr n g, Graph e attr' n g', Monad m)
+              => (attr -> m attr')
+              -> g
+              -> m g'
+traverseAttrs f g = do
+  attrList <- fmap HashMap.toList . traverse f . getNodeAttrMap $ g
+  return . addNodesWithAttrs attrList . fromEdges . edges $ g
+
 updateNodeAttr :: (Graph e attr n g) => (attr -> attr) -> n -> g -> g
 updateNodeAttr f n g = case getNodeAttr n g of
   Nothing -> g

@@ -60,7 +60,7 @@ data PilType t = TBool
                | TVBitWidth BitWidth
                | TVLength Word64
                | TVSign Bool    
-               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic)
+               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable)
 
 newtype T = T (PilType T)
   deriving (Eq, Ord, Read, Show, Generic)
@@ -80,7 +80,7 @@ data ConstraintSymType = CSVar Sym
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
                  | DSType (PilType DeepSymType)
-               deriving (Eq, Ord, Read, Show, Generic)
+               deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
 --joinDeepSymTypes :: DeepSymType -> DeepSymType -> DeepSymType
 
@@ -161,6 +161,9 @@ data TypeReport = TypeReport
   , errors :: [UnifyConstraintsError DeepSymType]
   , flatSolutions :: HashMap Sym (PilType Sym)
   , solutions :: HashMap Sym DeepSymType
+  , originMap :: HashMap Sym Sym -- from UnifyState
+  , errorConstraints :: HashMap Sym [Constraint] -- original constraints
+  , ogConstraints :: [Constraint]
   } deriving (Eq, Ord, Show, Generic)
 
 --------------------------------------------------------------
