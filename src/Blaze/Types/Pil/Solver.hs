@@ -19,6 +19,7 @@ import Data.SBV.Trans as Exports ( SymbolicT
                                  , runSMTWith
                                  )
 import Data.SBV.Trans.Control as Exports (ExtractIO)
+import Data.SBV.Trans.Control (QueryT)
 import qualified Data.SBV.Trans.Control as Q
 import Blaze.Types.Pil (Expression, PilVar)
 import qualified Data.HashMap.Strict as HashMap
@@ -39,10 +40,12 @@ data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg 
   deriving (Eq, Ord, Show, Generic)
 
               
-newtype SolverCtx = SolverCtx
-  { typeEnv :: HashMap PilVar DeepSymType }
+data SolverCtx = SolverCtx
+  { typeEnv :: HashMap PilVar DeepSymType
+  , useUnsatCore :: Bool
+  } deriving stock (Generic)
 
-emptyCtx :: SolverCtx
+emptyCtx :: Bool -> SolverCtx
 emptyCtx = SolverCtx mempty
 
 data SolverState = SolverState
@@ -98,39 +101,58 @@ runSolverWith solverCfg m (st, ctx) = runExceptT
   . runSMTWith solverCfg
   . flip runStateT st
   . flip runReaderT ctx
-  . runSolverMonad_ $ m
-
+  . runSolverMonad_
+  $ do when (ctx ^. #useUnsatCore) $ do
+         setOption $ Q.ProduceUnsatCores True
+         when (isZ3 . SBV.name . SBV.solver $ solverCfg)
+           . setOption $ Q.OptionKeyword ":smt.core.minimize" ["true"]
+       m
+  where
+    -- No Eq instance for SBV.Solver
+    isZ3 :: SBV.Solver -> Bool
+    isZ3 SBV.Z3 = True
+    isZ3 _ = False
+    
 runSolverWith_ :: SMTConfig
+               -> Bool
                -> Solver a
                -> IO (Either SolverError (a, SolverState))
-runSolverWith_ solverCfg = flip (runSolverWith solverCfg) (emptyState, emptyCtx)
+runSolverWith_ solverCfg useUnsatCore' =
+  flip (runSolverWith solverCfg) (emptyState, emptyCtx useUnsatCore')
 
 
-data SolverResult = Unsat
+
+data SolverResult = Unsat (Maybe [String])
                   | Unk
                   | Sat (HashMap Text CV)
                   deriving (Eq, Ord, Show, Generic)
 
+type Query a = QueryT (ExceptT SolverError IO) a
+
+toSolverResult :: Q.CheckSatResult -> Query SolverResult
+toSolverResult = \case
+  Q.Unsat -> fmap Unsat $ Q.getOption Q.ProduceUnsatCores >>= \case
+    (Just (Q.ProduceUnsatCores True)) -> Just <$> Q.getUnsatCore
+    _ -> return Nothing
+  Q.Unk -> return Unk
+  Q.DSat _precision -> do
+    model <- Q.getModel
+    return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+  Q.Sat -> do
+    model <- Q.getModel
+    return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+
+querySolverResult_ :: Query SolverResult
+querySolverResult_ = Q.checkSat >>= toSolverResult
 
 querySolverResult :: Solver SolverResult
-querySolverResult = do
-  liftSymbolicT . Q.query $ do
-    csat <- Q.checkSat
-    case csat of
-      Q.Unsat -> return Unsat
-      Q.Unk -> return Unk
-      Q.DSat _precision -> do
-        model <- Q.getModel
-        return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
-      Q.Sat -> do
-        model <- Q.getModel
-        return $ Sat . HashMap.fromList $ over _1 cs <$> modelAssocs model
+querySolverResult = liftSymbolicT . Q.query $ querySolverResult_
 
 checkSatWith :: SMTConfig -> Solver () -> (SolverState, SolverCtx) -> IO (Either SolverError (SolverResult, SolverState))
 checkSatWith cfg m = runSolverWith cfg (m >> querySolverResult)
 
-checkSatWith_ :: SMTConfig -> Solver () -> IO (Either SolverError SolverResult)
-checkSatWith_ cfg m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx)
+checkSatWith_ :: SMTConfig -> Bool -> Solver () -> IO (Either SolverError SolverResult)
+checkSatWith_ cfg useUnsatCore' m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx useUnsatCore')
 
 stmtError :: SolverError -> Solver a
 stmtError e = do

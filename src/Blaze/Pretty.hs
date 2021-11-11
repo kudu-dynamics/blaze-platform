@@ -465,6 +465,15 @@ tokenizeExprOp exprOp _size = case exprOp of
     tokenize (op ^. #offset)
   Pil.UNIT -> [tt "()"]
 
+instance Tokenizable PI.Constraint where
+  tokenize (PI.Constraint stmtIndex s stype)
+    = [ tt $ show stmtIndex
+      , tt ":"
+      ]
+      <> tokenize s
+      <> [tt ": "]
+      <> tokenize stype
+
 instance Tokenizable PI.SymType where
   tokenize (PI.SVar s) = tokenize s
   tokenize (PI.SType t) = tokenize t
@@ -581,7 +590,7 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndex
   tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] (f <$> stmts)
     where
       f :: (Int, Pil.Statement a) -> [Token]
-      f (i, stmt) = [integerToken i, tt ": "] ++ tokenize stmt
+      f (i, stmt) = [tt $ show i, tt ": "] ++ tokenize stmt
 
 instance Tokenizable ByteOffset where
   tokenize (ByteOffset n) = [integerToken n]

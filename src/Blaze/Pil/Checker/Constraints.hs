@@ -1,3 +1,5 @@
+{- HLINT ignore "Reduce duplication" -}
+
 module Blaze.Pil.Checker.Constraints where
 
 import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
@@ -618,4 +620,25 @@ addStmtTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
   traverse toSymExpression stmt -- does nothing but change the type
   where
     addPhiConstraint pvSym v = lookupVarSym v >>= equals pvSym
-addStmtTypeConstraints s = traverse toSymExpression s
+addStmtTypeConstraints (Pil.DefMemPhi x) = traverse toSymExpression $ Pil.DefMemPhi x
+-- TODO: Link up args to params
+addStmtTypeConstraints (Pil.Call x) = traverse toSymExpression $ Pil.Call x
+addStmtTypeConstraints (Pil.TailCall x) = traverse toSymExpression $ Pil.TailCall x
+addStmtTypeConstraints (Pil.BranchCond (Pil.BranchCondOp expr)) = do
+  symExpr <- toSymExpression expr
+  let exprSym = symExpr ^. #info . #sym
+  addAllExprTypeConstraints symExpr
+  assignType exprSym TBool
+  return $ Pil.BranchCond (Pil.BranchCondOp symExpr)
+addStmtTypeConstraints (Pil.UnimplInstr x) = return $ Pil.UnimplInstr x
+addStmtTypeConstraints (Pil.UnimplMem x) = traverse toSymExpression $ Pil.UnimplMem x
+addStmtTypeConstraints Pil.Undef = return Pil.Undef
+addStmtTypeConstraints Pil.Nop = return Pil.Nop
+addStmtTypeConstraints (Pil.Annotation x) = return $ Pil.Annotation x
+addStmtTypeConstraints (Pil.EnterContext x) = traverse toSymExpression $ Pil.EnterContext x
+addStmtTypeConstraints (Pil.ExitContext x) = traverse toSymExpression $ Pil.ExitContext x
+addStmtTypeConstraints (Pil.Jump x) = traverse toSymExpression $ Pil.Jump x
+addStmtTypeConstraints (Pil.JumpTo x) = traverse toSymExpression $ Pil.JumpTo x
+addStmtTypeConstraints (Pil.Ret x) = traverse toSymExpression $ Pil.Ret x
+addStmtTypeConstraints Pil.NoRet = return Pil.NoRet
+addStmtTypeConstraints Pil.Exit = return Pil.Exit

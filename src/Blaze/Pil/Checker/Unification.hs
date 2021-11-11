@@ -247,7 +247,9 @@ unifyPilTypes pt1 pt2 =
       TVLength len1 -> case pt2 of
         TVLength len2
           | len1 == len2 -> return $ TVLength len1
-          | otherwise -> err
+          -- TODO: this is b/c const strs have different lengths and are set
+          -- to the same field sometimes. But now it can't find length bugs.
+          | otherwise -> return . TVLength $ max len1 len2
         _ -> err
 
       TVSign s1 -> case pt2 of
