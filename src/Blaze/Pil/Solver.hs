@@ -18,6 +18,9 @@ import Blaze.Types.Pil ( Expression
                        )
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Solver
+import qualified Data.SBV.List as SList
+import qualified Blaze.Pil.Solver.List as BSList
+import Data.SBV.List ((.++))
 import Data.SBV.Tools.Overflow (bvAddO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
 import qualified Data.SBV.Trans as SBV
@@ -29,6 +32,18 @@ import Data.SBV.Trans ( (.==)
                       , (.<=)
                       , (.||)
                       , (.~|)
+                      , SInteger
+                      , SInt8
+                      , SInt16
+                      , SInt32
+                      , SInt64
+                      , SInt
+                      , SWord8
+                      , SWord16
+                      , SWord32
+                      , SWord64
+                      , SWord
+                      , sFromIntegral
                       )
 import qualified Data.Text as Text
 import Data.SBV.Dynamic as D hiding (Solver)
@@ -36,8 +51,38 @@ import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
 import Blaze.Types.Pil.Checker ( DeepSymType )
 import Data.SBV.Internals (SBV(SBV), unSBV)
+import qualified Data.HashSet as HashSet
 
+stubbedFunctionConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
+stubbedFunctionConstraintGen = HashMap.fromList
+  [ ( "memcpy"
+    , \r args -> case args of
+        [dest, src, n] -> do
+          guardList dest
+          guardList src
+          guardIntegral n
+          n' <- boundedToSInteger n
+          constrain_ $ BSList.length dest .>= n'
+          constrain_ $ BSList.length src .>= n'
+          -- constrain_ $ r .== (SList.take n' src .++ SList.drop n' dest)
+        xs -> throwError . StubbedFunctionArgError "memcpy" 3 $ length xs
+    )
+  ]
 
+  -- [ ( "memcpy"
+  --   , \r args -> case args of
+  --       [dest, src, n] -> do
+  --         guardList dest
+  --         guardList src
+  --         guardIntegral n
+  --         n' <- boundedToSInteger n
+  --         constrain_ $ SList.length dest .>= n'
+  --         constrain_ $ SList.length src .>= n'
+  --         constrain_ $ r .== (SList.take n' src .++ SList.drop n' dest)
+  --       xs -> throwError . StubbedFunctionArgError "memcpy" 3 $ length xs
+  --   )
+  -- ]
+  
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. #symbol
   <> maybe "" (("@"<>) . view (#func . #name)) mCtx
@@ -57,7 +102,7 @@ deepSymTypeToKind t = case t of
                           -- ignore recursion, and hope for the best
 
   Ch.DSType pt -> case pt of
-    Ch.TArray _alen _etype -> err "Can't handdle Array"
+    Ch.TArray _alen _etype -> err "Array should be handled only when wrapped in Ptr"
     Ch.TBool -> return KBool
     Ch.TChar -> return $ KBounded False 8
     Ch.TInt bwt st -> KBounded <$> (getSigned st <|> pure False) <*> getBitWidth bwt
@@ -65,7 +110,13 @@ deepSymTypeToKind t = case t of
                    -- SBV only has float or double, so we'll just pick double
 
     Ch.TBitVector bwt -> KBounded <$> pure False <*> getBitWidth bwt
-    Ch.TPointer bwt _pt -> KBounded <$> pure False <*> getBitWidth bwt
+    Ch.TPointer bwt ptrElemType -> case ptrElemType of
+      Ch.DSType (Ch.TArray _alen arrayElemType) ->
+        -- alen constraint is handled at sym var creation
+        KList <$> deepSymTypeToKind arrayElemType
+      -- TODO: structs. good luck
+      _ -> KBounded <$> pure False <*> getBitWidth bwt
+    Ch.TCString _ -> return KString
     Ch.TRecord _ -> err "Can't handle Record type"
     Ch.TUnit -> return $ KTuple []
     Ch.TBottom s -> err $ "TBottom " <> show s
@@ -85,14 +136,19 @@ deepSymTypeToKind t = case t of
     err :: forall a. Text -> Solver a
     err = throwError . DeepSymTypeConversionError t
 
-makeSymVar :: Maybe Text -> Kind -> Solver SVal
-makeSymVar nm k = case cs <$> nm of
-  Just n -> D.svNewVar k n
-  Nothing -> D.svNewVar_ k
+makeSymVar :: Maybe Text -> DeepSymType -> Kind -> Solver SVal
+makeSymVar nm dst k = do
+  v <- case cs <$> nm of
+    Just n -> D.svNewVar k n
+    Nothing -> D.svNewVar_ k
+  case dst of
+    Ch.DSType (Ch.TPointer _ (Ch.DSType (Ch.TArray (Ch.DSType (Ch.TVLength n)) _))) -> do
+      constrain_ $ fromIntegral n .== BSList.length v
+    _ -> return ()
+  return v
 
 makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
-makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm
-
+makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm dst
 
 declarePilVars :: Solver ()
 declarePilVars = ask >>= mapM_ f . HashMap.toList . typeEnv
@@ -112,6 +168,9 @@ constWord w = svInteger (KBounded False $ fromIntegral w)
 
 constFloat :: Double -> SVal
 constFloat = svDouble
+
+constInteger :: Integral a => a -> SVal
+constInteger = svInteger KUnbounded . fromIntegral
 
 -- | requires: targetWidth >= bv
 --           : kindOf bv is bounded
@@ -289,6 +348,30 @@ toSBool' x = case kindOf x of
 toSBool :: SVal -> Solver SBool
 toSBool x = guardBool x >> return (SBV x)
 
+-- toSList :: HasKind a => SVal -> Solver (SList a)
+-- toSList x 
+
+-- sizeOf :: SVal -> Solver SInteger
+-- sizeOf x = case k of
+--   KBool -> throwError $ SizeOfError k
+--   KBounded _ w -> constInteger s
+--   KUnbounded    -> error "SBV.HasKind.intSizeOf((S)Integer)"
+--   KReal         -> error "SBV.HasKind.intSizeOf((S)Real)"
+--   KFloat        -> 32
+--   KDouble       -> 64
+--   KFP i j       -> i + j
+--   KRational     -> error "SBV.HasKind.intSizeOf((S)Rational)"
+--   KUserSort s _ -> error $ "SBV.HasKind.intSizeOf: Uninterpreted sort: " ++ s
+--   KString       -> error "SBV.HasKind.intSizeOf((S)Double)"
+--   KChar         -> error "SBV.HasKind.intSizeOf((S)Char)"
+--   KList ek      -> error $ "SBV.HasKind.intSizeOf((S)List)" ++ show ek
+--   KSet  ek      -> error $ "SBV.HasKind.intSizeOf((S)Set)"  ++ show ek
+--   KTuple tys    -> error $ "SBV.HasKind.intSizeOf((S)Tuple)" ++ show tys
+--   KMaybe k      -> error $ "SBV.HasKind.intSizeOf((S)Maybe)" ++ show k
+--   KEither k1 k2 -> error $ "SBV.HasKind.intSizeOf((S)Either)" ++ show (k1, k2)
+--   where
+--     k = kindOf x
+
 boolToInt' :: SVal -> SVal
 boolToInt' b = svIte b (svInteger k 1) (svInteger k 0)
   where
@@ -335,6 +418,25 @@ guardIntegral x = case k of
   where
     k = kindOf x
 
+boundedToSInteger :: SVal -> Solver SBV.SInteger
+boundedToSInteger x = do
+  guardIntegral x
+  case kindOf x of
+    KBounded True 8 -> return $ SBV.sFromIntegral (SBV x :: SInt8)
+    KBounded True 16 -> return $ SBV.sFromIntegral (SBV x :: SInt16)
+    KBounded True 32 -> return $ SBV.sFromIntegral (SBV x :: SInt32)
+    KBounded True 64 -> return $ SBV.sFromIntegral (SBV x :: SInt64)
+    KBounded True 128 -> return $ SBV.sFromIntegral (SBV x :: SInt 128)
+
+    KBounded False 8 -> return $ SBV.sFromIntegral (SBV x :: SWord8)
+    KBounded False 16 -> return $ SBV.sFromIntegral (SBV x :: SWord16)
+    KBounded False 32 -> return $ SBV.sFromIntegral (SBV x :: SWord32)
+    KBounded False 64 -> return $ SBV.sFromIntegral (SBV x :: SWord64)
+    KBounded False 128 -> return $ SBV.sFromIntegral (SBV x :: SWord 128)
+
+    t -> throwError . ConversionError $ "Cannot convert type " <> show t
+
+
 guardFloat :: HasKind a => a -> Solver ()
 guardFloat x = case k of
   KDouble -> return ()
@@ -361,6 +463,11 @@ guardSameKind :: (HasKind a, HasKind b) => a -> b -> Solver ()
 guardSameKind x y = if kindOf x == kindOf y
   then return ()
   else throwError $ GuardError "guardSameKind" [kindOf x, kindOf y] "not same kind"
+
+guardList :: (HasKind a) => a -> Solver ()
+guardList x = case kindOf x of
+  KList _ -> return ()
+  _ -> throwError $ GuardError "guardList" [kindOf x] "not a list"
 
 lookupVarSym :: PilVar -> Solver SVal
 lookupVarSym pv = do
@@ -409,7 +516,10 @@ solveStmt_ solveExprFunc stmt = catchAndWarnStmt $ case stmt of
   Pil.Store x -> do
     let exprAddr = dstToExpr $ x ^. #addr
     sValue <- solveExprFunc $ x ^. #value
-    modify (\s -> s { mem = HashMap.insert exprAddr sValue $ s ^. #mem } )
+    -- modify (\s -> s { mem = HashMap.insert exprAddr sValue $ s ^. #mem } )
+    let insertStoreVar Nothing = Just [sValue]
+        insertStoreVar (Just xs) = Just $ sValue : xs
+    modify (\s -> s { stores = HashMap.alter insertStoreVar exprAddr $ s ^. #stores } )
     return ()
   Pil.DefPhi x -> do
     pv <- lookupVarSym $ x ^. #dest
@@ -449,7 +559,15 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     return $ svIte b (svInteger k 1) (svInteger k 0)
 
   -- TODO: stub standard libs here
---   Pil.CALL _ -> return [ (r, CSType $ TBitVector sz') ]
+  Pil.CALL x -> do
+    fcg <- view #funcConstraintGen <$> ask
+    case (x ^. #name) >>= flip HashMap.lookup fcg of
+      Nothing -> fallbackAsFreeVar
+      Just gen -> do
+        args <- mapM solveExprRec $ x ^. #params
+        r <- fallbackAsFreeVar
+        gen r args
+        return r
 
   Pil.CEIL x -> floatUnOp x $ SBV.fpRoundToIntegral SBV.sRoundTowardPositive
   Pil.CMP_E x -> binOpEqArgsReturnsBool x svEqual
@@ -823,12 +941,30 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       return $ runAsUnsigned (\y -> f y b cAsInt) a
 
 
+connectStoresAndLoads :: Solver ()
+connectStoresAndLoads = do
+  s <- get
+  let ks = HashSet.fromList (HashMap.keys $ s ^. #stores)
+           `HashSet.intersection`
+           HashSet.fromList (HashMap.keys $ s ^. #mem)
+  forM_ ks $ \k -> case (HashMap.lookup k (s ^. #stores), HashMap.lookup k (s ^. #mem)) of
+    (Just storeVars, Just loadVar) -> do
+      eqs <- mapM mkEq storeVars
+      constrain_ $ SBV.sOr eqs
+        where
+          mkEq storeVar = do
+            guardSameKind loadVar storeVar
+            toSBool $ loadVar `svEqual` storeVar
+    _ -> return ()
+
 solveTypedStmtsWith :: SMTConfig
                     -> HashMap PilVar DeepSymType
                     -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
                     -> IO (Either SolverError SolverReport)
 solveTypedStmtsWith solverCfg vartypes stmts = do
-  er <- runSolverWith solverCfg run (emptyState, SolverCtx vartypes True)
+  er <- runSolverWith solverCfg run ( emptyState
+                                    , SolverCtx vartypes stubbedFunctionConstraintGen True
+                                    )
   return $ toSolverReport <$> er
   where
     toSolverReport :: (SolverResult, SolverState) -> SolverReport
@@ -836,6 +972,7 @@ solveTypedStmtsWith solverCfg vartypes stmts = do
     run = do
       declarePilVars
       mapM_ f stmts
+      connectStoresAndLoads
       querySolverResult
     f (ix, stmt) = do
       #currentStmtIndex .= ix

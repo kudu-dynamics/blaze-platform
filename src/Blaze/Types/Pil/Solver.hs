@@ -33,20 +33,24 @@ type DSTExpression = Ch.InfoExpression (SymInfo, Maybe DeepSymType)
 
 data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg ::  Text }
                  | StmtError { stmtIndex :: Int, stmtErr :: SolverError }
-                 | ExprError { exprSym :: Sym, exprErr :: SolverError}
+                 | ExprError { exprSym :: Sym, exprErr :: SolverError }
                  | GuardError { name :: Text, kinds :: [SBV.Kind], msg :: Text }
+                 | StubbedFunctionArgError { funcName :: Text, expected :: Int, got :: Int }
+                 | ConversionError { msg :: Text }
                  | AlternativeEmpty
+                 | SizeOfError { kind :: SBV.Kind }
                  | ErrorMessage Text
   deriving (Eq, Ord, Show, Generic)
 
               
 data SolverCtx = SolverCtx
   { typeEnv :: HashMap PilVar DeepSymType
+  , funcConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
   , useUnsatCore :: Bool
   } deriving stock (Generic)
 
 emptyCtx :: Bool -> SolverCtx
-emptyCtx = SolverCtx mempty
+emptyCtx = SolverCtx mempty mempty
 
 data SolverState = SolverState
   { varMap :: HashMap PilVar SVal
@@ -54,10 +58,12 @@ data SolverState = SolverState
   , mem :: HashMap Expression SVal
   , currentStmtIndex :: Int
   , errors :: [SolverError]
+  , stores :: HashMap Expression [SVal]
   } deriving (Generic)
 
+
 emptyState :: SolverState
-emptyState = SolverState HashMap.empty HashMap.empty HashMap.empty 0 []
+emptyState = SolverState mempty mempty mempty 0 [] mempty
 
 -- TODO: it would be nice if the ExceptT wrapped `SymbolicT IO`
 -- so that we could use all the stuff requiring Provable instance

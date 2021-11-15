@@ -8,3 +8,5 @@ extra-deps:
   - ../binaryninja-haskell
   - ../binary-analysis
   - dom-lt-0.2.0@sha256:fc7451d6ada55233239d22b6eed8f2e4c1c1290f1cad101c9d429ea875aa72e6,1615
+  - git: git@github.com:LeventErkok/sbv.git
+    commit: c7bd569e28c8b035f9e4fba2e6504803d8a1a43a

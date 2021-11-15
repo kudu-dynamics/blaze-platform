@@ -13,14 +13,14 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
 import qualified Blaze.Cfg.Analysis as CfgA
 import qualified Blaze.Pil.Solver as PilSolver
-import Blaze.Pil.Solver (makeSymVarOfType, warn)
+import Blaze.Pil.Solver (makeSymVarOfType, warn, connectStoresAndLoads)
 import Blaze.Types.Pil.Solver
 import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Cfg.Checker (checkCfg)
 import Data.SBV.Dynamic (SVal, svNot)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
-
+import qualified Data.HashMap.Strict as HashMap
 
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
@@ -86,7 +86,7 @@ solveStmt ddg stmt = case stmt of
   -- this is handled elsewhere (only used if there is single outgoing branch edge)
   Pil.BranchCond _ -> return ()
   -- TODO: convert stores/loads into immutable SSA vars
-  Pil.Store _ -> return ()
+  -- Pil.Store _ -> return ()
   Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (or $ isDependentOn <$> vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
@@ -98,7 +98,7 @@ solveStmt ddg stmt = case stmt of
 solveExpr :: DataDependenceGraph -> DSTExpression -> Solver SVal
 solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFallbackAndWarn $ case op of
   -- TOOD: turn mem into immutable phi vars
-  Pil.LOAD _ -> fallbackAsFreeVar
+  -- Pil.LOAD _ -> fallbackAsFreeVar
   _ -> PilSolver.solveExpr_ (solveExpr ddg) expr
   where
     fallbackAsFreeVar :: Solver SVal
@@ -157,6 +157,7 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
   ubranches -> do
     generalCfgFormula ddg typedCfg
     ubranchesWithSvals <- traverse getBranchCondSVal ubranches
+    connectStoresAndLoads
     er <- liftSymbolicT . Q.query $ findRemoveableUnsats ubranchesWithSvals
     case er of
       Left sr -> do
@@ -237,7 +238,7 @@ getUnsatBranches cfg = case checkCfg cfg of
     let ddg = CfgA.getDataDependenceGraph cfg
     er <- flip (PilSolver.runSolverWith SBV.z3)
           ( PilSolver.emptyState
-          , SolverCtx (tr ^. #varSymTypeMap) False
+          , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False
           )
           $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
     case er of

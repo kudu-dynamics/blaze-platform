@@ -8,7 +8,9 @@ import Blaze.Types.Pil.Checker
     ( Constraint(Constraint),
       SymType(SType, SVar),
       PilType(TVSign, TBottom, TBitVector, TFloat, TInt, TChar, TBool, TUnit,
-              TPointer, TArray, TFunction, TRecord, TVBitWidth, TVLength),
+              TPointer, TArray, TFunction, TRecord, TVBitWidth, TVLength,
+              TCString
+             ),
       Sym,
       charSize,
       UnifyConstraintsError(UnifyConstraintsError),
@@ -151,6 +153,14 @@ isTypeDescendant (TRecord _) t = case t of
   TRecord _ -> True
   TBottom _ -> True
   _ -> False
+isTypeDescendant (TCString _) t = case t of
+  TChar -> True
+  TInt _ _ -> True
+  TBitVector _ -> True
+  TArray _ _ -> True
+  TRecord _ -> True
+  TBottom _ -> True
+  _ -> False
 isTypeDescendant TUnit t = case t of
   TUnit -> True
   _ -> False
@@ -233,9 +243,29 @@ unifyPilTypes pt1 pt2 =
         -- need map of FuncArg(name,address,arg#/ret) -> most general type
         -- in state
 
-
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
+        _ -> err
+
+      TCString len1 -> case pt2 of
+        TChar -> return $ TCString len1
+        TInt _w2 _s2 -> do
+          -- can't really make these equal in the case:
+          -- [var_18] = 0
+          -- Need to be able to convert bitwidth to string length
+          -- addVarEq w $ TVBitWidth 8
+          return $ TCString len1
+        TBitVector _w2 -> do
+          -- TODO: convert bitwidth to length
+          return $ TCString len1
+        TArray len2 et2 -> do
+          assignType et2 TChar
+          TCString <$> addVarEq len1 len2
+
+        TRecord m -> do
+          mapM_ (flip assignType TChar) . HashMap.elems $ m
+          return $ TCString len1
+
         _ -> err
 
       TVBitWidth bw1 -> case pt2 of
