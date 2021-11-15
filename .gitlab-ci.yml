@@ -205,7 +205,14 @@ trigger-blaze:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   stage: trigger
-  trigger: ${CI_PROJECT_NAMESPACE}/blaze
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine
+  script:
+    - apk add curl
+    - curl --fail-with-body
+        -X POST
+        -F token="${CI_JOB_TOKEN}"
+        -F ref=master
+        "${CI_API_V4_URL}"/projects/"${BLAZE_REPO_ID}"/trigger/pipeline
 
 cleanup:
   stage: .post
