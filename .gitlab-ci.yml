@@ -116,6 +116,8 @@ build:
     - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
     - docker pull "${image}:latest" || true
     - docker build --pull .. -f Dockerfile
+      --build-arg "CI_REGISTRY=${CI_REGISTRY}"
+      --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
       -t "${image}:pipeline-${CI_PIPELINE_IID}"
     - docker push "${image}:pipeline-${CI_PIPELINE_IID}"
 

@@ -1,4 +1,6 @@
 # Build with `docker build .. -f Dockerfile`, i.e., it needs binary-analysis in the context
+ARG CI_REGISTRY
+ARG CI_PROJECT_NAMESPACE
 ARG BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE=${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops/binaryninja-haskell-base:latest
 
 FROM ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE} as base
