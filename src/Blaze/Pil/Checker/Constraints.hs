@@ -254,6 +254,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.CONST_FLOAT _ -> retFloat
 
+  Pil.Extract _ -> ret [(r, CSType $ TBitVector sz')]
+
 -- TODO: should there be a link between sz of bitvec and sz of float?
   Pil.FLOAT_CONV x -> do
     bvWidth <- CSVar <$> newSym
@@ -376,9 +378,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   Pil.UNIT -> ret [ (r, CSType TUnit) ]
 
---   -- _ -> unknown
-
---   Extract _ -> bitvecRet
   _ -> P.error . show $ op'
     --throwError UnhandledExpr
   where
