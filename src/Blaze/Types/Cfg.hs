@@ -274,6 +274,9 @@ succEdges n cfg = HashSet.map (fromJust . getFullEdge cfg . G.Edge n)
   . G.succs n
   $ cfg
 
+getNodeData_ :: Cfg a -> CfNode () -> a
+getNodeData_ g n = getNodeData $ getFullNode g n
+
 getNodeData :: CfNode a -> a
 getNodeData = \case
   BasicBlock x -> x ^. #nodeData

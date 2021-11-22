@@ -107,6 +107,7 @@ library:
   - Blaze.Cfg.Checker
   - Blaze.Cfg.Interprocedural
   - Blaze.Cfg.Loop
+  - Blaze.Cfg.Solver.BranchContext
   - Blaze.Cfg.Solver.General
   - Blaze.Fir
   - Blaze.Function
