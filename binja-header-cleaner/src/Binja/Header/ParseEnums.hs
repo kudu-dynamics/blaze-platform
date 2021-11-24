@@ -1,16 +1,11 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Binja.Header.ParseEnums where
 
 import Binja.Header.Prelude hiding (option)
-import Text.RawString.QQ
 import Binja.Header.Types.Printer ( Printer, pr, indent )
 import qualified Binja.Header.Types.Printer as Pr
 import Data.Attoparsec.Text ( Parser
@@ -32,9 +27,6 @@ import Data.Attoparsec.Text ( Parser
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.Char as Char
-
-h :: FilePath
-h = "/tmp/kudu/binaryninja-api/binaryninjacore.h"
 
 newtype EnumName = EnumName Text
   deriving newtype (Eq, Ord, Read, Show, IsString)
@@ -123,22 +115,6 @@ parseEnumType = do
   void $ char ';'
   return $ EnumType name vals
 
-demo1 :: Text
-demo1 = "enum Higgins { Jack = 4, Binji = 0x32, HHHUGS = 0 };"
-
--- enum1 :: EnumType
--- enum1 = let (Right r) = parseOnly parseEnumType demo1 in r
-
--- demo2 :: Text
--- demo2 = "enum Higgins { Jack, Binji, HHHUGS };"
-
--- enum2 :: EnumType
--- enum2 = let (Right r) = parseOnly parseEnumType demo2 in r
-
--- demo3 :: Text
--- demo3 = "enum Higgins { Jack, //this has a comment\n Binji,\n //comment on its own line\n HHHUGS };"
-
-
 findAll :: Parser a -> Parser [a]
 findAll p = end <|> found <|> continue where
   end = endOfInput >> return []
@@ -202,26 +178,3 @@ writeEnumModule modulePrefix enumDir enum@(EnumType (EnumName name) _) =
 
 writeEnumModules :: Text -> FilePath -> [EnumType] -> IO ()
 writeEnumModules modulePrefix enumDir = mapM_ $ writeEnumModule modulePrefix enumDir
-
--- parseAndWriteEnumModules :: Text -> FilePath -> FilePath -> IO [EnumType]
--- parseAndWriteEnumModules modulePrefix enumDir cHeaderFile = do
---   enums <- parseEnums cHeaderFile
---   writeEnumModules modulePrefix enumDir enums
---   return enums
---   where
---     enumDir' = maybe "" (bool (enumDir `Text.snoc` '/') enumDir $ Text.last == "/")
---       $ lastMay enumDir
-
-demo2 :: Text
-demo2 = [r|enum BNSegmentFlag
-	{
-		SegmentExecutable = 1,
-		SegmentWritable = 2,
-		SegmentReadable = 4,
-		SegmentContainsData = 8,
-		SegmentContainsCode = 10,
-		SegmentDenyWrite = 20,
-		SegmentDenyExecute = 11
-	};
-|]
-
