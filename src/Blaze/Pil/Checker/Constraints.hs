@@ -82,9 +82,6 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
   --       ]
   --   _ -> return Nothing --TODO : add warning about malformed fgets params
 
-
-
-
   _ -> return Nothing
 
   where
