@@ -16,6 +16,8 @@ type ByteWidth = Bytes
 charSize :: BitWidth
 charSize = 8
 
+type SymConstraint = (Sym, ConstraintSymType)
+
 newtype Sym = Sym Int
   deriving (Eq, Ord, Read, Show, Generic)
   deriving anyclass (FromJSON, ToJSON, Hashable)

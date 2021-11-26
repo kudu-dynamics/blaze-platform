@@ -1,22 +1,23 @@
 name:                blaze
-version:             0.1.0.0
-license:             LicenseRef-AllRightsReserved
-author:              ""
-maintainer:          ""
+version:             0.1.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:          
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
 copyright:           "2021 Kudu Dynamics"
+synopsis:            A program analysis framework with a focus on context- and path-sensitive analyses, tiered abstraction layers, and type systems.
+category:            Program Analysis, Binary Analysis
+description:         Please see the README.
 
 extra-source-files:
 - README.md
 - ChangeLog.md
 
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
-
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the readme
 
 dependencies:
   - aeson
