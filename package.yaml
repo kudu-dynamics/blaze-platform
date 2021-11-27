@@ -244,4 +244,5 @@ tests:
     - blaze
     - binaryninja
     - hspec
+    - hspec-megaparsec
     - text
