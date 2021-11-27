@@ -56,7 +56,7 @@ import qualified Data.HashSet as HashSet
 stubbedFunctionConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
 stubbedFunctionConstraintGen = HashMap.fromList
   [ ( "memcpy"
-    , \r args -> case args of
+    , \_r args -> case args of
         [dest, src, n] -> do
           guardList dest
           guardList src
@@ -68,20 +68,6 @@ stubbedFunctionConstraintGen = HashMap.fromList
         xs -> throwError . StubbedFunctionArgError "memcpy" 3 $ length xs
     )
   ]
-
-  -- [ ( "memcpy"
-  --   , \r args -> case args of
-  --       [dest, src, n] -> do
-  --         guardList dest
-  --         guardList src
-  --         guardIntegral n
-  --         n' <- boundedToSInteger n
-  --         constrain_ $ SList.length dest .>= n'
-  --         constrain_ $ SList.length src .>= n'
-  --         constrain_ $ r .== (SList.take n' src .++ SList.drop n' dest)
-  --       xs -> throwError . StubbedFunctionArgError "memcpy" 3 $ length xs
-  --   )
-  -- ]
   
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. #symbol
@@ -923,8 +909,6 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       let b' = matchIntegral a b
       return $ f a b' cAsInt
 
-
-
     rotateBinOpWithCarry :: ( HasField' "left" x DSTExpression
                             , HasField' "right" x DSTExpression
                             , HasField' "carry" x DSTExpression)
@@ -939,23 +923,6 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       guardBool c
       cAsInt <- boolToInt (KBounded False 1) c
       return $ runAsUnsigned (\y -> f y b cAsInt) a
-
-
-connectStoresAndLoads :: Solver ()
-connectStoresAndLoads = do
-  s <- get
-  let ks = HashSet.fromList (HashMap.keys $ s ^. #stores)
-           `HashSet.intersection`
-           HashSet.fromList (HashMap.keys $ s ^. #mem)
-  forM_ ks $ \k -> case (HashMap.lookup k (s ^. #stores), HashMap.lookup k (s ^. #mem)) of
-    (Just storeVars, Just loadVar) -> do
-      eqs <- mapM mkEq storeVars
-      constrain_ $ SBV.sOr eqs
-        where
-          mkEq storeVar = do
-            guardSameKind loadVar storeVar
-            toSBool $ loadVar `svEqual` storeVar
-    _ -> return ()
 
 solveTypedStmtsWith :: SMTConfig
                     -> HashMap PilVar DeepSymType
@@ -972,7 +939,6 @@ solveTypedStmtsWith solverCfg vartypes stmts = do
     run = do
       declarePilVars
       mapM_ f stmts
-      connectStoresAndLoads
       querySolverResult
     f (ix, stmt) = do
       #currentStmtIndex .= ix

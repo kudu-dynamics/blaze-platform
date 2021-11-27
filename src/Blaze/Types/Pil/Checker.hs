@@ -176,7 +176,7 @@ data TypeReport = TypeReport
 
 type CallConstraintGenerator = Sym -> [Sym] -> ConstraintGen ()
 
-data ConstraintGenCtx = ConstraintGenCtx
+newtype ConstraintGenCtx = ConstraintGenCtx
   { -- hashmap index is (stmt index from IndexedStmts, function name)
     callConstraintGenerators :: HashMap (Int, Text) CallConstraintGenerator
   } deriving (Generic)

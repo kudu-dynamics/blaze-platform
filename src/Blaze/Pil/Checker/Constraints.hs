@@ -57,30 +57,30 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
 
-  -- "strtol" -> case cparams of
-  --   (nptr:endptr:base:_) -> do
-  --     ptrWidth <- CSVar <$> newSym
-  --     baseWidth <- CSVar <$> newSym
-  --     -- let str = CSType . TPointer ptrWidth $ CSType TChar
-  --     --     strPtr = CSType $ TPointer ptrWidth str
-  --     --     baseType = CSType . TInt baseWidth . CSType $ TVSign True
-  --     nptrLen <- CSVar <$> newSym
-  --     endptrLen <- CSVar <$> newSym
+  "strtol" -> case cparams of
+    (nptr:endptr:base:_) -> do
+      ptrWidth <- CSVar <$> newSym
+      baseWidth <- CSVar <$> newSym
+      -- let str = CSType . TPointer ptrWidth $ CSType TChar
+      --     strPtr = CSType $ TPointer ptrWidth str
+      --     baseType = CSType . TInt baseWidth . CSType $ TVSign True
+      nptrLen <- CSVar <$> newSym
+      endptrLen <- CSVar <$> newSym
 
-  --     let mkStr lenSym = CSType . TPointer ptrWidth . CSType . TCString $ lenSym
-  --         str = mkStr nptrLen
-  --         strPtr = CSType $ TPointer ptrWidth $ mkStr endptrLen
-  --         baseType = CSType . TInt baseWidth . CSType $ TVSign True
+      let mkStr lenSym = CSType . TPointer ptrWidth . CSType . TCString $ lenSym
+          str = mkStr nptrLen
+          strPtr = CSType $ TPointer ptrWidth $ mkStr endptrLen
+          baseType = CSType . TInt baseWidth . CSType $ TVSign True
 
-  --     rsign <- CSVar <$> newSym
+      rsign <- CSVar <$> newSym
 
-  --     return . Just $
-  --       [ ( nptr ^. #info . #sym, str )
-  --       , ( endptr ^. #info . #sym, strPtr )
-  --       , ( base ^. #info . #sym, baseType )
-  --       , ( r, CSType $ TInt sz' rsign )
-  --       ]
-  --   _ -> return Nothing --TODO : add warning about malformed fgets params
+      return . Just $
+        [ ( nptr ^. #info . #sym, str )
+        , ( endptr ^. #info . #sym, strPtr )
+        , ( base ^. #info . #sym, baseType )
+        , ( r, CSType $ TInt sz' rsign )
+        ]
+    _ -> return Nothing --TODO : add warning about malformed fgets params
 
   _ -> return Nothing
 

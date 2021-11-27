@@ -13,7 +13,7 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
 import qualified Blaze.Cfg.Analysis as CfgA
 import qualified Blaze.Pil.Solver as PilSolver
-import Blaze.Pil.Solver (makeSymVarOfType, warn, connectStoresAndLoads)
+import Blaze.Pil.Solver (makeSymVarOfType, warn)
 import Blaze.Types.Pil.Solver
 import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Cfg.Checker (checkCfg)
@@ -157,7 +157,6 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
   ubranches -> do
     generalCfgFormula ddg typedCfg
     ubranchesWithSvals <- traverse getBranchCondSVal ubranches
-    connectStoresAndLoads
     er <- liftSymbolicT . Q.query $ findRemoveableUnsats ubranchesWithSvals
     case er of
       Left sr -> do
