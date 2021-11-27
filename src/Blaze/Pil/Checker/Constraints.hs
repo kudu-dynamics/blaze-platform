@@ -470,6 +470,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       return
         [ (r, CSType (TInt sz' signednessType))
         , (r, CSVar $ x ^. field' @"left" . #info . #sym)
+        -- TODO: Get correct width and signedness for first arg
+        , (x ^. field' @"left" . #info . #sym, CSType $ TInt secondArgWidth arg2Sign)
         , (x ^. field' @"right" . #info . #sym, CSType $ TInt secondArgWidth arg2Sign)
         ]
 
