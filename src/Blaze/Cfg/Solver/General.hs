@@ -86,7 +86,7 @@ solveStmt ddg stmt = case stmt of
   -- this is handled elsewhere (only used if there is single outgoing branch edge)
   Pil.BranchCond _ -> return ()
   -- TODO: convert stores/loads into immutable SSA vars
-  -- Pil.Store _ -> return ()
+  Pil.Store _ -> return ()
   Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (or $ isDependentOn <$> vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
@@ -96,22 +96,23 @@ solveStmt ddg stmt = case stmt of
     pilSolveStmt = PilSolver.solveStmt_ (solveExpr ddg) stmt
 
 solveExpr :: DataDependenceGraph -> DSTExpression -> Solver SVal
-solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFallbackAndWarn $ case op of
-  -- TOOD: turn mem into immutable phi vars
-  -- Pil.LOAD _ -> fallbackAsFreeVar
-  _ -> PilSolver.solveExpr_ (solveExpr ddg) expr
-  where
-    fallbackAsFreeVar :: Solver SVal
-    fallbackAsFreeVar = case mdst of
-      Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"
-      Just dst -> catchError (makeSymVarOfType Nothing dst) $ \e ->
-          throwError $ ExprError xsym e
+solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = 
+  catchFallbackAndWarn $ case op of
+    -- TOOD: turn mem into immutable phi vars
+    Pil.LOAD _ -> fallbackAsFreeVar
+    _ -> PilSolver.solveExpr_ (solveExpr ddg) expr
+    where
+      fallbackAsFreeVar :: Solver SVal
+      fallbackAsFreeVar = case mdst of
+        Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"
+        Just dst -> catchError (makeSymVarOfType Nothing dst) $ \e ->
+            throwError $ ExprError xsym e
 
-    catchFallbackAndWarn :: Solver SVal -> Solver SVal
-    catchFallbackAndWarn m = catchError m $ \e -> do  
-      si <- use #currentStmtIndex
-      warn $ StmtError si e
-      fallbackAsFreeVar
+      catchFallbackAndWarn :: Solver SVal -> Solver SVal
+      catchFallbackAndWarn m = catchError m $ \e -> do  
+        si <- use #currentStmtIndex
+        warn $ StmtError si e
+        fallbackAsFreeVar
 
 ----------------------------
 
