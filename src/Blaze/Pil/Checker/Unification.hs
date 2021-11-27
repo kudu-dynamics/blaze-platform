@@ -183,7 +183,7 @@ isTypeDescendant (TVSign _) t = case t of
 
 unifyPilTypes :: PilType Sym -> PilType Sym -> Unify (PilType Sym)
 -- if there are two TBottoms with different syms, they will be eq'd later in originsMap
-unifyPilTypes (TBottom s) _ = return $ TBottom s 
+unifyPilTypes (TBottom s) _ = return $ TBottom s
 unifyPilTypes _ (TBottom s) = return $ TBottom s
 unifyPilTypes pt1 pt2 =
   case (isTypeDescendant pt1 pt2, isTypeDescendant pt2 pt1) of
@@ -216,7 +216,7 @@ unifyPilTypes pt1 pt2 =
       TChar -> case pt2 of
         TChar -> return TChar
         _ -> err
-      
+
       TFloat w1 -> case pt2 of
         TFloat w2 -> TFloat <$> addVarEq w1 w2
         _ -> err
@@ -263,7 +263,7 @@ unifyPilTypes pt1 pt2 =
           TCString <$> addVarEq len1 len2
 
         TRecord m -> do
-          mapM_ (flip assignType TChar) . HashMap.elems $ m
+          mapM_ (`assignType` TChar) . HashMap.elems $ m
           return $ TCString len1
 
         _ -> err
