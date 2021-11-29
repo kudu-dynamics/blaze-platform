@@ -173,12 +173,12 @@ trigger-blaze-ui:
   stage: trigger
   image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine
   script:
-    - apk add curl
+    - apk add curl jq
     - curl --fail-with-body
         -X POST
-        -F token=\"${CI_JOB_TOKEN}\"
+        -F token="${CI_JOB_TOKEN}"
         -F ref=master
-        \"${CI_API_V4_URL}\"/projects/\"${BLAZE_UI_REPO_ID}\"/trigger/pipeline
+        "${CI_API_V4_URL}"/projects/"$(jq -rn --arg x "${CI_PROJECT_NAMESPACE}/blaze-ui" '$x|@uri')"/trigger/pipeline
 
 cleanup:
   stage: .post
