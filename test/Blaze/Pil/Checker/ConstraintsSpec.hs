@@ -30,20 +30,52 @@ testConstraintGenState nextSym varsAndSyms constraints' =
 cxsTup :: Constraint -> (Sym, SymType)
 cxsTup (Constraint _ v t) = (v, t)
 
+constrainConvert ::
+  Int ->
+  [(Sym, SymType)] ->
+  [(PilVar, Sym)] ->
+  SymConstraint ->
+  ([(Sym, SymType)], [(PilVar, Sym)])
+constrainConvert nextSymNum cxTuples pilvarTuples tup =
+  let (_, ConstraintGenState _ _ vars _ cxs _ _) =
+        runConstraintGen
+          (addConstraint tup)
+          ( emptyConstraintGenCtx
+          , testConstraintGenState
+              (Sym nextSymNum)
+              pilvarTuples
+              cxTuples
+          )
+   in ( sort $ fmap cxsTup cxs
+      , sort $ HashMap.toList vars
+      )
+
+constrainExpr ::
+  Int ->
+  [(Sym, SymType)] ->
+  [(PilVar, Sym)] ->
+  InfoExpression SymInfo ->
+  ([(Sym, SymType)], [(PilVar, Sym)])
+constrainExpr nextSymNum cxTuples pilvarTuples expr =
+  let (_, ConstraintGenState _ _ vars _ cxs _ _) =
+        runConstraintGen
+          (addAllExprTypeConstraints expr)
+          ( emptyConstraintGenCtx
+          , testConstraintGenState
+              (Sym nextSymNum)
+              pilvarTuples
+              cxTuples
+          )
+   in ( sort $ fmap (\(Constraint _ v t) -> (v, t)) cxs
+      , sort $ HashMap.toList vars
+      )
+
+pv :: Text -> PilVar    
+pv name = Pil.PilVar name Nothing
+
 spec :: Spec
 spec = describe "Blaze.Pil.Checker.Constraints" $ do
   context "addConstraint conversion" $ do
-    let constrainConvert nextSymNum cxTuples pilvarTuples tup =
-          let (_, ConstraintGenState _ _ vars _ cxs _ _) =
-                runConstraintGen (addConstraint tup)
-                $ testConstraintGenState
-                (Sym nextSymNum)
-                pilvarTuples
-                cxTuples
-          in
-            ( sort $ fmap cxsTup cxs
-            , sort $ HashMap.toList vars
-            )
 
     it "converts a sym" $ do
       let cxs = []
@@ -109,24 +141,10 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
   context "addExprTypeConstraints" $ do
     -- NOTE: This does NOT get constraints of nested types
-    let constrainExpr nextSymNum cxTuples pilvarTuples expr =
-          let (_, ConstraintGenState _ _ vars _ cxs _ _) =
-                runConstraintGen (addExprTypeConstraints expr)
-                $ testConstraintGenState
-                (Sym nextSymNum)
-                pilvarTuples
-                cxTuples
-          in
-            ( sort $ fmap (\(Constraint _ v t) -> (v, t)) cxs
-            , sort $ HashMap.toList vars
-            )
-
-        constExpr s w n = InfoExpression
+    let constExpr s w n = InfoExpression
             { info = SymInfo w (Sym s)
             , op = Pil.CONST $ Pil.ConstOp n
             }
-
-        pv name = Pil.PilVar name Nothing
 
     it "generates constraints for a simple CONST" $ do
       let cxs = []
@@ -150,12 +168,19 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
           nextSym = 3
 
-          cxs' = [ (Sym 0, SVar (Sym 1))
-                 , (Sym 0, SType (TInt {bitWidth = Sym 5, signed = Sym 3}))
-                 , (Sym 2, SType (TInt {bitWidth = Sym 6, signed = Sym 4}))
-                 , (Sym 5, SType (TVBitWidth (Bits 64)))
-                 , (Sym 6, SType (TVBitWidth (Bits 64)))
-                 ]
+          cxs' =
+            [ (Sym 0, SVar (Sym 1))
+            , (Sym 0, SType (TInt{bitWidth = Sym 5, signed = Sym 3}))
+            , (Sym 1, SType (TInt{bitWidth = Sym 6, signed = Sym 4}))
+            , (Sym 1, SType (TBitVector{bitWidth = Sym 8}))
+            , (Sym 2, SType (TInt{bitWidth = Sym 7, signed = Sym 4}))
+            , (Sym 2, SType (TBitVector{bitWidth = Sym 9}))
+            , (Sym 5, SType (TVBitWidth (Bits 64)))
+            , (Sym 6, SType (TVBitWidth (Bits 64)))
+            , (Sym 7, SType (TVBitWidth (Bits 64)))
+            , (Sym 8, SType (TVBitWidth (Bits 64)))
+            , (Sym 9, SType (TVBitWidth (Bits 64)))
+            ]
       
           vars' = []
       constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
@@ -179,18 +204,6 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
   context "addAllExprTypeConstraints" $ do
     -- addAllExprTypeConstraints gets constraints of nested types as well
-    let constrainExpr nextSymNum cxTuples pilvarTuples expr =
-          let (_, ConstraintGenState _ _ vars _ cxs _ _) =
-                runConstraintGen (addAllExprTypeConstraints expr)
-                $ testConstraintGenState
-                (Sym nextSymNum)
-                pilvarTuples
-                cxTuples                
-          in
-            ( sort $ fmap (\(Constraint _ v t) -> (v, t)) cxs
-            , sort $ HashMap.toList vars
-            )
-        pv name = Pil.PilVar name Nothing
 
     it "generates constraints for a field address" $ do
       let cxs = []
@@ -321,6 +334,3 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
                     (Sym 12, SType (TBitVector {bitWidth = Sym 13})),
                     (Sym 13, SType (TVBitWidth (Bits 64)))
                   ]
-
-
-
