@@ -29,6 +29,17 @@ import Data.SBV.Trans ( (.==)
                       , (.<=)
                       , (.||)
                       , (.~|)
+                      , SInteger
+                      , SInt8
+                      , SInt16
+                      , SInt32
+                      , SInt64
+                      , SInt
+                      , SWord8
+                      , SWord16
+                      , SWord32
+                      , SWord64
+                      , SWord
                       )
 import qualified Data.Text as Text
 import Data.SBV.Dynamic as D hiding (Solver)
@@ -38,6 +49,17 @@ import Blaze.Types.Pil.Checker ( DeepSymType )
 import Data.SBV.Internals (SBV(SBV), unSBV)
 
 
+stubbedFunctionConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
+stubbedFunctionConstraintGen = HashMap.fromList
+  [ ( "abs"
+    , \r args -> case args of
+        [n] -> do
+          guardIntegral n
+          constrain $ r `svEqual` svAbs n
+        xs -> throwError . StubbedFunctionArgError "abs" 1 $ length xs
+    )
+  ]
+
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. #symbol
   <> maybe "" (("@"<>) . view (#func . #name)) mCtx
@@ -46,7 +68,6 @@ pilVarName pv = pv ^. #symbol
     f (Pil.CtxId n) = n
     mCtx :: Maybe Pil.Ctx
     mCtx = pv ^. #ctx
-
 
 -- | convert a DeepSymType to an SBV Kind
 -- any un-inferred Sign types resolve to False
@@ -335,6 +356,24 @@ guardIntegral x = case k of
   where
     k = kindOf x
 
+boundedToSInteger :: SVal -> Solver SInteger
+boundedToSInteger x = do
+  guardIntegral x
+  case kindOf x of
+    KBounded True 8 -> return $ SBV.sFromIntegral (SBV x :: SInt8)
+    KBounded True 16 -> return $ SBV.sFromIntegral (SBV x :: SInt16)
+    KBounded True 32 -> return $ SBV.sFromIntegral (SBV x :: SInt32)
+    KBounded True 64 -> return $ SBV.sFromIntegral (SBV x :: SInt64)
+    KBounded True 128 -> return $ SBV.sFromIntegral (SBV x :: SInt 128)
+
+    KBounded False 8 -> return $ SBV.sFromIntegral (SBV x :: SWord8)
+    KBounded False 16 -> return $ SBV.sFromIntegral (SBV x :: SWord16)
+    KBounded False 32 -> return $ SBV.sFromIntegral (SBV x :: SWord32)
+    KBounded False 64 -> return $ SBV.sFromIntegral (SBV x :: SWord64)
+    KBounded False 128 -> return $ SBV.sFromIntegral (SBV x :: SWord 128)
+
+    t -> throwError . ConversionError $ "Cannot convert type " <> show t
+
 guardFloat :: HasKind a => a -> Solver ()
 guardFloat x = case k of
   KDouble -> return ()
@@ -361,6 +400,11 @@ guardSameKind :: (HasKind a, HasKind b) => a -> b -> Solver ()
 guardSameKind x y = if kindOf x == kindOf y
   then return ()
   else throwError $ GuardError "guardSameKind" [kindOf x, kindOf y] "not same kind"
+
+guardList :: (HasKind a) => a -> Solver ()
+guardList x = case kindOf x of
+  KList _ -> return ()
+  _ -> throwError $ GuardError "guardList" [kindOf x] "not a list"
 
 lookupVarSym :: PilVar -> Solver SVal
 lookupVarSym pv = do
@@ -449,7 +493,15 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     return $ svIte b (svInteger k 1) (svInteger k 0)
 
   -- TODO: stub standard libs here
---   Pil.CALL _ -> return [ (r, CSType $ TBitVector sz') ]
+  Pil.CALL x -> do
+    fcg <- view #funcConstraintGen <$> ask
+    case (x ^. #name) >>= flip HashMap.lookup fcg of
+      Nothing -> fallbackAsFreeVar
+      Just gen -> do
+        args <- mapM solveExprRec $ x ^. #params
+        r <- fallbackAsFreeVar
+        gen r args
+        return r
 
   Pil.CEIL x -> floatUnOp x $ SBV.fpRoundToIntegral SBV.sRoundTowardPositive
   Pil.CMP_E x -> binOpEqArgsReturnsBool x svEqual
@@ -828,7 +880,9 @@ solveTypedStmtsWith :: SMTConfig
                     -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
                     -> IO (Either SolverError SolverReport)
 solveTypedStmtsWith solverCfg vartypes stmts = do
-  er <- runSolverWith solverCfg run (emptyState, SolverCtx vartypes True)
+  er <- runSolverWith solverCfg run ( emptyState
+                                    , SolverCtx vartypes stubbedFunctionConstraintGen True
+                                    )
   return $ toSolverReport <$> er
   where
     toSolverReport :: (SolverResult, SolverState) -> SolverReport

@@ -57,7 +57,15 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         ]
     _ -> return Nothing --TODO : add warning about malformed fgets params
 
-
+  "abs" -> case cparams of
+    [n] -> do
+      resultSign <- CSVar <$> newSym
+      return . Just $
+        [ ( n ^. #info . #sym
+          , CSType $ TInt sz' (CSType $ TVSign True) )
+        , ( r, CSType $ TInt sz' resultSign )
+        ]
+    _ -> return Nothing --TODO : add warning about malformed fgets params
 
   _ -> return Nothing
 

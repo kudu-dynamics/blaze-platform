@@ -20,6 +20,7 @@ import Blaze.Cfg.Checker (checkCfg)
 import Data.SBV.Dynamic (SVal, svNot)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
+import qualified Data.HashMap.Strict as HashMap
 
 
 data DecidedBranchCond = DecidedBranchCond
@@ -237,7 +238,7 @@ getUnsatBranches cfg = case checkCfg cfg of
     let ddg = CfgA.getDataDependenceGraph cfg
     er <- flip (PilSolver.runSolverWith SBV.z3)
           ( PilSolver.emptyState
-          , SolverCtx (tr ^. #varSymTypeMap) False
+          , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False
           )
           $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
     case er of

@@ -235,4 +235,3 @@ truncateMiddle n t
 toSnd :: (a -> b) -> a -> (a, b)
 toSnd f a = (a, f a)
 {-# INLINE toSnd #-}
-
