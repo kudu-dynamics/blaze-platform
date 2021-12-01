@@ -22,6 +22,7 @@ import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
 
+
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
   , condition :: Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)

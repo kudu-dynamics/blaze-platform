@@ -42,10 +42,11 @@ data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg 
                  | ErrorMessage Text
   deriving (Eq, Ord, Show, Generic)
 
-              
+type StubConstraintGen = SVal -> [SVal] -> Solver ()
+
 data SolverCtx = SolverCtx
   { typeEnv :: HashMap PilVar DeepSymType
-  , funcConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
+  , funcConstraintGen :: HashMap Text StubConstraintGen
   , useUnsatCore :: Bool
   } deriving stock (Generic)
 

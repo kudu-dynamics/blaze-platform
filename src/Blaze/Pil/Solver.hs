@@ -43,7 +43,6 @@ import Data.SBV.Trans ( (.==)
                       , SWord32
                       , SWord64
                       , SWord
-                      , sFromIntegral
                       )
 import qualified Data.Text as Text
 import Data.SBV.Dynamic as D hiding (Solver)
@@ -67,6 +66,13 @@ stubbedFunctionConstraintGen = HashMap.fromList
           -- constrain_ $ r .== (SList.take n' src .++ SList.drop n' dest)
         xs -> throwError . StubbedFunctionArgError "memcpy" 3 $ length xs
     )
+  , ( "abs"
+    , \r args -> case args of
+        [n] -> do
+          guardIntegral n
+          constrain $ r `svEqual` svAbs n
+        xs -> throwError . StubbedFunctionArgError "abs" 1 $ length xs
+    ) 
   ]
   
 pilVarName :: PilVar -> Text
@@ -77,7 +83,6 @@ pilVarName pv = pv ^. #symbol
     f (Pil.CtxId n) = n
     mCtx :: Maybe Pil.Ctx
     mCtx = pv ^. #ctx
-
 
 -- | convert a DeepSymType to an SBV Kind
 -- any un-inferred Sign types resolve to False
@@ -404,7 +409,7 @@ guardIntegral x = case k of
   where
     k = kindOf x
 
-boundedToSInteger :: SVal -> Solver SBV.SInteger
+boundedToSInteger :: SVal -> Solver SInteger
 boundedToSInteger x = do
   guardIntegral x
   case kindOf x of
@@ -421,7 +426,6 @@ boundedToSInteger x = do
     KBounded False 128 -> return $ SBV.sFromIntegral (SBV x :: SWord 128)
 
     t -> throwError . ConversionError $ "Cannot convert type " <> show t
-
 
 guardFloat :: HasKind a => a -> Solver ()
 guardFloat x = case k of

@@ -33,7 +33,7 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         , ( stream ^. #info . #sym, CSType $ TPointer ptrWidth (CSType TChar) )
         , ( r, CSType $ TPointer ptrWidth (CSType TChar) )
         ]
-    _ -> return Nothing --TODO : add warning about malformed fgets params
+    _ -> return Nothing --TODO : add warning about malformed params
   "asprintf" -> case cparams of
     (strp:fmt:_) -> do
       ptrWidth <- CSVar <$> newSym
@@ -43,8 +43,7 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         , ( fmt ^. #info . #sym, ptr . CSType $ TChar)
         , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
-    _ -> return Nothing --TODO : add warning about malformed fgets params
-
+    _ -> return Nothing --TODO : add warning about malformed params
   "strcmp" -> case cparams of
     [a, b] -> do
       ptrWidth <- CSVar <$> newSym
@@ -55,8 +54,7 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         , ( b ^. #info . #sym, str )
         , ( r, CSType $ TInt sz' (CSType $ TVSign True) )
         ]
-    _ -> return Nothing --TODO : add warning about malformed fgets params
-
+    _ -> return Nothing --TODO : add warning about malformed params
   "strtol" -> case cparams of
     (nptr:endptr:base:_) -> do
       ptrWidth <- CSVar <$> newSym
@@ -80,7 +78,16 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
         , ( base ^. #info . #sym, baseType )
         , ( r, CSType $ TInt sz' rsign )
         ]
-    _ -> return Nothing --TODO : add warning about malformed fgets params
+    _ -> return Nothing --TODO : add warning about malformed params
+  "abs" -> case cparams of
+    [n] -> do
+      resultSign <- CSVar <$> newSym
+      return . Just $
+        [ ( n ^. #info . #sym
+          , CSType $ TInt sz' (CSType $ TVSign True) )
+        , ( r, CSType $ TInt sz' resultSign )
+        ]
+    _ -> return Nothing --TODO : add warning about malformed params
 
   _ -> return Nothing
 
