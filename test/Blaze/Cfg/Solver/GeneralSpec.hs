@@ -96,7 +96,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
             let ddg = CfgA.getDataDependenceGraph cfg
             er <- flip (checkSatWith SBV.z3)
                   ( PilSolver.emptyState
-                  , SolverCtx (tr ^. #varSymTypeMap) False
+                  , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False
                   )
                   $ PilSolver.declarePilVars >> generalCfgFormula ddg cfg'
             either (P.error . show) (return . view _1) er

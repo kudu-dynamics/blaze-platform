@@ -33,20 +33,25 @@ type DSTExpression = Ch.InfoExpression (SymInfo, Maybe DeepSymType)
 
 data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg ::  Text }
                  | StmtError { stmtIndex :: Int, stmtErr :: SolverError }
-                 | ExprError { exprSym :: Sym, exprErr :: SolverError}
+                 | ExprError { exprSym :: Sym, exprErr :: SolverError }
                  | GuardError { name :: Text, kinds :: [SBV.Kind], msg :: Text }
+                 | StubbedFunctionArgError { funcName :: Text, expected :: Int, got :: Int }
+                 | ConversionError { msg :: Text }
                  | AlternativeEmpty
+                 | SizeOfError { kind :: SBV.Kind }
                  | ErrorMessage Text
   deriving (Eq, Ord, Show, Generic)
 
-              
+type StubConstraintGen = SVal -> [SVal] -> Solver ()
+
 data SolverCtx = SolverCtx
   { typeEnv :: HashMap PilVar DeepSymType
+  , funcConstraintGen :: HashMap Text StubConstraintGen
   , useUnsatCore :: Bool
   } deriving stock (Generic)
 
 emptyCtx :: Bool -> SolverCtx
-emptyCtx = SolverCtx mempty
+emptyCtx = SolverCtx mempty mempty
 
 data SolverState = SolverState
   { varMap :: HashMap PilVar SVal

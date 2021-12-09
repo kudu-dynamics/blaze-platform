@@ -2,6 +2,7 @@ module Blaze.Pil.Construct where
 
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Function (Function(Function))
 import Blaze.Types.Pil
   ( ExprOp,
     Expression (Expression),
@@ -158,8 +159,12 @@ def' pv val = Pil.Def (Pil.DefOp pv val)
 defCall' :: PilVar -> Pil.CallDest Expression -> [Expression] -> OperationSize -> Stmt
 defCall' pv dest args size = def' pv callExpr
   where
+    mname :: Maybe Text
+    mname = case dest of
+      Pil.CallFunc (Function _ nm _ _) -> Just nm
+      _ -> Nothing
     callExpr :: Expression
-    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest Nothing args
+    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest mname args
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
