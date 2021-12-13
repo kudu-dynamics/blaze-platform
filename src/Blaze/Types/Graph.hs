@@ -60,6 +60,28 @@ class Graph e attr n g | g -> e attr n where
   subgraph :: (n -> Bool) -> g -> g
   reachable :: n -> g -> [n]
 
+newtype Dominators a = Dominators (HashMap a (HashSet a))
+  deriving (Eq, Ord, Show, Generic)
+
+newtype PostDominators a = PostDominators (HashMap a (HashSet a))
+  deriving (Eq, Ord, Show, Generic)
+
+mapDominatorsHelper
+  :: (Eq b, Hashable b)
+  => (a -> b)
+  -> HashMap a (HashSet a)
+  -> HashMap b (HashSet b)
+mapDominatorsHelper f = HashMap.map (HashSet.map f) . HashMap.mapKeys f
+
+mapDominators :: (Eq b, Hashable b) => (a -> b) -> Dominators a -> Dominators b
+mapDominators f (Dominators m) = Dominators $ mapDominatorsHelper f m 
+
+mapPostDominators :: (Eq b, Hashable b) => (a -> b) -> PostDominators a -> PostDominators b
+mapPostDominators f (PostDominators m) = PostDominators $ mapDominatorsHelper f m 
+
+type DltMap a = IntMap a
+
+type CfMap a = HashMap a Int
 
 findNonRepeatPaths' :: (Graph e attr n g, Hashable n, Eq n) => HashSet n -> n -> g -> [[n]]
 findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of

@@ -16,7 +16,10 @@ import qualified Binja.MLIL as MLIL
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph as Exports hiding (edge, label, src, dst)
-import qualified Data.HashSet as HSet
+import qualified Data.HashSet as HashSet
+import qualified Data.IntMap.Strict as Im
+import qualified Data.Graph.Dom as Dlt
+import qualified Data.HashMap.Strict as HashMap
 
 type F = MLILSSAFunction
 
@@ -37,16 +40,16 @@ collapseGotoBlocks ::
   g ->
   IO g
 collapseGotoBlocks g =
-  case HSet.toList $ G.nodes g of
+  case HashSet.toList $ G.nodes g of
     [_] -> return g
     ns -> do
-      gotos <- fmap HSet.fromList . filterM isGotoNode $ ns
+      gotos <- fmap HashSet.fromList . filterM isGotoNode $ ns
       let es = G.edges g
       return . G.fromEdges $ foldl' (flip $ f gotos) [] es
   where
     f gotos edge@(G.LEdge be (G.Edge bbSrc bbDst)) xs
-      | HSet.member bbSrc gotos = xs
-      | HSet.member bbDst gotos = case HSet.toList $ G.succs bbDst g of
+      | HashSet.member bbSrc gotos = xs
+      | HashSet.member bbDst gotos = case HashSet.toList $ G.succs bbDst g of
         [bbTgt] ->
           G.LEdge
             (be & BB.target ?~ bbTgt)
@@ -106,3 +109,89 @@ constructBasicBlockGraphWithoutBackEdges fn = do
     cleanSuccs bb =
       (bb,) . mapMaybe (\e -> (e,) <$> (e ^. BB.target))
         <$> BB.getOutgoingEdges bb
+
+
+------- Dominators
+
+buildNodeMap :: (Graph e attr a g) => g -> DltMap a
+buildNodeMap =
+  Im.fromList . zip [0 ..] . HashSet.toList . nodes
+
+buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
+buildAdjMap ns =
+  foldl' mergeEdges initialAdjMap
+ where
+  initialAdjMap :: IntMap [Dlt.Node]
+  initialAdjMap = Im.fromList $ (,[]) <$> ns
+  mergeEdges :: IntMap [Dlt.Node] -> Dlt.Edge -> IntMap [Dlt.Node]
+  mergeEdges acc e =
+    Im.adjust (snd e :) (fst e) acc
+
+{- | Build a graph for use with Data.Graph.Dom for finding dominators
+  and post-dominators.
+  Note that we use unchecked HashMap lookups (!) as we know the
+  entries must be present. That is, we know there is a corresponding
+  Int for every CfNode.
+-}
+buildDltGraph
+  :: forall e attr a g.
+  (Hashable a, Eq a, Graph e attr a g)
+  => a
+  -> g
+  -> DltMap a
+  -> Dlt.Rooted
+buildDltGraph rootNode g dltMap =
+  -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
+  -- that don't have outgoing edges.
+  (cfMap HashMap.! rootNode, Dlt.fromAdj dltAdj)
+  where
+    cfMap :: CfMap a
+    cfMap = HashMap.fromList $ swap <$> Im.assocs dltMap
+    dltNodes :: [Dlt.Node]
+    dltNodes = (cfMap HashMap.!) <$> (HashSet.toList . nodes $ g)
+    dltEdges :: [Dlt.Edge]
+    dltEdges = do
+      (LEdge _ (Edge src' dst')) <- edges g
+      return (cfMap HashMap.! src', cfMap HashMap.! dst')
+    dltAdj :: [(Dlt.Node, [Dlt.Node])]
+    dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
+
+-- | Convert a Blaze CFG to a dom-lt flow graph
+dltGraphFromGraph
+  :: forall e attr a g.
+  (Hashable a, Eq a, Graph e attr a g)
+  => a
+  -> g
+  -> (Dlt.Rooted, DltMap a)
+dltGraphFromGraph rootNode g =
+  (buildDltGraph rootNode g dltMap, dltMap)
+ where
+  dltMap :: DltMap a
+  dltMap = buildNodeMap g
+
+domHelper
+  :: forall e attr a g.
+  (Hashable a, Eq a, Graph e attr a g)
+  => (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)])
+  -> a
+  -> g
+  -> HashMap a (HashSet a)
+domHelper f rootNode g =
+  HashMap.fromList . ((HashSet.fromList <$>) <$>) $ domList
+ where
+  dltRooted :: Dlt.Rooted
+  dltMap :: DltMap a
+  (dltRooted, dltMap) = dltGraphFromGraph rootNode g
+  domList :: [(a, [a])]
+  domList = bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
+
+{- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
+ to find dominators. The result is converted back to CfNodes before being returned.
+ Per dom-lt, the complexity is:
+ O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
+-}
+getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
+getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
+
+getPostDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
+getPostDominators rootNode = PostDominators . domHelper Dlt.pdom rootNode
