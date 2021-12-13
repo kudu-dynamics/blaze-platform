@@ -173,11 +173,11 @@ type NodeRefMap a b = HashMap a b
 
 type NodeRefMapEntry a b = (a, b)
 
-newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
-  deriving (Eq, Ord, Show, Generic)
+-- newtype Dominators a = Dominators (HashMap (CfNode a) (HashSet (CfNode a)))
+--   deriving (Eq, Ord, Show, Generic)
 
-newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a)))
-  deriving (Eq, Ord, Show, Generic)
+-- newtype PostDominators a = PostDominators (HashMap (CfNode a) (HashSet (CfNode a)))
+--   deriving (Eq, Ord, Show, Generic)
 
 {- | A non-empty graph that consists of a strongly-connected component
  with a single root node (a node with no incoming edges).
