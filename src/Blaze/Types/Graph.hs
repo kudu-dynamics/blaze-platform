@@ -69,8 +69,8 @@ newtype PostDominators a = PostDominators (HashMap a (HashSet a))
 mapDominatorsHelper
   :: (Eq b, Hashable b)
   => (a -> b)
-  -> (HashMap a (HashSet a))
-  -> (HashMap b (HashSet b))
+  -> HashMap a (HashSet a)
+  -> HashMap b (HashSet b)
 mapDominatorsHelper f = HashMap.map (HashSet.map f) . HashMap.mapKeys f
 
 mapDominators :: (Eq b, Hashable b) => (a -> b) -> Dominators a -> Dominators b
