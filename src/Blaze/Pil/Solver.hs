@@ -18,9 +18,7 @@ import Blaze.Types.Pil ( Expression
                        )
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Solver
-import qualified Data.SBV.List as SList
 import qualified Blaze.Pil.Solver.List as BSList
-import Data.SBV.List ((.++))
 import Data.SBV.Tools.Overflow (bvAddO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
 import qualified Data.SBV.Trans as SBV
@@ -50,7 +48,6 @@ import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
 import Blaze.Types.Pil.Checker ( DeepSymType )
 import Data.SBV.Internals (SBV(SBV), unSBV)
-import qualified Data.HashSet as HashSet
 
 stubbedFunctionConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
 stubbedFunctionConstraintGen = HashMap.fromList
