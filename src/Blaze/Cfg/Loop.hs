@@ -10,8 +10,8 @@ import Blaze.Types.Cfg
   ( CfEdge,
     CfNode,
     Cfg(root),
-    Dominators,
   )
+import Blaze.Graph (Dominators)
 import qualified Blaze.Types.Cfg as Cfg
 -- Hiding some names commonly used as variables,
 -- re-exporting eplicitly.
@@ -30,7 +30,7 @@ import qualified Data.HashSet as HS
 -- | Check if an edge is a back edge using graph dominators.
 --  We assume the dominators include the nodes referenced in the edge.
 --  If that assumption is wrong, isBackEdge defaults to False.
-isBackEdge :: (Hashable a, Ord a) => Dominators a -> CfEdge a -> Bool
+isBackEdge :: (Hashable a, Ord a) => Dominators (CfNode a) -> CfEdge a -> Bool
 isBackEdge domMap edge =
   case HM.lookup (edge ^. #src) (coerce domMap) of
     Nothing -> False
@@ -43,7 +43,7 @@ getBackEdges cfg' =
       isBackEdge doms e
   ]
   where
-    doms :: Dominators a
+    doms :: Dominators (CfNode a)
     doms = getDominators cfg'
 
 -- | Find body nodes of loop. If an empty list is returned, the loop
