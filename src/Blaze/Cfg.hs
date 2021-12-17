@@ -27,14 +27,14 @@ getDominators_ :: Cfg a -> Dominators (CfNode ())
 getDominators_ cfg = G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators (CfNode a)
-getDominators cfg = G.mapDominators (getFullNode cfg)
+getDominators cfg = G.domMap (getFullNode cfg)
   $ G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 getPostDominators_ :: Cfg a -> PostDominators (CfNode ())
 getPostDominators_ cfg = G.getPostDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 getPostDominators :: (Hashable a, Eq a) => Cfg a -> PostDominators (CfNode a)
-getPostDominators cfg = G.mapPostDominators (getFullNode cfg)
+getPostDominators cfg = G.domMap (getFullNode cfg)
   $ G.getPostDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 lastStmtFrom :: (HasField' "nodeData" n [Stmt]) => n -> Maybe Stmt

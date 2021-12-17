@@ -10,7 +10,8 @@ import Blaze.Types.Pil.Checker (DeepSymType)
 import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge)
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
 import qualified Blaze.Types.Cfg as Cfg
-import qualified Blaze.Types.Graph as G
+import qualified Blaze.Graph as G
+import Blaze.Types.Graph (EdgeGraphNode, Dominators, LEdge, Edge, Graph, DominatorMapping(domMap, domLookup))
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
 import qualified Blaze.Cfg.Analysis as CfgA
 import qualified Blaze.Pil.Solver as PilSolver
@@ -22,7 +23,7 @@ import Data.SBV.Dynamic (SVal, svNot, svAnd, svTrue)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import Blaze.Pretty (pretty)
-
+import Blaze.Types.Graph.Alga (AlgaGraph)
 
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
@@ -61,7 +62,7 @@ generalCfgFormula
   -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
   -> Solver ()
 generalCfgFormula ddg cfg = do
-  mapM_ addDecidedBranchConstraint decidedBranchConditions
+  -- mapM_ addDecidedBranchConstraint decidedBranchConditions
   mapM_ setIndexAndSolveStmt $ Cfg.gatherCfgData cfg
   where
     setIndexAndSolveStmt :: (Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))) -> Solver ()
@@ -69,16 +70,16 @@ generalCfgFormula ddg cfg = do
       #currentStmtIndex .= i
       solveStmt ddg stmt
 
-    addDecidedBranchConstraint (DecidedBranchCond i x b) = do
-      #currentStmtIndex .= i
-      r <- bool svNot identity b <$> solveExpr ddg x
-      PilSolver.guardBool r
-      PilSolver.constrain r
+    -- addDecidedBranchConstraint (DecidedBranchCond i x b) = do
+    --   #currentStmtIndex .= i
+    --   r <- bool svNot identity b <$> solveExpr ddg x
+    --   PilSolver.guardBool r
+    --   PilSolver.constrain r
       
-    decidedBranchConditions = mapMaybe (`getDecidedBranchCondNode` cfg)
-      . HashSet.toList
-      . G.nodes
-      $ cfg
+    -- decidedBranchConditions = mapMaybe (`getDecidedBranchCondNode` cfg)
+    --   . HashSet.toList
+    --   . G.nodes
+    --   $ cfg
 
 solveStmt
   :: DataDependenceGraph
@@ -117,9 +118,14 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFal
 
 ----------------------------
 
+data UndecidedEdges = UndecidedEdges
+  { falseEdge :: CfEdge ()
+  , trueEdge :: CfEdge ()
+  } deriving (Eq, Ord, Show, Generic)
+
 data BranchCondType = OnlyTrue (CfEdge ())
                     | OnlyFalse (CfEdge ())
-                    | Undecided { falseEdge :: CfEdge (), trueEdge :: CfEdge () }
+                    | Undecided UndecidedEdges
                     deriving (Eq, Ord, Show, Generic)
 
 data BranchCond a = BranchCond
@@ -136,9 +142,9 @@ getBranchCondNode
   -> Maybe (BranchCond (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))
 getBranchCondNode n cfg = case outBranches of
   [(TrueBranch, tnode), (FalseBranch, fnode)] ->
-    mcond <*> (pure $ Undecided tnode fnode)
+    mcond <*> (pure . Undecided $ UndecidedEdges tnode fnode)
   [(FalseBranch, fnode), (TrueBranch, tnode)] ->
-    mcond <*> (pure $ Undecided tnode fnode)
+    mcond <*> (pure . Undecided $ UndecidedEdges tnode fnode)
   [(TrueBranch, tnode)] ->
     mcond <*> (pure $ OnlyTrue tnode)
   [(FalseBranch, fnode)] ->
@@ -162,7 +168,6 @@ getBranchCondNodes typedCfg = mapMaybe (flip getBranchCondNode typedCfg)
   . HashSet.toList
   . G.nodes
   $ typedCfg
-
 
 toSolvedBranchCondNode
   :: DataDependenceGraph
@@ -300,7 +305,7 @@ getBranchContextConstraints' mkNot typedCfg = buildHashMap . concatMap getConstr
       OnlyFalse fe -> fmap (, mkNot $ bnode ^. #condition)
                       . HashSet.toList
                       $ getNonLoopingReachable (fe ^. #src) (fe ^. #dst)
-      Undecided fe te -> trueNodeConstraints <> falseNodeConstraints
+      Undecided (UndecidedEdges fe te) -> trueNodeConstraints <> falseNodeConstraints
         where
           falseReachable = getNonLoopingReachable (fe ^. #src) (fe ^. #dst)
           trueReachable = getNonLoopingReachable (te ^. #src) (te ^. #dst)
@@ -423,6 +428,69 @@ data BranchSVals = BranchSVals
 --       . G.bfs [typedCfg ^. #root]
 --       $ typedCfg
 
+type GetDomFunc = ((EdgeGraphNode BranchType (CfNode ()))
+                  -> AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
+                  -> Dominators (EdgeGraphNode BranchType (CfNode ()))
+                  )
+
+type CfgEdgeGraph = AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
+
+cfgToEdgeGraph :: Cfg a -> CfgEdgeGraph
+cfgToEdgeGraph = G.toEdgeGraph . view #graph
+
+-- getEdgeGraphDominators
+--   :: forall a. 
+--   ((EdgeGraphNode BranchType (CfNode ()))
+--                   -> AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
+--                   -> Dominators (EdgeGraphNode BranchType (CfNode ()))
+--                   )
+--      GetDomFunc
+--   -> CfgEdgeGraph
+--   -> Dominators (EdgeGraphNode BranchType (CfNode ()))
+-- getEdgeGraphDominators getDoms eCfg = getDoms (G.NodeNode . Cfg.asIdNode $ cfg ^. #root) :: AlgaGraph () () (EdgeGraphNode BranchType (CfNode ())) -> Dominators (EdgeGraphNode BranchType (CfNode ())))
+--   --   . (G.toEdgeGraph :: AlgaGraph BranchType (CfNode a) (CfNode ()) -> AlgaGraph () () (EdgeGraphNode BranchType (CfNode ())))
+--   --   . view #graph
+--   --   $ cfg
+
+filterEdges
+  :: DominatorMapping m
+  => m (EdgeGraphNode BranchType (CfNode ()))
+  -> m (CfEdge ())
+filterEdges = G.domMapMaybe f
+  where
+    f :: EdgeGraphNode BranchType (CfNode ()) -> Maybe (CfEdge ())
+    f (G.NodeNode _) = Nothing
+    f (G.EdgeNode e) = Just $ Cfg.fromLEdge e
+
+
+-- | Gets SVals for Dominator and PostDominator constraint edges
+-- getDominatorEdgeConstraints
+--   :: DomMapping m
+--   => HashMap (CfEdge ()) SVal
+--   -> m
+--   -> CfNode ()
+--   -> [SVal]
+-- getAllDominatorEdgeConstraints doms edgeConstraintMap x
+--   = domLookup x doms >>= \case
+--   where
+--     f :: DomMapping 
+--     isEdgeNode (G.EdgeNode e) = Just e
+--     isEdgeNode _ = Nothing
+
+
+mkEdgeConstraintMap
+  :: [BranchCond SVal]
+  -> HashMap (CfEdge ()) SVal
+mkEdgeConstraintMap = HashMap.fromList . concatMap f
+  where
+    f bc = case bc ^. #conditionType of
+      OnlyTrue e -> [(e, bc ^. #condition)]
+      OnlyFalse e -> [(e, svNot $ bc ^. #condition)]
+      Undecided (UndecidedEdges fe te) ->
+        [ (fe, svNot $ bc ^. #condition)
+        , (te, bc ^. #condition)
+        ]
+
 
 -- | Checks individual true and false branches to find impossible constraints.
 -- Starts at root node and finds if nodes in breadth-first order.
@@ -521,6 +589,86 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
 
 
 
+-- | Checks all undecided branch nodes in depth-first order.
+-- ignores branch nodes in loops
+-- Check for each branch edge consists of dominator and post-dominator edge constraints
+-- Results should be used iteratively with function that actually deletes unsat branches
+unsatBranches'
+  :: DataDependenceGraph
+  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> Solver [CfEdge ()]
+unsatBranches' ddg cfg = do
+  svalBranchCondNodes <- getSolvedBranchCondNodes ddg cfg
+  case mapMaybe getUndecided svalBranchCondNodes of
+    [] -> return []
+    ubranches -> do
+      let edgeConstraints = mkEdgeConstraintMap svalBranchCondNodes
+          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
+          eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
+          doms = filterEdges $ G.getDominators eRoot edgeGraph
+          postDoms = filterEdges $ G.getPostDominators eRoot edgeGraph
+          domConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
+          postDomConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ postDoms :: HashMap (CfEdge ()) [SVal]
+
+         
+      generalCfgFormula ddg cfg
+      er <- liftSymbolicT . Q.query $ do
+        -- Make sure General formula works
+        er' <- Q.checkSat >>= \case
+          Q.DSat _ -> return $ Right ()
+          Q.Sat -> return $ Right ()
+          r -> Left <$> toSolverResult r
+        case er' of
+          Left r -> return $ Left r
+          Right () -> do
+            xxs <- forM ubranches $ \(bcond, (UndecidedEdges fe te)) -> do
+              -- TODO: Check edges for looping
+              -- Or maybe just ignore context constraints in loop bodies?
+              let -- same for false or true edge
+                  commonDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe domConstraints
+                  falsePostDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe postDomConstraints
+                  truePostDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup te postDomConstraints
+
+              feResult <- tryConstraint
+                $ commonDomConstraints
+                `svAnd` falsePostDomConstraints
+                `svAnd` svNot bcond
+              teResult <- tryConstraint
+                $ commonDomConstraints
+                `svAnd` falsePostDomConstraints
+                `svAnd` svNot bcond
+
+              return $ case (feResult, teResult) of
+                (False, False) -> [fe, te]
+                (False, True) -> [fe]
+                (True, False) -> [te]
+                (True, True) -> []
+            return . Right . concat $ xxs
+              
+      case er of
+        Left sr -> do
+          putText $ "General constraints are not sat: " <> show sr
+          return []
+        Right xs -> return xs
+  where
+    getUndecided :: BranchCond SVal -> Maybe (SVal, UndecidedEdges)
+    getUndecided bc = case bc ^. #conditionType of
+      OnlyTrue _ -> Nothing
+      OnlyFalse _ -> Nothing
+      Undecided edges -> Just (bc ^. #condition, edges)
+      
+
+tryConstraint :: SVal -> Query Bool
+tryConstraint c = Q.inNewAssertionStack
+  $ SBV.constrain (PilSolver.toSBool' c) >> isSat
+  where
+    isSat :: Query Bool
+    isSat = Q.checkSat >>= \case
+      Q.DSat _ -> return True
+      Q.Sat -> return True
+      _ -> return False
+
+
 data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
                        | SolverError Ch.TypeReport PilSolver.SolverError
                        deriving (Eq, Ord, Show, Generic)
@@ -534,10 +682,11 @@ getUnsatBranches cfg = case checkCfg cfg of
           ( PilSolver.emptyState
           , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False
           )
-          $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
+          $ PilSolver.declarePilVars >> unsatBranches' ddg cfg'
     case er of
       Left err -> return . Left $ SolverError tr err
       Right (r, _) -> return $ Right r
+
 
 simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
 simplify_ isRecursiveCall numItersLeft cfg
@@ -550,7 +699,7 @@ simplify_ isRecursiveCall numItersLeft cfg
           Left err -> return $ Left err
           Right [] -> return . Right $ cfg'
           Right es -> simplify_ True (numItersLeft - 1)
-                      $ foldr Cfg.removeIdEdge cfg' es
+            $ foldr Cfg.removeIdEdge cfg' es
 
 simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
 simplify stmts = do
