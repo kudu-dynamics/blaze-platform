@@ -914,7 +914,7 @@ getDataDependenceGraph = foldl' (flip f) G.empty
     f _ = identity
 
 -- | Converts a data dependence graph to a map of vars that point to
---   any vars that share dependence.
+--   any vars that share dependence.q
 toDataDependenceGroups :: DataDependenceGraph -> HashMap PilVar (HashSet PilVar)
 toDataDependenceGroups = foldr f HMap.empty . G.getWeaklyConnectedComponents
   where

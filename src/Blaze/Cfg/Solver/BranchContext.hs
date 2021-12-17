@@ -2,10 +2,11 @@ module Blaze.Cfg.Solver.BranchContext where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 
-import Blaze.Types.Pil ( Statement, Stmt )
+import Blaze.Types.Pil (Statement, Stmt, PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Blaze.Pil.Analysis as PA
 import Blaze.Types.Pil.Checker (DeepSymType)
 import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge)
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
@@ -687,12 +688,44 @@ getUnsatBranches cfg = case checkCfg cfg of
       Left err -> return . Left $ SolverError tr err
       Right (r, _) -> return $ Right r
 
+_cleanPrunedCfg :: Int -> InterCfg -> InterCfg
+_cleanPrunedCfg numItersLeft icfg =
+  -- TODO: Do we need to also check if statements were removed 
+  --       via copy prop or other statement transforms?
+  if icfg == icfg'' || numItersLeft <= 0
+    then icfg''
+    else -- Recursing until stmts don't change or no iterations left
+      _cleanPrunedCfg (numItersLeft - 1) icfg''
+ where
+  icfg' :: InterCfg
+  icfg' = CfgA.constantProp . CfgA.copyProp $ icfg
+  -- deadBranches :: [CfEdge [Stmt]]
+  -- deadBranches = CfgA.getDeadBranches icfg'
+  -- icfg'' :: InterCfg
+  -- icfg'' = foldl' (flip CfgA.cutEdge) icfg' deadBranches
+  -- Need deadNodes to compute removedVars and to actually remove the dead nodes
+  deadNodes :: HashSet (CfNode [Stmt])
+  deadNodes = CfgA.getDeadNodes (unInterCfg icfg')
+  removedVars :: HashSet PilVar
+  removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+  icfg'' :: InterCfg
+  icfg'' =
+    CfgA.reducePhi removedVars
+      . CfgA.fixed CfgA.removeUnusedPhi
+      . CfgA.removeNodes deadNodes
+      $ icfg'
+
+cleanPrunedCfg :: InterCfg -> InterCfg
+cleanPrunedCfg = removeEmptyBasicBlockNodes' . _cleanPrunedCfg maxIters
+ where
+  maxIters = 10
+  removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . CfgA.removeEmptyBasicBlockNodes $ cfg
 
 simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
 simplify_ isRecursiveCall numItersLeft cfg
   | numItersLeft <= 0 = return . Right $ cfg
   | otherwise = do
-      let cfg' = unInterCfg . CfgA.simplify . InterCfg $ cfg
+      let cfg' = unInterCfg . cleanPrunedCfg . InterCfg $ cfg
       if cfg' == cfg && isRecursiveCall
         then return . Right $ cfg'
         else getUnsatBranches cfg' >>= \case
