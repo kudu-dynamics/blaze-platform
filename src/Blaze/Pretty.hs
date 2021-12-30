@@ -788,3 +788,9 @@ newtype PrettyShow a = PrettyShow a
 
 instance Tokenizable a => Show (PrettyShow a) where
   show (PrettyShow x) = cs $ pretty x
+
+instance Tokenizable a => Tokenizable (G.Dominators a) where
+  tokenize (G.Dominators m) = tokenize m
+
+instance Tokenizable a => Tokenizable (G.PostDominators a) where
+  tokenize (G.PostDominators m) = tokenize m

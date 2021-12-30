@@ -66,11 +66,10 @@ parseTerminalNode node = do
     <|> (TermExit <$> parseExitNode bb)
     <|> (TermNoRet <$> parseNoRetNode bb)
 
-parseBranchNode ::
-  ( CfNode [Stmt] -> [Stmt]
-  ) ->
-  CfNode [Stmt] ->
-  Maybe (BranchNode [Stmt])
+parseBranchNode
+  :: (CfNode [Stmt] -> [Stmt])
+  -> CfNode [Stmt]
+  -> Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
   bb <- node ^? #_BasicBlock
   lastStmt <- lastMay $ getStmts node

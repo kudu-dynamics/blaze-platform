@@ -67,19 +67,28 @@ newtype PostDominators a = PostDominators (HashMap a (HashSet a))
   deriving (Eq, Ord, Show, Generic)
 
 class DominatorMapping m where
+  domEmpty :: m a
   domMap :: (Eq b, Hashable b) => (a -> b) -> m a -> m b
   domMapMaybe :: (Eq b, Hashable b) => (a -> Maybe b) -> m a -> m b
   domLookup :: (Eq a, Hashable a) => a -> m a -> Maybe (HashSet a)
+  domMerge :: (Eq a, Hashable a) => m a -> m a -> m a
+  domRemoveNode :: (Eq a, Hashable a) => a -> m a -> m a
+  domRemoveNode x = domMapMaybe f where
+    f y = if x == y then Nothing else Just y
 
 instance DominatorMapping Dominators where
+  domEmpty = Dominators $ HashMap.empty
   domMap f (Dominators m) = Dominators $ mapDominatorsHelper f m
   domMapMaybe f (Dominators m) = Dominators $ mapMaybeDominatorsHelper f m
   domLookup x (Dominators m) = HashMap.lookup x m
+  domMerge (Dominators a) (Dominators b) = Dominators $ domMergeHelper a b
 
 instance DominatorMapping PostDominators where
+  domEmpty = PostDominators $ HashMap.empty
   domMap f (PostDominators m) = PostDominators $ mapDominatorsHelper f m
   domMapMaybe f (PostDominators m) = PostDominators $ mapMaybeDominatorsHelper f m
   domLookup x (PostDominators m) = HashMap.lookup x m
+  domMerge (PostDominators a) (PostDominators b) = PostDominators $ domMergeHelper a b
 
 mapMaybeDominatorsHelper
   :: forall a b. (Eq b, Hashable b)
@@ -102,6 +111,13 @@ mapDominatorsHelper
   -> HashMap a (HashSet a)
   -> HashMap b (HashSet b)
 mapDominatorsHelper f = HashMap.map (HashSet.map f) . HashMap.mapKeys f
+
+domMergeHelper
+  :: (Eq a, Hashable a)
+  => HashMap a (HashSet a)
+  -> HashMap a (HashSet a)
+  -> HashMap a (HashSet a)
+domMergeHelper = HashMap.unionWith HashSet.union
 
 type DltMap a = IntMap a
 
@@ -434,3 +450,8 @@ getDescendants v g = HashSet.fromList
 getAncestors :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
 getAncestors v = getDescendants v . transpose
 
+-- | Returns all nodes with zero succs
+getTermNodes :: (Graph e attr n g) => g -> HashSet n
+getTermNodes g = HashSet.filter f $ nodes g
+  where
+    f n = HashSet.null $ succs n g

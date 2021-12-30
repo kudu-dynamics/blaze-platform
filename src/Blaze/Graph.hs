@@ -194,4 +194,23 @@ getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
 getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
 
 getPostDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
-getPostDominators rootNode = PostDominators . domHelper Dlt.pdom rootNode
+getPostDominators termNode = PostDominators . domHelper Dlt.pdom termNode
+
+-- | Gets all post dominators. If there are multiple terminal nodes,
+--   each will point to `dummyTermNode`.
+getAllPostDominators
+  :: (Hashable a, Eq a, Graph e attr a g)
+  => a
+  -> e
+  -> g
+  -> PostDominators a
+getAllPostDominators dummyTermNode dummyTermEdgeLabel g =
+  case HashSet.toList $ G.getTermNodes g of
+    [] -> domEmpty
+    [x] -> getPostDominators x g
+    xs -> domRemoveNode dummyTermNode
+      . getPostDominators dummyTermNode
+      $ foldl' (flip f) g xs
+      where
+        f x = G.addEdge (G.LEdge dummyTermEdgeLabel $ G.Edge x dummyTermNode)
+

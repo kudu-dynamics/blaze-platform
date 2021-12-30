@@ -25,6 +25,9 @@ import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import Blaze.Pretty (pretty)
 import Blaze.Types.Graph.Alga (AlgaGraph)
+import Blaze.Types.Pil (Ctx(Ctx), CtxId(CtxId))
+import Blaze.Util.Spec (bb, mkUuid1)
+import Blaze.Function (Function (Function))
 
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
@@ -601,13 +604,27 @@ unsatBranches'
 unsatBranches' ddg cfg = do
   svalBranchCondNodes <- getSolvedBranchCondNodes ddg cfg
   case mapMaybe getUndecided svalBranchCondNodes of
-    [] -> return []
+    [] -> do
+      putText "No Undecided nodes in CFG"
+      return []
     ubranches -> do
       let edgeConstraints = mkEdgeConstraintMap svalBranchCondNodes
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
           eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
           doms = filterEdges $ G.getDominators eRoot edgeGraph
-          postDoms = filterEdges $ G.getPostDominators eRoot edgeGraph
+          dummyCtx = Ctx (Function Nothing "dummyCtx" 0x00 []) . CtxId $ mkUuid1 (0 :: Int)
+          dummyTermNode
+            = G.NodeNode
+            . Cfg.BasicBlock
+            $ Cfg.BasicBlockNode
+              { ctx = dummyCtx
+              , start = 0
+              , end = 0
+              , uuid = mkUuid1 (0 :: Int)
+              , nodeData = ()
+              }
+          dummyTermEdgeType = ()
+          postDoms = filterEdges $ G.getAllPostDominators dummyTermNode dummyTermEdgeType  edgeGraph
           domConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
           postDomConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ postDoms :: HashMap (CfEdge ()) [SVal]
 
@@ -622,7 +639,14 @@ unsatBranches' ddg cfg = do
         case er' of
           Left r -> return $ Left r
           Right () -> do
+            liftIO $ pprint domConstraints
             xxs <- forM ubranches $ \(bcond, (UndecidedEdges fe te)) -> do
+              putText $ "checking: " <> pretty (fe, te)
+              print $ maybe 0 HashSet.size $ domLookup fe doms
+              print $ maybe 0 HashSet.size $ domLookup fe postDoms
+              print $ maybe 0 HashSet.size $ domLookup te doms
+              print $ maybe 0 HashSet.size $ domLookup te postDoms
+              
               -- TODO: Check edges for looping
               -- Or maybe just ignore context constraints in loop bodies?
               let -- same for false or true edge
@@ -730,9 +754,14 @@ simplify_ isRecursiveCall numItersLeft cfg
         then return . Right $ cfg'
         else getUnsatBranches cfg' >>= \case
           Left err -> return $ Left err
-          Right [] -> return . Right $ cfg'
-          Right es -> simplify_ True (numItersLeft - 1)
-            $ foldr Cfg.removeIdEdge cfg' es
+          Right [] -> do
+            putText "No Unsat Branches"
+            return . Right $ cfg'
+          Right es -> do
+            putText "Unsat:"
+            pprint es
+            simplify_ True (numItersLeft - 1)
+              $ foldr Cfg.removeIdEdge cfg' es
 
 simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
 simplify stmts = do
