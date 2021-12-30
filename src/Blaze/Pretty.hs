@@ -152,6 +152,9 @@ integerToken n = Token
   where
     n' = toInteger n
 
+instance Tokenizable Int where
+  tokenize = (:[]) . integerToken
+
 -- XXX Figure out value and operand here
 varToken :: Text -> Token
 varToken t = Token
@@ -219,6 +222,7 @@ parenExpr x = if needsParens $ x ^. #op
   then paren (tokenize x)
   else tokenize x
 
+
 instance Tokenizable a => Tokenizable [a] where
   tokenize = tokenizeAsList
 
@@ -267,13 +271,13 @@ instance Tokenizable Binja.Function.Function where
       (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Tokenizable Pil.Ctx where
-  tokenize ctx =
-    [keywordToken "ctx", tt " "] ++
-    paren func ++
-    [textToken $ show (ctx ^. #ctxId)]
-    where
-      func :: [Token]
-      func = tokenize (ctx ^. #func)
+  tokenize ctx = keywordToken "ctx"
+    -- [keywordToken "ctx", tt " "] ++
+    -- paren func ++
+    -- [textToken $ show (ctx ^. #ctxId)]
+    -- where
+    --   func :: [Token]
+    --   func = tokenize (ctx ^. #func)
 
 instance Tokenizable Pil.PilVar where
   tokenize var = [varToken (var ^. #symbol)]
