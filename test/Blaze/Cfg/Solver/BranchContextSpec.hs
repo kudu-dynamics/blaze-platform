@@ -108,6 +108,19 @@ targetCtx = Ctx targetFunc . CtxId $ mkUuid1 (2 :: Int)
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
+  let dummyCtx = Ctx (Function Nothing "dummyCtx" 0x00 []) . CtxId $ mkUuid1 (0 :: Int)
+      dummyTermNode
+        = G.NodeNode
+          . Cfg.BasicBlock
+          $ Cfg.BasicBlockNode
+            { ctx = dummyCtx
+            , start = 0
+            , end = 0
+            , uuid = mkUuid1 (0 :: Int)
+            , nodeData = ()
+            }
+      dummyTermEdgeType = ()
+
   -- context "unsatBranches" $ do
   --   let solve :: Cfg [Pil.Stmt] -> IO [CfEdge ()]
   --       solve cfg = getUnsatBranches cfg >>= either (P.error . show) return
@@ -436,7 +449,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
 
   context "Edge Dominators" $ do
-    it "Should create an empty edge Dominators map for graph with single node" $ do
+    it "should create an empty edge Dominators map for graph with single node" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
 
@@ -452,7 +465,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
 
-    it "Should create a proper edge Dominators map for linear CFG" $ do
+    it "should create a proper edge Dominators map for linear CFG" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
           falseNode1 = bbp callerCtx "falseNode1"
@@ -497,7 +510,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
 
 
-    it "Should create a proper edge Dominators map for complex CFG" $ do
+    it "should create a proper edge Dominators map for complex CFG" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
           falseNode1 = bbp callerCtx "falseNode1"
@@ -554,20 +567,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
   
 
   context "Edge PostDominators" $ do
-    let dummyCtx = Ctx (Function Nothing "dummyCtx" 0x00 []) . CtxId $ mkUuid1 (0 :: Int)
-        dummyTermNode
-          = G.NodeNode
-            . Cfg.BasicBlock
-            $ Cfg.BasicBlockNode
-              { ctx = dummyCtx
-              , start = 0
-              , end = 0
-              , uuid = mkUuid1 (0 :: Int)
-              , nodeData = ()
-              }
-        dummyTermEdgeType = ()
-
-    it "Should create an empty edge PostDominators map for graph with single node" $ do
+    it "should create an empty edge PostDominators map for graph with single node" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
 
@@ -583,7 +583,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
 
-    it "Should create a proper edge PostDominators map for linear CFG" $ do
+    it "should create a proper edge PostDominators map for linear CFG" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
           falseNode1 = bbp callerCtx "falseNode1"
@@ -632,7 +632,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
 
 
-    it "Should create a proper edge Dominators map for complex CFG" $ do
+    it "should create a proper edge Dominators map for complex CFG" $ do
       let rootNode = bbpn 0 callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
           trueNode1 = bbpn 1 callerCtx "trueNode1"
@@ -711,3 +711,113 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
           
       PrettyShow (getPostDomCounts edgeDoms) `shouldBe` PrettyShow (getPostDomCounts expectedEdgeDom)
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+
+
+  context "simplify" $ do
+    -- it "shouldn't simplify Cfg with single node" $ do
+    --   let rootNode = bbpn 0 callerCtx "root"
+    --                  [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
+
+    --       cfg = mkCfg rootNode [] []
+                
+    --       expectedCfg = cfg
+
+    --   r <- BC.simplify cfg
+    --   (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedCfg)
+
+    it "should prune inconsistent child constraint of pruned parent" $ do
+      let rootNode = bbpn 0 callerCtx "root"
+                     [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
+
+          ifNode = bbpn 1 callerCtx "ifNode"
+                    [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
+
+          falseNode = bbpn 2 callerCtx "falseNode" [ nop ] 
+
+          trueNode = bbpn 3 callerCtx "trueNode" [ nop ]
+
+          endNode = bbpn 4 callerCtx "endNode" [ nop ]
+
+          cfg = mkCfg rootNode [ ifNode
+                               , falseNode
+                               , trueNode
+                               , endNode
+                               ]
+                [ CfEdge rootNode ifNode Cfg.FalseBranch
+                , CfEdge ifNode trueNode Cfg.TrueBranch
+                , CfEdge ifNode falseNode Cfg.FalseBranch
+                , CfEdge trueNode endNode Cfg.UnconditionalBranch
+                , CfEdge falseNode endNode Cfg.UnconditionalBranch
+                ]
+
+          -- expectedCfg = mkCfg rootNode
+          --   [ ifNode
+          --   , falseNode
+          --   , endNode
+          --   ]
+          --   [ CfEdge rootNode ifNode Cfg.FalseBranch
+          --   , CfEdge ifNode falseNode Cfg.FalseBranch
+          --   , CfEdge falseNode endNode Cfg.UnconditionalBranch
+          --   ]
+          ifNode' = asIdNode ifNode
+          trueNode' = asIdNode trueNode
+          falseNode' = asIdNode falseNode
+          expectedRemoved = [CfEdge ifNode' trueNode' Cfg.TrueBranch]
+
+      r <- BC.getUnsatBranches cfg
+      
+      (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedRemoved)
+
+
+  -- context "simplify" $ do
+  --   -- it "shouldn't simplify Cfg with single node" $ do
+  --   --   let rootNode = bbpn 0 callerCtx "root"
+  --   --                  [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
+
+  --   --       cfg = mkCfg rootNode [] []
+                
+  --   --       expectedCfg = cfg
+
+  --   --   r <- BC.simplify cfg
+  --   --   (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedCfg)
+
+  --   it "should prune inconsistent child constraint of pruned parent" $ do
+  --     let rootNode = bbpn 0 callerCtx "root"
+  --                    [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
+
+  --         ifNode = bbpn 1 callerCtx "ifNode"
+  --                   [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
+
+  --         falseNode = bbpn 2 callerCtx "falseNode" [ nop ] 
+
+  --         trueNode = bbpn 2 callerCtx "trueNode" [ nop ]
+
+  --         endNode = bbp callerCtx "endNode" [ nop ]
+
+  --         cfg = mkCfg rootNode [ ifNode
+  --                              , falseNode
+  --                              , trueNode
+  --                              , endNode
+  --                              ]
+  --               [ CfEdge rootNode ifNode Cfg.FalseBranch
+  --               , CfEdge ifNode trueNode Cfg.TrueBranch
+  --               , CfEdge ifNode falseNode Cfg.FalseBranch
+  --               , CfEdge trueNode endNode Cfg.UnconditionalBranch
+  --               , CfEdge falseNode endNode Cfg.UnconditionalBranch
+  --               ]
+
+  --         expectedCfg = mkCfg rootNode
+  --           [ ifNode
+  --           , falseNode
+  --           , endNode
+  --           ]
+  --           [ CfEdge rootNode ifNode Cfg.FalseBranch
+  --           , CfEdge ifNode falseNode Cfg.FalseBranch
+  --           , CfEdge falseNode endNode Cfg.UnconditionalBranch
+  --           ]
+
+  --     r <- BC.simplify cfg
+  --     r' <- BC.getUnsatBranches cfg
+  --     -- (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedCfg)
+
+  --     (PrettyShow <$> r') `shouldBe` (PrettyShow <$> Right [])

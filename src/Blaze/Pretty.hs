@@ -271,7 +271,7 @@ instance Tokenizable Binja.Function.Function where
       (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Tokenizable Pil.Ctx where
-  tokenize ctx = keywordToken "ctx"
+  tokenize ctx = [keywordToken "ctx"]
     -- [keywordToken "ctx", tt " "] ++
     -- paren func ++
     -- [textToken $ show (ctx ^. #ctxId)]
@@ -789,6 +789,10 @@ pp = prettyPrint
 
 newtype PrettyShow a = PrettyShow a
   deriving (Eq, Ord, Generic)
+
+instance Tokenizable a => Tokenizable (Maybe a) where
+  tokenize Nothing = [tt "Nothing"]
+  tokenize (Just x) = [tt "Just"] <> tokenize x
 
 instance Tokenizable a => Show (PrettyShow a) where
   show (PrettyShow x) = cs $ pretty x

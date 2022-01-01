@@ -23,7 +23,7 @@ import Blaze.Cfg.Checker (checkCfg)
 import Data.SBV.Dynamic (SVal, svNot, svAnd, svTrue)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
-import Blaze.Pretty (pretty)
+import Blaze.Pretty (pretty, prettyPrint)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Pil (Ctx(Ctx), CtxId(CtxId))
 import Blaze.Util.Spec (bb, mkUuid1)
@@ -146,9 +146,9 @@ getBranchCondNode
   -> Maybe (BranchCond (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))
 getBranchCondNode n cfg = case outBranches of
   [(TrueBranch, tnode), (FalseBranch, fnode)] ->
-    mcond <*> (pure . Undecided $ UndecidedEdges tnode fnode)
+    mcond <*> (pure . Undecided $ UndecidedEdges { falseEdge = fnode, trueEdge = tnode })
   [(FalseBranch, fnode), (TrueBranch, tnode)] ->
-    mcond <*> (pure . Undecided $ UndecidedEdges tnode fnode)
+    mcond <*> (pure . Undecided $ UndecidedEdges { falseEdge = fnode, trueEdge = tnode })
   [(TrueBranch, tnode)] ->
     mcond <*> (pure $ OnlyTrue tnode)
   [(FalseBranch, fnode)] ->
@@ -288,48 +288,48 @@ getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsFo
         trueUnique = HashSet.toList $ HashSet.difference trueReachable falseReachable
 
 
--- | Returns mapping of nodes to contextual constraints of pruned and unpruned if-nodes.
--- First argument is a function that takes the `condition` and wraps it with a `not`
-getBranchContextConstraints'
-  :: forall a. (a -> a)
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> [BranchCond a]
-  -> HashMap (CfNode ()) [a]
-getBranchContextConstraints' mkNot typedCfg = buildHashMap . concatMap getConstraintsForBranchNode
-  where
-    buildHashMap :: (Hashable k, Eq k) => [(k, v)] -> HashMap k [v]
-    buildHashMap = foldr (\(k, v) m -> HashMap.insertWith (<>) k [v] m) HashMap.empty
+-- -- | Returns mapping of nodes to contextual constraints of pruned and unpruned if-nodes.
+-- -- First argument is a function that takes the `condition` and wraps it with a `not`
+-- getBranchContextConstraints'
+--   :: forall a. (a -> a)
+--   -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+--   -> [BranchCond a]
+--   -> HashMap (CfNode ()) [a]
+-- getBranchContextConstraints' mkNot typedCfg = buildHashMap . concatMap getConstraintsForBranchNode
+--   where
+--     buildHashMap :: (Hashable k, Eq k) => [(k, v)] -> HashMap k [v]
+--     buildHashMap = foldr (\(k, v) m -> HashMap.insertWith (<>) k [v] m) HashMap.empty
 
-    getConstraintsForBranchNode :: BranchCond a
-                                -> [(CfNode (), a)]
-    getConstraintsForBranchNode bnode = case bnode ^. #conditionType of
-      OnlyTrue te -> fmap (, bnode ^. #condition)
-                     . HashSet.toList
-                     $ getNonLoopingReachable (te ^. #src) (te ^. #dst)
-      OnlyFalse fe -> fmap (, mkNot $ bnode ^. #condition)
-                      . HashSet.toList
-                      $ getNonLoopingReachable (fe ^. #src) (fe ^. #dst)
-      Undecided (UndecidedEdges fe te) -> trueNodeConstraints <> falseNodeConstraints
-        where
-          falseReachable = getNonLoopingReachable (fe ^. #src) (fe ^. #dst)
-          trueReachable = getNonLoopingReachable (te ^. #src) (te ^. #dst)
-          falseUnique = HashSet.toList $ HashSet.difference falseReachable trueReachable
-          trueUnique :: [CfNode ()]
-          trueUnique = HashSet.toList $ HashSet.difference trueReachable falseReachable
+--     getConstraintsForBranchNode :: BranchCond a
+--                                 -> [(CfNode (), a)]
+--     getConstraintsForBranchNode bnode = case bnode ^. #conditionType of
+--       OnlyTrue te -> fmap (, bnode ^. #condition)
+--                      . HashSet.toList
+--                      $ getNonLoopingReachable (te ^. #src) (te ^. #dst)
+--       OnlyFalse fe -> fmap (, mkNot $ bnode ^. #condition)
+--                       . HashSet.toList
+--                       $ getNonLoopingReachable (fe ^. #src) (fe ^. #dst)
+--       Undecided (UndecidedEdges fe te) -> trueNodeConstraints <> falseNodeConstraints
+--         where
+--           falseReachable = getNonLoopingReachable (fe ^. #src) (fe ^. #dst)
+--           trueReachable = getNonLoopingReachable (te ^. #src) (te ^. #dst)
+--           falseUnique = HashSet.toList $ HashSet.difference falseReachable trueReachable
+--           trueUnique :: [CfNode ()]
+--           trueUnique = HashSet.toList $ HashSet.difference trueReachable falseReachable
 
-          trueNodeConstraints = fmap (, bnode ^. #condition) trueUnique
-          falseNodeConstraints = fmap (, mkNot $ bnode ^. #condition) falseUnique
+--           trueNodeConstraints = fmap (, bnode ^. #condition) trueUnique
+--           falseNodeConstraints = fmap (, mkNot $ bnode ^. #condition) falseUnique
 
-      where       
-        getReachable n = HashSet.fromList . G.reachable n . view #graph $ typedCfg
+--       where       
+--         getReachable n = HashSet.fromList . G.reachable n . view #graph $ typedCfg
 
-        -- If branch node can reach its parent, then it is looping and is discarded.
-        -- TODO: this removes too many nodes.
-        --       Ideally, it would return all the nodes uniquely reachable by the branch node
-        --       up until it actually loops back.
-        getNonLoopingReachable srcNode dstNode =
-          let reached = getReachable dstNode in
-            bool HashSet.empty reached $ HashSet.member srcNode reached
+--         -- If branch node can reach its parent, then it is looping and is discarded.
+--         -- TODO: this removes too many nodes.
+--         --       Ideally, it would return all the nodes uniquely reachable by the branch node
+--         --       up until it actually loops back.
+--         getNonLoopingReachable srcNode dstNode =
+--           let reached = getReachable dstNode in
+--             bool HashSet.empty reached $ HashSet.member srcNode reached
 
 
 data BranchSVals = BranchSVals
@@ -490,7 +490,7 @@ mkEdgeConstraintMap = HashMap.fromList . concatMap f
     f bc = case bc ^. #conditionType of
       OnlyTrue e -> [(e, bc ^. #condition)]
       OnlyFalse e -> [(e, svNot $ bc ^. #condition)]
-      Undecided (UndecidedEdges fe te) ->
+      Undecided (UndecidedEdges {falseEdge = fe, trueEdge = te}) ->
         [ (fe, svNot $ bc ^. #condition)
         , (te, bc ^. #condition)
         ]
@@ -624,11 +624,20 @@ unsatBranches' ddg cfg = do
               , nodeData = ()
               }
           dummyTermEdgeType = ()
-          postDoms = filterEdges $ G.getAllPostDominators dummyTermNode dummyTermEdgeType  edgeGraph
-          domConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
-          postDomConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ postDoms :: HashMap (CfEdge ()) [SVal]
+          postDoms = filterEdges $ G.getAllPostDominators dummyTermNode dummyTermEdgeType edgeGraph :: G.PostDominators (CfEdge ())
+          
+          domConstraintsDebug = fmap (mapMaybe (\e -> HashMap.lookup e edgeConstraints >> return e) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [CfEdge ()]
+          domConstraints = fmap (mapMaybe (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
+          -- domConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
 
-         
+          postDomConstraintsDebug = fmap (mapMaybe (\e -> HashMap.lookup e edgeConstraints >> return e) . HashSet.toList) . coerce $ postDoms :: HashMap (CfEdge ()) [CfEdge ()]
+
+          postDomConstraints = fmap (mapMaybe (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ postDoms :: HashMap (CfEdge ()) [SVal]
+
+          -- postDomConstraints = HashMap.mapMaybe (traverse (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ postDoms :: HashMap (CfEdge ()) [SVal]
+
+      putText $ "postDomConstraints size: " <> show (HashMap.size postDomConstraints)
+      putText $ "domConstraints size: " <> show (HashMap.size domConstraints)
       generalCfgFormula ddg cfg
       er <- liftSymbolicT . Q.query $ do
         -- Make sure General formula works
@@ -654,14 +663,22 @@ unsatBranches' ddg cfg = do
                   falsePostDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe postDomConstraints
                   truePostDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup te postDomConstraints
 
+              putText "Common Dom Constraint Edges:"
+              prettyPrint $ HashMap.lookup fe domConstraintsDebug
+              putText "False POST Dom:"
+              prettyPrint $ HashMap.lookup fe postDomConstraintsDebug
+              putText "True POST Dom:"
+              prettyPrint $ HashMap.lookup te postDomConstraintsDebug
+
+              
               feResult <- tryConstraint
                 $ commonDomConstraints
                 `svAnd` falsePostDomConstraints
                 `svAnd` svNot bcond
               teResult <- tryConstraint
                 $ commonDomConstraints
-                `svAnd` falsePostDomConstraints
-                `svAnd` svNot bcond
+                `svAnd` truePostDomConstraints
+                `svAnd` bcond
 
               return $ case (feResult, teResult) of
                 (False, False) -> [fe, te]
