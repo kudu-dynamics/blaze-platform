@@ -48,6 +48,8 @@ import Blaze.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc), BasicBlockNod
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg))
 import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Display (needsParens)
+import Data.SBV.Dynamic (SVal)
+
 -- TODO: make tokenize return a monad instead of text,
 -- which can do things like `indent`
 
@@ -789,6 +791,9 @@ pp = prettyPrint
 
 newtype PrettyShow a = PrettyShow a
   deriving (Eq, Ord, Generic)
+
+instance Tokenizable SVal where
+  tokenize x = [tt $ show x]
 
 instance Tokenizable a => Tokenizable (Maybe a) where
   tokenize Nothing = [tt "Nothing"]

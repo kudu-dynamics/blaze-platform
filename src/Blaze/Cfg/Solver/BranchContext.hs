@@ -648,7 +648,8 @@ unsatBranches' ddg cfg = do
         case er' of
           Left r -> return $ Left r
           Right () -> do
-            liftIO $ pprint domConstraints
+            putText "Dom Constraints:"
+            liftIO $ prettyPrint domConstraints
             xxs <- forM ubranches $ \(bcond, (UndecidedEdges fe te)) -> do
               putText $ "checking: " <> pretty (fe, te)
               print $ maybe 0 HashSet.size $ domLookup fe doms
@@ -776,7 +777,7 @@ simplify_ isRecursiveCall numItersLeft cfg
             return . Right $ cfg'
           Right es -> do
             putText "Unsat:"
-            pprint es
+            prettyPrint es
             simplify_ True (numItersLeft - 1)
               $ foldr Cfg.removeIdEdge cfg' es
 

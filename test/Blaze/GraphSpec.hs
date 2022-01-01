@@ -137,3 +137,26 @@ spec = describe "Blaze.Graph" $ do
             ]
           
       getAllPostDominators g `shouldBe` expected
+
+    it "should find post dominators for double diamond graph" $ do
+      let g :: GA.AlgaGraph () () Text
+          g = G.fromEdges . fmap toLedge $
+            [ ("a", "b1")
+            , ("a", "b2")
+            , ("b1", "c")
+            , ("b2", "c")
+            , ("c", "d1")
+            , ("c", "d2")
+            , ("d1", "e")
+            , ("d2", "e")
+            ]
+          expected = G.PostDominators . HashMap.fromList $
+            [ ("a", HashSet.fromList ["c", "e"])
+            , ("b1", HashSet.fromList ["c", "e"])
+            , ("b2", HashSet.fromList ["c", "e"])
+            , ("c", HashSet.fromList ["e"])
+            , ("d1", HashSet.fromList ["e"])
+            , ("d2", HashSet.fromList ["e"])
+            ]
+          
+      getAllPostDominators g `shouldBe` expected
