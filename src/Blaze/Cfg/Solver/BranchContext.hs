@@ -372,19 +372,13 @@ getUnsatBranches cfg = case checkCfg cfg of
 
 _cleanPrunedCfg :: Int -> InterCfg -> InterCfg
 _cleanPrunedCfg numItersLeft icfg =
-  -- TODO: Do we need to also check if statements were removed 
-  --       via copy prop or other statement transforms?
   if icfg == icfg'' || numItersLeft <= 0
     then icfg''
     else -- Recursing until stmts don't change or no iterations left
       _cleanPrunedCfg (numItersLeft - 1) icfg''
  where
   icfg' :: InterCfg
-  icfg' = CfgA.copyProp icfg -- CfgA.constantProp . CfgA.copyProp $ icfg
-  -- deadBranches :: [CfEdge [Stmt]]
-  -- deadBranches = CfgA.getDeadBranches icfg'
-  -- icfg'' :: InterCfg
-  -- icfg'' = foldl' (flip CfgA.cutEdge) icfg' deadBranches
+  icfg' = CfgA.copyProp icfg
   -- Need deadNodes to compute removedVars and to actually remove the dead nodes
   deadNodes :: HashSet (CfNode [Stmt])
   deadNodes = CfgA.getDeadNodes (unInterCfg icfg')
