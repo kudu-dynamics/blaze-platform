@@ -77,14 +77,14 @@ class DominatorMapping m where
     f y = if x == y then Nothing else Just y
 
 instance DominatorMapping Dominators where
-  domEmpty = Dominators $ HashMap.empty
+  domEmpty = Dominators HashMap.empty
   domMap f (Dominators m) = Dominators $ mapDominatorsHelper f m
   domMapMaybe f (Dominators m) = Dominators $ mapMaybeDominatorsHelper f m
   domLookup x (Dominators m) = HashMap.lookup x m
   domMerge (Dominators a) (Dominators b) = Dominators $ domMergeHelper a b
 
 instance DominatorMapping PostDominators where
-  domEmpty = PostDominators $ HashMap.empty
+  domEmpty = PostDominators HashMap.empty
   domMap f (PostDominators m) = PostDominators $ mapDominatorsHelper f m
   domMapMaybe f (PostDominators m) = PostDominators $ mapMaybeDominatorsHelper f m
   domLookup x (PostDominators m) = HashMap.lookup x m

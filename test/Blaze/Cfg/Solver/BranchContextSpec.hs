@@ -1,5 +1,6 @@
 {- HLINT ignore "Redundant do" -}
 {- HLINT ignore "Reduce duplication" -}
+{- HLINT ignore "Evaluate" -}
 
 module Blaze.Cfg.Solver.BranchContextSpec where
 

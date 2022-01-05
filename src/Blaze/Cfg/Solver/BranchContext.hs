@@ -136,9 +136,9 @@ getBranchCondNode n cfg = case outBranches of
   [(FalseBranch, fnode), (TrueBranch, tnode)] ->
     mcond <*> (pure . Undecided $ UndecidedEdges { falseEdge = fnode, trueEdge = tnode })
   [(TrueBranch, tnode)] ->
-    mcond <*> (pure $ OnlyTrue tnode)
+    mcond <*> pure (OnlyTrue tnode)
   [(FalseBranch, fnode)] ->
-    mcond <*> (pure $ OnlyFalse fnode)
+    mcond <*> pure (OnlyFalse fnode)
   _ -> Nothing
   where
     mcond = lastMay (Cfg.getNodeData n) >>= \case
@@ -154,7 +154,7 @@ getBranchCondNode n cfg = case outBranches of
 getBranchCondNodes
   :: Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
   -> [BranchCond (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))]
-getBranchCondNodes typedCfg = mapMaybe (flip getBranchCondNode typedCfg)
+getBranchCondNodes typedCfg = mapMaybe (`getBranchCondNode` typedCfg)
   . HashSet.toList
   . G.nodes
   $ typedCfg
@@ -210,7 +210,7 @@ getUndecidedBranchCondNode n cfg = case outBranches of
 getBranchContextConstraints
   :: Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
   -> [UndecidedBranchCond]
-  -> HashMap (CfNode ()) [(Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))]
+  -> HashMap (CfNode ()) [Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)]
 getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsForUndecidedBranches
   where
     buildHashMap :: (Hashable k, Eq k) => [(k, v)] -> HashMap k [v]
@@ -223,8 +223,8 @@ getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsFo
         -- TODO: Can't make it with expressions because we don't have checker var syms.
         -- need to use solver monad
 
-        trueNodeConstraints = fmap (\n -> (n, u ^. #condition)) trueUnique
-        falseNodeConstraints = fmap (\n -> (n, mkNot $ u ^. #condition)) falseUnique
+        trueNodeConstraints = fmap (, u ^. #condition) trueUnique
+        falseNodeConstraints = fmap (, mkNot $ u ^. #condition) falseUnique
         mkNot x = Ch.InfoExpression (x ^. #info)
                   (Pil.NOT . Pil.NotOp $ x)
         getReachable n = HashSet.fromList . G.reachable n . view #graph $ typedCfg
@@ -246,11 +246,6 @@ data BranchSVals = BranchSVals
   { condition :: SVal
   , context :: SVal
   } deriving (Show, Generic)
-
-type GetDomFunc = ((EdgeGraphNode BranchType (CfNode ()))
-                  -> AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
-                  -> Dominators (EdgeGraphNode BranchType (CfNode ()))
-                  )
 
 type CfgEdgeGraph = AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
 
@@ -275,7 +270,7 @@ mkEdgeConstraintMap = HashMap.fromList . concatMap f
     f bc = case bc ^. #conditionType of
       OnlyTrue e -> [(e, bc ^. #condition)]
       OnlyFalse e -> [(e, svNot $ bc ^. #condition)]
-      Undecided (UndecidedEdges {falseEdge = fe, trueEdge = te}) ->
+      Undecided UndecidedEdges {falseEdge = fe, trueEdge = te} ->
         [ (fe, svNot $ bc ^. #condition)
         , (te, bc ^. #condition)
         ]
@@ -301,7 +296,7 @@ unsatBranches ddg cfg = do
           doms = filterEdges $ G.getDominators eRoot edgeGraph
           
           _domConstraintsDebug = fmap (mapMaybe (\e -> HashMap.lookup e edgeConstraints >> return e) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [CfEdge ()]
-          domConstraints = fmap (mapMaybe (flip HashMap.lookup edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
+          domConstraints = fmap (mapMaybe (`HashMap.lookup` edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
 
       generalCfgFormula ddg cfg
       er <- liftSymbolicT . Q.query $ do
@@ -313,7 +308,7 @@ unsatBranches ddg cfg = do
         case er' of
           Left r -> return $ Left r
           Right () -> do
-            xxs <- forM ubranches $ \(bcond, (UndecidedEdges fe te)) -> do
+            xxs <- forM ubranches $ \(bcond, UndecidedEdges fe te) -> do
               let commonDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe domConstraints
               
               feResult <- tryConstraint $ commonDomConstraints `svAnd` svNot bcond
