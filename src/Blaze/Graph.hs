@@ -213,4 +213,3 @@ getAllPostDominators dummyTermNode dummyTermEdgeLabel g =
       $ foldl' (flip f) g xs
       where
         f x = G.addEdge (G.LEdge dummyTermEdgeLabel $ G.Edge x dummyTermNode)
-
