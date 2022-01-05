@@ -273,13 +273,13 @@ instance Tokenizable Binja.Function.Function where
       (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Tokenizable Pil.Ctx where
-  tokenize ctx = [keywordToken "ctx"]
-    -- [keywordToken "ctx", tt " "] ++
-    -- paren func ++
-    -- [textToken $ show (ctx ^. #ctxId)]
-    -- where
-    --   func :: [Token]
-    --   func = tokenize (ctx ^. #func)
+  tokenize ctx = 
+    [keywordToken "ctx", tt " "] ++
+    paren func ++
+    [textToken $ show (ctx ^. #ctxId)]
+    where
+      func :: [Token]
+      func = tokenize (ctx ^. #func)
 
 instance Tokenizable Pil.PilVar where
   tokenize var = [varToken (var ^. #symbol)]

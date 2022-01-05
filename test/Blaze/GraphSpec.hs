@@ -7,7 +7,6 @@ import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Graph as G
 import qualified Blaze.Types.Graph.Alga as GA
-import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import Test.Hspec
