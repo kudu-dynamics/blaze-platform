@@ -165,8 +165,6 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
 
-
-
     it "should create a proper edge Dominators map for complex CFG" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
@@ -221,7 +219,6 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
   
-
   context "Edge PostDominators" $ do
     it "should create an empty edge PostDominators map for graph with single node" $ do
       let rootNode = bbp callerCtx "root"
@@ -358,7 +355,6 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
           
       PrettyShow (getPostDomCounts edgeDoms) `shouldBe` PrettyShow (getPostDomCounts expectedEdgeDom)
       PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
-
 
   context "getUnsatBranches" $ do
     it "should remove inconsistent child constraint of pruned parent" $ do

@@ -56,36 +56,6 @@ spec = describe "Blaze.Graph" $ do
           
       G.getPostDominators termNode g `shouldBe` expected
 
-    -- it "should ignore post dominators from second term node" $ do
-    --   let g :: GA.AlgaGraph () () Text
-    --       g = G.fromEdges . fmap toLedge $
-    --         [ ("a", "c")
-    --         , ("c", "e")
-    --         , ("c", "f")
-    --         ]
-    --       termNode = "e"
-    --       expected = G.PostDominators . HashMap.fromList $
-    --         [ ("a", HashSet.fromList ["c"])
-    --         ]
-
-    --   G.getPostDominators termNode g `shouldBe` expected
-
-    -- it "should ignore post dominators from second term node" $ do
-    --   let g :: GA.AlgaGraph () () Text
-    --       g = G.fromEdges . fmap toLedge $
-    --         [ ("a", "c")
-    --         , ("c", "e")
-    --         , ("c", "f")
-    --         , ("b", "d")
-    --         , ("d", "f")
-    --         ]
-    --       termNode = "e"
-    --       expected = G.PostDominators . HashMap.fromList $
-    --         [ ("a", HashSet.fromList ["c"])
-    --         ]
-          
-    --   G.getPostDominators termNode g `shouldBe` expected
-
   context "getAllPostDominators" $ do
     let dummyTermNode = "z"
         dummyTermEdgeLabel = ()

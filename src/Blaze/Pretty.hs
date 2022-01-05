@@ -224,7 +224,6 @@ parenExpr x = if needsParens $ x ^. #op
   then paren (tokenize x)
   else tokenize x
 
-
 instance Tokenizable a => Tokenizable [a] where
   tokenize = tokenizeAsList
 
@@ -273,7 +272,7 @@ instance Tokenizable Binja.Function.Function where
       (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Tokenizable Pil.Ctx where
-  tokenize ctx = 
+  tokenize ctx =
     [keywordToken "ctx", tt " "] ++
     paren func ++
     [textToken $ show (ctx ^. #ctxId)]
