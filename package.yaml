@@ -106,6 +106,7 @@ library:
   - Blaze.Cfg
   - Blaze.Cfg.Analysis
   - Blaze.Cfg.Checker
+  - Blaze.Cfg.EdgeGraph
   - Blaze.Cfg.Interprocedural
   - Blaze.Cfg.Loop
   - Blaze.Cfg.Solver.BranchContext

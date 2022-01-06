@@ -12,7 +12,7 @@ import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
 import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Graph as G
-import Blaze.Types.Graph (EdgeGraphNode, Dominators, DominatorMapping)
+import Blaze.Types.Graph (EdgeGraphNode, DominatorMapping)
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
 import qualified Blaze.Cfg.Analysis as CfgA
 import qualified Blaze.Pil.Solver as PilSolver
@@ -25,18 +25,21 @@ import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import Blaze.Pretty (prettyPrint)
 import Blaze.Types.Graph.Alga (AlgaGraph)
+import Blaze.Cfg.EdgeGraph (BranchCond, BranchingType(OnlyTrue, OnlyFalse, Undecided), UndecidedBranchingEdges(UndecidedBranchingEdges, falseEdge, trueEdge), BranchCond(BranchCond))
+
+type TypedExpression = Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
 
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
-  , condition :: Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
+  , condition :: TypedExpression
   , decidedBranch :: Bool
   } deriving (Eq, Ord, Show, Generic)
 
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
 getDecidedBranchCondNode
-  :: CfNode [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  :: CfNode [(Int, Statement TypedExpression)]
+  -> Cfg [(Int, Statement TypedExpression)]
   -> Maybe DecidedBranchCond
 getDecidedBranchCondNode n cfg = case outBranchTypes of
   [] -> Nothing
@@ -55,25 +58,23 @@ getDecidedBranchCondNode n cfg = case outBranchTypes of
       . HashSet.toList
       $ Cfg.succEdges n cfg
 
-
 -- | Adds overly general constraints for a CFG. Unpruned If conditions are ignored.
 -- Phi vars are Or'd together. TODO memory
 generalCfgFormula
   :: DataDependenceGraph
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> Cfg [(Int, Statement TypedExpression)]
   -> Solver ()
 generalCfgFormula ddg cfg = do
-  -- mapM_ addDecidedBranchConstraint decidedBranchConditions
   mapM_ setIndexAndSolveStmt $ Cfg.gatherCfgData cfg
   where
-    setIndexAndSolveStmt :: (Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))) -> Solver ()
+    setIndexAndSolveStmt :: (Int, Statement TypedExpression) -> Solver ()
     setIndexAndSolveStmt (i, stmt) = do
       #currentStmtIndex .= i
       solveStmt ddg stmt
 
 solveStmt
   :: DataDependenceGraph
-  -> Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
+  -> Statement TypedExpression
   -> Solver ()
 solveStmt ddg stmt = case stmt of
   -- this is handled elsewhere (only used if there is single outgoing branch edge)
@@ -108,52 +109,41 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFal
 
 ----------------------------
 
-data UndecidedEdges = UndecidedEdges
-  { falseEdge :: CfEdge ()
-  , trueEdge :: CfEdge ()
-  } deriving (Eq, Ord, Show, Generic)
-
-data BranchCondType = OnlyTrue (CfEdge ())
-                    | OnlyFalse (CfEdge ())
-                    | Undecided UndecidedEdges
-                    deriving (Eq, Ord, Show, Generic)
-
-data BranchCond a = BranchCond
-  { conditionStatementIndex :: Int
-  , condition :: a
-  , conditionType :: BranchCondType
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
 getBranchCondNode
-  :: CfNode [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Maybe (BranchCond (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))
-getBranchCondNode n cfg = case outBranches of
-  [(TrueBranch, tnode), (FalseBranch, fnode)] ->
-    mcond <*> (pure . Undecided $ UndecidedEdges { falseEdge = fnode, trueEdge = tnode })
-  [(FalseBranch, fnode), (TrueBranch, tnode)] ->
-    mcond <*> (pure . Undecided $ UndecidedEdges { falseEdge = fnode, trueEdge = tnode })
-  [(TrueBranch, tnode)] ->
-    mcond <*> pure (OnlyTrue tnode)
-  [(FalseBranch, fnode)] ->
-    mcond <*> pure (OnlyFalse fnode)
-  _ -> Nothing
+  :: CfNode [(Int, Statement TypedExpression)]
+  -> Cfg [(Int, Statement TypedExpression)]
+  -> Maybe (BranchCond TypedExpression)
+getBranchCondNode n cfg = mcond <*> getOutBranchingType n cfg  
   where
     mcond = lastMay (Cfg.getNodeData n) >>= \case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
       _ -> Nothing
-      
+
+getOutBranchingType :: CfNode [(Int, Statement TypedExpression)] -> Cfg [(Int, Statement TypedExpression)] -> Maybe BranchingType
+getOutBranchingType n cfg = case outBranches of
+  [(TrueBranch, tedge), (FalseBranch, fedge)] ->
+    Just . Undecided $ UndecidedBranchingEdges { falseEdge = fedge, trueEdge = tedge }
+  [(FalseBranch, fedge), (TrueBranch, tedge)] ->
+    Just . Undecided $ UndecidedBranchingEdges { falseEdge = fedge, trueEdge = tedge }
+  [(TrueBranch, tedge)] ->
+    Just $ OnlyTrue tedge
+  [(FalseBranch, fedge)] ->
+    Just $ OnlyFalse fedge
+  _ -> Nothing
+  where
     outBranches :: [(BranchType, CfEdge ())]
     outBranches =
       fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
       . HashSet.toList
       $ Cfg.succEdges n cfg
 
+
 getBranchCondNodes
-  :: Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> [BranchCond (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))]
+  :: Cfg [(Int, Statement TypedExpression)]
+  -> [BranchCond TypedExpression]
 getBranchCondNodes typedCfg = mapMaybe (`getBranchCondNode` typedCfg)
   . HashSet.toList
   . G.nodes
@@ -161,7 +151,7 @@ getBranchCondNodes typedCfg = mapMaybe (`getBranchCondNode` typedCfg)
 
 toSolvedBranchCondNode
   :: DataDependenceGraph
-  -> BranchCond (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
+  -> BranchCond TypedExpression
   -> Solver (BranchCond SVal)
 toSolvedBranchCondNode ddg bnode = do
   #currentStmtIndex .= bnode ^. #conditionStatementIndex
@@ -169,7 +159,7 @@ toSolvedBranchCondNode ddg bnode = do
 
 getSolvedBranchCondNodes
   :: DataDependenceGraph
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> Cfg [(Int, Statement TypedExpression)]
   -> Solver [BranchCond SVal]
 getSolvedBranchCondNodes ddg =
   traverse (toSolvedBranchCondNode ddg) . getBranchCondNodes
@@ -177,7 +167,7 @@ getSolvedBranchCondNodes ddg =
 data UndecidedBranchCond = UndecidedBranchCond
   { conditionStatementIndex :: Int
   , selfNode :: CfNode ()
-  , condition :: Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
+  , condition :: TypedExpression
   , trueEdge :: CfEdge ()
   , falseEdge :: CfEdge ()
   } deriving (Eq, Ord, Show, Generic)
@@ -185,59 +175,60 @@ data UndecidedBranchCond = UndecidedBranchCond
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
 getUndecidedBranchCondNode
-  :: CfNode [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  :: CfNode [(Int, Statement TypedExpression)]
+  -> Cfg [(Int, Statement TypedExpression)]
   -> Maybe UndecidedBranchCond
-getUndecidedBranchCondNode n cfg = case outBranches of
-  [(TrueBranch, tnode), (FalseBranch, fnode)] ->
-    mcond <*> pure tnode <*> pure fnode
-  [(FalseBranch, fnode), (TrueBranch, tnode)] ->
-    mcond <*> pure tnode <*> pure fnode
-  _ -> Nothing
+getUndecidedBranchCondNode n cfg = getOutBranchingType n cfg >>= \case
+  Undecided UndecidedBranchingEdges {falseEdge = fe, trueEdge = te} ->
+    mcond <*> pure te <*> pure fe
+  OnlyTrue _ -> Nothing
+  OnlyFalse _ -> Nothing
   where
     mcond = lastMay (Cfg.getNodeData n) >>= \case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ UndecidedBranchCond i (Cfg.asIdNode n) x
       _ -> Nothing
-      
-    outBranches :: [(BranchType, CfEdge ())]
-    outBranches =
-      fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
-      . HashSet.toList
-      $ Cfg.succEdges n cfg
 
 -- | Returns mapping of nodes to contextual constraints of unpruned if-nodes.
 -- Ignores decided/pruned if-nodes because they will be part of full general-formula
 getBranchContextConstraints
-  :: Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  :: Cfg [(Int, Statement TypedExpression)]
   -> [UndecidedBranchCond]
-  -> HashMap (CfNode ()) [Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)]
+  -> HashMap (CfNode ()) [TypedExpression]
 getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsForUndecidedBranches
   where
     buildHashMap :: (Hashable k, Eq k) => [(k, v)] -> HashMap k [v]
-    buildHashMap = foldr (\(k, v) m -> HashMap.insertWith (<>) k [v] m) HashMap.empty
+    buildHashMap = foldl' (\m (k, v) -> HashMap.insertWith (<>) k [v] m) HashMap.empty
 
     getConstraintsForUndecidedBranches :: UndecidedBranchCond
-                                       -> [(CfNode (), Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))]
+                                       -> [(CfNode (), TypedExpression)]
     getConstraintsForUndecidedBranches u = trueNodeConstraints <> falseNodeConstraints
       where
         -- TODO: Can't make it with expressions because we don't have checker var syms.
         -- need to use solver monad
 
+        trueNodeConstraints :: [(CfNode (), TypedExpression)]
         trueNodeConstraints = fmap (, u ^. #condition) trueUnique
+        falseNodeConstraints :: [(CfNode (), TypedExpression)]
         falseNodeConstraints = fmap (, mkNot $ u ^. #condition) falseUnique
+        mkNot :: TypedExpression -> TypedExpression
         mkNot x = Ch.InfoExpression (x ^. #info)
                   (Pil.NOT . Pil.NotOp $ x)
+        getReachable :: CfNode () -> HashSet (CfNode ())
         getReachable n = HashSet.fromList . G.reachable n . view #graph $ typedCfg
 
         -- If branch node can reach its parent, then it is looping and is discarded.
         -- TODO: this removes too many nodes.
         --       Ideally, it would return all the nodes uniquely reachable by the branch node
         --       up until it actually loops back.
+        getNonLoopingReachable :: CfNode () -> CfNode () -> HashSet (CfNode ())
         getNonLoopingReachable srcNode dstNode =
           let reached = getReachable dstNode in
             bool HashSet.empty reached $ HashSet.member srcNode reached
+        falseReachable :: HashSet (CfNode ())    
         falseReachable = getNonLoopingReachable (u ^. #falseEdge . #src) (u ^. #falseEdge . #dst)
+        trueReachable :: HashSet (CfNode ())
         trueReachable = getNonLoopingReachable (u ^. #trueEdge . #src) (u ^. #trueEdge . #dst)
+        falseUnique :: [CfNode ()]
         falseUnique = HashSet.toList $ HashSet.difference falseReachable trueReachable
         trueUnique :: [CfNode ()]
         trueUnique = HashSet.toList $ HashSet.difference trueReachable falseReachable
@@ -267,10 +258,10 @@ mkEdgeConstraintMap
   -> HashMap (CfEdge ()) SVal
 mkEdgeConstraintMap = HashMap.fromList . concatMap f
   where
-    f bc = case bc ^. #conditionType of
+    f bc = case bc ^. #branchingType of
       OnlyTrue e -> [(e, bc ^. #condition)]
       OnlyFalse e -> [(e, svNot $ bc ^. #condition)]
-      Undecided UndecidedEdges {falseEdge = fe, trueEdge = te} ->
+      Undecided UndecidedBranchingEdges {falseEdge = fe, trueEdge = te} ->
         [ (fe, svNot $ bc ^. #condition)
         , (te, bc ^. #condition)
         ]
@@ -281,7 +272,7 @@ mkEdgeConstraintMap = HashMap.fromList . concatMap f
 -- Results should be used iteratively with function that actually deletes unsat branches
 unsatBranches
   :: DataDependenceGraph
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> Cfg [(Int, Statement TypedExpression)]
   -> Solver [CfEdge ()]
 unsatBranches ddg cfg = do
   svalBranchCondNodes <- getSolvedBranchCondNodes ddg cfg
@@ -308,7 +299,7 @@ unsatBranches ddg cfg = do
         case er' of
           Left r -> return $ Left r
           Right () -> do
-            xxs <- forM ubranches $ \(bcond, UndecidedEdges fe te) -> do
+            xxs <- forM ubranches $ \(bcond, UndecidedBranchingEdges fe te) -> do
               let commonDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe domConstraints
               
               feResult <- tryConstraint $ commonDomConstraints `svAnd` svNot bcond
@@ -329,8 +320,8 @@ unsatBranches ddg cfg = do
           return []
         Right xs -> return xs
   where
-    getUndecided :: BranchCond SVal -> Maybe (SVal, UndecidedEdges)
-    getUndecided bc = case bc ^. #conditionType of
+    getUndecided :: BranchCond SVal -> Maybe (SVal, UndecidedBranchingEdges)
+    getUndecided bc = case bc ^. #branchingType of
       OnlyTrue _ -> Nothing
       OnlyFalse _ -> Nothing
       Undecided edges -> Just (bc ^. #condition, edges)
