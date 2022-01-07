@@ -17,7 +17,7 @@ import qualified Blaze.Function as Func
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Util.Spec (mkUuid1)
+import Blaze.Util.Spec (mkUuid1, mkDummyCtx, mkDummyTermNode)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Pretty (PrettyShow(PrettyShow))
 import Blaze.Pil.Construct
@@ -95,17 +95,8 @@ targetCtx = Ctx targetFunc . CtxId $ mkUuid1 (2 :: Int)
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
-  let dummyCtx = Ctx (Function Nothing "dummyCtx" 0x00 []) . CtxId $ mkUuid1 (0 :: Int)
-      dummyTermNode
-        = G.NodeNode
-          . Cfg.BasicBlock
-          $ Cfg.BasicBlockNode
-            { ctx = dummyCtx
-            , start = 0
-            , end = 0
-            , uuid = mkUuid1 (0 :: Int)
-            , nodeData = ()
-            }
+  let dummyCtx = mkDummyCtx 0
+      dummyTermNode = G.NodeNode $ mkDummyTermNode dummyCtx ()
       dummyTermEdgeType = ()
 
   context "Edge Dominators" $ do
@@ -228,7 +219,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
           cfg = mkCfg rootNode [] []
 
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
-          edgeDoms = BC.filterEdges $ G.getAllPostDominators dummyTermNode dummyTermEdgeType edgeGraph
+          edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
                 
           expectedEdgeDom = G.PostDominators . HashMap.fromList $ []
 
@@ -259,7 +250,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
 
-          edgeDoms = BC.filterEdges $ G.getAllPostDominators dummyTermNode dummyTermEdgeType edgeGraph
+          edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
           rootNode' = asIdNode rootNode
           falseNode1' = asIdNode falseNode1
@@ -321,7 +312,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 ]
 
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
-          edgeDoms = BC.filterEdges $ G.getAllPostDominators dummyTermNode dummyTermEdgeType edgeGraph
+          edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
           rootNode' = asIdNode rootNode
           falseNode1' = asIdNode falseNode1
