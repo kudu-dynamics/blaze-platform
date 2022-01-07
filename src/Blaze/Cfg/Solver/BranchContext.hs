@@ -24,7 +24,7 @@ import Data.SBV.Dynamic (SVal, svNot, svAnd)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Cfg.EdgeGraph (BranchCond, BranchingType(OnlyTrue, OnlyFalse, Undecided), UndecidedBranchingEdges(UndecidedBranchingEdges, falseEdge, trueEdge), BranchCond(BranchCond))
+
 
 type TypedExpression = Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
 
@@ -33,6 +33,32 @@ data DecidedBranchCond = DecidedBranchCond
   , condition :: TypedExpression
   , decidedBranch :: Bool
   } deriving (Eq, Ord, Show, Generic)
+
+data BranchSVals = BranchSVals
+  { condition :: SVal
+  , context :: SVal
+  } deriving (Show, Generic)
+
+data UndecidedBranchingEdges = UndecidedBranchingEdges
+  { falseEdge :: CfEdge ()
+  , trueEdge :: CfEdge ()
+  } deriving (Eq, Ord, Show, Generic)
+
+data BranchingType = OnlyTrue (CfEdge ())
+                   | OnlyFalse (CfEdge ())
+                   | Undecided UndecidedBranchingEdges
+                   deriving (Eq, Ord, Show, Generic)
+
+data BranchCond a = BranchCond
+  { conditionStatementIndex :: Int
+  , condition :: a
+  , branchingType :: BranchingType
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
+                       | SolverError Ch.TypeReport PilSolver.SolverError
+                       deriving (Eq, Ord, Show, Generic)
+
 
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
@@ -232,16 +258,6 @@ getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsFo
         trueUnique :: [CfNode ()]
         trueUnique = HashSet.toList $ HashSet.difference trueReachable falseReachable
 
-data BranchSVals = BranchSVals
-  { condition :: SVal
-  , context :: SVal
-  } deriving (Show, Generic)
-
-type CfgEdgeGraph = AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
-
-cfgToEdgeGraph :: Cfg a -> CfgEdgeGraph
-cfgToEdgeGraph = G.toEdgeGraph . view #graph
-
 filterEdges
   :: DominatorMapping m
   => m (EdgeGraphNode BranchType (CfNode ()))
@@ -333,11 +349,6 @@ tryConstraint c = Q.inNewAssertionStack
       Q.DSat _ -> return True
       Q.Sat -> return True
       _ -> return False
-
-
-data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
-                       | SolverError Ch.TypeReport PilSolver.SolverError
-                       deriving (Eq, Ord, Show, Generic)
 
 getUnsatBranches :: Cfg [Stmt] -> IO (Either GeneralSolveError [CfEdge ()])
 getUnsatBranches cfg = case checkCfg cfg of

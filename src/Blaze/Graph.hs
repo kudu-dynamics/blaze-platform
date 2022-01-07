@@ -193,6 +193,7 @@ domHelper f rootNode g =
 getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
 getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
 
+-- | Gets all post dominators. termNode should be the only terminal node in the graph.
 getPostDominators_ :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
 getPostDominators_ termNode = PostDominators . domHelper Dlt.pdom termNode
 
