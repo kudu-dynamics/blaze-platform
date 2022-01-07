@@ -34,11 +34,6 @@ data DecidedBranchCond = DecidedBranchCond
   , decidedBranch :: Bool
   } deriving (Eq, Ord, Show, Generic)
 
-data BranchSVals = BranchSVals
-  { condition :: SVal
-  , context :: SVal
-  } deriving (Show, Generic)
-
 data UndecidedIfBranches = UndecidedIfBranches
   { falseEdge :: CfEdge ()
   , trueEdge :: CfEdge ()
