@@ -127,5 +127,5 @@ spec = describe "Blaze.Graph" $ do
             , ("d1", HashSet.fromList ["e"])
             , ("d2", HashSet.fromList ["e"])
             ]
-          
+
       getPostDominators g `shouldBe` expected

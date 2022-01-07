@@ -23,7 +23,6 @@ import Blaze.Cfg.Checker (checkCfg)
 import Data.SBV.Dynamic (SVal, svNot, svAnd)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
-import Blaze.Pretty (prettyPrint)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Cfg.EdgeGraph (BranchCond, BranchingType(OnlyTrue, OnlyFalse, Undecided), UndecidedBranchingEdges(UndecidedBranchingEdges, falseEdge, trueEdge), BranchCond(BranchCond))
 
@@ -277,9 +276,7 @@ unsatBranches
 unsatBranches ddg cfg = do
   svalBranchCondNodes <- getSolvedBranchCondNodes ddg cfg
   case mapMaybe getUndecided svalBranchCondNodes of
-    [] -> do
-      putText "No Undecided nodes in CFG"
-      return []
+    [] -> return []
     ubranches -> do
       let edgeConstraints = mkEdgeConstraintMap svalBranchCondNodes
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
@@ -392,14 +389,9 @@ simplify_ isRecursiveCall numItersLeft cfg
         then return . Right $ cfg'
         else getUnsatBranches cfg' >>= \case
           Left err -> return $ Left err
-          Right [] -> do
-            putText "No Unsat Branches"
-            return . Right $ cfg'
-          Right es -> do
-            putText "Unsat:"
-            prettyPrint es
-            simplify_ True (numItersLeft - 1)
-              $ foldr Cfg.removeIdEdge cfg' es
+          Right [] -> return . Right $ cfg'
+          Right es -> simplify_ True (numItersLeft - 1)
+                      $ foldr Cfg.removeIdEdge cfg' es
 
 simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
 simplify stmts = do
