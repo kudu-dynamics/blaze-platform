@@ -39,14 +39,14 @@ data BranchSVals = BranchSVals
   , context :: SVal
   } deriving (Show, Generic)
 
-data UndecidedBranchingEdges = UndecidedBranchingEdges
+data UndecidedIfBranches = UndecidedIfBranches
   { falseEdge :: CfEdge ()
   , trueEdge :: CfEdge ()
   } deriving (Eq, Ord, Show, Generic)
 
 data BranchingType = OnlyTrue (CfEdge ())
                    | OnlyFalse (CfEdge ())
-                   | Undecided UndecidedBranchingEdges
+                   | Undecided UndecidedIfBranches
                    deriving (Eq, Ord, Show, Generic)
 
 data BranchCond a = BranchCond
@@ -150,9 +150,9 @@ getBranchCondNode n cfg = mcond <*> getOutBranchingType n cfg
 getOutBranchingType :: CfNode [(Int, Statement TypedExpression)] -> Cfg [(Int, Statement TypedExpression)] -> Maybe BranchingType
 getOutBranchingType n cfg = case outBranches of
   [(TrueBranch, tedge), (FalseBranch, fedge)] ->
-    Just . Undecided $ UndecidedBranchingEdges { falseEdge = fedge, trueEdge = tedge }
+    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
   [(FalseBranch, fedge), (TrueBranch, tedge)] ->
-    Just . Undecided $ UndecidedBranchingEdges { falseEdge = fedge, trueEdge = tedge }
+    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
   [(TrueBranch, tedge)] ->
     Just $ OnlyTrue tedge
   [(FalseBranch, fedge)] ->
@@ -204,7 +204,7 @@ getUndecidedBranchCondNode
   -> Cfg [(Int, Statement TypedExpression)]
   -> Maybe UndecidedBranchCond
 getUndecidedBranchCondNode n cfg = getOutBranchingType n cfg >>= \case
-  Undecided UndecidedBranchingEdges {falseEdge = fe, trueEdge = te} ->
+  Undecided UndecidedIfBranches {falseEdge = fe, trueEdge = te} ->
     mcond <*> pure te <*> pure fe
   OnlyTrue _ -> Nothing
   OnlyFalse _ -> Nothing
@@ -276,7 +276,7 @@ mkEdgeConstraintMap = HashMap.fromList . concatMap f
     f bc = case bc ^. #branchingType of
       OnlyTrue e -> [(e, bc ^. #condition)]
       OnlyFalse e -> [(e, svNot $ bc ^. #condition)]
-      Undecided UndecidedBranchingEdges {falseEdge = fe, trueEdge = te} ->
+      Undecided UndecidedIfBranches {falseEdge = fe, trueEdge = te} ->
         [ (fe, svNot $ bc ^. #condition)
         , (te, bc ^. #condition)
         ]
@@ -312,7 +312,7 @@ unsatBranches ddg cfg = do
         case er' of
           Left r -> return $ Left r
           Right () -> do
-            xxs <- forM ubranches $ \(bcond, UndecidedBranchingEdges fe te) -> do
+            xxs <- forM ubranches $ \(bcond, UndecidedIfBranches fe te) -> do
               let commonDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe domConstraints
               
               feResult <- tryConstraint $ commonDomConstraints `svAnd` svNot bcond
@@ -333,7 +333,7 @@ unsatBranches ddg cfg = do
           return []
         Right xs -> return xs
   where
-    getUndecided :: BranchCond SVal -> Maybe (SVal, UndecidedBranchingEdges)
+    getUndecided :: BranchCond SVal -> Maybe (SVal, UndecidedIfBranches)
     getUndecided bc = case bc ^. #branchingType of
       OnlyTrue _ -> Nothing
       OnlyFalse _ -> Nothing
