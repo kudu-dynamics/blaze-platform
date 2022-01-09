@@ -127,14 +127,17 @@ deepSymTypeToKind t = case t of
 
 makeSymVar :: Maybe Text -> DeepSymType -> Kind -> Solver SVal
 makeSymVar nm _dst k = do
-  v <- case cs <$> nm of
+  case cs <$> nm of
     Just n -> D.svNewVar k n
     Nothing -> D.svNewVar_ k
+  -- v <- case cs <$> nm of
+  --   Just n -> D.svNewVar k n
+  --   Nothing -> D.svNewVar_ k
   -- case dst of
   --   Ch.DSType (Ch.TPointer _ (Ch.DSType (Ch.TArray (Ch.DSType (Ch.TVLength n)) _))) -> do
   --     constrain_ $ fromIntegral n .== BSList.length v
   --   _ -> return ()
-  return v
+  -- return v
 
 makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
 makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm dst
