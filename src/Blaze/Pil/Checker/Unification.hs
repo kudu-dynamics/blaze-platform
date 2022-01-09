@@ -48,7 +48,7 @@ addVarEq a b = do
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
 
--- | Swaps first key with second in map. 
+-- | Swaps first key with second in map.
 updateSolKey :: (Hashable k, Eq k) => k -> k -> v -> HashMap k v -> HashMap k v
 updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 
@@ -102,8 +102,10 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
 
 -----------------------------------------
 
--- | True if second is at the same level or below in the type lattice
---   doesn't check recursive types or type sizes/signs.
+-- | True if second is the same type or a subtype of the first.
+--   Indirect subtypes (through transitivity) are explicitly
+--   listed as type descendants.
+--   Doesn't check recursive types or type sizes/signs.
 --   Used to order args for unification
 isTypeDescendant :: PilType a -> PilType a -> Bool
 isTypeDescendant (TArray _ _) t = case t of
@@ -127,12 +129,10 @@ isTypeDescendant (TFloat _) t = case t of
   _ -> False
 isTypeDescendant (TBitVector _) t = case t of
   TBitVector _ -> True
-  -- I think these should be descendants
-  -- TFloat _ -> True
+  TFloat _ -> True
   TInt _ _ -> True
   TPointer _ _ -> True
   TChar -> True
-  -- TQueryChar -> True
   TBool -> True
   TBottom _ -> True
   _ -> False
@@ -154,11 +154,7 @@ isTypeDescendant (TRecord _) t = case t of
   TBottom _ -> True
   _ -> False
 isTypeDescendant (TCString _) t = case t of
-  TChar -> True
-  TInt _ _ -> True
-  TBitVector _ -> True
-  TArray _ _ -> True
-  TRecord _ -> True
+  TCString _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendant TUnit t = case t of
@@ -247,26 +243,26 @@ unifyPilTypes pt1 pt2 =
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
         _ -> err
 
-      TCString len1 -> case pt2 of
-        TChar -> return $ TCString len1
-        TInt _w2 _s2 -> do
-          -- can't really make these equal in the case:
-          -- [var_18] = 0
-          -- Need to be able to convert bitwidth to string length
-          -- addVarEq w $ TVBitWidth 8
-          return $ TCString len1
-        TBitVector _w2 -> do
-          -- TODO: convert bitwidth to length
-          return $ TCString len1
-        TArray len2 et2 -> do
-          assignType et2 TChar
-          TCString <$> addVarEq len1 len2
+      -- TCString len1 -> case pt2 of
+      --   TChar -> return $ TCString len1
+      --   TInt _w2 _s2 -> do
+      --     -- can't really make these equal in the case:
+      --     -- [var_18] = 0
+      --     -- Need to be able to convert bitwidth to string length
+      --     -- addVarEq w $ TVBitWidth 8
+      --     return $ TCString len1
+      --   TBitVector _w2 -> do
+      --     -- TODO: convert bitwidth to length
+      --     return $ TCString len1
+      --   TArray len2 et2 -> do
+      --     assignType et2 TChar
+      --     TCString <$> addVarEq len1 len2
 
-        TRecord m -> do
-          mapM_ (`assignType` TChar) . HashMap.elems $ m
-          return $ TCString len1
+      --   TRecord m -> do
+      --     mapM_ (`assignType` TChar) . HashMap.elems $ m
+      --     return $ TCString len1
 
-        _ -> err
+      --   _ -> err
 
       TVBitWidth bw1 -> case pt2 of
         TVBitWidth bw2
@@ -350,7 +346,7 @@ unifyRecords a = foldM f a . HashMap.toList
 -- getFieldRanges m = uncurry getFieldRange <$> HashMap.toList m
 
 -- doFieldRangesOverlap :: (BitWidth, BitWidth) -> (BitWidth, BitWidth) -> Bool
--- doFieldRangesOverlap (start, end) (start', end') = 
+-- doFieldRangesOverlap (start, end) (start', end') =
 --   start >= start' && start < end'
 --   || end > start' && end <= end'
 --   || start' >= start && start' < end

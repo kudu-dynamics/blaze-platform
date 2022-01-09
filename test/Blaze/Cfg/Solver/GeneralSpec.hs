@@ -103,9 +103,12 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
 
     it "should solve a single basic block" $ do
       let rootNode = bbp callerCtx "root"
-                     [ def "a" $ sub (const 900 4) (const 800 4) 4 ]
+                     [ def "x" $ sx (const 900 4) 4
+                     , def "a" $ sub (var "x" 4) (const 800 4) 4 ]
           cfg = mkCfg rootNode [] []
-          rvars = HashMap.fromList [("a", CV (KBounded True 32) (CInteger 100))]
+          rvars = HashMap.fromList [ ("x", CV (KBounded True 32) (CInteger 900))
+                                   , ("a", CV (KBounded True 32) (CInteger 100))
+                                   ]
       r <- generalSolve cfg
       r `shouldBe` PilSolver.Sat rvars
 
@@ -166,7 +169,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                 ]
           rvars = HashMap.fromList
             [ ("a", CV (KBounded False 32) (CInteger 800)) ]
-          
+
       r <- generalSolve cfg
       r `shouldBe` PilSolver.Sat rvars
 
@@ -463,7 +466,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                 , CfEdge joinNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge falseNode2 endNode Cfg.UnconditionalBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
-                
+
                 ]
 
           falseNode1' = bbp callerCtx "falseNode1"
@@ -530,7 +533,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
     --             , CfEdge joinNode1 trueNode2 Cfg.TrueBranch
     --             , CfEdge falseNode2 endNode Cfg.UnconditionalBranch
     --             , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
-                
+
     --             ]
 
     --       falseNode1' = bbp callerCtx "falseNode1"
@@ -560,4 +563,3 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
 
     --   r <- solve cfg
     --   PrettyShow r `shouldBe` PrettyShow rcfg
-

@@ -69,9 +69,9 @@ stubbedFunctionConstraintGen = HashMap.fromList
           guardIntegral n
           constrain $ r `svEqual` svAbs n
         xs -> throwError . StubbedFunctionArgError "abs" 1 $ length xs
-    ) 
+    )
   ]
-  
+
 pilVarName :: PilVar -> Text
 pilVarName pv = pv ^. #symbol
   <> maybe "" (("@"<>) . view (#func . #name)) mCtx
@@ -81,8 +81,8 @@ pilVarName pv = pv ^. #symbol
     mCtx :: Maybe Pil.Ctx
     mCtx = pv ^. #ctx
 
--- | convert a DeepSymType to an SBV Kind
--- any un-inferred Sign types resolve to False
+-- | Convert a `DeepSymType` to an SBV Kind.
+-- Any symbolic Sign types are concretized to False.
 deepSymTypeToKind :: DeepSymType -> Solver Kind
 deepSymTypeToKind t = case t of
   Ch.DSVar v -> err $ "Can't convert DSVar " <> show v
@@ -98,12 +98,13 @@ deepSymTypeToKind t = case t of
                    -- SBV only has float or double, so we'll just pick double
 
     Ch.TBitVector bwt -> KBounded <$> pure False <*> getBitWidth bwt
-    Ch.TPointer bwt ptrElemType -> case ptrElemType of
-      Ch.DSType (Ch.TArray _alen arrayElemType) ->
-        -- alen constraint is handled at sym var creation
-        KList <$> deepSymTypeToKind arrayElemType
-      -- TODO: structs. good luck
-      _ -> KBounded <$> pure False <*> getBitWidth bwt
+    Ch.TPointer bwt _pt -> KBounded <$> pure False <*> getBitWidth bwt
+    -- Ch.TPointer bwt ptrElemType -> case ptrElemType of
+    --   Ch.DSType (Ch.TArray _alen arrayElemType) ->
+    --     -- alen constraint is handled at sym var creation
+    --     KList <$> deepSymTypeToKind arrayElemType
+    --   -- TODO: structs. good luck
+    --   _ -> KBounded <$> pure False <*> getBitWidth bwt
     Ch.TCString _ -> return KString
     Ch.TRecord _ -> err "Can't handle Record type"
     Ch.TUnit -> return $ KTuple []
@@ -125,14 +126,14 @@ deepSymTypeToKind t = case t of
     err = throwError . DeepSymTypeConversionError t
 
 makeSymVar :: Maybe Text -> DeepSymType -> Kind -> Solver SVal
-makeSymVar nm dst k = do
+makeSymVar nm _dst k = do
   v <- case cs <$> nm of
     Just n -> D.svNewVar k n
     Nothing -> D.svNewVar_ k
-  case dst of
-    Ch.DSType (Ch.TPointer _ (Ch.DSType (Ch.TArray (Ch.DSType (Ch.TVLength n)) _))) -> do
-      constrain_ $ fromIntegral n .== BSList.length v
-    _ -> return ()
+  -- case dst of
+  --   Ch.DSType (Ch.TPointer _ (Ch.DSType (Ch.TArray (Ch.DSType (Ch.TVLength n)) _))) -> do
+  --     constrain_ $ fromIntegral n .== BSList.length v
+  --   _ -> return ()
   return v
 
 makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
@@ -211,8 +212,8 @@ signExtendSVal tw bv = case kindOf bv of
       ext = svIte (msb bv) ones zeros
       buf = createExtendBuf extWidth
       createExtendBuf :: SVal -> SVal
-      createExtendBuf width = svIte (width `svEqual` constWord 32 0) 
-                                      (constInt 1 0) 
+      createExtendBuf width = svIte (width `svEqual` constWord 32 0)
+                                      (constInt 1 0)
                                       $ svJoin (createExtendBuf $ width `svMinus` constWord 32 1) $ constInt 1 0
   _ -> P.error "signExtend: bv must be Bounded kind"
 
@@ -292,7 +293,7 @@ updateBitVec boff src dest = case (kindOf dest, kindOf src) of
       destLowPart = lowPart (fromIntegral boff) dest'
       off = fromIntegral boff
   _ -> P.error "updateBitVec: both args must be KBounded"
-  
+
 
 -- TODO: guard that n is greater than 0
 -- and that w is big enough
@@ -337,7 +338,7 @@ toSBool :: SVal -> Solver SBool
 toSBool x = guardBool x >> return (SBV x)
 
 -- toSList :: HasKind a => SVal -> Solver (SList a)
--- toSList x 
+-- toSList x
 
 -- sizeOf :: SVal -> Solver SInteger
 -- sizeOf x = case k of
@@ -471,13 +472,13 @@ dstToExpr :: DSTExpression -> Expression
 dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. #size) $ dstToExpr <$> op
 
 catchAndWarnStmtDef :: a -> Solver a -> Solver a
-catchAndWarnStmtDef def m = catchError m $ \e -> do  
+catchAndWarnStmtDef def m = catchError m $ \e -> do
   si <- use #currentStmtIndex
   warn $ StmtError si e
   return def
 
 catchAndWarnStmt :: Solver () -> Solver ()
-catchAndWarnStmt m = catchError m $ \e -> do  
+catchAndWarnStmt m = catchError m $ \e -> do
   si <- use #currentStmtIndex
   warn $ StmtError si e
 
@@ -738,7 +739,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     --TODO: convert dest and src to unsigned and convert them back if needed
     --TODO: the above TODO might already happen in updateBitVec. find out.
     return $ updateBitVec (toBitOffset $ x ^. #offset) src dest
-    
+
   --   -- How should src and dest be related?
   --   -- Can't express that `offset + width(src) == width(dest)`
   --   --  without `+` and `==` as type level operators.
@@ -750,7 +751,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   -- also, maybe convert the offset to bits?
   Pil.VAR_FIELD x -> do
     v <- lookupVarSym $ x ^. #src
-    return $ svExtract (off + w - 1) off v 
+    return $ svExtract (off + w - 1) off v
     where
       off = fromIntegral . toBitOffset $ x ^. #offset
       w = fromIntegral sz
@@ -783,11 +784,11 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     getRetKind = getDst >>= deepSymTypeToKind
 
     catchFallbackAndWarn :: Solver SVal -> Solver SVal
-    catchFallbackAndWarn m = catchError m $ \e -> do  
+    catchFallbackAndWarn m = catchError m $ \e -> do
       si <- use #currentStmtIndex
       warn $ StmtError si e
       fallbackAsFreeVar
-      
+
     binOpEqArgsReturnsBool :: ( HasField' "left" x DSTExpression
                               , HasField' "right" x DSTExpression)
                               => x -> (SVal -> SVal -> SVal) -> Solver SVal
@@ -906,7 +907,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       c <- solveExprRec (x ^. #carry)
       guardIntegralFirstWidthNotSmaller a b
       cAsInt <- boolToInt (kindOf a) c
-      
+
       let b' = matchIntegral a b
       return $ f a b' cAsInt
 

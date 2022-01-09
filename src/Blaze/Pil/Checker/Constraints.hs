@@ -346,7 +346,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.MODS_DP x -> add =<< divOrModDP True x
   Pil.MODU x -> add =<< integralBinOpFirstArgIsReturn (Just False) False x
   Pil.MODU_DP x -> add =<< divOrModDP False x
-  Pil.MUL x -> add =<< integralBinOpFirstArgIsReturn (Just False) False x
+  -- Pil.MUL x -> add =<< integralBinOpFirstArgIsReturn (Just False) False x
+  Pil.MUL x -> add =<< integralBinOpFirstArgIsReturn Nothing True x
   Pil.MULS_DP x -> add =<< mulDP True x
   Pil.MULU_DP x -> add =<< mulDP False x
   Pil.NEG x -> add =<< integralUnOp (Just True) x
@@ -372,7 +373,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.SBB x -> do
     integralConstraint <- integralBinOpFirstArgIsReturn (Just True) True x
     add $ integralConstraint <> carryConstraint x
---   -- STORAGE _ -> unknown
+  -- STORAGE _ -> unknown
   Pil.StrCmp _ -> unimplError
   Pil.StrNCmp _ -> unimplError
   Pil.MemCmp _ -> unimplError
@@ -384,7 +385,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add [ (r, CSType $ TPointer tSz (CSVar s)) ]
 
   Pil.SUB x -> add =<< integralBinOpFirstArgIsReturn Nothing True x
-  Pil.SX x -> add =<< integralExtendOp x
+  Pil.SX x -> add =<< integralExtendOp (Just True) x
 
   Pil.TEST_BIT _ -> add [(r, CSType TBool)] -- ? tests if bit in int is on or off
   Pil.UNIMPL _ -> add [ (r, CSType $ TBitVector tSz ) ]
@@ -415,7 +416,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         ]
 
   Pil.XOR x -> add $ bitVectorBinOp x
-  Pil.ZX x -> add =<< integralExtendOp x
+  Pil.ZX x -> add =<< integralExtendOp (Just False) x
 
   Pil.UNIT -> add [ (r, CSType TUnit) ]
 
@@ -430,6 +431,11 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       pt <- newSym
       return [(r, CSType (TPointer tSz (CSVar pt)))]
 
+    getSignedness :: Maybe Bool -> ConstraintGen ConstraintSymType
+    getSignedness = \case
+        Nothing -> CSVar <$> newSym
+        Just b -> return . CSType . TVSign $ b
+
     carryConstraint :: (HasField' "carry" x SymExpression) => x -> [SymConstraint]
     carryConstraint x = [(x ^. field' @"carry" . #info . #sym, CSType TBool)]
 
@@ -442,49 +448,55 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       , (r, CSVar $ x ^. field' @"right" . #info . #sym)
       ]
 
-    integralExtendOp :: (HasField' "src" x SymExpression) => x -> ConstraintGen [SymConstraint]
-    integralExtendOp x = do
+    integralExtendOp ::
+      (HasField' "src" x SymExpression) =>
+      Maybe Bool ->
+      x ->
+      ConstraintGen [SymConstraint]
+    integralExtendOp mSignedness x = do
       argSizeType <- CSVar <$> newSym
-      signednessType <- CSVar <$> newSym
+      rSignednessType <- getSignedness mSignedness
+      -- Use the same symbol for operand and result.
+      let argSignednessType = rSignednessType
       return
-        [ (r, CSType $ TInt tSz signednessType)
-        , (x ^. field' @"src" . #info . #sym, CSType $ TInt argSizeType signednessType)
+        [ (r, CSType $ TInt tSz rSignednessType)
+        , (x ^. field' @"src" . #info . #sym, CSType $ TInt argSizeType argSignednessType)
         ]
 
-    integralUnOp :: (HasField' "src" x SymExpression)
-                 => Maybe Bool
-                 -> x
-                 -> ConstraintGen [SymConstraint]
+    integralUnOp ::
+      (HasField' "src" x SymExpression) =>
+      Maybe Bool ->
+      x ->
+      ConstraintGen [SymConstraint]
     integralUnOp mSignedness x = do
-      signednessType <- case mSignedness of
-        Nothing -> CSVar <$> newSym
-        Just b -> return . CSType . TVSign $ b
+      signednessType <- getSignedness mSignedness
       return
         [ (r, CSType (TInt tSz signednessType))
         , (r, CSVar $ x ^. field' @"src" . #info . #sym)
         ]
 
-    integralBinOpFirstArgIsReturn :: ( HasField' "left" x SymExpression
-                                     , HasField' "right" x SymExpression)
-                                  => Maybe Bool -> Bool -> x
-                                  -> ConstraintGen [SymConstraint]
+    integralBinOpFirstArgIsReturn ::
+      ( HasField' "left" x SymExpression
+      , HasField' "right" x SymExpression
+      ) =>
+      Maybe Bool ->
+      Bool ->
+      x ->
+      ConstraintGen [SymConstraint]
     integralBinOpFirstArgIsReturn mSignedness secondArgSameWidth x = do
-        signednessType <- case mSignedness of
-            Nothing -> CSVar <$> newSym
-            Just b -> return . CSType . TVSign $ b
-        secondArgWidth <- bool (CSVar <$> newSym) (return tSz) secondArgSameWidth
-        return
-            [ (r, CSType (TInt tSz signednessType))
-            , (r, CSVar $ x ^. field' @"left" . #info . #sym)
-            , (left ^. #info . #sym, CSType $ TInt secondArgWidth signednessType)
-            , (right ^. #info . #sym, CSType $ TInt secondArgWidth signednessType)
-            ]
-        where
-          left :: SymExpression
-          left = x ^. field' @"left"
-          right :: SymExpression
-          right = x ^. field' @"right"
-
+      signednessType <- getSignedness mSignedness
+      secondArgWidth <- bool (CSVar <$> newSym) (return tSz) secondArgSameWidth
+      return
+        [ (r, CSType (TInt tSz signednessType))
+        , (r, CSVar $ x ^. field' @"left" . #info . #sym)
+        , (left ^. #info . #sym, CSType $ TInt secondArgWidth signednessType)
+        , (right ^. #info . #sym, CSType $ TInt secondArgWidth signednessType)
+        ]
+     where
+      left :: SymExpression
+      left = x ^. field' @"left"
+      right :: SymExpression
+      right = x ^. field' @"right"
 
     mulDP :: ( HasField' "left" x SymExpression
              , HasField' "right" x SymExpression)
