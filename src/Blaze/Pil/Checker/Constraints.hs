@@ -620,11 +620,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , (r, n)
         ]
 
--- | Generates constraints for all syms in SymExpression and adds them to state.
--- does NOT recurse down sub-expressions like addAllExprTypeConstraints
--- addExprTypeConstraints :: SymExpression -> ConstraintGen ()
--- addExprTypeConstraints = mapM_ addConstraint' <=< exprTypeConstraints
-
 -- | Recursively adds type constraints for all expr sym's in SymExpression,
 -- including nested syms.
 addAllExprTypeConstraints :: SymExpression -> ConstraintGen ()
