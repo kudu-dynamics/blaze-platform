@@ -59,9 +59,6 @@ constrainStandardFunc r sz (Pil.CallOp _ (Just name) cparams) = case name of
     (nptr:endptr:base:_) -> do
       ptrWidth <- CSVar <$> newSym
       baseWidth <- CSVar <$> newSym
-      -- let str = CSType . TPointer ptrWidth $ CSType TChar
-      --     strPtr = CSType $ TPointer ptrWidth str
-      --     baseType = CSType . TInt baseWidth . CSType $ TVSign True
       nptrLen <- CSVar <$> newSym
       endptrLen <- CSVar <$> newSym
 
