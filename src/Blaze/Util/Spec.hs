@@ -1,8 +1,9 @@
 module Blaze.Util.Spec where
 
-import qualified Blaze.Cfg as Cfg
+import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Prelude
-import Blaze.Types.Pil (Ctx)
+import Blaze.Function (Function (Function))
+import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
 import qualified Data.UUID as UUID
 
 ---------- CFG ------------
@@ -18,3 +19,17 @@ bb ctx startAddr endAddr x =
   Cfg.BasicBlock $ Cfg.BasicBlockNode ctx startAddr endAddr uuid x
  where
   uuid = mkUuid2 startAddr endAddr
+
+mkDummyCtx :: Int -> Ctx
+mkDummyCtx ctxId = Ctx (Function Nothing "dummyCtx" 0x00 []) . CtxId $ mkUuid1 (ctxId :: Int)
+
+mkDummyTermNode :: Ctx -> a -> Cfg.CfNode a
+mkDummyTermNode ctx nodeData 
+  = Cfg.BasicBlock
+    $ Cfg.BasicBlockNode
+    { ctx = ctx
+    , start = 0
+    , end = 0
+    , uuid = mkUuid1 (0 :: Int)
+    , nodeData = nodeData
+    }

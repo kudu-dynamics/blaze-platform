@@ -185,3 +185,6 @@ branchCond e = Pil.BranchCond (Pil.BranchCondOp e)
 
 ret :: Expression -> Stmt
 ret = Pil.Ret . Pil.RetOp
+
+nop :: Stmt
+nop = Pil.Nop

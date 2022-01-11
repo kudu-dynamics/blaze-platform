@@ -12,6 +12,7 @@ import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Cfg hiding (nodes)
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit, NoRet), Stmt)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import Control.Lens (preview)
 import qualified Data.HashSet as HashSet
 import qualified Data.List as List
@@ -27,15 +28,27 @@ getDominators_ :: Cfg a -> Dominators (CfNode ())
 getDominators_ cfg = G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators (CfNode a)
-getDominators cfg = G.mapDominators (getFullNode cfg)
+getDominators cfg = G.domMap (getFullNode cfg)
   $ G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
-getPostDominators_ :: Cfg a -> PostDominators (CfNode ())
-getPostDominators_ cfg = G.getPostDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+getPostDominatorsAsIdNodes_ :: CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode ())
+getPostDominatorsAsIdNodes_ dummyTermNode dummyBranchType cfg = G.getPostDominators dummyTermNode dummyBranchType (cfg ^. #graph)
+
+getPostDominatorsAsIdNodes :: Cfg a -> PostDominators (CfNode ())
+getPostDominatorsAsIdNodes = getPostDominatorsAsIdNodes_ dummyTermNode UnconditionalBranch
+  where
+    dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
+
+getPostDominators_ :: (Hashable a, Eq a) => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
+getPostDominators_ dummyTermNode dummyBranchType cfg
+  = G.domMap (getFullNode cfg)
+  . G.getPostDominators dummyTermNode dummyBranchType
+  $ cfg ^. #graph
 
 getPostDominators :: (Hashable a, Eq a) => Cfg a -> PostDominators (CfNode a)
-getPostDominators cfg = G.mapPostDominators (getFullNode cfg)
-  $ G.getPostDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+getPostDominators = getPostDominators_ dummyTermNode UnconditionalBranch
+  where
+    dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
 
 lastStmtFrom :: (HasField' "nodeData" n [Stmt]) => n -> Maybe Stmt
 lastStmtFrom = lastMay . view (field' @"nodeData")
@@ -66,11 +79,10 @@ parseTerminalNode node = do
     <|> (TermExit <$> parseExitNode bb)
     <|> (TermNoRet <$> parseNoRetNode bb)
 
-parseBranchNode ::
-  ( CfNode [Stmt] -> [Stmt]
-  ) ->
-  CfNode [Stmt] ->
-  Maybe (BranchNode [Stmt])
+parseBranchNode
+  :: (CfNode [Stmt] -> [Stmt])
+  -> CfNode [Stmt]
+  -> Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
   bb <- node ^? #_BasicBlock
   lastStmt <- lastMay $ getStmts node
