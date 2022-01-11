@@ -434,6 +434,9 @@ catchAndWarnStmt m = catchError m $ \e -> do
 warn :: SolverError -> Solver ()
 warn e = #errors %= (e :)
 
+svAggrAnd :: [SVal] -> SVal
+svAggrAnd = foldr svAnd svTrue
+
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
           -> Solver ()
 solveStmt = solveStmt_ solveExpr
@@ -922,3 +925,5 @@ solveStmtsWith_ :: SMTConfig
 solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. #result
+
+

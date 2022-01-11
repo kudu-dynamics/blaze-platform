@@ -193,5 +193,24 @@ domHelper f rootNode g =
 getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
 getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
 
-getPostDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
-getPostDominators rootNode = PostDominators . domHelper Dlt.pdom rootNode
+-- | Gets all post dominators. termNode should be the only terminal node in the graph.
+getPostDominators_ :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
+getPostDominators_ termNode = PostDominators . domHelper Dlt.pdom termNode
+
+-- | Gets all post dominators. If there are multiple terminal nodes,
+--   each will point to `dummyTermNode`.
+getPostDominators
+  :: (Hashable a, Eq a, Graph e attr a g)
+  => a
+  -> e
+  -> g
+  -> PostDominators a
+getPostDominators dummyTermNode dummyTermEdgeLabel g =
+  case HashSet.toList $ G.getTermNodes g of
+    [] -> domEmpty
+    [x] -> getPostDominators_ x g
+    xs -> domRemoveNode dummyTermNode
+      . getPostDominators_ dummyTermNode
+      $ foldl' (flip f) g xs
+      where
+        f x = G.addEdge (G.LEdge dummyTermEdgeLabel $ G.Edge x dummyTermNode)
