@@ -507,7 +507,6 @@ solveStmt_ solveExprFunc stmt = catchAndWarnStmt $ case stmt of
   Pil.Store x -> do
     let exprAddr = dstToExpr $ x ^. #addr
     sValue <- solveExprFunc $ x ^. #value
-    -- modify (\s -> s { mem = HashMap.insert exprAddr sValue $ s ^. #mem } )
     let insertStoreVar Nothing = Just [sValue]
         insertStoreVar (Just xs) = Just $ sValue : xs
     modify (\s -> s { stores = HashMap.alter insertStoreVar exprAddr $ s ^. #stores } )
