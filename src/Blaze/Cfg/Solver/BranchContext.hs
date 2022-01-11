@@ -39,6 +39,9 @@ data UndecidedIfBranches = UndecidedIfBranches
   , trueEdge :: CfEdge ()
   } deriving (Eq, Ord, Show, Generic)
 
+
+-- BranchingType and BranchCond will need to be refactored at some point
+-- to accomodate for switch statements, jump tables
 data BranchingType = OnlyTrue (CfEdge ())
                    | OnlyFalse (CfEdge ())
                    | Undecided UndecidedIfBranches
