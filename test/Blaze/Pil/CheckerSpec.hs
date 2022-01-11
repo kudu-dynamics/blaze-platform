@@ -12,7 +12,7 @@ import Blaze.Pil.Construct
 import Test.Hspec
 
 emptyTypeReport :: TypeReport
-emptyTypeReport = 
+emptyTypeReport =
   TypeReport mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 spec :: Spec
@@ -173,7 +173,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                , (Sym 2, DSRecursive (Sym 2)
                    . TPointer (DSVar $ Sym 3)
                    . DSType $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 2))
-               ] 
+               ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
 
@@ -183,7 +183,7 @@ spec = describe "Blaze.Pil.Checker" $ do
         checkVars = fmap (view #varSymTypeMap) . checkStmts
         -- checkSolutions = fmap (view solutions) . checkStmts
         -- checkVarEqMap = fmap (view varEqMap) . checkStmts
-        signed = DSType $ TVSign True
+        -- signed = DSType $ TVSign True
         -- unsigned = DSType $ TVSign False
         bw = DSType . TVBitWidth
         -- len = DSType . TVLength
@@ -204,7 +204,7 @@ spec = describe "Blaze.Pil.Checker" $ do
     it "def sub statement" $ do
       let stmts = [def "a" $ sub (const 888 4) (const 999 4) 4]
 
-          rvars = [("a", DSType (TInt (bw 32) signed))]
+          rvars = [("a", DSType (TInt (bw 32) (DSVar (Sym 4))))]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
 
@@ -228,7 +228,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
           -- ztype = DSType $ TZeroField btype
-          btype = DSType $ TInt (bw 32) signed
+          btype = DSType $ TInt (bw 32) (DSVar (Sym 4))
           rvars = [ ("a", DSType (TPointer (bw 64) btype))
                   , ("pointee", btype)
                   , ("b", btype)
@@ -242,8 +242,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "b" $ load (fieldAddr (var "a" 8) 0 8) 4
                   ]
 
-          -- ztype = DSType $ TZeroField btype
-          btype = DSType $ TInt (bw 32) signed
+          btype = DSType $ TInt (bw 32) (DSVar (Sym 4))
           rectype = DSType . TRecord
                     . HashMap.fromList
                     $ [( BitOffset 0, btype )]
@@ -253,15 +252,14 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
-      
+
     it "preserves type of pointee for stackLocalAddr" $ do
       let stmts = [ def "pointee" $ sub (const 888 4) (const 333 4) 4
                   , store (fieldAddr (var "a" 8) 0 8) (var "pointee" 4)
                   , def "b" $ load (fieldAddr (var "a" 8) 0 8) 4
                   ]
 
-          -- ztype = DSType $ TZeroField btype
-          btype = DSType $ TInt (bw 32) signed
+          btype = DSType $ TInt (bw 32) (DSVar (Sym 4))
           rectype = DSType . TRecord
                     . HashMap.fromList
                     $ [( BitOffset 0, btype )]
@@ -269,10 +267,10 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , ("pointee", btype)
                   , ("b", btype)
                   ]
-      
+
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
 
------------ records
+--- Records
 
     it "record with single field at offset 24 bytes" $ do
       let stmts = [ def "b" $ load (fieldAddr (var "a" 8) 24 8) 4
@@ -292,7 +290,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "d" $ sub (var "b" 4) (const 888 4) 4
                   ]
 
-          btype = DSType $ TInt (bw 32) signed
+          btype = DSType $ TInt (bw 32) (DSVar (Sym 29))
           rvars = [ ("rec_ptr", DSType (TPointer (bw 64)
                                         (DSType $ record [(24 * 8, btype)])))
                   , ("b", btype)
@@ -333,7 +331,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                                         , (8 * 8, DSVar $ Sym 17)])))
                   ]
 
-      PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))    
+      PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
 
 --       PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
 

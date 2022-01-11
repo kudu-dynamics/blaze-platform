@@ -22,7 +22,6 @@ newtype Sym = Sym Int
   deriving (Eq, Ord, Read, Show, Generic)
   deriving anyclass (FromJSON, ToJSON, Hashable)
 
-
 data TypeTag = TagDirty
              | TagSanitized
              | TagAllocedMemory
@@ -39,7 +38,7 @@ data PilType t = TBool
                | TBitVector { bitWidth :: t }
                | TPointer { bitWidth :: t, pointeeType :: t }
 
---               | TCString { len :: t }
+               | TCString { len :: t }
 
                | TArray { len :: t, elemType :: t }
                | TRecord (HashMap BitOffset -- todo: change bitwidth to 't'?
@@ -78,7 +77,6 @@ data ConstraintSymType = CSVar Sym
                        | CSType (PilType ConstraintSymType)
                        deriving (Eq, Ord, Read, Show, Generic)
 
-
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
                  | DSType (PilType DeepSymType)
@@ -109,6 +107,11 @@ data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
                         | CannotFindSymInSymMap
                         | UnhandledExpr
                         | UnhandledStmt
+                        | BadStubCallArgCount { funcName :: Text
+                                              , stmtIndex :: Int
+                                              , expected :: Int
+                                              , got :: Int
+                                              }
                         deriving (Eq, Ord, Show, Generic)
 
 data InfoExpression a = InfoExpression
@@ -171,6 +174,16 @@ data TypeReport = TypeReport
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------
 
+type CallConstraintGenerator = Sym -> [Sym] -> ConstraintGen ()
+
+newtype ConstraintGenCtx = ConstraintGenCtx
+  { -- hashmap index is (stmt index from IndexedStmts, function name)
+    callConstraintGenerators :: HashMap (Int, Text) CallConstraintGenerator
+  } deriving (Generic)
+
+emptyConstraintGenCtx :: ConstraintGenCtx
+emptyConstraintGenCtx = ConstraintGenCtx HashMap.empty
+
 data ConstraintGenState = ConstraintGenState
   { currentSym :: Sym
   , symMap :: HashMap Sym SymExpression
@@ -186,19 +199,21 @@ emptyConstraintGenState :: ConstraintGenState
 emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty HashMap.empty [] 0 HashMap.empty
 
 newtype ConstraintGen a = ConstraintGen
-  { _runConstraintGen :: ExceptT ConstraintGenError (StateT ConstraintGenState Identity) a }
+  { _runConstraintGen :: ExceptT ConstraintGenError (ReaderT ConstraintGenCtx (StateT ConstraintGenState Identity)) a }
   deriving newtype ( Functor
                    , Applicative
                    , Monad
                    , MonadError ConstraintGenError
                    , MonadState ConstraintGenState
+                   , MonadReader ConstraintGenCtx
                    )
 
-runConstraintGen :: ConstraintGen a -> ConstraintGenState -> (Either ConstraintGenError a, ConstraintGenState)
-runConstraintGen m ss = runIdentity . flip runStateT ss . runExceptT . _runConstraintGen $ m
+
+runConstraintGen :: ConstraintGen a -> (ConstraintGenCtx, ConstraintGenState) -> (Either ConstraintGenError a, ConstraintGenState)
+runConstraintGen m (ctx, ss) = runIdentity . flip runStateT ss . flip runReaderT ctx . runExceptT . _runConstraintGen $ m
 
 runConstraintGen_ :: ConstraintGen a -> (Either ConstraintGenError a, ConstraintGenState)
-runConstraintGen_ m = runConstraintGen m emptyConstraintGenState
+runConstraintGen_ m = runConstraintGen m (emptyConstraintGenCtx, emptyConstraintGenState)
 
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------

@@ -2,12 +2,12 @@
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import Blaze.Types.Pil ( Expression, Statement, PilVar, FuncVar )
+import Blaze.Types.Pil (Expression, Statement, PilVar, FuncVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
-import Blaze.Types.Pil.Checker
-import Blaze.Pil.Checker.Constraints ( addStmtTypeConstraints )
+import Blaze.Types.Pil.Checker hiding (stmtIndex)
+import Blaze.Pil.Checker.Constraints (addStmtTypeConstraints)
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Analysis ( originMapToGroupMap )
 import qualified Blaze.Pil.Analysis as Analysis

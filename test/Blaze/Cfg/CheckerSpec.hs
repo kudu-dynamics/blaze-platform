@@ -86,18 +86,23 @@ spec = describe "Blaze.Cfg.Checker" $ do
         mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
         checkVars = fmap (view $ _3 . #varSymTypeMap) . checkCfg
         signed = DSType $ TVSign True
+        unsigned = DSType $ TVSign False
         bw = DSType . TVBitWidth
     it "should check a single basic block" $ do
       let rootNode = bbp callerCtx "root"
-                     [ def "a" $ sub (const 888 4) (const 999 4) 4]
+                     [ def "x" $ zx (const 888 4) 4
+                     , def "a" $ sub (var "x" 4) (const 999 4) 4]
           cfg = mkCfg rootNode [] []
-          rvars = [("a", DSType (TInt (bw 32) signed))]
+          rvars = [ ("x", DSType (TInt (bw 32) unsigned))
+                  , ("a", DSType (TInt (bw 32) unsigned))
+                  ]
 
-      checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)          
+      checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)
 
     it "should check multiple basic blocks" $ do
       let rootNode = bbp callerCtx "root"
-                     [ def "a" $ sub (const 888 4) (const 999 4) 4]
+                     [ def "x" $ sx (const 888 4) 4
+                     , def "a" $ sub (var "x" 4) (const 999 4) 4]
           middleNode = bbp callerCtx "middle"
                      [ def "b" $ sub (const 888 4) (const 999 4) 4]
           returnNode = bbp callerCtx "return"
@@ -112,7 +117,7 @@ spec = describe "Blaze.Cfg.Checker" $ do
           rvars = [ ("a", DSType (TInt (bw 32) signed))
                   , ("b", DSType (TInt (bw 32) signed))
                   , ("c", DSType (TInt (bw 32) signed))
+                  , ("x", DSType (TInt (bw 32) signed))
                   ]
 
       PShow (checkVars cfg) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
-

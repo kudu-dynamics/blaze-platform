@@ -97,22 +97,23 @@ solveStmt ddg stmt = case stmt of
     pilSolveStmt = PilSolver.solveStmt_ (solveExpr ddg) stmt
 
 solveExpr :: DataDependenceGraph -> DSTExpression -> Solver SVal
-solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFallbackAndWarn $ case op of
-  -- TOOD: turn mem into immutable phi vars
-  Pil.LOAD _ -> fallbackAsFreeVar
-  _ -> PilSolver.solveExpr_ (solveExpr ddg) expr
-  where
-    fallbackAsFreeVar :: Solver SVal
-    fallbackAsFreeVar = case mdst of
-      Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"
-      Just dst -> catchError (makeSymVarOfType Nothing dst) $ \e ->
-          throwError $ ExprError xsym e
+solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = 
+  catchFallbackAndWarn $ case op of
+    -- TOOD: turn mem into immutable phi vars
+    Pil.LOAD _ -> fallbackAsFreeVar
+    _ -> PilSolver.solveExpr_ (solveExpr ddg) expr
+    where
+      fallbackAsFreeVar :: Solver SVal
+      fallbackAsFreeVar = case mdst of
+        Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"
+        Just dst -> catchError (makeSymVarOfType Nothing dst) $ \e ->
+            throwError $ ExprError xsym e
 
-    catchFallbackAndWarn :: Solver SVal -> Solver SVal
-    catchFallbackAndWarn m = catchError m $ \e -> do  
-      si <- use #currentStmtIndex
-      warn $ StmtError si e
-      fallbackAsFreeVar
+      catchFallbackAndWarn :: Solver SVal -> Solver SVal
+      catchFallbackAndWarn m = catchError m $ \e -> do  
+        si <- use #currentStmtIndex
+        warn $ StmtError si e
+        fallbackAsFreeVar
 
 ----------------------------
 

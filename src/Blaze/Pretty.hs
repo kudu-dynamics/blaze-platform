@@ -625,6 +625,7 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
     PI.TBitVector bitWidth -> [keywordToken "BitVector", tt " "] ++ tokenize bitWidth
     PI.TPointer bitWidth pointeeType ->
       [keywordToken "Pointer", tt " "] ++ tokenize bitWidth ++ [tt " "] ++ paren (tokenize pointeeType)
+    PI.TCString len -> [keywordToken "CString", tt " "] ++ tokenize len
     PI.TRecord m ->
       [keywordToken "Record", tt " "] ++
       delimitedList [tt "["] [tt ", "] [tt "]"] (rfield <$> HashMap.toList m)

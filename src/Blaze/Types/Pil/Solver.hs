@@ -59,10 +59,12 @@ data SolverState = SolverState
   , mem :: HashMap Expression SVal
   , currentStmtIndex :: Int
   , errors :: [SolverError]
+  , stores :: HashMap Expression [SVal]
   } deriving (Generic)
 
+
 emptyState :: SolverState
-emptyState = SolverState HashMap.empty HashMap.empty HashMap.empty 0 []
+emptyState = SolverState mempty mempty mempty 0 [] mempty
 
 -- TODO: it would be nice if the ExceptT wrapped `SymbolicT IO`
 -- so that we could use all the stuff requiring Provable instance

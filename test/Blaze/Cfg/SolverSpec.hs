@@ -89,11 +89,13 @@ spec = describe "Blaze.Cfg.Solver" $ do
         bw = DSType . TVBitWidth
     it "should check a single basic block" $ do
       let rootNode = bbp callerCtx "root"
-                     [ def "a" $ sub (const 888 4) (const 999 4) 4]
+                     [ def "x" $ sx (const 888 4) 4
+                     , def "a" $ sub (var "x" 4) (const 999 4) 4]
           cfg = mkCfg rootNode [] []
-          rvars = [("a", DSType (TInt (bw 32) signed))]
+          rvars = [ ("x", DSType (TInt (bw 32) signed))
+                  , ("a", DSType (TInt (bw 32) signed))]
 
-      checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)          
+      checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)
 
     it "should check multiple basic blocks" $ do
       let rootNode = bbp callerCtx "root"
@@ -109,9 +111,9 @@ spec = describe "Blaze.Cfg.Solver" $ do
                 [ CfEdge rootNode middleNode Cfg.UnconditionalBranch
                 , CfEdge middleNode returnNode Cfg.UnconditionalBranch
                 ]
-          rvars = [ ("a", DSType (TInt (bw 32) signed))
-                  , ("b", DSType (TInt (bw 32) signed))
-                  , ("c", DSType (TInt (bw 32) signed))
+          rvars = [ ("a", DSType (TInt (bw 32) (DSVar (Sym 25))))
+                  , ("b", DSType (TInt (bw 32) (DSVar (Sym 25))))
+                  , ("c", DSType (TInt (bw 32) (DSVar (Sym 25))))
                   ]
 
       PShow (checkVars cfg) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
