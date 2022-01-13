@@ -19,6 +19,8 @@ import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 import Binja.C.Structs ()
 import Foreign.Storable (peek)
 import Foreign.Marshal.Alloc (alloca)
+import qualified Data.ByteString as BS
+
 
 getBinaryViewTypesForData :: BNBinaryView -> IO [BNBinaryViewType]
 getBinaryViewTypesForData bv =
@@ -209,3 +211,7 @@ getStringRefs bv =
 
 createDatabase :: BNBinaryView -> FilePath -> IO Bool
 createDatabase bv fp = createSaveSettings >>= createDatabase' bv fp
+
+getDataBufferContents :: BNDataBuffer -> Bytes -> IO ByteString
+getDataBufferContents buf len
+  = getDataBufferContents' buf >>= BS.packCStringLen . (,fromIntegral len)
