@@ -100,7 +100,6 @@ void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap
 
 {#fun unsafe BNFreeDataBuffer as freeDataBuffer {withPtr* `BNDataBuffer'} -> `()' #}
 
-
 {#fun unsafe BNGetViewLength as getViewLength {withPtr* `BNBinaryView'} -> `Bytes' fromIntegral #}
 
 {#fun unsafe BNGetDefaultEndianness as getDefaultEndianness {withPtr* `BNBinaryView'} -> `BNEndianness' integralToEnum #}

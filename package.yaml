@@ -21,12 +21,10 @@ extra-source-files:
 dependencies:
   - attoparsec
   - base
-  - base16-bytestring
   - binary-analysis
   - bytestring
   - casing
   - containers
-  - cryptohash-md5
   - cryptonite
   - data-binary-ieee754
   - envy
@@ -245,7 +243,6 @@ tests:
     extra-libraries: binaryninjacore
     dependencies:
     - containers
-    - cryptohash-md5
     - binaryninja
     - hspec
     - text
