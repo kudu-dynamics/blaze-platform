@@ -56,7 +56,6 @@ emptyCtx = SolverCtx mempty mempty
 data SolverState = SolverState
   { varMap :: HashMap PilVar SVal
   , varNames :: HashMap PilVar Text
-  , mem :: HashMap Expression SVal
   , currentStmtIndex :: Int
   , errors :: [SolverError]
   , stores :: HashMap Expression [SVal]
@@ -64,7 +63,7 @@ data SolverState = SolverState
 
 
 emptyState :: SolverState
-emptyState = SolverState mempty mempty mempty 0 [] mempty
+emptyState = SolverState mempty mempty 0 [] mempty
 
 -- TODO: it would be nice if the ExceptT wrapped `SymbolicT IO`
 -- so that we could use all the stuff requiring Provable instance
@@ -119,7 +118,7 @@ runSolverWith solverCfg m (st, ctx) = runExceptT
     isZ3 :: SBV.Solver -> Bool
     isZ3 SBV.Z3 = True
     isZ3 _ = False
-    
+
 runSolverWith_ :: SMTConfig
                -> Bool
                -> Solver a
@@ -173,6 +172,5 @@ data SolverReport = SolverReport
   { result :: SolverResult
   , warnings :: [SolverError]
   } deriving (Eq, Ord, Show, Generic)
-  
-$(makeFieldsNoPrefix ''SolverReport)
 
+$(makeFieldsNoPrefix ''SolverReport)
