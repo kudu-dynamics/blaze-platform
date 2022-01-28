@@ -56,7 +56,9 @@ import Control.Lens as Exports
     makePrisms,
     over,
     use,
+    preview,
     view,
+    at,
     _Just,
     _Right,
     _Left,
@@ -183,7 +185,7 @@ twaddleUUID diff' uuid =
 
 unfoldWhileJustM :: Monad m => m (Maybe a) -> m [a]
 unfoldWhileJustM p = do
-  y <- p 
+  y <- p
   case y of
     Just z -> (z: ) <$> unfoldWhileJustM p
     _ -> return []

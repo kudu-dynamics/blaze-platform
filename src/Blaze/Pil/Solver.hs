@@ -168,12 +168,12 @@ constInteger = svInteger KUnbounded . fromIntegral
 --           : kindOf bv is bounded
 zeroExtend :: Bits -> SVal -> SVal
 zeroExtend targetWidth bv = case kindOf bv of
-  (KBounded s w)
-    | tw == w -> bv
-    | tw > w -> svJoin ext bv
+  (KBounded _s w)
+    | tw == w -> svUnsign bv
+    | tw > w -> svJoin ext $ svUnsign bv
     | otherwise -> P.error "zeroExtend: target width less than bitvec width"
     where
-      ext = svInteger (KBounded s $ fromIntegral targetWidth - w) 0
+      ext = svInteger (KBounded False $ fromIntegral targetWidth - w) 0
   _ -> P.error "zeroExtend: arg not bitvec"
   where
     tw = fromIntegral targetWidth
@@ -193,13 +193,13 @@ msb bv = case kindOf bv of
 --           : width bv > 0
 signExtend :: Bits -> SVal -> SVal
 signExtend targetWidth bv = case kindOf bv of
-  (KBounded s w)
-    | tw == w -> bv
-    | tw > w -> svJoin ext bv
+  (KBounded _s w)
+    | tw == w -> svSign bv
+    | tw > w -> svJoin ext $ svSign bv
     | otherwise -> P.error "signExtend: target width less than bitvec width"
     where
       tw = fromIntegral targetWidth
-      zero = svInteger (KBounded s $ fromIntegral targetWidth - w) 0
+      zero = svInteger (KBounded True $ fromIntegral targetWidth - w) 0
       ones = svNot zero
       ext  = svIte (msb bv) ones zero
   _ -> P.error "signExtend: bv must be Bounded kind"
@@ -680,13 +680,13 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
            $ "INT_TO_FLOAT: unsupported return type: " <> show k
 
   Pil.LOAD x -> do
-    m <- use #mem
+    s <- use #stores
     let key = dstToExpr $ x ^. #src
-    maybe (createFreeVar key) return $ HashMap.lookup key m
+    maybe (createFreeVar key) return $ HashMap.lookup key s >>= headMay
     where
       createFreeVar k = do
         freeVar <- fallbackAsFreeVar
-        #mem %= HashMap.insert k freeVar
+        #stores %= HashMap.insert k [freeVar]
         return freeVar
 
   Pil.LOW_PART x -> integralUnOp x (lowPart sz)
@@ -978,5 +978,3 @@ solveStmtsWith_ :: SMTConfig
 solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. #result
-
-

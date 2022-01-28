@@ -13,7 +13,6 @@ import Blaze.Types.Cfg hiding (nodes)
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit, NoRet), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
-import Control.Lens (preview)
 import qualified Data.HashSet as HashSet
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
@@ -144,4 +143,3 @@ evalCondition bn = case bn ^. #cond . #op of
 
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
-
