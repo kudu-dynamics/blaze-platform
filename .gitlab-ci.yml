@@ -1,5 +1,5 @@
 stages:
-  - lint
+  - check
   - build
   - test
   - push
@@ -55,8 +55,13 @@ workflow:
   extends: .job
   image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:pipeline-${CI_PIPELINE_IID}
 
+# stage: check
+include:
+  project: 'kevino/filter-check'
+  file: '/filtercheck.gitlab-ci.yml'
+
 lint:
-  stage: lint
+  stage: check
   extends: .job
   image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
   needs: []
