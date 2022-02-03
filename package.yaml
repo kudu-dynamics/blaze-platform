@@ -25,6 +25,7 @@ dependencies:
   - bytestring
   - casing
   - containers
+  - cryptonite
   - data-binary-ieee754
   - envy
   - language-c

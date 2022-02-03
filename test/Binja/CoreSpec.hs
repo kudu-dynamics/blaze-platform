@@ -2,7 +2,7 @@
 
 module Binja.CoreSpec (spec) where
 
-import Binja.Prelude
+import Binja.Prelude hiding (hash)
 
 import qualified Binja.Analysis as An
 import qualified Binja.BasicBlock as BB
@@ -13,6 +13,7 @@ import Binja.C.Enums (
 import qualified Binja.Core as BN
 import qualified Binja.Function as Func
 import qualified Data.Map as Map
+import Crypto.Hash (MD5, hash, Digest)
 import Test.Hspec
 
 diveBin :: FilePath
@@ -26,9 +27,8 @@ diveBlockCount = Map.fromList [("__do_global_dtors_aux", 3), ("__gmon_start__", 
 
 spec :: Spec
 spec = describe "Binja.Core" $ do
+  ebv <- runIO $ BN.getBinaryView diveBin
   context "Dive_Logger" $ do
-    ebv <- runIO $ BN.getBinaryView diveBin
-
     it "should load BV" $ do
       ebv `shouldSatisfy` isRight
 
@@ -104,3 +104,17 @@ spec = describe "Binja.Core" $ do
 
       result' <- An.getParametersForAnalysis bv
       result' ^. An.maxFunctionSize `shouldBe` 66560
+
+  context "getOriginalBinary" $ do
+    let (Right bv) = ebv
+    
+    er <- runIO $ BN.getOriginalBinary bv
+
+    it "should should not error when getting original binary" $ do
+      isRight er `shouldBe` True
+
+    let (Right ogb) = er
+        r = show (hash ogb :: Digest MD5) :: Text
+    
+    it "should get exact original binary" $ do
+      r `shouldBe` "58d7e707a6d51ec96e87c4c76747f24f"

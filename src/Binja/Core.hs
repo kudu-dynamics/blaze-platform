@@ -4,6 +4,7 @@ module Binja.Core
   , getBinaryView
   , getFunctionsContaining
   , getLLILInstructionIndexAtAddress
+  , getOriginalBinary
   , saveBndb
   ) where
 
@@ -90,6 +91,15 @@ getBinaryView fp = runExceptT $ do
           liftIO $ BN.createBinaryViewOfType vt bv'
         Just bv' -> return bv'
 
+getOriginalBinary :: BNBinaryView -> IO (Either Text ByteString)
+getOriginalBinary bv = do
+  meta <- BN.getFileForView bv
+  getFileViewOfType meta "Raw" >>= \case
+    Nothing -> return $ Left "Could not get raw file from bndb."
+    Just bv' -> do
+      len <- BN.getViewLength bv'
+      vb <- BN.readViewBuffer bv' 0 len >>= BN.duplicateDataBuffer
+      Right <$> getDataBufferContents vb len
 
 getFunctionsContaining :: BNBinaryView -> Address -> IO (Set Function)
 getFunctionsContaining bv addr = do

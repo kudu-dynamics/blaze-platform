@@ -92,6 +92,16 @@ void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap
 
 {#fun unsafe BNGetDefaultPlatform as getDefaultPlatform {withPtr* `BNBinaryView'} -> `BNPlatform' safePtr* #}
 
+{#fun unsafe BNReadViewBuffer as readViewBuffer {withPtr* `BNBinaryView', fromIntegral `Word64', fromIntegral `Bytes'} -> `BNDataBuffer' safePtr* #}
+
+{#fun unsafe BNDuplicateDataBuffer as duplicateDataBuffer {withPtr* `BNDataBuffer'} -> `BNDataBuffer' safePtr* #}
+
+{#fun unsafe BNGetDataBufferContents as getDataBufferContents' {withPtr* `BNDataBuffer'} -> `Ptr CChar' castPtr #}
+
+{#fun unsafe BNFreeDataBuffer as freeDataBuffer {withPtr* `BNDataBuffer'} -> `()' #}
+
+{#fun unsafe BNGetViewLength as getViewLength {withPtr* `BNBinaryView'} -> `Bytes' fromIntegral #}
+
 {#fun unsafe BNGetDefaultEndianness as getDefaultEndianness {withPtr* `BNBinaryView'} -> `BNEndianness' integralToEnum #}
 
 {#fun unsafe BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
