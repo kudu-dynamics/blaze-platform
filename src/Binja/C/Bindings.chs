@@ -27,183 +27,183 @@ import Binja.Types.TypeLibrary (BNQualifiedNameAndType, BNFunctionParameter)
 import Binja.Types.Variable
 
 #include <binaryninjacore.h>
-  
+
 {#context lib="binaryninjacore" #}
 
-{#fun unsafe BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
+{#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
-{#fun unsafe BNIsFunctionTooLarge as isFunctionTooLarge_ {withPtr* `BNFunction'} -> `Bool' toBool #}
+{#fun BNIsFunctionTooLarge as isFunctionTooLarge_ {withPtr* `BNFunction'} -> `Bool' toBool #}
 
-{#fun unsafe BNIsFunctionAnalysisSkipped as isFunctionAnalysisSkipped_ {withPtr* `BNFunction'} -> `Bool' toBool #}
+{#fun BNIsFunctionAnalysisSkipped as isFunctionAnalysisSkipped_ {withPtr* `BNFunction'} -> `Bool' toBool #}
 
-{#fun unsafe BNGetAnalysisSkipReason as getAnalysisSkipReason_ {withPtr* `BNFunction'} -> `BNAnalysisSkipReason' integralToEnum #}
+{#fun BNGetAnalysisSkipReason as getAnalysisSkipReason_ {withPtr* `BNFunction'} -> `BNAnalysisSkipReason' integralToEnum #}
 
-{#fun unsafe BNGetFunctionAnalysisSkipOverride as getFunctionAnalysisSkipOverride_ {withPtr* `BNFunction'} -> `BNFunctionAnalysisSkipOverride' integralToEnum #}
+{#fun BNGetFunctionAnalysisSkipOverride as getFunctionAnalysisSkipOverride_ {withPtr* `BNFunction'} -> `BNFunctionAnalysisSkipOverride' integralToEnum #}
 
-{#fun unsafe BNSetFunctionAnalysisSkipOverride as setFunctionAnalysisSkipOverride_ {withPtr* `BNFunction', enumToIntegral `BNFunctionAnalysisSkipOverride'} -> `()' #}
+{#fun BNSetFunctionAnalysisSkipOverride as setFunctionAnalysisSkipOverride_ {withPtr* `BNFunction', enumToIntegral `BNFunctionAnalysisSkipOverride'} -> `()' #}
 
 #c
-void wrapBNGetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap) { 
-  *ap = BNGetParametersForAnalysis(view); 
+void wrapBNGetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap) {
+  *ap = BNGetParametersForAnalysis(view);
 }
 #endc
 
-{#fun unsafe wrapBNGetParametersForAnalysis as wrapBNGetParametersForAnalysis {withPtr* `BNBinaryView', castPtr `Ptr BNAnalysisParameters'} -> `()' #}
+{#fun wrapBNGetParametersForAnalysis as wrapBNGetParametersForAnalysis {withPtr* `BNBinaryView', castPtr `Ptr BNAnalysisParameters'} -> `()' #}
 
 #c
-void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap) { 
-  BNSetParametersForAnalysis(view, *ap); 
+void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap) {
+  BNSetParametersForAnalysis(view, *ap);
 }
 #endc
 
-{#fun unsafe wrapBNSetParametersForAnalysis as wrapBNSetParametersForAnalysis {withPtr* `BNBinaryView', castPtr `Ptr BNAnalysisParameters'} -> `()' #}
+{#fun wrapBNSetParametersForAnalysis as wrapBNSetParametersForAnalysis {withPtr* `BNBinaryView', castPtr `Ptr BNAnalysisParameters'} -> `()' #}
 
-{#fun unsafe BNUpdateAnalysisAndWait as updateAnalysisAndWait {withPtr* `BNBinaryView'} -> `()' #}
+{#fun BNUpdateAnalysisAndWait as updateAnalysisAndWait {withPtr* `BNBinaryView'} -> `()' #}
 
-{#fun unsafe BNReanalyzeAllFunctions as reanalyzeAllFunctions {withPtr* `BNBinaryView'} -> `()' #}
+{#fun BNReanalyzeAllFunctions as reanalyzeAllFunctions {withPtr* `BNBinaryView'} -> `()' #}
 
-{#fun unsafe BNGetFunctionData as getFunctionData_ {withPtr* `BNFunction'} -> `BNBinaryView' safePtr* #}
+{#fun BNGetFunctionData as getFunctionData_ {withPtr* `BNFunction'} -> `BNBinaryView' safePtr* #}
 
-{#fun unsafe BNUpdateAnalysis as updateAnalysis {withPtr* `BNBinaryView'} -> `()' #}
+{#fun BNUpdateAnalysis as updateAnalysis {withPtr* `BNBinaryView'} -> `()' #}
 
-{#fun unsafe BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' ptrListOut #}
+{#fun BNGetBinaryViewTypesForData as getBinaryViewTypesForData' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBinaryViewType)' ptrListOut #}
 
-{#fun unsafe BNFreeBinaryViewTypeList as freeBinaryViewTypeList {ptrListIn `List (Ptr BNBinaryViewType)'} -> `()' #}
+{#fun BNFreeBinaryViewTypeList as freeBinaryViewTypeList {ptrListIn `List (Ptr BNBinaryViewType)'} -> `()' #}
 
-{#fun unsafe BNSaveToFilename as saveToFilename {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
+{#fun BNSaveToFilename as saveToFilename {withPtr* `BNBinaryView', `String'} -> `Bool' toBool #}
 
-{#fun unsafe BNCreateSaveSettings as createSaveSettings {} -> `BNSaveSettings' safePtr* #}
+{#fun BNCreateSaveSettings as createSaveSettings {} -> `BNSaveSettings' safePtr* #}
 
-{#fun unsafe BNCreateDatabase as createDatabase' {withPtr* `BNBinaryView', `String', withPtr* `BNSaveSettings'} -> `Bool' toBool #}
+{#fun BNCreateDatabase as createDatabase' {withPtr* `BNBinaryView', `String', withPtr* `BNSaveSettings'} -> `Bool' toBool #}
 
-{#fun unsafe BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
+{#fun BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
 
-{#fun unsafe BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `Word64'} -> `()' #}
+{#fun BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `Word64'} -> `()' #}
 
-{#fun unsafe BNNewFunctionReference as newFunctionReference {withPtr* `BNFunction'} -> `BNFunction' safePtr* #}
+{#fun BNNewFunctionReference as newFunctionReference {withPtr* `BNFunction'} -> `BNFunction' safePtr* #}
 
-{#fun unsafe BNGetFileForView as getFileForView {withPtr* `BNBinaryView'} -> `BNFileMetadata' safePtr* #}
+{#fun BNGetFileForView as getFileForView {withPtr* `BNBinaryView'} -> `BNFileMetadata' safePtr* #}
 
-{#fun unsafe BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' safePtr* #}
+{#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' safePtr* #}
 
-{#fun unsafe BNGetFileViewOfType as getFileViewOfType {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
+{#fun BNGetFileViewOfType as getFileViewOfType {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-{#fun unsafe BNCreateBinaryViewOfType as createBinaryViewOfType {withPtr* `BNBinaryViewType', withPtr* `BNBinaryView'} -> `BNBinaryView' safePtr* #}
+{#fun BNCreateBinaryViewOfType as createBinaryViewOfType {withPtr* `BNBinaryViewType', withPtr* `BNBinaryView'} -> `BNBinaryView' safePtr* #}
 
-{#fun unsafe BNGetDefaultPlatform as getDefaultPlatform {withPtr* `BNBinaryView'} -> `BNPlatform' safePtr* #}
+{#fun BNGetDefaultPlatform as getDefaultPlatform {withPtr* `BNBinaryView'} -> `BNPlatform' safePtr* #}
 
-{#fun unsafe BNReadViewBuffer as readViewBuffer {withPtr* `BNBinaryView', fromIntegral `Word64', fromIntegral `Bytes'} -> `BNDataBuffer' safePtr* #}
+{#fun BNReadViewBuffer as readViewBuffer {withPtr* `BNBinaryView', fromIntegral `Word64', fromIntegral `Bytes'} -> `BNDataBuffer' safePtr* #}
 
-{#fun unsafe BNDuplicateDataBuffer as duplicateDataBuffer {withPtr* `BNDataBuffer'} -> `BNDataBuffer' safePtr* #}
+{#fun BNDuplicateDataBuffer as duplicateDataBuffer {withPtr* `BNDataBuffer'} -> `BNDataBuffer' safePtr* #}
 
-{#fun unsafe BNGetDataBufferContents as getDataBufferContents' {withPtr* `BNDataBuffer'} -> `Ptr CChar' castPtr #}
+{#fun BNGetDataBufferContents as getDataBufferContents' {withPtr* `BNDataBuffer'} -> `Ptr CChar' castPtr #}
 
-{#fun unsafe BNFreeDataBuffer as freeDataBuffer {withPtr* `BNDataBuffer'} -> `()' #}
+{#fun BNFreeDataBuffer as freeDataBuffer {withPtr* `BNDataBuffer'} -> `()' #}
 
-{#fun unsafe BNGetViewLength as getViewLength {withPtr* `BNBinaryView'} -> `Bytes' fromIntegral #}
+{#fun BNGetViewLength as getViewLength {withPtr* `BNBinaryView'} -> `Bytes' fromIntegral #}
 
-{#fun unsafe BNGetDefaultEndianness as getDefaultEndianness {withPtr* `BNBinaryView'} -> `BNEndianness' integralToEnum #}
+{#fun BNGetDefaultEndianness as getDefaultEndianness {withPtr* `BNBinaryView'} -> `BNEndianness' integralToEnum #}
 
-{#fun unsafe BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
+{#fun BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
 
-{#fun unsafe BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
+{#fun BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-{#fun unsafe BNGetStartOffset as getStartOffset {withPtr* `BNBinaryView'} -> `Address' fromIntegral #}
+{#fun BNGetStartOffset as getStartOffset {withPtr* `BNBinaryView'} -> `Address' fromIntegral #}
 
-{#fun unsafe BNSetBundledPluginDirectory as setBundledPluginDirectory {`String'} -> `()' #}
+{#fun BNSetBundledPluginDirectory as setBundledPluginDirectory {`String'} -> `()' #}
 
-{#fun unsafe BNInitCorePlugins as initCorePlugins {} -> `()' #}
+{#fun BNInitCorePlugins as initCorePlugins {} -> `()' #}
 
-{#fun unsafe BNInitUserPlugins as initUserPlugins {} -> `()' #}
+{#fun BNInitUserPlugins as initUserPlugins {} -> `()' #}
 
-{#fun unsafe BNInitRepoPlugins as initRepoPlugins {} -> `()' #}
+{#fun BNInitRepoPlugins as initRepoPlugins {} -> `()' #}
 
-{#fun unsafe BNIsLicenseValidated as isLicenseValidated {} -> `Bool' toBool #}
+{#fun BNIsLicenseValidated as isLicenseValidated {} -> `Bool' toBool #}
 
-{#fun unsafe BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
+{#fun BNOpenExistingDatabase as openExistingDatabase {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
 
-{#fun unsafe BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' bytesToAddressWidth #}
+{#fun BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' bytesToAddressWidth #}
 
 ---- Stream reader
 
-{#fun unsafe BNCreateBinaryReader as createBinaryReader {withPtr* `BNBinaryView'} -> `Maybe BNBinaryReader' nilable* #}
+{#fun BNCreateBinaryReader as createBinaryReader {withPtr* `BNBinaryView'} -> `Maybe BNBinaryReader' nilable* #}
 
-{#fun unsafe BNFreeBinaryReader as freeBinaryReader {withPtr* `BNBinaryReader'} -> `()' #}
+{#fun BNFreeBinaryReader as freeBinaryReader {withPtr* `BNBinaryReader'} -> `()' #}
 
-{#fun unsafe BNGetBinaryReaderEndianness as getBinaryReaderEndianness {withPtr* `BNBinaryReader'} -> `BNEndianness' integralToEnum #}
+{#fun BNGetBinaryReaderEndianness as getBinaryReaderEndianness {withPtr* `BNBinaryReader'} -> `BNEndianness' integralToEnum #}
 
-{#fun unsafe BNSetBinaryReaderEndianness as setBinaryReaderEndianness {withPtr* `BNBinaryReader', enumToIntegral `BNEndianness'} -> `()' #}
+{#fun BNSetBinaryReaderEndianness as setBinaryReaderEndianness {withPtr* `BNBinaryReader', enumToIntegral `BNEndianness'} -> `()' #}
 
-{#fun unsafe BNReadData as readData' {withPtr* `BNBinaryReader', castPtr `List Word8', fromIntegral `Bytes'} -> `Bool' toBool #}
+{#fun BNReadData as readData' {withPtr* `BNBinaryReader', castPtr `List Word8', fromIntegral `Bytes'} -> `Bool' toBool #}
 
-{#fun unsafe BNRead8 as read8' {withPtr* `BNBinaryReader', alloca- `Word8' peekIntConv*} -> `Bool' toBool #}
+{#fun BNRead8 as read8' {withPtr* `BNBinaryReader', alloca- `Word8' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNRead16 as read16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
+{#fun BNRead16 as read16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNRead32 as read32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
+{#fun BNRead32 as read32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNRead64 as read64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
+{#fun BNRead64 as read64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNReadLE16 as readLE16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
+{#fun BNReadLE16 as readLE16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNReadLE32 as readLE32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
+{#fun BNReadLE32 as readLE32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNReadLE64 as readLE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
+{#fun BNReadLE64 as readLE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNReadBE16 as readBE16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
+{#fun BNReadBE16 as readBE16' {withPtr* `BNBinaryReader', alloca- `Word16' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNReadBE32 as readBE32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
+{#fun BNReadBE32 as readBE32' {withPtr* `BNBinaryReader', alloca- `Word32' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNReadBE64 as readBE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
+{#fun BNReadBE64 as readBE64' {withPtr* `BNBinaryReader', alloca- `Word64' peekIntConv*} -> `Bool' toBool #}
 
-{#fun unsafe BNGetReaderPosition as getReaderPosition {withPtr* `BNBinaryReader'} -> `Bytes' fromIntegral #}
+{#fun BNGetReaderPosition as getReaderPosition {withPtr* `BNBinaryReader'} -> `Bytes' fromIntegral #}
 
-{#fun unsafe BNSeekBinaryReader as seekBinaryReader {withPtr* `BNBinaryReader', fromIntegral `Bytes'} -> `()' #}
+{#fun BNSeekBinaryReader as seekBinaryReader {withPtr* `BNBinaryReader', fromIntegral `Bytes'} -> `()' #}
 
-{#fun unsafe BNSeekBinaryReaderRelative as seekBinaryReaderRelative {withPtr* `BNBinaryReader', fromIntegral `Bytes'} -> `()' #}
+{#fun BNSeekBinaryReaderRelative as seekBinaryReaderRelative {withPtr* `BNBinaryReader', fromIntegral `Bytes'} -> `()' #}
 
-{#fun unsafe BNIsEndOfFile as isEndOfFile {withPtr* `BNBinaryReader'} -> `Bool' toBool #}
+{#fun BNIsEndOfFile as isEndOfFile {withPtr* `BNBinaryReader'} -> `Bool' toBool #}
 
 
 ---- strings
 
-{#fun unsafe BNGetStringAtAddress as getStringAtAddress'
+{#fun BNGetStringAtAddress as getStringAtAddress'
   {withPtr* `BNBinaryView', fromIntegral `Address', allocaStruct- `BNStringReference' toStruct*} -> `Bool' toBool #}
 
-{#fun unsafe BNGetStrings as getStrings'
+{#fun BNGetStrings as getStrings'
   {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List BNStringReference' castPtr #}
 
-{#fun unsafe BNFreeStringReferenceList as freeStringReferenceList
+{#fun BNFreeStringReferenceList as freeStringReferenceList
   {castPtr `List BNStringReference'} -> `()' #}
 
 
 ---- functions
 
-{#fun unsafe BNGetFunctionStart as getFunctionStart {withPtr* `BNFunction'} -> `Address' fromIntegral #}
+{#fun BNGetFunctionStart as getFunctionStart {withPtr* `BNFunction'} -> `Address' fromIntegral #}
 
-{#fun unsafe BNGetFunctionSymbol as getFunctionSymbol {withPtr* `BNFunction'} -> `BNSymbol' safePtr* #}
+{#fun BNGetFunctionSymbol as getFunctionSymbol {withPtr* `BNFunction'} -> `BNSymbol' safePtr* #}
 
-{#fun unsafe BNGetFunctionLowLevelIL as getFunctionLowLevelIL {withPtr* `BNFunction'} -> `BNLowLevelILFunction' safePtr* #}
+{#fun BNGetFunctionLowLevelIL as getFunctionLowLevelIL {withPtr* `BNFunction'} -> `BNLowLevelILFunction' safePtr* #}
 
-{#fun unsafe BNGetLowLevelILSSAForm as getLowLevelILSSAForm {withPtr* `BNLowLevelILFunction'} -> `BNLowLevelILFunction' safePtr* #}
+{#fun BNGetLowLevelILSSAForm as getLowLevelILSSAForm {withPtr* `BNLowLevelILFunction'} -> `BNLowLevelILFunction' safePtr* #}
 
-{#fun unsafe BNGetFunctionMediumLevelIL as getFunctionMediumLevelIL {withPtr* `BNFunction'} -> `BNMediumLevelILFunction' safePtr* #}
+{#fun BNGetFunctionMediumLevelIL as getFunctionMediumLevelIL {withPtr* `BNFunction'} -> `BNMediumLevelILFunction' safePtr* #}
 
-{#fun unsafe BNGetMediumLevelILSSAForm as getMediumLevelILSSAForm {withPtr* `BNMediumLevelILFunction'} -> `BNMediumLevelILFunction' safePtr* #}
+{#fun BNGetMediumLevelILSSAForm as getMediumLevelILSSAForm {withPtr* `BNMediumLevelILFunction'} -> `BNMediumLevelILFunction' safePtr* #}
 
-{#fun unsafe BNGetAnalysisFunction as getGetAnalysisFunction {withPtr* `BNBinaryView', withPtr* `BNPlatform', fromIntegral `Address'} -> `Maybe BNFunction' nilable* #}
+{#fun BNGetAnalysisFunction as getGetAnalysisFunction {withPtr* `BNBinaryView', withPtr* `BNPlatform', fromIntegral `Address'} -> `Maybe BNFunction' nilable* #}
 
 #c
-void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesWithConfidence* pvs) { 
-  *pvs = BNGetFunctionParameterVariables(func); 
+void wrapBNGetFunctionParameterVariables(BNFunction* func, BNParameterVariablesWithConfidence* pvs) {
+  *pvs = BNGetFunctionParameterVariables(func);
 }
 #endc
 
-{#fun unsafe wrapBNGetFunctionParameterVariables as wrapBNGetFunctionParameterVariables {withPtr* `BNFunction', castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
+{#fun wrapBNGetFunctionParameterVariables as wrapBNGetFunctionParameterVariables {withPtr* `BNFunction', castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
 
-{#fun unsafe BNFreeParameterVariables as freeParameterVariables {castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
+{#fun BNFreeParameterVariables as freeParameterVariables {castPtr `Ptr BNParameterVariablesWithConfidence'} -> `()' #}
 
-{#fun unsafe BNGetFunctionType as getFunctionType {withPtr* `BNFunction'} -> `BNType' safePtr* #}
+{#fun BNGetFunctionType as getFunctionType {withPtr* `BNFunction'} -> `BNType' safePtr* #}
 
 #c
 void wrapBNFunctionHasVariableArguments(BNFunction* func, BNBoolWithConfidence* b) {
@@ -211,81 +211,81 @@ void wrapBNFunctionHasVariableArguments(BNFunction* func, BNBoolWithConfidence* 
 }
 #endc
 
-{#fun unsafe wrapBNFunctionHasVariableArguments as wrapBNFunctionHasVariableArguments {withPtr* `BNFunction', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
+{#fun wrapBNFunctionHasVariableArguments as wrapBNFunctionHasVariableArguments {withPtr* `BNFunction', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
 
 ---- symbols
 
-{#fun unsafe BNGetSymbolRawName as getSymbolRawName {withPtr* `BNSymbol'} -> `String' #}
+{#fun BNGetSymbolRawName as getSymbolRawName {withPtr* `BNSymbol'} -> `String' #}
 
-{#fun unsafe BNGetSymbolFullName as getSymbolFullName {withPtr* `BNSymbol'} -> `String' #}
+{#fun BNGetSymbolFullName as getSymbolFullName {withPtr* `BNSymbol'} -> `String' #}
 
-{#fun unsafe BNGetSymbolShortName as getSymbolShortName {withPtr* `BNSymbol'} -> `String' #}
+{#fun BNGetSymbolShortName as getSymbolShortName {withPtr* `BNSymbol'} -> `String' #}
 
-{#fun unsafe BNGetSymbolByAddress as getSymbolByAddress {withPtr* `BNBinaryView', fromIntegral `Address', withMaybeStruct* `Maybe BNNameSpace'} -> `Maybe BNSymbol' nilable* #}
+{#fun BNGetSymbolByAddress as getSymbolByAddress {withPtr* `BNBinaryView', fromIntegral `Address', withMaybeStruct* `Maybe BNNameSpace'} -> `Maybe BNSymbol' nilable* #}
 
 
 ---- architecture
-{#fun unsafe BNGetDefaultArchitecture as getDefaultArchitecture {withPtr* `BNBinaryView'} -> `BNArchitecture' safePtr* #}
+{#fun BNGetDefaultArchitecture as getDefaultArchitecture {withPtr* `BNBinaryView'} -> `BNArchitecture' safePtr* #}
 
-{#fun unsafe BNGetAllArchitectureSemanticFlagClasses as getAllArchitectureSemanticFlagClasses' {withPtr* `BNArchitecture', alloca- `CSize' peekIntConv*} -> `List CUInt' id #}
+{#fun BNGetAllArchitectureSemanticFlagClasses as getAllArchitectureSemanticFlagClasses' {withPtr* `BNArchitecture', alloca- `CSize' peekIntConv*} -> `List CUInt' id #}
 
-{#fun unsafe BNGetArchitectureSemanticFlagClassName as getArchitectureSemanticFlagClassName {withPtr* `BNArchitecture', `Word32'} -> `String' #}
+{#fun BNGetArchitectureSemanticFlagClassName as getArchitectureSemanticFlagClassName {withPtr* `BNArchitecture', `Word32'} -> `String' #}
 
-{#fun unsafe BNGetAllArchitectureSemanticFlagGroups as getAllArchitectureSemanticFlagGroups' {withPtr* `BNArchitecture', alloca- `CSize' peekIntConv*} -> `List CUInt' id #}
+{#fun BNGetAllArchitectureSemanticFlagGroups as getAllArchitectureSemanticFlagGroups' {withPtr* `BNArchitecture', alloca- `CSize' peekIntConv*} -> `List CUInt' id #}
 
-{#fun unsafe BNGetArchitectureSemanticFlagGroupName as getArchitectureSemanticFlagGroupName {withPtr* `BNArchitecture', `Word32'} -> `String' #}
+{#fun BNGetArchitectureSemanticFlagGroupName as getArchitectureSemanticFlagGroupName {withPtr* `BNArchitecture', `Word32'} -> `String' #}
 
-{#fun unsafe BNGetArchitectureName as getArchitectureName {withPtr* `BNArchitecture'} -> `String' #}
+{#fun BNGetArchitectureName as getArchitectureName {withPtr* `BNArchitecture'} -> `String' #}
 
-{#fun unsafe BNLowLevelILFreeOperandList as lowLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
+{#fun BNLowLevelILFreeOperandList as lowLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
 
 
 ---- basic blocks
 
-{#fun unsafe BNGetBasicBlockStart as getBasicBlockStart {withPtr* `BNBasicBlock'} -> `InstructionIndex ()' fromIntegral #}
+{#fun BNGetBasicBlockStart as getBasicBlockStart {withPtr* `BNBasicBlock'} -> `InstructionIndex ()' fromIntegral #}
 
-{#fun unsafe BNGetBasicBlockEnd as getBasicBlockEnd {withPtr* `BNBasicBlock'} -> `InstructionIndex ()' fromIntegral #}
+{#fun BNGetBasicBlockEnd as getBasicBlockEnd {withPtr* `BNBasicBlock'} -> `InstructionIndex ()' fromIntegral #}
 
-{#fun unsafe BNGetBasicBlockFunction as getBasicBlockFunction {withPtr* `BNBasicBlock'} -> `BNFunction' safePtr* #}
+{#fun BNGetBasicBlockFunction as getBasicBlockFunction {withPtr* `BNBasicBlock'} -> `BNFunction' safePtr* #}
 
-{#fun unsafe BNGetFunctionBasicBlockList as getFunctionBasicBlockList' {withPtr* `BNFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
+{#fun BNGetFunctionBasicBlockList as getFunctionBasicBlockList' {withPtr* `BNFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
-{#fun unsafe BNGetMediumLevelILBasicBlockList as getMediumLevelILBasicBlockList' {withPtr* `BNMediumLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
+{#fun BNGetMediumLevelILBasicBlockList as getMediumLevelILBasicBlockList' {withPtr* `BNMediumLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
-{#fun unsafe BNGetLowLevelILBasicBlockList as getLowLevelILBasicBlockList' {withPtr* `BNLowLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
+{#fun BNGetLowLevelILBasicBlockList as getLowLevelILBasicBlockList' {withPtr* `BNLowLevelILFunction', alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
-{#fun unsafe BNFreeBasicBlockList as freeBasicBlockList {ptrListIn `List (Ptr BNBasicBlock)', `Word64'} -> `()' #}
+{#fun BNFreeBasicBlockList as freeBasicBlockList {ptrListIn `List (Ptr BNBasicBlock)', `Word64'} -> `()' #}
 
-{#fun unsafe BNNewBasicBlockReference as newBasicBlockReference {withPtr* `BNBasicBlock'} -> `BNBasicBlock' safePtr* #}
+{#fun BNNewBasicBlockReference as newBasicBlockReference {withPtr* `BNBasicBlock'} -> `BNBasicBlock' safePtr* #}
 
-{#fun unsafe BNGetBasicBlocksForAddress as getBasicBlocksForAddress' {withPtr* `BNBinaryView', fromIntegral `Address',  alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
+{#fun BNGetBasicBlocksForAddress as getBasicBlocksForAddress' {withPtr* `BNBinaryView', fromIntegral `Address',  alloca- `CSize' peekIntConv*} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
-{#fun unsafe BNGetLowLevelILBasicBlockForInstruction as getLowLevelILBasicBlockForInstruction {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `Maybe BNBasicBlock' nilable* #}
+{#fun BNGetLowLevelILBasicBlockForInstruction as getLowLevelILBasicBlockForInstruction {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `Maybe BNBasicBlock' nilable* #}
 
-{#fun unsafe BNGetMediumLevelILBasicBlockForInstruction as getMediumLevelILBasicBlockForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `Maybe BNBasicBlock' nilable* #}
+{#fun BNGetMediumLevelILBasicBlockForInstruction as getMediumLevelILBasicBlockForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `Maybe BNBasicBlock' nilable* #}
 
-{#fun unsafe BNGetBasicBlockOutgoingEdges as getBasicBlockOutgoingEdges' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*} -> `List BNBasicBlockEdge' castPtr #}
+{#fun BNGetBasicBlockOutgoingEdges as getBasicBlockOutgoingEdges' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*} -> `List BNBasicBlockEdge' castPtr #}
 
-{#fun unsafe BNFreeBasicBlockEdgeList as freeBasicBlockEdgeList {castPtr `List BNBasicBlockEdge', `Word64'} -> `()' #}
+{#fun BNFreeBasicBlockEdgeList as freeBasicBlockEdgeList {castPtr `List BNBasicBlockEdge', `Word64'} -> `()' #}
 
-{#fun unsafe BNGetBasicBlockDominators as getBasicBlockDominators' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*, `Bool'} -> `List (Ptr BNBasicBlock)' ptrListOut #}
+{#fun BNGetBasicBlockDominators as getBasicBlockDominators' {withPtr* `BNBasicBlock', alloca- `CSize' peekIntConv*, `Bool'} -> `List (Ptr BNBasicBlock)' ptrListOut #}
 
 ---- LLIL
 
-{#fun unsafe BNGetLowLevelILForInstruction as getLowLevelILForInstruction {withPtr* `BNFunction', withPtr* `BNArchitecture', fromIntegral `Address'} -> `InstructionIndex LLILFunction' fromIntegral #}
+{#fun BNGetLowLevelILForInstruction as getLowLevelILForInstruction {withPtr* `BNFunction', withPtr* `BNArchitecture', fromIntegral `Address'} -> `InstructionIndex LLILFunction' fromIntegral #}
 
 ---- MLIL
 
-{#fun unsafe BNGetMediumLevelILInstructionIndex as getMediumLevelILInstructionIndexFromLLIL {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `InstructionIndex MLILFunction' fromIntegral #}
+{#fun BNGetMediumLevelILInstructionIndex as getMediumLevelILInstructionIndexFromLLIL {withPtr* `BNLowLevelILFunction', fromIntegral `InstructionIndex LLILFunction'} -> `InstructionIndex MLILFunction' fromIntegral #}
 
-{#fun unsafe BNGetMediumLevelILSSAInstructionIndex as getMediumLevelILSSAInstructionIndexFromMLIL {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `InstructionIndex MLILSSAFunction' fromIntegral #}
+{#fun BNGetMediumLevelILSSAInstructionIndex as getMediumLevelILSSAInstructionIndexFromMLIL {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex MLILFunction'} -> `InstructionIndex MLILSSAFunction' fromIntegral #}
 
 
-{#fun unsafe BNGetMediumLevelILInstructionCount as getMediumLevelILInstructionCount {withPtr* `BNMediumLevelILFunction'} -> `Word64' #}
+{#fun BNGetMediumLevelILInstructionCount as getMediumLevelILInstructionCount {withPtr* `BNMediumLevelILFunction'} -> `Word64' #}
 
-{#fun unsafe BNGetMediumLevelILIndexForInstruction as getMediumLevelILIndexForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex ()'} -> `ExpressionIndex MLILFunction' fromIntegral #}
+{#fun BNGetMediumLevelILIndexForInstruction as getMediumLevelILIndexForInstruction {withPtr* `BNMediumLevelILFunction', fromIntegral `InstructionIndex ()'} -> `ExpressionIndex MLILFunction' fromIntegral #}
 
-{#fun unsafe BNGetMediumLevelILSSAExprIndex as getMediumLevelILSSAExprIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex MLILFunction'} -> `ExpressionIndex MLILSSAFunction' fromIntegral #}
+{#fun BNGetMediumLevelILSSAExprIndex as getMediumLevelILSSAExprIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex MLILFunction'} -> `ExpressionIndex MLILSSAFunction' fromIntegral #}
 
 sizeOfBNMediumLevelILInstruction :: Int
 sizeOfBNMediumLevelILInstruction = {#sizeof BNMediumLevelILInstruction#}
@@ -293,7 +293,7 @@ sizeOfBNMediumLevelILInstruction = {#sizeof BNMediumLevelILInstruction#}
 sizeOfBNMediumLevelILOperation :: Int
 sizeOfBNMediumLevelILOperation = {#sizeof BNMediumLevelILOperation#}
 
--- allocaMediumLevelILInstruction :: 
+-- allocaMediumLevelILInstruction ::
 
 #c
 void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMediumLevelILInstruction* instr) {
@@ -301,12 +301,12 @@ void wrapBNGetMediumLevelILByIndex(BNMediumLevelILFunction* func, size_t i, BNMe
 }
 #endc
 
-{#fun unsafe wrapBNGetMediumLevelILByIndex as wrapBNGetMediumLevelILByIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', castPtr `Ptr MediumLevelILInstruction'} -> `()' #}
+{#fun wrapBNGetMediumLevelILByIndex as wrapBNGetMediumLevelILByIndex {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', castPtr `Ptr MediumLevelILInstruction'} -> `()' #}
 
 
-{#fun unsafe BNMediumLevelILGetOperandList as mediumLevelILGetOperandList' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', fromIntegral `OpIndex', alloca- `CSize' peekIntConv*} -> `List Word64' castPtr #}
+{#fun BNMediumLevelILGetOperandList as mediumLevelILGetOperandList' {withPtr* `BNMediumLevelILFunction', fromIntegral `ExpressionIndex ()', fromIntegral `OpIndex', alloca- `CSize' peekIntConv*} -> `List Word64' castPtr #}
 
-{#fun unsafe BNMediumLevelILFreeOperandList as mediumLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
+{#fun BNMediumLevelILFreeOperandList as mediumLevelILFreeOperandList {castPtr `List Word64'} -> `()' #}
 
 ---- variables
 
@@ -316,23 +316,23 @@ void wrapBNFromVariableIdentifier(uint64_t id, BNVariable* var) {
 }
 #endc
 
-{#fun unsafe wrapBNFromVariableIdentifier as wrapBNFromVariableIdentifier {fromIntegral `VariableIdentifier', castPtr `Ptr BNVariable'} -> `()' #}
+{#fun wrapBNFromVariableIdentifier as wrapBNFromVariableIdentifier {fromIntegral `VariableIdentifier', castPtr `Ptr BNVariable'} -> `()' #}
 
-{#fun unsafe BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* `BNVariable'} -> `String' #}
+{#fun BNGetVariableName as getVariableName {withPtr* `BNFunction', withStruct* `BNVariable'} -> `String' #}
 
 #c
-void wrapBNGetChildType(BNType* t, BNTypeWithConfidence* tc) { 
+void wrapBNGetChildType(BNType* t, BNTypeWithConfidence* tc) {
   *tc = BNGetChildType(t); }
 #endc
 
-{#fun unsafe wrapBNGetChildType as wrapBNGetChildType {withPtr* `BNType', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
+{#fun wrapBNGetChildType as wrapBNGetChildType {withPtr* `BNType', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
 
 #c
 void wrapBNGetVariableType(BNFunction* func, const BNVariable* var, BNTypeWithConfidence* t) {
   *t = BNGetVariableType(func, var); }
 #endc
 
-{#fun unsafe wrapBNGetVariableType as wrapBNGetVariableType {withPtr* `BNFunction', withStruct* `BNVariable', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
+{#fun wrapBNGetVariableType as wrapBNGetVariableType {withPtr* `BNFunction', withStruct* `BNVariable', castPtr `Ptr BNTypeWithConfidence'} -> `()' #}
 
 #c
 void wrapBNIsTypeSigned(BNType* ty, BNBoolWithConfidence* bc) {
@@ -340,7 +340,7 @@ void wrapBNIsTypeSigned(BNType* ty, BNBoolWithConfidence* bc) {
 }
 #endc
 
-{#fun unsafe wrapBNIsTypeSigned as wrapBNIsTypeSigned {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
+{#fun wrapBNIsTypeSigned as wrapBNIsTypeSigned {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
 
 #c
 void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
@@ -348,15 +348,15 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 }
 #endc
 
-{#fun unsafe wrapBNIsTypeConst as wrapBNIsTypeConst {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
+{#fun wrapBNIsTypeConst as wrapBNIsTypeConst {withPtr* `BNType', castPtr `Ptr BNBoolWithConfidence'} -> `()' #}
 
-{#fun unsafe BNGetTypeAlignment as getTypeAlignment {withPtr* `BNType'} -> `TypeAlignment' fromIntegral #}
+{#fun BNGetTypeAlignment as getTypeAlignment {withPtr* `BNType'} -> `TypeAlignment' fromIntegral #}
 
-{#fun unsafe BNGetTypeWidth as getTypeWidth {withPtr* `BNType'} -> `TypeWidth' fromIntegral #}
+{#fun BNGetTypeWidth as getTypeWidth {withPtr* `BNType'} -> `TypeWidth' fromIntegral #}
 
-{#fun unsafe BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
+{#fun BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
 
-{#fun unsafe BNGetTypeString as getTypeString {withPtr* `BNType', withNilablePtr* `Maybe BNPlatform'} -> `String' #}
+{#fun BNGetTypeString as getTypeString {withPtr* `BNType', withNilablePtr* `Maybe BNPlatform'} -> `String' #}
 
 ---- Code References
 
@@ -372,45 +372,44 @@ instance Storable BNReferenceSource where
   poke _ _ = P.error "BNReferenceSource 'poke' not implemented"
 
 
-{#fun unsafe BNGetCodeReferences as getCodeReferences'' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List BNReferenceSource' castPtr #}
+{#fun BNGetCodeReferences as getCodeReferences'' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List BNReferenceSource' castPtr #}
 
-{#fun unsafe BNFreeCodeReferences as freeCodeReferences {castPtr `List BNReferenceSource', `Word64'} -> `()' #}
+{#fun BNFreeCodeReferences as freeCodeReferences {castPtr `List BNReferenceSource', `Word64'} -> `()' #}
 
 ---- Sections
 
-{#fun unsafe BNGetSectionsAt as getSectionsAt' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List (Ptr BNSection)' ptrListOut #}
+{#fun BNGetSectionsAt as getSectionsAt' {withPtr* `BNBinaryView', fromIntegral `Address', alloca- `CSize' peekIntConv*} -> `List (Ptr BNSection)' ptrListOut #}
 
-{#fun unsafe BNSectionGetType as getSectionType {withPtr* `BNSection'} -> `String' #}
+{#fun BNSectionGetType as getSectionType {withPtr* `BNSection'} -> `String' #}
 
-{#fun unsafe BNFreeSectionList as freeSectionList {ptrListIn `List (Ptr BNSection)', `Word64'} -> `()' #}
+{#fun BNFreeSectionList as freeSectionList {ptrListIn `List (Ptr BNSection)', `Word64'} -> `()' #}
 
-{#fun unsafe BNFreeSection as freeSection {withPtr* `BNSection'} -> `()' #}
+{#fun BNFreeSection as freeSection {withPtr* `BNSection'} -> `()' #}
 
-{#fun unsafe BNNewSectionReference as newSectionReference {withPtr* `BNSection'} -> `BNSection' safePtr* #}
+{#fun BNNewSectionReference as newSectionReference {withPtr* `BNSection'} -> `BNSection' safePtr* #}
 
 ---- Type Libraries
 
-{#fun unsafe BNFreeTypeLibrary as freeTypeLibrary {withPtr* `BNTypeLibrary'} -> `()' #}
+{#fun BNFreeTypeLibrary as freeTypeLibrary {withPtr* `BNTypeLibrary'} -> `()' #}
 
-{#fun unsafe BNNewTypeLibraryReference as newTypeLibraryReference {withPtr* `BNTypeLibrary'} -> `BNTypeLibrary' safePtr* #}
+{#fun BNNewTypeLibraryReference as newTypeLibraryReference {withPtr* `BNTypeLibrary'} -> `BNTypeLibrary' safePtr* #}
 
-{#fun unsafe BNLoadTypeLibraryFromFile as loadTypeLibraryFromFile' {`String'} -> `BNTypeLibrary' safePtr* #}
+{#fun BNLoadTypeLibraryFromFile as loadTypeLibraryFromFile' {`String'} -> `BNTypeLibrary' safePtr* #}
 
-{#fun unsafe BNGetTypeLibraryNamedObjects as getTypeLibraryNamedObjects' {withPtr* `BNTypeLibrary', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
+{#fun BNGetTypeLibraryNamedObjects as getTypeLibraryNamedObjects' {withPtr* `BNTypeLibrary', alloca- `CSize' peekIntConv*} -> `List BNQualifiedNameAndType' castPtr #}
 
-{#fun unsafe BNFreeQualifiedNameAndType as freeQualifiedNameAndType {castPtr `Ptr BNQualifiedNameAndType'} -> `()' #}
+{#fun BNFreeQualifiedNameAndType as freeQualifiedNameAndType {castPtr `Ptr BNQualifiedNameAndType'} -> `()' #}
 
-{#fun unsafe BNFreeQualifiedNameAndTypeArray as freeQualifiedNameAndTypeArray {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}
+{#fun BNFreeQualifiedNameAndTypeArray as freeQualifiedNameAndTypeArray {castPtr `List BNQualifiedNameAndType', `Word64'} -> `()' #}
 
-{#fun unsafe BNGetTypeParameters as getTypeParameters' {withPtr* `BNType', alloca- `CSize' peekIntConv*} -> `List BNFunctionParameter' castPtr #}
+{#fun BNGetTypeParameters as getTypeParameters' {withPtr* `BNType', alloca- `CSize' peekIntConv*} -> `List BNFunctionParameter' castPtr #}
 
-{#fun unsafe BNFreeTypeParameterList as freeTypeParameterList {castPtr `List BNFunctionParameter', `Word64'} -> `()' #}
+{#fun BNFreeTypeParameterList as freeTypeParameterList {castPtr `List BNFunctionParameter', `Word64'} -> `()' #}
 
-{#fun unsafe BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
+{#fun BNNewTypeReference as newTypeReference {withPtr* `BNType'} -> `BNType' safePtr* #}
 
-{#fun unsafe BNGetBinaryViewTypeLibraries as getBinaryViewTypeLibraries' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNTypeLibrary)' ptrListOut #}
+{#fun BNGetBinaryViewTypeLibraries as getBinaryViewTypeLibraries' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNTypeLibrary)' ptrListOut #}
 
-{#fun unsafe BNFreeTypeLibraryList as freeTypeLibraryList {ptrListIn `List (Ptr BNTypeLibrary)', `Word64'} -> `()' #}
+{#fun BNFreeTypeLibraryList as freeTypeLibraryList {ptrListIn `List (Ptr BNTypeLibrary)', `Word64'} -> `()' #}
 
-{#fun unsafe BNGetTypeLibraryName as getTypeLibraryName {withPtr* `BNTypeLibrary'} -> `String' #}
-
+{#fun BNGetTypeLibraryName as getTypeLibraryName {withPtr* `BNTypeLibrary'} -> `String' #}
