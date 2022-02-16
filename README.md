@@ -1,8 +1,10 @@
 # Binary Ninja bindings for Haskell
 
-Provides access to Binary Ninja from Haskell through the Binary Ninja core shared library.
+Provides access to Binary Ninja from Haskell through the Binary Ninja shared library.
 
 ## Usage
-* Generate a C-spec compliant binaryninjacore.h header file. 's header file is not compliant. This issue was reported and the response "will not fix."
 * Ensure the BN core shared library is placed/installed correctly such that it can be found during linking of the bindings.
-* With the fixed binayninjacore.h header file placed in the `res/` directory, the bindings can now be built.
+* Use `stack build` and `stack test` to build or test the package, respectively.
+* Note: When updates to the Binary Ninja API are made, a C-compliant `binaryninjacore.h` header file must be generated. Place in the `res/` directory and the bindings can now be built.
+
+Approved for Public Release, Distribution Unlimited.
