@@ -1,6 +1,5 @@
 # Blaze
 
-
 # Quick Start Guide
 
 Welcome to Blaze! Below are the things you'll need to get started. This is assuming you are running a Ubuntu/Debian system, otherwise
@@ -8,36 +7,24 @@ modifications will need to be made.
 
 ## Haskell
 
-### Stack
-1. To get stack run `curl -sSL https://get.haskellstack.org/ | sh`
-2. stack will tell you where it installs make sure this is on your PATH
-
-### Ghcup
+### Use ghcup to install GHC and/or Stack
 1. To get ghcup run `curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh`
-2. As of this writing ghc 8.8.3 is the default installed by this tool.  List the available versions with `ghcup list`
-3. Currently blaze uses ghc 8.8.2. To install, and use this version type `ghcup install 8.8.2`
-
-### Haskell Ide Engine (hie)
-1. Install depedencies first (this assumes debian 10/ubuntu 18.10 or later) with `sudo apt install libicu-dev libncurses-dev libgmp-dev`
-2. To download run `git clone https://github.com/haskell/haskell-ide-engine --recurse-submodules`
-3. cd into the hie directory and run `./install.hs`
-4. You're next step depends on your development environment. To use hie with Vscode simply go to the plugin store, search the full name, and install hie.
-
+2. You can list the available tools and versions from ghcup with `ghcup list`
+3. Currently blaze uses GHC 8.10.7. To install, run `ghcup install ghc 8.10.7`
+4. Due to changes in Stack's support for local dependencies, we currently recommend using Stack 2.7.1 which can be installed with: `ghcup install stack 2.7.1`.
 
 ## Haskell bindings for Binary Ninja
-1. Install Binja. You'll need a license.
-2. to your ~/.profile add `export BINJA_PLUGINS=<path-to-binja-plugin-folder>`
-
+1. Install Binary Ninja. You'll need a license that supports headless mode.
+2. to your `~/.profile` add `export BINJA_PLUGINS=<path-to-binja-plugin-folder>`
 
 ## Z3
 1. Get z3 with `https://github.com/Z3Prover/z3.git`
 2. run `./configure; mkdir build`
 3. run `cd build; make`, then `make install`
 
+## Blaze
+1. The directory structure should look like `blaze/blaze`, `blaze/binaryninja-haskell`, `blaze/binary-analysis`
+2. Run `stack build` from the blaze project.
+4. To test Blaze run `stack test` within the `blaze` directory.
 
-## blaze
-1. you will need to clone binja-header-cleaner, hs-binary-analysis, and haskell-binja from the project repo.
-2. the directory structure should look like blaze/haskell-blaze, blaze/haskell-binja, blaze/binja-header-cleaner, blaze/hs-binary-analysis
-3. from blaze directory run `touch File.hs`
-3. run `stack build` on all three projects with the haskell-blaze project last.
-4. To test all steps to this point run `stack test :blaze-test` within haskell-blaze directory.
+Approved for Public Release, Distribution Unlimited.
