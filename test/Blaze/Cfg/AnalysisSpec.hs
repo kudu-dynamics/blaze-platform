@@ -5,6 +5,7 @@ module Blaze.Cfg.AnalysisSpec where
 
 import Blaze.Cfg hiding (BasicBlockNode (ctx), CallNode (ctx), func, root, end)
 import Blaze.Cfg.Analysis (removeEmptyBasicBlockNodes, getStmts, removeUnusedPhi, focus)
+import qualified Blaze.Cfg.Analysis as CfgA
 import Blaze.Function (Function (Function))
 import Blaze.Prelude hiding (const)
 import Blaze.Pretty (PrettyShow (PrettyShow))
@@ -285,3 +286,259 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 ]
 
       PrettyShow (focus midLeft input) `shouldBe` PrettyShow output
+
+  context "_simplify" $ do
+    it "should leave an unsimplifiable ICFG untouched" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ branchCond $ cmpNE (var "x" 4) (const 0 4) 4
+              ]
+          midLeft =
+            bb
+              fooCtx
+              1
+              2
+              [ def "y#1" (add (var "x" 4) (const 10 4) 4)
+              ]
+          midRight =
+            bb
+              fooCtx
+              3
+              4
+              [ def "y#2" (add (var "x" 4) (const 5000 4) 4)
+              ]
+          end =
+            bb
+              fooCtx
+              5
+              6
+              [ defPhi "r" ["y#1", "y#2"]
+              , ret $ var "r" 4
+              ]
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midLeft, midRight, end]
+                [ CfEdge root midLeft TrueBranch
+                , CfEdge root midRight FalseBranch
+                , CfEdge midLeft end UnconditionalBranch
+                , CfEdge midRight end UnconditionalBranch
+                ]
+          output = input
+
+      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+
+    it "should copy prop" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ def "x" (var "w" 4)
+              , branchCond $ cmpNE (var "x" 4) (const 0 4) 4
+              ]
+          midLeft =
+            bb
+              fooCtx
+              1
+              2
+              [ def "y#1" (add (var "x" 4) (const 10 4) 4)
+              ]
+          midRight =
+            bb
+              fooCtx
+              3
+              4
+              [ def "y#2" (add (var "x" 4) (const 5000 4) 4)
+              ]
+          end =
+            bb
+              fooCtx
+              5
+              6
+              [ defPhi "r" ["y#1", "y#2"]
+              , ret $ var "r" 4
+              ]
+          root' =
+            bb
+              fooCtx
+              0
+              1
+              [ branchCond $ cmpNE (var "w" 4) (const 0 4) 4
+              ]
+          midLeft' =
+            bb
+              fooCtx
+              1
+              2
+              [ def "y#1" (add (var "w" 4) (const 10 4) 4)
+              ]
+          midRight' =
+            bb
+              fooCtx
+              3
+              4
+              [ def "y#2" (add (var "w" 4) (const 5000 4) 4)
+              ]
+          end' =
+            bb
+              fooCtx
+              5
+              6
+              [ defPhi "r" ["y#1", "y#2"]
+              , ret $ var "r" 4
+              ]
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midLeft, midRight, end]
+                [ CfEdge root midLeft TrueBranch
+                , CfEdge root midRight FalseBranch
+                , CfEdge midLeft end UnconditionalBranch
+                , CfEdge midRight end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root'
+                [midLeft', midRight', end']
+                [ CfEdge root' midLeft' TrueBranch
+                , CfEdge root' midRight' FalseBranch
+                , CfEdge midLeft' end' UnconditionalBranch
+                , CfEdge midRight' end' UnconditionalBranch
+                ]
+      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+
+
+    it "should not constant prop" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ def "x" (const 22 4)
+              ]
+          end =
+            bb
+              fooCtx
+              5
+              6
+              [ ret $ add (const 88 4) (var "x" 4) 4
+              ]
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [end]
+                [ CfEdge root end UnconditionalBranch
+                ]
+          output = input
+      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+
+    it "should use constant prop to globally prune branch" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ def "x" (const 0 4)
+              , branchCond $ cmpE (var "x" 4) (const 0 4) 4
+              ]
+          midLeft =
+            bb
+              fooCtx
+              1
+              2
+              [ def "y#1" (const 10 4)
+              ]
+          midRight =
+            bb
+              fooCtx
+              3
+              4
+              [ def "y#2" (const 5000 4)
+              ]
+          end =
+            bb
+              fooCtx
+              5
+              6
+              [ ret $ var "x" 4
+              ]
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midLeft, midRight, end]
+                [ CfEdge root midLeft TrueBranch
+                , CfEdge root midRight FalseBranch
+                , CfEdge midLeft end UnconditionalBranch
+                , CfEdge midRight end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root
+                [midLeft, midRight, end]
+                [ CfEdge root midLeft TrueBranch
+                , CfEdge midLeft end UnconditionalBranch
+                ]
+
+      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+
+
+    it "should limit constant prop pruning to branch context" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ def "x" (const 0 4)
+              , branchCond $ cmpE (var "x" 4) (const 0 4) 4
+              ]
+          midLeft =
+            bb
+              fooCtx
+              1
+              2
+              [ def "y#1" (const 10 4)
+              ]
+          midRight =
+            bb
+              fooCtx
+              3
+              4
+              [ def "y#2" (const 5000 4)
+              ]
+          end =
+            bb
+              fooCtx
+              5
+              6
+              [ ret $ var "x" 4
+              ]
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midLeft, midRight, end]
+                [ CfEdge root midLeft TrueBranch
+                , CfEdge root midRight FalseBranch
+                , CfEdge midLeft end UnconditionalBranch
+                , CfEdge midRight end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root
+                [midLeft, midRight, end]
+                [ CfEdge root midLeft TrueBranch
+                , CfEdge midLeft end UnconditionalBranch
+                ]
+
+      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output

@@ -105,7 +105,7 @@ _simplify numItersLeft icfg =
       _simplify (numItersLeft - 1) icfg'''
  where
   icfg' :: InterCfg
-  icfg' = constantProp . copyProp $ icfg
+  icfg' = copyProp $ icfg
   deadBranches :: [PilEdge]
   deadBranches = getDeadBranches icfg'
   icfg'' :: InterCfg
