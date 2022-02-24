@@ -8,9 +8,9 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Types.Pil.Checker (DeepSymType)
-import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge)
+import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge, BranchingType(OnlyTrue, OnlyFalse, Undecided), BranchCond(BranchCond), UndecidedIfBranches(UndecidedIfBranches))
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
-import qualified Blaze.Types.Cfg as Cfg
+import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Graph as G
 import Blaze.Types.Graph (EdgeGraphNode, DominatorMapping)
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
@@ -33,25 +33,6 @@ data DecidedBranchCond = DecidedBranchCond
   , condition :: TypedExpression
   , decidedBranch :: Bool
   } deriving (Eq, Ord, Show, Generic)
-
-data UndecidedIfBranches = UndecidedIfBranches
-  { falseEdge :: CfEdge ()
-  , trueEdge :: CfEdge ()
-  } deriving (Eq, Ord, Show, Generic)
-
-
--- BranchingType and BranchCond will need to be refactored at some point
--- to accomodate for switch statements, jump tables
-data BranchingType = OnlyTrue (CfEdge ())
-                   | OnlyFalse (CfEdge ())
-                   | Undecided UndecidedIfBranches
-                   deriving (Eq, Ord, Show, Generic)
-
-data BranchCond a = BranchCond
-  { conditionStatementIndex :: Int
-  , condition :: a
-  , branchingType :: BranchingType
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
                        | SolverError Ch.TypeReport PilSolver.SolverError
@@ -132,52 +113,17 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFal
 
 ----------------------------
 
-
--- | If the node is a conditional if-node, and one of the branches has been removed,
--- this returns which branch remains (True or False) and the conditional expr.
-getBranchCondNode
-  :: CfNode [(Int, Statement TypedExpression)]
-  -> Cfg [(Int, Statement TypedExpression)]
-  -> Maybe (BranchCond TypedExpression)
-getBranchCondNode n cfg = mcond <*> getOutBranchingType n cfg  
-  where
-    mcond = lastMay (Cfg.getNodeData n) >>= \case
-      (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
-      _ -> Nothing
-
-getOutBranchingType :: CfNode [(Int, Statement TypedExpression)] -> Cfg [(Int, Statement TypedExpression)] -> Maybe BranchingType
-getOutBranchingType n cfg = case outBranches of
-  [(TrueBranch, tedge), (FalseBranch, fedge)] ->
-    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
-  [(FalseBranch, fedge), (TrueBranch, tedge)] ->
-    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
-  [(TrueBranch, tedge)] ->
-    Just $ OnlyTrue tedge
-  [(FalseBranch, fedge)] ->
-    Just $ OnlyFalse fedge
-  _ -> Nothing
-  where
-    outBranches :: [(BranchType, CfEdge ())]
-    outBranches =
-      fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
-      . HashSet.toList
-      $ Cfg.succEdges n cfg
-
-
 getBranchCondNodes
   :: Cfg [(Int, Statement TypedExpression)]
   -> [BranchCond TypedExpression]
-getBranchCondNodes typedCfg = mapMaybe (`getBranchCondNode` typedCfg)
-  . HashSet.toList
-  . G.nodes
-  $ typedCfg
+getBranchCondNodes = Cfg.getBranchCondNodes (first Just)
 
 toSolvedBranchCondNode
   :: DataDependenceGraph
   -> BranchCond TypedExpression
   -> Solver (BranchCond SVal)
 toSolvedBranchCondNode ddg bnode = do
-  #currentStmtIndex .= bnode ^. #conditionStatementIndex
+  whenJust (bnode ^. #conditionStatementIndex) $ \stmtIndex -> #currentStmtIndex .= stmtIndex
   traverse (solveExpr ddg) bnode
 
 getSolvedBranchCondNodes
@@ -201,7 +147,7 @@ getUndecidedBranchCondNode
   :: CfNode [(Int, Statement TypedExpression)]
   -> Cfg [(Int, Statement TypedExpression)]
   -> Maybe UndecidedBranchCond
-getUndecidedBranchCondNode n cfg = getOutBranchingType n cfg >>= \case
+getUndecidedBranchCondNode n cfg = Cfg.getOutBranchingType n cfg >>= \case
   Undecided UndecidedIfBranches {falseEdge = fe, trueEdge = te} ->
     mcond <*> pure te <*> pure fe
   OnlyTrue _ -> Nothing

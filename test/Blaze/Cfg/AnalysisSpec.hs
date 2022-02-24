@@ -550,3 +550,93 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 ]
 
       PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+
+
+    it "should use constant from unpruned arg in branch context" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ branchCond $ cmpE (var "x" 4) (const 0 4) 4
+              ]
+          midTrue =
+            bb
+              fooCtx
+              1
+              2
+              [ branchCond $ cmpE (var "x" 4) (const 0 4) 4
+              ]
+          midFalse =
+            bb
+              fooCtx
+              2
+              3
+              [ branchCond $ cmpE (var "x" 4) (const 0 4) 4
+              ]
+          midTrueChildFalse =
+            bb
+              fooCtx
+              3
+              4
+              [ def "y#1" (const 1 4)
+              ]
+          midTrueChildTrue =
+            bb
+              fooCtx
+              4
+              5
+              [ def "y#2" (const 2 4)
+              ]
+          midFalseChildFalse =
+            bb
+              fooCtx
+              5
+              6
+              [ def "y#3" (const 3 4)
+              ]
+          midFalseChildTrue =
+            bb
+              fooCtx
+              6
+              7
+              [ def "y#4" (const 4 4)
+              ]
+          end =
+            bb
+              fooCtx
+              7
+              8
+              [ ret $ var "x" 4
+              ]
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midTrue, midFalse, midTrueChildFalse, midTrueChildTrue, midFalseChildTrue, midFalseChildFalse, end]
+                [ CfEdge root midTrue TrueBranch
+                , CfEdge root midFalse FalseBranch
+                , CfEdge midFalse midFalseChildTrue TrueBranch
+                , CfEdge midFalse midFalseChildFalse FalseBranch
+                , CfEdge midTrue midTrueChildTrue TrueBranch
+                , CfEdge midTrue midTrueChildFalse FalseBranch
+                , CfEdge midFalseChildTrue end UnconditionalBranch
+                , CfEdge midFalseChildFalse end UnconditionalBranch
+                , CfEdge midTrueChildFalse end UnconditionalBranch
+                , CfEdge midTrueChildTrue end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root
+                [midTrue, midFalse, midTrueChildTrue, midFalseChildFalse, end]
+                [ CfEdge root midTrue TrueBranch
+                , CfEdge root midFalse FalseBranch
+                , CfEdge midFalse midFalseChildFalse FalseBranch
+                , CfEdge midTrue midTrueChildTrue TrueBranch
+                , CfEdge midFalseChildFalse end UnconditionalBranch
+                , CfEdge midTrueChildFalse end UnconditionalBranch
+                , CfEdge midTrueChildTrue end UnconditionalBranch
+                ]
+
+      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output

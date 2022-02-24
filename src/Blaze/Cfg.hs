@@ -10,7 +10,7 @@ import Blaze.Graph (Dominators, PostDominators)
 import Blaze.Prelude
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Cfg hiding (nodes)
-import Blaze.Types.Pil (BranchCondOp, Expression, Statement (BranchCond, Exit, NoRet), Stmt)
+import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import qualified Data.HashSet as HashSet
@@ -86,7 +86,7 @@ parseBranchNode getStmts node = do
   bb <- node ^? #_BasicBlock
   lastStmt <- lastMay $ getStmts node
   case lastStmt of
-    BranchCond op -> Just $ BranchNode bb op
+    Pil.BranchCond op -> Just $ BranchNode bb op
     _ -> Nothing
 
 {- |Get all terminal blocks. An error is raised if a CFG does not contain at least
@@ -143,3 +143,48 @@ evalCondition bn = case bn ^. #cond . #op of
 
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
+
+--------------
+
+getOutBranchingType :: (Eq a, Hashable a) => CfNode a -> Cfg a -> Maybe BranchingType
+getOutBranchingType n cfg = case outBranches of
+  [(TrueBranch, tedge), (FalseBranch, fedge)] ->
+    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
+  [(FalseBranch, fedge), (TrueBranch, tedge)] ->
+    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
+  [(TrueBranch, tedge)] ->
+    Just $ OnlyTrue tedge
+  [(FalseBranch, fedge)] ->
+    Just $ OnlyFalse fedge
+  _ -> Nothing
+  where
+    outBranches :: [(BranchType, CfEdge ())]
+    outBranches =
+      fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
+      . HashSet.toList
+      $ Cfg.succEdges n cfg
+
+
+-- | If the node is a conditional if-node, and one of the branches has been removed,
+-- this returns which branch remains (True or False) and the conditional expr.
+getBranchCondNode
+  :: (Eq a, Hashable a)
+  => (a -> (Maybe Int, Statement b))
+  -> CfNode [a]
+  -> Cfg [a]
+  -> Maybe (BranchCond b)
+getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg  
+  where
+    mcond = (extractIndexStmt <$> lastMay (Cfg.getNodeData n)) >>= \case
+      (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
+      _ -> Nothing
+
+getBranchCondNodes
+  :: (Hashable a, Eq a)
+  => (a -> (Maybe Int, Statement b))
+  -> Cfg [a]
+  -> [BranchCond b]
+getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode extractIndexStmt) typedCfg)
+  . HashSet.toList
+  . G.nodes
+  $ typedCfg

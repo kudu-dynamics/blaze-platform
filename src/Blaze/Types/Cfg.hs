@@ -549,3 +549,22 @@ traverseAttrs f cfg = do
 
 gatherCfgData :: (Hashable a, Eq a) => Cfg [a] -> [a]
 gatherCfgData = concatMap concat . HashMap.elems . G.getNodeAttrMap
+
+data UndecidedIfBranches = UndecidedIfBranches
+  { falseEdge :: CfEdge ()
+  , trueEdge :: CfEdge ()
+  } deriving (Eq, Ord, Show, Generic)
+
+-- BranchingType and BranchCond will need to be refactored at some point
+-- to accomodate for switch statements, jump tables
+data BranchingType = OnlyTrue (CfEdge ())
+                   | OnlyFalse (CfEdge ())
+                   | Undecided UndecidedIfBranches
+                   deriving (Eq, Ord, Show, Generic)
+
+data BranchCond a = BranchCond
+  { conditionStatementIndex :: Maybe Int
+  , condition :: a
+  , branchingType :: BranchingType
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
