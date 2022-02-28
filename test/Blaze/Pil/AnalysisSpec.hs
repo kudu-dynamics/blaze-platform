@@ -399,7 +399,6 @@ spec = describe "Blaze.Pil.Analysis" $ do
       testPretty (copyProp inputStmts)
         [ def "c" (add (var "a" 4) (const 1 4) 4) ]
 
-
   describe "memSubst" $ do
     it "should substitute specified memory loads with constant values" $ do
       let valMap =
