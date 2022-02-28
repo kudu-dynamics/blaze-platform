@@ -245,7 +245,7 @@ getNodesContainingAddress :: (Eq a, Hashable a) => Address -> Cfg a -> HashSet (
 getNodesContainingAddress addr = HashSet.filter containsAddr . G.nodes
   where
     -- TODO: confirm that bb range is [start, end)
-    containsAddr (Cfg.BasicBlock bb) = bb ^. #start <= addr && addr < bb ^. #end
+    containsAddr (Cfg.BasicBlock bb) = bb ^. #start <= addr && addr <= bb ^. #end
     containsAddr (Cfg.Call n) = n ^. #start == addr
     containsAddr (Cfg.EnterFunc _) = False
     containsAddr (Cfg.LeaveFunc _) = False
