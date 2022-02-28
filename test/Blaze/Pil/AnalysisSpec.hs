@@ -322,9 +322,9 @@ spec = describe "Blaze.Pil.Analysis" $ do
   describe "reduceMap" $ do
     let test :: (Eq a, Show a, Hashable a) => HashMap a a -> HashMap a a -> Expectation
         test a b = reduceMap a `shouldBe` b
-        testPretty :: (Eq a, Show a, Hashable a, Tokenizable a) => HashMap a a -> HashMap a a -> Expectation
+        testPretty :: (Eq a, Hashable a, Tokenizable a) => HashMap a a -> HashMap a a -> Expectation
         testPretty a b = PrettyShow (reduceMap a) `shouldBe` PrettyShow b
-        testCycle :: (Eq a, Show a, Hashable a) => HashMap a a -> Expectation
+        testCycle :: (Eq a, Hashable a) => HashMap a a -> Expectation
         testCycle a = evaluate (reduceMap a) `shouldThrow` errorCall "reduceMap: detected cycle in map"
 
     it "should reduce a mapping expression" $ do
@@ -390,6 +390,14 @@ spec = describe "Blaze.Pil.Analysis" $ do
           store (var "arg1#0" 8) (const 20 8),
           def "rdi_9#10" (load (var "arg1#0" 8) 8)
         ]
+
+    it "should not hang due to self-assignemnt" $ do
+      let inputStmts =
+            [ def "a" (var "a" 4)
+            , def "c" (add (var "a" 4) (const 1 4) 4)
+            ]
+      testPretty (copyProp inputStmts)
+        [ def "c" (add (var "a" 4) (const 1 4) 4) ]
 
   describe "memSubst" $ do
     it "should substitute specified memory loads with constant values" $ do

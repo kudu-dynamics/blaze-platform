@@ -7,6 +7,7 @@ import Blaze.Prelude hiding
   ( Symbol,
     group,
     pi,
+    trace
   )
 import Blaze.Types.Pil
   ( AddOp,
@@ -23,6 +24,7 @@ import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Graph as G
 import qualified Data.List as List
+import Debug.Trace (trace)
 import Blaze.Types.Pil.Analysis
   ( Analysis,
     DataDependenceGraph,
@@ -317,8 +319,14 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
     f :: Stmt -> CopyPropState -> CopyPropState
     f stmt copyPropState =
       case stmt of
-        (Pil.Def (Pil.DefOp lh_var (Pil.Expression _ (Pil.VAR (Pil.VarOp rh_var))))) ->
-          addCopy copyPropState stmt lh_var rh_var
+        (Pil.Def (Pil.DefOp lh_var (Pil.Expression _ (Pil.VAR (Pil.VarOp rh_var)))))
+          | lh_var == rh_var ->
+              let msg = cs $ "Warning in _foldCopyPropState: self-assignemnt ("
+                        <> lh_var ^. #symbol <> " = " <> rh_var ^. #symbol
+                        <> "). Discarding statement."
+              in
+                trace msg $ copyPropState & #copyStmts %~ Set.insert stmt
+          | otherwise -> addCopy copyPropState stmt lh_var rh_var
         _ -> copyPropState
     addCopy :: CopyPropState -> Stmt -> PilVar -> PilVar -> CopyPropState
     addCopy s stmt copy orig =
