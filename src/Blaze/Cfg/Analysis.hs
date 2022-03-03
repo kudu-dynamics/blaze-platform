@@ -9,7 +9,7 @@ import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import Blaze.Types.Pil.Analysis (DataDependenceGraph)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (succ)
-import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType, BranchCond)
+import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Blaze.Types.Pil as Pil
@@ -105,7 +105,7 @@ _simplify numItersLeft icfg =
       _simplify (numItersLeft - 1) icfg'''
  where
   icfg' :: InterCfg
-  icfg' = copyProp $ icfg
+  icfg' = constantProp . copyProp $ icfg
   deadBranches :: [PilEdge]
   deadBranches = getDeadBranches icfg'
   icfg'' :: InterCfg
@@ -303,48 +303,3 @@ getCallFuncRating ctx tgt srcFunc =
 
 getDataDependenceGraph :: Cfg [Stmt] -> DataDependenceGraph
 getDataDependenceGraph = PA.getDataDependenceGraph . Cfg.gatherCfgData
-
-
-
----------------
-
-
-
--- data Inequality = EQ
---                 | LT
---                 | LTE
---                 | GT
---                 | GTE
-                
--- data VarConstraint = Var
-type NodeContext = HashMap (CfNode ()) [Pil.Statement Pil.Expression]
-
--- getUnsatBranches :: InterCfg -> [CfEdge ()]
--- getUnsatBranches (InterCfg cfg) = 
-
-getBranchConds :: InterCfg -> [BranchCond Pil.Expression]
-getBranchConds (InterCfg cfg) = Cfg.getBranchCondNodes (Nothing,) cfg
-
--- getNodeContext :: InterCfg -> NodeContext
--- getNodeContext icfg = (icfg', nodeContext)
---   where
---     nodeContext :: NodeContext
---     nodeContext = foldl' (flip addContext) HashMap.empty branchConds
-
---     addContext :: BranchCond Pil.Expression -> NodeContext -> NodeContext
---     addContext bc nc = 
-
---     branchConds :: [BranchCond]
---     branchConds = getBranchConds icfg    
-
--- | Branch context simplification
--- simplify2 :: InterCfg -> InterCfg
--- simplify2 icfg = case getDeadBranches constProppedCfg of
---   [] -> undefined
---     where
---       (branchConstProppedCfg, nodeContexts) = findBranchContexts constProppedCfg
---   xs -> foldl' (flip cutEdge_) copyProppedCfg . fmap Cfg.asIdEdge $ xs
---   where
---     copyProppedCfg :: InterCfg
---     copyProppedCfg = fixed copyProp icfg
---     constProppedCfg = fixed constantProp copyProppedCfg

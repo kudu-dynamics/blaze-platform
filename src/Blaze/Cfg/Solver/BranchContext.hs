@@ -8,7 +8,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Types.Pil.Checker (DeepSymType)
-import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge, BranchingType(OnlyTrue, OnlyFalse, Undecided), BranchCond(BranchCond), UndecidedIfBranches(UndecidedIfBranches))
+import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge, BranchingType(OnlyTrue, OnlyFalse, Undecided), BranchCond, UndecidedIfBranches(UndecidedIfBranches))
 import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
 import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Graph as G
@@ -125,7 +125,7 @@ toSolvedBranchCondNode
   -> BranchCond TypedExpression
   -> Solver (BranchCond SVal)
 toSolvedBranchCondNode ddg bnode = do
-  whenJust (bnode ^. #conditionStatementIndex) $ \stmtIndex -> #currentStmtIndex .= stmtIndex
+  whenJust (bnode ^. #conditionStatementIndex) (#currentStmtIndex .=)
   traverse solveExprOrMakeAmbiguous bnode
   where
     solveExprOrMakeAmbiguous :: TypedExpression -> Solver SVal

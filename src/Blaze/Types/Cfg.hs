@@ -567,4 +567,3 @@ data BranchCond a = BranchCond
   , condition :: a
   , branchingType :: BranchingType
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-

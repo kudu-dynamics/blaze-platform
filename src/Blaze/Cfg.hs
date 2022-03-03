@@ -175,10 +175,10 @@ getBranchCondNode
   -> Maybe (BranchCond b)
 getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg  
   where
-    mcond = (extractIndexStmt <$> lastMay (Cfg.getNodeData n)) >>= \case
+    mcond = lastMay (Cfg.getNodeData n) >>= (\case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
-      _ -> Nothing
-
+      _ -> Nothing)
+      . extractIndexStmt
 getBranchCondNodes
   :: (Hashable a, Eq a)
   => (a -> (Maybe Int, Statement b))
