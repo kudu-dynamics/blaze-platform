@@ -27,7 +27,6 @@ import qualified Data.SBV.Trans as SBV
 import Blaze.Types.Graph.Alga (AlgaGraph)
 
 
-
 type TypedExpression = Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
 
 data DecidedBranchCond = DecidedBranchCond

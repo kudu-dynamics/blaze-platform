@@ -144,8 +144,6 @@ evalCondition bn = case bn ^. #cond . #op of
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
 
---------------
-
 getOutBranchingType :: (Eq a, Hashable a) => CfNode a -> Cfg a -> Maybe BranchingType
 getOutBranchingType n cfg = case outBranches of
   [(TrueBranch, tedge), (FalseBranch, fedge)] ->
@@ -179,6 +177,7 @@ getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
       _ -> Nothing)
       . extractIndexStmt
+
 getBranchCondNodes
   :: (Hashable a, Eq a)
   => (a -> (Maybe Int, Statement b))
