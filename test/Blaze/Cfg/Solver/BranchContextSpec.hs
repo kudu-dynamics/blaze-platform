@@ -381,3 +381,35 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       r <- BC.getUnsatBranches cfg
       
       (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedRemoved)
+
+    it "should work around type error" $ do
+      let rootNode = bbpn 0 callerCtx "root"
+                     [ def "x" $ const 0 4
+                     , def "y" $ const 0 4
+                     , def "z" $ var "y" 8
+                     , branchCond $ cmpNE (var "x" 4) (const 0 4) 4
+                     ]
+
+          falseNode = bbpn 2 callerCtx "falseNode" [ nop ]
+
+          trueNode = bbpn 3 callerCtx "trueNode" [ nop ]
+
+          endNode = bbpn 4 callerCtx "endNode" [ nop ]
+
+          cfg = mkCfg rootNode [ falseNode
+                               , trueNode
+                               , endNode
+                               ]
+                [ CfEdge rootNode trueNode Cfg.TrueBranch
+                , CfEdge rootNode falseNode Cfg.FalseBranch
+                , CfEdge trueNode endNode Cfg.UnconditionalBranch
+                , CfEdge falseNode endNode Cfg.UnconditionalBranch
+                ]
+
+          rootNode' = asIdNode rootNode
+          trueNode' = asIdNode trueNode
+          expectedRemoved = [CfEdge rootNode' trueNode' Cfg.TrueBranch]
+
+      r <- BC.getUnsatBranches cfg
+      
+      (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedRemoved)

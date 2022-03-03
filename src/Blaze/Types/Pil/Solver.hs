@@ -44,13 +44,18 @@ data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg 
 
 type StubConstraintGen = SVal -> [SVal] -> Solver ()
 
+data SolverLeniency = AbortOnError
+                    | SkipStatementsWithErrors
+  deriving (Eq, Ord, Show, Generic)
+
 data SolverCtx = SolverCtx
   { typeEnv :: HashMap PilVar DeepSymType
   , funcConstraintGen :: HashMap Text StubConstraintGen
   , useUnsatCore :: Bool
+  , leniency :: SolverLeniency
   } deriving stock (Generic)
 
-emptyCtx :: Bool -> SolverCtx
+emptyCtx :: Bool -> SolverLeniency -> SolverCtx
 emptyCtx = SolverCtx mempty mempty
 
 data SolverState = SolverState
@@ -121,10 +126,11 @@ runSolverWith solverCfg m (st, ctx) = runExceptT
 
 runSolverWith_ :: SMTConfig
                -> Bool
+               -> SolverLeniency
                -> Solver a
                -> IO (Either SolverError (a, SolverState))
-runSolverWith_ solverCfg useUnsatCore' =
-  flip (runSolverWith solverCfg) (emptyState, emptyCtx useUnsatCore')
+runSolverWith_ solverCfg useUnsatCore' solverLeniency =
+  flip (runSolverWith solverCfg) (emptyState, emptyCtx useUnsatCore' solverLeniency)
 
 
 
@@ -157,8 +163,8 @@ querySolverResult = liftSymbolicT . Q.query $ querySolverResult_
 checkSatWith :: SMTConfig -> Solver () -> (SolverState, SolverCtx) -> IO (Either SolverError (SolverResult, SolverState))
 checkSatWith cfg m = runSolverWith cfg (m >> querySolverResult)
 
-checkSatWith_ :: SMTConfig -> Bool -> Solver () -> IO (Either SolverError SolverResult)
-checkSatWith_ cfg useUnsatCore' m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx useUnsatCore')
+checkSatWith_ :: SMTConfig -> Bool -> SolverLeniency -> Solver () -> IO (Either SolverError SolverResult)
+checkSatWith_ cfg useUnsatCore' solverLeniency m = fmap fst <$> checkSatWith cfg m (emptyState, emptyCtx useUnsatCore' solverLeniency)
 
 stmtError :: SolverError -> Solver a
 stmtError e = do

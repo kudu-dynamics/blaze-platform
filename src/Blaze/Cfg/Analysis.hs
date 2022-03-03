@@ -325,19 +325,17 @@ type NodeContext = HashMap (CfNode ()) [Pil.Statement Pil.Expression]
 getBranchConds :: InterCfg -> [BranchCond Pil.Expression]
 getBranchConds (InterCfg cfg) = Cfg.getBranchCondNodes (Nothing,) cfg
 
-getNodeContext :: InterCfg -> NodeContext
-getNodeContext icfg = (icfg', nodeContext)
-  where
-    nodeContext :: NodeContext
-    nodeContext = foldl' (flip addContext) HashMap.empty branchConds
+-- getNodeContext :: InterCfg -> NodeContext
+-- getNodeContext icfg = (icfg', nodeContext)
+--   where
+--     nodeContext :: NodeContext
+--     nodeContext = foldl' (flip addContext) HashMap.empty branchConds
 
-    addContext :: BranchCond Pil.Expression -> NodeContext -> NodeContext
-    addContext bc nc = 
+--     addContext :: BranchCond Pil.Expression -> NodeContext -> NodeContext
+--     addContext bc nc = 
 
-    branchConds :: [BranchCond]
-    branchConds = getBranchConds icfg
-
-    
+--     branchConds :: [BranchCond]
+--     branchConds = getBranchConds icfg    
 
 -- | Branch context simplification
 -- simplify2 :: InterCfg -> InterCfg

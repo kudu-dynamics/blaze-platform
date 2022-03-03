@@ -16,14 +16,16 @@ import Blaze.Types.Graph (EdgeGraphNode, DominatorMapping)
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
 import qualified Blaze.Cfg.Analysis as CfgA
 import qualified Blaze.Pil.Solver as PilSolver
-import Blaze.Pil.Solver (makeSymVarOfType, warn)
+import Blaze.Pil.Solver (makeSymVarOfType, warn, catchIfLenient)
 import Blaze.Types.Pil.Solver
 import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Cfg.Checker (checkCfg)
 import Data.SBV.Dynamic (SVal, svNot, svAnd)
+import qualified Data.SBV.Dynamic as D hiding (Solver)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import Blaze.Types.Graph.Alga (AlgaGraph)
+
 
 
 type TypedExpression = Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
@@ -74,7 +76,7 @@ generalCfgFormula ddg cfg = do
     setIndexAndSolveStmt :: (Int, Statement TypedExpression) -> Solver ()
     setIndexAndSolveStmt (i, stmt) = do
       #currentStmtIndex .= i
-      solveStmt ddg stmt
+      catchIfLenient (solveStmt ddg stmt) . const $ return ()
 
 solveStmt
   :: DataDependenceGraph
@@ -124,7 +126,11 @@ toSolvedBranchCondNode
   -> Solver (BranchCond SVal)
 toSolvedBranchCondNode ddg bnode = do
   whenJust (bnode ^. #conditionStatementIndex) $ \stmtIndex -> #currentStmtIndex .= stmtIndex
-  traverse (solveExpr ddg) bnode
+  traverse solveExprOrMakeAmbiguous bnode
+  where
+    solveExprOrMakeAmbiguous :: TypedExpression -> Solver SVal
+    solveExprOrMakeAmbiguous expr = catchIfLenient (solveExpr ddg expr)
+      . const $ D.svNewVar_ D.KBool
 
 getSolvedBranchCondNodes
   :: DataDependenceGraph
@@ -296,12 +302,14 @@ tryConstraint c = Q.inNewAssertionStack
 
 getUnsatBranches :: Cfg [Stmt] -> IO (Either GeneralSolveError [CfEdge ()])
 getUnsatBranches cfg = case checkCfg cfg of
+  -- The TypeCheckerError only occurs if the type checker cannot produce a type report.
+  -- The type report could still report errors.
   Left err -> return . Left . TypeCheckerError $ err
   Right (_, cfg', tr) -> do
     let ddg = CfgA.getDataDependenceGraph cfg
     er <- flip (PilSolver.runSolverWith SBV.z3)
           ( PilSolver.emptyState
-          , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False
+          , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False SkipStatementsWithErrors
           )
           $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
     case er of
