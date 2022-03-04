@@ -287,51 +287,8 @@ spec = describe "Blaze.Cfg.Analysis" $ do
 
       PrettyShow (focus midLeft input) `shouldBe` PrettyShow output
 
-  context "_simplify" $ do
-    it "should leave an unsimplifiable ICFG untouched" $ do
-      let root =
-            bb
-              fooCtx
-              0
-              1
-              [ branchCond $ cmpNE (var "x" 4) (const 0 4) 4
-              ]
-          midLeft =
-            bb
-              fooCtx
-              1
-              2
-              [ def "y#1" (add (var "x" 4) (const 10 4) 4)
-              ]
-          midRight =
-            bb
-              fooCtx
-              3
-              4
-              [ def "y#2" (add (var "x" 4) (const 5000 4) 4)
-              ]
-          end =
-            bb
-              fooCtx
-              5
-              6
-              [ defPhi "r" ["y#1", "y#2"]
-              , ret $ var "r" 4
-              ]
-          input =
-            InterCfg $
-              mkCfg
-                root
-                [midLeft, midRight, end]
-                [ CfEdge root midLeft TrueBranch
-                , CfEdge root midRight FalseBranch
-                , CfEdge midLeft end UnconditionalBranch
-                , CfEdge midRight end UnconditionalBranch
-                ]
-          output = input
 
-      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
-
+  context "simplify" $ do
     it "should copy prop" $ do
       let root =
             bb
@@ -412,9 +369,8 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midLeft' end' UnconditionalBranch
                 , CfEdge midRight' end' UnconditionalBranch
                 ]
-      PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
 
-  context "simplify" $ do
     it "should constant prop" $ do
       let root =
             bb
@@ -518,7 +474,6 @@ spec = describe "Blaze.Cfg.Analysis" $ do
 
       PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
 
-
     it "should reduce phi" $ do
       let root =
             bb
@@ -576,6 +531,5 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 [ CfEdge root midTrue TrueBranch
                 , CfEdge midTrue end' UnconditionalBranch
                 ]
-
 
       PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
