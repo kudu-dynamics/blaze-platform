@@ -382,7 +382,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       
       (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedRemoved)
 
-    it "should work around type error" $ do
+    it "should work around a type error" $ do
       let rootNode = bbpn 0 callerCtx "root"
                      [ def "x" $ const 0 4
                      , def "y" $ const 0 4
