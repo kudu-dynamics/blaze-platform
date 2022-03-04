@@ -342,7 +342,7 @@ cleanPrunedCfg = removeEmptyBasicBlockNodes' . _cleanPrunedCfg maxIters
   maxIters = 10
   removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . CfgA.removeEmptyBasicBlockNodes $ cfg
 
-simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
+simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError ([PilSolver.SolverError], Cfg [Stmt]))
 simplify_ isRecursiveCall numItersLeft cfg
   | numItersLeft <= 0 = return . Right $ cfg
   | otherwise = do
@@ -355,6 +355,6 @@ simplify_ isRecursiveCall numItersLeft cfg
           Right es -> simplify_ True (numItersLeft - 1)
                       $ foldr Cfg.removeIdEdge cfg' es
 
-simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
+simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError ([PilSolver.SolverError], Cfg [Stmt]))
 simplify stmts = do
   simplify_ False 10 stmts
