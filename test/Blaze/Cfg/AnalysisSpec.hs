@@ -413,3 +413,169 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midRight' end' UnconditionalBranch
                 ]
       PrettyShow (CfgA._simplify 1 input) `shouldBe` PrettyShow output
+
+  context "simplify" $ do
+    it "should constant prop" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ def "x" (const 0 4)
+              ]
+          end =
+            bb
+              fooCtx
+              10
+              11
+              [ ret (var "x" 4)
+              ]
+
+          end' =
+            bb
+              fooCtx
+              10
+              11
+              [ ret (const 0 4)
+              ]
+
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [end]
+                [ CfEdge root end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root
+                [end']
+                [ CfEdge root end' UnconditionalBranch
+                ]
+
+      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
+
+    it "should prune using constant and copy prop" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ def "arg1" $ const 0 4
+              , def "x" $ var "arg1" 4
+              , branchCond $ cmpE (var "x" 4) (const 0 4) 4
+              ]
+          midTrue =
+            bb
+              fooCtx
+              2
+              3
+              [ nop
+              ]
+          midFalse =
+            bb
+              fooCtx
+              4
+              5
+              [ nop
+              ]
+          end =
+            bb
+              fooCtx
+              6
+              7
+              [ ret (var "y" 4)
+              ]
+
+          root' =
+            bb
+              fooCtx
+              0
+              1
+              [ def "arg1" $ const 0 4
+              , branchCond $ cmpE (const 0 4) (const 0 4) 4
+              ]
+
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midTrue, midFalse, end]
+                [ CfEdge root midTrue TrueBranch
+                , CfEdge root midFalse FalseBranch
+                , CfEdge midFalse end UnconditionalBranch
+                , CfEdge midTrue end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root'
+                [midTrue, end]
+                [ CfEdge root' midTrue TrueBranch
+                , CfEdge midTrue end UnconditionalBranch
+                ]
+
+      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
+
+
+    it "should reduce phi" $ do
+      let root =
+            bb
+              fooCtx
+              0
+              1
+              [ branchCond $ cmpE (const 0 4) (const 0 4) 4
+              ]
+          midTrue =
+            bb
+              fooCtx
+              2
+              3
+              [ def "y#1" (const 10 4)
+              ]
+          midFalse =
+            bb
+              fooCtx
+              4
+              5
+              [ def "y#2" (const 500 4)
+              ]
+          end =
+            bb
+              fooCtx
+              6
+              7
+              [ defPhi "y" ["y#1", "y#2"]
+              , ret (var "y" 4)
+              ]
+
+          end' =
+            bb
+              fooCtx
+              6
+              7
+              [ ret $ const 10 4
+              ]
+
+          input =
+            InterCfg $
+              mkCfg
+                root
+                [midTrue, end]
+                [ CfEdge root midTrue TrueBranch
+                , CfEdge root midFalse FalseBranch
+                , CfEdge midFalse end UnconditionalBranch
+                , CfEdge midTrue end UnconditionalBranch
+                ]
+          output =
+            InterCfg $
+              mkCfg
+                root
+                [midTrue, end']
+                [ CfEdge root midTrue TrueBranch
+                , CfEdge midTrue end' UnconditionalBranch
+                ]
+
+
+      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
