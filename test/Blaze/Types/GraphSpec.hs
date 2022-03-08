@@ -300,3 +300,42 @@ spec = describe "Blaze.Util.Graph" $ do
               ] :: AlgaGraph () () Text
           r = HashSet.fromList ["b", "a", "d"]
       G.getAncestors "c" g `shouldBe` r
+
+  context "getTermNodes" $ do
+    it "should get root as term for single node graph" $ do
+      let g = G.fromNode "a"  :: AlgaGraph () () Text
+          r = HashSet.singleton "a"
+      G.getTermNodes g `shouldBe` r
+
+    it "should get single term node from simple graph" $ do
+      let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
+              [ ("a", "b")
+              , ("b", "c")
+              ] :: AlgaGraph () () Text
+          r = HashSet.fromList ["c"]
+      G.getTermNodes g `shouldBe` r
+
+    it "should get two term nodes from graph" $ do
+      let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
+              [ ("a", "b")
+              , ("b", "c")
+              , ("b", "d")
+              ] :: AlgaGraph () () Text
+          r = HashSet.fromList ["c", "d"]
+      G.getTermNodes g `shouldBe` r
+
+    it "should get self-looping root node as term node" $ do
+      let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
+              [ ("a", "a")
+              ] :: AlgaGraph () () Text
+          r = HashSet.fromList ["a"]
+      G.getTermNodes g `shouldBe` r
+
+    it "should get self-looping term node" $ do
+      let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
+              [ ("a", "b")
+              , ("b", "c")
+              , ("c", "c")
+              ] :: AlgaGraph () () Text
+          r = HashSet.fromList ["c"]
+      G.getTermNodes g `shouldBe` r
