@@ -450,8 +450,15 @@ getDescendants v g = HashSet.fromList
 getAncestors :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
 getAncestors v = getDescendants v . transpose
 
--- | Returns all nodes with zero succs
-getTermNodes :: (Graph e attr n g) => g -> HashSet n
-getTermNodes g = HashSet.filter f $ nodes g
+-- | Gets nodes that match predicate
+getMatchingNodes :: (Graph e attr n g) => (n -> Bool) -> g -> HashSet n
+getMatchingNodes f g = HashSet.filter f $ nodes g
+
+-- | Returns all nodes with zero succs or that are self-looping
+getTermNodes :: (Eq n, Graph e attr n g) => g -> HashSet n
+getTermNodes g = getMatchingNodes f g
   where
-    f n = HashSet.null $ succs n g
+    f n = case HashSet.toList $ succs n g of
+            [] -> True
+            [x] -> n == x
+            _ -> False
