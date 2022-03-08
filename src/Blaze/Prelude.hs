@@ -97,6 +97,7 @@ import Data.SBV.Trans (SBool, SInt, SWord)
 import Data.String.Conversions as Exports (cs)
 import qualified Data.Text.Lazy as LT (Text)
 import Data.UUID as Exports (UUID)
+import Control.Monad.Extra as Exports (whenJust)
 import qualified Data.UUID as UUID
 import Protolude as Exports hiding ( Bits
                                    , Fixity

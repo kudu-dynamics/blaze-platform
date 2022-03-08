@@ -25,7 +25,7 @@ import Blaze.Pil.Construct
 import qualified Data.SBV.Trans as SBV
 import Blaze.Cfg.Solver.General (generalCfgFormula, getUnsatBranches, simplify)
 import Data.SBV.Dynamic as D hiding (Solver, name)
-import Blaze.Types.Pil.Solver (checkSatWith, SolverCtx(SolverCtx))
+import Blaze.Types.Pil.Solver (checkSatWith, SolverCtx(SolverCtx), SolverLeniency(SkipStatementsWithErrors))
 import qualified Blaze.Types.Pil.Solver as PilSolver
 import qualified Blaze.Pil.Solver as PilSolver
 import qualified Blaze.Cfg.Analysis as CfgA
@@ -96,7 +96,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
             let ddg = CfgA.getDataDependenceGraph cfg
             er <- flip (checkSatWith SBV.z3)
                   ( PilSolver.emptyState
-                  , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False
+                  , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False SkipStatementsWithErrors
                   )
                   $ PilSolver.declarePilVars >> generalCfgFormula ddg cfg'
             either (P.error . show) (return . view _1) er

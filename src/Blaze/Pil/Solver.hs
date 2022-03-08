@@ -142,10 +142,15 @@ makeSymVar nm _dst k = do
 makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
 makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm dst
 
+catchIfLenient :: Solver a -> (SolverError -> Solver a) -> Solver a
+catchIfLenient m f = catchError m $ \e -> (view #leniency <$> ask) >>= \case
+  AbortOnError -> throwError e
+  SkipStatementsWithErrors -> warn e >> f e
+
 declarePilVars :: Solver ()
 declarePilVars = ask >>= mapM_ f . HashMap.toList . typeEnv
   where
-    f (pv, dst) = do
+    f (pv, dst) = flip catchIfLenient (const $ return ()) $ do
       sval <- makeSymVarOfType (Just nm) dst
       #varNames %= HashMap.insert pv nm
       #varMap %= HashMap.insert pv sval
@@ -493,7 +498,7 @@ svAggrAnd = foldr svAnd svTrue
 
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
           -> Solver ()
-solveStmt = solveStmt_ solveExpr
+solveStmt = flip catchIfLenient (const $ return ()) . solveStmt_ solveExpr
 
 -- | Generates consraints for statement, using provided expr solver
 solveStmt_ :: (DSTExpression -> Solver SVal)
@@ -937,7 +942,7 @@ solveTypedStmtsWith :: SMTConfig
                     -> IO (Either SolverError SolverReport)
 solveTypedStmtsWith solverCfg vartypes stmts = do
   er <- runSolverWith solverCfg run ( emptyState
-                                    , SolverCtx vartypes stubbedFunctionConstraintGen True
+                                    , SolverCtx vartypes stubbedFunctionConstraintGen True AbortOnError
                                     )
   return $ toSolverReport <$> er
   where

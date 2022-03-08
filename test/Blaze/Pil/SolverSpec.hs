@@ -38,7 +38,7 @@ getVal k r = getVar k r >>= getInt
 
 spec :: Spec
 spec = describe "Blaze.Pil.SolverSpec" $ do
-  let solveSolver m = checkSatWith_ SBV.z3 False m
+  let solveSolver m = checkSatWith_ SBV.z3 False AbortOnError m
       signed32 = Ch.DSType $ Ch.TInt (bw 32) $ Ch.DSType $ Ch.TVSign True
       signed64 = Ch.DSType $ Ch.TInt (bw 64) $ Ch.DSType $ Ch.TVSign True
       unsigned32 = Ch.DSType $ Ch.TInt (bw 32) $ Ch.DSType $ Ch.TVSign False
@@ -151,7 +151,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             runSolverWith
               SBV.z3
               declarePilVars
-              (emptyState, SolverCtx (HashMap.fromList tenvTuples) mempty False)
+              (emptyState, SolverCtx (HashMap.fromList tenvTuples) mempty False AbortOnError)
           case r of
             Left _ -> return $ Left ()
             Right (_, ss) ->
@@ -195,7 +195,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
   context "solve Expr/Stmt" $ do
     let runSolveCmd tenvTuples cmd = do
           r <- flip (checkSatWith SBV.z3)
-               (emptyState, SolverCtx (HashMap.fromList tenvTuples) mempty False)
+               (emptyState, SolverCtx (HashMap.fromList tenvTuples) mempty False AbortOnError)
                $ declarePilVars >> cmd
           case r of
             Left e -> return $ Left e
