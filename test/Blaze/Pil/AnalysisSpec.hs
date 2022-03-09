@@ -46,7 +46,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as DSeq
 import qualified Data.Set as DSet
 import Test.Hspec
-import Blaze.Pretty (PrettyShow(..), Tokenizable)
+import Blaze.Pretty (PrettyShow'(PrettyShow'), Tokenizable)
 import Blaze.Types.Pil (Stmt)
 
 mixedStmts :: [TPil.Stmt]
@@ -323,7 +323,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
     let test :: (Eq a, Show a, Hashable a) => HashMap a a -> HashMap a a -> Expectation
         test a b = reduceMap a `shouldBe` b
         testPretty :: (Eq a, Hashable a, Tokenizable a) => HashMap a a -> HashMap a a -> Expectation
-        testPretty a b = PrettyShow (reduceMap a) `shouldBe` PrettyShow b
+        testPretty a b = PrettyShow' (reduceMap a) `shouldBe` PrettyShow' b
         testCycle :: (Eq a, Hashable a) => HashMap a a -> Expectation
         testCycle a = evaluate (reduceMap a) `shouldThrow` errorCall "reduceMap: detected cycle in map"
 
@@ -372,7 +372,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
 
   describe "copyProp" $ do
     let testPretty :: [Stmt] -> [Stmt] -> Expectation
-        testPretty a b = PrettyShow (copyProp a) `shouldBe` PrettyShow b
+        testPretty a b = PrettyShow' (copyProp a) `shouldBe` PrettyShow' b
 
     it "should propagate through assignment" $ do
       testPretty (copyProp testCopyStmts)

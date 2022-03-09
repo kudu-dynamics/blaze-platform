@@ -9,7 +9,7 @@ import Blaze.Cfg.Analysis (removeEmptyBasicBlockNodes, getStmts, removeUnusedPhi
 import qualified Blaze.Cfg.Analysis as CfgA
 import Blaze.Function (Function (Function))
 import Blaze.Prelude hiding (const)
-import Blaze.Pretty (PrettyShow (PrettyShow))
+import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
 import Blaze.Util.Spec (bb, mkUuid1)
 import Test.Hspec hiding (focus)
@@ -59,9 +59,9 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               TrueBranch
             ]
 
-      PrettyShow (removeEmptyBasicBlockNodes input)
+      PrettyShow' (removeEmptyBasicBlockNodes input)
         `shouldBe`
-        PrettyShow expected
+        PrettyShow' expected
 
 
     it "should remove two empty nodes in series" $ do
@@ -95,9 +95,9 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               TrueBranch
             ]
 
-      PrettyShow (removeEmptyBasicBlockNodes input)
+      PrettyShow' (removeEmptyBasicBlockNodes input)
         `shouldBe`
-        PrettyShow expected
+        PrettyShow' expected
 
 
     it "should remove two empty nodes in parallel" $ do
@@ -135,9 +135,9 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               UnconditionalBranch
             ]
       
-      PrettyShow (removeEmptyBasicBlockNodes input)
+      PrettyShow' (removeEmptyBasicBlockNodes input)
         `shouldBe`
-        PrettyShow expected
+        PrettyShow' expected
 
   context "removeUnusedPhi" $ do
     it "should remove DefPhi statements where defined variable is unused" $ do
@@ -246,7 +246,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midLeft' end' UnconditionalBranch
                 ]
 
-      PrettyShow (focus midLeft input) `shouldBe` PrettyShow output
+      PrettyShow' (focus midLeft input) `shouldBe` PrettyShow' output
 
     it "should removed edges that skip focal node" $ do
       let root =
@@ -286,7 +286,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midLeft end UnconditionalBranch
                 ]
 
-      PrettyShow (focus midLeft input) `shouldBe` PrettyShow output
+      PrettyShow' (focus midLeft input) `shouldBe` PrettyShow' output
 
 
   context "simplify" $ do
@@ -370,7 +370,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midLeft' end' UnconditionalBranch
                 , CfEdge midRight' end' UnconditionalBranch
                 ]
-      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
+      PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
     it "should constant prop" $ do
       let root =
@@ -411,7 +411,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 [ CfEdge root end' UnconditionalBranch
                 ]
 
-      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
+      PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
     it "should prune using constant and copy prop" $ do
       let root =
@@ -473,7 +473,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midTrue end UnconditionalBranch
                 ]
 
-      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
+      PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
     it "should reduce phi" $ do
       let root =
@@ -533,4 +533,4 @@ spec = describe "Blaze.Cfg.Analysis" $ do
                 , CfEdge midTrue end' UnconditionalBranch
                 ]
 
-      PrettyShow (CfgA.simplify input) `shouldBe` PrettyShow output
+      PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
