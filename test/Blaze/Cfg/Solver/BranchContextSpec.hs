@@ -19,7 +19,7 @@ import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1, mkDummyCtx, mkDummyTermNode)
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Pretty (PrettyShow(PrettyShow))
+import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Blaze.Pil.Construct
 import qualified Blaze.Cfg.Solver.BranchContext as BC
 import qualified Blaze.Graph as G
@@ -112,7 +112,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 
           expectedEdgeDom = G.Dominators . HashMap.fromList $ []
 
-      PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+      PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
     it "should create a proper edge Dominators map for linear CFG" $ do
       let rootNode = bbp callerCtx "root"
@@ -155,7 +155,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
             , (edge3, HashSet.fromList [edge1, edge2])
             ]
       
-      PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+      PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
     it "should create a proper edge Dominators map for complex CFG" $ do
       let rootNode = bbp callerCtx "root"
@@ -209,7 +209,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
             , (true2ToEnd, HashSet.fromList [rootToFalse1, false1ToTrue2])
             ]
       
-      PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+      PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
   
   context "Edge PostDominators" $ do
     it "should create an empty edge PostDominators map for graph with single node" $ do
@@ -223,7 +223,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 
           expectedEdgeDom = G.PostDominators . HashMap.fromList $ []
 
-      PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+      PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
     it "should create a proper edge PostDominators map for linear CFG" $ do
       let rootNode = bbp callerCtx "root"
@@ -266,7 +266,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
             , (edge2, HashSet.fromList [edge3])
             ]
       
-      PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+      PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
 
     it "should create a proper edge Dominators map for complex CFG" $ do
@@ -345,8 +345,8 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           getPostDomCounts (G.PostDominators m) = HashSet.size <$> m
           
-      PrettyShow (getPostDomCounts edgeDoms) `shouldBe` PrettyShow (getPostDomCounts expectedEdgeDom)
-      PrettyShow edgeDoms `shouldBe` PrettyShow expectedEdgeDom
+      PrettyShow' (getPostDomCounts edgeDoms) `shouldBe` PrettyShow' (getPostDomCounts expectedEdgeDom)
+      PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
   context "getUnsatBranches" $ do
     it "should remove inconsistent child constraint of pruned parent" $ do
@@ -380,7 +380,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
       r <- BC.getUnsatBranches cfg
       
-      (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedRemoved)
+      (PrettyShow' <$> r) `shouldBe` (PrettyShow' <$> Right expectedRemoved)
 
     it "should work around a type error" $ do
       let rootNode = bbpn 0 callerCtx "root"
@@ -412,4 +412,4 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
       r <- BC.getUnsatBranches cfg
       
-      (PrettyShow <$> r) `shouldBe` (PrettyShow <$> Right expectedRemoved)
+      (PrettyShow' <$> r) `shouldBe` (PrettyShow' <$> Right expectedRemoved)

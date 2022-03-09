@@ -20,7 +20,7 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Cfg.Checker
-import Blaze.Pretty (PrettyShow(PrettyShow))
+import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Blaze.Pil.Construct
 import qualified Data.SBV.Trans as SBV
 import Blaze.Cfg.Solver.General (generalCfgFormula, getUnsatBranches, simplify)
@@ -397,7 +397,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                  ]
 
       r' <- solve cfg
-      PrettyShow r' `shouldBe` PrettyShow rcfg
+      PrettyShow' r' `shouldBe` PrettyShow' rcfg
 
     it "should find single unsat branch and reduce phi" $ do
       let rootNode = bbp callerCtx "root"
@@ -427,7 +427,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                  ]
 
       r' <- solve cfg
-      PrettyShow r' `shouldBe` PrettyShow rcfg
+      PrettyShow' r' `shouldBe` PrettyShow' rcfg
 
 
     it "should find two cascading unsat branch" $ do
@@ -495,7 +495,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
 
 
       r <- solve cfg
-      PrettyShow r `shouldBe` PrettyShow rcfg
+      PrettyShow' r `shouldBe` PrettyShow' rcfg
 
 
     -- it "should cascade prune for NE" $ do
@@ -562,4 +562,4 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
 
 
     --   r <- solve cfg
-    --   PrettyShow r `shouldBe` PrettyShow rcfg
+    --   PrettyShow' r `shouldBe` PrettyShow' rcfg

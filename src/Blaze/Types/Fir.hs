@@ -44,21 +44,16 @@ instance Hashable n => Hashable (IfChain n)
 
 instance Tokenizable (IfChain (BasicBlock F)) where
   tokenize (IfChain esc dest ns) =
-    [kt "IfChain", tt " { "] ++
-    arg "esc" ++
-    tokStart esc ++
-    [tt ", "] ++
-    arg "dest" ++
-    tokStart dest ++
-    [tt ", "] ++
-    arg "nodes" ++
-    delimitedList [tt "["] [tt ", "] [tt "]"] (tokStart <$> ns) ++
-    [tt " }"]
+    [kt "IfChain", tt " { "] <++>
+    arg "esc" (tokStart esc) True <++>
+    arg "dest" (tokStart dest) True <++>
+    arg "nodes" (delimitedList [tt "["] [tt ", "] [tt "]"] $ tokStart <$> ns) False <++>
+    tt " }"
     where
       tokStart bb = [tt $ show (fromIntegral $ bb ^. BB.start :: Integer)]
       tt = textToken
       kt = keywordToken
-      arg a = [plainToken ArgumentNameToken a, tt ": "]
+      arg name val more = [plainToken ArgumentNameToken name, tt ": "] <++> val <++> [tt ", " | more]
 
 
 type ChainMapping n = Map (ChainNode n) (ChainNode n)

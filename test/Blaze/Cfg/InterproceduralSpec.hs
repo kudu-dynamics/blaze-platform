@@ -18,7 +18,7 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Blaze.Cfg.Interprocedural as ICfg
 import Blaze.Cfg.Interprocedural (InterCfg(InterCfg))
-import Blaze.Pretty (PrettyShow(PrettyShow))
+import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Test.Hspec
 
 bbp :: Ctx -> Text -> [Pil.Stmt] -> CfNode [Pil.Stmt]
@@ -181,8 +181,8 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
             ]
           }
     it "should make enter func node" $ do
-      PrettyShow (result ^. #nodeData) `shouldBe` PrettyShow (expected ^. #nodeData)
-      PrettyShow result `shouldBe` PrettyShow expected
+      PrettyShow' (result ^. #nodeData) `shouldBe` PrettyShow' (expected ^. #nodeData)
+      PrettyShow' result `shouldBe` PrettyShow' expected
 
   context "mkLeaveFuncNode" $ do
     let uuid' = mkUuid1 (1 :: Int)
@@ -213,10 +213,10 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
             ]
           }
     it "should make enter func node" $ do
-      PrettyShow (result ^. #nodeData) `shouldBe` PrettyShow (expected ^. #nodeData)
-      PrettyShow result `shouldBe` PrettyShow expected
+      PrettyShow' (result ^. #nodeData) `shouldBe` PrettyShow' (expected ^. #nodeData)
+      PrettyShow' result `shouldBe` PrettyShow' expected
 
   context "ExpandCall" $ do
     let expanded = ICfg.expandCall_ (InterCfg callerCfg) callNode callStmt (InterCfg targetCfg) targetCtx leaveFuncUUID
     it "should expand a call" $ do
-      PrettyShow expanded `shouldBe` PrettyShow (InterCfg expandedCfg)
+      PrettyShow' expanded `shouldBe` PrettyShow' (InterCfg expandedCfg)
