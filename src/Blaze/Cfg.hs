@@ -5,14 +5,14 @@ module Blaze.Cfg (
   module Blaze.Cfg,
 ) where
 
-import qualified Blaze.Graph as G
 import Blaze.Graph (Dominators, PostDominators)
+import qualified Blaze.Graph as G
 import Blaze.Prelude
-import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Cfg hiding (nodes)
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt, Ctx)
+import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
+import Control.Lens (set)
 import qualified Data.HashSet as HashSet
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
@@ -54,7 +54,7 @@ getPostDominators = getPostDominators_ dummyTermNode UnconditionalBranch
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
 
 lastStmtFrom :: (HasField' "nodeData" n [Stmt]) => n -> Maybe Stmt
-lastStmtFrom = lastMay . view (field' @"nodeData")
+lastStmtFrom = lastMay . view #nodeData
 
 parseReturnNode :: BasicBlockNode [Stmt] -> Maybe (ReturnNode [Stmt])
 parseReturnNode node = do
@@ -203,3 +203,33 @@ getCtxIndices cfg = Bimap.fromList $ zip [0..] ctxs
   where
     ctxs = sortUnique . foldMap nodeCtxs . G.nodes $ cfg
     sortUnique = sort . HSet.toList
+
+-- | Substitute a node with another CFG.
+substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
+substNode
+  outerCfg@(Cfg _ outerRoot)
+  node
+  innerCfg@(Cfg _ innerRoot)
+  exitNode' =
+    -- Check if the node we are substituting is the outer CFG's root
+    if asIdNode outerRoot /= asIdNode node
+       then newCfg & #root .~ outerRoot
+       else newCfg & #root .~ innerRoot
+   where
+    -- TODO: Improve Graph API for fetching edges
+    predEdges' :: [CfEdge a]
+    predEdges' = HashSet.toList $ Cfg.predEdges node outerCfg
+    succEdges' :: [CfEdge a]
+    succEdges' = HashSet.toList $ Cfg.succEdges node outerCfg
+
+    newPredEdges :: [CfEdge a]
+    newPredEdges = set #dst innerRoot <$> predEdges'
+    newSuccEdges :: [CfEdge a]
+    newSuccEdges = set #src exitNode' <$> succEdges'
+    newCfg :: Cfg a
+    newCfg =
+      Cfg.removeNode node
+      . Cfg.addNodes (HashSet.toList $ Cfg.nodes innerCfg)
+      . Cfg.addEdges (Cfg.edges innerCfg)
+      . Cfg.addEdges newPredEdges
+      . Cfg.addEdges newSuccEdges $ outerCfg

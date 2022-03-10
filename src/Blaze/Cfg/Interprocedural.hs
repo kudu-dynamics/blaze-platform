@@ -5,10 +5,10 @@ module Blaze.Cfg.Interprocedural (
 
 import Blaze.Prelude hiding (Symbol, sym)
 
-import Blaze.Cfg hiding (BasicBlockNode(ctx), CallNode(ctx), callDest)
+import Blaze.Cfg hiding (BasicBlockNode (ctx), CallNode (ctx), callDest)
+import qualified Blaze.Cfg as Cfg
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
 import Blaze.Types.Cfg.Interprocedural as Exports
-import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (
   CallDest (CallFunc),
@@ -24,8 +24,6 @@ import Blaze.Types.Pil (
   mkCallStatement,
  )
 import qualified Data.List.NonEmpty as NEList
-import qualified Data.HashSet as HashSet
-import Control.Lens.Setter (set)
 
 
 getCallTargetFunction :: CallDest a -> Maybe Function
@@ -100,74 +98,80 @@ getTargetFunc callNode = getCallTargetFunction $ callNode ^. #callDest
 expandCall ::
   InterCfg ->
   PilCallNode ->
-  Function -> 
+  Function ->
   Builder a (Either ExpandCallError InterCfg)
 expandCall callerCfg callNode targetFunc = do
   getCfg_ <- use #getCfg
   -- ctxId <- getNextCtxIndex
   runExceptT $ do
-    callStmt <- liftMaybe (NotCallStatement $ callNode ^. #nodeData)
-      $ getCallStmt callNode
-    (ImportResult targetCtx targetCfg _) <- liftMaybeIO (FailedToCreateCfg targetFunc)
-      $ getCfg_ targetFunc
+    callStmt <-
+      liftMaybe (NotCallStatement $ callNode ^. #nodeData) $
+        getCallStmt callNode
+    (ImportResult targetCtx targetCfg _) <-
+      liftMaybeIO (FailedToCreateCfg targetFunc) $
+        getCfg_ targetFunc
     leaveFuncUUID <- liftIO randomIO
-    return $ expandCall_
-      callerCfg
-      callNode
-      callStmt
-      (InterCfg targetCfg)
-      targetCtx
-      leaveFuncUUID
+    return $
+      expandCall_
+        callerCfg
+        callNode
+        callStmt
+        (InterCfg targetCfg)
+        targetCtx
+        leaveFuncUUID
 
-expandCall_
-  :: InterCfg
-  -> PilCallNode
-  -> CallStatement
-  -> InterCfg
-  -> Ctx
-  -> UUID
-  -> InterCfg
+expandCall_ ::
+  InterCfg ->
+  PilCallNode ->
+  CallStatement ->
+  InterCfg ->
+  Ctx ->
+  UUID ->
+  InterCfg
 expandCall_
   (InterCfg callerCfg)
   callNode
   callStmt
   (InterCfg targetCfg)
   targetCtx
-  leaveFuncUUID
-  = substNode (InterCfg callerCfg) (Call callNode) (InterCfg wrappedTargetCfg) leaveFunc
-  where
-    callerCtx = callNode ^. #ctx
-    (WrappedTargetCfg wrappedTargetCfg leaveFunc) =
-      wrapTargetCfg
-        (callNode ^. #uuid)
-        leaveFuncUUID
-        callerCtx
-        targetCtx
-        callStmt
-        targetCfg
+  leaveFuncUUID =
+    substNode (InterCfg callerCfg) (Call callNode) (InterCfg wrappedTargetCfg) leaveFunc
+    where
+      callerCtx = callNode ^. #ctx
+      (WrappedTargetCfg wrappedTargetCfg leaveFunc) =
+        wrapTargetCfg
+          (callNode ^. #uuid)
+          leaveFuncUUID
+          callerCtx
+          targetCtx
+          callStmt
+          targetCfg
 
 data WrappedTargetCfg = WrappedTargetCfg
   { wrappedCfg :: PilCfg
   , exitNode :: PilNode
-  } deriving (Eq, Show, Generic)
+  }
+  deriving (Eq, Show, Generic)
 
-wrapTargetCfg
-  :: UUID
-  -> UUID
-  -> Ctx
-  -> Ctx
-  -> CallStatement
-  -> PilCfg
-  -> WrappedTargetCfg
+wrapTargetCfg ::
+  UUID ->
+  UUID ->
+  Ctx ->
+  Ctx ->
+  CallStatement ->
+  PilCfg ->
+  WrappedTargetCfg
 wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg =
   WrappedTargetCfg (targetCfg' enterFunc leaveFunc) leaveFunc
   where
-    enterFunc = EnterFunc
-      $ mkEnterFuncNode enterFuncUUID callerCtx calleeCtx callStmt
-    leaveFunc = LeaveFunc
-      . mkLeaveFuncNode leaveFuncUUID callerCtx calleeCtx callStmt
-      $ getRetExprs targetCfg
-      
+    enterFunc =
+      EnterFunc $
+        mkEnterFuncNode enterFuncUUID callerCtx calleeCtx callStmt
+    leaveFunc =
+      LeaveFunc
+        . mkLeaveFuncNode leaveFuncUUID callerCtx calleeCtx callStmt
+        $ getRetExprs targetCfg
+
     -- Connect the enter and leave function nodes to the targetCfg
 
     prevRoot = targetCfg ^. #root
@@ -191,30 +195,5 @@ getRetNodes cfg =
 
 -- | Substitute a node with another interprocedural CFG.
 substNode :: InterCfg -> PilNode -> InterCfg -> PilNode -> InterCfg
-substNode
-  (InterCfg outerCfg@(Cfg _ outerRoot))
-  node
-  (InterCfg innerCfg@(Cfg _ innerRoot))
-  exitNode' =
-    -- Check if the node we are substituting is the outer CFG's root
-    if asIdNode outerRoot /= asIdNode node
-       then InterCfg $ newCfg & #root .~ outerRoot
-       else InterCfg $ newCfg & #root .~ innerRoot
-   where
-    -- TODO: Improve Graph API for fetching edges
-    predEdges' :: [CfEdge [Stmt]]
-    predEdges' = HashSet.toList $ Cfg.predEdges node outerCfg
-    succEdges' :: [CfEdge [Stmt]]
-    succEdges' = HashSet.toList $ Cfg.succEdges node outerCfg
-    
-    newPredEdges :: [CfEdge [Stmt]]
-    newPredEdges = set #dst innerRoot <$> predEdges'
-    newSuccEdges :: [CfEdge [Stmt]]
-    newSuccEdges = set #src exitNode' <$> succEdges'
-    newCfg :: Cfg [Stmt]
-    newCfg = 
-      Cfg.removeNode node
-      . Cfg.addNodes (HashSet.toList $ Cfg.nodes innerCfg)
-      . Cfg.addEdges (Cfg.edges innerCfg) 
-      . Cfg.addEdges newPredEdges
-      . Cfg.addEdges newSuccEdges $ outerCfg
+substNode (InterCfg outerCfg) node (InterCfg innerCfg) exitNode' =
+  InterCfg $ Cfg.substNode outerCfg node innerCfg exitNode'
