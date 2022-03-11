@@ -8,8 +8,12 @@ module Blaze.Types.Cfg.Grouping where
 import Blaze.Prelude
 
 import qualified Blaze.Types.Cfg as Cfg
-import qualified Blaze.Types.Graph as G
+import Blaze.Types.Cfg (BranchType)
+import qualified Blaze.Graph as G
+import Blaze.Types.Graph (Dominators, PostDominators)
 import Blaze.Types.Graph.Alga (AlgaGraph (AlgaGraph))
+import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
+import Blaze.Util.Spec (mkDummyCtx, mkUuid1)
 
 import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
 import qualified Data.HashSet as HashSet
@@ -21,6 +25,7 @@ import Control.Lens (set)
 
 data GroupingNode a = GroupingNode
   { termNode :: CfNode a
+  , uuid :: UUID
   , grouping :: Cfg a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
@@ -75,6 +80,14 @@ asIdNode = void
 
 asIdEdge :: CfEdge a -> CfEdge ()
 asIdEdge = void
+
+getNodeUUID :: CfNode a -> UUID
+getNodeUUID = \case
+  BasicBlock x -> x ^. #uuid
+  Call x -> x ^. #uuid
+  EnterFunc x -> x ^. #uuid
+  LeaveFunc x -> x ^. #uuid
+  Grouping x -> x ^. #uuid
 
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
@@ -155,20 +168,20 @@ fromCfg (Cfg.Cfg (AlgaGraph adjs edata ndata) root_) =
       (HashMap.map fromCfNode . HashMap.mapKeys fromCfNode $ ndata))
     (fromCfNode root_)
 
-toCfg :: Cfg a -> Cfg.Cfg a
-toCfg cfg@(Cfg graph_ root_) =
-  case getGroups cfg of
-    [] -> fromJust $ toCfg_ cfg
-    groups ->
-      toCfg $
-        foldl'
-          (\cfg' gn -> _)
-          cfg
-          groups
-  where
-    getGroups :: Cfg a -> [GroupingNode a]
-    getGroups (Cfg (AlgaGraph _ _ vs) _) =
-      mapMaybe (\case Grouping n -> Just n; _ -> Nothing) $ HashMap.elems vs
+-- toCfg :: Cfg a -> Cfg.Cfg a
+-- toCfg cfg@(Cfg graph_ root_) =
+--   case getGroups cfg of
+--     [] -> fromJust $ toCfg_ cfg
+--     groups ->
+--       toCfg $
+--         foldl'
+--           (\cfg' gn -> _)
+--           cfg
+--           groups
+--   where
+--     getGroups :: Cfg a -> [GroupingNode a]
+--     getGroups (Cfg (AlgaGraph _ _ vs) _) =
+--       mapMaybe (\case Grouping n -> Just n; _ -> Nothing) $ HashMap.elems vs
 
 terminalNode :: CfNode a -> Cfg.CfNode a
 terminalNode (BasicBlock n) = Cfg.BasicBlock n
@@ -392,3 +405,163 @@ substNode
       . addEdges (edges innerCfg)
       . addEdges newPredEdges
       . addEdges newSuccEdges $ outerCfg
+
+
+
+------------
+
+mkDummyTermNode :: Ctx -> a -> CfNode a
+mkDummyTermNode ctx nodeData 
+  = BasicBlock
+    $ Cfg.BasicBlockNode
+    { ctx = ctx
+    , start = 0
+    , end = 0
+    , uuid = mkUuid1 (0 :: Int)
+    , nodeData = nodeData
+    }
+
+getPostDominatorsAsIdNodes_ :: CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode ())
+getPostDominatorsAsIdNodes_ dummyTermNode dummyBranchType cfg = G.getPostDominators dummyTermNode dummyBranchType (cfg ^. #graph)
+
+getPostDominatorsAsIdNodes :: Cfg a -> PostDominators (CfNode ())
+getPostDominatorsAsIdNodes = getPostDominatorsAsIdNodes_ dummyTermNode Cfg.UnconditionalBranch
+  where
+    dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
+
+getPostDominators_ :: (Hashable a, Eq a) => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
+getPostDominators_ dummyTermNode dummyBranchType cfg
+  = G.domMap (getFullNode cfg)
+  . G.getPostDominators dummyTermNode dummyBranchType
+  $ cfg ^. #graph
+
+getPostDominators :: (Hashable a, Eq a) => Cfg a -> PostDominators (CfNode a)
+getPostDominators = getPostDominators_ dummyTermNode Cfg.UnconditionalBranch
+  where
+    dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
+
+getDominators_ :: Cfg a -> Dominators (CfNode ())
+getDominators_ cfg = G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+
+getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators (CfNode a)
+getDominators cfg = G.domMap (getFullNode cfg)
+  $ G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+
+
+---------
+
+
+-- | Returns the set of nodes that could be group terminals, given the start node.
+-- A group terminal must be a post dominator of the start node and dominated by it.
+getPossibleGroupTerms
+  :: forall a. (Hashable a, Eq a)
+  => CfNode a
+  -> Cfg a
+  -> HashSet (CfNode a)
+getPossibleGroupTerms startNode cfg = case mpdoms of
+  Nothing -> HashSet.empty
+  Just pdoms -> HashSet.fromList . filter dominatedByStartNode $ pdoms  
+  where
+    domMapping = getDominators cfg
+    mpdoms :: Maybe [CfNode a]
+    mpdoms = fmap HashSet.toList
+      . G.domLookup startNode
+      $ getPostDominators cfg
+
+    dominatedByStartNode :: CfNode a -> Bool
+    dominatedByStartNode candidateTerm = fromMaybe False $ do
+      doms <- G.domLookup candidateTerm domMapping
+      return $ HashSet.member startNode doms
+
+
+-- | Gets all nodes dominated by startNode and post-dominated by endNode
+findGroupedNodes
+  :: (Hashable a, Eq a)
+  => CfNode a
+  -> CfNode a
+  -> Cfg a
+  -> HashSet (CfNode a)
+findGroupedNodes startNode endNode cfg = HashSet.filter isDoubleDominated . G.nodes $ cfg
+  where
+    domLookup' :: (G.DominatorMapping m, Eq a, Hashable a)
+               => a
+               -> m a
+               -> HashSet a
+    domLookup' n = fromMaybe HashSet.empty . G.domLookup n
+    
+    domMapping = getDominators cfg
+    pdomMapping = getPostDominators cfg
+
+    isDoubleDominated n = HashSet.member startNode (domLookup' n domMapping)
+      && HashSet.member endNode (domLookup' n pdomMapping)
+
+
+extractGroupingNode
+  :: forall a. (Eq a, Hashable a)
+  => CfNode a
+  -> CfNode a
+  -> HashSet (CfNode a)
+  -> Cfg a
+  -> GroupingNode a
+extractGroupingNode startNode endNode groupNodes cfg
+  = GroupingNode endNode (getNodeUUID startNode)
+  $ mkCfg startNode (HashSet.toList nodes') edges'
+  where
+    allNodes = HashSet.fromList [startNode, endNode] <> groupNodes
+    nodes' = HashSet.delete startNode groupNodes
+    
+    edges' = filter containsOnlyGroupNodes . edges $ cfg
+
+    containsOnlyGroupNodes :: CfEdge a -> Bool
+    containsOnlyGroupNodes (CfEdge a b _) =
+      HashSet.member a allNodes && HashSet.member b allNodes
+
+
+-- | Given a start and term node for a grouping, this function finds all nodes
+-- within the group and sticks them into their own CFG.
+makeGrouping
+  :: forall a. (Hashable a, Eq a)
+  => CfNode a
+  -> CfNode a
+  -> Cfg a
+  -> Cfg a
+makeGrouping startNode endNode cfg = cfg'
+  where
+    innerNodes = HashSet.difference (findGroupedNodes startNode endNode cfg) (HashSet.fromList [startNode, endNode])
+    allGroupNodes = HashSet.fromList [startNode, endNode] <> innerNodes
+
+    groupNode :: CfNode a
+    groupNode = Grouping $ extractGroupingNode startNode endNode innerNodes cfg
+
+    containsOnlyGroupNodes :: CfEdge a -> Bool
+    containsOnlyGroupNodes (CfEdge a b _) =
+      HashSet.member a allGroupNodes && HashSet.member b allGroupNodes
+
+    nonGroupNodes = HashSet.difference (G.nodes cfg) allGroupNodes
+
+    -- edges that aren't inside the group
+    nonGroupEdges = filter (not . containsOnlyGroupNodes)
+      . fmap fromLEdge
+      $ G.edges cfg
+
+    -- Both outgoing and incoming edges, where the startNode and endNode
+    -- are replaced with the group node. This handles looping groups.
+    exteriorGroupEdges :: [CfEdge a]
+    exteriorGroupEdges
+      = fmap (\(CfEdge a b lbl) -> CfEdge (substStartEnd a) (substStartEnd a) lbl)
+      . HashSet.toList
+      $ predEdges startNode cfg <> succEdges endNode cfg
+      where
+        substStartEnd :: CfNode a -> CfNode a
+        substStartEnd e = bool e groupNode $ e == startNode || e == endNode
+
+    newEdges :: [CfEdge a]
+    newEdges = nonGroupEdges <> exteriorGroupEdges
+
+    cfg' = if cfg ^. #root == groupNode
+      then mkCfg groupNode
+            (HashSet.toList nonGroupNodes)
+            newEdges
+      else mkCfg (cfg ^. #root)
+            (HashSet.toList $ nonGroupNodes <> HashSet.singleton groupNode)
+            newEdges
