@@ -5,7 +5,7 @@ module Blaze.Cfg.Interprocedural (
 
 import Blaze.Prelude hiding (Symbol, sym)
 
-import Blaze.Cfg hiding (BasicBlockNode (ctx), CallNode (ctx), callDest)
+import Blaze.Cfg hiding (BasicBlockNode (ctx), CallNode (ctx), callDest, substNode)
 import qualified Blaze.Cfg as Cfg
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
 import Blaze.Types.Cfg.Interprocedural as Exports

@@ -475,13 +475,13 @@ getPossibleGroupTerms startNode cfg = case mpdoms of
 
 
 -- | Gets all nodes dominated by startNode and post-dominated by endNode
-findGroupedNodes
+findNodesInGroup
   :: (Hashable a, Eq a)
   => CfNode a
   -> CfNode a
   -> Cfg a
   -> HashSet (CfNode a)
-findGroupedNodes startNode endNode cfg = HashSet.filter isDoubleDominated . G.nodes $ cfg
+findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.nodes $ cfg
   where
     domLookup' :: (G.DominatorMapping m, Eq a, Hashable a)
                => a
@@ -527,20 +527,26 @@ makeGrouping
   -> Cfg a
 makeGrouping startNode endNode cfg = cfg'
   where
-    innerNodes = HashSet.difference (findGroupedNodes startNode endNode cfg) (HashSet.fromList [startNode, endNode])
+    innerNodes = HashSet.difference (findNodesInGroup startNode endNode cfg) (HashSet.fromList [startNode, endNode])
     allGroupNodes = HashSet.fromList [startNode, endNode] <> innerNodes
 
     groupNode :: CfNode a
     groupNode = Grouping $ extractGroupingNode startNode endNode innerNodes cfg
 
+    containsGroupNodes :: (Bool -> Bool -> Bool) -> CfEdge a -> Bool
+    containsGroupNodes comb (CfEdge a b _) =
+      HashSet.member a allGroupNodes `comb` HashSet.member b allGroupNodes
+
     containsOnlyGroupNodes :: CfEdge a -> Bool
-    containsOnlyGroupNodes (CfEdge a b _) =
-      HashSet.member a allGroupNodes && HashSet.member b allGroupNodes
+    containsOnlyGroupNodes = containsGroupNodes (&&)
+
+    containsAnyGroupNodes :: CfEdge a -> Bool
+    containsAnyGroupNodes = containsGroupNodes (||)
 
     nonGroupNodes = HashSet.difference (G.nodes cfg) allGroupNodes
 
     -- edges that aren't inside the group
-    nonGroupEdges = filter (not . containsOnlyGroupNodes)
+    nonGroupEdges = filter (not . containsAnyGroupNodes)
       . fmap fromLEdge
       $ G.edges cfg
 
@@ -548,7 +554,7 @@ makeGrouping startNode endNode cfg = cfg'
     -- are replaced with the group node. This handles looping groups.
     exteriorGroupEdges :: [CfEdge a]
     exteriorGroupEdges
-      = fmap (\(CfEdge a b lbl) -> CfEdge (substStartEnd a) (substStartEnd a) lbl)
+      = fmap (\(CfEdge a b lbl) -> CfEdge (substStartEnd a) (substStartEnd b) lbl)
       . HashSet.toList
       $ predEdges startNode cfg <> succEdges endNode cfg
       where

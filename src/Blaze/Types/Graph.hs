@@ -90,6 +90,11 @@ instance DominatorMapping PostDominators where
   domLookup x (PostDominators m) = HashMap.lookup x m
   domMerge (PostDominators a) (PostDominators b) = PostDominators $ domMergeHelper a b
 
+domLookup_ :: (DominatorMapping m, Eq a, Hashable a)
+  => a -> m a -> HashSet a
+domLookup_ k = fromMaybe HashSet.empty . domLookup k
+
+
 mapMaybeDominatorsHelper
   :: forall a b. (Eq b, Hashable b)
   => (a -> Maybe b)
