@@ -6,10 +6,9 @@ import Blaze.Function (Function (Function))
 import Blaze.Types.Cfg
     ( BasicBlockNode(BasicBlockNode), BranchType(..) )
 import qualified Blaze.Types.Cfg as Cfg
-import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Test.Hspec
-import Blaze.Pretty (prettyPrint, pretty, PrettyShow(PrettyShow))
+import Blaze.Pretty (PrettyShow(PrettyShow))
 import Blaze.Types.Pil (Ctx(Ctx), CtxId(CtxId))
 import Blaze.Util.Spec (mkUuid1, mkUuid2)
 import qualified Blaze.Types.Cfg.Grouping as Grp
@@ -42,6 +41,7 @@ cbbn :: Text -> Cfg.CfNode Text
 
 spec :: Spec
 spec = describe "Blaze.Types.Cfg.Grouping" $ do
+  let prettyShouldBe x y = PrettyShow x `shouldBe` PrettyShow y
   context "findNodesInGroup" $ do
     it "should return empty set if group is just start and end with no middle" $ do
       let cfg = Grp.mkCfg
@@ -61,7 +61,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           startNode = gbbn "mid"
           endNode = gbbn "end"
           expected = HashSet.empty
-      Grp.findNodesInGroup startNode endNode cfg `shouldBe` expected
+      Grp.findNodesInGroup startNode endNode cfg `prettyShouldBe` expected
 
     it "should return single middle node" $ do
       let startNode = gbbn "start"
@@ -83,7 +83,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
             ]
           expected = HashSet.singleton midNode
 
-      Grp.findNodesInGroup startNode endNode cfg `shouldBe` expected
+      Grp.findNodesInGroup startNode endNode cfg `prettyShouldBe` expected
 
     it "should return two middle nodes" $ do
       let startNode = gbbn "start"
@@ -115,7 +115,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
             ]
           expected = HashSet.fromList [midNode1, midNode2]
 
-      Grp.findNodesInGroup startNode endNode cfg `shouldBe` expected
+      Grp.findNodesInGroup startNode endNode cfg `prettyShouldBe` expected
 
   context "Grp.extractGroupingNode" $ do
     it "should get whole cfg in grouping node if they share start and end" $ do
@@ -149,7 +149,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           expected = Grp.GroupingNode endNode (Grp.getNodeUUID startNode) cfg
 
           innerGroupNodes = Grp.findNodesInGroup startNode endNode cfg
-      Grp.extractGroupingNode startNode endNode innerGroupNodes cfg `shouldBe` expected
+      Grp.extractGroupingNode startNode endNode innerGroupNodes cfg `prettyShouldBe` expected
 
     it "should get the inner group but ignore the outer nodes" $ do
       let rootNode = gbbn "root"
@@ -219,7 +219,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           expected = Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg
 
           innerGroupNodes = Grp.findNodesInGroup startNode endNode outerCfg
-      Grp.extractGroupingNode startNode endNode innerGroupNodes outerCfg `shouldBe` expected
+      Grp.extractGroupingNode startNode endNode innerGroupNodes outerCfg `prettyShouldBe` expected
 
   context "makeGrouping" $ do
     it "should replace inner group and connect it to outer nodes" $ do
@@ -307,4 +307,4 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
 
           expected = outerCfg'
 
-      PrettyShow (Grp.makeGrouping startNode endNode outerCfg) `shouldBe` PrettyShow expected
+      Grp.makeGrouping startNode endNode outerCfg `prettyShouldBe` expected
