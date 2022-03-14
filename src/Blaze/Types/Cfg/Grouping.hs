@@ -333,8 +333,8 @@ instance (Hashable a, Eq a) => G.Graph Cfg.BranchType (CfNode a) (CfNode a) (Cfg
     $ cfg
 
   -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?
-  subgraph pred cfg =
-    cfg & #graph %~ G.subgraph (pred . getFullNode cfg)
+  subgraph pred' cfg =
+    cfg & #graph %~ G.subgraph (pred' . getFullNode cfg)
 
   reachable n cfg = fmap (getFullNode cfg)
     . G.reachable (asIdNode n)
@@ -357,7 +357,7 @@ toFullNodeSet g = HashSet.map $ getFullNode g
 
 -- TODO: move this to Graph class
 predEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
-predEdges n cfg = HashSet.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
+predEdges n cfg = HashSet.map (\pred' -> fromJust . getFullEdge cfg $ G.Edge pred' n)
   . G.preds n
   $ cfg
 
