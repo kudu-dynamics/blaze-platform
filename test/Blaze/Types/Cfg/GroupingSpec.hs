@@ -8,11 +8,11 @@ import Blaze.Types.Cfg
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Prelude
 import Test.Hspec
-import Blaze.Pretty (PrettyShow(PrettyShow))
 import Blaze.Types.Pil (Ctx(Ctx), CtxId(CtxId))
 import Blaze.Util.Spec (mkUuid1, mkUuid2)
 import qualified Blaze.Types.Cfg.Grouping as Grp
 import qualified Data.HashSet as HashSet
+import Blaze.Util (prettyShouldBe)
 
 ctx :: Ctx
 ctx = Ctx func . CtxId $ mkUuid1 (0 :: Int)
@@ -50,7 +50,6 @@ cbbn :: Text -> Cfg.CfNode Text
 
 spec :: Spec
 spec = describe "Blaze.Types.Cfg.Grouping" $ do
-  let prettyShouldBe x y = PrettyShow x `shouldBe` PrettyShow y
   let cDoubleDiamond =
         Cfg.mkCfg
           (cbbn "root")
@@ -98,51 +97,91 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           , Cfg.CfEdge (cbbn "mid12") (cbbn "end1") UnconditionalBranch
           , Cfg.CfEdge (cbbn "end1") (cbbn "end") UnconditionalBranch
           ]
-      gGrouped =
-        let mid111group = groupbb (gbbn "mid111") (Grp.mkCfg (gbbn "mid111") [] [])
-            mid111groupgroup = groupbb mid111group (Grp.mkCfg mid111group [] [])
-            branch11group =
-              groupbb (gbbn "end11") $
-                Grp.mkCfg
-                  (gbbn "branch11")
-                  [ mid111groupgroup
-                  , gbbn "mid112"
-                  , gbbn "end11"
-                  ]
-                  [ Grp.CfEdge (gbbn "branch11") mid111groupgroup TrueBranch
-                  , Grp.CfEdge (gbbn "branch11") (gbbn "mid112") FalseBranch
-                  , Grp.CfEdge mid111groupgroup (gbbn "end11") UnconditionalBranch
-                  , Grp.CfEdge (gbbn "mid112") (gbbn "end11") UnconditionalBranch
-                  ]
-            branch1group =
-              groupbb (gbbn "end1") $
-                Grp.mkCfg
-                  (gbbn "branch1")
-                  [ branch11group
-                  , gbbn "mid12"
-                  , gbbn "end1"
-                  ]
-                  [ Grp.CfEdge (gbbn "branch1") branch11group TrueBranch
-                  , Grp.CfEdge (gbbn "branch1") (gbbn "mid12") FalseBranch
-                  , Grp.CfEdge branch11group (gbbn "end1") UnconditionalBranch
-                  , Grp.CfEdge (gbbn "mid12") (gbbn "end1") UnconditionalBranch
-                  ]
-        in
+      mid111group = groupbb (gbbn "mid111") (Grp.mkCfg (gbbn "mid111") [] [])
+      mid111groupgroup = groupbb mid111group (Grp.mkCfg mid111group [] [])
+      branch11group =
+        groupbb (gbbn "end11") $
           Grp.mkCfg
-            (gbbn "root")
-            [ branch1group
-            , gbbn "end"
+            (gbbn "branch11")
+            [ mid111groupgroup
+            , gbbn "mid112"
+            , gbbn "end11"
             ]
-            [ Grp.CfEdge (gbbn "root") branch1group UnconditionalBranch
-            , Grp.CfEdge branch1group (gbbn "end") UnconditionalBranch
+            [ Grp.CfEdge (gbbn "branch11") mid111groupgroup TrueBranch
+            , Grp.CfEdge (gbbn "branch11") (gbbn "mid112") FalseBranch
+            , Grp.CfEdge mid111groupgroup (gbbn "end11") UnconditionalBranch
+            , Grp.CfEdge (gbbn "mid112") (gbbn "end11") UnconditionalBranch
             ]
+      branch1group =
+        groupbb (gbbn "end1") $
+          Grp.mkCfg
+            (gbbn "branch1")
+            [ branch11group
+            , gbbn "mid12"
+            , gbbn "end1"
+            ]
+            [ Grp.CfEdge (gbbn "branch1") branch11group TrueBranch
+            , Grp.CfEdge (gbbn "branch1") (gbbn "mid12") FalseBranch
+            , Grp.CfEdge branch11group (gbbn "end1") UnconditionalBranch
+            , Grp.CfEdge (gbbn "mid12") (gbbn "end1") UnconditionalBranch
+            ]
+      gGrouped =
+        Grp.mkCfg
+          (gbbn "root")
+          [ branch1group
+          , gbbn "end"
+          ]
+          [ Grp.CfEdge (gbbn "root") branch1group UnconditionalBranch
+          , Grp.CfEdge branch1group (gbbn "end") UnconditionalBranch
+          ]
+
+  let trivialGroup = groupbb (gbbn "node") (Grp.mkCfg (gbbn "node") [] [])
+
+  context "fromCfNode" $ do
+    it "should import any node" $ do
+      Grp.fromCfNode (cbbn "asdf") `prettyShouldBe` gbbn "asdf"
+  context "toCfNodeMaybe" $ do
+    it "should export non-Grouping nodes" $ do
+      Grp.toCfNodeMaybe (gbbn "asdf") `prettyShouldBe` Just (cbbn "asdf")
+    it "should return Nothing on Grouping nodes" $ do
+      Grp.toCfNodeMaybe trivialGroup `prettyShouldBe` Nothing
+
+  context "fromCfEdge" $ do
+    it "should import any edge" $ do
+      Grp.fromCfEdge (Cfg.CfEdge (cbbn "asdf") (cbbn "qwer") TrueBranch)
+        `prettyShouldBe`
+        Grp.CfEdge (gbbn "asdf") (gbbn "qwer") TrueBranch
+  context "toCfEdgeMaybe" $ do
+    it "should export edges with no Grouping nodes" $ do
+      Grp.toCfEdgeMaybe (Grp.CfEdge (gbbn "asdf") (gbbn "qwer") TrueBranch)
+        `prettyShouldBe`
+        Just (Cfg.CfEdge (cbbn "asdf") (cbbn "qwer") TrueBranch)
+    it "should return Nothing if either node is a Grouping" $ do
+      Grp.toCfEdgeMaybe (Grp.CfEdge (gbbn "asdf") trivialGroup TrueBranch) `prettyShouldBe` Nothing
+      Grp.toCfEdgeMaybe (Grp.CfEdge trivialGroup (gbbn "qwer") TrueBranch) `prettyShouldBe` Nothing
+
+  context "initialNode" $ do
+    it "finds the initial node of a Grouping node" $ do
+      Grp.initialNode branch1group `prettyShouldBe` cbbn "branch1"
+      Grp.initialNode mid111groupgroup `prettyShouldBe` cbbn "mid111"
+    it "returns the original node for a non Grouping node" $ do
+      Grp.initialNode (gbbn "node") `prettyShouldBe` cbbn "node"
+
+  context "terminalNode" $ do
+    it "finds the terminal node of a Grouping node" $ do
+      Grp.terminalNode branch1group `prettyShouldBe` cbbn "end1"
+      Grp.terminalNode mid111groupgroup `prettyShouldBe` cbbn "mid111"
+    it "returns the original node for a non Grouping node" $ do
+      Grp.terminalNode (gbbn "node") `prettyShouldBe` cbbn "node"
 
   context "fromCfg" $ do
     it "should convert a flat CFG to a grouped CFG" $ do
       Grp.fromCfg cDoubleDiamond `prettyShouldBe` gDoubleDiamond
+
   context "unfoldGroups" $ do
     it "should unfold all groups of a grouped CFG into a flat CFG" $ do
       Grp.unfoldGroups gGrouped `prettyShouldBe` cUngrouped
+
   context "findNodesInGroup" $ do
     it "should return empty set if group is just start and end with no middle" $ do
       let cfg = Grp.mkCfg
