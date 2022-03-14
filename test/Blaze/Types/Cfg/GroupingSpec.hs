@@ -99,12 +99,13 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           ]
       mid111group = groupbb (gbbn "mid111") (Grp.mkCfg (gbbn "mid111") [] [])
       mid111groupgroup = groupbb mid111group (Grp.mkCfg mid111group [] [])
+      mid112group = groupbb (gbbn "mid112") (Grp.mkCfg (gbbn "mid112") [] [])
       branch11group =
         groupbb (gbbn "end11") $
           Grp.mkCfg
             (gbbn "branch11")
             [ mid111groupgroup
-            , gbbn "mid112"
+            , mid112group
             , gbbn "end11"
             ]
             [ Grp.CfEdge (gbbn "branch11") mid111groupgroup TrueBranch
