@@ -23,6 +23,7 @@ import Data.Bitraversable (bifor)
 import Control.Lens (set)
 
 
+-- | A node type that represents a "grouped" sub-CFG within a larger CFG
 data GroupingNode a = GroupingNode
   { termNode :: CfNode a
   , uuid :: UUID
@@ -48,24 +49,30 @@ data CfEdge a = CfEdge
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
+-- | Translate a flat 'Cfg.CfNode' to its grouped 'CfNode' equivalent
 fromCfNode :: Cfg.CfNode a -> CfNode a
 fromCfNode (Cfg.BasicBlock n) = BasicBlock n
 fromCfNode (Cfg.Call n) = Call n
 fromCfNode (Cfg.EnterFunc n) = EnterFunc n
 fromCfNode (Cfg.LeaveFunc n) = LeaveFunc n
 
-toCfNode :: CfNode a -> Maybe (Cfg.CfNode a)
-toCfNode (BasicBlock n) = Just (Cfg.BasicBlock n)
-toCfNode (Call n) = Just (Cfg.Call n)
-toCfNode (EnterFunc n) = Just (Cfg.EnterFunc n)
-toCfNode (LeaveFunc n) = Just (Cfg.LeaveFunc n)
-toCfNode (Grouping _) = Nothing
+-- | Translate a grouped 'CfNode' to its flat 'Cfg.CfNode' equivalent, but
+-- return 'Nothing' if it is a 'Grouping'
+toCfNodeMaybe :: CfNode a -> Maybe (Cfg.CfNode a)
+toCfNodeMaybe (BasicBlock n) = Just (Cfg.BasicBlock n)
+toCfNodeMaybe (Call n) = Just (Cfg.Call n)
+toCfNodeMaybe (EnterFunc n) = Just (Cfg.EnterFunc n)
+toCfNodeMaybe (LeaveFunc n) = Just (Cfg.LeaveFunc n)
+toCfNodeMaybe (Grouping _) = Nothing
 
+-- | Translate a flat 'Cfg.CfEdge' to its grouped 'CfEdge' equivalent
 fromCfEdge :: Cfg.CfEdge a -> CfEdge a
 fromCfEdge (Cfg.CfEdge s d bt) = CfEdge (fromCfNode s) (fromCfNode d) bt
 
-toCfEdge :: CfEdge a -> Maybe (Cfg.CfEdge a)
-toCfEdge (CfEdge s d bt) = Cfg.CfEdge <$> toCfNode s <*> toCfNode d <*> Just bt
+-- | Translate a grouped 'CfEdge' to its flat 'Cfg.CfEdge' equivalent, but
+-- return 'Nothing' if either of its vertices are a 'Grouping'
+toCfEdgeMaybe :: CfEdge a -> Maybe (Cfg.CfEdge a)
+toCfEdgeMaybe (CfEdge s d bt) = Cfg.CfEdge <$> toCfNodeMaybe s <*> toCfNodeMaybe d <*> Just bt
 
 fromLEdge :: G.LEdge Cfg.BranchType (CfNode a) -> CfEdge a
 fromLEdge (G.LEdge bt (G.Edge s d)) = CfEdge s d bt
@@ -159,6 +166,7 @@ data CfgTransport a = CfgTransport
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Functor, Foldable, Traversable)
   deriving anyclass (Hashable)
 
+-- | Transform a flat 'Cfg.Cfg' into a grouped 'Cfg' with no 'Grouping' nodes
 fromCfg :: Cfg.Cfg a -> Cfg a
 fromCfg (Cfg.Cfg (AlgaGraph adjs edata ndata) root_) =
   Cfg
@@ -168,35 +176,30 @@ fromCfg (Cfg.Cfg (AlgaGraph adjs edata ndata) root_) =
       (HashMap.map fromCfNode . HashMap.mapKeys fromCfNode $ ndata))
     (fromCfNode root_)
 
--- toCfg :: Cfg a -> Cfg.Cfg a
--- toCfg cfg@(Cfg graph_ root_) =
---   case getGroups cfg of
---     [] -> fromJust $ toCfg_ cfg
---     groups ->
---       toCfg $
---         foldl'
---           (\cfg' gn -> _)
---           cfg
---           groups
---   where
---     getGroups :: Cfg a -> [GroupingNode a]
---     getGroups (Cfg (AlgaGraph _ _ vs) _) =
---       mapMaybe (\case Grouping n -> Just n; _ -> Nothing) $ HashMap.elems vs
-
-terminalNode :: CfNode a -> Cfg.CfNode a
-terminalNode (BasicBlock n) = Cfg.BasicBlock n
-terminalNode (Call n) = Cfg.Call n
-terminalNode (EnterFunc n) = Cfg.EnterFunc n
-terminalNode (LeaveFunc n) = Cfg.LeaveFunc n
-terminalNode (Grouping (GroupingNode exit _ _)) = terminalNode exit
-
-initialNode :: CfNode a -> Cfg.CfNode a
+-- | Find the initial, non-'Grouping' node inside a node @n@, recursively
+initialNode ::
+  -- | A node @n@
+  CfNode a ->
+  Cfg.CfNode a
 initialNode (BasicBlock n) = Cfg.BasicBlock n
 initialNode (Call n) = Cfg.Call n
 initialNode (EnterFunc n) = Cfg.EnterFunc n
 initialNode (LeaveFunc n) = Cfg.LeaveFunc n
 initialNode (Grouping (GroupingNode _ _ (Cfg _ root_))) = initialNode root_
 
+-- | Find the final, non-'Grouping' node inside a node @n@, recursively
+terminalNode ::
+  -- | A node @n@
+  CfNode a ->
+  Cfg.CfNode a
+terminalNode (BasicBlock n) = Cfg.BasicBlock n
+terminalNode (Call n) = Cfg.Call n
+terminalNode (EnterFunc n) = Cfg.EnterFunc n
+terminalNode (LeaveFunc n) = Cfg.LeaveFunc n
+terminalNode (Grouping (GroupingNode exit _ _)) = terminalNode exit
+
+-- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
+-- 'Cfg.Cfg'. Currently, this forgets all grouping information
 unfoldGroups :: (Eq a, Hashable a) => Cfg a -> Cfg.Cfg a
 unfoldGroups = fromJust . toCfgMaybe . expandAll
   where
@@ -219,14 +222,16 @@ unfoldGroups = fromJust . toCfgMaybe . expandAll
         (LeaveFunc _) -> Nothing
         (Grouping (GroupingNode exit _ sub)) -> Just (fromCfNode $ terminalNode exit, expandAll sub)
 
+-- | Transforms a grouped 'Cfg' into a flat 'Cfg.Cfg' only if the original 'Cfg'
+-- was essentially ungrouped, i.e., it contained no 'Grouping' nodes
 toCfgMaybe :: Cfg a -> Maybe (Cfg.Cfg a)
 toCfgMaybe (Cfg (AlgaGraph adjs edata ndata) root_) =
   Cfg.Cfg
     <$> (AlgaGraph
-           <$> (AM.edges <$> traverse (\p -> bifor p toCfNode toCfNode) (AM.edgeList adjs))
-           <*> (HashMap.fromList <$> traverse (\p -> bifor p (traverse toCfNode) Just) (HashMap.toList edata))
-           <*> (HashMap.fromList <$> traverse (\p -> bifor p toCfNode toCfNode) (HashMap.toList ndata)))
-    <*> toCfNode root_
+           <$> (AM.edges <$> traverse (\p -> bifor p toCfNodeMaybe toCfNodeMaybe) (AM.edgeList adjs))
+           <*> (HashMap.fromList <$> traverse (\p -> bifor p (traverse toCfNodeMaybe) Just) (HashMap.toList edata))
+           <*> (HashMap.fromList <$> traverse (\p -> bifor p toCfNodeMaybe toCfNodeMaybe) (HashMap.toList ndata)))
+    <*> toCfNodeMaybe root_
 
 toTransport :: forall a. Cfg a -> CfgTransport a
 toTransport pcfg = CfgTransport
@@ -456,6 +461,7 @@ getDominators cfg = G.domMap (getFullNode cfg)
 getPossibleGroupTerms
   :: forall a. (Hashable a, Eq a)
   => CfNode a
+  -- ^ start node
   -> Cfg a
   -> HashSet (CfNode a)
 getPossibleGroupTerms startNode cfg = case mpdoms of
@@ -474,11 +480,13 @@ getPossibleGroupTerms startNode cfg = case mpdoms of
       return $ HashSet.member startNode doms
 
 
--- | Gets all nodes dominated by startNode and post-dominated by endNode
+-- | Gets all nodes dominated by a start node and post-dominated by and end node
 findNodesInGroup
   :: (Hashable a, Eq a)
   => CfNode a
+  -- ^ start (dominating) node
   -> CfNode a
+  -- ^ end (post-dominating) node
   -> Cfg a
   -> HashSet (CfNode a)
 findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.nodes $ cfg
@@ -517,12 +525,14 @@ extractGroupingNode startNode endNode groupNodes cfg
       HashSet.member a allNodes && HashSet.member b allNodes
 
 
--- | Given a start and term node for a grouping, this function finds all nodes
--- within the group and sticks them into their own CFG.
+-- | Given a start and terminal node for a grouping, this function finds all
+-- nodes within the group and sticks them into their own CFG.
 makeGrouping
   :: forall a. (Hashable a, Eq a)
   => CfNode a
+  -- ^ start node
   -> CfNode a
+  -- ^ terminal node
   -> Cfg a
   -> Cfg a
 makeGrouping startNode endNode cfg = cfg'
