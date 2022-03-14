@@ -13,6 +13,7 @@ import Blaze.Util.Spec (mkUuid1, mkUuid2)
 import qualified Blaze.Types.Cfg.Grouping as Grp
 import qualified Data.HashSet as HashSet
 import Blaze.Util (prettyShouldBe)
+import Blaze.Types.Cfg.Grouping (GroupSpec(GroupSpec))
 
 ctx :: Ctx
 ctx = Ctx func . CtxId $ mkUuid1 (0 :: Int)
@@ -181,7 +182,31 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
 
   context "unfoldGroups" $ do
     it "should unfold all groups of a grouped CFG into a flat CFG" $ do
-      Grp.unfoldGroups gGrouped `prettyShouldBe` cUngrouped
+      let (unfolded, groupingTree) = Grp.unfoldGroups gGrouped
+      unfolded `prettyShouldBe` cUngrouped
+      groupingTree
+        `prettyShouldBe`
+        [ GroupSpec
+            (Cfg.asIdNode (cbbn "branch1"))
+            (Cfg.asIdNode (cbbn "end1"))
+            [ GroupSpec
+                (Cfg.asIdNode (cbbn "branch11"))
+                (Cfg.asIdNode (cbbn "end11"))
+                [ GroupSpec
+                    (Cfg.asIdNode (cbbn "mid111"))
+                    (Cfg.asIdNode (cbbn "mid111"))
+                    [ GroupSpec
+                        (Cfg.asIdNode (cbbn "mid111"))
+                        (Cfg.asIdNode (cbbn "mid111"))
+                        []
+                    ]
+                , GroupSpec
+                    (Cfg.asIdNode (cbbn "mid112"))
+                    (Cfg.asIdNode (cbbn "mid112"))
+                    []
+                ]
+            ]
+        ]
 
   context "findNodesInGroup" $ do
     it "should return empty set if group is just start and end with no middle" $ do

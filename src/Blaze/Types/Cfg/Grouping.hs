@@ -49,6 +49,19 @@ data CfEdge a = CfEdge
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
+-- | Record of the group layouts, including inner groups of groups.
+type GroupingTree = [GroupSpec]
+
+-- | Root dominator and term post-dominator nodes for group, including inner groups.
+-- root and term are stored as non-group Cfg CfNode so that we don't point to groups
+data GroupSpec = GroupSpec
+  { groupRoot :: Cfg.CfNode ()
+  , groupTerm :: Cfg.CfNode ()
+  , innerGroups :: GroupingTree
+  }
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving anyclass (Hashable)
+
 -- | Translate a flat 'Cfg.CfNode' to its grouped 'CfNode' equivalent
 fromCfNode :: Cfg.CfNode a -> CfNode a
 fromCfNode (Cfg.BasicBlock n) = BasicBlock n
@@ -199,28 +212,40 @@ terminalNode (LeaveFunc n) = Cfg.LeaveFunc n
 terminalNode (Grouping (GroupingNode exit _ _)) = terminalNode exit
 
 -- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
--- 'Cfg.Cfg'. Currently, this forgets all grouping information
-unfoldGroups :: (Eq a, Hashable a) => Cfg a -> Cfg.Cfg a
-unfoldGroups = fromJust . toCfgMaybe . expandAll
+-- 'Cfg.Cfg'. Also, summarize the recursive structure of 'Grouping' nodes into a
+-- nested 'GroupingTree'
+unfoldGroups :: (Eq a, Hashable a) => Cfg a -> (Cfg.Cfg a, GroupingTree)
+unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
   where
-    expandAll :: (Eq a, Hashable a) => Cfg a -> Cfg a
+    expandAll :: (Eq a, Hashable a) => Cfg a -> (Cfg a, GroupingTree)
     expandAll cfg =
-      foldl'
-      (\cfg' n ->
-         case expandNode n of
-           Nothing -> cfg'
-           Just (exit, subcfg) -> substNode cfg' n subcfg exit)
-      cfg
-      (fmap snd . HashMap.toList $ cfg ^. #graph . #nodeAttrMap)
+      second sort $
+        foldl'
+        (\(cfg', groupSpecs) n ->
+          case expandNode n of
+            Nothing -> (cfg', groupSpecs)
+            Just (exit, subcfg, groupSpec) -> (substNode cfg' n subcfg exit, groupSpec : groupSpecs))
+        (cfg, [])
+        (fmap snd . HashMap.toList $ cfg ^. #graph . #nodeAttrMap)
 
-    expandNode :: (Eq a, Hashable a) => CfNode a -> Maybe (CfNode a, Cfg a)
+    expandNode :: (Eq a, Hashable a) => CfNode a -> Maybe (CfNode a, Cfg a, GroupSpec)
     expandNode =
       \case
         (BasicBlock _) -> Nothing
         (Call _) -> Nothing
         (EnterFunc _) -> Nothing
         (LeaveFunc _) -> Nothing
-        (Grouping (GroupingNode exit _ sub)) -> Just (fromCfNode $ terminalNode exit, expandAll sub)
+        n@(Grouping (GroupingNode exit _ sub)) ->
+          let (subExpanded, groupingTree) = expandAll sub in
+            Just
+              ( fromCfNode $ terminalNode exit
+              , subExpanded
+              , GroupSpec
+                  { groupRoot = initialNode (asIdNode n)
+                  , groupTerm = terminalNode (asIdNode exit)
+                  , innerGroups = groupingTree
+                  }
+              )
 
 -- | Transforms a grouped 'Cfg' into a flat 'Cfg.Cfg' only if the original 'Cfg'
 -- was essentially ungrouped, i.e., it contained no 'Grouping' nodes
@@ -266,16 +291,6 @@ fromTransport t = mkCfg root' nodes' edges'
     nodes' = snd <$> t ^. #transportNodes
 
     edges' = fullEdge <$> t ^. #transportEdges
-
--- -- | Record of the group layouts, including inner groups of groups.
--- type GroupingTree = [GroupSpec]
-
--- -- | Root dominator and term post-dominator nodes for group, including inner groups.
--- -- root and term are stored as non-group Cfg CfNode so that we don't point to groups
--- data GroupSpec = GroupSpec
---   { groupRoot :: Cfg.CfNode ()
---   , groupTerm :: Cfg.CfNode ()
---   , innerGroups :: GroupingTree
 
 
 ---------------------------------------

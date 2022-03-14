@@ -994,6 +994,23 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
         attr <- G.getNodeAttr node cflow
         return $ [tt (show id), tt " : "] <++> tokenizeAsList (toList attr)
 
+instance Tokenizable GCfg.GroupSpec where
+  tokenize gs =
+    [keywordToken "GroupSpec"] <++>
+    ( paren <$>
+      ( arg "root" <++>
+        tokenize (gs ^. #groupRoot) <++>
+        [tt ", "] <++>
+        arg "end" <++>
+        tokenize (gs ^. #groupTerm) <++>
+        [tt ", "] <++>
+        arg "inner" <++>
+        tokenize (gs ^. #innerGroups)
+      ))
+    where
+      arg :: Text -> Tokenizer [Token]
+      arg a = pure [plainToken ArgumentNameToken a, tt " = "]
+
 data PrettyShow a = PrettyShow TokenizerCtx a
   deriving (Eq, Ord, Generic)
 
