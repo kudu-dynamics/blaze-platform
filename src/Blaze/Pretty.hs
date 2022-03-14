@@ -362,6 +362,7 @@ instance Tokenizable Pil.Ctx where
   tokenize ctx =
     [keywordToken "ctx", tt " "]
       <++> (paren <$> tokenize (ctx ^. #func))
+      <++> tt " "
       <++> textToken (show $ ctx ^. #ctxId)
 
 instance Tokenizable Pil.PilVar where
@@ -848,12 +849,12 @@ instance Tokenizable (GCfg.CfNode a) where
 
 instance Tokenizable (GCfg.CfEdge a) where
   tokenize e =
-    tokenize (e ^. #src) ++
-    [tt " ---> "] ++
-    tokenize (e ^. #dst) ++
-    [tt "  |"] ++
-    tokenize (e ^. #branchType) ++
-    [tt "|"]
+    tokenize (e ^. #src) <++>
+    tt " ---> " <++>
+    tokenize (e ^. #dst) <++>
+    tt "  |" <++>
+    tokenize (e ^. #branchType) <++>
+    tt "|"
 
   
 
@@ -946,18 +947,18 @@ instance Tokenizable a => Tokenizable (G.PostDominators a) where
   tokenize (G.PostDominators m) = tokenize m
 
 instance Tokenizable Bool where
-  tokenize b = [tt $ show b]
+  tokenize b = pure [tt $ show b]
 
 instance Tokenizable Text where
-  tokenize t = [tt t]
+  tokenize t = pure [tt t]
 
 instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
   tokenize cfg =
-    [tt "---CFG---\n", tt "--- Node Mapping:\n"] ++
-    showNodeMapping ++
-    [tt "--- Edges:\n"] ++
-    showEdges ++
-    [tt "--- Attrs:\n"] ++
+    [tt "---CFG---\n", tt "--- Node Mapping:\n"] <++>
+    showNodeMapping <++>
+    tt "--- Edges:\n" <++>
+    showEdges <++>
+    tt "--- Attrs:\n" <++>
     showAttrs
     where
       cflow = cfg ^. #graph
@@ -967,11 +968,12 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
       nodeMap :: HashMap (GCfg.CfNode ()) Int
       nodeMap = HashMap.fromList nodeMapList
 
-      showNodeMapping :: [Token]
-      showNodeMapping = intercalate [tt "\n"] $ showNode <$> nodeMapList
+      showNodeMapping :: Tokenizer [Token]
+      showNodeMapping = intercalate [tt "\n"] <$> traverse showNode nodeMapList
 
+      showNode :: (GCfg.CfNode (), Int) -> Tokenizer [Token]
       showNode (node, id) =
-        [tt (show id), tt " : "] ++
+        [tt (show id), tt " : "] <++>
         (tokenize . fromJust $ G.getNodeAttr node cflow)
 
       showEdges :: [Token]
@@ -984,12 +986,13 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
           $ cflow
         ]
 
-      showAttrs :: [Token]
-      showAttrs = intercalate [tt "\n"] $ mapMaybe showAttr nodeMapList
+      showAttrs :: Tokenizer [Token]
+      showAttrs = intercalate [tt "\n"] <$> sequence (mapMaybe showAttr nodeMapList)
 
+      showAttr :: (GCfg.CfNode (), Int) -> Maybe (Tokenizer [Token])
       showAttr (node, id) = do
         attr <- G.getNodeAttr node cflow
-        return $ [tt (show id), tt " : "] ++ tokenizeAsList (toList attr)
+        return $ [tt (show id), tt " : "] <++> tokenizeAsList (toList attr)
 
 data PrettyShow a = PrettyShow TokenizerCtx a
   deriving (Eq, Ord, Generic)
