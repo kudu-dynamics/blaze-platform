@@ -123,7 +123,7 @@ data TokenType
   | AddressDisplayToken
   | IndirectImportToken
   | ExternalSymbolToken
-  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON, Hashable)
 
 data TokenContext
   = NoTokenContext
@@ -132,7 +132,7 @@ data TokenContext
   | FunctionReturnTokenContext
   | InstructionAddressTokenContext
   | ILInstructionIndexTokenContext
-  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON, Hashable)
 
 data Token = Token
   { tokenType :: TokenType
@@ -144,7 +144,7 @@ data Token = Token
   -- , confidence :: Int
   , address :: Address
   }
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
 newtype TokenizerCtx = TokenizerCtx
   { ctxIndices :: Bimap.Bimap Int Ctx

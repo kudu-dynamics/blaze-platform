@@ -134,6 +134,14 @@ prune edge icfg = simplify prunedIcfg
     prunedIcfg :: InterCfg
     prunedIcfg = InterCfg . G.removeEdge edge . unInterCfg $ icfg
 
+-- TODO: refactor with regular prune
+prune_ :: Edge PilNode -> InterCfg -> InterCfg
+prune_ edge icfg = simplify prunedIcfg
+  where
+    prunedIcfg :: InterCfg
+    prunedIcfg = InterCfg . G.removeEdge edge . unInterCfg $ icfg
+
+
 parseJumpToPred :: InterCfg -> PilNode -> Maybe PilNode 
 parseJumpToPred icfg n = case predNodes of
   [predNode] -> 
@@ -186,6 +194,37 @@ focus focalNode icfg = fromMaybe icfg' $ do
       $ cedges
     removedVars :: HashSet PilVar
     removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+
+-- TODO: refactor with regular prune
+-- | Like `focus` but doesn't call `simplify`
+focus_ :: PilNode -> InterCfg -> InterCfg
+focus_ focalNode icfg = fromMaybe icfg' $ do
+  jumpToPred <- parseJumpToPred icfg' focalNode
+  return . InterCfg . Cfg.updateNodeData simplifyJumpTo jumpToPred . unInterCfg $ icfg'
+  where
+    icfg' = reducePhi removedVars
+            . liftInter (Cfg.removeEdges deadEdges)
+            . removeNodes deadNodes
+            $ icfg
+    (InterCfg cfg) = icfg
+    -- Need deadNodes to compute removedVars and to actually remove the dead nodes
+    cnodes :: HashSet PilNode
+    cedges :: HashSet (G.LEdge BranchType PilNode)
+    (cnodes, cedges) = G.connectedNodesAndEdges
+                       (Proxy :: Proxy (AlgaGraph () () (G.EdgeGraphNode BranchType PilNode)))
+                       focalNode
+                       cfg
+
+    deadNodes :: HashSet PilNode
+    deadNodes = HashSet.difference (Cfg.nodes cfg) cnodes
+    deadEdges :: [PilEdge]
+    deadEdges = fmap Cfg.fromLEdge
+      . HashSet.toList
+      . HashSet.difference (HashSet.fromList $ G.edges cfg)
+      $ cedges
+    removedVars :: HashSet PilVar
+    removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+
 
 getDeadBranches :: InterCfg -> [PilEdge]
 getDeadBranches icfg =

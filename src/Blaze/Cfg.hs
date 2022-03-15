@@ -234,3 +234,9 @@ substNode
       . Cfg.addEdges (Cfg.edges innerCfg)
       . Cfg.addEdges newPredEdges
       . Cfg.addEdges newSuccEdges $ outerCfg
+
+findNodeByUUID :: forall a. (Eq a, Hashable a) => UUID -> Cfg a -> Maybe (CfNode a)
+findNodeByUUID id cfg = case filter ((== id) . getNodeUUID) . HashSet.toList . G.nodes $ cfg of
+  [] -> Nothing
+  [x] -> Just x
+  (x:_xs) -> Just x -- Should never happen. Maybe print warning?

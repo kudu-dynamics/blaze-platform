@@ -3,16 +3,30 @@ This module provides functionality for grouping, ungrouping, and regrouping.
 -}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
-module Blaze.Types.Cfg.Grouping where
+module Blaze.Types.Cfg.Grouping
+  ( module Blaze.Types.Cfg.Grouping
+  , module Exports
+  , G.succs
+  , G.preds
+  , G.nodes
+  , G.removeNode
+  , G.addNodes
+  , G.hasNode
+  , G.transpose
+  , G.bfs
+  , G.sinks
+  )
+where
 
 import Blaze.Prelude
 
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Cfg (BranchType)
+import Blaze.Types.Cfg as Exports (BranchType, BasicBlockNode(BasicBlockNode), CallNode(CallNode), EnterFuncNode(EnterFuncNode), LeaveFuncNode(LeaveFuncNode))
 import qualified Blaze.Graph as G
 import Blaze.Types.Graph (Dominators, PostDominators)
 import Blaze.Types.Graph.Alga (AlgaGraph (AlgaGraph))
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
+import Blaze.Types.Pil.Common ( Ctx )
+import Blaze.Types.Pil (Stmt)
 import Blaze.Util.Spec (mkDummyCtx, mkUuid1)
 
 import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
@@ -22,6 +36,13 @@ import qualified Algebra.Graph.AdjacencyMap as AM
 import Data.Bitraversable (bifor)
 import Control.Lens (set)
 
+
+type PilNode = CfNode [Stmt]
+type PilEdge = CfEdge [Stmt]
+type PilCallNode = Cfg.CallNode [Stmt]
+type PilBbNode = Cfg.BasicBlockNode [Stmt]
+type PilNodeMapEntry = (PilNode, [Stmt])
+type PilCfg = Cfg [Stmt]
 
 -- | A node type that represents a "grouped" sub-CFG within a larger CFG
 data GroupingNode a = GroupingNode
@@ -100,6 +121,20 @@ asIdNode = void
 
 asIdEdge :: CfEdge a -> CfEdge ()
 asIdEdge = void
+
+getFullNodeMay :: Cfg a -> CfNode () -> Maybe (CfNode a)
+getFullNodeMay g = getFullNode' $ g ^. #graph
+
+getNodeData :: CfNode a -> Maybe a
+getNodeData = \case
+  BasicBlock x -> Just $ x ^. #nodeData
+  Call x -> Just $ x ^. #nodeData
+  EnterFunc x -> Just $ x ^. #nodeData
+  LeaveFunc x -> Just $ x ^. #nodeData
+  Grouping x -> Nothing
+
+setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
+setNodeData a n = G.setNodeAttr (fmap (const a) n) n
 
 getNodeUUID :: CfNode a -> UUID
 getNodeUUID = \case
@@ -596,3 +631,16 @@ makeGrouping startNode endNode cfg = cfg'
       else mkCfg (cfg ^. #root)
             (HashSet.toList $ nonGroupNodes <> HashSet.singleton groupNode)
             newEdges
+
+
+---------- from Analysis
+
+getNodesContainingAddress :: (Eq a, Hashable a) => Address -> Cfg a -> HashSet (CfNode a)
+getNodesContainingAddress addr = HashSet.filter containsAddr . G.nodes
+  where
+    -- TODO: confirm that bb range is [start, end)
+    containsAddr (BasicBlock bb) = bb ^. #start <= addr && addr <= bb ^. #end
+    containsAddr (Call n) = n ^. #start == addr
+    containsAddr (EnterFunc _) = False
+    containsAddr (LeaveFunc _) = False
+    containsAddr (Grouping n) = not . HashSet.null . getNodesContainingAddress addr $ n ^. #grouping
