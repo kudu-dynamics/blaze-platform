@@ -136,6 +136,28 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           [ Grp.CfEdge (gbbn "root") branch1group UnconditionalBranch
           , Grp.CfEdge branch1group (gbbn "end") UnconditionalBranch
           ]
+      expectedGrouping =
+        [ GroupSpec
+            (Cfg.asIdNode (cbbn "branch1"))
+            (Cfg.asIdNode (cbbn "end1"))
+            [ GroupSpec
+                (Cfg.asIdNode (cbbn "branch11"))
+                (Cfg.asIdNode (cbbn "end11"))
+                [ GroupSpec
+                    (Cfg.asIdNode (cbbn "mid111"))
+                    (Cfg.asIdNode (cbbn "mid111"))
+                    [ GroupSpec
+                        (Cfg.asIdNode (cbbn "mid111"))
+                        (Cfg.asIdNode (cbbn "mid111"))
+                        []
+                    ]
+                , GroupSpec
+                    (Cfg.asIdNode (cbbn "mid112"))
+                    (Cfg.asIdNode (cbbn "mid112"))
+                    []
+                ]
+            ]
+        ]
 
   let trivialGroup = groupbb (gbbn "node") (Grp.mkCfg (gbbn "node") [] [])
 
@@ -184,29 +206,12 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
     it "should unfold all groups of a grouped CFG into a flat CFG" $ do
       let (unfolded, groupingTree) = Grp.unfoldGroups gGrouped
       unfolded `prettyShouldBe` cUngrouped
-      groupingTree
-        `prettyShouldBe`
-        [ GroupSpec
-            (Cfg.asIdNode (cbbn "branch1"))
-            (Cfg.asIdNode (cbbn "end1"))
-            [ GroupSpec
-                (Cfg.asIdNode (cbbn "branch11"))
-                (Cfg.asIdNode (cbbn "end11"))
-                [ GroupSpec
-                    (Cfg.asIdNode (cbbn "mid111"))
-                    (Cfg.asIdNode (cbbn "mid111"))
-                    [ GroupSpec
-                        (Cfg.asIdNode (cbbn "mid111"))
-                        (Cfg.asIdNode (cbbn "mid111"))
-                        []
-                    ]
-                , GroupSpec
-                    (Cfg.asIdNode (cbbn "mid112"))
-                    (Cfg.asIdNode (cbbn "mid112"))
-                    []
-                ]
-            ]
-        ]
+      groupingTree `prettyShouldBe` expectedGrouping
+
+  context "foldGroups" $ do
+    it "should fold all groups found in a flat CFG into the original grouped CFG" $ do
+      let folded = Grp.foldGroups cUngrouped expectedGrouping
+      folded `prettyShouldBe` gGrouped
 
   context "findNodesInGroup" $ do
     it "should return empty set if group is just start and end with no middle" $ do

@@ -1,7 +1,8 @@
 {- | GroupingCfg is a Cfg that can contain groups of nodes as a single block
 This module provides functionality for grouping, ungrouping, and regrouping.
 -}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
+
+{-# LANGUAGE ViewPatterns #-}
 
 module Blaze.Types.Cfg.Grouping
   ( module Blaze.Types.Cfg.Grouping
@@ -281,6 +282,33 @@ unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
                   , innerGroups = groupingTree
                   }
               )
+
+foldGroups :: forall a. (Eq a, Hashable a) => Cfg.Cfg a -> GroupingTree -> Cfg a
+foldGroups = foldMany . fromCfg
+  where
+    foldMany :: Cfg a -> GroupingTree -> Cfg a
+    foldMany = foldl' foldSubtree
+    foldSubtree :: Cfg a -> GroupSpec -> Cfg a
+    foldSubtree cfg (GroupSpec enter exit gss) =
+      let cfg' = foldMany cfg gss
+      in
+        foldOneGroup enter exit cfg'
+
+foldOneGroup :: forall a. (Eq a, Hashable a) => Cfg.CfNode () -> Cfg.CfNode () -> Cfg a -> Cfg a
+foldOneGroup enter exit cfg =
+  case (enterCand, exitCand) of
+    (Just enterFound, Just exitFound) ->
+      makeGrouping enterFound exitFound cfg
+    (_, _) -> cfg
+  where
+    enterCand = findCand enter
+    exitCand = findCand exit
+    findCand :: Cfg.CfNode () -> Maybe (CfNode a)
+    findCand (fromCfNode -> n) =
+      find ((== getNodeUUID n) . getNodeUUID)
+      . HashMap.elems
+      $ cfg ^. #graph . #nodeAttrMap
+
 
 -- | Transforms a grouped 'Cfg' into a flat 'Cfg.Cfg' only if the original 'Cfg'
 -- was essentially ungrouped, i.e., it contained no 'Grouping' nodes
