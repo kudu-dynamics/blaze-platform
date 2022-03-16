@@ -469,6 +469,9 @@ addEdge e = G.addEdge $ toLEdge e
 addEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
 addEdges xs cfg = foldl' (flip addEdge) cfg xs
 
+expandGroupingNode :: (Hashable a, Eq a) => GroupingNode a -> Cfg a -> Cfg a
+expandGroupingNode n cfg = substNode cfg (Grouping n) (n ^. #grouping) (n ^. #termNode)
+
 -- | Substitute a node with another CFG.
 substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
 substNode
