@@ -283,6 +283,7 @@ unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
                   }
               )
 
+-- | Fold all groups specified in the 'GroupingTree', recursively
 foldGroups :: forall a. (Eq a, Hashable a) => Cfg.Cfg a -> GroupingTree -> Cfg a
 foldGroups = foldMany . fromCfg
   where
@@ -294,7 +295,16 @@ foldGroups = foldMany . fromCfg
       in
         foldOneGroup enter exit cfg'
 
-foldOneGroup :: forall a. (Eq a, Hashable a) => Cfg.CfNode () -> Cfg.CfNode () -> Cfg a -> Cfg a
+-- | Fold away one group in the CFG
+foldOneGroup ::
+  forall a.
+  (Eq a, Hashable a) =>
+  -- | First (enter) node in group
+  Cfg.CfNode () ->
+  -- | Last (exit) node in group
+  Cfg.CfNode () ->
+  Cfg a ->
+  Cfg a
 foldOneGroup enter exit cfg =
   case (enterCand, exitCand) of
     (Just enterFound, Just exitFound) ->
