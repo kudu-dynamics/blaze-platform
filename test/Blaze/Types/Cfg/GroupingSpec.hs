@@ -110,9 +110,9 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
             , gbbn "end11"
             ]
             [ Grp.CfEdge (gbbn "branch11") mid111groupgroup TrueBranch
-            , Grp.CfEdge (gbbn "branch11") (gbbn "mid112") FalseBranch
+            , Grp.CfEdge (gbbn "branch11") mid112group FalseBranch
             , Grp.CfEdge mid111groupgroup (gbbn "end11") UnconditionalBranch
-            , Grp.CfEdge (gbbn "mid112") (gbbn "end11") UnconditionalBranch
+            , Grp.CfEdge mid112group (gbbn "end11") UnconditionalBranch
             ]
       branch1group =
         groupbb (gbbn "end1") $
