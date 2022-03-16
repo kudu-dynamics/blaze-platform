@@ -132,7 +132,7 @@ getNodeData = \case
   Call x -> Just $ x ^. #nodeData
   EnterFunc x -> Just $ x ^. #nodeData
   LeaveFunc x -> Just $ x ^. #nodeData
-  Grouping x -> Nothing
+  Grouping _ -> Nothing
 
 setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
