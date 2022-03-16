@@ -479,3 +479,99 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           expected = outerCfg'
 
       Grp.makeGrouping startNode endNode outerCfg `prettyShouldBe` expected
+
+    it "should make group with self looping edge if end node loops to start node" $ do
+      let rootNode = gbbn "root"
+          startNode = gbbn "start"
+          midNode1 = gbbn "mid1"
+          midNode2 = gbbn "mid2"
+          endNode = gbbn "end"
+          termNode = gbbn "term"
+
+          outerCfg = Grp.mkCfg
+            rootNode
+            [ startNode
+            , midNode1
+            , midNode2
+            , endNode
+            , termNode
+            ]
+            [ Grp.CfEdge
+              rootNode
+              startNode
+              UnconditionalBranch
+            , Grp.CfEdge
+              startNode
+              midNode1
+              TrueBranch
+            , Grp.CfEdge
+              startNode
+              midNode2
+              FalseBranch
+            , Grp.CfEdge
+              midNode2
+              endNode
+              UnconditionalBranch
+            , Grp.CfEdge
+              midNode1
+              endNode
+              UnconditionalBranch
+            , Grp.CfEdge
+              endNode
+              termNode
+              TrueBranch
+            , Grp.CfEdge
+              endNode
+              startNode
+              FalseBranch
+            ]
+
+          groupCfg = Grp.mkCfg
+            startNode
+            [ midNode1
+            , midNode2
+            , endNode
+            ]
+            [ Grp.CfEdge
+              startNode
+              midNode1
+              TrueBranch
+            , Grp.CfEdge
+              startNode
+              midNode2
+              FalseBranch
+            , Grp.CfEdge
+              midNode2
+              endNode
+              UnconditionalBranch
+            , Grp.CfEdge
+              midNode1
+              endNode
+              UnconditionalBranch
+            ]
+
+          gnode = Grp.Grouping $ Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg
+
+          outerCfg' = Grp.mkCfg
+            rootNode
+            [ gnode
+            , termNode
+            ]
+            [ Grp.CfEdge
+              rootNode
+              gnode
+              UnconditionalBranch
+            , Grp.CfEdge
+              gnode
+              termNode
+              TrueBranch
+            , Grp.CfEdge
+              gnode
+              gnode
+              FalseBranch
+            ]
+
+          expected = outerCfg'
+
+      Grp.makeGrouping startNode endNode outerCfg `prettyShouldBe` expected
+

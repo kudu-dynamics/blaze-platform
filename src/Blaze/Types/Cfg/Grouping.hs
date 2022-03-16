@@ -626,6 +626,7 @@ makeGrouping
 makeGrouping startNode endNode cfg = cfg'
   where
     innerNodes = HashSet.difference (findNodesInGroup startNode endNode cfg) (HashSet.fromList [startNode, endNode])
+
     allGroupNodes = HashSet.fromList [startNode, endNode] <> innerNodes
 
     groupNode :: CfNode a
