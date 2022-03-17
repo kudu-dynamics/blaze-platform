@@ -557,7 +557,7 @@ getPossibleGroupTerms
   -> HashSet (CfNode a)
 getPossibleGroupTerms startNode cfg = case mpdoms of
   Nothing -> HashSet.empty
-  Just pdoms -> HashSet.fromList . filter dominatedByStartNode $ pdoms  
+  Just pdoms -> HashSet.fromList . filter dominatedByStartNode $ pdoms
   where
     domMapping = getDominators cfg
     mpdoms :: Maybe [CfNode a]
