@@ -73,6 +73,7 @@ import Blaze.Cfg
       getCtxIndices
     )
 import qualified Blaze.Cfg as Cfg
+import qualified Blaze.Types.Cfg.Grouping as GCfg
 import Blaze.Pil.Display (needsParens)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg))
 import Blaze.Types.Pil (Ctx)
@@ -122,7 +123,7 @@ data TokenType
   | AddressDisplayToken
   | IndirectImportToken
   | ExternalSymbolToken
-  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON, Hashable)
 
 data TokenContext
   = NoTokenContext
@@ -131,7 +132,7 @@ data TokenContext
   | FunctionReturnTokenContext
   | InstructionAddressTokenContext
   | ILInstructionIndexTokenContext
-  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Enum, Generic, FromJSON, ToJSON, Hashable)
 
 data Token = Token
   { tokenType :: TokenType
@@ -143,7 +144,7 @@ data Token = Token
   -- , confidence :: Int
   , address :: Address
   }
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
 newtype TokenizerCtx = TokenizerCtx
   { ctxIndices :: Bimap.Bimap Int Ctx
@@ -361,6 +362,7 @@ instance Tokenizable Pil.Ctx where
   tokenize ctx =
     [keywordToken "ctx", tt " "]
       <++> (paren <$> tokenize (ctx ^. #func))
+      <++> tt " "
       <++> textToken (show $ ctx ^. #ctxId)
 
 instance Tokenizable Pil.PilVar where
@@ -808,6 +810,11 @@ instance Tokenizable (BasicBlockNode a) where
            , tt "]"
            ]
 
+instance Tokenizable (GCfg.GroupingNode a) where
+  tokenize (GCfg.GroupingNode _termNode _uuid' _grouping) =
+    -- TODO: Improve
+    tokenize [ tt "Grouping" ]
+
 instance Tokenizable (CallNode a) where
   tokenize (Cfg.CallNode ctx start dest _ _) =
     tokenize ctx
@@ -831,8 +838,22 @@ instance Tokenizable (LeaveFuncNode a) where
 instance Tokenizable BranchType where
   tokenize bt = pure [tt (show bt)]
 
--- instance Tokenizable [Pil.Stmt] where
---   tokenize = intercalate [tt "\n"] . fmap tokenize
+instance Tokenizable (GCfg.CfNode a) where
+  tokenize = \case
+    GCfg.BasicBlock n -> tokenize n
+    GCfg.Call n -> tokenize n
+    GCfg.EnterFunc n -> tokenize n
+    GCfg.LeaveFunc n -> tokenize n
+    GCfg.Grouping n -> tokenize n
+
+instance Tokenizable (GCfg.CfEdge a) where
+  tokenize e =
+    tokenize (e ^. #src) <++>
+    tt " ---> " <++>
+    tokenize (e ^. #dst) <++>
+    tt "  |" <++>
+    tokenize (e ^. #branchType) <++>
+    tt "|"
 
 instance Tokenizable InterCfg where
   tokenize (InterCfg cfg) = tokenize cfg
@@ -918,6 +939,71 @@ instance Tokenizable a => Tokenizable (G.Dominators a) where
 
 instance Tokenizable a => Tokenizable (G.PostDominators a) where
   tokenize (G.PostDominators m) = tokenize m
+
+instance Tokenizable Bool where
+  tokenize b = pure [tt $ show b]
+
+instance Tokenizable Text where
+  tokenize t = pure [tt t]
+
+instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
+  tokenize cfg =
+    [tt "---CFG---\n", tt "--- Node Mapping:\n"] <++>
+    showNodeMapping <++>
+    tt "--- Edges:\n" <++>
+    showEdges <++>
+    tt "--- Attrs:\n" <++>
+    showAttrs
+    where
+      cflow = cfg ^. #graph
+      nodeMapList :: [(GCfg.CfNode (), Int)]
+      nodeMapList = zip (HashSet.toList $ G.nodes cflow) [0..]
+
+      nodeMap :: HashMap (GCfg.CfNode ()) Int
+      nodeMap = HashMap.fromList nodeMapList
+
+      showNodeMapping :: Tokenizer [Token]
+      showNodeMapping = intercalate [tt "\n"] <$> traverse showNode nodeMapList
+
+      showNode :: (GCfg.CfNode (), Int) -> Tokenizer [Token]
+      showNode (node, id) =
+        [tt (show id), tt " : "] <++>
+        (tokenize . fromJust $ G.getNodeAttr node cflow)
+
+      showEdges :: [Token]
+      showEdges =
+        [ tt
+          . Text.concat
+          . fmap (cs . pshow)
+          . fmap (fmap $ fromJust . flip HashMap.lookup nodeMap)
+          . G.edges
+          $ cflow
+        ]
+
+      showAttrs :: Tokenizer [Token]
+      showAttrs = intercalate [tt "\n"] <$> sequence (mapMaybe showAttr nodeMapList)
+
+      showAttr :: (GCfg.CfNode (), Int) -> Maybe (Tokenizer [Token])
+      showAttr (node, id) = do
+        attr <- G.getNodeAttr node cflow
+        return $ [tt (show id), tt " : "] <++> tokenizeAsList (toList attr)
+
+instance Tokenizable GCfg.GroupSpec where
+  tokenize gs =
+    [keywordToken "GroupSpec"] <++>
+    ( paren <$>
+      ( arg "root" <++>
+        tokenize (gs ^. #groupRoot) <++>
+        [tt ", "] <++>
+        arg "end" <++>
+        tokenize (gs ^. #groupTerm) <++>
+        [tt ", "] <++>
+        arg "inner" <++>
+        tokenize (gs ^. #innerGroups)
+      ))
+    where
+      arg :: Text -> Tokenizer [Token]
+      arg a = pure [plainToken ArgumentNameToken a, tt " = "]
 
 data PrettyShow a = PrettyShow TokenizerCtx a
   deriving (Eq, Ord, Generic)

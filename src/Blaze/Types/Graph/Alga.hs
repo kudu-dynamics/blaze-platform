@@ -81,7 +81,9 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
     , nodeAttrMap = nodeAttrMap g
     }
   hasNode n = G.hasVertex n . adjacencyMap
-  transpose g = g {adjacencyMap = G.transpose $ adjacencyMap g}
+  transpose g = g { adjacencyMap = G.transpose $ adjacencyMap g
+                  , edgeMap = HMap.mapKeys (\(Edge a b) -> Edge b a) $ edgeMap g
+                  }
   bfs startNodes g = GA.bfs startNodes . adjacencyMap $ g
   subgraph pred g = AlgaGraph 
     { adjacencyMap = subgraphAdjMap

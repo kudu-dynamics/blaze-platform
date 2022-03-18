@@ -5,14 +5,17 @@ module Blaze.Cfg (
   module Blaze.Cfg,
 ) where
 
-import qualified Blaze.Graph as G
 import Blaze.Graph (Dominators, PostDominators)
+import qualified Blaze.Graph as G
 import Blaze.Prelude
-import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Cfg hiding (nodes)
+import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt, Ctx)
+import Blaze.Types.Cfg hiding (nodes)
+import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
+import Control.Lens (set)
 import qualified Data.HashSet as HashSet
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEList
@@ -54,7 +57,7 @@ getPostDominators = getPostDominators_ dummyTermNode UnconditionalBranch
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
 
 lastStmtFrom :: (HasField' "nodeData" n [Stmt]) => n -> Maybe Stmt
-lastStmtFrom = lastMay . view (field' @"nodeData")
+lastStmtFrom = lastMay . view #nodeData
 
 parseReturnNode :: BasicBlockNode [Stmt] -> Maybe (ReturnNode [Stmt])
 parseReturnNode node = do
@@ -175,7 +178,7 @@ getBranchCondNode
   -> CfNode [a]
   -> Cfg [a]
   -> Maybe (BranchCond b)
-getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg  
+getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg
   where
     mcond = lastMay (Cfg.getNodeData n) >>= (\case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
@@ -191,6 +194,43 @@ getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode
   . HashSet.toList
   . G.nodes
   $ typedCfg
+
+-- | Substitute a node with another CFG.
+substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
+substNode
+  outerCfg@(Cfg _ outerRoot)
+  node
+  innerCfg@(Cfg _ innerRoot)
+  exitNode' =
+    -- Check if the node we are substituting is the outer CFG's root
+    if asIdNode outerRoot /= asIdNode node
+       then newCfg & #root .~ outerRoot
+       else newCfg & #root .~ innerRoot
+   where
+    -- TODO: Improve Graph API for fetching edges
+    predEdges' :: [CfEdge a]
+    predEdges' = HashSet.toList $ Cfg.predEdges node outerCfg
+    succEdges' :: [CfEdge a]
+    succEdges' = HashSet.toList $ Cfg.succEdges node outerCfg
+
+    newPredEdges :: [CfEdge a]
+    newPredEdges = set #dst innerRoot <$> predEdges'
+    newSuccEdges :: [CfEdge a]
+    newSuccEdges = set #src exitNode' <$> succEdges'
+    newCfg :: Cfg a
+    newCfg =
+      Cfg.removeNode node
+      . Cfg.addNodes (HashSet.toList $ Cfg.nodes innerCfg)
+      . Cfg.addEdges (Cfg.edges innerCfg)
+      . Cfg.addEdges newPredEdges
+      . Cfg.addEdges newSuccEdges $ outerCfg
+
+
+findNodeByUUID :: forall a. (Eq a, Hashable a) => UUID -> Cfg a -> Maybe (CfNode a)
+findNodeByUUID id cfg = case filter ((== id) . getNodeUUID) . HashSet.toList . G.nodes $ cfg of
+  [] -> Nothing
+  [x] -> Just x
+  (x:_xs) -> Just x -- Should never happen. Maybe print warning?
 
 stmtCtxs :: Stmt -> HashSet Ctx
 stmtCtxs = foldMap (HSet.fromList . mapMaybe (view #ctx) . HSet.toList . getVarsFromExpr)

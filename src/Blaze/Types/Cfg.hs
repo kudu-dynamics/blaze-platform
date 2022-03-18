@@ -21,6 +21,7 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Common (Ctx)
+import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import Control.Lens (ix)
@@ -120,6 +121,7 @@ data BranchNode a = BranchNode
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
+
 -- TODO: Consider moving the interprocedural nodes into a separate type
 --       specific to InterCfg. Especially now with EnterFunc/LeaveFunc
 -- TODO: Once the Cfg only needs to support PIL statements, remove type parameter
@@ -132,6 +134,7 @@ data CfNode a
   | Call (CallNode a)
   | EnterFunc (EnterFuncNode a)
   | LeaveFunc (LeaveFuncNode a)
+  -- -- | Grouping (GroupingNode a)
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
@@ -229,7 +232,32 @@ data Cfg a = Cfg
   { graph :: ControlFlowGraph a
   , root :: CfNode a
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
+
+instance Functor Cfg where
+  fmap f cfg = Cfg
+    { graph = G.mapAttrs (fmap f) $ cfg ^. #graph
+    , root = f <$> (cfg ^. #root)
+    }
+
+instance Foldable Cfg where
+  foldMap f = G.foldMapAttrs (f . getNodeData) . view #graph
+
+instance Traversable Cfg where
+  traverse f cfg = Cfg
+    <$> (G.traverseAttrs (traverse f) $ cfg ^. #graph)
+    <*> (traverse f $ cfg ^. #root)
+
+instance Hashable a => Hashable (Cfg a) where
+  hashWithSalt n = hashWithSalt n . toTransport
+  hash = hash . toTransport
+
+instance ToJSON a => ToJSON (Cfg a) where
+ toJSON = toJSON . toTransport
+
+instance (Eq a, Hashable a, FromJSON a) => FromJSON (Cfg a) where
+ parseJSON = fmap fromTransport . parseJSON
+
 
 mkCfg :: forall a. (Hashable a, Eq a) => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
 mkCfg root' rest es =
@@ -567,3 +595,47 @@ data BranchCond a = BranchCond
   , condition :: a
   , branchingType :: BranchingType
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+
+-- | CfgTransport is an intermediary type for Hashable, FromJSON, and ToJSON instances
+data CfgTransport a = CfgTransport
+  { transportEdges :: [CfEdge ()]
+  , transportRoot :: CfNode ()
+  , transportNodes :: [(CfNode (), CfNode a)]
+  }
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Functor, Foldable, Traversable)
+  deriving anyclass (Hashable)
+
+toTransport :: forall a. Cfg a -> CfgTransport a
+toTransport pcfg = CfgTransport
+  { transportEdges = edges'
+  , transportRoot = root'
+  , transportNodes = nodes'
+  }
+  where
+    root' = void $ pcfg ^. #root
+
+    nodes' :: [(CfNode (), CfNode a)]
+    nodes' = HashMap.toList $ pcfg ^. #graph . #nodeAttrMap
+
+    edges' :: [CfEdge ()]
+    edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
+
+fromTransport :: (Eq a, Hashable a) => CfgTransport a -> Cfg a
+fromTransport t = mkCfg root' nodes' edges'
+  where
+    nodeMap = HashMap.fromList $ t ^. #transportNodes
+
+    fullNode = fromJust . flip HashMap.lookup nodeMap
+
+    fullEdge e = CfEdge
+      { src = fullNode $ e ^. #src
+      , dst = fullNode $ e ^. #dst
+      , branchType = e ^. #branchType
+      }
+
+    root' = fullNode $ t ^. #transportRoot
+
+    nodes' = snd <$> t ^. #transportNodes
+
+    edges' = fullEdge <$> t ^. #transportEdges

@@ -129,3 +129,22 @@ spec = describe "Blaze.Graph" $ do
             ]
 
       getPostDominators g `shouldBe` expected
+
+  context "getDominators" $ do
+    it "should get empty Dominators for singleton graph" $ do
+      let g :: GA.AlgaGraph () () Text
+          g = G.fromNode "a"
+          rootNode = "a"
+          expected = G.Dominators . HashMap.fromList $ []
+          
+      G.getDominators rootNode g `shouldBe` expected
+
+    it "should get single Dominator for graph with one edge" $ do
+      let g :: GA.AlgaGraph () () Text
+          g = G.fromEdges . fmap toLedge $
+            [("a", "b")]
+          rootNode = "a"
+          expected = G.Dominators . HashMap.fromList $
+            [("b", HashSet.fromList ["a"])]
+          
+      G.getDominators rootNode g `shouldBe` expected
