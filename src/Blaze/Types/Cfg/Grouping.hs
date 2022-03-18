@@ -559,7 +559,7 @@ getPossibleGroupTerms startNode cfg = case mpdoms of
   Nothing -> HashSet.empty
   Just pdoms ->
     HashSet.fromList
-      . filter (groupIsClosed startNode)
+      . filter (groupIsClosed cfg startNode)
       . filter dominatedByStartNode
       $ pdoms
   where
@@ -574,17 +574,20 @@ getPossibleGroupTerms startNode cfg = case mpdoms of
       doms <- G.domLookup candidateTerm domMapping
       return $ HashSet.member startNode doms
 
-    succsClosed :: HashSet (CfNode a) -> CfNode a -> Bool
-    succsClosed g n = all (`HashSet.member` g) (G.succs n cfg)
-
-    predsClosed :: HashSet (CfNode a) -> CfNode a -> Bool
-    predsClosed g n = all (`HashSet.member` g) (G.preds n cfg)
-
-    groupIsClosed :: CfNode a -> CfNode a -> Bool
-    groupIsClosed start end =
-      let g = HashSet.union (HashSet.fromList [start, end]) $ findNodesInGroup start end cfg
-      in all (\n -> (n == start || predsClosed g n) && (n == end || succsClosed g n)) g
-
+groupIsClosed ::
+  (Eq a, Hashable a) =>
+  Cfg a ->
+  -- | start node
+  CfNode a ->
+  -- | end node
+  CfNode a ->
+  Bool
+groupIsClosed cfg start end =
+  all (\n -> (n == start || predsClosed n) && (n == end || succsClosed n)) g
+  where
+    g = HashSet.union (HashSet.fromList [start, end]) $ findNodesInGroup start end cfg
+    succsClosed n = all (`HashSet.member` g) (G.succs n cfg)
+    predsClosed n = all (`HashSet.member` g) (G.preds n cfg)
 
 -- | Gets all nodes dominated by a start node and post-dominated by and end node
 findNodesInGroup
@@ -608,7 +611,6 @@ findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.no
 
     isDoubleDominated n = HashSet.member startNode (domLookup' n domMapping)
       && HashSet.member endNode (domLookup' n pdomMapping)
-
 
 extractGroupingNode
   :: forall a. (Eq a, Hashable a)
