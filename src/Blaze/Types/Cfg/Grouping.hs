@@ -639,8 +639,8 @@ makeGrouping startNode endNode cfg = cfg'
     containsGroupNodes comb (CfEdge a b _) =
       HashSet.member a allGroupNodes `comb` HashSet.member b allGroupNodes
 
-    containsOnlyGroupNodes :: CfEdge a -> Bool
-    containsOnlyGroupNodes = containsGroupNodes (&&)
+    -- containsOnlyGroupNodes :: CfEdge a -> Bool
+    -- containsOnlyGroupNodes = containsGroupNodes (&&)
 
     containsAnyGroupNodes :: CfEdge a -> Bool
     containsAnyGroupNodes = containsGroupNodes (||)
