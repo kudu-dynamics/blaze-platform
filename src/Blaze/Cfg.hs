@@ -8,6 +8,8 @@ module Blaze.Cfg (
 import Blaze.Graph (Dominators, PostDominators)
 import qualified Blaze.Graph as G
 import Blaze.Prelude
+import Blaze.Types.Cfg hiding (nodes)
+import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt, Ctx)
 import Blaze.Types.Cfg hiding (nodes)
 import qualified Blaze.Types.Cfg as Cfg
@@ -176,7 +178,7 @@ getBranchCondNode
   -> CfNode [a]
   -> Cfg [a]
   -> Maybe (BranchCond b)
-getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg  
+getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg
   where
     mcond = lastMay (Cfg.getNodeData n) >>= (\case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
@@ -192,18 +194,6 @@ getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode
   . HashSet.toList
   . G.nodes
   $ typedCfg
-
-stmtCtxs :: Stmt -> HashSet Ctx
-stmtCtxs = foldMap (HSet.fromList . mapMaybe (view #ctx) . HSet.toList . getVarsFromExpr)
-
-nodeCtxs :: CfNode [Stmt] -> HashSet Ctx
-nodeCtxs = foldMap (foldMap stmtCtxs)
-
-getCtxIndices :: PilCfg -> Bimap Int Ctx
-getCtxIndices cfg = Bimap.fromList $ zip [0..] ctxs
-  where
-    ctxs = sortUnique . foldMap nodeCtxs . G.nodes $ cfg
-    sortUnique = sort . HSet.toList
 
 -- | Substitute a node with another CFG.
 substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
@@ -241,3 +231,15 @@ findNodeByUUID id cfg = case filter ((== id) . getNodeUUID) . HashSet.toList . G
   [] -> Nothing
   [x] -> Just x
   (x:_xs) -> Just x -- Should never happen. Maybe print warning?
+
+stmtCtxs :: Stmt -> HashSet Ctx
+stmtCtxs = foldMap (HSet.fromList . mapMaybe (view #ctx) . HSet.toList . getVarsFromExpr)
+
+nodeCtxs :: CfNode [Stmt] -> HashSet Ctx
+nodeCtxs = foldMap (foldMap stmtCtxs)
+
+getCtxIndices :: PilCfg -> Bimap Int Ctx
+getCtxIndices cfg = Bimap.fromList $ zip [0..] ctxs
+  where
+    ctxs = sortUnique . foldMap nodeCtxs . G.nodes $ cfg
+    sortUnique = sort . HSet.toList

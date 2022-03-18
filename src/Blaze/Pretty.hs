@@ -838,7 +838,6 @@ instance Tokenizable (LeaveFuncNode a) where
 instance Tokenizable BranchType where
   tokenize bt = pure [tt (show bt)]
 
-
 instance Tokenizable (GCfg.CfNode a) where
   tokenize = \case
     GCfg.BasicBlock n -> tokenize n
@@ -855,11 +854,6 @@ instance Tokenizable (GCfg.CfEdge a) where
     tt "  |" <++>
     tokenize (e ^. #branchType) <++>
     tt "|"
-
-  
-
--- instance Tokenizable [Pil.Stmt] where
---   tokenize = intercalate [tt "\n"] . fmap tokenize
 
 instance Tokenizable InterCfg where
   tokenize (InterCfg cfg) = tokenize cfg
