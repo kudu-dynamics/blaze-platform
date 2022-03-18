@@ -60,6 +60,7 @@ class Graph e attr n g | g -> e attr n where
   subgraph :: (n -> Bool) -> g -> g
   reachable :: n -> g -> [n]
 
+
 newtype Dominators a = Dominators (HashMap a (HashSet a))
   deriving (Eq, Ord, Show, Generic)
 

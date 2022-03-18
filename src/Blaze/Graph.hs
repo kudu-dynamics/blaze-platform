@@ -18,6 +18,7 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph as Exports hiding (edge, label, src, dst)
 import qualified Data.HashSet as HashSet
 import qualified Data.IntMap.Strict as Im
+import qualified Data.IntSet as IntSet
 import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as HashMap
 
@@ -117,6 +118,10 @@ buildNodeMap :: (Graph e attr a g) => g -> DltMap a
 buildNodeMap =
   Im.fromList . zip [0 ..] . HashSet.toList . nodes
 
+-- buildNodeMap' :: (Graph e attr a g) => a -> g -> DltMap a
+-- buildNodeMap' rootNode =
+--   Im.fromList . zip [0 ..] . reachable rootNode
+
 buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
 buildAdjMap ns =
   foldl' mergeEdges initialAdjMap
@@ -190,12 +195,51 @@ domHelper f rootNode g =
  Per dom-lt, the complexity is:
  O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
 -}
-getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
-getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
+-- getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
+-- getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
 
--- | Gets all post dominators. termNode should be the only terminal node in the graph.
+getDominatorMapping
+  :: forall a attr g e. (Hashable a, Eq a, Graph e attr a g)
+  => a
+  -> g
+  -> HashMap a (HashSet a)
+getDominatorMapping rootNode g = foldl' (flip buildDominatedMapping) HashMap.empty allNodes
+  where
+    allNodes = reachable rootNode g
+    allNodesSet = HashSet.fromList allNodes
+    getDominatedBy :: a -> [a]
+    getDominatedBy n = HashSet.toList
+      . HashSet.difference allNodesSet
+      . HashSet.fromList
+      . bfsReachable rootNode
+      . removeNode n
+      $ g
+    buildDominatedMapping :: a -> HashMap a (HashSet a) -> HashMap a (HashSet a)
+    buildDominatedMapping n m = foldr (alterIfNotEqual) m $ getDominatedBy n
+      where
+        alterIfNotEqual :: a -> HashMap a (HashSet a) -> HashMap a (HashSet a)
+        alterIfNotEqual n' m'
+          | n' == n = m'
+          | otherwise = HashMap.alter addOrCreate n' m'
+        addOrCreate :: Maybe (HashSet a) -> Maybe (HashSet a)
+        addOrCreate Nothing = Just $ HashSet.singleton n
+        addOrCreate (Just s) = Just $ HashSet.insert n s
+
+-- | Nodes reachable from n in bfs order, excludes self unless can be reached later
+bfsReachable :: Graph e attr a g => a -> g -> [a]
+--bfsReachable n g = concat $ bfs (HashSet.toList $ succs n g) g
+bfsReachable n g = concat $ bfs [n] g
+
+  
+getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
+getDominators rootNode = Dominators . getDominatorMapping rootNode
+
 getPostDominators_ :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
-getPostDominators_ termNode = PostDominators . domHelper Dlt.dom termNode . G.transpose
+getPostDominators_ termNode = PostDominators . getDominatorMapping termNode . G.transpose
+
+-- -- | Gets all post dominators. termNode should be the only terminal node in the graph.
+-- getPostDominators_ :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
+-- getPostDominators_ termNode = PostDominators . domHelper Dlt.pdom termNode
 
 -- | Gets all post dominators. If there are multiple terminal nodes,
 --   each will point to `dummyTermNode`.
@@ -214,3 +258,58 @@ getPostDominators dummyTermNode dummyTermEdgeLabel g =
       $ foldl' (flip f) g xs
       where
         f x = G.addEdge (G.LEdge dummyTermEdgeLabel $ G.Edge x dummyTermNode)
+
+
+test :: Dlt.Rooted
+test = ( 15,
+         Im.fromList
+         [ (0,IntSet.fromList [12])
+         , (1,IntSet.fromList [3])
+         , (2,IntSet.fromList [1,11])
+         , (3,IntSet.fromList [20])
+         , (4,IntSet.fromList [3])
+         , (5,IntSet.fromList [8])
+         , (6,IntSet.fromList [21])
+         , (7,IntSet.fromList [2,13])
+         , (8,IntSet.fromList [7,18])
+         , (9,IntSet.fromList [20])
+         , (10,IntSet.fromList [5])
+         , (11,IntSet.fromList [4,14])
+         , (12,IntSet.fromList [17])
+         , (13,IntSet.fromList [3])
+         , (14,IntSet.fromList [9,16])
+         , (15,IntSet.fromList [6])  
+         , (16,IntSet.fromList [3])
+         , (17,IntSet.fromList [10])
+         , (18,IntSet.fromList [19])
+         , (19,IntSet.fromList [3])
+         , (20,IntSet.fromList [])
+         , (21,IntSet.fromList [0])
+         ])
+
+test2 :: Dlt.Rooted
+test2 = ( 20,
+         Im.fromList
+         [ (0,IntSet.fromList [12])
+         , (1,IntSet.fromList [3])
+         , (2,IntSet.fromList [1,11])
+         , (3,IntSet.fromList [20])
+         , (4,IntSet.fromList [3])
+         , (5,IntSet.fromList [8])
+         , (6,IntSet.fromList [21])
+         , (7,IntSet.fromList [2,13])
+         , (8,IntSet.fromList [7,18])
+         , (9,IntSet.fromList [20])
+         , (10,IntSet.fromList [5])
+         , (11,IntSet.fromList [4,14])
+         , (12,IntSet.fromList [17])
+         , (13,IntSet.fromList [3])
+         , (14,IntSet.fromList [9,16])
+         , (15,IntSet.fromList [6])
+         , (16,IntSet.fromList [3])
+         , (17,IntSet.fromList [10])
+         , (18,IntSet.fromList [19])
+         , (19,IntSet.fromList [3])
+         , (20,IntSet.fromList [])
+         , (21,IntSet.fromList [0])
+         ])
