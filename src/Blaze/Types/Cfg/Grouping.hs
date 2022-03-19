@@ -662,6 +662,9 @@ makeGrouping startNode endNode cfg = cfg'
     containsAnyGroupNodes :: CfEdge a -> Bool
     containsAnyGroupNodes = containsGroupNodes (||)
 
+    srcOutside = containsGroupNodes (\a _ -> not a)
+    dstOutside = containsGroupNodes (\_ b -> not b)
+
     nonGroupNodes = HashSet.difference (G.nodes cfg) allGroupNodes
 
     -- edges that aren't inside the group
@@ -675,7 +678,10 @@ makeGrouping startNode endNode cfg = cfg'
     exteriorGroupEdges
       = fmap (\(CfEdge a b lbl) -> CfEdge (substStartEnd a) (substStartEnd b) lbl)
       . HashSet.toList
-      $ predEdges startNode cfg <> succEdges endNode cfg
+      $ ( HashSet.filter srcOutside (predEdges startNode cfg)
+          <>
+          HashSet.filter dstOutside (succEdges endNode cfg)
+        )
       where
         substStartEnd :: CfNode a -> CfNode a
         substStartEnd e = bool e groupNode $ e == startNode || e == endNode
