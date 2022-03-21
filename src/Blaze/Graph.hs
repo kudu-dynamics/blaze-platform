@@ -54,7 +54,7 @@ collapseGotoBlocks g =
         [bbTgt] ->
           G.LEdge
             (be & BB.target ?~ bbTgt)
-            (G.Edge bbSrc bbTgt)            
+            (G.Edge bbSrc bbTgt)
             : xs
         _ -> edge : xs
       | otherwise = edge : xs
@@ -215,7 +215,7 @@ getDominatorMapping rootNode g = foldl' (flip buildDominatedMapping) HashMap.emp
       . removeNode n
       $ g
     buildDominatedMapping :: a -> HashMap a (HashSet a) -> HashMap a (HashSet a)
-    buildDominatedMapping n m = foldr (alterIfNotEqual) m $ getDominatedBy n
+    buildDominatedMapping n m = foldr alterIfNotEqual m $ getDominatedBy n
       where
         alterIfNotEqual :: a -> HashMap a (HashSet a) -> HashMap a (HashSet a)
         alterIfNotEqual n' m'
@@ -230,7 +230,7 @@ bfsReachable :: Graph e attr a g => a -> g -> [a]
 --bfsReachable n g = concat $ bfs (HashSet.toList $ succs n g) g
 bfsReachable n g = concat $ bfs [n] g
 
-  
+
 getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
 getDominators rootNode = Dominators . getDominatorMapping rootNode
 
@@ -278,7 +278,7 @@ test = ( 15,
          , (12,IntSet.fromList [17])
          , (13,IntSet.fromList [3])
          , (14,IntSet.fromList [9,16])
-         , (15,IntSet.fromList [6])  
+         , (15,IntSet.fromList [6])
          , (16,IntSet.fromList [3])
          , (17,IntSet.fromList [10])
          , (18,IntSet.fromList [19])
