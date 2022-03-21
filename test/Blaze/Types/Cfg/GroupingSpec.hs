@@ -480,7 +480,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
 
       Grp.makeGrouping startNode endNode outerCfg `prettyShouldBe` expected
 
-    xit "should make group with self looping edge if end node loops to start node" $ do
+    it "should make group with self looping edge if end node loops to start node" $ do
       let rootNode = gbbn "root"
           startNode = gbbn "start"
           midNode1 = gbbn "mid1"
@@ -548,6 +548,10 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               midNode1
               endNode
               UnconditionalBranch
+            , Grp.CfEdge
+              endNode
+              startNode
+              FalseBranch
             ]
 
           gnode = Grp.Grouping $ Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg
@@ -565,10 +569,6 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               gnode
               termNode
               TrueBranch
-            , Grp.CfEdge
-              gnode
-              gnode
-              FalseBranch
             ]
 
           expected = outerCfg'

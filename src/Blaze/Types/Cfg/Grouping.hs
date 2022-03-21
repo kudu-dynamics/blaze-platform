@@ -557,7 +557,11 @@ getPossibleGroupTerms
   -> HashSet (CfNode a)
 getPossibleGroupTerms startNode cfg = case mpdoms of
   Nothing -> HashSet.empty
-  Just pdoms -> HashSet.fromList . filter dominatedByStartNode $ pdoms
+  Just pdoms ->
+    HashSet.fromList
+      . filter (groupIsClosed cfg startNode)
+      . filter dominatedByStartNode
+      $ pdoms
   where
     domMapping = getDominators cfg
     mpdoms :: Maybe [CfNode a]
@@ -570,6 +574,20 @@ getPossibleGroupTerms startNode cfg = case mpdoms of
       doms <- G.domLookup candidateTerm domMapping
       return $ HashSet.member startNode doms
 
+groupIsClosed ::
+  (Eq a, Hashable a) =>
+  Cfg a ->
+  -- | start node
+  CfNode a ->
+  -- | end node
+  CfNode a ->
+  Bool
+groupIsClosed cfg start end =
+  all (\n -> (n == start || predsClosed n) && (n == end || succsClosed n)) g
+  where
+    g = HashSet.union (HashSet.fromList [start, end]) $ findNodesInGroup start end cfg
+    succsClosed n = all (`HashSet.member` g) (G.succs n cfg)
+    predsClosed n = all (`HashSet.member` g) (G.preds n cfg)
 
 -- | Gets all nodes dominated by a start node and post-dominated by and end node
 findNodesInGroup
@@ -593,7 +611,6 @@ findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.no
 
     isDoubleDominated n = HashSet.member startNode (domLookup' n domMapping)
       && HashSet.member endNode (domLookup' n pdomMapping)
-
 
 extractGroupingNode
   :: forall a. (Eq a, Hashable a)
@@ -645,6 +662,9 @@ makeGrouping startNode endNode cfg = cfg'
     containsAnyGroupNodes :: CfEdge a -> Bool
     containsAnyGroupNodes = containsGroupNodes (||)
 
+    srcOutside = containsGroupNodes (\a _ -> not a)
+    dstOutside = containsGroupNodes (\_ b -> not b)
+
     nonGroupNodes = HashSet.difference (G.nodes cfg) allGroupNodes
 
     -- edges that aren't inside the group
@@ -658,7 +678,10 @@ makeGrouping startNode endNode cfg = cfg'
     exteriorGroupEdges
       = fmap (\(CfEdge a b lbl) -> CfEdge (substStartEnd a) (substStartEnd b) lbl)
       . HashSet.toList
-      $ predEdges startNode cfg <> succEdges endNode cfg
+      $ ( HashSet.filter srcOutside (predEdges startNode cfg)
+          <>
+          HashSet.filter dstOutside (succEdges endNode cfg)
+        )
       where
         substStartEnd :: CfNode a -> CfNode a
         substStartEnd e = bool e groupNode $ e == startNode || e == endNode
