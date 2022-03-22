@@ -689,7 +689,7 @@ makeGrouping startNode endNode cfg = cfg'
     newEdges :: [CfEdge a]
     newEdges = nonGroupEdges <> exteriorGroupEdges
 
-    cfg' = if cfg ^. #root == groupNode
+    cfg' = if cfg ^. #root == startNode
       then mkCfg groupNode
             (HashSet.toList nonGroupNodes)
             newEdges
