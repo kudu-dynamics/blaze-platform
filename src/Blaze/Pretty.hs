@@ -966,8 +966,8 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
       showNodeMapping = intercalate [tt "\n"] <$> traverse showNode nodeMapList
 
       showNode :: (GCfg.CfNode (), Int) -> Tokenizer [Token]
-      showNode (node, id) =
-        [tt (show id), tt " : "] <++>
+      showNode (node, nid) =
+        [tt (show nid), tt " : "] <++>
         (tokenize . fromJust $ G.getNodeAttr node cflow)
 
       showEdges :: [Token]
@@ -984,9 +984,9 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
       showAttrs = intercalate [tt "\n"] <$> sequence (mapMaybe showAttr nodeMapList)
 
       showAttr :: (GCfg.CfNode (), Int) -> Maybe (Tokenizer [Token])
-      showAttr (node, id) = do
+      showAttr (node, nid) = do
         attr <- G.getNodeAttr node cflow
-        return $ [tt (show id), tt " : "] <++> tokenizeAsList (toList attr)
+        return $ [tt (show nid), tt " : "] <++> tokenizeAsList (toList attr)
 
 instance Tokenizable GCfg.GroupSpec where
   tokenize gs =
