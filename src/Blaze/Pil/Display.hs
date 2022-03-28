@@ -135,7 +135,7 @@ instance Disp Binja.MLIL.SSAVariable where
       version = show (ssaVar ^. Binja.MLIL.version)
 
 instance Disp Int64 where
-  disp x = show x
+  disp = show
 
 instance Disp Pil.PilVar where
   disp v = v ^. #symbol
@@ -175,7 +175,7 @@ instance Disp Pil.Ctx where
 instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) where
   disp stmt = case stmt of
     Pil.BranchCond op -> Text.pack $ printf "branch (%s)" cond
-      where 
+      where
         cond = disp $ op ^. #cond
     Pil.Jump op -> Text.pack $ printf "jump (%s)" dest
       where
@@ -393,5 +393,3 @@ instance (Disp a, Disp b) => Disp (HashMap a b) where
 
 pdisp :: (MonadIO m, Disp a) => a -> m ()
 pdisp = putText . disp
-
-

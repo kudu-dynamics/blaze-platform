@@ -55,7 +55,7 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
     }
       where
         edgesToRemove :: [Edge n]
-        edgesToRemove = (Edge n <$> HSet.toList (succs n g)) 
+        edgesToRemove = (Edge n <$> HSet.toList (succs n g))
           ++ ((`Edge` n) <$> HSet.toList (preds n g))
 
   addNodes ns g = AlgaGraph
@@ -74,7 +74,7 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
     , edgeMap = edgeMap g
     , nodeAttrMap = HMap.union (HMap.fromList ns) $ nodeAttrMap g
     }
- 
+
   addEdge (LEdge lbl e) g = AlgaGraph
     { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge (e ^. #src) (e ^. #dst)
     , edgeMap = HMap.insert e lbl $ edgeMap g
@@ -84,8 +84,8 @@ instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
   transpose g = g { adjacencyMap = G.transpose $ adjacencyMap g
                   , edgeMap = HMap.mapKeys (\(Edge a b) -> Edge b a) $ edgeMap g
                   }
-  bfs startNodes g = GA.bfs startNodes . adjacencyMap $ g
-  subgraph pred g = AlgaGraph 
+  bfs startNodes = GA.bfs startNodes . adjacencyMap
+  subgraph pred g = AlgaGraph
     { adjacencyMap = subgraphAdjMap
     , edgeMap = (`HMap.filterWithKey` edgeMap g) $ \k _ ->
         Set.member k subgraphEdges
