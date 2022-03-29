@@ -3,8 +3,8 @@ stages:
   - build
   - test
   - push
-  - docs
   - trigger
+  - docs
 
 workflow:
   rules:
@@ -107,7 +107,7 @@ test:
     GIT_CLEAN_FLAGS: none
   script:
     - cd /blaze/build/blaze
-    - STACK_TEST_TIMEOUT=1800 .ci/scripts/run_stack_test.py
+    - .ci/scripts/run_test.py ~/.local/bin/blaze-test
 
 push:latest:
   stage: push
@@ -144,7 +144,7 @@ push:tag:
     - docker push "${image}:tag-${CI_COMMIT_TAG}"
 
 pages:
-  extends: .haskell-job
+  extends: .docker-job
   stage: docs
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_MERGE_REQUEST_ID == null
@@ -155,17 +155,15 @@ pages:
     - test
   variables:
     <<: *variables
-    GIT_STRATEGY: none
-    GIT_CLEAN_FLAGS: none
   script:
-    - haddock_flags=(--no-haddock-deps)
-    - pushd /blaze/build/blaze
-    - stack haddock "${haddock_flags[@]}"
-    - docs_dir=$(stack path --snapshot-doc-root "${haddock_flags[@]}")
-    - popd
-    # - cp -arT "$docs_dir" public
+    - image=${REPO_DOCKER_REGISTRY}/blaze
+    - docker build --pull .
+      --build-arg "CI_REGISTRY=${CI_REGISTRY}"
+      --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
+      --target docs
+      -t "${image}/docs:pipeline-${CI_PIPELINE_IID}"
     - mkdir public
-    - touch public/index.html
+    - docker run --rm -v $PWD/public:/public "${image}/docs:pipeline-${CI_PIPELINE_IID}" tar -cvC docs . | tar -xvC public --no-same-owner
   allow_failure: true
   artifacts:
     paths:
