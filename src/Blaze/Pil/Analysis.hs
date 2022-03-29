@@ -202,7 +202,7 @@ originMapToGroupMap :: (Hashable a, Eq a)
                     => HashMap a a -> HashMap a (HashSet a)
 originMapToGroupMap = foldr f HMap.empty . HMap.toList
   where
-    f (a, b) m = HMap.alter g b m
+    f (a, b) = HMap.alter g b
       where
         g Nothing = Just $ HSet.singleton a
         g (Just s) = Just $ HSet.insert a s
@@ -232,7 +232,7 @@ updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
 updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
   HMap.insert v1 v2 m
 updateVarEqMap _ m = m
- 
+
 -- | A mapping of equivalent vars. They are not reduced to origins.
 getVarEqMap :: [Stmt] -> EqMap PilVar
 getVarEqMap = foldr updateVarEqMap HMap.empty
@@ -354,7 +354,7 @@ _copyProp copyPropState xs =
 --      as a PilVar rather than an expression wrapping a PilVar.
 copyProp :: [Stmt] -> [Stmt]
 copyProp xs = _copyProp (buildCopyPropState xs) xs
-    
+
 isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
 isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
 isUnusedPhi _ _ = False
@@ -373,8 +373,8 @@ fixedRemoveUnusedPhi_ itersLeft stmts
   | otherwise = fixedRemoveUnusedPhi_ (itersLeft - 1) stmts'
   where
     stmts' = removeUnusedPhi (getRefVars stmts) stmts
-    
-fixedRemoveUnusedPhi :: [Stmt] -> [Stmt]    
+
+fixedRemoveUnusedPhi :: [Stmt] -> [Stmt]
 fixedRemoveUnusedPhi = fixedRemoveUnusedPhi_ 100
 
 reducePhi :: HashSet PilVar -> Stmt -> Maybe Stmt
@@ -794,7 +794,7 @@ parseFieldAddr expr =
       fullAddr <- Pil.Expression (expr ^. #size) . Pil.FIELD_ADDR
                   <$> ( Pil.FieldAddrOp baseAddr <$> offset addOp (^. #left))
       return $ ParsedAddr baseAddr fullAddr
-      
+
     _ -> Nothing
   where
     baseOp :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe (ExprOp Expression)
@@ -852,7 +852,7 @@ substArrayOrFieldAddr x = case parseFieldAddr x of
     #fieldBaseAddrs %= HSet.insert baseAddr'
 
     return fullAddr
-    
+
   Nothing -> case parseArrayAddr x of
     Just _pa -> do
       -- TODO: imitate the above
@@ -912,7 +912,7 @@ getDataDependenceGraph = foldl' (flip f) G.empty
   where
     f (Pil.Def d) = G.addNodes [dest] . G.addEdges edges
       where
-        vars = getVarsFromExpr_ $ d ^. #value      
+        vars = getVarsFromExpr_ $ d ^. #value
         dest = d ^. #var
         edges = G.LEdge () . flip G.Edge dest <$> vars
     f (Pil.DefPhi d) = G.addNodes [dest] . G.addEdges edges

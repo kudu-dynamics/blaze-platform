@@ -143,7 +143,7 @@ findNonRepeatPaths start' = findNonRepeatPaths' (HashSet.singleton start') start
 
 -- | finds all paths up until a repeat or a node with no succs
 findAllNonRepeatPaths :: (Graph e attr node g, Hashable node, Eq node) => g -> [[node]]
-findAllNonRepeatPaths g 
+findAllNonRepeatPaths g
   | length (nodes g) == 1 = [HashSet.toList $ nodes g]
   | otherwise = do
       src' <- HashSet.toList $ sources g
@@ -164,7 +164,7 @@ findSimplePaths :: (Graph e attr node g, Hashable node, Eq node)
 findSimplePaths = findSimplePaths' HashSet.empty
 
 findAllSimplePaths :: (Graph e attr node g, Hashable node, Eq node) => g -> [[node]]
-findAllSimplePaths g 
+findAllSimplePaths g
   | length (nodes g) == 1 = [HashSet.toList $ nodes g]
   | otherwise = do
       src' <- HashSet.toList $ sources g
@@ -188,7 +188,7 @@ reverseSpan _ 0 node = [[node]]
 reverseSpan g depth node = case HashSet.toList $ preds node g of
   [] -> [[node]]
   xs -> fmap (node:) . concatMap (reverseSpan g (depth - 1)) $ xs
-  
+
 
 findAllSimplePaths2 :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
                     => g -> node -> [[node]]
@@ -225,7 +225,7 @@ maxSimplePaths :: forall e attr node g. (Graph e attr node g, Hashable node, Eq 
                => g -> Integer
 maxSimplePaths = foldr max 0 . countAllSimplePaths
 
--- -- The total number of 
+-- -- The total number of
 -- descendantFrequencyCount :: forall e node g. (Graph e node g, Hashable node)
 --                     => g -> HashMap node (HashMap node Int)
 -- descendantFrequencyCount g =
@@ -307,7 +307,7 @@ searchBetween_ g (DescendantsMap dm) start end
   | HashSet.member end (dm ! start) = do
       kid <- HashSet.toList $ succs start g
       kidPath <- searchBetween_ g (DescendantsMap dm) kid end
-      return $ start : kidPath      
+      return $ start : kidPath
   | otherwise = []
 
 {- HLINT ignore searchBetween "Eta reduce" -}
@@ -317,7 +317,7 @@ searchBetween g start end = searchBetween_ g (calcDescendantsMap g) start end
 
 
 -- -- finding parents is (n * log(n)) for each node
--- -- this 
+-- -- this
 -- parentMap :: forall e node g. (Graph e node g, Hashable node)
 --           => g -> HashMap n (HashSet n)
 
@@ -346,13 +346,13 @@ mapAttrs f g = addNodesWithAttrs attrList . fromEdges . edges $ g
     attrList = HashMap.toList . HashMap.map f . getNodeAttrMap $ g
 
 foldMapAttrs :: forall e attr n g m. (Graph e attr n g, Monoid m) => (attr -> m) -> g -> m
-foldMapAttrs f g = foldMap (f . snd) . HashMap.toList . getNodeAttrMap $ g
+foldMapAttrs f = foldMap (f . snd) . HashMap.toList . getNodeAttrMap
 
 traverseAttrs :: (Graph e attr n g, Graph e attr' n g', Applicative f)
               => (attr -> f attr')
               -> g
               -> f g'
-traverseAttrs f g = fmap rebuildCfg . fmap HashMap.toList . traverse f . getNodeAttrMap $ g
+traverseAttrs f g = fmap (rebuildCfg . HashMap.toList) . traverse f . getNodeAttrMap $ g
   where
     rebuildCfg attrList = addNodesWithAttrs attrList . fromEdges . edges $ g
 
@@ -391,7 +391,7 @@ toEdgeGraph g = addNodes nodelist $ fromEdges edges'
                edge' = EdgeNode (LEdge e $ Edge a b)
 
 -- | All nodes that can reach node and that can be reached by node.
--- Formally, this is the union of the in-component and the out-component of 
+-- Formally, this is the union of the in-component and the out-component of
 -- node n in graph g.
 connectedNodes :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
 connectedNodes n g = HashSet.fromList reachedNodes <> HashSet.fromList reachingNodes
