@@ -966,8 +966,8 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
       showNodeMapping = intercalate [tt "\n"] <$> traverse showNode nodeMapList
 
       showNode :: (GCfg.CfNode (), Int) -> Tokenizer [Token]
-      showNode (node, id) =
-        [tt (show id), tt " : "] <++>
+      showNode (node, id') =
+        [tt (show id'), tt " : "] <++>
         (tokenize . fromJust $ G.getNodeAttr node cflow)
 
       showEdges :: [Token]

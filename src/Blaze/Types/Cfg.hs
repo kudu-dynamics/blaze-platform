@@ -245,8 +245,8 @@ instance Foldable Cfg where
 
 instance Traversable Cfg where
   traverse f cfg = Cfg
-    <$> (G.traverseAttrs (traverse f) $ cfg ^. #graph)
-    <*> (traverse f $ cfg ^. #root)
+    <$> G.traverseAttrs (traverse f) (cfg ^. #graph)
+    <*> traverse f (cfg ^. #root)
 
 instance Hashable a => Hashable (Cfg a) where
   hashWithSalt n = hashWithSalt n . toTransport

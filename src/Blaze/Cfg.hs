@@ -8,8 +8,6 @@ module Blaze.Cfg (
 import Blaze.Graph (Dominators, PostDominators)
 import qualified Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Cfg hiding (nodes)
-import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt, Ctx)
 import Blaze.Types.Cfg hiding (nodes)
 import qualified Blaze.Types.Cfg as Cfg

@@ -348,13 +348,13 @@ mapAttrs f g = addNodesWithAttrs attrList . fromEdges . edges $ g
     attrList = HashMap.toList . HashMap.map f . getNodeAttrMap $ g
 
 foldMapAttrs :: forall e attr n g m. (Graph e attr n g, Monoid m) => (attr -> m) -> g -> m
-foldMapAttrs f g = foldMap (f . snd) . HashMap.toList . getNodeAttrMap $ g
+foldMapAttrs f = foldMap (f . snd) . HashMap.toList . getNodeAttrMap
 
 traverseAttrs :: (Graph e attr n g, Graph e attr' n g', Applicative f)
               => (attr -> f attr')
               -> g
               -> f g'
-traverseAttrs f g = fmap rebuildCfg . fmap HashMap.toList . traverse f . getNodeAttrMap $ g
+traverseAttrs f g = fmap (rebuildCfg . HashMap.toList) . traverse f . getNodeAttrMap $ g
   where
     rebuildCfg attrList = addNodesWithAttrs attrList . fromEdges . edges $ g
 

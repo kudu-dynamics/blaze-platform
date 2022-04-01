@@ -215,7 +215,7 @@ getDominatorMapping rootNode g = foldl' (flip buildDominatedMapping) HashMap.emp
       . removeNode n
       $ g
     buildDominatedMapping :: a -> HashMap a (HashSet a) -> HashMap a (HashSet a)
-    buildDominatedMapping n m = foldr (alterIfNotEqual) m $ getDominatedBy n
+    buildDominatedMapping n m = foldr alterIfNotEqual m $ getDominatedBy n
       where
         alterIfNotEqual :: a -> HashMap a (HashSet a) -> HashMap a (HashSet a)
         alterIfNotEqual n' m'
