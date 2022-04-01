@@ -148,3 +148,19 @@ spec = describe "Blaze.Graph" $ do
             [("b", HashSet.fromList ["a"])]
           
       G.getDominators rootNode g `shouldBe` expected
+
+  context "reachable" $ do
+    it "should reach nothing if node is not in graph" $ do
+      let g :: GA.AlgaGraph () () Text
+          g = G.fromNode "a"
+          expected = []
+          
+      G.reachable "n" g `shouldBe` expected
+
+    it "should include search node in results" $ do
+      let g :: GA.AlgaGraph () () Text
+          g = G.fromNode "a"
+          expected = ["a"]
+          
+      G.reachable "a" g `shouldBe` expected
+

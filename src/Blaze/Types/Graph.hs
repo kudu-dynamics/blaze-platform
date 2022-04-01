@@ -58,6 +58,8 @@ class Graph e attr n g | g -> e attr n where
   transpose :: g -> g
   bfs :: [n] -> g -> [[n]]
   subgraph :: (n -> Bool) -> g -> g
+
+  -- result includes root search node
   reachable :: n -> g -> [n]
 
 
@@ -471,3 +473,26 @@ getTermNodes g = getMatchingNodes f g
             [] -> True
             [x] -> n == x
             _ -> False
+
+getFullEdge :: Graph e attr n g => Edge n -> g -> Maybe (LEdge e n)
+getFullEdge e g = (`LEdge` e) <$> getEdgeLabel e g
+
+predEdges_ :: (Eq n, Hashable n, Graph e attr n g) => n -> g -> HashSet (Edge n)
+predEdges_ n = HashSet.map (`Edge` n) . preds n
+
+succEdges_ :: (Eq n, Hashable n, Graph e attr n g) => n -> g -> HashSet (Edge n)
+succEdges_ n = HashSet.map (Edge n) . succs n
+
+predEdges :: (Eq n, Eq e, Hashable e, Hashable n, Graph e attr n g) => n -> g -> HashSet (LEdge e n)
+predEdges n g
+  = HashSet.fromList
+  . mapMaybe (\pred' -> getFullEdge (Edge pred' n) g)
+  . HashSet.toList
+  $ preds n g
+
+succEdges :: (Eq n, Eq e, Hashable e, Hashable n, Graph e attr n g) => n -> g -> HashSet (LEdge e n)
+succEdges n g
+  = HashSet.fromList
+  . mapMaybe (\succ' -> getFullEdge (Edge n succ') g)
+  . HashSet.toList
+  $ succs n g
