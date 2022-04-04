@@ -210,7 +210,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
 
   context "unfoldGroups" $ do
     it "should unfold all groups of a grouped CFG into a flat CFG" $ do
-      let (unfolded, groupingTree) = Grp.unfoldGroups "" gGrouped
+      let (unfolded, groupingTree) = Grp.unfoldGroups gGrouped
       unfolded `prettyShouldBe` cUngrouped
       groupingTree `prettyShouldBe` expectedGrouping
 
