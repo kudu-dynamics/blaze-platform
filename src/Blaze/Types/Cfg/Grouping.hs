@@ -257,8 +257,8 @@ terminalNode (Grouping (GroupingNode exit _ _ _)) = terminalNode exit
 -- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
 -- 'Cfg.Cfg'. Also, summarize the recursive structure of 'Grouping' nodes into a
 -- nested 'GroupingTree'
-unfoldGroups :: forall a. (Ord a, Hashable a) => a -> Cfg a -> (Cfg.Cfg a, GroupingTree a)
-unfoldGroups defaultGroupData = first (fromJust . toCfgMaybe) . expandAll
+unfoldGroups :: forall a. (Ord a, Hashable a) => Cfg a -> (Cfg.Cfg a, GroupingTree a)
+unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
   where
     expandAll :: Cfg a -> (Cfg a, GroupingTree a)
     expandAll cfg =
@@ -278,7 +278,7 @@ unfoldGroups defaultGroupData = first (fromJust . toCfgMaybe) . expandAll
         (Call _) -> Nothing
         (EnterFunc _) -> Nothing
         (LeaveFunc _) -> Nothing
-        n@(Grouping (GroupingNode exit _ sub _)) ->
+        n@(Grouping (GroupingNode exit _ sub gData)) ->
           let (subExpanded, groupingTree) = expandAll sub in
             Just
               ( fromCfNode $ terminalNode exit
@@ -287,7 +287,7 @@ unfoldGroups defaultGroupData = first (fromJust . toCfgMaybe) . expandAll
                   { groupRoot = initialNode (asIdNode n)
                   , groupTerm = terminalNode (asIdNode exit)
                   , innerGroups = groupingTree
-                  , groupData = defaultGroupData
+                  , groupData = gData
                   }
               )
 
