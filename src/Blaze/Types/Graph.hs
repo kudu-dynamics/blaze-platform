@@ -59,7 +59,7 @@ class Graph e attr n g | g -> e attr n where
   bfs :: [n] -> g -> [[n]]
   subgraph :: (n -> Bool) -> g -> g
 
-  -- result includes root search node
+  -- result includes starting search node
   reachable :: n -> g -> [n]
 
 
