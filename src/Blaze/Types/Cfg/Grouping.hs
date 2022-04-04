@@ -21,15 +21,20 @@ where
 
 import Blaze.Prelude
 
-import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Cfg as Exports (BranchType, BasicBlockNode(BasicBlockNode), CallNode(CallNode), EnterFuncNode(EnterFuncNode), LeaveFuncNode(LeaveFuncNode))
 import qualified Blaze.Graph as G
+import Blaze.Types.Cfg as Exports (
+  BasicBlockNode (BasicBlockNode),
+  BranchType,
+  CallNode (CallNode),
+  EnterFuncNode (EnterFuncNode),
+  LeaveFuncNode (LeaveFuncNode),
+ )
+import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Graph (Dominators, PostDominators)
 import Blaze.Types.Graph.Alga (AlgaGraph (AlgaGraph))
-import Blaze.Types.Pil.Common ( Ctx )
 import Blaze.Types.Pil (Stmt)
+import Blaze.Types.Pil.Common (Ctx)
 import Blaze.Util.Spec (mkDummyCtx, mkUuid1)
-
 import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -50,6 +55,7 @@ data GroupingNode a = GroupingNode
   { termNode :: CfNode a
   , uuid :: UUID
   , grouping :: Cfg a
+  , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
@@ -72,14 +78,15 @@ data CfEdge a = CfEdge
   deriving anyclass (Hashable)
 
 -- | Record of the group layouts, including inner groups of groups.
-type GroupingTree = [GroupSpec]
+type GroupingTree a = [GroupSpec a]
 
 -- | Root dominator and term post-dominator nodes for group, including inner groups.
 -- root and term are stored as non-group Cfg CfNode so that we don't point to groups
-data GroupSpec = GroupSpec
+data GroupSpec a = GroupSpec
   { groupRoot :: Cfg.CfNode ()
   , groupTerm :: Cfg.CfNode ()
-  , innerGroups :: GroupingTree
+  , innerGroups :: GroupingTree a
+  , groupData :: a
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
   deriving anyclass (Hashable)
@@ -126,13 +133,13 @@ asIdEdge = void
 getFullNodeMay :: Cfg a -> CfNode () -> Maybe (CfNode a)
 getFullNodeMay g = getFullNode' $ g ^. #graph
 
-getNodeData :: CfNode a -> Maybe a
+getNodeData :: CfNode a -> a
 getNodeData = \case
-  BasicBlock x -> Just $ x ^. #nodeData
-  Call x -> Just $ x ^. #nodeData
-  EnterFunc x -> Just $ x ^. #nodeData
-  LeaveFunc x -> Just $ x ^. #nodeData
-  Grouping _ -> Nothing
+  BasicBlock x -> x ^. #nodeData
+  Call x -> x ^. #nodeData
+  EnterFunc x -> x ^. #nodeData
+  LeaveFunc x -> x ^. #nodeData
+  Grouping x -> x ^. #nodeData
 
 setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
@@ -234,7 +241,7 @@ initialNode (BasicBlock n) = Cfg.BasicBlock n
 initialNode (Call n) = Cfg.Call n
 initialNode (EnterFunc n) = Cfg.EnterFunc n
 initialNode (LeaveFunc n) = Cfg.LeaveFunc n
-initialNode (Grouping (GroupingNode _ _ (Cfg _ root_))) = initialNode root_
+initialNode (Grouping (GroupingNode _ _ (Cfg _ root_) _)) = initialNode root_
 
 -- | Find the final, non-'Grouping' node inside a node @n@, recursively
 terminalNode ::
@@ -245,15 +252,15 @@ terminalNode (BasicBlock n) = Cfg.BasicBlock n
 terminalNode (Call n) = Cfg.Call n
 terminalNode (EnterFunc n) = Cfg.EnterFunc n
 terminalNode (LeaveFunc n) = Cfg.LeaveFunc n
-terminalNode (Grouping (GroupingNode exit _ _)) = terminalNode exit
+terminalNode (Grouping (GroupingNode exit _ _ _)) = terminalNode exit
 
 -- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
 -- 'Cfg.Cfg'. Also, summarize the recursive structure of 'Grouping' nodes into a
 -- nested 'GroupingTree'
-unfoldGroups :: (Eq a, Hashable a) => Cfg a -> (Cfg.Cfg a, GroupingTree)
+unfoldGroups :: forall a. (Ord a, Hashable a) => Cfg a -> (Cfg.Cfg a, GroupingTree a)
 unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
   where
-    expandAll :: (Eq a, Hashable a) => Cfg a -> (Cfg a, GroupingTree)
+    expandAll :: Cfg a -> (Cfg a, GroupingTree a)
     expandAll cfg =
       second sort $
         foldl'
@@ -264,14 +271,14 @@ unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
         (cfg, [])
         (fmap snd . HashMap.toList $ cfg ^. #graph . #nodeAttrMap)
 
-    expandNode :: (Eq a, Hashable a) => CfNode a -> Maybe (CfNode a, Cfg a, GroupSpec)
+    expandNode :: CfNode a -> Maybe (CfNode a, Cfg a, GroupSpec a)
     expandNode =
       \case
         (BasicBlock _) -> Nothing
         (Call _) -> Nothing
         (EnterFunc _) -> Nothing
         (LeaveFunc _) -> Nothing
-        n@(Grouping (GroupingNode exit _ sub)) ->
+        n@(Grouping (GroupingNode exit _ sub gData)) ->
           let (subExpanded, groupingTree) = expandAll sub in
             Just
               ( fromCfNode $ terminalNode exit
@@ -280,20 +287,21 @@ unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
                   { groupRoot = initialNode (asIdNode n)
                   , groupTerm = terminalNode (asIdNode exit)
                   , innerGroups = groupingTree
+                  , groupData = gData
                   }
               )
 
 -- | Fold all groups specified in the 'GroupingTree', recursively
-foldGroups :: forall a. (Eq a, Hashable a) => Cfg.Cfg a -> GroupingTree -> Cfg a
+foldGroups :: forall a. (Eq a, Hashable a) => Cfg.Cfg a -> GroupingTree a -> Cfg a
 foldGroups = foldMany . fromCfg
   where
-    foldMany :: Cfg a -> GroupingTree -> Cfg a
+    foldMany :: Cfg a -> GroupingTree a -> Cfg a
     foldMany = foldl' foldSubtree
-    foldSubtree :: Cfg a -> GroupSpec -> Cfg a
-    foldSubtree cfg (GroupSpec enter exit gss) =
+    foldSubtree :: Cfg a -> GroupSpec a -> Cfg a
+    foldSubtree cfg (GroupSpec enter exit gss gdata) =
       let cfg' = foldMany cfg gss
       in
-        foldOneGroup enter exit cfg'
+        foldOneGroup enter exit cfg' gdata
 
 -- | Fold away one group in the CFG
 foldOneGroup ::
@@ -304,11 +312,12 @@ foldOneGroup ::
   -- | Last (exit) node in group
   Cfg.CfNode () ->
   Cfg a ->
+  a ->
   Cfg a
-foldOneGroup enter exit cfg =
+foldOneGroup enter exit cfg nData =
   case (enterCand, exitCand) of
     (Just enterFound, Just exitFound) ->
-      makeGrouping enterFound exitFound cfg
+      makeGrouping enterFound exitFound cfg nData
     (_, _) -> cfg
   where
     enterCand = findCand enter
@@ -507,14 +516,14 @@ substNode
 ------------
 
 mkDummyTermNode :: Ctx -> a -> CfNode a
-mkDummyTermNode ctx nodeData 
+mkDummyTermNode ctx d
   = BasicBlock
     $ Cfg.BasicBlockNode
     { ctx = ctx
     , start = 0
     , end = 0
     , uuid = mkUuid1 (0 :: Int)
-    , nodeData = nodeData
+    , nodeData = d
     }
 
 getPostDominatorsAsIdNodes_ :: CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode ())
@@ -605,33 +614,38 @@ findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.no
                -> m a
                -> HashSet a
     domLookup' n = fromMaybe HashSet.empty . G.domLookup n
-    
+
     domMapping = getDominators cfg
     pdomMapping = getPostDominators cfg
 
     isDoubleDominated n = HashSet.member startNode (domLookup' n domMapping)
       && HashSet.member endNode (domLookup' n pdomMapping)
 
-extractGroupingNode
-  :: forall a. (Eq a, Hashable a)
-  => CfNode a
-  -> CfNode a
-  -> HashSet (CfNode a)
-  -> Cfg a
-  -> GroupingNode a
-extractGroupingNode startNode endNode groupNodes cfg
-  = GroupingNode endNode (getNodeUUID startNode)
-  $ mkCfg startNode (HashSet.toList nodes') edges'
-  where
-    allNodes = HashSet.fromList [startNode, endNode] <> groupNodes
-    nodes' = HashSet.delete startNode groupNodes
-    
-    edges' = filter containsOnlyGroupNodes . edges $ cfg
+{- HLINT ignore extractGroupingNode "Eta reduce" -}
+extractGroupingNode ::
+  forall a.
+  (Eq a, Hashable a) =>
+  CfNode a ->
+  CfNode a ->
+  HashSet (CfNode a) ->
+  Cfg a ->
+  a ->
+  GroupingNode a
+extractGroupingNode startNode endNode groupNodes cfg nData =
+  GroupingNode
+    endNode
+    (getNodeUUID startNode)
+    (mkCfg startNode (HashSet.toList nodes') edges')
+    nData
+ where
+  allNodes = HashSet.fromList [startNode, endNode] <> groupNodes
+  nodes' = HashSet.delete startNode groupNodes
 
-    containsOnlyGroupNodes :: CfEdge a -> Bool
-    containsOnlyGroupNodes (CfEdge a b _) =
-      HashSet.member a allNodes && HashSet.member b allNodes
+  edges' = filter containsOnlyGroupNodes . edges $ cfg
 
+  containsOnlyGroupNodes :: CfEdge a -> Bool
+  containsOnlyGroupNodes (CfEdge a b _) =
+    HashSet.member a allNodes && HashSet.member b allNodes
 
 -- | Given a start and terminal node for a grouping, this function finds all
 -- nodes within the group and sticks them into their own CFG.
@@ -642,15 +656,16 @@ makeGrouping
   -> CfNode a
   -- ^ terminal node
   -> Cfg a
+  -> a
   -> Cfg a
-makeGrouping startNode endNode cfg = cfg'
+makeGrouping startNode endNode cfg nData = cfg'
   where
     innerNodes = HashSet.difference (findNodesInGroup startNode endNode cfg) (HashSet.fromList [startNode, endNode])
 
     allGroupNodes = HashSet.fromList [startNode, endNode] <> innerNodes
 
     groupNode :: CfNode a
-    groupNode = Grouping $ extractGroupingNode startNode endNode innerNodes cfg
+    groupNode = Grouping $ extractGroupingNode startNode endNode innerNodes cfg nData
 
     containsGroupNodes :: (Bool -> Bool -> Bool) -> CfEdge a -> Bool
     containsGroupNodes comb (CfEdge a b _) =

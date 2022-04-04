@@ -2,6 +2,7 @@
 {- HLINT ignore "Evaluate" -}
 {- HLINT ignore "Use head" -}
 {- HLINT ignore "Reduce duplication" -}
+{- HLINT ignore "Eta reduce" -}
 
 module Blaze.Pil.SolverSpec where
 

@@ -20,13 +20,14 @@ ctx = Ctx func . CtxId $ mkUuid1 (0 :: Int)
   where
     func = Function Nothing "foo" 0x00 []
 
-groupbb :: Grp.CfNode a -> Grp.Cfg a -> Grp.CfNode a
-groupbb end subcfg =
+groupbb :: a -> Grp.CfNode a -> Grp.Cfg a -> Grp.CfNode a
+groupbb ndata end subcfg =
   Grp.Grouping
     Grp.GroupingNode
       { termNode = end
       , uuid = Grp.getNodeUUID (subcfg ^. #root)
       , grouping = subcfg
+      , nodeData = ndata
       }
 
 gbb :: Address -> Address -> a -> Grp.CfNode a
@@ -98,11 +99,11 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           , Cfg.CfEdge (cbbn "mid12") (cbbn "end1") UnconditionalBranch
           , Cfg.CfEdge (cbbn "end1") (cbbn "end") UnconditionalBranch
           ]
-      mid111group = groupbb (gbbn "mid111") (Grp.mkCfg (gbbn "mid111") [] [])
-      mid111groupgroup = groupbb mid111group (Grp.mkCfg mid111group [] [])
-      mid112group = groupbb (gbbn "mid112") (Grp.mkCfg (gbbn "mid112") [] [])
+      mid111group = groupbb "" (gbbn "mid111") (Grp.mkCfg (gbbn "mid111") [] [])
+      mid111groupgroup = groupbb "" mid111group (Grp.mkCfg mid111group [] [])
+      mid112group = groupbb "" (gbbn "mid112") (Grp.mkCfg (gbbn "mid112") [] [])
       branch11group =
-        groupbb (gbbn "end11") $
+        groupbb "" (gbbn "end11") $
           Grp.mkCfg
             (gbbn "branch11")
             [ mid111groupgroup
@@ -115,7 +116,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
             , Grp.CfEdge mid112group (gbbn "end11") UnconditionalBranch
             ]
       branch1group =
-        groupbb (gbbn "end1") $
+        groupbb "" (gbbn "end1") $
           Grp.mkCfg
             (gbbn "branch1")
             [ branch11group
@@ -150,16 +151,21 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
                         (Cfg.asIdNode (cbbn "mid111"))
                         (Cfg.asIdNode (cbbn "mid111"))
                         []
+                        ""
                     ]
+                    ""
                 , GroupSpec
                     (Cfg.asIdNode (cbbn "mid112"))
                     (Cfg.asIdNode (cbbn "mid112"))
                     []
+                    ""
                 ]
+                ""
             ]
+            ""
         ]
 
-  let trivialGroup = groupbb (gbbn "node") (Grp.mkCfg (gbbn "node") [] [])
+  let trivialGroup = groupbb "" (gbbn "node") (Grp.mkCfg (gbbn "node") [] [])
 
   context "fromCfNode" $ do
     it "should import any node" $ do
@@ -317,10 +323,10 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               endNode
               UnconditionalBranch
             ]
-          expected = Grp.GroupingNode endNode (Grp.getNodeUUID startNode) cfg
+          expected = Grp.GroupingNode endNode (Grp.getNodeUUID startNode) cfg ""
 
           innerGroupNodes = Grp.findNodesInGroup startNode endNode cfg
-      Grp.extractGroupingNode startNode endNode innerGroupNodes cfg `prettyShouldBe` expected
+      Grp.extractGroupingNode startNode endNode innerGroupNodes cfg "" `prettyShouldBe` expected
 
     it "should get the inner group but ignore the outer nodes" $ do
       let rootNode = gbbn "root"
@@ -387,10 +393,10 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               endNode
               UnconditionalBranch
             ]
-          expected = Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg
+          expected = Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg ""
 
           innerGroupNodes = Grp.findNodesInGroup startNode endNode outerCfg
-      Grp.extractGroupingNode startNode endNode innerGroupNodes outerCfg `prettyShouldBe` expected
+      Grp.extractGroupingNode startNode endNode innerGroupNodes outerCfg "" `prettyShouldBe` expected
 
   context "makeGrouping" $ do
     it "should replace inner group and connect it to outer nodes" $ do
@@ -459,7 +465,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               UnconditionalBranch
             ]
 
-          gnode = Grp.Grouping $ Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg
+          gnode = Grp.Grouping $ Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg ""
 
           outerCfg' = Grp.mkCfg
             rootNode
@@ -478,7 +484,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
 
           expected = outerCfg'
 
-      Grp.makeGrouping startNode endNode outerCfg `prettyShouldBe` expected
+      Grp.makeGrouping startNode endNode outerCfg "" `prettyShouldBe` expected
 
     it "should make group with self looping edge if end node loops to start node" $ do
       let rootNode = gbbn "root"
@@ -554,7 +560,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               FalseBranch
             ]
 
-          gnode = Grp.Grouping $ Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg
+          gnode = Grp.Grouping $ Grp.GroupingNode endNode (Grp.getNodeUUID startNode) groupCfg ""
 
           outerCfg' = Grp.mkCfg
             rootNode
@@ -573,5 +579,4 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
 
           expected = outerCfg'
 
-      Grp.makeGrouping startNode endNode outerCfg `prettyShouldBe` expected
-
+      Grp.makeGrouping startNode endNode outerCfg "" `prettyShouldBe` expected

@@ -86,9 +86,9 @@ data LeaveFuncNode a = LeaveFuncNode
 In a function, these nodes correspond to either: a return statement that
 resumes control flow to the caller; an exit statement (see NORET in MLIL SSA)
 that terminates normal control flow of the program (i.e., there may be signal handlers);
-and a tail call where control flow moves to the call target. 
+and a tail call where control flow moves to the call target.
 -}
-data TerminalNode a 
+data TerminalNode a
   = TermRet (ReturnNode a)
   | TermExit (ExitNode a)
   | TermNoRet (NoRetNode a)
@@ -283,7 +283,7 @@ addEdges xs cfg = foldl' (flip addEdge) cfg xs
 
 removeEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
 removeEdges xs cfg = foldl' (flip removeEdge) cfg xs
-  
+
 -- TODO: move this to Graph class
 predEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
 predEdges n cfg = HashSet.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
@@ -393,7 +393,7 @@ instance (Hashable a, Eq a) => Graph BranchType (CfNode a) (CfNode a) (Cfg a) wh
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
-  succs node g = toFullNodeSet g 
+  succs node g = toFullNodeSet g
     . G.succs (asIdNode node)
     . view #graph
     $ g
@@ -469,9 +469,9 @@ data LoopContext = LoopContext
 -- TODO: Merge with Ctx in Blaze.Types.Common
 --       This version provides more information but use
 --       existing Ctx to avoid too many changes at once.
-data Context 
+data Context
   = FuncCtx FuncContext
-  | LoopCtx LoopContext 
+  | LoopCtx LoopContext
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -487,7 +487,7 @@ nextVal :: Counter Int
 nextVal = do
   x <- get
   put (x + 1)
-  return x 
+  return x
 
 -- | Turns CallNode with TailCall op into two nodes:
 -- 1. Regular callnode with Def/Call
@@ -511,7 +511,7 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
               , start = call ^. #start
               , end = call ^. #start
               , uuid = uuid'
-              , nodeData = outStores 
+              , nodeData = outStores
                            <> [ Pil.Ret . Pil.RetOp
                                 . Pil.Expression sz
                                 . Pil.VAR . Pil.VarOp
