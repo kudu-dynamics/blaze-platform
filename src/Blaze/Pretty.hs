@@ -811,7 +811,7 @@ instance Tokenizable (BasicBlockNode a) where
            ]
 
 instance Tokenizable (GCfg.GroupingNode a) where
-  tokenize (GCfg.GroupingNode _termNode _uuid' _grouping) =
+  tokenize (GCfg.GroupingNode _termNode _uuid' _grouping _nodeData) =
     -- TODO: Improve
     tokenize [ tt "Grouping" ]
 
@@ -988,7 +988,7 @@ instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
         attr <- G.getNodeAttr node cflow
         return $ [tt (show nid), tt " : "] <++> tokenizeAsList (toList attr)
 
-instance Tokenizable GCfg.GroupSpec where
+instance Tokenizable (GCfg.GroupSpec a) where
   tokenize gs =
     [keywordToken "GroupSpec"] <++>
     ( paren <$>
