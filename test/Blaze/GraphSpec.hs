@@ -163,4 +163,3 @@ spec = describe "Blaze.Graph" $ do
           expected = ["a"]
           
       G.reachable "a" g `shouldBe` expected
-
