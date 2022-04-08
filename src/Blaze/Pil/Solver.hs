@@ -9,7 +9,7 @@ module Blaze.Pil.Solver
   , module Exports
   ) where
 
-import Blaze.Prelude hiding (zero, natVal, isSigned)
+import Blaze.Prelude hiding (error, zero, natVal, isSigned)
 import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil ( Expression
@@ -246,7 +246,7 @@ matchBoundedWidth a b = case (kindOf a, kindOf b) of
   (KBounded _ w1, KBounded s w2)
     | w1 == w2 -> b
     | w1 > w2 -> if s then signExtend w1' b else zeroExtend w1' b
-    | otherwise -> lowPart w1' b
+    | otherwise -> lowPart_ w1' b
     where
       w1' = fromIntegral w1
   _ -> P.error "matchBoundedWidth: a and b must be kind Bounded"
@@ -279,7 +279,7 @@ isSigned x = case kindOf x of
 -- this is pretty much just copied out of Data.SBV
 sSignedShiftArithRight :: SVal -> SVal -> SVal
 sSignedShiftArithRight x i
-  | isSigned i = error "sSignedShiftArithRight: shift amount should be unsigned"
+  | isSigned i = P.error "sSignedShiftArithRight: shift amount should be unsigned"
   | isSigned x = svShiftRight x i
   | otherwise  = svIte (msb x)
                        (svNot (svShiftRight (svNot x) i))
@@ -288,32 +288,60 @@ sSignedShiftArithRight x i
 -- TODO: convert SVals to unsigned.
 -- the svJoin gets messed up if these are signed
 -- TODO: has the above TODO been done? check to make sure
-updateBitVec :: BitOffset -> SVal -> SVal -> SVal
+updateBitVec :: BitOffset -> SVal -> SVal -> Solver SVal
 updateBitVec boff src dest = case (kindOf dest, kindOf src) of
   (KBounded destSign wdest, KBounded _ wsrc)
-    | wsrc + off > wdest -> P.error "updateBitVec: src width + offset must be less than dest width"
-    | otherwise -> bool svUnsign svSign destSign
+    | wsrc + off > wdest -> throwError . ErrorMessage $ "updateBitVec: src width + offset must be less than dest width"
+    | otherwise -> do
+        destHighPart <- highPart (fromIntegral $ wdest - (off + wsrc)) dest'
+        destLowPart <- lowPart (fromIntegral boff) dest'
+        return . bool svUnsign svSign destSign
                    $ destHighPart `svJoin` src' `svJoin` destLowPart
     where
       dest' = svUnsign dest
       src' = svUnsign src
-      destHighPart = highPart (fromIntegral $ wdest - (off + wsrc)) dest'
-      destLowPart = lowPart (fromIntegral boff) dest'
       off = fromIntegral boff
-  _ -> P.error "updateBitVec: both args must be KBounded"
+  _ -> throwError . ErrorMessage $ "updateBitVec: both args must be KBounded"
 
+safeExtract :: Bits -> Bits -> SVal -> Solver SVal
+safeExtract endIndex' startIndex' var = case k of
+  (KBounded _ w)
+    | endIndex' >= fromIntegral w -> error "endIndex out of bounds"
+    | startIndex' < 0 -> error "startIndex out of bounds"
+    | otherwise -> return $ svExtract (fromIntegral endIndex') (fromIntegral startIndex') var
+  _ -> error "must be KBounded" 
+  where
+    k = kindOf var
+    error msg' = throwError $ ExtractError
+      { endIndex = endIndex'
+      , startIndex = startIndex'
+      , kind = k
+      , msg = msg'
+      }
 
--- TODO: guard that n is greater than 0
--- and that w is big enough
-lowPart :: Bits -> SVal -> SVal
+lowPart :: Bits -> SVal -> Solver SVal
 lowPart n src = case kindOf src of
+  KBounded _ w
+    | n > fromIntegral w -> throwError . ErrorMessage $ "lowPart: cannot get part greater than whole"
+    | otherwise -> return $ lowPart_ n src
+  _ -> P.error "lowPart: src must be KBounded"
+
+lowPart_ :: Bits -> SVal -> SVal
+lowPart_ n src = case kindOf src of
   KBounded _ _w -> svExtract (fromIntegral n - 1) 0 src
   _ -> P.error "lowPart: src must be KBounded"
 
+highPart :: Bits -> SVal -> Solver SVal
+highPart n src = case kindOf src of
+  KBounded _ w
+    | n > fromIntegral w -> throwError . ErrorMessage $ "highPart: cannot get part greater than whole"
+    | otherwise -> return $ highPart_ n src
+  _ -> P.error "highPart: src must be KBounded"
+
 -- TODO: guard that n is greater than 0
 -- and that w is big enough
-highPart :: Bits -> SVal -> SVal
-highPart n src = case kindOf src of
+highPart_ :: Bits -> SVal -> SVal
+highPart_ n src = case kindOf src of
   KBounded _ w -> svExtract (w - 1) (w - fromIntegral n) src
   _ -> P.error "lowPart: src must be KBounded"
 
@@ -694,7 +722,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
         #stores %= HashMap.insert k [freeVar]
         return freeVar
 
-  Pil.LOW_PART x -> integralUnOp x (lowPart sz)
+  Pil.LOW_PART x -> integralUnOpM x $ lowPart sz
   Pil.LSL x -> integralBinOpUnrelatedArgs x svShiftLeft
   Pil.LSR x -> integralBinOpUnrelatedArgs x svShiftRight
   Pil.MODS x -> integralBinOpMatchSecondArgToFirst x svRem
@@ -748,7 +776,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     guardIntegral src
     --TODO: convert dest and src to unsigned and convert them back if needed
     --TODO: the above TODO might already happen in updateBitVec. find out.
-    return $ updateBitVec (toBitOffset $ x ^. #offset) src dest
+    updateBitVec (toBitOffset $ x ^. #offset) src dest
 
   --   -- How should src and dest be related?
   --   -- Can't express that `offset + width(src) == width(dest)`
@@ -761,7 +789,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   -- also, maybe convert the offset to bits?
   Pil.VAR_FIELD x -> do
     v <- lookupVarSym $ x ^. #src
-    return $ svExtract (off + w - 1) off v
+    safeExtract (off + w - 1) off v
     where
       off = fromIntegral . toBitOffset $ x ^. #offset
       w = fromIntegral sz
@@ -860,10 +888,15 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     integralUnOp :: HasField' "src" x DSTExpression
                => x
                -> (SVal -> SVal) -> Solver SVal
-    integralUnOp x f = do
+    integralUnOp x f = integralUnOpM x (return . f)
+
+    integralUnOpM :: HasField' "src" x DSTExpression
+               => x
+               -> (SVal -> Solver SVal) -> Solver SVal
+    integralUnOpM x f = do
       lx <- solveExprRec (x ^. #src)
       guardIntegral lx
-      return $ f lx
+      f lx
 
     floatUnOp :: HasField' "src" x DSTExpression
               => x

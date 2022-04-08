@@ -39,6 +39,11 @@ data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg 
                  | ConversionError { msg :: Text }
                  | AlternativeEmpty
                  | SizeOfError { kind :: SBV.Kind }
+                 | ExtractError { endIndex :: Bits
+                                , startIndex :: Bits
+                                , kind :: SBV.Kind
+                                , msg :: Text
+                                }
                  | ErrorMessage Text
   deriving (Eq, Ord, Show, Generic)
 

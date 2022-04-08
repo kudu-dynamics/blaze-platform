@@ -189,4 +189,4 @@ test = do
 
 
 pair :: IO (Maybe (Integer, Integer))
-pair = runSMT test
+pair = runSMT test  
