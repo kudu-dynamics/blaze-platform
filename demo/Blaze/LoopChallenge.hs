@@ -8,7 +8,7 @@ import Data.SBV.Maybe (sNothing, sJust)
 import qualified Data.SBV.Tuple as T
 import qualified Data.SBV.Char as C
 import Data.SBV.Control
-
+import Data.SBV.Dynamic as D
 
 matchedCharsCount :: SString -> SString -> SInteger
 matchedCharsCount s1 s2 = ite
@@ -190,3 +190,10 @@ test = do
 
 pair :: IO (Maybe (Integer, Integer))
 pair = runSMT test
+
+exploreExtract :: Symbolic SVal
+exploreExtract = do
+  x <- D.svNewVar (KBounded True 32) "x"
+  return $ svExtract 63 388 x
+
+  
