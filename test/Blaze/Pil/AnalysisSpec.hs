@@ -324,8 +324,12 @@ spec = describe "Blaze.Pil.Analysis" $ do
         test a b = reduceMap a `shouldBe` b
         testPretty :: (Eq a, Show a, Hashable a, Tokenizable a) => HashMap a a -> HashMap a a -> Expectation
         testPretty a b = PrettyShow' (reduceMap a) `shouldBe` PrettyShow' b
-        testCycle :: (Eq a, Show a, Hashable a) => HashMap a a -> Expectation
-        testCycle a = evaluate (reduceMap a) `shouldThrow` errorCall "reduceMap: detected cycle in map for: 1"
+        testCycle :: (Eq a, Show a, Hashable a) => HashMap a a -> [a] -> Expectation
+        testCycle a cycleMembers = evaluate (reduceMap a)
+          `shouldThrow` ( \(ErrorCallWithLocation msg _) ->
+                            msg `elem` ["reduceMap: detected cycle in map for: " <> show x
+                                       | x <- cycleMembers]
+                        )
 
     it "should reduce a mapping expression" $ do
       test      @Int (HMap.fromList [(1, 2)])
@@ -338,7 +342,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
                      (HMap.fromList [(0, 4), (1, 4), (2, 4), (3, 4)])
       test      @Int (HMap.fromList [(1, 2), (3, 4), (2, 3), (0, 1), (5, 1), (6, 1)])
                      (HMap.fromList [(0, 4), (1, 4), (2, 4), (3, 4), (5, 4), (6, 4)])
-      testCycle @Int (HMap.fromList [(1, 2), (3, 4), (2, 3), (0, 1), (4, 1), (6, 1)])
+      testCycle @Int (HMap.fromList [(1, 2), (3, 4), (2, 3), (0, 1), (4, 1), (6, 1)]) [0..6]
 
     it "should reduce a mapping expression" $ do
       let exprMap =
