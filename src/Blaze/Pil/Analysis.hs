@@ -296,12 +296,12 @@ type ExprMap = HashMap Expression Expression
 -- @
 --
 -- An error will be raised if the map is cyclic
-reduceMap :: forall a. (Eq a, Hashable a) => HashMap a a -> HashMap a a
+reduceMap :: forall a. (Eq a, Show a, Hashable a) => HashMap a a -> HashMap a a
 reduceMap = \m -> foldl' (reduceKey HSet.empty) m (HMap.keysSet m)
   where
     reduceKey :: HashSet a -> HashMap a a -> a -> HashMap a a
     reduceKey visited m k
-      | k `HSet.member` visited = error "reduceMap: detected cycle in map"
+      | k `HSet.member` visited = error $ "reduceMap: detected cycle in map for: " <> show k
       | otherwise =
         case HMap.lookup k m of
           Just k' -> reduceKey (HSet.insert k visited) m k'
@@ -319,14 +319,15 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
     f :: Stmt -> CopyPropState -> CopyPropState
     f stmt copyPropState =
       case stmt of
-        (Pil.Def (Pil.DefOp lh_var (Pil.Expression _ (Pil.VAR (Pil.VarOp rh_var)))))
-          | lh_var == rh_var ->
+        (Pil.Def (Pil.DefOp lhVar (Pil.Expression _ (Pil.VAR (Pil.VarOp rhVar)))))
+          | lhVar == rhVar ->
               let msg = cs $ "Warning in _foldCopyPropState: self-assignemnt ("
-                        <> lh_var ^. #symbol <> " = " <> rh_var ^. #symbol
+                        <> lhVar ^. #symbol <> " = " <> rhVar ^. #symbol
                         <> "). Discarding statement."
               in
                 trace msg $ copyPropState & #copyStmts %~ Set.insert stmt
-          | otherwise -> addCopy copyPropState stmt lh_var rh_var
+          | otherwise -> addCopy copyPropState stmt lhVar rhVar
+        -- (Pil.DefPhi (Pil.DefPhiOp lhVar
         _ -> copyPropState
     addCopy :: CopyPropState -> Stmt -> PilVar -> PilVar -> CopyPropState
     addCopy s stmt copy orig =
