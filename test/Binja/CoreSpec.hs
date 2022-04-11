@@ -15,6 +15,8 @@ import qualified Binja.Function as Func
 import qualified Data.Map as Map
 import Crypto.Hash (MD5, hash, Digest)
 import Test.Hspec
+import Prelude (error)
+import Data.Text (unpack)
 
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.bndb"
@@ -33,26 +35,25 @@ spec = describe "Binja.Core" $ do
       ebv `shouldSatisfy` isRight
 
     r <- runIO $ case ebv of
-      Left _ -> return Nothing
+      Left e -> pure $ Left e
       Right bv -> do
         BN.updateAnalysisAndWait bv
         funcs <- Func.getFunctions bv
         funcBlocks <- mapM BB.getBasicBlocks funcs
         let funcBlocksMap = Map.fromList $ zip funcs funcBlocks
-        return $
-          Just
-            ( funcs
-            , funcBlocksMap
-            , sum . fmap blockSize <$> funcBlocksMap
-            )
+        return . Right $
+          ( funcs
+          , funcBlocksMap
+          , sum . fmap blockSize <$> funcBlocksMap
+          )
        where
         blockSize :: BB.BasicBlock Func.Function -> Int
         blockSize b = fromIntegral $ (b ^. BB.end) - (b ^. BB.start)
 
     case r of
-      Nothing -> it "should have loaded BV" $ do
-        ("Didn't load BV, can't continue tests." :: Text) `shouldBe` "Loaded BV"
-      Just (funcs, blocks, funcSizes) -> do
+      Left e -> it "should have loaded BV" $ do
+        ("Didn't load BV, can't continue tests. Error: " <> e) `shouldBe` "Loaded BV"
+      Right (funcs, blocks, funcSizes) -> do
         it "should load funcs" $ length funcs `shouldBe` 94
 
         it "should load basic blocks" $ do
@@ -64,25 +65,25 @@ spec = describe "Binja.Core" $ do
           counts `shouldBe` diveFuncSize
 
     it "should check if function too large for analysis" $ do
-      let Right bv = ebv
+      let bv = either (error . unpack) id ebv
       Just (func :: Func.Function) <- Func.getFunctionStartingAt bv Nothing 0x0804d210
       result <- Func.isFunctionTooLarge func
       result `shouldBe` False
 
     it "should check if function analysis was skipped" $ do
-      let Right bv = ebv
+      let bv = either (error . unpack) id ebv
       Just (func :: Func.Function) <- Func.getFunctionStartingAt bv Nothing 0x0804d210
       result <- Func.isFunctionAnalysisSkipped func
       result `shouldBe` False
 
     it "should provide correct skip reason when not skipped" $ do
-      let Right bv = ebv
+      let bv = either (error . unpack) id ebv
       Just (func :: Func.Function) <- Func.getFunctionStartingAt bv Nothing 0x0804d210
       result <- Func.getAnalysisSkipReason func
       result `shouldBe` NoSkipReason
 
     it "should provide get/set analysis skip override state" $ do
-      let Right bv = ebv
+      let bv = either (error . unpack) id ebv
       Just (func :: Func.Function) <- Func.getFunctionStartingAt bv Nothing 0x0804d210
       result <- Func.getFunctionAnalysisSkipOverride func
       result `shouldBe` DefaultFunctionAnalysisSkip
@@ -96,7 +97,7 @@ spec = describe "Binja.Core" $ do
       result'' `shouldBe` AlwaysSkipFunctionAnalysis
 
     it "should get/set analysis parameters" $ do
-      let Right bv = ebv
+      let bv = either (error . unpack) id ebv
       result <- An.getParametersForAnalysis bv
       result ^. An.maxFunctionSize `shouldBe` 65536
 
@@ -106,8 +107,8 @@ spec = describe "Binja.Core" $ do
       result' ^. An.maxFunctionSize `shouldBe` 66560
 
   context "getOriginalBinary" $ do
-    let (Right bv) = ebv
-    
+    let bv = either (error . unpack) id ebv
+
     er <- runIO $ BN.getOriginalBinary bv
 
     it "should should not error when getting original binary" $ do

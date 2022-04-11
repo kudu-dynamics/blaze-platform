@@ -21,6 +21,9 @@ import qualified Binja.Function as Func
 
 import System.Envy
 import qualified Data.Set as Set
+import Control.Monad.Error.Class (liftEither)
+import System.Directory (doesFileExist)
+import Control.Error (assertErr)
 
 newtype BinjaConfig = BinjaConfig {
   binjaPluginsDir :: String
@@ -60,24 +63,24 @@ saveBndb bv fp = getFileForView bv
 
 getBinaryView :: FilePath -> IO (Either Text BNBinaryView)
 getBinaryView fp = runExceptT $ do
+  liftIO (doesFileExist fp)
+    >>= liftEither . assertErr ("Path " <> show fp <> " does not exist or is not a file")
   ctx <- liftEitherIO (first Text.pack <$> decodeEnv :: IO (Either Text BinjaConfig))
-  validated <- liftIO $ initBinja ctx
-  if not validated then
-    throwError "You don't have a Binja license. Sorry."
+  liftIO (initBinja ctx)
+    >>= liftEither . assertErr "You don't have a Binja license. Sorry."
+  if Text.isSuffixOf ".bndb" (Text.pack fp) then
+    do
+      md <- liftIO BN.createFileMetadata
+      bv <- liftMaybeIO "Couldn't open existing db" $
+        BN.openExistingDatabase md fp
+      getBvOfBestType md bv
   else
-    if Text.isSuffixOf ".bndb" (Text.pack fp) then
-      do
-        md <- liftIO BN.createFileMetadata
-        bv <- liftMaybeIO "Couldn't open existing db" $
-          BN.openExistingDatabase md fp
-        getBvOfBestType md bv
-    else 
-      do
-        md <- liftIO BN.createFileMetadata
-        void . liftIO $ BN.setFilename md fp
-        bv <- liftMaybeIO "Couldn't open file." $
-          BN.createBinaryDataViewFromFilename md fp
-        getBvOfBestType md bv
+    do
+      md <- liftIO BN.createFileMetadata
+      void . liftIO $ BN.setFilename md fp
+      bv <- liftMaybeIO "Couldn't open file." $
+        BN.createBinaryDataViewFromFilename md fp
+      getBvOfBestType md bv
   where
     getBvOfBestType md bv = do
       vt <- liftMaybeM "No view types" $ getBestViewType bv

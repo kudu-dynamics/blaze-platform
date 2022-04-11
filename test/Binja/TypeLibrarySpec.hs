@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Binja.TypeLibrarySpec ( spec ) where
 
 import Binja.Prelude
@@ -6,14 +7,17 @@ import qualified Binja.Core as BN
 import Binja.Core (BNBinaryView)
 import Test.Hspec
 import qualified Binja.TypeLibrary as BT
+import Prelude (error)
+import Control.Monad.Error.Class (liftEither)
+import Data.Text (unpack)
 
 typeLibTestBin :: FilePath
 typeLibTestBin = "res/test_bins/TypeLibTest/TypeLibTest"
 
 getBv :: FilePath -> IO BNBinaryView
 getBv fp = do
-  (Right bv) <- BN.getBinaryView fp
-  BN.updateAnalysisAndWait bv
+  bv <- either (error . unpack) id <$> BN.getBinaryView fp
+  liftIO $ BN.updateAnalysisAndWait bv
   return bv
 
 getTypeLibTest :: IO BNBinaryView
