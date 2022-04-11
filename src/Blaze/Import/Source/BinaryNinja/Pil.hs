@@ -308,7 +308,10 @@ convertExpr expr = do
                       >>= either (const def) return
 
 getSymbol :: MLIL.SSAVariable -> Symbol
-getSymbol v = (v ^. MLIL.var . BNVar.name) <> "#" <> show (v ^. MLIL.version)
+getSymbol v = v ^. (MLIL.var . BNVar.name)
+              <> ":" <> show (fromEnum (v ^. MLIL.var . BNVar.sourceType))
+              <> "_" <> show (toInteger (v ^. MLIL.var . BNVar.storage))
+              <> "#" <> show (v ^. MLIL.version)
 
 convertToBinjaFunction :: Func.Function -> Converter (Maybe BNFunc.Function)
 convertToBinjaFunction cgFunc = do
@@ -413,7 +416,7 @@ convertInstrOp op' = do
           pvar <- convertToPilVarAndLog $ x ^. MLIL.dest
           let vt = fromJust $ x ^. MLIL.dest . MLIL.var . BNVar.varType
           #definedVars %= (pvar :)
-          -- TODO: This _should_ be redundant. If a PilVar is in the defined list, it should also be 
+          -- TODO: This _should_ be redundant. If a PilVar is in the defined list, it should also be
           --       in the used vars set. Consider removing and/or finding a better way to enforce
           --       this expectation.
           #usedVars %= HSet.insert lVar
@@ -442,7 +445,7 @@ convertInstrOp op' = do
     MLIL.GOTO _ -> return []
     MLIL.JUMP x -> do
       destExpr <- convertExpr (x ^. MLIL.dest)
-      return [ Jump $ JumpOp destExpr ] 
+      return [ Jump $ JumpOp destExpr ]
     MLIL.JUMP_TO x -> do
       destExpr <- convertExpr (x ^. MLIL.dest)
       return [ JumpTo $ JumpToOp destExpr (x ^. MLIL.targets)]
