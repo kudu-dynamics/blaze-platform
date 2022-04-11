@@ -309,8 +309,8 @@ convertExpr expr = do
 
 getSymbol :: MLIL.SSAVariable -> Symbol
 getSymbol v = v ^. (MLIL.var . BNVar.name)
-              <> ":" <> show (fromEnum (v ^. MLIL.var . BNVar.storage))
-              <> "-" <> show (fromEnum (v ^. MLIL.var . BNVar.sourceType))
+              <> ":" <> show (fromEnum (v ^. MLIL.var . BNVar.sourceType))
+              <> "_" <> show (toInteger (v ^. MLIL.var . BNVar.storage))
               <> "#" <> show (v ^. MLIL.version)
 
 convertToBinjaFunction :: Func.Function -> Converter (Maybe BNFunc.Function)
