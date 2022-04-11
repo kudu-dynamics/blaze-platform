@@ -365,6 +365,6 @@ simplify_ warns isRecursiveCall numItersLeft cfg
           Right (wr, es) -> simplify_ (wr:warns) True (numItersLeft - 1)
                       $ foldr Cfg.removeIdEdge cfg' es
 
-simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError ([WarnReport], (Cfg [Stmt])))
+simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError ([WarnReport], Cfg [Stmt]))
 simplify stmts = do
   simplify_ [] False 10 stmts
