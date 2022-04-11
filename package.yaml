@@ -27,7 +27,9 @@ dependencies:
   - containers
   - cryptonite
   - data-binary-ieee754
+  - directory
   - envy
+  - errors
   - language-c
   - lens
   - monad-extras
