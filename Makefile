@@ -1,3 +1,6 @@
+stackage_snapshot := $(shell grep -oE '^resolver: .*$$' stack.yaml | sed -E -e 's/resolver:\s*//' -e 's/\s*$$//')
+haddock_remote := https://www.stackage.org/haddock/${stackage_snapshot}/
+
 .PHONY: build help test submodule-init submodule-update hlint
 
 build:
