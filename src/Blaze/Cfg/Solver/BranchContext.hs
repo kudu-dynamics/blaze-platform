@@ -299,7 +299,14 @@ tryConstraint c = Q.inNewAssertionStack
       Q.Sat -> return True
       _ -> return False
 
-getUnsatBranches :: Cfg [Stmt] -> IO (Either GeneralSolveError [CfEdge ()])
+
+-- | A type report and list of warnings is generated every step of simplification.
+data WarnReport = WarnReport
+  { warnings :: [SolverError]
+  , typeReport :: Ch.TypeReport
+  } deriving (Eq, Show, Generic)
+
+getUnsatBranches :: Cfg [Stmt] -> IO (Either GeneralSolveError (WarnReport, [CfEdge ()]))
 getUnsatBranches cfg = case checkCfg cfg of
   -- The TypeCheckerError only occurs if the type checker cannot produce a type report.
   -- The type report could still report errors.
@@ -313,7 +320,10 @@ getUnsatBranches cfg = case checkCfg cfg of
           $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
     case er of
       Left err -> return . Left $ SolverError tr err
-      Right (r, _) -> return $ Right r
+      Right (r, ss) ->
+        return $ Right ( WarnReport (ss ^. #errors) tr
+                       , r
+                       )
 
 _cleanPrunedCfg :: Int -> InterCfg -> InterCfg
 _cleanPrunedCfg numItersLeft icfg =
@@ -342,19 +352,19 @@ cleanPrunedCfg = removeEmptyBasicBlockNodes' . _cleanPrunedCfg maxIters
   maxIters = 10
   removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . CfgA.removeEmptyBasicBlockNodes $ cfg
 
-simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
-simplify_ isRecursiveCall numItersLeft cfg
-  | numItersLeft <= 0 = return . Right $ cfg
+simplify_ :: [WarnReport] -> Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError ([WarnReport], Cfg [Stmt]))
+simplify_ warns isRecursiveCall numItersLeft cfg
+  | numItersLeft <= 0 = return . Right $ (warns, cfg)
   | otherwise = do
       let cfg' = unInterCfg . cleanPrunedCfg . InterCfg $ cfg
       if cfg' == cfg && isRecursiveCall
-        then return . Right $ cfg'
+        then return . Right $ (warns, cfg')
         else getUnsatBranches cfg' >>= \case
           Left err -> return $ Left err
-          Right [] -> return . Right $ cfg'
-          Right es -> simplify_ True (numItersLeft - 1)
+          Right (wr, []) -> return . Right $ (wr:warns, cfg')
+          Right (wr, es) -> simplify_ (wr:warns) True (numItersLeft - 1)
                       $ foldr Cfg.removeIdEdge cfg' es
 
-simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
+simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError ([WarnReport], (Cfg [Stmt])))
 simplify stmts = do
-  simplify_ False 10 stmts
+  simplify_ [] False 10 stmts

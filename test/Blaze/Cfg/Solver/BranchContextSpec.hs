@@ -380,7 +380,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
       r <- BC.getUnsatBranches cfg
       
-      (PrettyShow' <$> r) `shouldBe` (PrettyShow' <$> Right expectedRemoved)
+      (PrettyShow' . snd <$> r) `shouldBe` (PrettyShow' <$> Right expectedRemoved)
 
     it "should work around a type error" $ do
       let rootNode = bbpn 0 callerCtx "root"
@@ -412,4 +412,4 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
       r <- BC.getUnsatBranches cfg
       
-      (PrettyShow' <$> r) `shouldBe` (PrettyShow' <$> Right expectedRemoved)
+      (PrettyShow' . snd <$> r) `shouldBe` (PrettyShow' <$> Right  expectedRemoved)

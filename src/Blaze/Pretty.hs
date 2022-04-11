@@ -684,10 +684,10 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PStmts
   tokenize (PStmts stmts) = intercalate [tt "\n"] <$> traverse tokenize stmts
 
 instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndexedStmts a) where
-  tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] <$> traverse f stmts
+  tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] <$> traverse f (sortOn fst stmts)
     where
       f :: (Int, Pil.Statement a) -> Tokenizer [Token]
-      f (i, stmt) = [integerToken i, tt ": "] <++> tokenize stmt
+      f (i, stmt) = [tt (show i), tt ": "] <++> tokenize stmt
 
 instance Tokenizable ByteOffset where
   tokenize (ByteOffset n) = pure [integerToken n]
@@ -734,7 +734,7 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
     PI.TRecord m ->
       [keywordToken "Record", tt " "]
         <++> ( delimitedList [tt "["] [tt ", "] [tt "]"]
-                <$> traverse rfield (HashMap.toList m)
+                <$> traverse rfield (sortOn fst $ HashMap.toList m)
              )
       where
         rfield :: forall a. Tokenizable a => (BitOffset, a) -> Tokenizer [Token]
