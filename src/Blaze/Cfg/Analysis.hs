@@ -8,7 +8,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import Blaze.Types.Pil.Analysis (DataDependenceGraph)
 import qualified Blaze.Pil.Analysis as PA
-import Blaze.Prelude hiding (succ)
+import Blaze.Prelude hiding (to, succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
 import Blaze.Types.Pil (Stmt, PilVar)
@@ -21,6 +21,7 @@ import Blaze.Import.CallGraph (CallGraphImporter, getFunctions)
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Types.Cfg.Analysis
 import Blaze.Function (Function)
+import Control.Lens (to)
 
 
 transformStmts :: ([Stmt] -> [Stmt]) -> InterCfg -> InterCfg
@@ -298,6 +299,8 @@ getCallNodeRatingCtx imp = do
   let dmap = G.calcDescendantsDistanceMap cg
   return $ CallNodeRatingCtx cg dmap
 
+-- | Returns Call Node ratings between 0 and 1, where higher scores are better
+-- for reaching the target.
 getCallNodeRatings
   :: (Hashable a, Eq a)
   => CallNodeRatingCtx
@@ -305,37 +308,28 @@ getCallNodeRatings
   -> Cfg a
   -> HashMap (CallNode a) CallNodeRating
 getCallNodeRatings ctx tgt cfg =
-  HashMap.fromList . fmap (toSnd $ getCallNodeRating ctx tgt) $ callNodes
+  HashMap.map (maybe Unreachable (Reachable . metric)) distances
   where
-    callNodes = mapMaybe isCallNode . HashSet.toList . G.nodes $ cfg
+    metric :: Int -> Double
+    metric = (** 2) . ((/) `on` fromIntegral) shortest . max 1
+    distances = getCallNodeDistances ctx tgt callNodes
+    shortest = minimum . catMaybes $ HashMap.elems distances
+    callNodes = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfg
 
-    isCallNode (Cfg.Call x) = Just x
-    isCallNode _ = Nothing
-
--- | Returns a Call Node rating between 0 and 1, where higher scores are better
--- for reaching the target.
--- The score will be 0 if target cannot be reached, and at least 0.5 if it can
--- be reached through the callgraph.
--- The range (0, 0.5) is reserved for callnodes that might reach target
--- through indirect calls.
-getCallNodeRating :: CallNodeRatingCtx -> Target -> CallNode a -> CallNodeRating
-getCallNodeRating ctx tgt call = case call ^. #callDest of
-  Pil.CallFunc func -> getCallFuncRating ctx tgt func
-  _ -> Unreachable
-
-getCallFuncRating :: CallNodeRatingCtx -> Target -> Function -> CallNodeRating
-getCallFuncRating ctx tgt srcFunc =
-  maybe Unreachable (Reachable . (**2) . normalize) shortestPath
+getCallNodeDistances
+  :: (Eq a, Hashable a)
+  => CallNodeRatingCtx
+  -> Target
+  -> [CallNode a]
+  -> HashMap (CallNode a) (Maybe Int)
+getCallNodeDistances ctx tgt =
+  HashMap.fromList
+    . mapMaybe
+        (\callNode ->
+            callNode ^? #callDest . #_CallFunc . to (\src -> (callNode, shortestPath src)))
   where
-    maxPathLength = 6 :: Int
-    normalize :: Int -> Double
-    normalize 0 = 1.0
-    normalize n = 1.0
-                  - fromIntegral (min maxPathLength n)
-                  / fromIntegral maxPathLength
     dstFunc = tgt ^. #function
-    
-    shortestPath = G.getDescendantDistance (ctx ^. #descendantsDistanceMap) srcFunc dstFunc
+    shortestPath src = G.getDescendantDistance (ctx ^. #descendantsDistanceMap) src dstFunc
 
 getDataDependenceGraph :: Cfg [Stmt] -> DataDependenceGraph
 getDataDependenceGraph = PA.getDataDependenceGraph . Cfg.gatherCfgData
