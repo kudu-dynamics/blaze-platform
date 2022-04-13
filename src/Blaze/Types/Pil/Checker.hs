@@ -20,7 +20,7 @@ type SymConstraint = (Sym, ConstraintSymType)
 
 newtype Sym = Sym Int
   deriving (Eq, Ord, Read, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON, Hashable)
+  deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, Hashable)
 
 data TypeTag = TagDirty
              | TagSanitized
@@ -61,7 +61,7 @@ data PilType t = TBool
                | TVBitWidth BitWidth
                | TVLength Word64
                | TVSign Bool    
-               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable)
+               deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable, FromJSON, ToJSON)
 
 newtype T = T (PilType T)
   deriving (Eq, Ord, Read, Show, Generic)
@@ -71,7 +71,7 @@ unT (T pt) = pt
 
 data SymType = SVar Sym
              | SType (PilType Sym)
-             deriving (Eq, Ord, Read, Show, Generic)
+             deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
 
 data ConstraintSymType = CSVar Sym
                        | CSType (PilType ConstraintSymType)
@@ -80,7 +80,7 @@ data ConstraintSymType = CSVar Sym
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
                  | DSType (PilType DeepSymType)
-               deriving (Eq, Ord, Read, Show, Generic, Hashable)
+               deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
 
 --joinDeepSymTypes :: DeepSymType -> DeepSymType -> DeepSymType
 
@@ -88,7 +88,7 @@ data Constraint = Constraint
   { stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
   , sym :: Sym
   , symType :: SymType
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON)
 
 -- | solutions should be the "final unification" for any sym.
 -- | complex types might still contain SVars subject to substitution
@@ -137,14 +137,14 @@ data UnifyError t = UnifyError (PilType t) (PilType t) (UnifyError t)
                   | OverlappingRecordField { recordFields :: HashMap BitWidth t
                                            , offendingOffset :: BitWidth
                                            }
-                  deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
+                  deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable, Hashable, FromJSON, ToJSON)
 
 data UnifyConstraintsError t = UnifyConstraintsError
                                { stmtOrigin  :: Int
                                --index in list of pil stmts for now
                                , sym :: Sym
                                , error :: UnifyError t
-                               } deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable)
+                               } deriving (Eq, Ord, Read, Show, Generic, Functor, Foldable, Traversable, Hashable, FromJSON, ToJSON)
 
 type EqualityMap a = HashMap a (HashSet a)
 
@@ -169,7 +169,7 @@ data TypeReport = TypeReport
   , originMap :: HashMap Sym Sym -- from UnifyState
   , errorConstraints :: HashMap Sym [Constraint] -- original constraints
   , ogConstraints :: [Constraint]
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------

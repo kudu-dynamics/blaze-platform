@@ -70,7 +70,7 @@ import Control.Lens as Exports
   )
 import Control.Monad.Trans.Class as Exports (MonadTrans)
 import Control.Monad.Trans.Maybe as Exports (MaybeT, runMaybeT)
-import Data.Aeson as Exports (FromJSON, ToJSON)
+import Data.Aeson as Exports (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
 import Data.BinaryAnalysis as Exports
   ( Address (Address),
     AddressWidth (AddressWidth),
