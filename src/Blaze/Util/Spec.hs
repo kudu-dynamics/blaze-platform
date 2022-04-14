@@ -3,7 +3,7 @@ module Blaze.Util.Spec where
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Prelude
 import Blaze.Function (Function (Function))
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
+import Blaze.Types.Pil (Ctx (Ctx))
 import qualified Data.UUID as UUID
 
 ---------- CFG ------------
@@ -20,8 +20,8 @@ bb ctx startAddr endAddr x =
  where
   uuid = mkUuid2 startAddr endAddr
 
-mkDummyCtx :: Int -> Ctx
-mkDummyCtx ctxId = Ctx (Function Nothing "dummyCtx" 0x00 []) . CtxId $ mkUuid1 (ctxId :: Int)
+mkDummyCtx :: Word64 -> Ctx
+mkDummyCtx = Ctx (Function Nothing "dummyCtx" 0x00 []) . fromIntegral
 
 mkDummyTermNode :: Ctx -> a -> Cfg.CfNode a
 mkDummyTermNode ctx nodeData 

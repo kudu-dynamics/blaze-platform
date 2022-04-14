@@ -18,7 +18,7 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Prelude hiding (pred, succ)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest, CtxId)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Common (Ctx)
 import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
@@ -231,13 +231,18 @@ asAttrTuple x = (asIdNode x, x)
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
   , root :: CfNode a
+  , nextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic)
+
+incNextCtxIndex :: Cfg a -> Cfg a
+incNextCtxIndex = over #nextCtxIndex (+1)
 
 instance Functor Cfg where
   fmap f cfg = Cfg
     { graph = G.mapAttrs (fmap f) $ cfg ^. #graph
     , root = f <$> (cfg ^. #root)
+    , nextCtxIndex = cfg ^. #nextCtxIndex
     }
 
 instance Foldable Cfg where
@@ -247,6 +252,7 @@ instance Traversable Cfg where
   traverse f cfg = Cfg
     <$> G.traverseAttrs (traverse f) (cfg ^. #graph)
     <*> traverse f (cfg ^. #root)
+    <*> pure (cfg ^. #nextCtxIndex)
 
 instance Hashable a => Hashable (Cfg a) where
   hashWithSalt n = hashWithSalt n . toTransport
@@ -264,6 +270,7 @@ mkCfg root' rest es =
   Cfg
     { graph = mkControlFlowGraph root' rest es
     , root = root'
+    , nextCtxIndex = 0
     }
 
 edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
@@ -550,6 +557,7 @@ mapAttrs :: (a -> b) -> Cfg a -> Cfg b
 mapAttrs f cfg = Cfg
   { root = fmap f $ cfg ^. #root
   , graph = G.mapAttrs (fmap f) $ cfg ^. #graph
+  , nextCtxIndex = cfg ^. #nextCtxIndex
   }
 
 -- | Traverses monadic action over Cfg attrs.
@@ -568,6 +576,7 @@ traverseAttrs f cfg = do
                          . G.fromEdges
                          . G.edges
                          $ cfg ^. #graph
+               , nextCtxIndex = cfg ^. #nextCtxIndex
                }
   where
     rootId = asIdNode $ cfg ^. #root

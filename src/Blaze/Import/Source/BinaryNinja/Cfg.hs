@@ -168,11 +168,12 @@ convertEdge nodeMap bnEdge = do
 
 importCfg ::
   Function ->
+  CtxId ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
   IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-importCfg func bnNodes bnEdges = do
-  ctx <- Pil.createCtx func
+importCfg func ctxIndex bnNodes bnEdges = do
+  let ctx = Pil.Ctx func ctxIndex
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode ctx) bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
   case mCfNodes of
@@ -201,8 +202,8 @@ removeGotoBlocks cfg = foldl' (flip Cfg.removeAndRebindEdges) cfg gotoNodes
   where
     gotoNodes = filter isGotoBlock . HashSet.toList . Cfg.nodes $ cfg
 
-getCfgAlt :: BNBinaryView -> Function -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-getCfgAlt bv func = do
+getCfgAlt :: BNBinaryView -> Function -> CtxId -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt bv func ctxId' = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
   case mBnFunc of
     Nothing ->
@@ -211,17 +212,18 @@ getCfgAlt bv func = do
       bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
       bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
       bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
-      importCfg func bnMlilBbs bnMlilBbEdges
+      importCfg func ctxId' bnMlilBbs bnMlilBbEdges
 
 getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
   a ->
   BNBinaryView ->
   Function ->
+  CtxId ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
-getCfg imp bv func = do
-  result <- getCfgAlt bv func
-  ctx <- Pil.createCtx func
+getCfg imp bv func ctxId' = do
+  result <- getCfgAlt bv func ctxId'
+  let ctx = Pil.Ctx func ctxId'
   case result of
     Nothing -> return Nothing
     Just (ImportResult _mlilCtx mlilCfgWithGotos mlilRefMapWithGotos) -> do

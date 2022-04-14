@@ -12,6 +12,6 @@ type Path = AlgaPath
 
 class PilImporter a where
   type IndexType a
-  getFuncStatements :: a -> Function -> IO [Stmt]
+  getFuncStatements :: a -> Function -> CtxId -> IO [Stmt]
   getPathStatements :: a -> Path -> IO [Stmt]
   getCodeRefStatements :: a -> CtxId -> CodeReference (IndexType a) -> IO [Stmt]
