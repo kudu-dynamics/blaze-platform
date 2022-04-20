@@ -486,7 +486,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       return
         [ (r, CSType (TInt tSz signednessType))
         , (r, CSVar $ x ^. field' @"left" . #info . #sym)
-        , (left ^. #info . #sym, CSType $ TInt secondArgWidth signednessType)
+        , (left ^. #info . #sym, CSType $ TInt tSz signednessType)
         , (right ^. #info . #sym, CSType $ TInt secondArgWidth signednessType)
         ]
      where

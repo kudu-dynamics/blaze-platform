@@ -20,7 +20,7 @@ newtype OperationSize = OperationSize Bytes
 newtype CtxId = CtxId Word64
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
-  deriving newtype (Num)
+  deriving newtype (Num, Real, Enum, Integral)
 
 data Ctx = Ctx
   { func :: Function

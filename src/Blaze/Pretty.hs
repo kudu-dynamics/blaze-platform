@@ -11,7 +11,7 @@ module Blaze.Pretty
     TokenType(..),
     TokenContext(..),
     Token(..),
-    TokenizerCtx(..),
+    TokenizerCtx,
     Tokenizer(),
     Tokenizable(..),
     runTokenize,
@@ -70,14 +70,11 @@ import Blaze.Cfg
       BranchType,
       CfEdge,
       Cfg,
-      getCtxIndices
     )
 import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Types.Cfg.Grouping as GCfg
 import Blaze.Pil.Display (needsParens)
 import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg))
-import Blaze.Types.Pil (Ctx)
-import qualified Data.Bimap as Bimap
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic (SVal)
 
@@ -146,22 +143,14 @@ data Token = Token
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
-newtype TokenizerCtx = TokenizerCtx
-  { ctxIndices :: Bimap.Bimap Int Ctx
-  }
-  deriving (Eq, Ord, Show, Generic)
+-- TODO: Determine if we should get rid of this
+type TokenizerCtx = ()
 
 blankTokenizerCtx :: TokenizerCtx
-blankTokenizerCtx =
-  TokenizerCtx
-    { ctxIndices = Bimap.empty
-    }
+blankTokenizerCtx = ()
 
 mkTokenizerCtx :: Cfg.PilCfg -> TokenizerCtx
-mkTokenizerCtx cfg =
-  TokenizerCtx
-    { ctxIndices = getCtxIndices cfg
-    }
+mkTokenizerCtx _ = ()
 
 newtype Tokenizer a = Tokenizer
   { runTokenizer :: Reader TokenizerCtx a
@@ -367,12 +356,10 @@ instance Tokenizable Pil.Ctx where
 
 instance Tokenizable Pil.PilVar where
   tokenize var = do
-    ctxIndices' <- view #ctxIndices
     let ctxIdSuff = case var ^. #ctx of
           Nothing -> ""
-          Just ctx -> case Bimap.lookupR ctx ctxIndices' of
-            Nothing -> "@?"
-            Just n -> "@" <> show n
+          Just ctx -> "@"
+            <> show (fromIntegral $ ctx ^. #ctxId :: Int)
     pure [varToken $ (var ^. #symbol) <> ctxIdSuff]
 
 tokenizeBinop ::
@@ -862,10 +849,11 @@ instance Tokenizable a => Tokenizable (Cfg a) where
   tokenize cfg =
     [tt "---CFG---\n", tt "--- Node Mapping:\n"]
       <++> showNodeMapping
-      <++> tt "--- Edges:\n"
+      <++> tt "\n--- Edges:\n"
       <++> showEdges
-      <++> tt "--- Attrs:\n"
+      <++> tt "\n--- Attrs:\n"
       <++> showAttrs
+      <++> tt ("\n--- Next Ctx Index: " <> show (fromIntegral $ cfg ^. #nextCtxIndex :: Int))
     where
       cflow = cfg ^. #graph
 

@@ -172,8 +172,9 @@ importCfg ::
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
   IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-importCfg func ctxIndex bnNodes bnEdges = do
-  let ctx = Pil.Ctx func ctxIndex
+importCfg func currentCtxId bnNodes bnEdges = do
+  let ctx = Pil.Ctx func currentCtxId
+      nextCtxId' = currentCtxId + 1
   (cfNodeGroups, mapEntries) <- runNodeConverter $ mapM (convertNode ctx) bnNodes
   let mCfNodes = NEList.nonEmpty $ concat cfNodeGroups
   case mCfNodes of
@@ -186,7 +187,7 @@ importCfg func ctxIndex bnNodes bnEdges = do
       return
         . Just
         $ ImportResult ctx
-          (mkCfg cfRoot cfRest cfEdges)
+          (mkCfg nextCtxId' cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
 isGotoBlock :: CfNode (NonEmpty MlilSsaInstruction) -> Bool
@@ -203,7 +204,7 @@ removeGotoBlocks cfg = foldl' (flip Cfg.removeAndRebindEdges) cfg gotoNodes
     gotoNodes = filter isGotoBlock . HashSet.toList . Cfg.nodes $ cfg
 
 getCfgAlt :: BNBinaryView -> Function -> CtxId -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
-getCfgAlt bv func ctxId' = do
+getCfgAlt bv func currentCtxId = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
   case mBnFunc of
     Nothing ->
@@ -212,7 +213,7 @@ getCfgAlt bv func ctxId' = do
       bnMlilFunc <- BNFunc.getMLILSSAFunction bnFunc
       bnMlilBbs <- BNBb.getBasicBlocks bnMlilFunc
       bnMlilBbEdges <- concatMapM BNBb.getOutgoingEdges bnMlilBbs
-      importCfg func ctxId' bnMlilBbs bnMlilBbEdges
+      importCfg func currentCtxId bnMlilBbs bnMlilBbEdges
 
 getCfg ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
@@ -221,9 +222,10 @@ getCfg ::
   Function ->
   CtxId ->
   IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
-getCfg imp bv func ctxId' = do
-  result <- getCfgAlt bv func ctxId'
-  let ctx = Pil.Ctx func ctxId'
+getCfg imp bv func currentCtxId = do
+  result <- getCfgAlt bv func currentCtxId
+  let ctx = Pil.Ctx func currentCtxId
+      nextCtxId' = currentCtxId + 1
   case result of
     Nothing -> return Nothing
     Just (ImportResult _mlilCtx mlilCfgWithGotos mlilRefMapWithGotos) -> do
@@ -243,7 +245,7 @@ getCfg imp bv func ctxId' = do
                   *** identity
               )
                 <$> HMap.toList mlilRefMap
-      let mPilCfg = mkCfg pilRootNode pilRestNodes <$> pilEdges
+      let mPilCfg = mkCfg nextCtxId' pilRootNode pilRestNodes <$> pilEdges
       mPilCfg' <- traverse Cfg.splitTailCallNodes mPilCfg
       return $
         ImportResult ctx

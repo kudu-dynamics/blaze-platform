@@ -265,12 +265,12 @@ instance (Eq a, Hashable a, FromJSON a) => FromJSON (Cfg a) where
  parseJSON = fmap fromTransport . parseJSON
 
 
-mkCfg :: forall a. (Hashable a, Eq a) => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
-mkCfg root' rest es =
+mkCfg :: forall a. (Hashable a, Eq a) => CtxId -> CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
+mkCfg nextCtxIndex' root' rest es =
   Cfg
     { graph = mkControlFlowGraph root' rest es
     , root = root'
-    , nextCtxIndex = 0
+    , nextCtxIndex = nextCtxIndex'
     }
 
 edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
@@ -611,6 +611,7 @@ data CfgTransport a = CfgTransport
   { transportEdges :: [CfEdge ()]
   , transportRoot :: CfNode ()
   , transportNodes :: [(CfNode (), CfNode a)]
+  , transportNextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Functor, Foldable, Traversable)
   deriving anyclass (Hashable)
@@ -620,6 +621,7 @@ toTransport pcfg = CfgTransport
   { transportEdges = edges'
   , transportRoot = root'
   , transportNodes = nodes'
+  , transportNextCtxIndex = pcfg ^. #nextCtxIndex
   }
   where
     root' = void $ pcfg ^. #root
@@ -631,7 +633,7 @@ toTransport pcfg = CfgTransport
     edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
 
 fromTransport :: (Eq a, Hashable a) => CfgTransport a -> Cfg a
-fromTransport t = mkCfg root' nodes' edges'
+fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
   where
     nodeMap = HashMap.fromList $ t ^. #transportNodes
 

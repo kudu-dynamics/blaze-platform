@@ -7,20 +7,20 @@ import Blaze.Cfg.Loop
 import Blaze.Function (Function (Function))
 import Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Pil (Ctx(Ctx), CtxId(CtxId))
+import Blaze.Types.Pil (Ctx(Ctx))
 import qualified Data.HashSet as HS
 import Test.Hspec
-import Blaze.Util.Spec (bb, mkUuid1)
+import Blaze.Util.Spec (bb)
 
 ctx :: Ctx
-ctx = Ctx func . CtxId $ mkUuid1 (0 :: Int)
+ctx = Ctx func 0
   where
     func = Function Nothing "foo" 0x00 []
   
 
 cfgWithSimpleLoop :: Cfg ()
 cfgWithSimpleLoop = do
-  mkCfg
+  mkCfg 0
     (bb ctx 0x00 0x0F ())
     [ bb ctx 0x10 0x1F ()
     , bb ctx 0x20 0x2F ()
@@ -103,7 +103,7 @@ spec = describe "Blaze.Cfg" $ do
               )
               (LoopTail $ bb ctx 0x40 0x4F ())
               ( LoopCfg $
-                  mkCfg
+                  mkCfg 0
                     (bb ctx 0x10 0x1F ())
                     [ bb ctx 0x20 0x2F ()
                     , bb ctx 0x30 0x3F ()

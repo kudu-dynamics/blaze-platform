@@ -15,7 +15,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Function (Function (Function))
 import qualified Blaze.Function as Func
 import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
+import Blaze.Types.Pil (Ctx (Ctx), Symbol)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1, mkDummyCtx, mkDummyTermNode)
 import qualified Data.HashMap.Strict as HashMap
@@ -88,10 +88,10 @@ targetFunc = Function
   }
 
 callerCtx :: Ctx
-callerCtx = Ctx callerFunc . CtxId $ mkUuid1 (1 :: Int)
+callerCtx = Ctx callerFunc 0
 
 targetCtx :: Ctx
-targetCtx = Ctx targetFunc . CtxId $ mkUuid1 (2 :: Int)
+targetCtx = Ctx targetFunc 1
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
@@ -104,7 +104,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
 
-          cfg = mkCfg rootNode [] []
+          cfg = mkCfg 0 rootNode [] []
 
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
           eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
@@ -128,10 +128,10 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                     [ defPhi "c" ["c1", "c2", "c3"]
                     ]
 
-          cfg = mkCfg rootNode [ falseNode1
-                               , trueNode2
-                               , endNode
-                               ]
+          cfg = mkCfg 0 rootNode [ falseNode1
+                                 , trueNode2
+                                 , endNode
+                                 ]
                 [ CfEdge rootNode falseNode1 Cfg.FalseBranch
                 , CfEdge falseNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
@@ -173,11 +173,11 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                     [ defPhi "c" ["c1", "c2", "c3"]
                     ]
 
-          cfg = mkCfg rootNode [ falseNode1
-                               , trueNode2
-                               , falseNode2
-                               , endNode
-                               ]
+          cfg = mkCfg 0 rootNode [ falseNode1
+                                 , trueNode2
+                                 , falseNode2
+                                 , endNode
+                                 ]
                 [ CfEdge rootNode falseNode1 Cfg.FalseBranch
                 , CfEdge falseNode1 falseNode2 Cfg.FalseBranch
                 , CfEdge falseNode1 trueNode2 Cfg.TrueBranch
@@ -216,7 +216,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
 
-          cfg = mkCfg rootNode [] []
+          cfg = mkCfg 0 rootNode [] []
 
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
@@ -239,10 +239,10 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                     [ defPhi "c" ["c1", "c2", "c3"]
                     ]
 
-          cfg = mkCfg rootNode [ falseNode1
-                               , trueNode2
-                               , endNode
-                               ]
+          cfg = mkCfg 0 rootNode [ falseNode1
+                                 , trueNode2
+                                 , endNode
+                                 ]
                 [ CfEdge rootNode falseNode1 Cfg.FalseBranch
                 , CfEdge falseNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
@@ -292,14 +292,14 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                     [ defPhi "c" ["c1", "c4"]
                     ]
 
-          cfg = mkCfg rootNode [ falseNode1
-                               , trueNode1
-                               , ifNode2
-                               , trueNode2
-                               , falseNode2
-                               , joinNode2
-                               , endNode
-                               ]
+          cfg = mkCfg 0 rootNode [ falseNode1
+                                 , trueNode1
+                                 , ifNode2
+                                 , trueNode2
+                                 , falseNode2
+                                 , joinNode2
+                                 , endNode
+                                 ]
                 [ CfEdge rootNode falseNode1 Cfg.FalseBranch
                 , CfEdge rootNode trueNode1 Cfg.TrueBranch
                 , CfEdge falseNode1 ifNode2 Cfg.UnconditionalBranch
@@ -362,11 +362,11 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           endNode = bbpn 4 callerCtx "endNode" [ nop ]
 
-          cfg = mkCfg rootNode [ ifNode
-                               , falseNode
-                               , trueNode
-                               , endNode
-                               ]
+          cfg = mkCfg 0 rootNode [ ifNode
+                                 , falseNode
+                                 , trueNode
+                                 , endNode
+                                 ]
                 [ CfEdge rootNode ifNode Cfg.FalseBranch
                 , CfEdge ifNode trueNode Cfg.TrueBranch
                 , CfEdge ifNode falseNode Cfg.FalseBranch
@@ -396,10 +396,10 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           endNode = bbpn 4 callerCtx "endNode" [ nop ]
 
-          cfg = mkCfg rootNode [ falseNode
-                               , trueNode
-                               , endNode
-                               ]
+          cfg = mkCfg 0 rootNode [ falseNode
+                                 , trueNode
+                                 , endNode
+                                 ]
                 [ CfEdge rootNode trueNode Cfg.TrueBranch
                 , CfEdge rootNode falseNode Cfg.FalseBranch
                 , CfEdge trueNode endNode Cfg.UnconditionalBranch

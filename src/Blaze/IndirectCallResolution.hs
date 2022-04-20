@@ -30,7 +30,7 @@ getIndirectCallSites bv = BnFunc.getFunctions bv >>= BnPil.getIndirectCallSites 
 getConstructorsInFunction :: BNImporter -> Func.Function -> IO [ClassConstructor]
 getConstructorsInFunction imp fn = do
   let bv = imp ^. #binaryView
-  vtStores <- Pili.getFuncStatements imp fn >>= VTable.getVTableStores bv
+  vtStores <- Pili.getFuncStatements imp fn 0 >>= VTable.getVTableStores bv
   return $ uncurry (ClassConstructor fn) <$> vtStores
 
 getConstructors :: BNImporter -> IO [ClassConstructor]

@@ -17,7 +17,7 @@ import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Blaze.Cfg.Interprocedural as ICfg
-import Blaze.Cfg.Interprocedural (InterCfg(InterCfg))
+import Blaze.Cfg.Interprocedural (InterCfg(InterCfg), liftInter)
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Test.Hspec
 
@@ -69,11 +69,17 @@ targetFunc = Function
              ]
   }
 
+callerCurrentCtxId :: CtxId
+callerCurrentCtxId = CtxId 0
+
 callerCtx :: Ctx
-callerCtx = Ctx callerFunc . CtxId $ mkUuid1 (1 :: Int)
+callerCtx = Ctx callerFunc callerCurrentCtxId
+
+targetCurrentCtxId :: CtxId
+targetCurrentCtxId = CtxId 1
 
 targetCtx :: Ctx
-targetCtx = Ctx targetFunc . CtxId $ mkUuid1 (2 :: Int)
+targetCtx = Ctx targetFunc targetCurrentCtxId
 
 callerCfg :: Cfg [Pil.Stmt]
 callNode :: Cfg.CallNode [Pil.Stmt]
@@ -97,6 +103,7 @@ leaveFuncUUID :: UUID
     callStmt1 = fromJust . Pil.mkCallStatement $ rawCallStmt1
 
     callerCfg' = mkCfg
+      (callerCurrentCtxId + 1)
       rootNode1
       [ callNode1
       , termNode1
@@ -120,6 +127,7 @@ leaveFuncUUID :: UUID
       ]
 
     targetCfg' = mkCfg
+      (targetCurrentCtxId + 1)
       rootNode2
       [ termNode2 ]
       [ CfEdge rootNode2 termNode2 Cfg.UnconditionalBranch ]
@@ -142,6 +150,7 @@ leaveFuncUUID :: UUID
         retVar0 = Pil.PilVar "retVar_0" $ Just targetCtx
 
     expandedCfg' = mkCfg
+      (targetCurrentCtxId + 1)
       rootNode1
       [ enterFuncNode3
       , rootNode2
@@ -217,6 +226,7 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
       PrettyShow' result `shouldBe` PrettyShow' expected
 
   context "ExpandCall" $ do
-    let expanded = ICfg.expandCall_ (InterCfg callerCfg) callNode callStmt (InterCfg targetCfg) targetCtx leaveFuncUUID
+    let expanded = liftInter Cfg.incNextCtxIndex
+          $ ICfg.expandCall_ (InterCfg callerCfg) callNode callStmt (InterCfg targetCfg) targetCtx leaveFuncUUID
     it "should expand a call" $ do
       PrettyShow' expanded `shouldBe` PrettyShow' (InterCfg expandedCfg)

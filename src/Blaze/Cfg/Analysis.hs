@@ -20,7 +20,6 @@ import Blaze.Graph (Edge)
 import Blaze.Import.CallGraph (CallGraphImporter, getFunctions)
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Types.Cfg.Analysis
-import Blaze.Function (Function)
 import Control.Lens (to)
 
 

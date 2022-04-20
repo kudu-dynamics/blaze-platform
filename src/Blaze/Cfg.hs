@@ -237,10 +237,11 @@ nodeCtxs :: CfNode [Stmt] -> HashSet Ctx
 nodeCtxs = foldMap (foldMap stmtCtxs)
 
 getCtxIndices :: PilCfg -> Bimap Int Ctx
-getCtxIndices cfg = Bimap.fromList $ zip [0..] ctxs
+getCtxIndices cfg = Bimap.fromList . fmap asTupleCtx $ ctxs
   where
-    ctxs = sortUnique . foldMap nodeCtxs . G.nodes $ cfg
-    sortUnique = sort . HSet.toList
+    asTupleCtx :: Ctx -> (Int, Ctx)
+    asTupleCtx ctx' = (fromIntegral $ ctx' ^. #ctxId, ctx')
+    ctxs = HSet.toList . foldMap nodeCtxs . G.nodes $ cfg
 
 substVars :: (PilVar -> PilVar) -> Cfg [Stmt] -> Cfg [Stmt]
 substVars f = mapAttrs $ PilA.substVars f
