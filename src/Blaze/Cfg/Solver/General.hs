@@ -46,7 +46,7 @@ getDecidedBranchCondNode n cfg = case outBranchTypes of
     mcond = lastMay (Cfg.getNodeData n) >>= \case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ DecidedBranchCond i x
       _ -> Nothing
-      
+
     outBranchTypes :: [BranchType]
     outBranchTypes = fmap (view #branchType)
       . HashSet.toList
@@ -73,7 +73,7 @@ generalCfgFormula ddg cfg = do
       r <- bool svNot identity b <$> solveExpr ddg x
       PilSolver.guardBool r
       PilSolver.constrain r
-      
+
     decidedBranchConditions = mapMaybe (`getDecidedBranchCondNode` cfg)
       . HashSet.toList
       . G.nodes
@@ -91,13 +91,13 @@ solveStmt ddg stmt = case stmt of
   Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (or $ isDependentOn <$> vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
-      isDependentOn = flip HashSet.member destDescendants 
+      isDependentOn = flip HashSet.member destDescendants
   _ -> pilSolveStmt
   where
     pilSolveStmt = PilSolver.solveStmt_ (solveExpr ddg) stmt
 
 solveExpr :: DataDependenceGraph -> DSTExpression -> Solver SVal
-solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = 
+solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) =
   catchFallbackAndWarn $ case op of
     -- TOOD: turn mem into immutable phi vars
     Pil.LOAD _ -> fallbackAsFreeVar
@@ -110,7 +110,7 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) =
             throwError $ ExprError xsym e
 
       catchFallbackAndWarn :: Solver SVal -> Solver SVal
-      catchFallbackAndWarn m = catchError m $ \e -> do  
+      catchFallbackAndWarn m = catchError m $ \e -> do
         si <- use #currentStmtIndex
         warn $ StmtError si e
         fallbackAsFreeVar
@@ -140,7 +140,7 @@ getUndecidedBranchCondNode n cfg = case outBranches of
     mcond = lastMay (Cfg.getNodeData n) >>= \case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ UndecidedBranchCond i x
       _ -> Nothing
-      
+
     outBranches :: [(BranchType, CfEdge ())]
     outBranches =
       fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
@@ -199,9 +199,9 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
         f ((u, c):unseen) seen toRemove = do
           tryConstraint c >>= \case
             -- True branch is UnSat
-            False -> do 
+            False -> do
               -- add false branch consraint to general formula
-              addConstraint $ PilSolver.svBoolNot c 
+              addConstraint $ PilSolver.svBoolNot c
 
               -- recur, add true edge to be removal list
               f (reverse seen <> unseen) [] (u ^. #trueEdge : toRemove)

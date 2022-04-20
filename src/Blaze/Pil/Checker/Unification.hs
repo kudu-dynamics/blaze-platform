@@ -7,14 +7,13 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker
     ( Constraint(Constraint),
       SymType(SType, SVar),
-      PilType(TVSign, TBottom, TBitVector, TFloat, TInt, TChar, TBool, TUnit,
-              TPointer, TArray, TFunction, TRecord, TVBitWidth, TVLength,
+      PilType(TBottom, TBitVector, TFloat, TInt, TChar, TBool, TUnit,
+              TPointer, TArray, TFunction, TRecord,
               TCString
              ),
       Sym,
-      charSize,
       UnifyConstraintsError(UnifyConstraintsError),
-      UnifyError(IncompatibleTypes),
+      UnifyError(IncompatibleTypes, IncompatibleTypeLevelValues),
       UnifyState,
       VarSubst(varSubst),
       Unify,
@@ -110,6 +109,7 @@ unifyConstraint cx@(Constraint _ preSubstSym _preSubstType) = do
 isTypeDescendant :: PilType a -> PilType a -> Bool
 isTypeDescendant (TArray _ _) t = case t of
   TArray _ _ -> True
+  TCString _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendant TBool t = case t of
@@ -119,8 +119,7 @@ isTypeDescendant TBool t = case t of
 isTypeDescendant (TInt _ _) t = case t of
   TInt _ _ -> True
   TPointer _ _ -> True
-  TChar -> True
-  -- TQueryChar -> True
+  TChar _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendant (TFloat _) t = case t of
@@ -129,20 +128,21 @@ isTypeDescendant (TFloat _) t = case t of
   _ -> False
 isTypeDescendant (TBitVector _) t = case t of
   TBitVector _ -> True
+  TArray _ _ -> True
+  TBool -> True
+  TCString _ -> True
+  TChar _ -> True
   TFloat _ -> True
   TInt _ _ -> True
   TPointer _ _ -> True
-  TChar -> True
-  TBool -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendant (TPointer _ _) t = case t of
   TPointer _ _ -> True
-  TArray _ _ -> True
   TBottom _ -> True
   _ -> False
-isTypeDescendant TChar t = case t of
-  TChar -> True
+isTypeDescendant (TChar _) t = case t of
+  TChar _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendant (TFunction _ _) t = case t of
@@ -163,26 +163,35 @@ isTypeDescendant TUnit t = case t of
 isTypeDescendant (TBottom _) t = case t of
   TBottom _ -> True
   _ -> False
-isTypeDescendant (TVBitWidth _) t = case t of
-  TVBitWidth _ -> True
-  TBottom _ -> True
-  _ -> False
-isTypeDescendant (TVLength _) t = case t of
-  TVLength _ -> True
-  TBottom _ -> True
-  _ -> False
-isTypeDescendant (TVSign _) t = case t of
-  TVSign _ -> True
-  TBottom _ -> True
-  _ -> False
 
+-- | Unify type-level values according to the `checkVal` and `selectVal` functions
+-- provided by the caller.
+-- The values are assumed to be wrapped in a (`Maybe a`) and the `checkVal` predicate is
+-- only run when the two values being unified are both `Just a`s.
+unifyVal ::
+  (a -> a -> Bool) ->
+  (Maybe a -> Maybe a -> Maybe a) ->
+  Maybe a ->
+  Maybe a ->
+  Either (UnifyError Sym) (Maybe a)
+unifyVal checkVal selectVal v1 v2 =
+  case (v1, v2) of
+    (Just v1Val, Just v2Val) | not $ checkVal v1Val v2Val -> Left IncompatibleTypeLevelValues
+    _ -> Right $ selectVal v1 v2
 
+-- | This function is used to unify two types, provided as arguments. The first type `pt1`
+-- is checked to be a super type for `pt2`. Note that the subtype relationship does permit
+-- a type to be its own subtype (e.g., TChar _ <: TChar _), but the type-level values will
+-- be considered before determing whether the types can be unified.
 unifyPilTypes :: PilType Sym -> PilType Sym -> Unify (PilType Sym)
 -- if there are two TBottoms with different syms, they will be eq'd later in originsMap
 unifyPilTypes (TBottom s) _ = return $ TBottom s
 unifyPilTypes _ (TBottom s) = return $ TBottom s
 unifyPilTypes pt1 pt2 =
   case (isTypeDescendant pt1 pt2, isTypeDescendant pt2 pt1) of
+    -- TODO: Add a case where if types aren't the same but both are descendants of
+    --       one another then we report an error? Can we assert this with Haskell types
+    --       instead and catch such a relationship at compile time?
     (False, False) -> err
     (False, True) -> unifyPilTypes pt2 pt1
     _ -> case pt1 of
@@ -190,51 +199,92 @@ unifyPilTypes pt1 pt2 =
         TUnit -> return TUnit
         _ -> err
       TArray len1 et1 -> case pt2 of
-        TArray len2 et2 ->
-          TArray <$> addVarEq len1 len2 <*> addVarEq et1 et2
+        TArray len2 et2 -> case unifyVal (==) (<|>) len1 len2 of
+          Left _ -> err
+          Right unifiedLen ->
+            TArray unifiedLen <$> addVarEq et1 et2
+        TCString len2 -> case unifyVal (==) (<|>) len1 len2 of
+          Left _ -> err
+          Right unifiedLen -> do
+            -- Ensure this is an array of characters
+            assignType et1 (TChar $ Just 8)
+            -- TODO: Is it okay to assert through a symbol constraint and provide the
+            --       unified type assuming the constraint holds?
+            return $ TCString unifiedLen
         _ -> err
       TBool -> case pt2 of
         TBool -> return TBool
         _ -> err
       TInt w1 sign1 -> case pt2 of
-        TInt w2 sign2 -> TInt <$> addVarEq w1 w2
-                              <*> addVarEq sign1 sign2
-        TPointer w2 pointeeType1 -> do
-          assignType sign1 $ TVSign False
-          flip TPointer pointeeType1 <$> addVarEq w1 w2
-        TChar -> do
-          assignType w1 $ TVBitWidth charSize
-          assignType sign1 $ TVSign False
-          return TChar
-
+        -- TODO: Is this an example where instead of assigning a concrete value
+        --       or nothing we should use a symbolic constraint?
+        TInt w2 sign2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> case unifyVal (==) (<|>) sign1 sign2 of
+            Left _ -> err
+            Right unifiedSign -> return $ TInt unifiedWidth unifiedSign
+        TPointer w2 pointeeType1 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> case unifyVal (==) (<|>) sign1 (Just False) of
+            Left _ -> err
+            Right _unifiedSign -> return $ TPointer unifiedWidth pointeeType1
+        TChar w2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          -- TODO: Here we assume a character is always unsigned. Be on the look
+          --       out for ways this may break type checking that aren't actual
+          --       errors.
+          Right _unifiedWidth -> case unifyVal (==) (<|>) sign1 (Just False) of
+            Left _ -> err
+            Right _unifiedSign -> return $ TChar w2
         _ -> err
 
-      TChar -> case pt2 of
-        TChar -> return TChar
+      TChar w1 -> case pt2 of
+        TChar w2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> return $ TChar unifiedWidth
         _ -> err
 
       TFloat w1 -> case pt2 of
-        TFloat w2 -> TFloat <$> addVarEq w1 w2
+        TFloat w2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> return $ TFloat unifiedWidth
         _ -> err
+      -- TODO: Should TBitVector unify with any other type as long as the width
+      --       of the TBitVector is the same or larger than the width of the other type?
+      -- TODO: Do we want to constraint the size of the TBitVector after it is unified
+      --       with a more specific type? Is there anything missed by not doing this?
       TBitVector w1 -> case pt2 of
-        TBitVector w2 -> TBitVector <$> addVarEq w1 w2
-        TFloat w2 -> TFloat <$> addVarEq w1 w2
-        TInt w2 s -> TInt <$> addVarEq w1 w2 <*> pure s
-        TPointer w2 pt -> TPointer <$> addVarEq w1 w2 <*> pure pt
-
-        TChar -> do
-          assignType w1 $ TVBitWidth 8
-          return TChar
-
+        TBitVector w2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> return $ TBitVector unifiedWidth
+        TFloat w2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> return $ TFloat unifiedWidth
+        TInt w2 s -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> return $ TInt unifiedWidth s
+        TPointer w2 pt -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> return $ TPointer unifiedWidth pt
+        TChar sign2 -> case unifyVal (==) (<|>) w1 (Just 8) of
+          Left _ -> err
+          Right _unifiedWidth -> return $ TChar sign2
+        -- TODO: Is this right? Sometimes values of various widths are used as a bool and we're losing
+        --       bitwidth information here. Maybe this is a use case for casts?
         TBool -> return TBool
+        -- TODO: Use element size and length to match up with BitVector?
+        TArray len2 elem2 -> do
+          -- Set length and element type to be same
+          -- TODO: Consider support unification of element type as well
+          return $ TArray len2 elem2
         _ -> err
-      TPointer w1 pointeeType1 -> case pt2 of
-        TPointer w2 pointeeType2 ->
-          TPointer <$> addVarEq w1 w2
-                   <*> addVarEq pointeeType1 pointeeType2
-        TArray len2 et2 -> TArray len2 <$> addVarEq pointeeType1 et2
 
+      TPointer w1 pointeeType1 -> case pt2 of
+        TPointer w2 pointeeType2 -> case unifyVal (==) (<|>) w1 w2 of
+          Left _ -> err
+          Right unifiedWidth -> TPointer unifiedWidth <$> addVarEq pointeeType1 pointeeType2
         _ -> err
+
       TFunction _ret1 _params1 -> err -- don't know how to unify at the moment...
         -- need map of FuncArg(name,address,arg#/ret) -> most general type
         -- in state
@@ -243,45 +293,10 @@ unifyPilTypes pt1 pt2 =
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
         _ -> err
 
-      -- TCString len1 -> case pt2 of
-      --   TChar -> return $ TCString len1
-      --   TInt _w2 _s2 -> do
-      --     -- can't really make these equal in the case:
-      --     -- [var_18] = 0
-      --     -- Need to be able to convert bitwidth to string length
-      --     -- addVarEq w $ TVBitWidth 8
-      --     return $ TCString len1
-      --   TBitVector _w2 -> do
-      --     -- TODO: convert bitwidth to length
-      --     return $ TCString len1
-      --   TArray len2 et2 -> do
-      --     assignType et2 TChar
-      --     TCString <$> addVarEq len1 len2
-
-      --   TRecord m -> do
-      --     mapM_ (`assignType` TChar) . HashMap.elems $ m
-      --     return $ TCString len1
-
-      --   _ -> err
-
-      TVBitWidth bw1 -> case pt2 of
-        TVBitWidth bw2
-          | bw1 == bw2 -> return $ TVBitWidth bw1
-          | otherwise -> err
-        _ -> err
-
-      TVLength len1 -> case pt2 of
-        TVLength len2
-          | len1 == len2 -> return $ TVLength len1
-          -- TODO: this is b/c const strs have different lengths and are set
-          -- to the same field sometimes. But now it can't find length bugs.
-          | otherwise -> return . TVLength $ max len1 len2
-        _ -> err
-
-      TVSign s1 -> case pt2 of
-        TVSign s2
-          | s1 == s2 -> return $ TVSign s1
-          | otherwise -> err
+      TCString len1 -> case pt2 of
+        TCString len2 -> case unifyVal (==) (<|>) len1 len2 of
+          Left _ -> err
+          Right unifiedLen -> return $ TCString unifiedLen
         _ -> err
 
       _ -> err

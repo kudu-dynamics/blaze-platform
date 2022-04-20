@@ -679,6 +679,9 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndex
 instance Tokenizable ByteOffset where
   tokenize (ByteOffset n) = pure [integerToken n]
 
+instance Tokenizable Bits where
+  tokenize (Bits n) = pure [integerToken n]
+
 instance Tokenizable Address where
   tokenize (Address n) = pure [integerToken n]
 
@@ -694,6 +697,9 @@ instance Tokenizable Pil.StackOffset where
 instance Tokenizable Pil.StmtIndex where
   tokenize x = pure [integerToken (x ^. #val)]
 
+instance Tokenizable Word64 where
+  tokenize x = pure [integerToken x]
+
 instance Tokenizable t => Tokenizable (PI.PilType t) where
   tokenize = \case
     PI.TArray len elemType ->
@@ -703,7 +709,7 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
         <++> tokenize elemType
     --    PI.TZeroField pt -> "ZeroField" <-> paren (tokenize pt)
     PI.TBool -> pure [keywordToken "Bool"]
-    PI.TChar -> pure [keywordToken "Char"]
+    PI.TChar bitWidth -> [keywordToken "Char"] <++> tokenize bitWidth
     -- PI.TQueryChar -> "QueryChar"
     PI.TInt bitWidth signed ->
       [keywordToken "Int", tt " "]
@@ -729,9 +735,6 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
     PI.TBottom s -> paren <$> [keywordToken "Bottom", tt " "] <++> tokenize s
     PI.TUnit -> pure [keywordToken "Unit"]
     PI.TFunction _ret _params -> pure [keywordToken "Func"]
-    PI.TVBitWidth (Bits bitWidth) -> pure [tt $ show bitWidth <> "w"]
-    PI.TVLength n -> pure [integerToken n]
-    PI.TVSign b -> pure [keywordToken (if b then "Signed" else "Unsigned")]
 
 --- CallGraph
 instance Tokenizable Cg.CallDest where
@@ -858,7 +861,7 @@ instance Tokenizable a => Tokenizable (Cfg a) where
       cflow = cfg ^. #graph
 
       nodeMapList :: [(CfNode (), Int)]
-      nodeMapList = zip (HashSet.toList $ G.nodes cflow) [0 ..]
+      nodeMapList = zip (HashSet.toList $ G.nodes cflow) [0..]
 
       nodeMap :: HashMap (CfNode ()) Int
       nodeMap = HashMap.fromList nodeMapList
