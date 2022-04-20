@@ -179,11 +179,13 @@ substExprMap m = flip (foldr f) $ HMap.toList m
 
 ------------------
 
+-- TODO: Consider replacing with simpler representation.
 -- | Creates a map of "origins" that vars are equal to.
 -- The "origin" for vars remains the same, i.e. if you add (a, b)
 -- to a map where multiple vars map to `a`, it just adds (b, a) to map
 -- instead of adding (a, b) and updating all the `a`s to `b`.
--- returns updated map and "origin" var that 'a' and 'b' are pointing to
+-- Returns 1) "origin" var that 'a' and 'b' are pointing to;
+-- 2) possibly a symbol that is retired; and 3) the updated origin map.
 addToOriginMap :: (Hashable a, Eq a)
                => a -> a -> HashMap a a -> (a, Maybe a, HashMap a a)
 addToOriginMap a b m = case (HMap.lookup a m, HMap.lookup b m) of
