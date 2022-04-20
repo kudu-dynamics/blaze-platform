@@ -10,7 +10,7 @@ import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg hiding (nodes)
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Pil (BranchCondOp, Expression, PilVar, Statement (Exit, NoRet), Stmt, Ctx, CtxId)
+import Blaze.Types.Pil (BranchCondOp, Expression, PilVar, Statement (Exit, NoRet), Stmt, Ctx)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import Control.Lens (set)
@@ -245,8 +245,3 @@ getCtxIndices cfg = Bimap.fromList . fmap asTupleCtx $ ctxs
 
 substVars :: (PilVar -> PilVar) -> Cfg [Stmt] -> Cfg [Stmt]
 substVars f = mapAttrs $ PilA.substVars f
-
--- | Increments all CtxIds in Cfg by ctxId' amount, such that all the CtxIds in
---   the resulting Cfg will be greater than or equal to ctxId'
-incrementCtxIndices :: CtxId -> PilCfg -> PilCfg
-incrementCtxIndices ctxId' = substVars (over (#ctx . _Just . #ctxId) (+ ctxId'))

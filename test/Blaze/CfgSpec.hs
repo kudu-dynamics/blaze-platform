@@ -8,7 +8,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Prelude
 import Test.Hspec
 import Blaze.Types.Pil (Ctx(Ctx))
-import Blaze.Util.Spec (bb, mkUuid1)
+import Blaze.Util.Spec (bb)
 
 
 ctx :: Ctx
