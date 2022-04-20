@@ -24,30 +24,30 @@ spec = describe "Blaze.Pil.Checker" $ do
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "convert type with no symbols" $ do
-      let xs = [(Sym 0, TChar)]
-          rs = [(Sym 0, DSType TChar)]
+      let xs = [(Sym 0, TChar Nothing)]
+          rs = [(Sym 0, DSType $ TChar Nothing)]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "convert two types with no symbols" $ do
-      let xs = [ (Sym 0, TChar)
+      let xs = [ (Sym 0, TChar Nothing)
                , (Sym 1, TBottom $ Sym 1)
                ]
-          rs = [ (Sym 0, DSType TChar)
-               , (Sym 1, DSType . TBottom $ Sym 1)
+          rs = [ (Sym 0, DSType $ TChar Nothing)
+               , (Sym 1, DSType $ TBottom (Sym 1))
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "convert type with a symbol that has no solution" $ do
-      let xs = [(Sym 0, TBitVector (Sym 1))]
-          rs = [(Sym 0, DSType $ TBitVector (DSVar $ Sym 1))]
+      let xs = [(Sym 0, TPointer (Just 64) (Sym 1))]
+          rs = [(Sym 0, DSType $ TPointer (Just 64) (DSVar $ Sym 1))]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "convert type with a symbol that has solution" $ do
-      let xs = [ (Sym 0, TBitVector (Sym 1))
-               , (Sym 1, TVBitWidth 64)
+      let xs = [ (Sym 0, TPointer (Just 64) (Sym 1))
+               , (Sym 1, TBool)
                ]
-          rs = [ (Sym 0, DSType $ TBitVector (DSType $ TVBitWidth 64))
-               , (Sym 1, DSType $ TVBitWidth 64)
+          rs = [ (Sym 0, DSType $ TPointer (Just 64) (DSType TBool))
+               , (Sym 1, DSType TBool)
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
@@ -56,16 +56,16 @@ spec = describe "Blaze.Pil.Checker" $ do
                          [ (0, Sym 1)
                          , (8, Sym 2)
                          ])
-               , (Sym 1, TChar)
+               , (Sym 1, TChar (Just 8))
                , (Sym 2, TBottom $ Sym 1)
                ]
           rs = [ (Sym 0, DSType . TRecord
                    $ HashMap.fromList
-                   [ (0, DSType TChar)
+                   [ (0, DSType $ TChar (Just 8))
                    , (8, DSType . TBottom $ Sym 1)
                    ])
-               , (Sym 1, DSType TChar)
-               , (Sym 2, DSType . TBottom $ Sym 1)
+               , (Sym 1, DSType $ TChar (Just 8))
+               , (Sym 2, DSType $ TBottom (Sym 1))
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
@@ -74,76 +74,67 @@ spec = describe "Blaze.Pil.Checker" $ do
                          [ (0, Sym 1)
                          , (8, Sym 2)
                          ])
-               , (Sym 1, TPointer (Sym 4) (Sym 3))
+               , (Sym 1, TPointer (Just 64) (Sym 3))
                , (Sym 2, TBottom $ Sym 1)
-               , (Sym 3, TChar)
+               , (Sym 3, TChar (Just 8))
                ]
           rs = [ (Sym 0, DSType . TRecord
                    $ HashMap.fromList
-                   [ (0, DSType . TPointer (DSVar $ Sym 4) . DSType $ TChar)
-                   , (8, DSType . TBottom $ Sym 1)
+                   [ (0, DSType $ TPointer (Just 64) (DSType $ TChar (Just 8)))
+                   , (8, DSType $ TBottom $ Sym 1)
                    ])
-               , (Sym 1, DSType . TPointer (DSVar $ Sym 4) . DSType $ TChar)
-               , (Sym 2, DSType . TBottom $ Sym 1)
-               , (Sym 3, DSType TChar)
+               , (Sym 1, DSType $ TPointer (Just 64) (DSType $ TChar (Just 8)))
+               , (Sym 2, DSType $ TBottom (Sym 1))
+               , (Sym 3, DSType $ TChar (Just 8))
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
 
     it "convert type with 2 layers of nesting" $ do
-      let xs = [ (Sym 0, TBitVector (Sym 1))
-               , (Sym 1, TVBitWidth 64)
-               , (Sym 2, TPointer (Sym 3) (Sym 0))
+      let xs = [ (Sym 0, TBitVector (Just 32))
+               , (Sym 2, TPointer (Just 64) (Sym 0))
                ]
-          rs = [ (Sym 0, DSType $ TBitVector (DSType $ TVBitWidth 64))
-               , (Sym 1, DSType $ TVBitWidth 64)
-               , (Sym 2, DSType . TPointer (DSVar $ Sym 3)
-                         . DSType $ TBitVector (DSType $ TVBitWidth 64))
+          rs = [ (Sym 0, DSType $ TBitVector (Just 32))
+               , (Sym 2, DSType $ TPointer (Just 64) (DSType $ TBitVector (Just 32)))
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "nested type that has another nested type" $ do
-      let xs = [ (Sym 0, TBitVector (Sym 1))
-               , (Sym 1, TVBitWidth 64)
-               , (Sym 2, TPointer (Sym 3) (Sym 0))
-               , (Sym 4, TPointer (Sym 5) (Sym 2))
+      let xs = [ (Sym 0, TBitVector (Just 32))
+               , (Sym 2, TPointer (Just 64) (Sym 0))
+               , (Sym 4, TPointer (Just 64) (Sym 2))
                ]
-          rs = [ (Sym 0, DSType $ TBitVector (DSType $ TVBitWidth 64))
-               , (Sym 1, DSType $ TVBitWidth 64)
-               , (Sym 2, DSType . TPointer (DSVar $ Sym 3)
-                         . DSType $ TBitVector (DSType $ TVBitWidth 64))
-               , (Sym 4, DSType . TPointer (DSVar $ Sym 5)
-                         . DSType . TPointer (DSVar $ Sym 3)
-                         . DSType $ TBitVector (DSType $ TVBitWidth 64))
+          rs = [ (Sym 0, DSType $ TBitVector (Just 32))
+               , (Sym 2, DSType $ TPointer (Just 64) (DSType $ TBitVector (Just 32)))
+               , (Sym 4, DSType $
+                   TPointer (Just 64) (DSType $
+                                       TPointer (Just 64)
+                                       (DSType $ TBitVector (Just 32))))
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
 
     it "convert self-referencing type" $ do
-      let xs = [ (Sym 0, TPointer (Sym 1) (Sym 0)) ]
-          rs = [ (Sym 0, DSRecursive (Sym 0)
-                   $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 0))
+      let xs = [ (Sym 0, TPointer (Just 64) (Sym 0)) ]
+          rs = [ (Sym 0, DSRecursive (Sym 0) (TPointer (Just 64) (DSVar $ Sym 0)))
                ]
-          -- rs = [ (Sym 0, DSType
-          --          $ TPointer (DSVar $ Sym 1) (DSRecursive $ Sym 0))
-          --      ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "convert nested self-referencing type 0" $ do
-      let xs = [ (Sym 0, TPointer (Sym 1) (Sym 0))
-               , (Sym 3, TPointer (Sym 2) (Sym 0))
+      let xs = [ (Sym 0, TPointer (Just 64) (Sym 0))
+               , (Sym 3, TPointer (Just 64) (Sym 0))
                ]
-          rs = [ (Sym 0, DSRecursive (Sym 0)
-                   $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 0))
-               , (Sym 3, DSType . TPointer (DSVar $ Sym 2)
-                   . DSRecursive (Sym 0)
-                   $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 0))
+          rs = [ (Sym 0, DSRecursive (Sym 0) (TPointer (Just 64) (DSVar $ Sym 0)))
+               , (Sym 3, DSType $
+                   TPointer
+                   (Just 64)
+                   (DSRecursive (Sym 0) (TPointer (Just 64) (DSVar $ Sym 0))))
                ]
 
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
     it "convert nested self-referencing type inside another recursive type" $ do
-      let xs = [ (Sym 0, TPointer (Sym 1) (Sym 0))
+      let xs = [ (Sym 0, TPointer (Just 64) (Sym 0))
                , (Sym 2, TRecord $ HashMap.fromList
                          [ (0, Sym 2)
                          , (32, Sym 0)
@@ -151,28 +142,28 @@ spec = describe "Blaze.Pil.Checker" $ do
                ]
 
           rs = [ (Sym 0, DSRecursive (Sym 0)
-                   $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 0))
+                   $ TPointer (Just 64) (DSVar $ Sym 0))
                , (Sym 2, DSRecursive (Sym 2) . TRecord
                    $ HashMap.fromList
                    [ (0, DSVar $ Sym 2)
                    , (32, DSType
-                       $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 0))
+                       $ TPointer (Just 64) (DSVar $ Sym 0))
                    ])
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
 
     it "convert nested self-referencing type 1" $ do
-      let xs = [ (Sym 0, TPointer (Sym 1) (Sym 2))
-               , (Sym 2, TPointer (Sym 3) (Sym 0))
+      let xs = [ (Sym 0, TPointer (Just 64) (Sym 2))
+               , (Sym 2, TPointer (Just 64) (Sym 0))
                ]
 
           rs = [ (Sym 0, DSRecursive (Sym 0)
-                   . TPointer (DSVar $ Sym 1)
-                   . DSType $ TPointer (DSVar $ Sym 3) (DSVar $ Sym 0))
+                   . TPointer (Just 64)
+                   . DSType $ TPointer (Just 64) (DSVar $ Sym 0))
                , (Sym 2, DSRecursive (Sym 2)
-                   . TPointer (DSVar $ Sym 3)
-                   . DSType $ TPointer (DSVar $ Sym 1) (DSVar $ Sym 2))
+                   . TPointer (Just 64)
+                   . DSType $ TPointer (Just 64) (DSVar $ Sym 2))
                ]
       flatToDeepSyms (HashMap.fromList xs) `shouldBe` HashMap.fromList rs
 
@@ -185,7 +176,8 @@ spec = describe "Blaze.Pil.Checker" $ do
         -- checkVarEqMap = fmap (view varEqMap) . checkStmts
         -- signed = DSType $ TVSign True
         -- unsigned = DSType $ TVSign False
-        bw = DSType . TVBitWidth
+        bw :: Word64 -> Maybe BitWidth
+        bw = Just . Bits
         -- len = DSType . TVLength
         -- arr a b = DSType $ TArray a b
         -- ptr = DSType . TPointer (bw 64)
@@ -204,7 +196,7 @@ spec = describe "Blaze.Pil.Checker" $ do
     it "def sub statement" $ do
       let stmts = [def "a" $ sub (const 888 4) (const 999 4) 4]
 
-          rvars = [("a", DSType (TInt (bw 32) (DSVar (Sym 4))))]
+          rvars = [("a", DSType (TInt (bw 32) Nothing))]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
 
@@ -213,7 +205,6 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "b" $ load (var "a" 8) 4
                   ]
 
-          -- ztype = DSType $ TZeroField btype
           btype = DSType $ TBitVector (bw 32)
           rvars = [ ("a", DSType (TPointer (bw 64) btype))
                   , ("b", btype)
@@ -227,8 +218,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "b" $ load (var "a" 8) 4
                   ]
 
-          -- ztype = DSType $ TZeroField btype
-          btype = DSType $ TInt (bw 32) (DSVar (Sym 4))
+          btype = DSType $ TInt (bw 32) Nothing
           rvars = [ ("a", DSType (TPointer (bw 64) btype))
                   , ("pointee", btype)
                   , ("b", btype)
@@ -242,7 +232,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "b" $ load (fieldAddr (var "a" 8) 0 8) 4
                   ]
 
-          btype = DSType $ TInt (bw 32) (DSVar (Sym 4))
+          btype = DSType $ TInt (bw 32) Nothing
           rectype = DSType . TRecord
                     . HashMap.fromList
                     $ [( BitOffset 0, btype )]
@@ -259,7 +249,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "b" $ load (fieldAddr (var "a" 8) 0 8) 4
                   ]
 
-          btype = DSType $ TInt (bw 32) (DSVar (Sym 4))
+          btype = DSType $ TInt (bw 32) Nothing
           rectype = DSType . TRecord
                     . HashMap.fromList
                     $ [( BitOffset 0, btype )]
@@ -290,7 +280,7 @@ spec = describe "Blaze.Pil.Checker" $ do
                   , def "d" $ sub (var "b" 4) (const 888 4) 4
                   ]
 
-          btype = DSType $ TInt (bw 32) (DSVar (Sym 29))
+          btype = DSType $ TInt (bw 32) Nothing
           rvars = [ ("rec_ptr", DSType (TPointer (bw 64)
                                         (DSType $ record [(24 * 8, btype)])))
                   , ("b", btype)
@@ -325,10 +315,10 @@ spec = describe "Blaze.Pil.Checker" $ do
           elemType' = DSType $ TBitVector (bw 32)
           rvars = [ ( "elem", elemType' )
                   , ( "rec_ptr"
-                    , DSRecursive (Sym 17)
+                    , DSRecursive (Sym 11)
                       (TPointer (bw 64)
                        (DSType $ record [ (0 * 8, elemType')
-                                        , (8 * 8, DSVar $ Sym 17)])))
+                                        , (8 * 8, DSVar $ Sym 11)])))
                   ]
 
       PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))

@@ -85,9 +85,9 @@ spec = describe "Blaze.Cfg.Checker" $ do
     let pv = C.pilVar
         mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
         checkVars = fmap (view $ _3 . #varSymTypeMap) . checkCfg
-        signed = DSType $ TVSign True
-        unsigned = DSType $ TVSign False
-        bw = DSType . TVBitWidth
+        signed = Just True
+        unsigned = Just False
+        bw = Just
     it "should check a single basic block" $ do
       let rootNode = bbp callerCtx "root"
                      [ def "x" $ zx (const 888 4) 4

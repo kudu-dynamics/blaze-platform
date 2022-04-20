@@ -85,8 +85,8 @@ spec = describe "Blaze.Cfg.Solver" $ do
     let pv = C.pilVar
         mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
         checkVars = fmap (view $ _3 . #varSymTypeMap) . checkCfg
-        signed = DSType $ TVSign True
-        bw = DSType . TVBitWidth
+        signed = Just True
+        bw = Just
     it "should check a single basic block" $ do
       let rootNode = bbp callerCtx "root"
                      [ def "x" $ sx (const 888 4) 4
@@ -111,9 +111,9 @@ spec = describe "Blaze.Cfg.Solver" $ do
                 [ CfEdge rootNode middleNode Cfg.UnconditionalBranch
                 , CfEdge middleNode returnNode Cfg.UnconditionalBranch
                 ]
-          rvars = [ ("a", DSType (TInt (bw 32) (DSVar (Sym 25))))
-                  , ("b", DSType (TInt (bw 32) (DSVar (Sym 25))))
-                  , ("c", DSType (TInt (bw 32) (DSVar (Sym 25))))
+          rvars = [ ("a", DSType (TInt (bw 32) Nothing))
+                  , ("b", DSType (TInt (bw 32) Nothing))
+                  , ("c", DSType (TInt (bw 32) Nothing))
                   ]
 
       PShow (checkVars cfg) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
