@@ -92,13 +92,13 @@ deepSymTypeToKind t = case t of
   Ch.DSType pt -> case pt of
     Ch.TArray _alen _etype -> err "Array should be handled only when wrapped in Ptr"
     Ch.TBool -> return KBool
-    Ch.TChar -> return $ KBounded False 8
-    Ch.TInt bwt st -> KBounded <$> (getSigned st <|> pure False) <*> getBitWidth bwt
+    Ch.TChar bw -> KBounded <$> pure False <*> getBitWidth bw
+    Ch.TInt bw s -> KBounded <$> (getSigned s <|> pure False) <*> getBitWidth bw
     Ch.TFloat _ -> return KDouble
                    -- SBV only has float or double, so we'll just pick double
 
-    Ch.TBitVector bwt -> KBounded <$> pure False <*> getBitWidth bwt
-    Ch.TPointer bwt _pt -> KBounded <$> pure False <*> getBitWidth bwt
+    Ch.TBitVector bw -> KBounded <$> pure False <*> getBitWidth bw
+    Ch.TPointer bw _pt -> KBounded <$> pure False <*> getBitWidth bw
     -- Ch.TPointer bwt ptrElemType -> case ptrElemType of
     --   Ch.DSType (Ch.TArray _alen arrayElemType) ->
     --     -- alen constraint is handled at sym var creation
@@ -110,17 +110,15 @@ deepSymTypeToKind t = case t of
     Ch.TUnit -> return $ KTuple []
     Ch.TBottom s -> err $ "TBottom " <> show s
     Ch.TFunction _ _ -> err "Can't handle Function type"
-
-    -- these all should be handled as nested in above type conversions
-    Ch.TVBitWidth _ -> err "Out of place TVBitWidth"
-    Ch.TVLength _ -> err "Out of place TVLength"
-    Ch.TVSign _ -> err "Out of place TVSign"
   where
-    getBitWidth (Ch.DSType (Ch.TVBitWidth bw)) = return $ fromIntegral bw
-    getBitWidth badbw = err $ "Can't get bitwidth of: " <> show badbw
+    getBitWidth :: Maybe Bits -> Solver Int
+    getBitWidth (Just b) = return $ fromIntegral b
+    -- TODO: Will this show the error in context or do we need to manage that ourselves here?
+    getBitWidth Nothing = err "Can't get bitwidth."
 
-    getSigned (Ch.DSType (Ch.TVSign s)) = return s
-    getSigned bads = err $ "Can't get signed of: " <> show bads
+    getSigned :: Maybe Bool -> Solver Bool
+    getSigned (Just s) = return s
+    getSigned Nothing = err "Can't get signedness."
 
     err :: forall a. Text -> Solver a
     err = throwError . DeepSymTypeConversionError t

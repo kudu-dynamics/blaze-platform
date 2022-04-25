@@ -40,15 +40,15 @@ getVal k r = getVar k r >>= getInt
 spec :: Spec
 spec = describe "Blaze.Pil.SolverSpec" $ do
   let solveSolver m = checkSatWith_ SBV.z3 False AbortOnError m
-      signed32 = Ch.DSType $ Ch.TInt (bw 32) $ Ch.DSType $ Ch.TVSign True
-      signed64 = Ch.DSType $ Ch.TInt (bw 64) $ Ch.DSType $ Ch.TVSign True
-      unsigned32 = Ch.DSType $ Ch.TInt (bw 32) $ Ch.DSType $ Ch.TVSign False
-      unsigned64 = Ch.DSType $ Ch.TInt (bw 64) $ Ch.DSType $ Ch.TVSign False
-      unsigned8 = Ch.DSType $ Ch.TInt (bw 8) $ Ch.DSType $ Ch.TVSign False
-      unsigned4 = Ch.DSType $ Ch.TInt (bw 4) $ Ch.DSType $ Ch.TVSign False
+      signed32 = Ch.DSType $ Ch.TInt (bw 32) (Just True)
+      signed64 = Ch.DSType $ Ch.TInt (bw 64) (Just True)
+      unsigned32 = Ch.DSType $ Ch.TInt (bw 32) (Just False)
+      unsigned64 = Ch.DSType $ Ch.TInt (bw 64) (Just False)
+      unsigned8 = Ch.DSType $ Ch.TInt (bw 8) (Just False)
+      unsigned4 = Ch.DSType $ Ch.TInt (bw 4) (Just False)
       carry = Ch.DSType Ch.TBool
-      bw = Ch.DSType . Ch.TVBitWidth
-      char = Ch.DSType Ch.TChar
+      bw = Just
+      char = Ch.DSType $ Ch.TChar (Just 8)
       float = Ch.DSType $ Ch.TFloat (bw 80)
       tbool = Ch.DSType Ch.TBool
       -- pointer = Ch.DSType . Ch.TPointer (bw 64)
@@ -162,7 +162,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                 )
 
     context "declarePilVars" $ do
-      let tenv = [(pilVar "a", Ch.DSType Ch.TChar)]
+      let tenv = [(pilVar "a", char)]
           vmap = [(pilVar "a", KBounded False 8)]
           vnames = [(pilVar "a", "a")]
       r <- runIO $ runDecl tenv
@@ -176,7 +176,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         r `shouldBe` Left ()
 
     context "declarePilVars" $ do
-      let tenv = [ (pilVar "a", Ch.DSType Ch.TChar)
+      let tenv = [ (pilVar "a", char)
                  , (pilVar "b", signed32)
                  , (pilVar "c", Ch.DSType Ch.TBool)
                  ]
@@ -1878,7 +1878,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
               let (_, arg0) = (tReport ^. #symTypeStmts) !! 0
               solveStmt arg0
 
-            rvars = [ ("s1", CV (KBounded True 8) (CInteger 0))
+            rvars = [ ("s1", CV (KBounded False 8) (CInteger 0))
                     , ("a", CV (KBounded False 64) (CInteger 0))]
             errs = []
 

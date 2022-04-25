@@ -91,10 +91,10 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
     it "converts a simple type with sub var" $ do
       let cxs = []
           vars = []
-          tup = (Sym 0, CSType . TBitVector . CSVar $ Sym 1)
+          tup = (Sym 0, CSType $ TBitVector Nothing)
           nextSym = 2
 
-          cxs' = [ (Sym 0, SType . TBitVector $ Sym 1)
+          cxs' = [ (Sym 0, SType $ TBitVector Nothing)
                  ]
           vars' = []
       constrainConvert nextSym cxs vars tup `shouldBe` (sort cxs', sort vars')
@@ -102,10 +102,10 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
     it "converts a pointer type with two sub vars" $ do
       let cxs = []
           vars = []
-          tup = (Sym 0, CSType $ TPointer (CSVar $ Sym 1) (CSVar $ Sym 2))
+          tup = (Sym 0, CSType $ TPointer Nothing (CSVar $ Sym 2))
           nextSym = 2
 
-          cxs' = [ (Sym 0, SType $ TPointer (Sym 1) (Sym 2))
+          cxs' = [ (Sym 0, SType $ TPointer Nothing (Sym 2))
                  ]
           vars' = []
       constrainConvert nextSym cxs vars tup `shouldBe` (sort cxs', sort vars')
@@ -113,12 +113,12 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
     it "converts a pointer type with nested type" $ do
       let cxs = []
           vars = []
-          tup = (Sym 0, CSType $ TPointer (CSVar $ Sym 1)
-                  (CSType . TBitVector . CSVar $ Sym 2))
+          tup = (Sym 0, CSType $ TPointer Nothing
+                  (CSType $ TBitVector Nothing))
           nextSym = 3
 
-          cxs' = [ (Sym 0, SType $ TPointer (Sym 1) (Sym 3))
-                 , (Sym 3, SType . TBitVector $ Sym 2)
+          cxs' = [ (Sym 0, SType $ TPointer Nothing (Sym 3))
+                 , (Sym 3, SType $ TBitVector Nothing)
                  ]
           vars' = []
       constrainConvert nextSym cxs vars tup `shouldBe` (sort cxs', sort vars')
@@ -126,13 +126,12 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
     it "converts a pointer to type with nested type" $ do
       let cxs = []
           vars = []
-          tup = (Sym 0, CSType $ TPointer (CSVar $ Sym 1)
-                  (CSType . TBitVector . CSType . TVBitWidth $ 64))
+          tup = (Sym 0, CSType $ TPointer Nothing
+                  (CSType $ TBitVector $ Just 64))
           nextSym = 2
 
-          cxs' = [ (Sym 0, SType $ TPointer (Sym 1) (Sym 2))
-                 , (Sym 2, SType . TBitVector $ Sym 3)
-                 , (Sym 3, SType . TVBitWidth $ 64)
+          cxs' = [ (Sym 0, SType $ TPointer Nothing (Sym 2))
+                 , (Sym 2, SType $ TBitVector (Just 64))
                  ]
           vars' = []
       constrainConvert nextSym cxs vars tup `shouldBe` (sort cxs', sort vars')
@@ -152,8 +151,7 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
           expr = constExpr 0 64 8888
           nextSym = 1
 
-          cxs' = [ (Sym 0, SType $ TBitVector (Sym 1))
-                 , (Sym 1, SType $ TVBitWidth 64)
+          cxs' = [ (Sym 0, SType $ TBitVector (Just 64))
                  ]
           vars' = []
       constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
@@ -170,16 +168,12 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
           cxs' =
             [ (Sym 0, SVar (Sym 1))
-            , (Sym 0, SType (TInt{bitWidth = Sym 4, signed = Sym 3}))
-            , (Sym 1, SType (TInt{bitWidth = Sym 5, signed = Sym 3}))
-            , (Sym 1, SType (TBitVector{bitWidth = Sym 7}))
-            , (Sym 2, SType (TInt{bitWidth = Sym 6, signed = Sym 3}))
-            , (Sym 2, SType (TBitVector{bitWidth = Sym 8}))
-            , (Sym 4, SType (TVBitWidth (Bits 64)))
-            , (Sym 5, SType (TVBitWidth (Bits 64)))
-            , (Sym 6, SType (TVBitWidth (Bits 64)))
-            , (Sym 7, SType (TVBitWidth (Bits 64)))
-            , (Sym 8, SType (TVBitWidth (Bits 64)))
+            , (Sym 0, SType (TInt{bitWidth = Just 64, signed = Nothing}))
+            , (Sym 1, SType (TInt{bitWidth = Just 64, signed = Nothing}))
+            , (Sym 1, SType (TBitVector{bitWidth = Just 64}))
+            , (Sym 1, SVar (Sym 2))
+            , (Sym 2, SType (TInt{bitWidth = Just 64, signed = Nothing}))
+            , (Sym 2, SType (TBitVector{bitWidth = Just 64}))
             ]
 
           vars' = []
@@ -194,9 +188,8 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
             }
           nextSym = 2
 
-          cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Sym 2}))
+          cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Just 64}))
                  , (Sym 1, SVar (Sym 0))
-                 , (Sym 2, SType (TVBitWidth (Bits 64)))
                  ]
           vars' = [ (pv "a", Sym 0) ]
       constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
@@ -217,14 +210,11 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
             , op = Pil.FIELD_ADDR $ Pil.FieldAddrOp varExpr 4
             }
 
-          cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Sym 104}))
+          cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Just 64}))
                  , (Sym 1, SVar (Sym 0))
-                 , (Sym 1, SType (TPointer {bitWidth = Sym 102, pointeeType = Sym 103}))
-                 , (Sym 2, SType (TPointer {bitWidth = Sym 101, pointeeType = Sym 100}))
-                 , (Sym 101, SType (TVBitWidth (Bits 64)))
-                 , (Sym 102, SType (TVBitWidth (Bits 64)))
-                 , (Sym 103, SType (TRecord (HashMap.fromList [(32, Sym 100)])))
-                 , (Sym 104, SType (TVBitWidth (Bits 64)))
+                 , (Sym 1, SType (TPointer {bitWidth = Just 64, pointeeType = Sym 101}))
+                 , (Sym 2, SType (TPointer {bitWidth = Just 64, pointeeType = Sym 100}))
+                 , (Sym 101, SType (TRecord (HashMap.fromList [(32, Sym 100)])))
                  ]
 
           vars' = [ (pv "a", Sym 0) ]
@@ -247,18 +237,14 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
             , op = Pil.LOAD $ Pil.LoadOp fieldAddrExpr
             }
 
-          cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Sym 107}))
+          cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Just 64}))
                  , (Sym 1, SVar (Sym 0))
-                 , (Sym 1, SType (TPointer {bitWidth = Sym 105, pointeeType = Sym 106}))
-                 , (Sym 2, SType (TPointer {bitWidth = Sym 100, pointeeType = Sym 101}))
-                 , (Sym 2, SType (TPointer {bitWidth = Sym 104, pointeeType = Sym 103}))
-                 , (Sym 3, SVar (Sym 101))
-                 , (Sym 3, SType (TBitVector {bitWidth = Sym 102}))
-                 , (Sym 102, SType (TVBitWidth (Bits 128)))
-                 , (Sym 104, SType (TVBitWidth (Bits 64)))
-                 , (Sym 105, SType (TVBitWidth (Bits 64)))
-                 , (Sym 106, SType (TRecord (HashMap.fromList [(32, Sym 103)])))
-                 , (Sym 107, SType (TVBitWidth (Bits 64)))
+                 , (Sym 1, SType (TPointer {bitWidth = Just 64, pointeeType = Sym 102}))
+                 , (Sym 2, SType (TPointer {bitWidth = Nothing, pointeeType = Sym 100}))
+                 , (Sym 2, SType (TPointer {bitWidth = Just 64, pointeeType = Sym 101}))
+                 , (Sym 3, SVar (Sym 100))
+                 , (Sym 3, SType (TBitVector {bitWidth = Just 128}))
+                 , (Sym 102, SType (TRecord (HashMap.fromList [(32, Sym 101)])))
                  ]
 
           vars' = [ (pv "a", Sym 0) ]
@@ -288,15 +274,13 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
                     Pil.CallOp dest (Just "foo") args
               }
           resultCxs =
-            [ (Sym 0, SType (TBitVector {bitWidth = Sym 103})),
-              (Sym 1, SVar (Sym 0)),
-              (Sym 3, SType (TBitVector {bitWidth = Sym 102})),
+            [ (Sym 0, SType (TBitVector {bitWidth = Just 32}))
+            , (Sym 1, SVar (Sym 0))
+            , (Sym 3, SType (TBitVector {bitWidth = Just 64}))
               -- The constraint for: call arguments == function params
-              (Sym 100, SVar (Sym 1)),
+            , (Sym 100, SVar (Sym 1))
               -- The constraint for: call result == call expression
-              (Sym 101, SVar (Sym 3)),
-              (Sym 102, SType (TVBitWidth (Bits 64))),
-              (Sym 103, SType (TVBitWidth (Bits 32)))
+            , (Sym 101, SVar (Sym 3))
             ]
           resultVars = vars
       constrainExpr 100 cxs vars expr `shouldBe` (sort resultCxs, sort resultVars)
@@ -317,20 +301,16 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
       -- TODO: Make this expected result more obvious. How can we at a glance see
       --       the appropriate constraints are in place?
       (sort . fmap cxsTup $ constraints')
-        `shouldBe` [(Sym 0, SVar (Sym 6)),
-                    (Sym 1, SType (TBitVector {bitWidth = Sym 5})),
+        `shouldBe` [(Sym 0, SVar (Sym 5)),
+                    (Sym 1, SType (TBitVector {bitWidth = Just 32})),
                     (Sym 2, SVar (Sym 1)),
                     (Sym 3, SVar (Sym 0)),
-                    (Sym 3, SVar (Sym 8)),
+                    (Sym 3, SVar (Sym 6)),
                     (Sym 4, SVar (Sym 1)),
-                    (Sym 4, SVar (Sym 9)),
-                    (Sym 5, SType (TVBitWidth (Bits 32))),
-                    (Sym 6, SType (TBitVector {bitWidth = Sym 7})),
-                    (Sym 7, SType (TVBitWidth (Bits 64))),
-                    (Sym 8, SVar (Sym 12)),
-                    (Sym 9, SType (TBitVector {bitWidth = Sym 11})),
-                    (Sym 10, SVar (Sym 9)),
-                    (Sym 11, SType (TVBitWidth (Bits 32))),
-                    (Sym 12, SType (TBitVector {bitWidth = Sym 13})),
-                    (Sym 13, SType (TVBitWidth (Bits 64)))
+                    (Sym 4, SVar (Sym 7)),
+                    (Sym 5, SType (TBitVector {bitWidth = Just 64})),
+                    (Sym 6, SVar (Sym 9)),
+                    (Sym 7, SType (TBitVector {bitWidth = Just 32})),
+                    (Sym 8, SVar (Sym 7)),
+                    (Sym 9, SType (TBitVector {bitWidth = Just 64}))
                   ]
