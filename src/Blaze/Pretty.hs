@@ -140,11 +140,13 @@ data Token = Token
   , context :: TokenContext
   -- , confidence :: Int
   , address :: Address
+  , sym :: Sym -- Type sym; not in Binja's Token type
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
--- TODO: Determine if we should get rid of this
-type TokenizerCtx = ()
+data TokenizerCtx = TokenizerCtx
+  { varSymMap :: HashMap PilVar Sym
+  } deriving (Generic)
 
 blankTokenizerCtx :: TokenizerCtx
 blankTokenizerCtx = ()
