@@ -140,19 +140,23 @@ data Token = Token
   , context :: TokenContext
   -- , confidence :: Int
   , address :: Address
-  , sym :: Sym -- Type sym; not in Binja's Token type
+  , sym :: PI.Sym -- Type sym; not in Binja's Token type
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
 data TokenizerCtx = TokenizerCtx
-  { varSymMap :: HashMap PilVar Sym
-  } deriving (Generic)
+  { varSymMap :: HashMap Pil.PilVar PI.Sym
+  } deriving (Eq, Ord, Show, Generic)
 
 blankTokenizerCtx :: TokenizerCtx
-blankTokenizerCtx = ()
+blankTokenizerCtx = TokenizerCtx HashMap.empty
+
+mkTokenizerCtxUsingTypeReport :: PI.TypeReport -> TokenizerCtx
+mkTokenizerCtxUsingTypeReport tr = TokenizerCtx
+  { varSymMap = tr ^. #varSymMap }
 
 mkTokenizerCtx :: Cfg.PilCfg -> TokenizerCtx
-mkTokenizerCtx _ = ()
+mkTokenizerCtx _ = blankTokenizerCtx
 
 newtype Tokenizer a = Tokenizer
   { runTokenizer :: Reader TokenizerCtx a
