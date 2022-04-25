@@ -567,19 +567,18 @@ convertFunction func' = do
     f (mlilIndex, mlilInstr) =
       fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
 
-getFuncStatementsIndexed :: BNBinaryView -> Func.Function -> IO [(Int, Stmt)]
-getFuncStatementsIndexed bv func' = do
+getFuncStatementsIndexed :: BNBinaryView -> Func.Function -> CtxId -> IO [(Int, Stmt)]
+getFuncStatementsIndexed bv func' ctxId' = do
   mBnFunc <- BNCG.toBinjaFunction bv func'
-  ctxIx <- Pil.genCtxId
   case mBnFunc of
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
     Just bnFunc -> do
       addrSize' <- BN.getViewAddressSize bv
-      let st = mkConverterState bv ctxIx Pil.knownFuncDefs addrSize' func' AlgaPath.empty
+      let st = mkConverterState bv ctxId' Pil.knownFuncDefs addrSize' func' AlgaPath.empty
       fst <$> runConverter (convertFunction bnFunc) st
 
-getFuncStatements :: BNBinaryView -> Func.Function -> IO [Stmt]
-getFuncStatements bv func' = fmap snd <$> getFuncStatementsIndexed bv func'
+getFuncStatements :: BNBinaryView -> Func.Function -> CtxId -> IO [Stmt]
+getFuncStatements bv func' ctxId' = fmap snd <$> getFuncStatementsIndexed bv func' ctxId'
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
 getDestOp CallInstruction{dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'

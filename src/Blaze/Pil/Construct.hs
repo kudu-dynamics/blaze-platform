@@ -12,19 +12,15 @@ import Blaze.Types.Pil
     Symbol,
   )
 
+
+pilVar_ :: Symbol -> Maybe Pil.Ctx -> PilVar
+pilVar_ = PilVar
+
 pilVar' :: Symbol -> Pil.Ctx -> PilVar
-pilVar' s ctx =
-  PilVar
-    { symbol = s
-    , ctx = Just ctx
-    }
+pilVar' s = pilVar_ s . Just
 
 pilVar :: Symbol -> PilVar
-pilVar s =
-  PilVar
-    { symbol = s
-    , ctx = Nothing
-    }
+pilVar s = pilVar_ s Nothing
 
 mkExpr :: OperationSize -> ExprOp Expression -> Expression
 mkExpr size op =

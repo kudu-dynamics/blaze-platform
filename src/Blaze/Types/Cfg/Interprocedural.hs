@@ -17,7 +17,7 @@ import Blaze.Types.Pil.Common (CtxId)
 newtype InterCfg = InterCfg {unInterCfg :: PilCfg}
   deriving (Eq, Show, Generic)
 
-liftInter :: (PilCfg -> PilCfg) -> (InterCfg -> InterCfg)
+liftInter :: (PilCfg -> PilCfg) -> InterCfg -> InterCfg
 liftInter f = InterCfg . f . unInterCfg
 
 newtype Builder a b = Builder
@@ -31,7 +31,7 @@ data BuilderState a = BuilderState
   {
   -- | Presumably using a CfgImporter instance, provide a import result with a
   -- PIL CFG given a function
-    getCfg :: Function -> IO (Maybe (ImportResult PilCfg a))
+    getCfg :: Function -> CtxId -> IO (Maybe (ImportResult PilCfg a))
   -- |A mapping from UUIDs to a map that maps CFG nodes to import source locations
   , importMap :: HashMap CtxId a
   }
