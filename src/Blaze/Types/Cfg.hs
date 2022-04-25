@@ -231,6 +231,9 @@ asAttrTuple x = (asIdNode x, x)
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
   , root :: CfNode a
+  -- CtxIds are incremental, and this is the Id that should be used the next time
+  -- a new Ctx is needed (ie for expanding a function call in Interprocedural module).
+  -- After it is used, this should be incremented.
   , nextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic)
@@ -266,11 +269,11 @@ instance (Eq a, Hashable a, FromJSON a) => FromJSON (Cfg a) where
 
 
 mkCfg :: forall a. (Hashable a, Eq a) => CtxId -> CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
-mkCfg nextCtxIndex' root' rest es =
+mkCfg nextCtxIndex_ root_ rest es =
   Cfg
-    { graph = mkControlFlowGraph root' rest es
-    , root = root'
-    , nextCtxIndex = nextCtxIndex'
+    { graph = mkControlFlowGraph root_ rest es
+    , root = root_
+    , nextCtxIndex = nextCtxIndex_
     }
 
 edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
