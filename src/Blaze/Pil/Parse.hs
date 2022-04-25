@@ -32,6 +32,7 @@ import Text.Megaparsec hiding (runParser, runParser')
 import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space, string')
 import qualified Text.Megaparsec.Char.Lexer as L
 
+
 newtype ParserCtx = ParserCtx
   { ctxIndices :: Bimap.Bimap Int Ctx
   }

@@ -4,6 +4,8 @@ import Blaze.Prelude
 import Blaze.Types.Cfg
 import Blaze.Types.Import (ImportResult)
 import Blaze.Types.Function (Function)
+import Blaze.Types.Pil (CtxId)
+
 
 class CfgImporter a where
   type NodeDataType a
@@ -11,4 +13,5 @@ class CfgImporter a where
   getCfg
     :: a
     -> Function
+    -> CtxId
     -> IO (Maybe (ImportResult (Cfg (NodeDataType a)) (NodeMapType a)))

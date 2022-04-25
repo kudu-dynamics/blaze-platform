@@ -15,7 +15,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Function (Function (Function))
 import qualified Blaze.Function as Func
 import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
+import Blaze.Types.Pil (Ctx (Ctx), Symbol)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Data.HashMap.Strict as HashMap
@@ -81,10 +81,10 @@ targetFunc = Function
   }
 
 callerCtx :: Ctx
-callerCtx = Ctx callerFunc . CtxId $ mkUuid1 (1 :: Int)
+callerCtx = Ctx callerFunc 0
 
 targetCtx :: Ctx
-targetCtx = Ctx targetFunc . CtxId $ mkUuid1 (2 :: Int)
+targetCtx = Ctx targetFunc 1
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver.General" $ do
@@ -105,7 +105,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
       let rootNode = bbp callerCtx "root"
                      [ def "x" $ sx (const 900 4) 4
                      , def "a" $ sub (var "x" 4) (const 800 4) 4 ]
-          cfg = mkCfg rootNode [] []
+          cfg = mkCfg 0 rootNode [] []
           rvars = HashMap.fromList [ ("x", CV (KBounded True 32) (CInteger 900))
                                    , ("a", CV (KBounded True 32) (CInteger 100))
                                    ]
@@ -117,7 +117,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                      [ def "a" $ const 800 4 ]
           endNode = bbp callerCtx "endNode"
                      [ def "b" $ const 200 4 ]
-          cfg = mkCfg rootNode [ endNode ]
+          cfg = mkCfg 0 rootNode [ endNode ]
                 [ CfEdge rootNode endNode Cfg.UnconditionalBranch ]
           rvars = HashMap.fromList
             [ ("a", CV (KBounded False 32) (CInteger 800))
@@ -131,7 +131,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                      [ branchCond $ cmpE (var "a" 4) (const 800 4) 4]
           trueNode = bbp callerCtx "trueNode"
                      [ def "b" $ const 200 4 ]
-          cfg = mkCfg rootNode [ trueNode ]
+          cfg = mkCfg 0 rootNode [ trueNode ]
                 [ CfEdge rootNode trueNode Cfg.TrueBranch ]
           rvars = HashMap.fromList
             [ ("a", CV (KBounded False 32) (CInteger 800))
@@ -145,7 +145,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                      [ branchCond $ cmpNE (var "a" 4) (const 800 4) 4]
           falseNode = bbp callerCtx "falseNode"
                      [ def "b" $ const 200 4 ]
-          cfg = mkCfg rootNode [ falseNode ]
+          cfg = mkCfg 0 rootNode [ falseNode ]
                 [ CfEdge rootNode falseNode Cfg.FalseBranch ]
           rvars = HashMap.fromList
             [ ("a", CV (KBounded False 32) (CInteger 800))
@@ -161,7 +161,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           falseNode = bbp callerCtx "falseNode" []
           endNode = bbp callerCtx "endNode"
                     [ constraint $ cmpE (var "a" 4) (const 800 4) 4 ]
-          cfg = mkCfg rootNode [ trueNode, falseNode, endNode ]
+          cfg = mkCfg 0 rootNode [ trueNode, falseNode, endNode ]
                 [ CfEdge rootNode falseNode Cfg.FalseBranch
                 , CfEdge rootNode trueNode Cfg.TrueBranch
                 , CfEdge trueNode endNode Cfg.UnconditionalBranch
@@ -186,7 +186,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                       , constraint c
                       ]
 
-          cfg end' = mkCfg rootNode [ trueNode, falseNode, end' ]
+          cfg end' = mkCfg 0 rootNode [ trueNode, falseNode, end' ]
                    [ CfEdge rootNode falseNode Cfg.FalseBranch
                    , CfEdge rootNode trueNode Cfg.TrueBranch
                    , CfEdge falseNode end' Cfg.UnconditionalBranch
@@ -222,7 +222,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                     , constraint $ cmpE (var "b1" 4) (const 901 4) 4
                     ]
 
-          cfg = mkCfg rootNode [ trueNode, falseNode, endNode ]
+          cfg = mkCfg 0 rootNode [ trueNode, falseNode, endNode ]
                    [ CfEdge rootNode loopStart Cfg.UnconditionalBranch
                    , CfEdge loopStart falseNode Cfg.FalseBranch
                    , CfEdge loopStart trueNode Cfg.TrueBranch
@@ -254,7 +254,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                     , constraint $ cmpE (var "a" 4) (const 900 4) 4
                     ]
 
-          cfg = mkCfg rootNode [ trueNode, falseNode, endNode ]
+          cfg = mkCfg 0 rootNode [ trueNode, falseNode, endNode ]
                 [ CfEdge rootNode falseNode Cfg.FalseBranch
                 , CfEdge rootNode trueNode Cfg.TrueBranch
                 , CfEdge falseNode endNode Cfg.UnconditionalBranch
@@ -277,7 +277,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           endNode = bbp callerCtx "endNode"
                     [ constraint $ cmpE (var "a" 4) (const 400 4) 4 ]
 
-          cfg = mkCfg rootNode [ trueNode1
+          cfg = mkCfg 0 rootNode [ trueNode1
                                , falseNode1
                                , trueNode1
                                , joinNode1
@@ -311,7 +311,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           endNode = bbp callerCtx "endNode"
                     [ constraint $ cmpE (var "a" 4) (const 400 4) 4 ]
 
-          cfg = mkCfg rootNode [ trueNode1
+          cfg = mkCfg 0 rootNode [ trueNode1
                                , falseNode1
                                , trueNode1
                                , joinNode1
@@ -346,7 +346,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           trueNode2 = bbp callerCtx "trueNode2" []
           endNode = bbp callerCtx "endNode" []
 
-          cfg = mkCfg rootNode [ trueNode1
+          cfg = mkCfg 0 rootNode [ trueNode1
                                , falseNode1
                                , trueNode1
                                , joinNode1
@@ -381,7 +381,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                     , constraint $ cmpE (var "a" 4) (const 900 4) 4
                     ]
 
-          cfg = mkCfg rootNode [ trueNode, falseNode, endNode ]
+          cfg = mkCfg 0 rootNode [ trueNode, falseNode, endNode ]
                 [ CfEdge rootNode falseNode Cfg.FalseBranch
                 , CfEdge rootNode trueNode Cfg.TrueBranch
                 , CfEdge falseNode endNode Cfg.UnconditionalBranch
@@ -391,7 +391,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           endNode' = bbp callerCtx "endNode"
                     [ constraint $ cmpE (var "a" 4) (const 900 4) 4 ]
 
-          rcfg = mkCfg rootNode [ falseNode, endNode' ]
+          rcfg = mkCfg 0 rootNode [ falseNode, endNode' ]
                  [ CfEdge rootNode falseNode Cfg.FalseBranch
                  , CfEdge falseNode endNode' Cfg.UnconditionalBranch
                  ]
@@ -411,7 +411,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                     , constraint $ cmpE (var "a" 4) (const 900 4) 4
                     ]
 
-          cfg = mkCfg rootNode [ trueNode, falseNode, endNode ]
+          cfg = mkCfg 0 rootNode [ trueNode, falseNode, endNode ]
                 [ CfEdge rootNode falseNode Cfg.FalseBranch
                 , CfEdge rootNode trueNode Cfg.TrueBranch
                 , CfEdge falseNode endNode Cfg.UnconditionalBranch
@@ -421,7 +421,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           endNode' = bbp callerCtx "endNode"
                     [ constraint $ cmpE (var "a" 4) (const 900 4) 4 ]
 
-          rcfg = mkCfg rootNode [ falseNode, endNode' ]
+          rcfg = mkCfg 0 rootNode [ falseNode, endNode' ]
                  [ CfEdge rootNode falseNode Cfg.FalseBranch
                  , CfEdge falseNode endNode' Cfg.UnconditionalBranch
                  ]
@@ -451,7 +451,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                     , constraint $ cmpE (var "a" 4) (const 500 4) 4
                     ]
 
-          cfg = mkCfg rootNode [ trueNode1
+          cfg = mkCfg 0 rootNode [ trueNode1
                                , falseNode1
                                , joinNode1
                                , trueNode2
@@ -482,7 +482,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           endNode' = bbp callerCtx "endNode"
                     [ constraint $ cmpE (var "a" 4) (const 500 4) 4 ]
 
-          rcfg = mkCfg rootNode [ falseNode1'
+          rcfg = mkCfg 0 rootNode [ falseNode1'
                                 , joinNode1'
                                 , falseNode2'
                                 , endNode'
@@ -518,7 +518,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
     --                 [ defPhi "c" ["c1", "c2"]
     --                 ]
 
-    --       cfg = mkCfg rootNode [ -- trueNode1
+    --       cfg = mkCfg 0 rootNode [ -- trueNode1
     --                              falseNode1
     --                            , joinNode1
     --                            , trueNode2
@@ -549,7 +549,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
     --       endNode' = bbp callerCtx "endNode"
     --                 [ constraint $ cmpE (var "a" 4) (const 500 4) 4 ]
 
-    --       rcfg = mkCfg rootNode [ falseNode1'
+    --       rcfg = mkCfg 0 rootNode [ falseNode1'
     --                             , joinNode1'
     --                             , falseNode2'
     --                             , endNode'
