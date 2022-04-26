@@ -34,7 +34,6 @@ dependencies:
   - data-binary-ieee754
   - directory
   - dlist
-  - dom-lt
   - envy
   - extra
   - generic-lens

@@ -18,8 +18,6 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph as Exports hiding (edge, label, src, dst)
 import qualified Data.HashSet as HashSet
 import qualified Data.IntMap.Strict as Im
-import qualified Data.IntSet as IntSet
-import qualified Data.Graph.Dom as Dlt
 import qualified Data.HashMap.Strict as HashMap
 
 type F = MLILSSAFunction
@@ -122,74 +120,6 @@ buildNodeMap =
 -- buildNodeMap' rootNode =
 --   Im.fromList . zip [0 ..] . reachable rootNode
 
-buildAdjMap :: [Dlt.Node] -> [Dlt.Edge] -> IntMap [Dlt.Node]
-buildAdjMap ns =
-  foldl' mergeEdges initialAdjMap
- where
-  initialAdjMap :: IntMap [Dlt.Node]
-  initialAdjMap = Im.fromList $ (,[]) <$> ns
-  mergeEdges :: IntMap [Dlt.Node] -> Dlt.Edge -> IntMap [Dlt.Node]
-  mergeEdges acc e =
-    Im.adjust (snd e :) (fst e) acc
-
-{- | Build a graph for use with Data.Graph.Dom for finding dominators
-  and post-dominators.
-  Note that we use unchecked HashMap lookups (!) as we know the
-  entries must be present. That is, we know there is a corresponding
-  Int for every CfNode.
--}
-buildDltGraph
-  :: forall e attr a g.
-  (Hashable a, Eq a, Graph e attr a g)
-  => a
-  -> g
-  -> DltMap a
-  -> Dlt.Rooted
-buildDltGraph rootNode g dltMap =
-  -- NB: Must use 'fromAdj' since 'fromEdges' will not include nodes
-  -- that don't have outgoing edges.
-  (cfMap HashMap.! rootNode, Dlt.fromAdj dltAdj)
-  where
-    cfMap :: CfMap a
-    cfMap = HashMap.fromList $ swap <$> Im.assocs dltMap
-    dltNodes :: [Dlt.Node]
-    dltNodes = (cfMap HashMap.!) <$> (HashSet.toList . nodes $ g)
-    dltEdges :: [Dlt.Edge]
-    dltEdges = do
-      (LEdge _ (Edge src' dst')) <- edges g
-      return (cfMap HashMap.! src', cfMap HashMap.! dst')
-    dltAdj :: [(Dlt.Node, [Dlt.Node])]
-    dltAdj = Im.toList $ buildAdjMap dltNodes dltEdges
-
--- | Convert a Blaze CFG to a dom-lt flow graph
-dltGraphFromGraph
-  :: forall e attr a g.
-  (Hashable a, Eq a, Graph e attr a g)
-  => a
-  -> g
-  -> (Dlt.Rooted, DltMap a)
-dltGraphFromGraph rootNode g =
-  (buildDltGraph rootNode g dltMap, dltMap)
- where
-  dltMap :: DltMap a
-  dltMap = buildNodeMap g
-
-domHelper
-  :: forall e attr a g.
-  (Hashable a, Eq a, Graph e attr a g)
-  => (Dlt.Rooted -> [(Dlt.Node, Dlt.Path)])
-  -> a
-  -> g
-  -> HashMap a (HashSet a)
-domHelper f rootNode g =
-  HashMap.fromList . ((HashSet.fromList <$>) <$>) $ domList
- where
-  dltRooted :: Dlt.Rooted
-  dltMap :: DltMap a
-  (dltRooted, dltMap) = dltGraphFromGraph rootNode g
-  domList :: [(a, [a])]
-  domList = bimap (dltMap Im.!) ((dltMap Im.!) <$>) <$> f dltRooted
-
 {- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
  to find dominators. The result is converted back to CfNodes before being returned.
  Per dom-lt, the complexity is:
@@ -258,58 +188,3 @@ getPostDominators dummyTermNode dummyTermEdgeLabel g =
       $ foldl' (flip f) g xs
       where
         f x = G.addEdge (G.LEdge dummyTermEdgeLabel $ G.Edge x dummyTermNode)
-
-
-test :: Dlt.Rooted
-test = ( 15,
-         Im.fromList
-         [ (0,IntSet.fromList [12])
-         , (1,IntSet.fromList [3])
-         , (2,IntSet.fromList [1,11])
-         , (3,IntSet.fromList [20])
-         , (4,IntSet.fromList [3])
-         , (5,IntSet.fromList [8])
-         , (6,IntSet.fromList [21])
-         , (7,IntSet.fromList [2,13])
-         , (8,IntSet.fromList [7,18])
-         , (9,IntSet.fromList [20])
-         , (10,IntSet.fromList [5])
-         , (11,IntSet.fromList [4,14])
-         , (12,IntSet.fromList [17])
-         , (13,IntSet.fromList [3])
-         , (14,IntSet.fromList [9,16])
-         , (15,IntSet.fromList [6])
-         , (16,IntSet.fromList [3])
-         , (17,IntSet.fromList [10])
-         , (18,IntSet.fromList [19])
-         , (19,IntSet.fromList [3])
-         , (20,IntSet.fromList [])
-         , (21,IntSet.fromList [0])
-         ])
-
-test2 :: Dlt.Rooted
-test2 = ( 20,
-         Im.fromList
-         [ (0,IntSet.fromList [12])
-         , (1,IntSet.fromList [3])
-         , (2,IntSet.fromList [1,11])
-         , (3,IntSet.fromList [20])
-         , (4,IntSet.fromList [3])
-         , (5,IntSet.fromList [8])
-         , (6,IntSet.fromList [21])
-         , (7,IntSet.fromList [2,13])
-         , (8,IntSet.fromList [7,18])
-         , (9,IntSet.fromList [20])
-         , (10,IntSet.fromList [5])
-         , (11,IntSet.fromList [4,14])
-         , (12,IntSet.fromList [17])
-         , (13,IntSet.fromList [3])
-         , (14,IntSet.fromList [9,16])
-         , (15,IntSet.fromList [6])
-         , (16,IntSet.fromList [3])
-         , (17,IntSet.fromList [10])
-         , (18,IntSet.fromList [19])
-         , (19,IntSet.fromList [3])
-         , (20,IntSet.fromList [])
-         , (21,IntSet.fromList [0])
-         ])
