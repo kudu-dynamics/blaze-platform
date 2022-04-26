@@ -1,9 +1,11 @@
-resolver: lts-18.18
-compiler: ghc-8.10.7
+resolver: lts-19.5
+compiler: ghc-9.0.2
 
 packages:
-- .
-- binja-header-cleaner
+  - .
+  - binja-header-cleaner
 
 extra-deps:
-- ../binary-analysis
+  - ../binary-analysis
+  - git: https://github.com/protolude/protolude
+    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
