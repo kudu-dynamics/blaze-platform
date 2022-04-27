@@ -18,7 +18,7 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Prelude hiding (pred, succ)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest, CtxId)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Common (Ctx)
 import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
@@ -229,13 +229,21 @@ asAttrTuple x = (asIdNode x, x)
 data Cfg a = Cfg
   { graph :: ControlFlowGraph a
   , root :: CfNode a
+  -- CtxIds are incremental, and this is the Id that should be used the next time
+  -- a new Ctx is needed (ie for expanding a function call in Interprocedural module).
+  -- After it is used, this should be incremented.
+  , nextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic)
+
+incNextCtxIndex :: Cfg a -> Cfg a
+incNextCtxIndex = over #nextCtxIndex (+1)
 
 instance Functor Cfg where
   fmap f cfg = Cfg
     { graph = G.mapAttrs (fmap f) $ cfg ^. #graph
     , root = f <$> (cfg ^. #root)
+    , nextCtxIndex = cfg ^. #nextCtxIndex
     }
 
 instance Foldable Cfg where
@@ -245,6 +253,7 @@ instance Traversable Cfg where
   traverse f cfg = Cfg
     <$> G.traverseAttrs (traverse f) (cfg ^. #graph)
     <*> traverse f (cfg ^. #root)
+    <*> pure (cfg ^. #nextCtxIndex)
 
 instance Hashable a => Hashable (Cfg a) where
   hashWithSalt n = hashWithSalt n . toTransport
@@ -257,11 +266,12 @@ instance (Eq a, Hashable a, FromJSON a) => FromJSON (Cfg a) where
  parseJSON = fmap fromTransport . parseJSON
 
 
-mkCfg :: forall a. (Hashable a, Eq a) => CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
-mkCfg root' rest es =
+mkCfg :: forall a. (Hashable a, Eq a) => CtxId -> CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
+mkCfg nextCtxIndex_ root_ rest es =
   Cfg
-    { graph = mkControlFlowGraph root' rest es
-    , root = root'
+    { graph = mkControlFlowGraph root_ rest es
+    , root = root_
+    , nextCtxIndex = nextCtxIndex_
     }
 
 edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
@@ -548,6 +558,7 @@ mapAttrs :: (a -> b) -> Cfg a -> Cfg b
 mapAttrs f cfg = Cfg
   { root = fmap f $ cfg ^. #root
   , graph = G.mapAttrs (fmap f) $ cfg ^. #graph
+  , nextCtxIndex = cfg ^. #nextCtxIndex
   }
 
 -- | Traverses monadic action over Cfg attrs.
@@ -566,6 +577,7 @@ traverseAttrs f cfg = do
                          . G.fromEdges
                          . G.edges
                          $ cfg ^. #graph
+               , nextCtxIndex = cfg ^. #nextCtxIndex
                }
   where
     rootId = asIdNode $ cfg ^. #root
@@ -600,6 +612,7 @@ data CfgTransport a = CfgTransport
   { transportEdges :: [CfEdge ()]
   , transportRoot :: CfNode ()
   , transportNodes :: [(CfNode (), CfNode a)]
+  , transportNextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Functor, Foldable, Traversable)
   deriving anyclass (Hashable)
@@ -609,6 +622,7 @@ toTransport pcfg = CfgTransport
   { transportEdges = edges'
   , transportRoot = root'
   , transportNodes = nodes'
+  , transportNextCtxIndex = pcfg ^. #nextCtxIndex
   }
   where
     root' = void $ pcfg ^. #root
@@ -620,7 +634,7 @@ toTransport pcfg = CfgTransport
     edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
 
 fromTransport :: (Eq a, Hashable a) => CfgTransport a -> Cfg a
-fromTransport t = mkCfg root' nodes' edges'
+fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
   where
     nodeMap = HashMap.fromList $ t ^. #transportNodes
 

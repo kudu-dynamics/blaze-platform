@@ -10,7 +10,7 @@ import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg hiding (nodes)
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Pil (BranchCondOp, Expression, Statement (Exit, NoRet), Stmt, Ctx)
+import Blaze.Types.Pil (BranchCondOp, Expression, PilVar, Statement (Exit, NoRet), Stmt, Ctx)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import Control.Lens (set)
@@ -21,7 +21,7 @@ import qualified Data.HashSet as HSet
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as Bimap
 import Blaze.Pil.Analysis (getVarsFromExpr)
-
+import qualified Blaze.Pil.Analysis as PilA
 
 {- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
  to find dominators. The result is converted back to CfNodes before being returned.
@@ -196,9 +196,9 @@ getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode
 -- | Substitute a node with another CFG.
 substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
 substNode
-  outerCfg@(Cfg _ outerRoot)
+  outerCfg@(Cfg _ outerRoot _)
   node
-  innerCfg@(Cfg _ innerRoot)
+  innerCfg@(Cfg _ innerRoot _)
   exitNode' =
     -- Check if the node we are substituting is the outer CFG's root
     if asIdNode outerRoot /= asIdNode node
@@ -237,7 +237,11 @@ nodeCtxs :: CfNode [Stmt] -> HashSet Ctx
 nodeCtxs = foldMap (foldMap stmtCtxs)
 
 getCtxIndices :: PilCfg -> Bimap Int Ctx
-getCtxIndices cfg = Bimap.fromList $ zip [0..] ctxs
+getCtxIndices cfg = Bimap.fromList . fmap asTupleCtx $ ctxs
   where
-    ctxs = sortUnique . foldMap nodeCtxs . G.nodes $ cfg
-    sortUnique = sort . HSet.toList
+    asTupleCtx :: Ctx -> (Int, Ctx)
+    asTupleCtx ctx' = (fromIntegral $ ctx' ^. #ctxId, ctx')
+    ctxs = HSet.toList . foldMap nodeCtxs . G.nodes $ cfg
+
+substVars :: (PilVar -> PilVar) -> Cfg [Stmt] -> Cfg [Stmt]
+substVars f = mapAttrs $ PilA.substVars f

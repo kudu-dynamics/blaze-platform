@@ -10,15 +10,18 @@ import qualified Blaze.Cfg.Analysis as CfgA
 import Blaze.Function (Function (Function))
 import Blaze.Prelude hiding (const)
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
-import Blaze.Util.Spec (bb, mkUuid1)
+import Blaze.Types.Pil (Ctx (Ctx), CtxId)
+import Blaze.Util.Spec (bb)
 import Test.Hspec hiding (focus)
 import Blaze.Pil.Construct
 import qualified Data.HashSet as HashSet
 
 
+fooCurrentCtxId :: CtxId
+fooCurrentCtxId = 0
+
 fooCtx :: Ctx
-fooCtx = Ctx func . CtxId $ mkUuid1 (0 :: Int)
+fooCtx = Ctx func fooCurrentCtxId
   where
     func = Function Nothing "foo" 0x00 []
 
@@ -34,7 +37,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
             x = fromIntegral $ hash name
 
     it "should remove single empty node" $ do
-      let input = mkCfg
+      let input = mkCfg 0
             (bbnn "root" 4)
             [ bbnn "a" 0
             , bbnn "terminal" 3
@@ -48,7 +51,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               (bbnn "terminal" 3)
               UnconditionalBranch
             ]
-          expected = mkCfg
+          expected = mkCfg 0
             (bbnn "root" 4)
             [ bbnn "terminal" 3
             ]
@@ -64,7 +67,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
 
 
     it "should remove two empty nodes in series" $ do
-      let input = mkCfg
+      let input = mkCfg 0
             (bbnn "root" 4)
             [ bbnn "a" 0
             , bbnn "b" 0
@@ -84,7 +87,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               UnconditionalBranch
             ]
 
-          expected = mkCfg
+          expected = mkCfg 0
             (bbnn "root" 4)
             [ bbnn "terminal" 3
             ]
@@ -100,7 +103,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
 
 
     it "should remove two empty nodes in parallel" $ do
-      let input = mkCfg
+      let input = mkCfg 0
             (bbnn "root" 4)
             [ bbnn "a" 0
             , bbnn "b" 0
@@ -124,7 +127,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               UnconditionalBranch
             ]
 
-          expected = mkCfg
+          expected = mkCfg 0
             (bbnn "root" 4)
             [ bbnn "terminal" 3
             ]
@@ -158,7 +161,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , def "zz" (const 6 4)
               ]
           input =
-            mkCfg
+            mkCfg 0
               root
               [mid, end]
               [ CfEdge root mid UnconditionalBranch
@@ -226,7 +229,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               6
               [ret $ var "y#1" 4]
           input =
-            mkCfg
+            mkCfg 0
               root
               [midLeft, midRight, end]
               [ CfEdge root midLeft TrueBranch
@@ -235,7 +238,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , CfEdge midRight end UnconditionalBranch
               ]
           output =
-            mkCfg
+            mkCfg 0
               root'
               [midLeft', end']
               [ CfEdge root' midLeft' TrueBranch
@@ -265,7 +268,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               6
               [ ret $ var "y" 4 ]
           input =
-            mkCfg
+            mkCfg 0
               root
               [midLeft, end]
               [ CfEdge root midLeft TrueBranch
@@ -273,7 +276,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , CfEdge midLeft end UnconditionalBranch
               ]
           output =
-            mkCfg
+            mkCfg 0
               root
               [midLeft, end]
               [ CfEdge root midLeft TrueBranch
@@ -345,7 +348,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , ret $ var "r" 4
               ]
           input =
-            mkCfg
+            mkCfg 0
               root
               [midLeft, midRight, end]
               [ CfEdge root midLeft TrueBranch
@@ -354,7 +357,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , CfEdge midRight end UnconditionalBranch
               ]
           output =
-            mkCfg
+            mkCfg 0
               root'
               [midLeft', midRight', end']
               [ CfEdge root' midLeft' TrueBranch
@@ -362,6 +365,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , CfEdge midLeft' end' UnconditionalBranch
               , CfEdge midRight' end' UnconditionalBranch
               ]
+
       PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
     it "should constant prop" $ do
@@ -389,13 +393,13 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               ]
 
           input =
-            mkCfg
+            mkCfg 0
               root
               [end]
               [ CfEdge root end UnconditionalBranch
               ]
           output =
-            mkCfg
+            mkCfg 0
               root
               [end']
               [ CfEdge root end' UnconditionalBranch
@@ -445,7 +449,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               ]
 
           input =
-            mkCfg
+            mkCfg 0
               root
               [midTrue, midFalse, end]
               [ CfEdge root midTrue TrueBranch
@@ -454,7 +458,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , CfEdge midTrue end UnconditionalBranch
               ]
           output =
-            mkCfg
+            mkCfg 0
               root'
               [midTrue, end]
               [ CfEdge root' midTrue TrueBranch
@@ -503,7 +507,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               ]
 
           input =
-            mkCfg
+            mkCfg 0
               root
               [midTrue, end]
               [ CfEdge root midTrue TrueBranch
@@ -512,7 +516,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , CfEdge midTrue end UnconditionalBranch
               ]
           output =
-            mkCfg
+            mkCfg 0
               root
               [midTrue, end']
               [ CfEdge root midTrue TrueBranch

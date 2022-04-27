@@ -15,7 +15,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Function (Function (Function))
 import qualified Blaze.Function as Func
 import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
+import Blaze.Types.Pil (Ctx (Ctx), Symbol)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Data.HashMap.Strict as HashMap
@@ -74,10 +74,10 @@ targetFunc = Function
   }
 
 callerCtx :: Ctx
-callerCtx = Ctx callerFunc . CtxId $ mkUuid1 (1 :: Int)
+callerCtx = Ctx callerFunc 0
 
 targetCtx :: Ctx
-targetCtx = Ctx targetFunc . CtxId $ mkUuid1 (2 :: Int)
+targetCtx = Ctx targetFunc 1
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver" $ do
@@ -91,7 +91,7 @@ spec = describe "Blaze.Cfg.Solver" $ do
       let rootNode = bbp callerCtx "root"
                      [ def "x" $ sx (const 888 4) 4
                      , def "a" $ sub (var "x" 4) (const 999 4) 4]
-          cfg = mkCfg rootNode [] []
+          cfg = mkCfg 0 rootNode [] []
           rvars = [ ("x", DSType (TInt (bw 32) signed))
                   , ("a", DSType (TInt (bw 32) signed))]
 
@@ -106,7 +106,7 @@ spec = describe "Blaze.Cfg.Solver" $ do
                        [ def "c" $ add (var "a" 4) (var "b" 4) 4
                        , ret $ var "c" 4
                        ]
-          cfg = mkCfg rootNode
+          cfg = mkCfg 0 rootNode
                 [ middleNode, returnNode ]
                 [ CfEdge rootNode middleNode Cfg.UnconditionalBranch
                 , CfEdge middleNode returnNode Cfg.UnconditionalBranch

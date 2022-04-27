@@ -20,8 +20,9 @@ data BuilderState a = BuilderState
   {
   -- | Presumably using a CfgImporter instance, provide a import result with a
   -- PIL CFG given a function
-    getCfg :: Function -> IO (Maybe (ImportResult PilCfg a))
+    getCfg :: Function -> CtxId -> IO (Maybe (ImportResult PilCfg a))
   -- |A mapping from context IDs to CFG nodes which indicate the import source locations of the nodes
+  -- |A mapping from UUIDs to a map that maps CFG nodes to import source locations
   , importMap :: HashMap CtxId a
   }
   deriving (Generic)

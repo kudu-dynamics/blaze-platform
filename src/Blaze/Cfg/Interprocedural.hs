@@ -99,6 +99,7 @@ expandCall ::
   PilCfg ->
   PilCallNode ->
   Function ->
+
   Builder a (Either ExpandCallError PilCfg)
 expandCall callerCfg callNode targetFunc = do
   getCfg_ <- use #getCfg
@@ -109,16 +110,16 @@ expandCall callerCfg callNode targetFunc = do
         getCallStmt callNode
     (ImportResult targetCtx targetCfg _) <-
       liftMaybeIO (FailedToCreateCfg targetFunc) $
-        getCfg_ targetFunc
+        getCfg_ targetFunc (callerCfg ^. #nextCtxIndex)
     leaveFuncUUID <- liftIO randomIO
-    return $
-      expandCall_
-        callerCfg
-        callNode
-        callStmt
-        targetCfg
-        targetCtx
-        leaveFuncUUID
+
+    return . Cfg.incNextCtxIndex $ expandCall_
+      icallerCfg
+      callNode
+      callStmt
+      (InterCfg targetCfg)
+      targetCtx
+      leaveFuncUUID
 
 expandCall_ ::
   PilCfg ->

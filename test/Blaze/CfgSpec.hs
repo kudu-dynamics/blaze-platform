@@ -7,12 +7,12 @@ import Blaze.Cfg hiding (func, BasicBlockNode(ctx), CallNode(ctx))
 import qualified Blaze.Cfg as Cfg
 import Blaze.Prelude
 import Test.Hspec
-import Blaze.Types.Pil (Ctx(Ctx), CtxId(CtxId))
-import Blaze.Util.Spec (bb, mkUuid1)
+import Blaze.Types.Pil (Ctx(Ctx))
+import Blaze.Util.Spec (bb)
 
 
 ctx :: Ctx
-ctx = Ctx func . CtxId $ mkUuid1 (0 :: Int)
+ctx = Ctx func 0
   where
     func = Function Nothing "foo" 0x00 []
 
@@ -22,7 +22,7 @@ bbn name = bb ctx x x name
     x = fromIntegral $ hash name
 
 simpleCfg :: Cfg Text
-simpleCfg = mkCfg
+simpleCfg = mkCfg 0
   (bbn "root")
   [ bbn "goto"
   , bbn "if node"
@@ -63,7 +63,7 @@ simpleCfg = mkCfg
   
 cfgWithSimpleLoop :: Cfg ()
 cfgWithSimpleLoop =
-  mkCfg
+  mkCfg 0
     (bb ctx 0x00 0x0F ())
     [ bb ctx 0x10 0x1F ()
     , bb ctx 0x20 0x2F ()
@@ -105,7 +105,7 @@ spec :: Spec
 spec = describe "Blaze.Cfg" $ do
   context "Cfg Graph API" $ do
     it "should remove node and attached edges" $ do
-      let expected = mkCfg
+      let expected = mkCfg 0
             (bbn "root")
             [ bbn "if node"
             , bbn "true node"
@@ -138,7 +138,7 @@ spec = describe "Blaze.Cfg" $ do
 
   context "removeAndRebindEdges" $ do
     it "should remove node and rebind edges" $ do
-      let expected = mkCfg
+      let expected = mkCfg 0
             (bbn "root")
             [ bbn "if node"
             , bbn "true node"
@@ -176,7 +176,7 @@ spec = describe "Blaze.Cfg" $ do
         expected
 
     it "should rebind node with pred->node edge branch label" $ do
-      let inputCfg = mkCfg
+      let inputCfg = mkCfg 0
             (bbn "root")
             [ bbn "goto"
             , bbn "terminal"
@@ -190,7 +190,7 @@ spec = describe "Blaze.Cfg" $ do
               (bbn "Terminal")
               UnconditionalBranch
             ]
-          expected = mkCfg
+          expected = mkCfg 0
             (bbn "root")
             [ bbn "terminal" ]
             [ CfEdge
