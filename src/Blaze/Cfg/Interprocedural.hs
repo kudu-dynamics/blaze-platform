@@ -114,10 +114,10 @@ expandCall callerCfg callNode targetFunc = do
     leaveFuncUUID <- liftIO randomIO
 
     return . Cfg.incNextCtxIndex $ expandCall_
-      icallerCfg
+      callerCfg
       callNode
       callStmt
-      (InterCfg targetCfg)
+      targetCfg
       targetCtx
       leaveFuncUUID
 

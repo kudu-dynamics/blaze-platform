@@ -17,7 +17,6 @@ import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Blaze.Cfg.Interprocedural as ICfg
-import Blaze.Cfg.Interprocedural (InterCfg(InterCfg), liftInter)
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Test.Hspec
 
@@ -140,7 +139,7 @@ leaveFuncUUID :: UUID
         , C.def' arg2 (C.var "b1" 8)
         ]
 
-    leaveFuncUUID' = mkUuid1 (88 :: Int)    
+    leaveFuncUUID' = mkUuid1 (88 :: Int)
     leaveFuncNode3 = Cfg.LeaveFunc
       $ Cfg.LeaveFuncNode targetCtx callerCtx leaveFuncUUID'
         [ Pil.Def $ Pil.DefOp retVar0 (C.var "r2" 8)
@@ -226,7 +225,7 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
       PrettyShow' result `shouldBe` PrettyShow' expected
 
   context "ExpandCall" $ do
-    let expanded = liftInter Cfg.incNextCtxIndex
-          $ ICfg.expandCall_ (InterCfg callerCfg) callNode callStmt (InterCfg targetCfg) targetCtx leaveFuncUUID
+    let expanded = Cfg.incNextCtxIndex
+          $ ICfg.expandCall_ callerCfg callNode callStmt targetCfg targetCtx leaveFuncUUID
     it "should expand a call" $ do
-      PrettyShow' expanded `shouldBe` PrettyShow' (InterCfg expandedCfg)
+      PrettyShow' expanded `shouldBe` PrettyShow' expandedCfg
