@@ -15,7 +15,6 @@ import Blaze.Util.Spec (bb)
 import Test.Hspec hiding (focus)
 import Blaze.Pil.Construct
 import qualified Data.HashSet as HashSet
-import Blaze.Cfg.Interprocedural (InterCfg(InterCfg))
 
 
 fooCurrentCtxId :: CtxId
@@ -137,7 +136,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               (bbnn "terminal" 3)
               UnconditionalBranch
             ]
-      
+
       PrettyShow' (removeEmptyBasicBlockNodes input)
         `shouldBe`
         PrettyShow' expected
@@ -162,13 +161,12 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , def "zz" (const 6 4)
               ]
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [mid, end]
-                [ CfEdge root mid UnconditionalBranch
-                , CfEdge mid end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [mid, end]
+              [ CfEdge root mid UnconditionalBranch
+              , CfEdge mid end UnconditionalBranch
+              ]
       HashSet.fromList
         [ def "x" (const 42 4)
         , def "y" (add (var "x" 4) (const 10 4) 4)
@@ -231,23 +229,21 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               6
               [ret $ var "y#1" 4]
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [midLeft, midRight, end]
-                [ CfEdge root midLeft TrueBranch
-                , CfEdge root midRight FalseBranch
-                , CfEdge midLeft end UnconditionalBranch
-                , CfEdge midRight end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midLeft, midRight, end]
+              [ CfEdge root midLeft TrueBranch
+              , CfEdge root midRight FalseBranch
+              , CfEdge midLeft end UnconditionalBranch
+              , CfEdge midRight end UnconditionalBranch
+              ]
           output =
-            InterCfg $
-              mkCfg 0
-                root'
-                [midLeft', end']
-                [ CfEdge root' midLeft' TrueBranch
-                , CfEdge midLeft' end' UnconditionalBranch
-                ]
+            mkCfg 0
+              root'
+              [midLeft', end']
+              [ CfEdge root' midLeft' TrueBranch
+              , CfEdge midLeft' end' UnconditionalBranch
+              ]
 
       PrettyShow' (focus midLeft input) `shouldBe` PrettyShow' output
 
@@ -272,22 +268,20 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               6
               [ ret $ var "y" 4 ]
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [midLeft, end]
-                [ CfEdge root midLeft TrueBranch
-                , CfEdge root end FalseBranch
-                , CfEdge midLeft end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midLeft, end]
+              [ CfEdge root midLeft TrueBranch
+              , CfEdge root end FalseBranch
+              , CfEdge midLeft end UnconditionalBranch
+              ]
           output =
-            InterCfg $
-              mkCfg 0
-                root
-                [midLeft, end]
-                [ CfEdge root midLeft TrueBranch
-                , CfEdge midLeft end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midLeft, end]
+              [ CfEdge root midLeft TrueBranch
+              , CfEdge midLeft end UnconditionalBranch
+              ]
 
       PrettyShow' (focus midLeft input) `shouldBe` PrettyShow' output
 
@@ -354,25 +348,24 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               , ret $ var "r" 4
               ]
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [midLeft, midRight, end]
-                [ CfEdge root midLeft TrueBranch
-                , CfEdge root midRight FalseBranch
-                , CfEdge midLeft end UnconditionalBranch
-                , CfEdge midRight end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midLeft, midRight, end]
+              [ CfEdge root midLeft TrueBranch
+              , CfEdge root midRight FalseBranch
+              , CfEdge midLeft end UnconditionalBranch
+              , CfEdge midRight end UnconditionalBranch
+              ]
           output =
-            InterCfg $
-              mkCfg 0
-                root'
-                [midLeft', midRight', end']
-                [ CfEdge root' midLeft' TrueBranch
-                , CfEdge root' midRight' FalseBranch
-                , CfEdge midLeft' end' UnconditionalBranch
-                , CfEdge midRight' end' UnconditionalBranch
-                ]
+            mkCfg 0
+              root'
+              [midLeft', midRight', end']
+              [ CfEdge root' midLeft' TrueBranch
+              , CfEdge root' midRight' FalseBranch
+              , CfEdge midLeft' end' UnconditionalBranch
+              , CfEdge midRight' end' UnconditionalBranch
+              ]
+
       PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
     it "should constant prop" $ do
@@ -400,19 +393,17 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               ]
 
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [end]
-                [ CfEdge root end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [end]
+              [ CfEdge root end UnconditionalBranch
+              ]
           output =
-            InterCfg $
-              mkCfg 0
-                root
-                [end']
-                [ CfEdge root end' UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [end']
+              [ CfEdge root end' UnconditionalBranch
+              ]
 
       PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
@@ -458,23 +449,21 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               ]
 
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [midTrue, midFalse, end]
-                [ CfEdge root midTrue TrueBranch
-                , CfEdge root midFalse FalseBranch
-                , CfEdge midFalse end UnconditionalBranch
-                , CfEdge midTrue end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midTrue, midFalse, end]
+              [ CfEdge root midTrue TrueBranch
+              , CfEdge root midFalse FalseBranch
+              , CfEdge midFalse end UnconditionalBranch
+              , CfEdge midTrue end UnconditionalBranch
+              ]
           output =
-            InterCfg $
-              mkCfg 0
-                root'
-                [midTrue, end]
-                [ CfEdge root' midTrue TrueBranch
-                , CfEdge midTrue end UnconditionalBranch
-                ]
+            mkCfg 0
+              root'
+              [midTrue, end]
+              [ CfEdge root' midTrue TrueBranch
+              , CfEdge midTrue end UnconditionalBranch
+              ]
 
       PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output
 
@@ -518,22 +507,20 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               ]
 
           input =
-            InterCfg $
-              mkCfg 0
-                root
-                [midTrue, end]
-                [ CfEdge root midTrue TrueBranch
-                , CfEdge root midFalse FalseBranch
-                , CfEdge midFalse end UnconditionalBranch
-                , CfEdge midTrue end UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midTrue, end]
+              [ CfEdge root midTrue TrueBranch
+              , CfEdge root midFalse FalseBranch
+              , CfEdge midFalse end UnconditionalBranch
+              , CfEdge midTrue end UnconditionalBranch
+              ]
           output =
-            InterCfg $
-              mkCfg 0
-                root
-                [midTrue, end']
-                [ CfEdge root midTrue TrueBranch
-                , CfEdge midTrue end' UnconditionalBranch
-                ]
+            mkCfg 0
+              root
+              [midTrue, end']
+              [ CfEdge root midTrue TrueBranch
+              , CfEdge midTrue end' UnconditionalBranch
+              ]
 
       PrettyShow' (CfgA.simplify input) `shouldBe` PrettyShow' output

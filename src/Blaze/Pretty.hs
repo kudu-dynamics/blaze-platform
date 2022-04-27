@@ -74,7 +74,7 @@ import Blaze.Cfg
 import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Types.Cfg.Grouping as GCfg
 import Blaze.Pil.Display (needsParens)
-import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg))
+
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic (SVal)
 
@@ -843,9 +843,6 @@ instance Tokenizable (GCfg.CfEdge a) where
     tt "  |" <++>
     tokenize (e ^. #branchType) <++>
     tt "|"
-
-instance Tokenizable InterCfg where
-  tokenize (InterCfg cfg) = tokenize cfg
 
 -- | This matches each node to an Int and uses the Int to show the edges
 instance Tokenizable a => Tokenizable (Cfg a) where
