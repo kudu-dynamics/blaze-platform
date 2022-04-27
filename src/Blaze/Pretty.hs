@@ -23,6 +23,7 @@ module Blaze.Pretty
     textToken,
     keywordToken,
     mkTokenizerCtx,
+    mkTokenizerCtxUsingTypeReport,
     paren,
     bracket,
     brace,
@@ -51,11 +52,13 @@ import qualified Binja.MLIL as MLIL
 import Blaze.Prelude hiding (Symbol, bracket, const, sym)
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Pil (PilVar)
 import qualified Prelude (show)
 
 import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Graph as G
 import qualified Blaze.Types.Pil.Checker as PI
+import Blaze.Types.Pil.Checker (Sym)
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -140,7 +143,7 @@ data Token = Token
   , context :: TokenContext
   -- , confidence :: Int
   , address :: Address
-  , sym :: PI.Sym -- Type sym; not in Binja's Token type
+  , typeSym :: Maybe PI.Sym -- not in Binja's Token type
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
@@ -167,6 +170,14 @@ newtype Tokenizer a = Tokenizer
     , Monad
     , MonadReader TokenizerCtx
     )
+
+setSym :: Maybe Sym -> Token -> Token
+setSym s t = t & #typeSym .~ s
+
+getVarSym :: PilVar -> Tokenizer (Maybe Sym)
+getVarSym pv = do
+  vsm <- view #varSymMap
+  return $ HashMap.lookup pv vsm
 
 class Collectable a where
   collect :: a -> Tokenizer [Token]
@@ -203,6 +214,7 @@ plainToken typ t =
     , operand = 0xffffffff
     , context = NoTokenContext
     , address = 0
+    , typeSym = Nothing
     }
 
 integerToken :: Integral n => n -> Token
@@ -215,6 +227,7 @@ integerToken n =
     , operand = 0xffffffff
     , context = NoTokenContext
     , address = 0
+    , typeSym = Nothing
     }
   where
     n' = toInteger n
@@ -223,8 +236,8 @@ instance Tokenizable Int where
   tokenize = pure . (: []) . integerToken
 
 -- XXX Figure out value and operand here
-varToken :: Text -> Token
-varToken t =
+varToken :: Maybe Sym -> Text -> Token
+varToken mTypeSym t =
   Token
     { tokenType = LocalVariableToken
     , text = t
@@ -233,6 +246,7 @@ varToken t =
     , operand = 0
     , context = LocalVariableTokenContext
     , address = 0
+    , typeSym = mTypeSym
     }
 
 addressToken :: Maybe Text -> Address -> Token
@@ -245,6 +259,7 @@ addressToken t addr =
     , operand = 0xffffffff
     , context = InstructionAddressTokenContext
     , address = 0
+    , typeSym = Nothing
     }
 
 stringToken :: Text -> Token
@@ -347,6 +362,7 @@ instance Tokenizable Binja.Function.Function where
           , operand = 0xffffffff
           , context = NoTokenContext
           , address = 0
+          , typeSym = Nothing
           }
       ]
     where
@@ -362,11 +378,12 @@ instance Tokenizable Pil.Ctx where
 
 instance Tokenizable Pil.PilVar where
   tokenize var = do
+    vsym <- getVarSym var
     let ctxIdSuff = case var ^. #ctx of
           Nothing -> ""
           Just ctx -> "@"
             <> show (fromIntegral $ ctx ^. #ctxId :: Int)
-    pure [varToken $ (var ^. #symbol) <> ctxIdSuff]
+    pure [varToken vsym $ (var ^. #symbol) <> ctxIdSuff]
 
 tokenizeBinop ::
   ( Tokenizable b
@@ -374,11 +391,13 @@ tokenizeBinop ::
   , HasField' "right" a b
   , HasField' "op" b (Pil.ExprOp b)
   ) =>
+  Maybe Sym ->
   Text ->
   a ->
   Tokenizer [Token]
-tokenizeBinop sym op =
-  tt (sym <> " ")
+tokenizeBinop tsym opSym op =
+  (setSym tsym $ tt opSym)
+    <++> tt " "
     <++> parenExpr (op ^. #left)
     <++> tt " "
     <++> parenExpr (op ^. #right)
@@ -389,12 +408,15 @@ tokenizeBinopInfix ::
   , HasField' "right" a b
   , HasField' "op" b (Pil.ExprOp b)
   ) =>
+  Maybe Sym ->
   Text ->
   a ->
   Tokenizer [Token]
-tokenizeBinopInfix sym op =
+tokenizeBinopInfix tsym opSym op =
   parenExpr (op ^. #left)
-    <++> tt (" " <> sym <> " ")
+    <++> tt " "
+    <++> (setSym tsym $ tt opSym)
+    <++> tt " "
     <++> parenExpr (op ^. #right)
 
 tokenizeUnop ::
@@ -402,10 +424,13 @@ tokenizeUnop ::
   , Tokenizable b
   , HasField' "op" b (Pil.ExprOp b)
   ) =>
+  Maybe Sym ->
   Text ->
   a ->
   Tokenizer [Token]
-tokenizeUnop sym op = tt (sym <> " ") <++> parenExpr (op ^. #src)
+tokenizeUnop tsym opSym op = (setSym tsym $ tt opSym)
+  <++> tt " "
+  <++> parenExpr (op ^. #src)
 
 tokenizeField ::
   ( HasField' "src" a b
@@ -420,98 +445,100 @@ tokenizeField op =
 
 tokenizeExprOp ::
   (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) =>
+  Maybe Sym ->
   Pil.ExprOp a ->
   Pil.OperationSize ->
   Tokenizer [Token]
-tokenizeExprOp exprOp _size = case exprOp of
-  (Pil.ADC op) -> tokenizeBinop "adc" op
-  (Pil.ADD op) -> tokenizeBinopInfix "+" op
-  (Pil.ADD_OVERFLOW op) -> tokenizeBinopInfix "&+" op
-  (Pil.AND op) -> tokenizeBinopInfix "&&" op
-  (Pil.ASR op) -> tokenizeBinop "asr" op
-  (Pil.BOOL_TO_INT op) -> tokenizeUnop "boolToInt" op
-  (Pil.CEIL op) -> tokenizeUnop "ceil" op
+tokenizeExprOp msym exprOp _size = case exprOp of
+  (Pil.ADC op) -> tokenizeBinop msym "adc" op
+  (Pil.ADD op) -> tokenizeBinopInfix msym "+" op
+  (Pil.ADD_OVERFLOW op) -> tokenizeBinopInfix msym "&+" op
+  (Pil.AND op) -> tokenizeBinopInfix msym "&&" op
+  (Pil.ASR op) -> tokenizeBinop msym "asr" op
+  (Pil.BOOL_TO_INT op) -> tokenizeUnop msym "boolToInt" op
+  (Pil.CEIL op) -> tokenizeUnop msym "ceil" op
   (Pil.CONST_BOOL op) -> pure [tt . show $ op ^. #constant]
-  (Pil.CMP_E op) -> tokenizeBinopInfix "==" op
-  (Pil.CMP_NE op) -> tokenizeBinopInfix "!=" op
-  (Pil.CMP_SGE op) -> tokenizeBinopInfix ">=" op
-  (Pil.CMP_SGT op) -> tokenizeBinopInfix ">" op
-  (Pil.CMP_SLE op) -> tokenizeBinopInfix "<=" op
-  (Pil.CMP_SLT op) -> tokenizeBinopInfix "<" op
-  (Pil.CMP_UGE op) -> tokenizeBinopInfix "u>=" op
-  (Pil.CMP_UGT op) -> tokenizeBinopInfix "u>" op
-  (Pil.CMP_ULE op) -> tokenizeBinopInfix "u<=" op
-  (Pil.CMP_ULT op) -> tokenizeBinopInfix "u<" op
+  (Pil.CMP_E op) -> tokenizeBinopInfix msym "==" op
+  (Pil.CMP_NE op) -> tokenizeBinopInfix msym "!=" op
+  (Pil.CMP_SGE op) -> tokenizeBinopInfix msym ">=" op
+  (Pil.CMP_SGT op) -> tokenizeBinopInfix msym ">" op
+  (Pil.CMP_SLE op) -> tokenizeBinopInfix msym "<=" op
+  (Pil.CMP_SLT op) -> tokenizeBinopInfix msym "<" op
+  (Pil.CMP_UGE op) -> tokenizeBinopInfix msym "u>=" op
+  (Pil.CMP_UGT op) -> tokenizeBinopInfix msym "u>" op
+  (Pil.CMP_ULE op) -> tokenizeBinopInfix msym "u<=" op
+  (Pil.CMP_ULT op) -> tokenizeBinopInfix msym "u<" op
   (Pil.CONST op) -> pure [integerToken (op ^. #constant)]
   (Pil.CONST_PTR op) -> pure [addressToken Nothing $ fromIntegral (op ^. #constant)]
-  (Pil.DIVS op) -> tokenizeBinopInfix "/" op
-  (Pil.DIVS_DP op) -> tokenizeBinop "divsDP" op
-  (Pil.DIVU op) -> tokenizeBinopInfix "u/" op
-  (Pil.DIVU_DP op) -> tokenizeBinop "divuDP" op
-  (Pil.FABS op) -> tokenizeUnop "fabs" op
-  (Pil.FADD op) -> tokenizeBinopInfix "f+" op
-  (Pil.FCMP_E op) -> tokenizeBinopInfix "f==" op
-  (Pil.FCMP_GE op) -> tokenizeBinopInfix "f>=" op
-  (Pil.FCMP_GT op) -> tokenizeBinopInfix "f>" op
-  (Pil.FCMP_LE op) -> tokenizeBinopInfix "f<=" op
-  (Pil.FCMP_LT op) -> tokenizeBinopInfix "f<" op
-  (Pil.FCMP_NE op) -> tokenizeBinopInfix "f!=" op
-  (Pil.FCMP_O op) -> tokenizeBinop "fcmpO" op
-  (Pil.FCMP_UO op) -> tokenizeBinop "fcmpUO" op
-  (Pil.FDIV op) -> tokenizeBinopInfix "f/" op
+  (Pil.DIVS op) -> tokenizeBinopInfix msym "/" op
+  (Pil.DIVS_DP op) -> tokenizeBinop msym "divsDP" op
+  (Pil.DIVU op) -> tokenizeBinopInfix msym "u/" op
+  (Pil.DIVU_DP op) -> tokenizeBinop msym "divuDP" op
+  (Pil.FABS op) -> tokenizeUnop msym "fabs" op
+  (Pil.FADD op) -> tokenizeBinopInfix msym "f+" op
+  (Pil.FCMP_E op) -> tokenizeBinopInfix msym "f==" op
+  (Pil.FCMP_GE op) -> tokenizeBinopInfix msym "f>=" op
+  (Pil.FCMP_GT op) -> tokenizeBinopInfix msym "f>" op
+  (Pil.FCMP_LE op) -> tokenizeBinopInfix msym "f<=" op
+  (Pil.FCMP_LT op) -> tokenizeBinopInfix msym "f<" op
+  (Pil.FCMP_NE op) -> tokenizeBinopInfix msym "f!=" op
+  (Pil.FCMP_O op) -> tokenizeBinop msym "fcmpO" op
+  (Pil.FCMP_UO op) -> tokenizeBinop msym "fcmpUO" op
+  (Pil.FDIV op) -> tokenizeBinopInfix msym "f/" op
   (Pil.FIELD_ADDR op) ->
     parenExpr (op ^. #baseAddr)
       <++> [tt " + ", keywordToken "offset", tt " "]
       <++> tokenize (op ^. #offset)
   (Pil.CONST_FLOAT op) -> pure [plainToken FloatingPointToken $ show (op ^. #constant)]
-  (Pil.FLOAT_CONV op) -> tokenizeUnop "floatConv" op
-  (Pil.FLOAT_TO_INT op) -> tokenizeUnop "floatToInt" op
-  (Pil.FLOOR op) -> tokenizeUnop "floor" op
-  (Pil.FMUL op) -> tokenizeBinopInfix "f*" op
-  (Pil.FNEG op) -> tokenizeUnop "fneg" op
-  (Pil.FSQRT op) -> tokenizeUnop "fsqrt" op
-  (Pil.FSUB op) -> tokenizeBinopInfix "f-" op
-  (Pil.FTRUNC op) -> tokenizeUnop "ftrunc" op
+  (Pil.FLOAT_CONV op) -> tokenizeUnop msym "floatConv" op
+  (Pil.FLOAT_TO_INT op) -> tokenizeUnop msym "floatToInt" op
+  (Pil.FLOOR op) -> tokenizeUnop msym "floor" op
+  (Pil.FMUL op) -> tokenizeBinopInfix msym "f*" op
+  (Pil.FNEG op) -> tokenizeUnop msym "fneg" op
+  (Pil.FSQRT op) -> tokenizeUnop msym "fsqrt" op
+  (Pil.FSUB op) -> tokenizeBinopInfix msym "f-" op
+  (Pil.FTRUNC op) -> tokenizeUnop msym "ftrunc" op
   (Pil.IMPORT op) -> pure [addressToken Nothing $ fromIntegral (op ^. #constant)]
-  (Pil.INT_TO_FLOAT op) -> tokenizeUnop "intToFloat" op
+  (Pil.INT_TO_FLOAT op) -> tokenizeUnop msym "intToFloat" op
   (Pil.LOAD op) -> bracket <$> tokenize (op ^. #src)
   -- TODO: add memory versions for all SSA ops
-  (Pil.LOW_PART op) -> tokenizeUnop "lowPart" op
-  (Pil.LSL op) -> tokenizeBinop "lsl" op
-  (Pil.LSR op) -> tokenizeBinop "lsr" op
-  (Pil.MODS op) -> tokenizeBinopInfix "%" op
-  (Pil.MODS_DP op) -> tokenizeBinop "modsDP" op
-  (Pil.MODU op) -> tokenizeBinopInfix "u%" op
-  (Pil.MODU_DP op) -> tokenizeBinop "moduDP" op
-  (Pil.MUL op) -> tokenizeBinopInfix "*" op
-  (Pil.MULS_DP op) -> tokenizeBinop "mulsDP" op
-  (Pil.MULU_DP op) -> tokenizeBinop "muluDP" op
-  (Pil.NEG op) -> tokenizeUnop "neg" op
-  (Pil.NOT op) -> tokenizeUnop "not" op
-  (Pil.OR op) -> tokenizeBinopInfix "|" op
+  (Pil.LOW_PART op) -> tokenizeUnop msym "lowPart" op
+  (Pil.LSL op) -> tokenizeBinop msym "lsl" op
+  (Pil.LSR op) -> tokenizeBinop msym "lsr" op
+  (Pil.MODS op) -> tokenizeBinopInfix msym "%" op
+  (Pil.MODS_DP op) -> tokenizeBinop msym "modsDP" op
+  (Pil.MODU op) -> tokenizeBinopInfix msym "u%" op
+  (Pil.MODU_DP op) -> tokenizeBinop msym "moduDP" op
+  (Pil.MUL op) -> tokenizeBinopInfix msym "*" op
+  (Pil.MULS_DP op) -> tokenizeBinop msym "mulsDP" op
+  (Pil.MULU_DP op) -> tokenizeBinop msym "muluDP" op
+  (Pil.NEG op) -> tokenizeUnop msym "neg" op
+  (Pil.NOT op) -> tokenizeUnop msym "not" op
+  (Pil.OR op) -> tokenizeBinopInfix msym "|" op
   -- TODO: Need to add carry
-  (Pil.RLC op) -> tokenizeBinop "rlc" op
-  (Pil.ROL op) -> tokenizeBinop "rol" op
-  (Pil.ROR op) -> tokenizeBinop "ror" op
-  (Pil.ROUND_TO_INT op) -> tokenizeUnop "roundToInt" op
+  (Pil.RLC op) -> tokenizeBinop msym "rlc" op
+  (Pil.ROL op) -> tokenizeBinop msym "rol" op
+  (Pil.ROR op) -> tokenizeBinop msym "ror" op
+  (Pil.ROUND_TO_INT op) -> tokenizeUnop msym "roundToInt" op
   -- TODO: Need to add carry
-  (Pil.RRC op) -> tokenizeBinop "rrc" op
-  (Pil.SBB op) -> tokenizeBinop "sbb" op
+  (Pil.RRC op) -> tokenizeBinop msym "rrc" op
+  (Pil.SBB op) -> tokenizeBinop msym "sbb" op
   (Pil.STACK_LOCAL_ADDR op) ->
     pure
       [ tt "&"
-      , varToken $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
+      , varToken Nothing $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
       ]
-  (Pil.SUB op) -> tokenizeBinopInfix "-" op
-  (Pil.SX op) -> tokenizeUnop "sx" op
-  (Pil.TEST_BIT op) -> tokenizeBinop "testBit" op
+  (Pil.SUB op) -> tokenizeBinopInfix msym "-" op
+  (Pil.SX op) -> tokenizeUnop msym "sx" op
+  (Pil.TEST_BIT op) -> tokenizeBinop msym "testBit" op
   (Pil.UNIMPL t) -> keywordToken "unimpl" <++> paren [tt t]
   (Pil.UPDATE_VAR op) ->
     keywordToken "updateVar" <++> (paren <$> parts)
     where
       arg name val more = [plainToken ArgumentNameToken name, tt ": "] <++> val <++> [tt ", " | more]
-      parts =
-        arg "var" [varToken $ op ^. #dest . #symbol] True
+      parts = do
+        vsm <- view #varSymMap
+        arg "var" [varToken (HashMap.lookup (op ^. #dest) vsm) $ op ^. #dest . #symbol] True
           <++> arg "offset" (tokenize $ op ^. #offset) True
           <++> arg "val" (tokenize $ op ^. #src) False
   (Pil.VAR_PHI op) -> [tt (op ^. #dest ^. #symbol), tt " <- "] <++> srcs
@@ -527,16 +554,16 @@ tokenizeExprOp exprOp _size = case exprOp of
   (Pil.VAR op) -> tokenize (op ^. #src)
   -- TODO: Add field offset
   (Pil.VAR_FIELD op) -> tokenizeField op
-  (Pil.XOR op) -> tokenizeBinop "xor" op
-  (Pil.ZX op) -> tokenizeUnop "zx" op
+  (Pil.XOR op) -> tokenizeBinop msym "xor" op
+  (Pil.ZX op) -> tokenizeUnop msym "zx" op
   (Pil.CALL op) -> tokenize op
-  (Pil.StrCmp op) -> tokenizeBinop "strcmp" op
+  (Pil.StrCmp op) -> tokenizeBinop msym "strcmp" op
   (Pil.StrNCmp op) ->
     [tt "strncmp ", integerToken (op ^. #len), tt " "]
       <++> tokenize (op ^. #left)
       <++> tt " "
       <++> tokenize (op ^. #right)
-  (Pil.MemCmp op) -> tokenizeBinop "memcmp" op
+  (Pil.MemCmp op) -> tokenizeBinop msym "memcmp" op
   (Pil.ExternPtr op) -> tokenize op
   -- TODO: Should ConstStr also use const rather than value as field name?
   (Pil.ConstStr op) -> pure [stringToken $ op ^. #value]
@@ -575,7 +602,7 @@ instance Tokenizable PI.Sym where
 
 instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
-    tokenizeExprOp op (coerce $ bitwidth * 8)
+    tokenizeExprOp (Just s) op (coerce $ bitwidth * 8)
       <++> tt " :: "
       <++> fmap paren (tokenize s <++> tt " | " <++> mstype')
     where
@@ -583,7 +610,7 @@ instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
 
 instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
-    tokenizeExprOp op (coerce $ bitwidth * 8)
+    tokenizeExprOp (Just s) op (coerce $ bitwidth * 8)
       <++> tt " :: "
       <++> (paren <$> tokenize s <++> tt " | " <++> mstype')
     where
@@ -592,10 +619,10 @@ instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) wher
 instance Tokenizable (PI.InfoExpression PI.SymInfo) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth (PI.Sym n)) op) =
     [tt (show n), tt ":"]
-      <++> (paren <$> tokenizeExprOp op (coerce $ bitwidth * 8))
+      <++> (paren <$> tokenizeExprOp (Just $ PI.Sym n) op (coerce $ bitwidth * 8))
 
 instance Tokenizable Pil.Expression where
-  tokenize (Pil.Expression size' exprOp) = tokenizeExprOp exprOp size'
+  tokenize (Pil.Expression size' exprOp) = tokenizeExprOp Nothing exprOp size'
 
 instance (Tokenizable a, Tokenizable b) => Tokenizable (HashMap a b) where
   tokenize m =
@@ -635,9 +662,9 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
         <++> [tt " = ", keywordToken "φ"]
         <++> tokenizeAsCurlyList (x ^. #src)
     Pil.DefMemPhi x ->
-      varToken ("mem#" <> show (x ^. #destMemory))
+      varToken Nothing ("mem#" <> show (x ^. #destMemory))
         <++> [tt " = ", tt "φ"]
-        <++> tokenizeAsCurlyList ((\m -> varToken $ "mem#" <> show m) <$> (x ^. #srcMemory))
+        <++> tokenizeAsCurlyList ((\m -> varToken Nothing $ "mem#" <> show m) <$> (x ^. #srcMemory))
     Pil.BranchCond x -> [keywordToken "if", tt " "] <++> (paren <$> tokenize (x ^. #cond))
     Pil.Jump x -> [keywordToken "jump", tt " "] <++> parenExpr (x ^. #dest)
     Pil.JumpTo x ->
@@ -764,6 +791,7 @@ instance Tokenizable Func.Function where
           , operand = 0xffffffff
           , context = NoTokenContext
           , address = 0
+          , typeSym = Nothing
           }
       ]
 
