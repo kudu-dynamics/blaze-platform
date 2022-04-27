@@ -122,8 +122,6 @@ data BranchNode a = BranchNode
   deriving anyclass (Hashable)
 
 
--- TODO: Consider moving the interprocedural nodes into a separate type
---       specific to InterCfg. Especially now with EnterFunc/LeaveFunc
 -- TODO: Once the Cfg only needs to support PIL statements, remove type parameter
 --       a and use more-specific definitions of the various node types. E.g.,
 --       a CallNode should have a single CallStatement entry, not a nodeData of type a.

@@ -8,8 +8,9 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Types.Pil.Checker (DeepSymType)
-import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge, BranchingType(OnlyTrue, OnlyFalse, Undecided), BranchCond, UndecidedIfBranches(UndecidedIfBranches))
-import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
+import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch),
+                        CfEdge, BranchingType(OnlyTrue, OnlyFalse, Undecided),
+                        BranchCond, PilCfg, UndecidedIfBranches(UndecidedIfBranches))
 import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Graph as G
 import Blaze.Types.Graph (EdgeGraphNode, DominatorMapping)
@@ -57,7 +58,7 @@ getDecidedBranchCondNode n cfg = case outBranchTypes of
     mcond = lastMay (Cfg.getNodeData n) >>= \case
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ DecidedBranchCond i x
       _ -> Nothing
-      
+
     outBranchTypes :: [BranchType]
     outBranchTypes = fmap (view #branchType)
       . HashSet.toList
@@ -89,7 +90,7 @@ solveStmt ddg stmt = case stmt of
   Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (or $ isDependentOn <$> vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
-      isDependentOn = flip HashSet.member destDescendants 
+      isDependentOn = flip HashSet.member destDescendants
   _ -> pilSolveStmt
   where
     pilSolveStmt = PilSolver.solveStmt_ (solveExpr ddg) stmt
@@ -107,7 +108,7 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFal
           throwError $ ExprError xsym e
 
     catchFallbackAndWarn :: Solver SVal -> Solver SVal
-    catchFallbackAndWarn m = catchError m $ \e -> do  
+    catchFallbackAndWarn m = catchError m $ \e -> do
       si <- use #currentStmtIndex
       warn $ StmtError si e
       fallbackAsFreeVar
@@ -198,7 +199,7 @@ getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsFo
         getNonLoopingReachable srcNode dstNode =
           let reached = getReachable dstNode in
             bool HashSet.empty reached $ HashSet.member srcNode reached
-        falseReachable :: HashSet (CfNode ())    
+        falseReachable :: HashSet (CfNode ())
         falseReachable = getNonLoopingReachable (u ^. #falseEdge . #src) (u ^. #falseEdge . #dst)
         trueReachable :: HashSet (CfNode ())
         trueReachable = getNonLoopingReachable (u ^. #trueEdge . #src) (u ^. #trueEdge . #dst)
@@ -247,7 +248,7 @@ unsatBranches ddg cfg = do
           edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (EdgeGraphNode BranchType (CfNode ()))
           eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
           doms = filterEdges $ G.getDominators eRoot edgeGraph
-          
+
           _domConstraintsDebug = fmap (mapMaybe (\e -> HashMap.lookup e edgeConstraints >> return e) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [CfEdge ()]
           domConstraints = fmap (mapMaybe (`HashMap.lookup` edgeConstraints) . HashSet.toList) . coerce $ doms :: HashMap (CfEdge ()) [SVal]
 
@@ -263,7 +264,7 @@ unsatBranches ddg cfg = do
           Right () -> do
             xxs <- forM ubranches $ \(bcond, UndecidedIfBranches fe te) -> do
               let commonDomConstraints = PilSolver.svAggrAnd . fromMaybe [] $ HashMap.lookup fe domConstraints
-              
+
               feResult <- tryConstraint $ commonDomConstraints `svAnd` svNot bcond
               teResult <- tryConstraint $ commonDomConstraints `svAnd` bcond
 
@@ -275,7 +276,7 @@ unsatBranches ddg cfg = do
                 (True, False) -> [te]
                 (True, True) -> []
             return . Right . concat $ xxs
-              
+
       case er of
         Left sr -> do
           putText $ "General constraints are not sat: " <> show sr
@@ -287,7 +288,7 @@ unsatBranches ddg cfg = do
       OnlyTrue _ -> Nothing
       OnlyFalse _ -> Nothing
       Undecided edges -> Just (bc ^. #condition, edges)
-      
+
 
 tryConstraint :: SVal -> Query Bool
 tryConstraint c = Q.inNewAssertionStack
@@ -325,38 +326,37 @@ getUnsatBranches cfg = case checkCfg cfg of
                        , r
                        )
 
-_cleanPrunedCfg :: Int -> InterCfg -> InterCfg
-_cleanPrunedCfg numItersLeft icfg =
-  if icfg == icfg'' || numItersLeft <= 0
-    then icfg''
+_cleanPrunedCfg :: Int -> PilCfg -> PilCfg
+_cleanPrunedCfg numItersLeft cfg =
+  if cfg == cfg'' || numItersLeft <= 0
+    then cfg''
     else -- Recursing until stmts don't change or no iterations left
-      _cleanPrunedCfg (numItersLeft - 1) icfg''
+      _cleanPrunedCfg (numItersLeft - 1) cfg''
  where
-  icfg' :: InterCfg
-  icfg' = CfgA.copyProp icfg
+  cfg' :: PilCfg
+  cfg' = CfgA.copyProp cfg
   -- Need deadNodes to compute removedVars and to actually remove the dead nodes
   deadNodes :: HashSet (CfNode [Stmt])
-  deadNodes = CfgA.getDeadNodes (unInterCfg icfg')
+  deadNodes = CfgA.getDeadNodes cfg'
   removedVars :: HashSet PilVar
   removedVars = PA.getDefinedVars (concatMap concat deadNodes)
-  icfg'' :: InterCfg
-  icfg'' =
+  cfg'' :: PilCfg
+  cfg'' =
     CfgA.reducePhi removedVars
       . CfgA.fixed CfgA.removeUnusedPhi
       . CfgA.removeNodes deadNodes
-      $ icfg'
+      $ cfg'
 
-cleanPrunedCfg :: InterCfg -> InterCfg
-cleanPrunedCfg = removeEmptyBasicBlockNodes' . _cleanPrunedCfg maxIters
+cleanPrunedCfg :: PilCfg -> PilCfg
+cleanPrunedCfg = CfgA.removeEmptyBasicBlockNodes . _cleanPrunedCfg maxIters
  where
   maxIters = 10
-  removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . CfgA.removeEmptyBasicBlockNodes $ cfg
 
 simplify_ :: [WarnReport] -> Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError ([WarnReport], Cfg [Stmt]))
 simplify_ warns isRecursiveCall numItersLeft cfg
   | numItersLeft <= 0 = return . Right $ (warns, cfg)
   | otherwise = do
-      let cfg' = unInterCfg . cleanPrunedCfg . InterCfg $ cfg
+      let cfg' = cleanPrunedCfg cfg
       if cfg' == cfg && isRecursiveCall
         then return . Right $ (warns, cfg')
         else getUnsatBranches cfg' >>= \case

@@ -7,7 +7,6 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
 import Blaze.Types.Pil.Checker (DeepSymType)
 import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge)
-import Blaze.Types.Cfg.Interprocedural (InterCfg(InterCfg), unInterCfg)
 import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
@@ -250,7 +249,7 @@ simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stm
 simplify_ isRecursiveCall numItersLeft cfg
   | numItersLeft <= 0 = return . Right $ cfg
   | otherwise = do
-      let cfg' = unInterCfg . CfgA.simplify . InterCfg $ cfg
+      let cfg' = CfgA.simplify cfg
       if cfg' == cfg && isRecursiveCall
         then return . Right $ cfg'
         else getUnsatBranches cfg' >>= \case

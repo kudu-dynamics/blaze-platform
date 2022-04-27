@@ -10,7 +10,7 @@ import Blaze.Types.Pil.Analysis (DataDependenceGraph)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (to, succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
-import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
+-- import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
@@ -23,37 +23,32 @@ import Blaze.Types.Cfg.Analysis
 import Control.Lens (to)
 
 
-transformStmts :: ([Stmt] -> [Stmt]) -> InterCfg -> InterCfg
-transformStmts f icfg =
-  InterCfg $
-    foldl'
-      (flip $ Cfg.updateNodeData f)
-      cfg
-      (HashSet.toList $ G.nodes cfg)
- where
-  cfg :: PilCfg
-  cfg = unInterCfg icfg
+transformStmts :: ([Stmt] -> [Stmt]) -> PilCfg -> PilCfg
+transformStmts f cfg =
+  foldl' (flip $ Cfg.updateNodeData f)
+         cfg
+         (HashSet.toList $ G.nodes cfg)
 
-copyProp :: InterCfg -> InterCfg
-copyProp icfg =
-  transformStmts (PA._copyProp copyPropState) icfg
+copyProp :: PilCfg -> PilCfg
+copyProp cfg =
+  transformStmts (PA._copyProp copyPropState) cfg
  where
   allStmts :: [Stmt]
-  allStmts = concat . getStmts $ icfg
+  allStmts = concat . getStmts $ cfg
   copyPropState :: CopyPropState
   copyPropState = PA.buildCopyPropState allStmts
 
-constantProp :: InterCfg -> InterCfg
-constantProp icfg =
-  transformStmts (PA._constantProp constPropState) icfg
+constantProp :: PilCfg -> PilCfg
+constantProp cfg =
+  transformStmts (PA._constantProp constPropState) cfg
  where
   allStmts :: [Stmt]
-  allStmts = concat . getStmts $ icfg
+  allStmts = concat . getStmts $ cfg
   constPropState :: ConstPropState
   constPropState = PA.buildConstPropState allStmts
 
-getStmts :: InterCfg -> [[Stmt]]
-getStmts (InterCfg cfg) =
+getStmts :: PilCfg -> [[Stmt]]
+getStmts cfg =
   fmap concat . HashSet.toList $ Cfg.nodes cfg
 
 fixed :: Eq a => (a -> a) -> a -> a
@@ -68,22 +63,22 @@ fixed f x =
 --       I.e., simplify will always be run one more time than necessary.
 --       As an alternative, consider whether we can either identify when an additional simplify
 --       call is needed or what specific portion of a simplify needs to be rerun.
-fixedSimplify :: InterCfg -> InterCfg
+fixedSimplify :: PilCfg -> PilCfg
 fixedSimplify = fixed simplify
 
 -- TODO: Generalize this to support all assignment statements
 -- | Remove all DefPhi statements where the assigned variable is not used.
-removeUnusedPhi :: InterCfg -> InterCfg
-removeUnusedPhi icfg =
-  transformStmts (PA.removeUnusedPhi usedVars) icfg
+removeUnusedPhi :: PilCfg -> PilCfg
+removeUnusedPhi cfg =
+  transformStmts (PA.removeUnusedPhi usedVars) cfg
   where
     usedVars :: HashSet PilVar
-    usedVars = PA.getRefVars . concat $ getStmts icfg
+    usedVars = PA.getRefVars . concat $ getStmts cfg
 
 -- | Reduce all 'DefPhi' statements by removing selected variables from the
 -- 'src' list. If the 'src' list is reduced to holding a single item, the
 -- 'DefPhi' statement will be transferred to a 'Def' statement.
-reducePhi :: HashSet PilVar -> InterCfg -> InterCfg
+reducePhi :: HashSet PilVar -> PilCfg -> PilCfg
 reducePhi removedVars =
   transformStmts (PA.reducePhis removedVars)
 
@@ -95,55 +90,43 @@ reducePhi removedVars =
 --     copy prop and const prop an extra iteration, as well as compute dead branches
 --     and dead nodes and extra iteration. We would also need to check for removed nodes
 --     (and edges?)
-_simplify :: Int -> InterCfg -> InterCfg
-_simplify numItersLeft icfg =
+_simplify :: Int -> PilCfg -> PilCfg
+_simplify numItersLeft cfg =
   -- TODO: Do we need to also check if statements were removed
   --       via copy prop or other statement transforms?
-  if icfg == icfg''' || numItersLeft <= 0
-    then icfg'''
+  if cfg == cfg''' || numItersLeft <= 0
+    then cfg'''
     else -- Recursing until stmts don't change or no iterations left
-      _simplify (numItersLeft - 1) icfg'''
+      _simplify (numItersLeft - 1) cfg'''
  where
-  icfg' :: InterCfg
-  icfg' = constantProp . copyProp $ icfg
+  cfg' :: PilCfg
+  cfg' = constantProp . copyProp $ cfg
   deadBranches :: [PilEdge]
-  deadBranches = getDeadBranches icfg'
-  icfg'' :: InterCfg
-  icfg'' = foldl' (flip cutEdge) icfg' deadBranches
+  deadBranches = getDeadBranches cfg'
+  cfg'' :: PilCfg
+  cfg'' = foldl' (flip Cfg.removeEdge) cfg' deadBranches
   -- Need deadNodes to compute removedVars and to actually remove the dead nodes
   deadNodes :: HashSet PilNode
-  deadNodes = getDeadNodes (unInterCfg icfg'')
+  deadNodes = getDeadNodes cfg''
   removedVars :: HashSet PilVar
   removedVars = PA.getDefinedVars (concatMap concat deadNodes)
-  icfg''' :: InterCfg
-  icfg''' =
+  cfg''' :: PilCfg
+  cfg''' =
     reducePhi removedVars
       . fixed removeUnusedPhi
       . removeNodes deadNodes
-      $ icfg''
+      $ cfg''
 
-simplify :: InterCfg -> InterCfg
-simplify = removeEmptyBasicBlockNodes' . _simplify maxIters
+simplify :: PilCfg -> PilCfg
+simplify = removeEmptyBasicBlockNodes . _simplify maxIters
  where
   maxIters = 10
-  removeEmptyBasicBlockNodes' (InterCfg cfg) = InterCfg . removeEmptyBasicBlockNodes $ cfg
 
-prune :: Edge PilNode -> InterCfg -> InterCfg
-prune edge icfg = simplify prunedIcfg
-  where
-    prunedIcfg :: InterCfg
-    prunedIcfg = InterCfg . G.removeEdge edge . unInterCfg $ icfg
+prune :: Edge PilNode -> PilCfg -> PilCfg
+prune edge cfg = simplify $ G.removeEdge edge cfg
 
--- TODO: refactor with regular prune
-prune_ :: Edge PilNode -> InterCfg -> InterCfg
-prune_ edge icfg = simplify prunedIcfg
-  where
-    prunedIcfg :: InterCfg
-    prunedIcfg = InterCfg . G.removeEdge edge . unInterCfg $ icfg
-
-
-parseJumpToPred :: InterCfg -> PilNode -> Maybe PilNode
-parseJumpToPred icfg n = case predNodes of
+parseJumpToPred :: PilCfg -> PilNode -> Maybe PilNode
+parseJumpToPred cfg n = case predNodes of
   [predNode] ->
     if isJust $ parseJumpTo predNode then
       Just predNode
@@ -151,7 +134,7 @@ parseJumpToPred icfg n = case predNodes of
       Nothing
   _ -> Nothing
   where
-    predNodes = HashSet.toList $ Cfg.preds n (unInterCfg icfg)
+    predNodes = HashSet.toList $ Cfg.preds n cfg
 
 parseJumpTo :: PilNode -> Maybe (Pil.JumpToOp Pil.Expression)
 parseJumpTo n = case n ^? #_BasicBlock . #nodeData of
@@ -166,17 +149,16 @@ simplifyJumpTo xs = case xs of
 
 -- | Removes all nodes/edges that don't lead to or can't be reached by node.
 -- Returns a modified and simplified ICFG.
-focus :: PilNode -> InterCfg -> InterCfg
-focus focalNode icfg = fromMaybe icfg' $ do
-  jumpToPred <- parseJumpToPred icfg' focalNode
-  return . InterCfg . Cfg.updateNodeData simplifyJumpTo jumpToPred . unInterCfg $ icfg'
+focus :: PilNode -> PilCfg -> PilCfg
+focus focalNode cfg = fromMaybe cfg' $ do
+  jumpToPred <- parseJumpToPred cfg' focalNode
+  return . Cfg.updateNodeData simplifyJumpTo jumpToPred $ cfg'
   where
-    icfg' = simplify
-            . reducePhi removedVars
-            . liftInter (Cfg.removeEdges deadEdges)
-            . removeNodes deadNodes
-            $ icfg
-    (InterCfg cfg) = icfg
+    cfg' = simplify
+           . reducePhi removedVars
+           . Cfg.removeEdges deadEdges
+           . removeNodes deadNodes
+           $ cfg
     -- Need deadNodes to compute removedVars and to actually remove the dead nodes
     cnodes :: HashSet PilNode
     cedges :: HashSet (G.LEdge BranchType PilNode)
@@ -197,16 +179,15 @@ focus focalNode icfg = fromMaybe icfg' $ do
 
 -- TODO: refactor with regular prune
 -- | Like `focus` but doesn't call `simplify`
-focus_ :: PilNode -> InterCfg -> InterCfg
-focus_ focalNode icfg = fromMaybe icfg' $ do
-  jumpToPred <- parseJumpToPred icfg' focalNode
-  return . InterCfg . Cfg.updateNodeData simplifyJumpTo jumpToPred . unInterCfg $ icfg'
+focus_ :: PilNode -> PilCfg -> PilCfg
+focus_ focalNode cfg = fromMaybe cfg' $ do
+  jumpToPred <- parseJumpToPred cfg' focalNode
+  return $ Cfg.updateNodeData simplifyJumpTo jumpToPred cfg'
   where
-    icfg' = reducePhi removedVars
-            . liftInter (Cfg.removeEdges deadEdges)
-            . removeNodes deadNodes
-            $ icfg
-    (InterCfg cfg) = icfg
+    cfg' = reducePhi removedVars
+           . Cfg.removeEdges deadEdges
+           . removeNodes deadNodes
+           $ cfg
     -- Need deadNodes to compute removedVars and to actually remove the dead nodes
     cnodes :: HashSet PilNode
     cedges :: HashSet (G.LEdge BranchType PilNode)
@@ -226,18 +207,17 @@ focus_ focalNode icfg = fromMaybe icfg' $ do
     removedVars = PA.getDefinedVars (concatMap concat deadNodes)
 
 
-getDeadBranches :: InterCfg -> [PilEdge]
-getDeadBranches icfg =
-  concat $ mapMaybe (getDeadBranchesForNode icfg) branchNodes
+getDeadBranches :: PilCfg -> [PilEdge]
+getDeadBranches cfg =
+  concat $ mapMaybe (getDeadBranchesForNode cfg) branchNodes
  where
   branchNodes :: [BranchNode [Stmt]]
   branchNodes = mapMaybe (Cfg.parseBranchNode Cfg.getNodeData)
-    $ HashSet.toList (G.nodes (unInterCfg icfg))
-  getDeadBranchesForNode :: InterCfg -> BranchNode [Stmt] -> Maybe [PilEdge]
+    $ HashSet.toList (G.nodes cfg)
+  getDeadBranchesForNode :: PilCfg -> BranchNode [Stmt] -> Maybe [PilEdge]
   getDeadBranchesForNode _g branchNode = do
     constVal <- Cfg.evalCondition (branchNode ^. #branchCondOp)
     let constBranchType = if constVal then Cfg.TrueBranch else Cfg.FalseBranch
-        cfg = unInterCfg icfg
         cfNode = BasicBlock $ branchNode ^. #basicBlock
         succs = HashSet.toList $ Cfg.succs cfNode cfg
         -- Probably only one since there's likely just a pair of edges,
@@ -252,14 +232,14 @@ getDeadBranches icfg =
       )
       deadSuccs
 
-removeNodes :: HashSet PilNode -> InterCfg -> InterCfg
-removeNodes nodes icfg =
-  InterCfg $ foldl' (flip G.removeNode) (unInterCfg icfg) nodes
+removeNodes :: HashSet PilNode -> PilCfg -> PilCfg
+removeNodes nodes cfg =
+  foldl' (flip G.removeNode) cfg nodes
 
-removeDeadNodes :: InterCfg -> InterCfg
-removeDeadNodes icfg = removeNodes deadNodes icfg
+removeDeadNodes :: PilCfg -> PilCfg
+removeDeadNodes cfg = removeNodes deadNodes cfg
  where
-  deadNodes = getDeadNodes $ unInterCfg icfg
+  deadNodes = getDeadNodes cfg
 
 getDeadNodes :: PilCfg -> HashSet PilNode
 getDeadNodes cfg =
@@ -269,10 +249,6 @@ getDeadNodes cfg =
   origNodes = HashSet.fromList . HashSet.toList $ G.nodes cfg
   reachableNodes :: HashSet PilNode
   reachableNodes = HashSet.fromList . concat $ G.bfs [cfg ^. #root] cfg
-
-cutEdge :: PilEdge -> InterCfg -> InterCfg
-cutEdge edge (InterCfg cfg) =
-  InterCfg $ Cfg.removeEdge edge cfg
 
 removeEmptyBasicBlockNodes :: forall a. (Hashable a, Eq a) => Cfg [a] -> Cfg [a]
 removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
