@@ -12,7 +12,6 @@ import Data.List (foldl1, foldr1)
 import Test.Hspec
 import Test.Hspec.Megaparsec (parseSatisfies, shouldFailOn, shouldParse)
 import Text.Megaparsec (eof)
-import Prelude (read)
 
 testp :: (Show a, Eq a) => ParserCtx -> Parser a -> Text -> a -> Expectation
 testp ctx p s expected = runParser' ctx (p <* eof) s `shouldParse` expected

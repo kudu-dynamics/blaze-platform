@@ -96,11 +96,12 @@ getTargetFunc callNode = getCallTargetFunction $ callNode ^. #callDest
  call destination.
 -}
 expandCall ::
-  InterCfg ->
+  PilCfg ->
   PilCallNode ->
   Function ->
-  Builder a (Either ExpandCallError InterCfg)
-expandCall icallerCfg@(InterCfg callerCfg) callNode targetFunc = do
+
+  Builder a (Either ExpandCallError PilCfg)
+expandCall callerCfg callNode targetFunc = do
   getCfg_ <- use #getCfg
   -- ctxId <- getNextCtxIndex
   runExceptT $ do
@@ -111,30 +112,31 @@ expandCall icallerCfg@(InterCfg callerCfg) callNode targetFunc = do
       liftMaybeIO (FailedToCreateCfg targetFunc) $
         getCfg_ targetFunc (callerCfg ^. #nextCtxIndex)
     leaveFuncUUID <- liftIO randomIO
-    return . liftInter Cfg.incNextCtxIndex $ expandCall_
-      icallerCfg
+
+    return . Cfg.incNextCtxIndex $ expandCall_
+      callerCfg
       callNode
       callStmt
-      (InterCfg targetCfg)
+      targetCfg
       targetCtx
       leaveFuncUUID
 
 expandCall_ ::
-  InterCfg ->
+  PilCfg ->
   PilCallNode ->
   CallStatement ->
-  InterCfg ->
+  PilCfg ->
   Ctx ->
   UUID ->
-  InterCfg
+  PilCfg
 expandCall_
-  (InterCfg callerCfg)
+  callerCfg
   callNode
   callStmt
-  (InterCfg targetCfg)
+  targetCfg
   targetCtx
   leaveFuncUUID =
-    substNode (InterCfg callerCfg) (Call callNode) (InterCfg wrappedTargetCfg) leaveFunc
+    Cfg.substNode callerCfg (Call callNode) wrappedTargetCfg leaveFunc
     where
       callerCtx = callNode ^. #ctx
       (WrappedTargetCfg wrappedTargetCfg leaveFunc) =
@@ -189,10 +191,5 @@ wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg
         retNodes
 
 getRetNodes :: PilCfg -> [ReturnNode [Stmt]]
-getRetNodes cfg = 
+getRetNodes cfg =
   mapMaybe (\tn -> tn ^? #_TermRet) $ NEList.toList (getTerminalBlocks cfg)
-
--- | Substitute a node with another interprocedural CFG.
-substNode :: InterCfg -> PilNode -> InterCfg -> PilNode -> InterCfg
-substNode (InterCfg outerCfg) node (InterCfg innerCfg) exitNode' =
-  InterCfg $ Cfg.substNode outerCfg node innerCfg exitNode'

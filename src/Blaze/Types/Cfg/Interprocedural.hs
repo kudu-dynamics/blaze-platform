@@ -10,28 +10,18 @@ import qualified Blaze.Import.Cfg as CfgImp
 import Data.HashMap.Strict as HMap
 import Blaze.Types.Pil.Common (CtxId)
 
--- TODO : Instead of wrapping PilCfg to create an InterCfg, assume
---        every Cfg could be an InterCfg and instead introduce a type
---        to indicate a CFG is for a single function? Possibly a different
---        type if it's contained in a function but not all blocks?
-newtype InterCfg = InterCfg {unInterCfg :: PilCfg}
-  deriving (Eq, Show, Generic)
-
-liftInter :: (PilCfg -> PilCfg) -> InterCfg -> InterCfg
-liftInter f = InterCfg . f . unInterCfg
-
 newtype Builder a b = Builder
   {_runBuilder :: StateT (BuilderState a) IO b}
   deriving (Functor, Generic)
-  deriving newtype (Applicative, Monad, 
+  deriving newtype (Applicative, Monad,
     MonadState (BuilderState a), MonadIO, MonadFail)
 
--- TODO: Consider replacing CtxId with UUID
 data BuilderState a = BuilderState
   {
   -- | Presumably using a CfgImporter instance, provide a import result with a
   -- PIL CFG given a function
     getCfg :: Function -> CtxId -> IO (Maybe (ImportResult PilCfg a))
+  -- |A mapping from context IDs to CFG nodes which indicate the import source locations of the nodes
   -- |A mapping from UUIDs to a map that maps CFG nodes to import source locations
   , importMap :: HashMap CtxId a
   }
@@ -44,7 +34,7 @@ mkBuilderState ::
   a ->
   BuilderState b
 mkBuilderState imp =
-  BuilderState 
+  BuilderState
     { getCfg = CfgImp.getCfg imp
     , importMap = HMap.empty}
 
