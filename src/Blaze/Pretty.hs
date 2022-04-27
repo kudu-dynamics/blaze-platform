@@ -23,7 +23,6 @@ module Blaze.Pretty
     textToken,
     keywordToken,
     mkTokenizerCtx,
-    mkTokenizerCtxUsingTypeReport,
     paren,
     bracket,
     brace,
@@ -148,18 +147,14 @@ data Token = Token
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
 data TokenizerCtx = TokenizerCtx
-  { varSymMap :: HashMap Pil.PilVar PI.Sym
+  { varSymMap :: Maybe (HashMap Pil.PilVar PI.Sym)
   } deriving (Eq, Ord, Show, Generic)
 
 blankTokenizerCtx :: TokenizerCtx
-blankTokenizerCtx = TokenizerCtx HashMap.empty
+blankTokenizerCtx = TokenizerCtx Nothing
 
-mkTokenizerCtxUsingTypeReport :: PI.TypeReport -> TokenizerCtx
-mkTokenizerCtxUsingTypeReport tr = TokenizerCtx
-  { varSymMap = tr ^. #varSymMap }
-
-mkTokenizerCtx :: Cfg.PilCfg -> TokenizerCtx
-mkTokenizerCtx _ = blankTokenizerCtx
+mkTokenizerCtx :: Maybe PI.VarSymMap -> TokenizerCtx
+mkTokenizerCtx = TokenizerCtx
 
 newtype Tokenizer a = Tokenizer
   { runTokenizer :: Reader TokenizerCtx a
@@ -176,8 +171,10 @@ setSym s t = t & #typeSym .~ s
 
 getVarSym :: PilVar -> Tokenizer (Maybe Sym)
 getVarSym pv = do
-  vsm <- view #varSymMap
-  return $ HashMap.lookup pv vsm
+  mvsm <- view #varSymMap
+  case mvsm of
+    Nothing -> return Nothing
+    Just vsm -> return $ HashMap.lookup pv vsm
 
 class Collectable a where
   collect :: a -> Tokenizer [Token]
@@ -537,8 +534,8 @@ tokenizeExprOp msym exprOp _size = case exprOp of
     where
       arg name val more = [plainToken ArgumentNameToken name, tt ": "] <++> val <++> [tt ", " | more]
       parts = do
-        vsm <- view #varSymMap
-        arg "var" [varToken (HashMap.lookup (op ^. #dest) vsm) $ op ^. #dest . #symbol] True
+        vsym <- getVarSym (op ^. #dest)
+        arg "var" [varToken vsym $ op ^. #dest . #symbol] True
           <++> arg "offset" (tokenize $ op ^. #offset) True
           <++> arg "val" (tokenize $ op ^. #src) False
   (Pil.VAR_PHI op) -> [tt (op ^. #dest ^. #symbol), tt " <- "] <++> srcs

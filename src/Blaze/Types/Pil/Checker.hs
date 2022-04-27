@@ -138,12 +138,14 @@ type EqualityMap a = HashMap a (HashSet a)
 
 type VarEqMap = EqualityMap Sym
 
+type VarSymMap = HashMap PilVar Sym
+
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
   { symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
   , symStmts :: [(Int, Statement SymExpression)]
   , varSymTypeMap :: HashMap PilVar DeepSymType
-  , varSymMap :: HashMap PilVar Sym
+  , varSymMap :: VarSymMap
   , varEqMap :: VarEqMap
   , funcSymTypeMap :: HashMap (FuncVar SymExpression) DeepSymType
   , funcSymMap :: HashMap (FuncVar SymExpression) Sym
