@@ -30,13 +30,13 @@ import qualified Data.HashSet as HS
 -- | Check if an edge is a back edge using graph dominators.
 --  We assume the dominators include the nodes referenced in the edge.
 --  If that assumption is wrong, isBackEdge defaults to False.
-isBackEdge :: (Hashable a, Ord a) => Dominators (CfNode a) -> CfEdge a -> Bool
+isBackEdge :: Hashable a => Dominators (CfNode a) -> CfEdge a -> Bool
 isBackEdge domMap edge =
   case HM.lookup (edge ^. #src) (coerce domMap) of
     Nothing -> False
     (Just domNodes) -> HS.member (edge ^. #dst) domNodes
 
-getBackEdges :: forall a. (Hashable a, Ord a) => Cfg a -> [BackEdge a]
+getBackEdges :: forall a. Hashable a => Cfg a -> [BackEdge a]
 getBackEdges cfg' =
   [ BackEdge e
     | e <- Cfg.edges cfg',
@@ -48,7 +48,7 @@ getBackEdges cfg' =
 
 -- | Find body nodes of loop. If an empty list is returned, the loop
 --  only contains a head(er) node and a tail node.
-getBodyNodes :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> HashSet (CfNode a)
+getBodyNodes :: forall a. Hashable a => Cfg a -> BackEdge a -> HashSet (CfNode a)
 getBodyNodes cfg' backEdge =
   HS.delete header
     . HS.delete tail
@@ -64,21 +64,21 @@ getBodyNodes cfg' backEdge =
     tail :: CfNode a
     tail = backEdge ^. (#edge . #src)
 
-getLoopBody :: forall a. (Hashable a, Ord a) => Cfg a -> BackEdge a -> LoopBody a
+getLoopBody :: forall a. Hashable a => Cfg a -> BackEdge a -> LoopBody a
 getLoopBody cfg' backEdge =
   LoopBody bodyNodes
   where
     bodyNodes :: HashSet (CfNode a)
     bodyNodes = getBodyNodes cfg' backEdge
 
-getLoopCfg :: forall a. (Hashable a, Ord a) => Cfg a -> LoopHeader a -> LoopNodes a -> LoopCfg a
+getLoopCfg :: forall a. Hashable a => Cfg a -> LoopHeader a -> LoopNodes a -> LoopCfg a
 getLoopCfg cfg' header loopNodes =
   LoopCfg $ subCfg_ {root = header ^. #node}
   where
     subCfg_ :: Cfg a
     subCfg_ = G.subgraph (`HS.member` (loopNodes ^. #nodes)) cfg'
 
-fromBackEdge :: forall a b. (Hashable a, Ord a) => Cfg a -> BackEdge a -> NatLoop a b
+fromBackEdge :: forall a b. Hashable a => Cfg a -> BackEdge a -> NatLoop a b
 fromBackEdge cfg' backEdge =
   NatLoop header body tail loopCfg backEdge
   where

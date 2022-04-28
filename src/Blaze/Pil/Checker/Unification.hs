@@ -48,7 +48,7 @@ addVarEq a b = do
 ---------- unification and constraint solving ----------------------
 
 -- | Swaps first key with second in map.
-updateSolKey :: (Hashable k, Eq k) => k -> k -> v -> HashMap k v -> HashMap k v
+updateSolKey :: Hashable k => k -> k -> v -> HashMap k v -> HashMap k v
 updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
 
 -- | Applies originMap substitutions to solution types.

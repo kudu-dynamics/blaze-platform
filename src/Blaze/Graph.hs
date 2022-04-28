@@ -125,11 +125,11 @@ buildNodeMap =
  Per dom-lt, the complexity is:
  O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
 -}
--- getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
+-- getDominators :: (Hashable a, Graph e attr a g) => a -> g -> Dominators a
 -- getDominators rootNode = Dominators . domHelper Dlt.dom rootNode
 
 getDominatorMapping
-  :: forall a attr g e. (Hashable a, Eq a, Graph e attr a g)
+  :: forall a attr g e. (Hashable a, Graph e attr a g)
   => a
   -> g
   -> HashMap a (HashSet a)
@@ -161,20 +161,20 @@ bfsReachable :: Graph e attr a g => a -> g -> [a]
 bfsReachable n g = concat $ bfs [n] g
 
 
-getDominators :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> Dominators a
+getDominators :: (Hashable a, Graph e attr a g) => a -> g -> Dominators a
 getDominators rootNode = Dominators . getDominatorMapping rootNode
 
-getPostDominators_ :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
+getPostDominators_ :: (Hashable a, Graph e attr a g) => a -> g -> PostDominators a
 getPostDominators_ termNode = PostDominators . getDominatorMapping termNode . G.transpose
 
 -- -- | Gets all post dominators. termNode should be the only terminal node in the graph.
--- getPostDominators_ :: (Hashable a, Eq a, Graph e attr a g) => a -> g -> PostDominators a
+-- getPostDominators_ :: (Hashable a, Graph e attr a g) => a -> g -> PostDominators a
 -- getPostDominators_ termNode = PostDominators . domHelper Dlt.pdom termNode
 
 -- | Gets all post dominators. If there are multiple terminal nodes,
 --   each will point to `dummyTermNode`.
 getPostDominators
-  :: (Hashable a, Eq a, Graph e attr a g)
+  :: (Hashable a, Graph e attr a g)
   => a
   -> e
   -> g

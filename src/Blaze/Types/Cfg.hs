@@ -209,14 +209,14 @@ getFullNode g = fromJust . getFullNode' (g ^. #graph)
 getFullNodeMay :: Cfg a -> CfNode () -> Maybe (CfNode a)
 getFullNodeMay g = getFullNode' $ g ^. #graph
 
-getFullEdge :: (Hashable a, Eq a) => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
+getFullEdge :: Hashable a => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
 getFullEdge cfg e = CfEdge (e ^. #src) (e ^. #dst) <$> G.getEdgeLabel e cfg
 
-toFullNodeSet :: (Hashable a, Eq a) => Cfg a -> HashSet (CfNode ()) -> HashSet (CfNode a)
+toFullNodeSet :: Hashable a => Cfg a -> HashSet (CfNode ()) -> HashSet (CfNode a)
 toFullNodeSet g = HashSet.map $ getFullNode g
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: forall a .(Hashable a, Eq a)
+mkControlFlowGraph :: forall a .Hashable a
                    => CfNode a
                    -> [CfNode a]
                    -> [CfEdge a]
@@ -280,11 +280,11 @@ instance Hashable a => Hashable (Cfg a) where
 instance ToJSON a => ToJSON (Cfg a) where
  toJSON = toJSON . toTransport
 
-instance (Eq a, Hashable a, FromJSON a) => FromJSON (Cfg a) where
+instance (Hashable a, FromJSON a) => FromJSON (Cfg a) where
  parseJSON = fmap fromTransport . parseJSON
 
 
-mkCfg :: forall a. (Hashable a, Eq a) => CtxId -> CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
+mkCfg :: forall a. Hashable a => CtxId -> CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
 mkCfg nextCtxIndex_ root_ rest es =
   Cfg
     { graph = mkControlFlowGraph root_ rest es
@@ -292,32 +292,32 @@ mkCfg nextCtxIndex_ root_ rest es =
     , nextCtxIndex = nextCtxIndex_
     }
 
-edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
+edges :: Hashable a => Cfg a -> [CfEdge a]
 edges = fmap fromLEdge . G.edges
 
 removeIdEdge :: CfEdge () -> Cfg a -> Cfg a
 removeIdEdge e cfg = cfg & #graph %~ G.removeEdge (toLEdge e ^. #edge)
 
-removeEdge :: (Hashable a, Eq a) => CfEdge a -> Cfg a -> Cfg a
+removeEdge :: Hashable a => CfEdge a -> Cfg a -> Cfg a
 removeEdge e = G.removeEdge $ toLEdge e ^. #edge
 
-addEdge :: (Hashable a, Eq a) => CfEdge a -> Cfg a -> Cfg a
+addEdge :: Hashable a => CfEdge a -> Cfg a -> Cfg a
 addEdge e = G.addEdge $ toLEdge e
 
-addEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
+addEdges :: Hashable a => [CfEdge a] -> Cfg a -> Cfg a
 addEdges xs cfg = foldl' (flip addEdge) cfg xs
 
-removeEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
+removeEdges :: Hashable a => [CfEdge a] -> Cfg a -> Cfg a
 removeEdges xs cfg = foldl' (flip removeEdge) cfg xs
 
 -- TODO: move this to Graph class
-predEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
+predEdges :: Hashable a => CfNode a -> Cfg a -> HashSet (CfEdge a)
 predEdges n cfg = HashSet.map (\pred -> fromJust . getFullEdge cfg $ G.Edge pred n)
   . G.preds n
   $ cfg
 
 -- TODO: move this to Graph class
-succEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
+succEdges :: Hashable a => CfNode a -> Cfg a -> HashSet (CfEdge a)
 succEdges n cfg = HashSet.map (fromJust . getFullEdge cfg . G.Edge n)
   . G.succs n
   $ cfg
@@ -341,10 +341,10 @@ getNodeUUID = \case
   LeaveFunc x -> x ^. #uuid
   Grouping x -> x ^. #uuid
 
-setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
+setNodeData :: Hashable a => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
 
-updateNodeData :: (Hashable a, Eq a) => (a -> a) -> CfNode a -> Cfg a -> Cfg a
+updateNodeData :: Hashable a => (a -> a) -> CfNode a -> Cfg a -> Cfg a
 updateNodeData f n = setNodeData (f $ getNodeData n) n
 
 mergeBranchTypeDefault :: BranchType -> BranchType -> BranchType
@@ -358,14 +358,14 @@ mergeBranchTypeDefault bt1 bt2 = P.error
 
 -- | Removes a node and makes edges from preds to succs
 --   uses pred->node branch type for pred->succ
-removeAndRebindEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> Cfg a
+removeAndRebindEdges :: Hashable a => CfNode a -> Cfg a -> Cfg a
 removeAndRebindEdges = removeAndRebindEdges_ mergeBranchTypeDefault
 
 -- | Removes a node and makes edges from preds to succs
 --   uses pred->node branch type for pred->succ
 --   mergeBranchType specifies how to merge branch type of
 --   newly created edge with possible existing edge
-removeAndRebindEdges_ :: (Hashable a, Eq a)
+removeAndRebindEdges_ :: Hashable a
   => (BranchType -> BranchType -> BranchType)
   -> CfNode a -> Cfg a -> Cfg a
 removeAndRebindEdges_ mergeBranchType n cfg' = G.removeNode n
@@ -386,7 +386,7 @@ removeAndRebindEdges_ mergeBranchType n cfg' = G.removeNode n
 
 -- | Removes any nodes where predicate is True, except root node.
 removeNodesBy
-  :: (Hashable a, Eq a)
+  :: Hashable a
   => (BranchType -> BranchType -> BranchType)
   -> (CfNode a -> Bool)
   -> Cfg a
@@ -400,7 +400,7 @@ removeNodesBy branchMerge p cfg = foldl'
     g x = asIdNode x /= asIdNode (cfg ^. #root) && p x
 
 -- | Insert node between two other nodes.
-insertNodeBetween :: (Hashable a, Eq a)
+insertNodeBetween :: Hashable a
   => CfNode a
   -> CfNode a
   -> CfNode a
@@ -417,7 +417,7 @@ insertNodeBetween nodeA nodeB nodeMiddle cfg' =
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance (Hashable a, Eq a) => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
+instance Hashable a => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
   fromEdges _ = error "Use mkCfg to construct a CFG."
@@ -605,7 +605,7 @@ traverseAttrs f cfg = do
       | rootId == asIdNode n = return root'
       | otherwise = traverse f n
 
-gatherCfgData :: (Hashable a, Eq a) => Cfg [a] -> [a]
+gatherCfgData :: Hashable a => Cfg [a] -> [a]
 gatherCfgData = concatMap concat . HashMap.elems . G.getNodeAttrMap
 
 data UndecidedIfBranches = UndecidedIfBranches
@@ -653,7 +653,7 @@ toTransport pcfg = CfgTransport
     edges' :: [CfEdge ()]
     edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
 
-fromTransport :: (Eq a, Hashable a) => CfgTransport a -> Cfg a
+fromTransport :: Hashable a => CfgTransport a -> Cfg a
 fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
   where
     nodeMap = HashMap.fromList $ t ^. #transportNodes
