@@ -299,8 +299,6 @@ unifyPilTypes pt1 pt2 =
           Right unifiedLen -> return $ TCString unifiedLen
         _ -> err
 
-      _ -> err
-
   where
     err = throwError $ IncompatibleTypes pt1 pt2
 
