@@ -106,9 +106,8 @@ import Protolude as Exports hiding ( Bits
                                    , HasField
                                    , head
                                    )
-import Streamly as Exports
+import Streamly.Prelude as Exports
   ( IsStream,
-    asyncly,
   )
 import qualified Streamly.Prelude
 import System.IO.Unsafe (unsafePerformIO)
