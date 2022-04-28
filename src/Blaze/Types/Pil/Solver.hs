@@ -99,6 +99,7 @@ instance MonadFail Solver where
 
 instance SolverContext Solver where
   addAxiom s = liftSymbolicT . addAxiom s
+  addSMTDefinition s = liftSymbolicT . addSMTDefinition s
   constrain = liftSymbolicT . constrain
   softConstrain = liftSymbolicT . softConstrain
   namedConstraint s = liftSymbolicT . namedConstraint s
