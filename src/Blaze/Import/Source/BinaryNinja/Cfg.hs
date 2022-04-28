@@ -21,7 +21,7 @@ import Blaze.Types.Cfg (
   CfEdge (CfEdge),
   CfNode (
     BasicBlock,
-    Call
+    Call, EnterFunc, LeaveFunc, Grouping
   ),
   Cfg,
   PilCfg,
@@ -233,7 +233,7 @@ getCfg imp bv func currentCtxId = do
           mlilRefMap = HMap.filterWithKey (\k _ -> not $ isGotoBlock k) mlilRefMapWithGotos
           mlilRootNode = mlilCfg ^. #root
           mlilRestNodes = HashSet.toList $ (HashSet.delete mlilRootNode . G.nodes) mlilCfg
-          
+
       pilRootNode <- convertToPilNode imp (ctx ^. #ctxId) mlilRefMap mlilRootNode
       pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =
@@ -251,7 +251,7 @@ getCfg imp bv func currentCtxId = do
         ImportResult ctx
           <$> mPilCfg'
           <*> Just pilStmtsMap
-          
+
 
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
@@ -287,8 +287,9 @@ convertToPilNode imp ctxId_ mapping mlilSsaNode = do
             return $ const () <$> Pil.getCallDest callStmt
       uuid' <- randomIO
       return $ Call (CallNode fun startAddr callDest uuid' stmts)
-    Cfg.EnterFunc _ -> P.error "MLIL Cfg shouldn't have EnterFunc node"
-    Cfg.LeaveFunc _ -> P.error "MLIL Cfg shouldn't have LeaveFunc node"
+    EnterFunc _ -> P.error "MLIL CFGs shouldn't have a EnterFunc node"
+    LeaveFunc _ -> P.error "MLIL CFGs shouldn't have a LeaveFunc node"
+    Grouping _ -> P.error "MLIL CFGs shouldn't have a Grouping node"
 
 convertToPilEdge :: HashMap MlilSsaCfNode PilNode -> MlilSsaCfEdge -> Maybe PilEdge
 convertToPilEdge nodeMap mlilSsaEdge =
@@ -296,4 +297,3 @@ convertToPilEdge nodeMap mlilSsaEdge =
     <$> HMap.lookup (mlilSsaEdge ^. #src) nodeMap
     <*> HMap.lookup (mlilSsaEdge ^. #dst) nodeMap
     <*> Just (mlilSsaEdge ^. #branchType)
-

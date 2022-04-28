@@ -82,6 +82,16 @@ data LeaveFuncNode a = LeaveFuncNode
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
+-- | A node type that represents a "grouped" sub-CFG within a larger CFG
+data GroupingNode a = GroupingNode
+  { termNode :: CfNode a
+  , uuid :: UUID
+  , grouping :: Cfg a
+  , nodeData :: a
+  }
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
+  deriving anyclass (Hashable)
+
 {- |Terminal nodes are nodes in CFG that have no successor.
 In a function, these nodes correspond to either: a return statement that
 resumes control flow to the caller; an exit statement (see NORET in MLIL SSA)
@@ -132,7 +142,7 @@ data CfNode a
   | Call (CallNode a)
   | EnterFunc (EnterFuncNode a)
   | LeaveFunc (LeaveFuncNode a)
-  -- -- | Grouping (GroupingNode a)
+  | Grouping (GroupingNode a)
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
@@ -145,6 +155,7 @@ mkUniqueNode n = do
     Call x -> Call $ x & #uuid .~ uuid'
     EnterFunc x -> EnterFunc $ x & #uuid .~ uuid'
     LeaveFunc x -> LeaveFunc $ x & #uuid .~ uuid'
+    Grouping x -> Grouping $ x & #uuid .~ uuid'
 
 data CfEdge a = CfEdge
   { src :: CfNode a
@@ -247,7 +258,14 @@ instance Functor Cfg where
     }
 
 instance Foldable Cfg where
-  foldMap f = G.foldMapAttrs (f . getNodeData) . view #graph
+  foldMap f = G.foldMapAttrs g . view #graph
+    where
+      g = \case
+        Grouping x -> foldMap f $ x ^. #grouping
+        BasicBlock x -> f $ x ^. #nodeData
+        Call x -> f $ x ^. #nodeData
+        EnterFunc x -> f $ x ^. #nodeData
+        LeaveFunc x -> f $ x ^. #nodeData
 
 instance Traversable Cfg where
   traverse f cfg = Cfg
@@ -313,6 +331,7 @@ getNodeData = \case
   Call x -> x ^. #nodeData
   EnterFunc x -> x ^. #nodeData
   LeaveFunc x -> x ^. #nodeData
+  Grouping x -> x ^. #nodeData
 
 getNodeUUID :: CfNode a -> UUID
 getNodeUUID = \case
@@ -320,6 +339,7 @@ getNodeUUID = \case
   Call x -> x ^. #uuid
   EnterFunc x -> x ^. #uuid
   LeaveFunc x -> x ^. #uuid
+  Grouping x -> x ^. #uuid
 
 setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
 setNodeData a n = G.setNodeAttr (fmap (const a) n) n
@@ -396,7 +416,7 @@ insertNodeBetween nodeA nodeB nodeMiddle cfg' =
       $ cfg'
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
--- TODO: Separate graph construction from graph use and/or graph algorithms
+-- TODO: Separate graph construction from graph use and/or graph algorithmsx
 instance (Hashable a, Eq a) => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
