@@ -17,11 +17,13 @@ import qualified Blaze.Types.Cfg as Cfg
 -- re-exporting eplicitly.
 import Blaze.Types.Cfg.Loop as Exports hiding
   ( backEdge,
-    body,
-    cfg,
     edge,
-    header,
-    tail,
+    NatLoop(..),
+    LoopCfg(..),
+  )
+import Blaze.Types.Cfg.Loop as Exports
+  ( NatLoop(NatLoop),
+    LoopCfg(LoopCfg),
   )
 import qualified Blaze.Types.Graph as G
 import qualified Data.HashMap.Strict as HM
