@@ -62,11 +62,12 @@ import qualified Data.Text as Text
 import qualified Numeric
 
 import Blaze.Cfg
-    ( CfNode(BasicBlock, Call, EnterFunc, LeaveFunc),
+    ( CfNode(BasicBlock, Call, EnterFunc, LeaveFunc, Grouping),
       BasicBlockNode,
       CallNode,
       EnterFuncNode,
       LeaveFuncNode,
+      GroupingNode (GroupingNode),
       BranchType,
       CfEdge,
       Cfg,
@@ -779,6 +780,7 @@ instance Tokenizable (CfNode a) where
     Call n -> tokenize n
     EnterFunc n -> tokenize n
     LeaveFunc n -> tokenize n
+    Grouping n -> tokenize n
 
 instance Tokenizable (CfEdge a) where
   tokenize e =
@@ -799,8 +801,8 @@ instance Tokenizable (BasicBlockNode a) where
            , tt "]"
            ]
 
-instance Tokenizable (GCfg.GroupingNode a) where
-  tokenize (GCfg.GroupingNode _termNode _uuid' _grouping _nodeData) =
+instance Tokenizable (GroupingNode a) where
+  tokenize (GroupingNode _termNode _uuid' _grouping _nodeData) =
     -- TODO: Improve
     tokenize [ tt "Grouping" ]
 
@@ -826,23 +828,6 @@ instance Tokenizable (LeaveFuncNode a) where
 
 instance Tokenizable BranchType where
   tokenize bt = pure [tt (show bt)]
-
-instance Tokenizable (GCfg.CfNode a) where
-  tokenize = \case
-    GCfg.BasicBlock n -> tokenize n
-    GCfg.Call n -> tokenize n
-    GCfg.EnterFunc n -> tokenize n
-    GCfg.LeaveFunc n -> tokenize n
-    GCfg.Grouping n -> tokenize n
-
-instance Tokenizable (GCfg.CfEdge a) where
-  tokenize e =
-    tokenize (e ^. #src) <++>
-    tt " ---> " <++>
-    tokenize (e ^. #dst) <++>
-    tt "  |" <++>
-    tokenize (e ^. #branchType) <++>
-    tt "|"
 
 -- | This matches each node to an Int and uses the Int to show the edges
 instance Tokenizable a => Tokenizable (Cfg a) where
@@ -932,48 +917,6 @@ instance Tokenizable Bool where
 
 instance Tokenizable Text where
   tokenize t = pure [tt t]
-
-instance Tokenizable a => Tokenizable (GCfg.Cfg a) where
-  tokenize cfg =
-    [tt "---CFG---\n", tt "--- Node Mapping:\n"] <++>
-    showNodeMapping <++>
-    tt "--- Edges:\n" <++>
-    showEdges <++>
-    tt "--- Attrs:\n" <++>
-    showAttrs
-    where
-      cflow = cfg ^. #graph
-      nodeMapList :: [(GCfg.CfNode (), Int)]
-      nodeMapList = zip (HashSet.toList $ G.nodes cflow) [0..]
-
-      nodeMap :: HashMap (GCfg.CfNode ()) Int
-      nodeMap = HashMap.fromList nodeMapList
-
-      showNodeMapping :: Tokenizer [Token]
-      showNodeMapping = intercalate [tt "\n"] <$> traverse showNode nodeMapList
-
-      showNode :: (GCfg.CfNode (), Int) -> Tokenizer [Token]
-      showNode (node, nid) =
-        [tt (show nid), tt " : "] <++>
-        (tokenize . fromJust $ G.getNodeAttr node cflow)
-
-      showEdges :: [Token]
-      showEdges =
-        [ tt
-          . Text.concat
-          . fmap (cs . pshow)
-          . fmap (fmap $ fromJust . flip HashMap.lookup nodeMap)
-          . G.edges
-          $ cflow
-        ]
-
-      showAttrs :: Tokenizer [Token]
-      showAttrs = intercalate [tt "\n"] <$> sequence (mapMaybe showAttr nodeMapList)
-
-      showAttr :: (GCfg.CfNode (), Int) -> Maybe (Tokenizer [Token])
-      showAttr (node, nid) = do
-        attr <- G.getNodeAttr node cflow
-        return $ [tt (show nid), tt " : "] <++> tokenizeAsList (toList attr)
 
 instance Tokenizable (GCfg.GroupSpec a) where
   tokenize gs =

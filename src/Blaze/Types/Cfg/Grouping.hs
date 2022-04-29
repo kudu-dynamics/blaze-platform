@@ -2,8 +2,6 @@
 This module provides functionality for grouping, ungrouping, and regrouping.
 -}
 
-{-# LANGUAGE ViewPatterns #-}
-
 module Blaze.Types.Cfg.Grouping
   ( module Blaze.Types.Cfg.Grouping
   , module Exports
@@ -27,55 +25,15 @@ import Blaze.Types.Cfg as Exports (
   BranchType,
   CallNode (CallNode),
   EnterFuncNode (EnterFuncNode),
-  LeaveFuncNode (LeaveFuncNode),
+  LeaveFuncNode (LeaveFuncNode), CfNode (BasicBlock, Call, EnterFunc, LeaveFunc, Grouping), GroupingNode (GroupingNode), Cfg (Cfg), CfgTransport (CfgTransport), CfEdge (CfEdge), ControlFlowGraph
  )
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Graph (Dominators, PostDominators)
-import Blaze.Types.Graph.Alga (AlgaGraph (AlgaGraph))
-import Blaze.Types.Pil (Stmt)
-import Blaze.Types.Pil.Common (Ctx, CtxId)
+import Blaze.Types.Pil.Common (Ctx)
 import Blaze.Util.Spec (mkDummyCtx, mkUuid1)
-import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
-import qualified Algebra.Graph.AdjacencyMap as AM
-import Data.Bitraversable (bifor)
 import Control.Lens (set)
-
-
-type PilNode = CfNode [Stmt]
-type PilEdge = CfEdge [Stmt]
-type PilCallNode = Cfg.CallNode [Stmt]
-type PilBbNode = Cfg.BasicBlockNode [Stmt]
-type PilNodeMapEntry = (PilNode, [Stmt])
-type PilCfg = Cfg [Stmt]
-
--- | A node type that represents a "grouped" sub-CFG within a larger CFG
-data GroupingNode a = GroupingNode
-  { termNode :: CfNode a
-  , uuid :: UUID
-  , grouping :: Cfg a
-  , nodeData :: a
-  }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
-
-data CfNode a
-  = BasicBlock (Cfg.BasicBlockNode a)
-  | Call (Cfg.CallNode a)
-  | EnterFunc (Cfg.EnterFuncNode a)
-  | LeaveFunc (Cfg.LeaveFuncNode a)
-  | Grouping (GroupingNode a)
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
-
-data CfEdge a = CfEdge
-  { src :: CfNode a
-  , dst :: CfNode a
-  , branchType :: Cfg.BranchType
-  }
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
 
 -- | Record of the group layouts, including inner groups of groups.
 type GroupingTree a = [GroupSpec a]
@@ -83,160 +41,13 @@ type GroupingTree a = [GroupSpec a]
 -- | Root dominator and term post-dominator nodes for group, including inner groups.
 -- root and term are stored as non-group Cfg CfNode so that we don't point to groups
 data GroupSpec a = GroupSpec
-  { groupRoot :: Cfg.CfNode ()
-  , groupTerm :: Cfg.CfNode ()
+  { groupRoot :: CfNode ()
+  , groupTerm :: CfNode ()
   , innerGroups :: GroupingTree a
   , groupData :: a
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
   deriving anyclass (Hashable)
-
--- | Translate a flat 'Cfg.CfNode' to its grouped 'CfNode' equivalent
-fromCfNode :: Cfg.CfNode a -> CfNode a
-fromCfNode (Cfg.BasicBlock n) = BasicBlock n
-fromCfNode (Cfg.Call n) = Call n
-fromCfNode (Cfg.EnterFunc n) = EnterFunc n
-fromCfNode (Cfg.LeaveFunc n) = LeaveFunc n
-
--- | Translate a grouped 'CfNode' to its flat 'Cfg.CfNode' equivalent, but
--- return 'Nothing' if it is a 'Grouping'
-toCfNodeMaybe :: CfNode a -> Maybe (Cfg.CfNode a)
-toCfNodeMaybe (BasicBlock n) = Just (Cfg.BasicBlock n)
-toCfNodeMaybe (Call n) = Just (Cfg.Call n)
-toCfNodeMaybe (EnterFunc n) = Just (Cfg.EnterFunc n)
-toCfNodeMaybe (LeaveFunc n) = Just (Cfg.LeaveFunc n)
-toCfNodeMaybe (Grouping _) = Nothing
-
--- | Translate a flat 'Cfg.CfEdge' to its grouped 'CfEdge' equivalent
-fromCfEdge :: Cfg.CfEdge a -> CfEdge a
-fromCfEdge (Cfg.CfEdge s d bt) = CfEdge (fromCfNode s) (fromCfNode d) bt
-
--- | Translate a grouped 'CfEdge' to its flat 'Cfg.CfEdge' equivalent, but
--- return 'Nothing' if either of its vertices are a 'Grouping'
-toCfEdgeMaybe :: CfEdge a -> Maybe (Cfg.CfEdge a)
-toCfEdgeMaybe (CfEdge s d bt) = Cfg.CfEdge <$> toCfNodeMaybe s <*> toCfNodeMaybe d <*> Just bt
-
-fromLEdge :: G.LEdge Cfg.BranchType (CfNode a) -> CfEdge a
-fromLEdge (G.LEdge bt (G.Edge s d)) = CfEdge s d bt
-
-toLEdge :: CfEdge a -> G.LEdge Cfg.BranchType (CfNode a)
-toLEdge (CfEdge a b bt) = G.LEdge bt (G.Edge a b)
-
-type ControlFlowGraph a = AlgaGraph Cfg.BranchType (CfNode a) (CfNode ())
-
-asIdNode :: CfNode a -> CfNode ()
-asIdNode = void
-
-asIdEdge :: CfEdge a -> CfEdge ()
-asIdEdge = void
-
-getFullNodeMay :: Cfg a -> CfNode () -> Maybe (CfNode a)
-getFullNodeMay g = getFullNode' $ g ^. #graph
-
-getNodeData :: CfNode a -> a
-getNodeData = \case
-  BasicBlock x -> x ^. #nodeData
-  Call x -> x ^. #nodeData
-  EnterFunc x -> x ^. #nodeData
-  LeaveFunc x -> x ^. #nodeData
-  Grouping x -> x ^. #nodeData
-
-setNodeData :: (Hashable a, Eq a) => a -> CfNode a -> Cfg a -> Cfg a
-setNodeData a n = G.setNodeAttr (fmap (const a) n) n
-
-getNodeUUID :: CfNode a -> UUID
-getNodeUUID = \case
-  BasicBlock x -> x ^. #uuid
-  Call x -> x ^. #uuid
-  EnterFunc x -> x ^. #uuid
-  LeaveFunc x -> x ^. #uuid
-  Grouping x -> x ^. #uuid
-
-data Cfg a = Cfg
-  { graph :: ControlFlowGraph a
-  , root :: CfNode a
-  , nextCtxIndex :: CtxId
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-instance Functor Cfg where
-  fmap f cfg = Cfg
-    { graph = G.mapAttrs (fmap f) $ cfg ^. #graph
-    , root = f <$> (cfg ^. #root)
-    , nextCtxIndex = cfg ^. #nextCtxIndex
-    }
-
-instance Foldable Cfg where
-  foldMap f = G.foldMapAttrs g . view #graph
-    where
-      g = \case
-        Grouping x -> foldMap f $ x ^. #grouping
-        BasicBlock x -> f $ x ^. #nodeData
-        Call x -> f $ x ^. #nodeData
-        EnterFunc x -> f $ x ^. #nodeData
-        LeaveFunc x -> f $ x ^. #nodeData
-
-instance Traversable Cfg where
-  traverse f cfg = Cfg
-    <$> G.traverseAttrs (traverse f) (cfg ^. #graph)
-    <*> traverse f (cfg ^. #root)
-    <*> pure (cfg ^. #nextCtxIndex)
-
-instance Hashable a => Hashable (Cfg a) where
-  hashWithSalt n = hashWithSalt n . toTransport
-  hash = hash . toTransport
-
-instance ToJSON a => ToJSON (Cfg a) where
- toJSON = toJSON . toTransport
-
-instance (Eq a, Hashable a, FromJSON a) => FromJSON (Cfg a) where
- parseJSON = fmap fromTransport . parseJSON
-
-mkCfg :: (Hashable a, Eq a) => CtxId -> CfNode a -> [CfNode a] -> [CfEdge a] -> Cfg a
-mkCfg nextCtxIndex' root' rest es =
-  Cfg
-    { graph = mkControlFlowGraph root' rest es
-    , root = root'
-    , nextCtxIndex = nextCtxIndex'
-    }
-
--- TODO: How to best "prove" this generates a proper ControlFlowGraph?
-mkControlFlowGraph :: forall a .(Hashable a, Eq a)
-                   => CfNode a
-                   -> [CfNode a]
-                   -> [CfEdge a]
-                   -> ControlFlowGraph a
-mkControlFlowGraph root' ns es = G.addNodesWithAttrs attrList
-  . G.fromEdges
-  $ fmap asIdNode . toLEdge <$> es
-  where
-    nodesInEdges = concatMap (\e -> [e ^. #src, e ^. #dst]) es
-    allNodes :: [CfNode a]
-    allNodes = HashSet.toList . HashSet.fromList $ (root' : ns) <> nodesInEdges
-
-    attrList :: [(CfNode (), CfNode a)]
-    attrList = (\n -> (asIdNode n, n)) <$> allNodes
-
--- | CfgTransport is an intermediary type for Hashable, FromJSON, and ToJSON instances
-data CfgTransport a = CfgTransport
-  { transportEdges :: [CfEdge ()]
-  , transportRoot :: CfNode ()
-  , transportNodes :: [(CfNode (), CfNode a)]
-  , transportNextCtxIndex :: CtxId
-  }
-  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Functor, Foldable, Traversable)
-  deriving anyclass (Hashable)
-
--- | Transform a flat 'Cfg.Cfg' into a grouped 'Cfg' with no 'Grouping' nodes
-fromCfg :: Cfg.Cfg a -> Cfg a
-fromCfg (Cfg.Cfg (AlgaGraph adjs edata ndata) root_ nextCtxIndex') =
-  Cfg
-    (AlgaGraph
-      (AM.gmap fromCfNode adjs)
-      (HashMap.mapKeys (fmap fromCfNode) edata)
-      (HashMap.map fromCfNode . HashMap.mapKeys fromCfNode $ ndata))
-    (fromCfNode root_)
-    nextCtxIndex'
 
 -- | Find the initial, non-'Grouping' node inside a node @n@, recursively
 initialNode ::
@@ -263,43 +74,43 @@ terminalNode (Grouping (GroupingNode exit _ _ _)) = terminalNode exit
 -- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
 -- 'Cfg.Cfg'. Also, summarize the recursive structure of 'Grouping' nodes into a
 -- nested 'GroupingTree'
-unfoldGroups :: forall a. (Ord a, Hashable a) => Cfg a -> (Cfg.Cfg a, GroupingTree a)
-unfoldGroups = first (fromJust . toCfgMaybe) . expandAll
-  where
-    expandAll :: Cfg a -> (Cfg a, GroupingTree a)
-    expandAll cfg =
-      second sort $
-        foldl'
-        (\(cfg', groupSpecs) n ->
-          case expandNode n of
-            Nothing -> (cfg', groupSpecs)
-            Just (exit, subcfg, groupSpec) -> (substNode cfg' n subcfg exit, groupSpec : groupSpecs))
+unfoldGroups :: forall a. (Ord a, Hashable a) => Cfg a -> (Cfg a, GroupingTree a)
+unfoldGroups = expandAll
+ where
+  expandAll cfg =
+    second sort $
+      foldl'
+        ( \(cfg', groupSpecs) n ->
+            case expandNode n of
+              Nothing -> (cfg', groupSpecs)
+              Just (exit, subcfg, groupSpec) -> (substNode cfg' n subcfg exit, groupSpec : groupSpecs)
+        )
         (cfg, [])
         (fmap snd . HashMap.toList $ cfg ^. #graph . #nodeAttrMap)
 
-    expandNode :: CfNode a -> Maybe (CfNode a, Cfg a, GroupSpec a)
-    expandNode =
-      \case
-        (BasicBlock _) -> Nothing
-        (Call _) -> Nothing
-        (EnterFunc _) -> Nothing
-        (LeaveFunc _) -> Nothing
-        n@(Grouping (GroupingNode exit _ sub gData)) ->
-          let (subExpanded, groupingTree) = expandAll sub in
-            Just
-              ( fromCfNode $ terminalNode exit
+  expandNode :: CfNode a -> Maybe (CfNode a, Cfg a, GroupSpec a)
+  expandNode =
+    \case
+      (BasicBlock _) -> Nothing
+      (Call _) -> Nothing
+      (EnterFunc _) -> Nothing
+      (LeaveFunc _) -> Nothing
+      n@(Grouping (GroupingNode exit _ sub gData)) ->
+        let (subExpanded, groupingTree) = expandAll sub
+         in Just
+              ( terminalNode exit
               , subExpanded
               , GroupSpec
-                  { groupRoot = initialNode (asIdNode n)
-                  , groupTerm = terminalNode (asIdNode exit)
+                  { groupRoot = initialNode (Cfg.asIdNode n)
+                  , groupTerm = terminalNode (Cfg.asIdNode exit)
                   , innerGroups = groupingTree
                   , groupData = gData
                   }
               )
 
 -- | Fold all groups specified in the 'GroupingTree', recursively
-foldGroups :: forall a. (Eq a, Hashable a) => Cfg.Cfg a -> GroupingTree a -> Cfg a
-foldGroups = foldMany . fromCfg
+foldGroups :: forall a. (Eq a, Hashable a) => Cfg a -> GroupingTree a -> Cfg a
+foldGroups = foldMany
   where
     foldMany :: Cfg a -> GroupingTree a -> Cfg a
     foldMany = foldl' foldSubtree
@@ -328,167 +139,16 @@ foldOneGroup enter exit cfg nData =
   where
     enterCand = findCand enter
     exitCand = findCand exit
-    findCand :: Cfg.CfNode () -> Maybe (CfNode a)
-    findCand (fromCfNode -> n) =
-      find ((== getNodeUUID n) . getNodeUUID)
+    findCand :: CfNode () -> Maybe (CfNode a)
+    findCand n =
+      find ((== Cfg.getNodeUUID n) . Cfg.getNodeUUID)
       . HashMap.elems
       $ cfg ^. #graph . #nodeAttrMap
-
-
--- | Transforms a grouped 'Cfg' into a flat 'Cfg.Cfg' only if the original 'Cfg'
--- was essentially ungrouped, i.e., it contained no 'Grouping' nodes
-toCfgMaybe :: Cfg a -> Maybe (Cfg.Cfg a)
-toCfgMaybe (Cfg (AlgaGraph adjs edata ndata) root_ nextCtxIndex') =
-  Cfg.Cfg
-    <$> (AlgaGraph
-           <$> (AM.edges <$> traverse (\p -> bifor p toCfNodeMaybe toCfNodeMaybe) (AM.edgeList adjs))
-           <*> (HashMap.fromList <$> traverse (\p -> bifor p (traverse toCfNodeMaybe) Just) (HashMap.toList edata))
-           <*> (HashMap.fromList <$> traverse (\p -> bifor p toCfNodeMaybe toCfNodeMaybe) (HashMap.toList ndata)))
-    <*> toCfNodeMaybe root_
-    <*> pure nextCtxIndex'
-
-toTransport :: forall a. Cfg a -> CfgTransport a
-toTransport pcfg = CfgTransport
-  { transportEdges = edges'
-  , transportRoot = root'
-  , transportNodes = nodes'
-  , transportNextCtxIndex = pcfg ^. #nextCtxIndex
-  }
-  where
-    root' = void $ pcfg ^. #root
-
-    nodes' :: [(CfNode (), CfNode a)]
-    nodes' = HashMap.toList $ pcfg ^. #graph . #nodeAttrMap
-
-    edges' :: [CfEdge ()]
-    edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
-
-fromTransport :: (Eq a, Hashable a) => CfgTransport a -> Cfg a
-fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
-  where
-    nodeMap = HashMap.fromList $ t ^. #transportNodes
-
-    fullNode = fromJust . flip HashMap.lookup nodeMap
-
-    fullEdge e = CfEdge
-      { src = fullNode $ e ^. #src
-      , dst = fullNode $ e ^. #dst
-      , branchType = e ^. #branchType
-      }
-
-    root' = fullNode $ t ^. #transportRoot
-
-    nodes' = snd <$> t ^. #transportNodes
-
-    edges' = fullEdge <$> t ^. #transportEdges
-
-
----------------------------------------
--- HERE LIETH COPY/PASTE ABSTRACTION --
----------------------------------------
-
-instance (Hashable a, Eq a) => G.Graph Cfg.BranchType (CfNode a) (CfNode a) (Cfg a) where
-  empty = error "The empty function is unsupported for CFGs."
-  fromNode _ = error "Use mkCfg to construct a CFG."
-  fromEdges _ = error "Use mkCfg to construct a CFG."
-  succs node g = toFullNodeSet g
-    . G.succs (asIdNode node)
-    . view #graph
-    $ g
-  preds node g = toFullNodeSet g
-    . G.preds (asIdNode node)
-    . view #graph
-    $ g
-  nodes g = toFullNodeSet g . G.nodes $ g ^. #graph
-  edges g = fmap (fmap $ getFullNode g) . G.edges $ g ^. #graph
-
-  getEdgeLabel edge = G.getEdgeLabel (asIdNode <$> edge) . view #graph
-  setEdgeLabel label edge cfg = cfg & #graph %~ G.setEdgeLabel label (asIdNode <$> edge)
-
-  -- Sort of pointless. Could just return `node`
-  getNodeAttr node = G.getNodeAttr (asIdNode node) . view #graph
-
-  setNodeAttr attr node cfg = cfg
-    & #graph %~ G.setNodeAttr attr (asIdNode node)
-    & #root %~ updateRoot
-    where
-      updateRoot oldRoot
-        | asIdNode oldRoot == asIdNode node = attr
-        | otherwise = oldRoot
-
-  -- useless since `nodes` already returns nodes with their attrs
-  getNodeAttrMap cfg = HashMap.fromList
-    . fmap f
-    . HashMap.toList
-    . G.getNodeAttrMap
-    $ cfg ^. #graph
-    where
-      f (_, b) = (b, b)
-
-  removeEdge edge = over #graph $ G.removeEdge (asIdNode <$> edge)
-  removeNode node = over #graph $ G.removeNode (asIdNode node)
-  addNodes nodes = over #graph $
-    G.addNodesWithAttrs (asAttrTuple <$> nodes)
-  addNodesWithAttrs nodes = over #graph $
-    G.addNodesWithAttrs (over _1 asIdNode <$> nodes)
-  addEdge lblEdge = over #graph $
-    G.addEdge (asIdNode <$> lblEdge)
-    . G.addNodesWithAttrs (asAttrTuple <$> toList lblEdge)
-
-  hasNode node = G.hasNode (asIdNode node) . view #graph
-  transpose = over #graph G.transpose
-  bfs startNodes cfg = fmap (fmap $ getFullNode cfg)
-    . G.bfs (asIdNode <$> startNodes)
-    . view #graph
-    $ cfg
-
-  -- TODO: Standard subgraph doesn't make sense for a rooted graph. How to remedy?
-  subgraph pred' cfg =
-    cfg & #graph %~ G.subgraph (pred' . getFullNode cfg)
-
-  reachable n cfg = fmap (getFullNode cfg)
-    . G.reachable (asIdNode n)
-    $ cfg ^. #graph
-
-asAttrTuple :: CfNode a -> (CfNode (), CfNode a)
-asAttrTuple x = (asIdNode x, x)
-
-getFullNode' :: ControlFlowGraph a -> CfNode () -> Maybe (CfNode a)
-getFullNode' g n = G.getNodeAttr n g
-
-getFullNode :: Cfg a -> CfNode () -> CfNode a
-getFullNode g = fromJust . getFullNode' (g ^. #graph)
-
-getFullEdge :: (Hashable a, Eq a) => Cfg a -> G.Edge (CfNode a) -> Maybe (CfEdge a)
-getFullEdge cfg e = CfEdge (e ^. #src) (e ^. #dst) <$> G.getEdgeLabel e cfg
-
-toFullNodeSet :: (Hashable a, Eq a) => Cfg a -> HashSet (CfNode ()) -> HashSet (CfNode a)
-toFullNodeSet g = HashSet.map $ getFullNode g
-
--- TODO: move this to Graph class
-predEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
-predEdges n cfg = HashSet.map (\pred' -> fromJust . getFullEdge cfg $ G.Edge pred' n)
-  . G.preds n
-  $ cfg
-
--- TODO: move this to Graph class
-succEdges :: (Hashable a, Eq a) => CfNode a -> Cfg a -> HashSet (CfEdge a)
-succEdges n cfg = HashSet.map (fromJust . getFullEdge cfg . G.Edge n)
-  . G.succs n
-  $ cfg
-
-edges :: (Hashable a, Eq a) => Cfg a -> [CfEdge a]
-edges = fmap fromLEdge . G.edges
-
-addEdge :: (Hashable a, Eq a) => CfEdge a -> Cfg a -> Cfg a
-addEdge e = G.addEdge $ toLEdge e
-
-addEdges :: (Hashable a, Eq a) => [CfEdge a] -> Cfg a -> Cfg a
-addEdges xs cfg = foldl' (flip addEdge) cfg xs
 
 expandGroupingNode :: (Hashable a, Eq a) => GroupingNode a -> Cfg a -> Cfg a
 expandGroupingNode n cfg = substNode cfg (Grouping n) (n ^. #grouping) (n ^. #termNode)
 
+-- TODO: Determine if this can be merged with existing graph/node substitution code in other modules
 -- | Substitute a node with another CFG.
 substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
 substNode
@@ -497,15 +157,15 @@ substNode
   innerCfg@(Cfg _ innerRoot _)
   exitNode' =
     -- Check if the node we are substituting is the outer CFG's root
-    if asIdNode outerRoot /= asIdNode node
+    if Cfg.asIdNode outerRoot /= Cfg.asIdNode node
        then newCfg & #root .~ outerRoot
        else newCfg & #root .~ innerRoot
    where
     -- TODO: Improve Graph API for fetching edges
     predEdges' :: [CfEdge a]
-    predEdges' = HashSet.toList $ predEdges node outerCfg
+    predEdges' = HashSet.toList $ Cfg.predEdges node outerCfg
     succEdges' :: [CfEdge a]
-    succEdges' = HashSet.toList $ succEdges node outerCfg
+    succEdges' = HashSet.toList $ Cfg.succEdges node outerCfg
 
     newPredEdges :: [CfEdge a]
     newPredEdges = set #dst innerRoot <$> predEdges'
@@ -515,9 +175,9 @@ substNode
     newCfg =
       G.removeNode node
       . G.addNodes (HashSet.toList $ Cfg.nodes innerCfg)
-      . addEdges (edges innerCfg)
-      . addEdges newPredEdges
-      . addEdges newSuccEdges $ outerCfg
+      . Cfg.addEdges (Cfg.edges innerCfg)
+      . Cfg.addEdges newPredEdges
+      . Cfg.addEdges newSuccEdges $ outerCfg
 
 
 
@@ -544,7 +204,7 @@ getPostDominatorsAsIdNodes = getPostDominatorsAsIdNodes_ dummyTermNode Cfg.Uncon
 
 getPostDominators_ :: (Hashable a, Eq a) => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
 getPostDominators_ dummyTermNode dummyBranchType cfg
-  = G.domMap (getFullNode cfg)
+  = G.domMap (Cfg.getFullNode cfg)
   . G.getPostDominators dummyTermNode dummyBranchType
   $ cfg ^. #graph
 
@@ -554,11 +214,11 @@ getPostDominators = getPostDominators_ dummyTermNode Cfg.UnconditionalBranch
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
 
 getDominators_ :: Cfg a -> Dominators (CfNode ())
-getDominators_ cfg = G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+getDominators_ cfg = G.getDominators (Cfg.asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators (CfNode a)
-getDominators cfg = G.domMap (getFullNode cfg)
-  $ G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+getDominators cfg = G.domMap (Cfg.getFullNode cfg)
+  $ G.getDominators (Cfg.asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
 
 ---------
@@ -642,14 +302,14 @@ extractGroupingNode ::
 extractGroupingNode startNode endNode groupNodes cfg nData =
   GroupingNode
     endNode
-    (getNodeUUID startNode)
-    (mkCfg (cfg ^. #nextCtxIndex) startNode (HashSet.toList nodes') edges')
+    (Cfg.getNodeUUID startNode)
+    (Cfg.mkCfg (cfg ^. #nextCtxIndex) startNode (HashSet.toList nodes') edges')
     nData
  where
   allNodes = HashSet.fromList [startNode, endNode] <> groupNodes
   nodes' = HashSet.delete startNode groupNodes
 
-  edges' = filter containsOnlyGroupNodes . edges $ cfg
+  edges' = filter containsOnlyGroupNodes . Cfg.edges $ cfg
 
   containsOnlyGroupNodes :: CfEdge a -> Bool
   containsOnlyGroupNodes (CfEdge a b _) =
@@ -692,7 +352,7 @@ makeGrouping startNode endNode cfg nData = cfg'
 
     -- edges that aren't inside the group
     nonGroupEdges = filter (not . containsAnyGroupNodes)
-      . fmap fromLEdge
+      . fmap Cfg.fromLEdge
       $ G.edges cfg
 
     -- Both outgoing and incoming edges, where the startNode and endNode
@@ -701,9 +361,9 @@ makeGrouping startNode endNode cfg nData = cfg'
     exteriorGroupEdges
       = fmap (\(CfEdge a b lbl) -> CfEdge (substStartEnd a) (substStartEnd b) lbl)
       . HashSet.toList
-      $ ( HashSet.filter srcOutside (predEdges startNode cfg)
+      $ ( HashSet.filter srcOutside (Cfg.predEdges startNode cfg)
           <>
-          HashSet.filter dstOutside (succEdges endNode cfg)
+          HashSet.filter dstOutside (Cfg.succEdges endNode cfg)
         )
       where
         substStartEnd :: CfNode a -> CfNode a
@@ -715,10 +375,10 @@ makeGrouping startNode endNode cfg nData = cfg'
     nextCtxIndex' = cfg ^. #nextCtxIndex
 
     cfg' = if cfg ^. #root == startNode
-      then mkCfg nextCtxIndex' groupNode
+      then Cfg.mkCfg nextCtxIndex' groupNode
             (HashSet.toList nonGroupNodes)
             newEdges
-      else mkCfg nextCtxIndex' (cfg ^. #root)
+      else Cfg.mkCfg nextCtxIndex' (cfg ^. #root)
             (HashSet.toList $ nonGroupNodes <> HashSet.singleton groupNode)
             newEdges
 
