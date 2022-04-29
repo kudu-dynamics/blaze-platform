@@ -261,7 +261,7 @@ instance Foldable Cfg where
   foldMap f = G.foldMapAttrs g . view #graph
     where
       g = \case
-        Grouping x -> foldMap f $ x ^. #grouping
+        Grouping x -> f (x ^. #nodeData) `mappend` foldMap f (x ^. #grouping)
         BasicBlock x -> f $ x ^. #nodeData
         Call x -> f $ x ^. #nodeData
         EnterFunc x -> f $ x ^. #nodeData
@@ -416,7 +416,7 @@ insertNodeBetween nodeA nodeB nodeMiddle cfg' =
       $ cfg'
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
--- TODO: Separate graph construction from graph use and/or graph algorithmsx
+-- TODO: Separate graph construction from graph use and/or graph algorithms
 instance (Hashable a, Eq a) => Graph BranchType (CfNode a) (CfNode a) (Cfg a) where
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
