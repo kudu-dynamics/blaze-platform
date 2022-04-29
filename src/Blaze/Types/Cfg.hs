@@ -18,9 +18,8 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Prelude hiding (pred, succ)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest, CtxId)
+import Blaze.Types.Pil (Stmt, RetOp, Expression, BranchCondOp, CallDest, CtxId, Ctx)
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil.Common (Ctx)
 import Data.Aeson (ToJSON(toJSON), FromJSON(parseJSON))
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
