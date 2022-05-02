@@ -1,5 +1,5 @@
-resolver: lts-18.18
-compiler: ghc-8.10.7
+resolver: nightly-2022-04-28
+compiler: ghc-9.2.2
 
 packages:
   - .
@@ -7,6 +7,9 @@ packages:
 extra-deps:
   - ../binaryninja-haskell
   - ../binary-analysis
-  - dom-lt-0.2.0@sha256:fc7451d6ada55233239d22b6eed8f2e4c1c1290f1cad101c9d429ea875aa72e6,1615
-  - git: https://github.com/LeventErkok/sbv.git
-    commit: c7bd569e28c8b035f9e4fba2e6504803d8a1a43a
+  - git: https://github.com/protolude/protolude
+    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
+  - envy-2.1.0.0@sha256:b58b12d9b61a4e07562e7718f28a864178cfc4bb4c24a45c68b5e46cfd9b39be,1772
+  - sbv-9.0
+
+allow-newer: true

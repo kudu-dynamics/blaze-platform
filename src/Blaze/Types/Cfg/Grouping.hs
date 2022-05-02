@@ -109,7 +109,7 @@ unfoldGroups = expandAll
               )
 
 -- | Fold all groups specified in the 'GroupingTree', recursively
-foldGroups :: forall a. (Eq a, Hashable a) => Cfg a -> GroupingTree a -> Cfg a
+foldGroups :: forall a. Hashable a => Cfg a -> GroupingTree a -> Cfg a
 foldGroups = foldMany
   where
     foldMany :: Cfg a -> GroupingTree a -> Cfg a
@@ -123,7 +123,7 @@ foldGroups = foldMany
 -- | Fold away one group in the CFG
 foldOneGroup ::
   forall a.
-  (Eq a, Hashable a) =>
+  Hashable a =>
   -- | First (enter) node in group
   Cfg.CfNode () ->
   -- | Last (exit) node in group
@@ -145,12 +145,12 @@ foldOneGroup enter exit cfg nData =
       . HashMap.elems
       $ cfg ^. #graph . #nodeAttrMap
 
-expandGroupingNode :: (Hashable a, Eq a) => GroupingNode a -> Cfg a -> Cfg a
+expandGroupingNode :: Hashable a => GroupingNode a -> Cfg a -> Cfg a
 expandGroupingNode n cfg = substNode cfg (Grouping n) (n ^. #grouping) (n ^. #termNode)
 
 -- TODO: Determine if this can be merged with existing graph/node substitution code in other modules
 -- | Substitute a node with another CFG.
-substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
+substNode :: forall a. Hashable a => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
 substNode
   outerCfg@(Cfg _ outerRoot _)
   node
@@ -202,13 +202,13 @@ getPostDominatorsAsIdNodes = getPostDominatorsAsIdNodes_ dummyTermNode Cfg.Uncon
   where
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
 
-getPostDominators_ :: (Hashable a, Eq a) => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
+getPostDominators_ :: Hashable a => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
 getPostDominators_ dummyTermNode dummyBranchType cfg
   = G.domMap (Cfg.getFullNode cfg)
   . G.getPostDominators dummyTermNode dummyBranchType
   $ cfg ^. #graph
 
-getPostDominators :: (Hashable a, Eq a) => Cfg a -> PostDominators (CfNode a)
+getPostDominators :: Hashable a => Cfg a -> PostDominators (CfNode a)
 getPostDominators = getPostDominators_ dummyTermNode Cfg.UnconditionalBranch
   where
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
@@ -216,7 +216,7 @@ getPostDominators = getPostDominators_ dummyTermNode Cfg.UnconditionalBranch
 getDominators_ :: Cfg a -> Dominators (CfNode ())
 getDominators_ cfg = G.getDominators (Cfg.asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
-getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators (CfNode a)
+getDominators :: Hashable a => Cfg a -> Dominators (CfNode a)
 getDominators cfg = G.domMap (Cfg.getFullNode cfg)
   $ G.getDominators (Cfg.asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
@@ -227,7 +227,7 @@ getDominators cfg = G.domMap (Cfg.getFullNode cfg)
 -- | Returns the set of nodes that could be group terminals, given the start node.
 -- A group terminal must be a post dominator of the start node and dominated by it.
 getPossibleGroupTerms
-  :: forall a. (Hashable a, Eq a)
+  :: forall a. Hashable a
   => CfNode a
   -- ^ start node
   -> Cfg a
@@ -252,7 +252,7 @@ getPossibleGroupTerms startNode cfg = case mpdoms of
       return $ HashSet.member startNode doms
 
 groupIsClosed ::
-  (Eq a, Hashable a) =>
+  Hashable a =>
   Cfg a ->
   -- | start node
   CfNode a ->
@@ -268,7 +268,7 @@ groupIsClosed cfg start end =
 
 -- | Gets all nodes dominated by a start node and post-dominated by and end node
 findNodesInGroup
-  :: (Hashable a, Eq a)
+  :: Hashable a
   => CfNode a
   -- ^ start (dominating) node
   -> CfNode a
@@ -277,7 +277,7 @@ findNodesInGroup
   -> HashSet (CfNode a)
 findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.nodes $ cfg
   where
-    domLookup' :: (G.DominatorMapping m, Eq a, Hashable a)
+    domLookup' :: (G.DominatorMapping m, Hashable a)
                => a
                -> m a
                -> HashSet a
@@ -292,7 +292,7 @@ findNodesInGroup startNode endNode cfg = HashSet.filter isDoubleDominated . G.no
 {- HLINT ignore extractGroupingNode "Eta reduce" -}
 extractGroupingNode ::
   forall a.
-  (Eq a, Hashable a) =>
+  Hashable a =>
   CfNode a ->
   CfNode a ->
   HashSet (CfNode a) ->
@@ -318,7 +318,7 @@ extractGroupingNode startNode endNode groupNodes cfg nData =
 -- | Given a start and terminal node for a grouping, this function finds all
 -- nodes within the group and sticks them into their own CFG.
 makeGrouping
-  :: forall a. (Hashable a, Eq a)
+  :: forall a. Hashable a
   => CfNode a
   -- ^ start node
   -> CfNode a
@@ -385,7 +385,7 @@ makeGrouping startNode endNode cfg nData = cfg'
 
 ---------- from Analysis
 
-getNodesContainingAddress :: (Eq a, Hashable a) => Address -> Cfg a -> HashSet (CfNode a)
+getNodesContainingAddress :: Hashable a => Address -> Cfg a -> HashSet (CfNode a)
 getNodesContainingAddress addr = HashSet.filter containsAddr . G.nodes
   where
     -- TODO: confirm that bb range is [start, end)

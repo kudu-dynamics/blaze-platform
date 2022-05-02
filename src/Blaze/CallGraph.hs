@@ -23,7 +23,7 @@ getUndirectedCallGraph cg = G.addNodes (toList $ G.nodes cg) . G.fromEdges . fma
 
 getCallGraphStreaming :: CallGraphImporter a => a -> [Function] -> IO CallGraph
 getCallGraphStreaming importer funcs = do
-  edges <- S.toList . asyncly $ getCallGraphEdges importer funcs
+  edges <- S.toList . S.fromAsync $ getCallGraphEdges importer funcs
   let g = G.addNodes funcs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges
   return g
 
@@ -35,4 +35,4 @@ getCallGraphEdges ::
 getCallGraphEdges imp funcs = do
   callee <- S.fromList funcs
   callSite <- liftListIO $ getCallSites imp callee
-  S.yield (callSite ^. #caller, callee)
+  S.fromPure (callSite ^. #caller, callee)

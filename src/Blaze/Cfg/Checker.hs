@@ -12,7 +12,7 @@ import qualified Blaze.Types.Graph as G
 import qualified Blaze.Pil.Analysis as Analysis
 
 
-gatherCfgData :: (Hashable a, Eq a) => Cfg [a] -> [a]
+gatherCfgData :: Hashable a => Cfg [a] -> [a]
 gatherCfgData = concatMap concat . HashMap.elems . G.getNodeAttrMap
 
 -- | Checks indexed statements pulled from a CFG.

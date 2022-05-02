@@ -16,21 +16,21 @@ getNodesWithTwoChildren g = mapMaybe f . HashSet.toList . G.nodes $ g
       [c1, c2] -> Just (p, (c1, c2))
       _ -> Nothing
 
-chainMapOrigins :: (Hashable a, Eq a) => HashMap a a -> HashSet a
+chainMapOrigins :: Hashable a => HashMap a a -> HashSet a
 chainMapOrigins hm = keySet `HashSet.difference` elemSet
   where
     elemSet = HashSet.fromList $ HashMap.elems hm
     keySet = HashSet.fromList $ HashMap.keys hm
 
-getChain :: (Hashable a, Eq a) => HashMap a a -> a -> [a]
+getChain :: Hashable a => HashMap a a -> a -> [a]
 getChain hm origin = case HashMap.lookup origin hm of
   Nothing -> [origin]
   (Just next) -> origin : getChain hm next
 
-chainMapToLists :: (Hashable n, Eq n) => HashMap n n -> [[n]]
+chainMapToLists :: Hashable n => HashMap n n -> [[n]]
 chainMapToLists hm = fmap (getChain hm) . HashSet.toList $ chainMapOrigins hm
 
-getIfChainNodes :: forall e attr n g. ( Graph e attr n g, Hashable n, Eq n )
+getIfChainNodes :: forall e attr n g. ( Graph e attr n g, Hashable n)
                 => g -> [IfChainNode n]
 getIfChainNodes g = do
   (n, (c1, c2)) <- twoKidsList
@@ -58,7 +58,6 @@ getIfChainNodes g = do
 
 getIfChains :: forall e attr n g.
                ( Graph e attr n g
-               , Eq n
                , Hashable n
                )
             => g -> [IfChain n]
@@ -90,7 +89,6 @@ getIfChains g = do
 
 toFirGraph :: forall e attr n g g'.
               ( Graph e attr n g
-              , Eq n
               , Hashable n
               , Graph (FirEdgeLabel e) attr (FirNode n) g')
            => [IfChain n] -> g -> g'
