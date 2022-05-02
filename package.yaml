@@ -39,7 +39,7 @@ dependencies:
   - protolude
   - raw-strings-qq
   - stm
-  - template-haskell
+  - template-haskell >= 2.18.0.0
   - text
   - transformers
   - unordered-containers

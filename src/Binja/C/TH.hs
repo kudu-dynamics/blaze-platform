@@ -23,7 +23,7 @@ derivePointer name  = do
 --   x <- newName "x"
 --   return [InstanceD Nothing [] (AppT (ConT ''Pointer) (ConT pname))
 --           [ ValD (VarP 'pointerWrap) (NormalB (ConE pname)) []
---           , FunD 'pointerUnwrap [Clause [ConP pname [VarP x]] (NormalB (VarE x)) []]
+--           , FunD 'pointerUnwrap [Clause [ConP pname [] [VarP x]] (NormalB (VarE x)) []]
 --           , ValD (VarP 'pointerFinalizer) (NormalB (ConE 'Nothing)) []]]
 
 -- dd' :: Q [Dec]
@@ -41,7 +41,7 @@ mkPointerInstance pointerName mFinalizerString = do
   x <- newName "x"
   return $ InstanceD Nothing [] (AppT (ConT ''Pointer) (ConT pointerName))
     [ ValD (VarP 'pointerWrap) (NormalB (ConE pointerName)) []
-    , FunD 'pointerUnwrap [Clause [ConP pointerName [VarP x]] (NormalB (VarE x)) []]
+    , FunD 'pointerUnwrap [Clause [ConP pointerName [] [VarP x]] (NormalB (VarE x)) []]
     , ValD (VarP 'pointerFinalizer) (NormalB fin) []]
   where
     mFinalizerName = mkFinalizerName <$> mFinalizerString
