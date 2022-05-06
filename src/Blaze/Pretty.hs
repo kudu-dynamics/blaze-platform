@@ -977,3 +977,34 @@ newtype PrettyShow' a = PrettyShow' a
 
 instance Tokenizable a => Show (PrettyShow' a) where
   show (PrettyShow' x) = cs $ pretty' x
+
+instance Tokenizable BitOffset where
+  tokenize (BitOffset n) = tokenize n
+
+instance Tokenizable a => Tokenizable (PI.UnifyError a) where
+  tokenize = \case
+    (PI.UnifyError t1 t2 err) ->
+      [tt "UnifyError", tt " "]
+      <++> tokenize t1
+      <++> tt " "
+      <++> tokenize t2
+      <++> tt " "
+      <++> tokenize err
+    (PI.IncompatibleTypes t1 t2) ->
+      [tt "IncompatibleTypes", tt " "]
+      <++> tokenize t1
+      <++> tt " "
+      <++> tokenize t2
+    PI.IncompatibleTypeLevelValues -> return [tt "UnifyError"]
+    (PI.OverlappingRecordField recFields badOffsets) ->
+      [tt "OverlappingRecordField", tt "\n"]
+      <++> tokenize recFields
+      <++> tt " "
+      <++> tokenize badOffsets
+
+instance Tokenizable a => Tokenizable (PI.UnifyConstraintsError a) where
+  tokenize x = [tt "UnifyConstraintsError", tt " "]
+    <++> [tt "stmtOrigin", tt " "] <++> (tokenize $ x ^. #stmtOrigin)
+    <++> [tt "sym", tt " "] <++> (tokenize $ x ^. #sym)
+    <++> [tt "error", tt " "] <++> (tokenize $ x ^. #error)
+
