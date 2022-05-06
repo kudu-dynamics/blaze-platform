@@ -147,7 +147,7 @@ data Token = Token
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
-data TokenizerCtx = TokenizerCtx
+newtype TokenizerCtx = TokenizerCtx
   { varSymMap :: Maybe (HashMap Pil.PilVar PI.Sym)
   } deriving (Eq, Ord, Show, Generic)
 
@@ -394,7 +394,7 @@ tokenizeBinop ::
   a ->
   Tokenizer [Token]
 tokenizeBinop tsym opSym op =
-  (setSym tsym $ tt opSym)
+  setSym tsym (tt opSym)
     <++> tt " "
     <++> parenExpr (op ^. #left)
     <++> tt " "
@@ -413,7 +413,7 @@ tokenizeBinopInfix ::
 tokenizeBinopInfix tsym opSym op =
   parenExpr (op ^. #left)
     <++> tt " "
-    <++> (setSym tsym $ tt opSym)
+    <++> setSym tsym (tt opSym)
     <++> tt " "
     <++> parenExpr (op ^. #right)
 
@@ -426,7 +426,7 @@ tokenizeUnop ::
   Text ->
   a ->
   Tokenizer [Token]
-tokenizeUnop tsym opSym op = (setSym tsym $ tt opSym)
+tokenizeUnop tsym opSym op = setSym tsym (tt opSym)
   <++> tt " "
   <++> parenExpr (op ^. #src)
 
