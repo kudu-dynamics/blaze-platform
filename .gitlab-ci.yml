@@ -90,9 +90,16 @@ build:
   script:
     - image=${REPO_DOCKER_REGISTRY}/blaze
     - docker pull "${image}:latest" || true
+    - if [ "${CI_COMMIT_BRANCH}" = "${CI_DEFAULT_BRANCH}" ]; then
+        build_type=release;
+      else
+        build_type=dev;
+      fi
     - docker build --pull . -f Dockerfile
       --build-arg "CI_REGISTRY=${CI_REGISTRY}"
       --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
+      --build-arg "BUILD_TYPE=${build_type}"
+      --build-arg STACK_BUILD_OPTIONS=--ghc-options=-fdiagnostics-color=always
       -t "${image}:pipeline-${CI_PIPELINE_IID}"
     - docker push "${image}:pipeline-${CI_PIPELINE_IID}"
 
