@@ -96,7 +96,7 @@ library:
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
-  - -j
+  - -j4
   - -O2
   source-dirs:
   - src
@@ -169,6 +169,7 @@ executables:
     main: Main.hs
     source-dirs:  demo
     ghc-options:
+    - -j4
     - -O2
     - -Wall
     - -threaded
@@ -184,6 +185,7 @@ executables:
     main: Main.hs
     source-dirs:  app/find_mlil
     ghc-options:
+    - -j4
     - -O2
     - -Wall
     - -threaded
@@ -199,6 +201,7 @@ executables:
     main: Main.hs
     source-dirs:  app/gen_pil_ops
     ghc-options:
+    - -j4
     - -O2
     - -Wall
     - -threaded
@@ -218,6 +221,8 @@ benchmarks:
     main:                CallGraph.hs
     source-dirs:         benchmarks
     ghc-options:
+    - -j4
+    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -235,6 +240,7 @@ tests:
     - test
     ghc-options:
     - -Wall
+    - -j4
     - -O2
     - -threaded
     - -rtsopts
