@@ -155,11 +155,14 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
     it "returns the original node for a non Grouping node" $ do
       Grp.terminalNode (gbbn "node") `prettyShouldBe` cbbn "node"
 
+  let normGroupingTree :: Ord a => Grp.GroupingTree a -> Grp.GroupingTree a
+      normGroupingTree = sort . fmap (over #innerGroups normGroupingTree)
+
   context "unfoldGroups" $ do
     it "should unfold all groups of a grouped CFG into a flat CFG" $ do
       let (unfolded, groupingTree) = Grp.unfoldGroups gGrouped
       unfolded `prettyShouldBe` ungrouped
-      groupingTree `prettyShouldBe` expectedGrouping
+      normGroupingTree groupingTree `prettyShouldBe` normGroupingTree expectedGrouping
 
   context "foldGroups" $ do
     it "should fold all groups found in a flat CFG into the original grouped CFG" $ do

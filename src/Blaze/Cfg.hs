@@ -31,7 +31,7 @@ import qualified Blaze.Pil.Analysis as PilA
 getDominators_ :: Cfg a -> Dominators (CfNode ())
 getDominators_ cfg = G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
-getDominators :: (Hashable a, Eq a) => Cfg a -> Dominators (CfNode a)
+getDominators :: Hashable a => Cfg a -> Dominators (CfNode a)
 getDominators cfg = G.domMap (getFullNode cfg)
   $ G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
 
@@ -43,13 +43,13 @@ getPostDominatorsAsIdNodes = getPostDominatorsAsIdNodes_ dummyTermNode Unconditi
   where
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
 
-getPostDominators_ :: (Hashable a, Eq a) => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
+getPostDominators_ :: Hashable a => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
 getPostDominators_ dummyTermNode dummyBranchType cfg
   = G.domMap (getFullNode cfg)
   . G.getPostDominators dummyTermNode dummyBranchType
   $ cfg ^. #graph
 
-getPostDominators :: (Hashable a, Eq a) => Cfg a -> PostDominators (CfNode a)
+getPostDominators :: Hashable a => Cfg a -> PostDominators (CfNode a)
 getPostDominators = getPostDominators_ dummyTermNode UnconditionalBranch
   where
     dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
@@ -149,7 +149,7 @@ evalCondition bn = case bn ^. #cond . #op of
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
 
-getOutBranchingType :: (Eq a, Hashable a) => CfNode a -> Cfg a -> Maybe BranchingType
+getOutBranchingType :: Hashable a => CfNode a -> Cfg a -> Maybe BranchingType
 getOutBranchingType n cfg = case outBranches of
   [(TrueBranch, tedge), (FalseBranch, fedge)] ->
     Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
@@ -171,7 +171,7 @@ getOutBranchingType n cfg = case outBranches of
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
 getBranchCondNode
-  :: (Eq a, Hashable a)
+  :: Hashable a
   => (a -> (Maybe Int, Statement b))
   -> CfNode [a]
   -> Cfg [a]
@@ -184,7 +184,7 @@ getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg
       . extractIndexStmt
 
 getBranchCondNodes
-  :: (Hashable a, Eq a)
+  :: Hashable a
   => (a -> (Maybe Int, Statement b))
   -> Cfg [a]
   -> [BranchCond b]
@@ -194,7 +194,7 @@ getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode
   $ typedCfg
 
 -- | Substitute a node with another CFG.
-substNode :: forall a. (Eq a, Hashable a) => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
+substNode :: forall a. Hashable a => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
 substNode
   outerCfg@(Cfg _ outerRoot _)
   node
@@ -224,7 +224,7 @@ substNode
       . Cfg.addEdges newSuccEdges $ outerCfg
 
 
-findNodeByUUID :: forall a. (Eq a, Hashable a) => UUID -> Cfg a -> Maybe (CfNode a)
+findNodeByUUID :: forall a. Hashable a => UUID -> Cfg a -> Maybe (CfNode a)
 findNodeByUUID id cfg = case filter ((== id) . getNodeUUID) . HashSet.toList . G.nodes $ cfg of
   [] -> Nothing
   [x] -> Just x

@@ -22,11 +22,14 @@ RUN mkdir /tmp/z3/build && \
 
 
 FROM ${BLAZE_BINARYNINJA_HASKELL_BINDINGS} as main
+ARG BUILD_TYPE=dev
+ARG STACK_BUILD_OPTIONS=
 
 # Copy project definition for building dependencies
 COPY \
-    stack.yaml \
+    stack*.yaml \
     package.yaml \
+    Makefile \
     /blaze/build/blaze/
 
 WORKDIR /blaze/build/blaze
@@ -36,7 +39,10 @@ RUN --mount=type=cache,id=blaze-stackroot,target=/root/.stack \
     --mount=type=cache,id=blaze-ba-stackwork,target=/blaze/build/binary-analysis/.stack-work \
     --mount=type=cache,id=blaze-bnhs-stackwork,target=/blaze/build/binaryninja-haskell/.stack-work \
     --mount=type=cache,id=blaze-blaze-stackwork,target=/blaze/build/blaze/.stack-work \
-    stack build --only-dependencies --ghc-options -fdiagnostics-color=always
+    make \
+        STACK_BUILD_OPTIONS="${STACK_BUILD_OPTIONS} --only-dependencies" \
+        BUILD_TYPE="${BUILD_TYPE}" \
+        build
 
 # Copy source dist
 COPY ./ /blaze/src/blaze
@@ -47,8 +53,11 @@ RUN --mount=type=cache,id=blaze-stackroot,target=/root/.stack \
     --mount=type=cache,id=blaze-ba-stackwork,target=/blaze/build/binary-analysis/.stack-work \
     --mount=type=cache,id=blaze-bnhs-stackwork,target=/blaze/build/binaryninja-haskell/.stack-work \
     --mount=type=cache,id=blaze-blaze-stackwork,target=/blaze/build/blaze/.stack-work \
-    stack build --test --no-run-tests --copy-bins --ghc-options -fdiagnostics-color=always && \
-    cp $(stack path --dist-dir)/build/blaze-test/blaze-test ~/.local/bin
+    make \
+        STACK_BUILD_OPTIONS="${STACK_BUILD_OPTIONS} --copy-bins" \
+        BUILD_TYPE="${BUILD_TYPE}" \
+        TEST_BIN_DEST_DIR="${HOME}/.local/bin" \
+        copy-tests
 
 # Copy in Z3
 COPY --from=z3 /usr/local/bin/z3 /usr/local/bin/z3

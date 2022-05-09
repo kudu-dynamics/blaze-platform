@@ -71,11 +71,11 @@ newtype PostDominators a = PostDominators (HashMap a (HashSet a))
 
 class DominatorMapping m where
   domEmpty :: m a
-  domMap :: (Eq b, Hashable b) => (a -> b) -> m a -> m b
-  domMapMaybe :: (Eq b, Hashable b) => (a -> Maybe b) -> m a -> m b
-  domLookup :: (Eq a, Hashable a) => a -> m a -> Maybe (HashSet a)
-  domMerge :: (Eq a, Hashable a) => m a -> m a -> m a
-  domRemoveNode :: (Eq a, Hashable a) => a -> m a -> m a
+  domMap :: Hashable b => (a -> b) -> m a -> m b
+  domMapMaybe :: Hashable b => (a -> Maybe b) -> m a -> m b
+  domLookup :: Hashable a => a -> m a -> Maybe (HashSet a)
+  domMerge :: Hashable a => m a -> m a -> m a
+  domRemoveNode :: Hashable a => a -> m a -> m a
   domRemoveNode x = domMapMaybe f where
     f y = if x == y then Nothing else Just y
 
@@ -93,13 +93,13 @@ instance DominatorMapping PostDominators where
   domLookup x (PostDominators m) = HashMap.lookup x m
   domMerge (PostDominators a) (PostDominators b) = PostDominators $ domMergeHelper a b
 
-domLookup_ :: (DominatorMapping m, Eq a, Hashable a)
+domLookup_ :: (DominatorMapping m, Hashable a)
   => a -> m a -> HashSet a
 domLookup_ k = fromMaybe HashSet.empty . domLookup k
 
 
 mapMaybeDominatorsHelper
-  :: forall a b. (Eq b, Hashable b)
+  :: forall a b. Hashable b
   => (a -> Maybe b)
   -> HashMap a (HashSet a)
   -> HashMap b (HashSet b)
@@ -114,14 +114,14 @@ mapMaybeDominatorsHelper f = HashMap.fromList . mapMaybe g . HashMap.toList
       xs -> Just $ HashSet.fromList xs
 
 mapDominatorsHelper
-  :: (Eq b, Hashable b)
+  :: Hashable b
   => (a -> b)
   -> HashMap a (HashSet a)
   -> HashMap b (HashSet b)
 mapDominatorsHelper f = HashMap.map (HashSet.map f) . HashMap.mapKeys f
 
 domMergeHelper
-  :: (Eq a, Hashable a)
+  :: Hashable a
   => HashMap a (HashSet a)
   -> HashMap a (HashSet a)
   -> HashMap a (HashSet a)
@@ -131,7 +131,7 @@ type DltMap a = IntMap a
 
 type CfMap a = HashMap a Int
 
-findNonRepeatPaths' :: (Graph e attr n g, Hashable n, Eq n) => HashSet n -> n -> g -> [[n]]
+findNonRepeatPaths' :: (Graph e attr n g, Hashable n) => HashSet n -> n -> g -> [[n]]
 findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of
   [] -> [[start']]
   xs -> xs
@@ -140,32 +140,32 @@ findNonRepeatPaths' seen start' g = case (start' :) <$> succsPaths of
 
     succsPaths = concatMap (\s -> findNonRepeatPaths' (HashSet.insert s seen) s g) succs'
 
-findNonRepeatPaths :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> [[n]]
+findNonRepeatPaths :: (Graph e attr n g, Hashable n) => n -> g -> [[n]]
 findNonRepeatPaths start' = findNonRepeatPaths' (HashSet.singleton start') start'
 
 -- | finds all paths up until a repeat or a node with no succs
-findAllNonRepeatPaths :: (Graph e attr node g, Hashable node, Eq node) => g -> [[node]]
+findAllNonRepeatPaths :: (Graph e attr node g, Hashable node) => g -> [[node]]
 findAllNonRepeatPaths g
   | length (nodes g) == 1 = [HashSet.toList $ nodes g]
   | otherwise = do
       src' <- HashSet.toList $ sources g
       findNonRepeatPaths src' g
 
-findSimplePaths' :: (Graph e attr n g, Hashable n, Eq n) => HashSet n -> n -> n -> g -> [[n]]
+findSimplePaths' :: (Graph e attr n g, Hashable n) => HashSet n -> n -> n -> g -> [[n]]
 findSimplePaths' seen start' end' g = fmap (start':) $ do
   succ' <- HashSet.toList $ succs start' g `HashSet.difference` seen
   if succ' == end'
     then return [succ']
     else findSimplePaths' (HashSet.insert succ' seen) succ' end' g
 
-findSimplePaths :: (Graph e attr node g, Hashable node, Eq node)
+findSimplePaths :: (Graph e attr node g, Hashable node)
                 => node
                 -> node
                 -> g
                 -> [[node]]
 findSimplePaths = findSimplePaths' HashSet.empty
 
-findAllSimplePaths :: (Graph e attr node g, Hashable node, Eq node) => g -> [[node]]
+findAllSimplePaths :: (Graph e attr node g, Hashable node) => g -> [[node]]
 findAllSimplePaths g
   | length (nodes g) == 1 = [HashSet.toList $ nodes g]
   | otherwise = do
@@ -192,7 +192,7 @@ reverseSpan g depth node = case HashSet.toList $ preds node g of
   xs -> fmap (node:) . concatMap (reverseSpan g (depth - 1)) $ xs
 
 
-findAllSimplePaths2 :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+findAllSimplePaths2 :: forall e attr node g. (Graph e attr node g, Hashable node)
                     => g -> node -> [[node]]
 findAllSimplePaths2 g startNode =
   let m = mkNonLoopingNodeMap m (HashSet.toList $ nodes g) in
@@ -208,7 +208,7 @@ findAllSimplePaths2 g startNode =
       return (n, succPaths)
 
 
-countAllSimplePaths :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+countAllSimplePaths :: forall e attr node g. (Graph e attr node g, Hashable node)
                     => g -> HashMap node Integer
 countAllSimplePaths g =
   let m = mkNonLoopingNodeMap m (HashSet.toList $ nodes g) in
@@ -223,7 +223,7 @@ countAllSimplePaths g =
             xs -> sum . fmap (m !) $ xs
       return (n, x)
 
-maxSimplePaths :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+maxSimplePaths :: forall e attr node g. (Graph e attr node g, Hashable node)
                => g -> Integer
 maxSimplePaths = foldr max 0 . countAllSimplePaths
 
@@ -248,7 +248,7 @@ newtype DescendantsMap node = DescendantsMap (HashMap node (HashSet node))
   deriving anyclass (Hashable)
 
 -- | Slowly calculate descendants for each node. O(m * log n * n)
-calcDescendantsMap :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+calcDescendantsMap :: forall e attr node g. (Graph e attr node g, Hashable node)
             => g -> DescendantsMap node
 calcDescendantsMap g = DescendantsMap
   . HashMap.fromList
@@ -257,7 +257,7 @@ calcDescendantsMap g = DescendantsMap
   $ nodes g
 
 -- | Quicly calculate descendants for each node. Requires that g has no loops.
-calcDescendantsMapForAcyclicGraph :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+calcDescendantsMapForAcyclicGraph :: forall e attr node g. (Graph e attr node g, Hashable node)
             => g -> DescendantsMap node
 calcDescendantsMapForAcyclicGraph g =
   let m = mkNonLoopingNodeMap m (HashSet.toList $ nodes g) in
@@ -279,7 +279,7 @@ newtype DescendantsDistanceMap node
 
 -- | Slowly calculate descendants for each node. O(m * log n * n)
 calcDescendantsDistanceMap
-  :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+  :: forall e attr node g. (Graph e attr node g, Hashable node)
   => g -> DescendantsDistanceMap node
 calcDescendantsDistanceMap g = DescendantsDistanceMap
   . HashMap.fromList
@@ -288,7 +288,7 @@ calcDescendantsDistanceMap g = DescendantsDistanceMap
   $ nodes g
 
 calcDescendantsDistances
-  :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+  :: forall e attr node g. (Graph e attr node g, Hashable node)
   => node -> g -> HashMap node Int
 calcDescendantsDistances n = HashMap.fromList .concatMap f . zip [1..] . bfs [n]
   where
@@ -296,13 +296,13 @@ calcDescendantsDistances n = HashMap.fromList .concatMap f . zip [1..] . bfs [n]
     f (d, ns) = fmap (,d) ns
 
 getDescendantDistance
-  :: (Eq node, Hashable node)
+  :: Hashable node
   => DescendantsDistanceMap node -> node -> node -> Maybe Int
 getDescendantDistance (DescendantsDistanceMap m) srcNode dstNode =
   HashMap.lookup srcNode m >>= HashMap.lookup dstNode
 
 -- assumes DescendantMap contains start node and is derived from g...
-searchBetween_ :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+searchBetween_ :: forall e attr node g. (Graph e attr node g, Hashable node)
               => g -> DescendantsMap node -> node -> node -> [[node]]
 searchBetween_ g (DescendantsMap dm) start end
   | start == end = return [end]
@@ -313,7 +313,7 @@ searchBetween_ g (DescendantsMap dm) start end
   | otherwise = []
 
 {- HLINT ignore searchBetween "Eta reduce" -}
-searchBetween :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+searchBetween :: forall e attr node g. (Graph e attr node g, Hashable node)
               => g -> node -> node -> [[node]]
 searchBetween g start end = searchBetween_ g (calcDescendantsMap g) start end
 
@@ -323,7 +323,7 @@ searchBetween g start end = searchBetween_ g (calcDescendantsMap g) start end
 -- parentMap :: forall e node g. (Graph e node g, Hashable node)
 --           => g -> HashMap n (HashSet n)
 
-siblings :: forall e attr node g. (Graph e attr node g, Hashable node, Eq node)
+siblings :: forall e attr node g. (Graph e attr node g, Hashable node)
          => node -> node -> g -> HashSet node
 siblings child parent g = HashSet.delete child $ succs parent g
 
@@ -395,7 +395,7 @@ toEdgeGraph g = addNodes nodelist $ fromEdges edges'
 -- | All nodes that can reach node and that can be reached by node.
 -- Formally, this is the union of the in-component and the out-component of
 -- node n in graph g.
-connectedNodes :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
+connectedNodes :: (Graph e attr n g, Hashable n) => n -> g -> HashSet n
 connectedNodes n g = HashSet.fromList reachedNodes <> HashSet.fromList reachingNodes
   where
     reachedNodes = reachable n g
@@ -406,8 +406,6 @@ connectedNodesAndEdges :: forall e attr n g g'.
   , Graph () () (EdgeGraphNode e n) g'
   , Hashable n
   , Hashable e
-  , Eq n
-  , Eq e
   ) => Proxy g' -> n -> g -> (HashSet n, HashSet (LEdge e n))
 connectedNodesAndEdges _ n g = foldr f (HashSet.empty, HashSet.empty) cnodes
   where
@@ -420,7 +418,7 @@ connectedNodesAndEdges _ n g = foldr f (HashSet.empty, HashSet.empty) cnodes
 -- | Creates a graph in which every edge from a -> b also goes for b -> a.
 --   For every (a, b), edge (b, a) is created using (a, b)'s edge label
 --   If (b, a) already exists, it retains its label.
-mkBiDirectional :: (Graph e attr n g, Hashable n, Eq n) => g -> g
+mkBiDirectional :: (Graph e attr n g, Hashable n) => g -> g
 mkBiDirectional g = foldr f g edges'
   where
     edges' = edges g
@@ -430,7 +428,7 @@ mkBiDirectional g = foldr f g edges'
       | otherwise = addEdge (LEdge lbl (Edge b a)) g'
 
 getWeaklyConnectedComponents
-  :: (Graph e attr n g, Hashable n, Eq n)
+  :: (Graph e attr n g, Hashable n)
   => g
   -> [HashSet n]
 getWeaklyConnectedComponents g = snd
@@ -447,7 +445,7 @@ getWeaklyConnectedComponents g = snd
 
 -- | Returns all descendants of a node, excluding itself,
 -- unless a loop makes it its own descendent.
-getDescendants :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
+getDescendants :: (Graph e attr n g, Hashable n) => n -> g -> HashSet n
 getDescendants v g = HashSet.fromList
   . concat
   . flip bfs g
@@ -458,7 +456,7 @@ getDescendants v g = HashSet.fromList
 
 -- | Returns all ancestors of a node, excluding itself,
 -- unless a loop makes it its own ancestor.
-getAncestors :: (Graph e attr n g, Hashable n, Eq n) => n -> g -> HashSet n
+getAncestors :: (Graph e attr n g, Hashable n) => n -> g -> HashSet n
 getAncestors v = getDescendants v . transpose
 
 -- | Gets nodes that match predicate
@@ -477,20 +475,20 @@ getTermNodes g = getMatchingNodes f g
 getFullEdge :: Graph e attr n g => Edge n -> g -> Maybe (LEdge e n)
 getFullEdge e g = (`LEdge` e) <$> getEdgeLabel e g
 
-predEdges_ :: (Eq n, Hashable n, Graph e attr n g) => n -> g -> HashSet (Edge n)
+predEdges_ :: (Hashable n, Graph e attr n g) => n -> g -> HashSet (Edge n)
 predEdges_ n = HashSet.map (`Edge` n) . preds n
 
-succEdges_ :: (Eq n, Hashable n, Graph e attr n g) => n -> g -> HashSet (Edge n)
+succEdges_ :: (Hashable n, Graph e attr n g) => n -> g -> HashSet (Edge n)
 succEdges_ n = HashSet.map (Edge n) . succs n
 
-predEdges :: (Eq n, Eq e, Hashable e, Hashable n, Graph e attr n g) => n -> g -> HashSet (LEdge e n)
+predEdges :: (Hashable e, Hashable n, Graph e attr n g) => n -> g -> HashSet (LEdge e n)
 predEdges n g
   = HashSet.fromList
   . mapMaybe (\pred' -> getFullEdge (Edge pred' n) g)
   . HashSet.toList
   $ preds n g
 
-succEdges :: (Eq n, Eq e, Hashable e, Hashable n, Graph e attr n g) => n -> g -> HashSet (LEdge e n)
+succEdges :: (Hashable e, Hashable n, Graph e attr n g) => n -> g -> HashSet (LEdge e n)
 succEdges n g
   = HashSet.fromList
   . mapMaybe (\succ' -> getFullEdge (Edge n succ') g)

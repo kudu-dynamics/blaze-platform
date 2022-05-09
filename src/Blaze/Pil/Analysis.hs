@@ -186,7 +186,7 @@ substExprMap m = flip (foldr f) $ HMap.toList m
 -- instead of adding (a, b) and updating all the `a`s to `b`.
 -- Returns 1) "origin" var that 'a' and 'b' are pointing to;
 -- 2) possibly a symbol that is retired; and 3) the updated origin map.
-addToOriginMap :: (Hashable a, Eq a)
+addToOriginMap :: Hashable a
                => a -> a -> HashMap a a -> (a, Maybe a, HashMap a a)
 addToOriginMap a b m = case (HMap.lookup a m, HMap.lookup b m) of
   (Nothing, Nothing) -> (b, Nothing, HMap.insert a b (HMap.insert b b m))
@@ -196,11 +196,11 @@ addToOriginMap a b m = case (HMap.lookup a m, HMap.lookup b m) of
     | c == d -> (c, Nothing, m)
     | otherwise -> (d, Just c, fmap (\x -> if x == c then d else x) m)
 
-addToOriginMap_ :: (Hashable a, Eq a)
+addToOriginMap_ :: Hashable a
                 => a -> a -> HashMap a a -> HashMap a a
 addToOriginMap_ a b m = addToOriginMap a b m ^. _3
 
-originMapToGroupMap :: (Hashable a, Eq a)
+originMapToGroupMap :: Hashable a
                     => HashMap a a -> HashMap a (HashSet a)
 originMapToGroupMap = foldr f HMap.empty . HMap.toList
   where
@@ -209,7 +209,7 @@ originMapToGroupMap = foldr f HMap.empty . HMap.toList
         g Nothing = Just $ HSet.singleton a
         g (Just s) = Just $ HSet.insert a s
 
-originMapToGroups :: (Hashable a, Eq a)
+originMapToGroups :: Hashable a
                   => HashMap a a -> HashSet (HashSet a)
 originMapToGroups = HSet.fromList . HMap.elems . originMapToGroupMap
 
@@ -298,7 +298,7 @@ type ExprMap = HashMap Expression Expression
 -- @
 --
 -- An error will be raised if the map is cyclic
-reduceMap :: forall a. (Eq a, Show a, Hashable a) => HashMap a a -> HashMap a a
+reduceMap :: forall a. (Show a, Hashable a) => HashMap a a -> HashMap a a
 reduceMap = \m -> foldl' (reduceKey HSet.empty) m (HMap.keysSet m)
   where
     reduceKey :: HashSet a -> HashMap a a -> a -> HashMap a a

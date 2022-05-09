@@ -5,7 +5,7 @@ module Blaze.Pil.Checker.ConstraintsSpec where
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Pil.Checker.Constraints
-import Blaze.Types.Pil.Checker hiding (constraints)
+import Blaze.Types.Pil.Checker
 import Blaze.Pil.Construct (defCall, var)
 import Blaze.Types.Pil (PilVar)
 import qualified Blaze.Types.Pil as Pil

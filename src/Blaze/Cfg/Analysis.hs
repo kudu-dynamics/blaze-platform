@@ -250,13 +250,13 @@ getDeadNodes cfg =
   reachableNodes :: HashSet PilNode
   reachableNodes = HashSet.fromList . concat $ G.bfs [cfg ^. #root] cfg
 
-removeEmptyBasicBlockNodes :: forall a. (Hashable a, Eq a) => Cfg [a] -> Cfg [a]
+removeEmptyBasicBlockNodes :: forall a. Hashable a => Cfg [a] -> Cfg [a]
 removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
   where
     f (Cfg.BasicBlock x) = null $ x ^. #nodeData
     f _ = False
 
-getNodesContainingAddress :: (Eq a, Hashable a) => Address -> Cfg a -> HashSet (CfNode a)
+getNodesContainingAddress :: Hashable a => Address -> Cfg a -> HashSet (CfNode a)
 getNodesContainingAddress addr = HashSet.filter containsAddr . G.nodes
   where
     containsAddr (Cfg.BasicBlock bb) = bb ^. #start <= addr && addr <= bb ^. #end
@@ -278,7 +278,7 @@ getCallNodeRatingCtx imp = do
 -- | Returns Call Node ratings between 0 and 1, where higher scores are better
 -- for reaching the target.
 getCallNodeRatings
-  :: (Hashable a, Eq a)
+  :: Hashable a
   => CallNodeRatingCtx
   -> Target
   -> Cfg a
@@ -293,7 +293,7 @@ getCallNodeRatings ctx tgt cfg =
     callNodes = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfg
 
 getCallNodeDistances
-  :: (Eq a, Hashable a)
+  :: Hashable a
   => CallNodeRatingCtx
   -> Target
   -> [CallNode a]

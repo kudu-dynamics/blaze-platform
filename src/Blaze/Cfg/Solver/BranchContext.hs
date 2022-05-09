@@ -171,7 +171,7 @@ getBranchContextConstraints
   -> HashMap (CfNode ()) [TypedExpression]
 getBranchContextConstraints typedCfg = buildHashMap . concatMap getConstraintsForUndecidedBranches
   where
-    buildHashMap :: (Hashable k, Eq k) => [(k, v)] -> HashMap k [v]
+    buildHashMap :: Hashable k => [(k, v)] -> HashMap k [v]
     buildHashMap = foldl' (\m (k, v) -> HashMap.insertWith (<>) k [v] m) HashMap.empty
 
     getConstraintsForUndecidedBranches :: UndecidedBranchCond

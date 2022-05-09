@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoFieldSelectors #-}
 module Blaze.Types.Pil.Checker where
 
 import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
@@ -194,9 +195,8 @@ newtype ConstraintGen a = ConstraintGen
                    , MonadReader ConstraintGenCtx
                    )
 
-
 runConstraintGen :: ConstraintGen a -> (ConstraintGenCtx, ConstraintGenState) -> (Either ConstraintGenError a, ConstraintGenState)
-runConstraintGen m (ctx, ss) = runIdentity . flip runStateT ss . flip runReaderT ctx . runExceptT . _runConstraintGen $ m
+runConstraintGen m (ctx, ss) = runIdentity . flip runStateT ss . flip runReaderT ctx . runExceptT . (\(ConstraintGen x) -> x) $ m
 
 runConstraintGen_ :: ConstraintGen a -> (Either ConstraintGenError a, ConstraintGenState)
 runConstraintGen_ m = runConstraintGen m (emptyConstraintGenCtx, emptyConstraintGenState)
@@ -258,7 +258,7 @@ newtype Unify a = Unify
     )
 
 runUnify :: Unify a -> UnifyState -> (Either (UnifyError Sym) a, UnifyState)
-runUnify m s = runIdentity . flip runStateT s . runExceptT . _runUnify $ m
+runUnify m s = runIdentity . flip runStateT s . runExceptT . (\(Unify x) -> x) $ m
 
 popConstraint :: Unify (Maybe Constraint)
 popConstraint = use #constraints >>= \case
