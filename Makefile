@@ -5,8 +5,8 @@ STACK_OPTIONS ?=
 STACK_BUILD_OPTIONS ?=
 STACK_HADDOCK_OPTIONS ?=
 
-stack_options_dev := $(STACK_OPTIONS)
-stack_options_release := --stack-yaml stack-release.yaml $(STACK_OPTIONS)
+stack_options_dev := --stack-yaml stack-dev.yaml $(STACK_OPTIONS)
+stack_options_release := $(STACK_OPTIONS)
 stack_options := $(stack_options_$(BUILD_TYPE))
 
 stackage_snapshot := $(shell grep -oE '^resolver: .*$$' stack.yaml | sed -E -e 's/resolver:\s*//' -e 's/\s*$$//')
