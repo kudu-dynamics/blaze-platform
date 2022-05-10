@@ -30,9 +30,9 @@ dependencies:
   - directory
   - envy
   - errors
+  - extra
   - language-c
   - lens
-  - monad-extras
   - mtl
   - newtype
   - pretty-simple
