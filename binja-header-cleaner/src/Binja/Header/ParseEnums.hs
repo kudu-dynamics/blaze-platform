@@ -5,7 +5,7 @@
 
 module Binja.Header.ParseEnums where
 
-import Binja.Header.Prelude hiding (option)
+import Binja.Header.Prelude
 import Binja.Header.Types.Printer ( Printer, pr, indent )
 import qualified Binja.Header.Types.Printer as Pr
 import Data.Attoparsec.Text ( Parser
