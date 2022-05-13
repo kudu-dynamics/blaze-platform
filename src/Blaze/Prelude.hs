@@ -106,6 +106,7 @@ import Protolude as Exports hiding ( Bits
                                    , HasField
                                    , head
                                    )
+import Protolude.Conv as Exports (StringConv)
 import Streamly.Prelude as Exports
   ( IsStream,
   )

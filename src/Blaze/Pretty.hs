@@ -742,16 +742,17 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
     PI.TBool -> pure [keywordToken "Bool"]
     PI.TChar bitWidth -> [keywordToken "Char"] <++> tokenize bitWidth
     -- PI.TQueryChar -> "QueryChar"
-    PI.TInt bitWidth signed ->
-      [keywordToken "Int", tt " "]
-        <++> tokenize bitWidth
-        <++> tt " "
-        <++> tokenize signed
-    PI.TFloat bitWidth -> [keywordToken "Float", tt " "] <++> tokenize bitWidth
-    PI.TBitVector bitWidth -> [keywordToken "BitVector", tt " "] <++> tokenize bitWidth
+    PI.TInt bitWidth signed -> return [tt $ intName <> intWidth]
+      where
+        intName = case signed of
+          Nothing -> "_Int"
+          Just True -> "SInt"
+          Just False -> "UInt"
+        intWidth = showAsInt_ bitWidth
+    PI.TFloat bitWidth -> return [keywordToken "Float", tt $ showAsInt_ bitWidth]
+    PI.TBitVector bitWidth -> return [keywordToken "BitVector", tt $ showAsInt_ bitWidth]
     PI.TPointer bitWidth pointeeType ->
-      [keywordToken "Pointer", tt " "]
-        <++> tokenize bitWidth
+      [keywordToken "Pointer", tt $ showAsInt_ bitWidth]
         <++> tt " "
         <++> (paren <$> tokenize pointeeType)
     PI.TCString len -> [keywordToken "CString", tt " "] <++> tokenize len
@@ -766,6 +767,13 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
     PI.TBottom s -> paren <$> [keywordToken "Bottom", tt " "] <++> tokenize s
     PI.TUnit -> pure [keywordToken "Unit"]
     PI.TFunction _ret _params -> pure [keywordToken "Func"]
+
+-- | Shows something as an Integer or, if Nothing, as an underscore
+showAsInt_ :: (Integral a, IsString b, StringConv String b) => Maybe a -> b
+showAsInt_ = maybe "_" showAsInt
+
+showAsInt :: (Integral a, StringConv String b) => a -> b
+showAsInt n = show (fromIntegral n :: Integer)
 
 --- CallGraph
 instance Tokenizable Cg.CallDest where
@@ -935,7 +943,7 @@ instance Tokenizable SVal where
 
 instance Tokenizable a => Tokenizable (Maybe a) where
   tokenize Nothing = pure [tt "Nothing"]
-  tokenize (Just x) = [tt "Just"] <++> tokenize x
+  tokenize (Just x) = [tt "Just", tt " "] <++> tokenize x
 
 instance Tokenizable a => Tokenizable (G.Dominators a) where
   tokenize (G.Dominators m) = tokenize m
