@@ -22,9 +22,9 @@
 #ifndef __BINARYNINJACORE_H__
 #define __BINARYNINJACORE_H__
 
-#include <cstdint>
-#include <cstddef>
-#include <cstdlib>
+#include <stdint>
+#include <stddef>
+#include <stdlib>
 
 
 
