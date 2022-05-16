@@ -22,9 +22,9 @@
 #ifndef __BINARYNINJACORE_H__
 #define __BINARYNINJACORE_H__
 
-#include <stdint>
-#include <stddef>
-#include <stdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 
 
