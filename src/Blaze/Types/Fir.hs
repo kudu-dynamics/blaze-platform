@@ -51,8 +51,6 @@ instance Tokenizable (IfChain (BasicBlock F)) where
     tt " }"
     where
       tokStart bb = [tt $ show (fromIntegral $ bb ^. BB.start :: Integer)]
-      tt = textToken
-      kt = keywordToken
       arg name val more = [plainToken ArgumentNameToken name, tt ": "] <++> val <++> [tt ", " | more]
 
 

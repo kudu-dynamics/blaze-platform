@@ -25,6 +25,7 @@ module Blaze.Pretty
     textToken,
     tt,
     keywordToken,
+    kt,
     mkTokenizerCtx,
     paren,
     bracket,
