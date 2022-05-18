@@ -8,7 +8,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
 
-getNodesWithTwoChildren :: forall e attr n g. (Graph e attr n g) => g -> [(n, (n, n))]
+getNodesWithTwoChildren :: forall l n g. (Hashable n, Graph l n g) => g n -> [(n, (n, n))]
 getNodesWithTwoChildren g = mapMaybe f . HashSet.toList . G.nodes $ g
   where
     f :: n -> Maybe (n, (n, n))
@@ -30,8 +30,8 @@ getChain hm origin = case HashMap.lookup origin hm of
 chainMapToLists :: Hashable n => HashMap n n -> [[n]]
 chainMapToLists hm = fmap (getChain hm) . HashSet.toList $ chainMapOrigins hm
 
-getIfChainNodes :: forall e attr n g. ( Graph e attr n g, Hashable n)
-                => g -> [IfChainNode n]
+getIfChainNodes :: forall l n g. ( Graph l n g, Hashable n)
+                => g n -> [IfChainNode n]
 getIfChainNodes g = do
   (n, (c1, c2)) <- twoKidsList
   maybe [] return $ do
@@ -56,11 +56,11 @@ getIfChainNodes g = do
     twoKidsMap = HashMap.fromList twoKidsList
 
 
-getIfChains :: forall e attr n g.
-               ( Graph e attr n g
+getIfChains :: forall l n g.
+               ( Graph l n g
                , Hashable n
                )
-            => g -> [IfChain n]
+            => g n -> [IfChain n]
 getIfChains g = do
   xs <- chainMapToLists chainMapping
   maybeToList $ convertChainList xs
@@ -87,20 +87,20 @@ getIfChains g = do
       where
         f n = (view parent n, view self n)
 
-toFirGraph :: forall e attr n g g'.
-              ( Graph e attr n g
+toFirGraph :: forall l n g g'.
+              ( Graph l n g
               , Hashable n
-              , Graph (FirEdgeLabel e) attr (FirNode n) g')
-           => [IfChain n] -> g -> g'
+              , Graph (FirEdgeLabel l) (FirNode n) g')
+           => [IfChain n] -> g n -> g' (FirNode n)
 toFirGraph ifChains g = case HashSet.toList $ G.nodes g of
   [bb] -> G.fromNode $ FirBasicBlock bb
   _ -> G.fromEdges . (ifChainEdges <>) $ do
     (G.LEdge e (G.Edge src dst)) <- G.edges g
     guard . not $ HashSet.member src nodeSet
     case HashMap.lookup dst startNodeMap of
-      Nothing -> return (LEdge (NormalEdge e) (Edge (FirBasicBlock src) (FirBasicBlock dst)))
+      Nothing -> return (LEdge (Standard e) (Edge (FirBasicBlock src) (FirBasicBlock dst)))
       (Just ifc) -> return
-        $ LEdge (NormalEdge e) (Edge (FirBasicBlock src) (FirIfChain ifc))
+        $ LEdge (Standard e) (Edge (FirBasicBlock src) (FirIfChain ifc))
   where
     nodeSet :: HashSet n
     nodeSet = HashSet.fromList $ concatMap (view nodes) ifChains

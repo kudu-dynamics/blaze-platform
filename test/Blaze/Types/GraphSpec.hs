@@ -4,13 +4,16 @@ module Blaze.Types.GraphSpec where
 
 import Blaze.Prelude
 
-import qualified Blaze.Types.Graph as G
-import qualified Blaze.Types.Graph.Alga as GA
+import qualified Blaze.Graph as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Data.HashSet as HashSet
 import Test.Hspec
 
-graphA :: GA.AlgaGraph () () Text
+type TextGraph = AlgaGraph () Text Text
+type IntGraph = AlgaGraph () Int Int
+type LabeledIntGraph = AlgaGraph Text Int Int
+
+graphA :: TextGraph
 graphA =
   G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
     [ ("a", "b")
@@ -21,15 +24,15 @@ graphA =
     , ("e", "z")
     ]
 
-graphSingleNode :: GA.AlgaGraph () () Text
+graphSingleNode :: TextGraph
 graphSingleNode = G.fromNode "a"
 
-graphSingleEdge :: GA.AlgaGraph () () Text
+graphSingleEdge :: TextGraph
 graphSingleEdge =
   G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
     [("a", "b")]
 
-graphSinglePath :: GA.AlgaGraph () () Text
+graphSinglePath :: TextGraph
 graphSinglePath =
   G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
     [ ("a", "b")
@@ -37,7 +40,7 @@ graphSinglePath =
     , ("c", "d")
     ]
 
-graphWithSingleLoop :: GA.AlgaGraph () () Text
+graphWithSingleLoop :: TextGraph
 graphWithSingleLoop =
   G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
     [ ("z", "a")
@@ -49,7 +52,7 @@ graphWithSingleLoop =
     , ("d", "c")
     ]
 
-graphWithLoops :: GA.AlgaGraph () () Text
+graphWithLoops :: TextGraph
 graphWithLoops =
   G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
     [ ("z", "a") -- needed to find "source"
@@ -124,13 +127,13 @@ spec = describe "Blaze.Util.Graph" $ do
 
   context "connectedNodes" $ do
     it "should return nothing if graph is empty" $ do
-      let g = G.empty :: AlgaGraph () () Text
-      HashSet.empty `shouldBe` G.connectedNodes "this node doesn't exist" g 
+      let g = G.empty :: TextGraph
+      HashSet.empty `shouldBe` G.connectedNodes "this node doesn't exist" g
 
     it "should return single node in singleton graph" $ do
-      let g = G.fromNode "hey" :: AlgaGraph () () Text
+      let g = G.fromNode "hey" :: TextGraph
           r = HashSet.fromList ["hey"]
-      r `shouldBe` G.connectedNodes "hey" g 
+      r `shouldBe` G.connectedNodes "hey" g
 
     it "should return all nodes in a linear graph" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -138,7 +141,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , (2, 3)
               ]
           r = HashSet.fromList [1, 2, 3]
-      r `shouldBe` G.connectedNodes 2 (g :: AlgaGraph () () Int)
+      r `shouldBe` G.connectedNodes 2 (g :: IntGraph)
 
     it "should ignore nodes in other connected components" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -148,7 +151,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , (9, 10)
               ]
           r = HashSet.fromList [1, 2, 3]
-      r `shouldBe` G.connectedNodes 2 (g :: AlgaGraph () () Int)
+      r `shouldBe` G.connectedNodes 2 (g :: IntGraph)
 
     it "should handle a loop" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -157,7 +160,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , (3, 1)
               ]
           r = HashSet.fromList [1, 2, 3]
-      r `shouldBe` G.connectedNodes 2 (g :: AlgaGraph () () Int)
+      r `shouldBe` G.connectedNodes 2 (g :: IntGraph)
 
     it "should ignore nodes that cannot reach" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -167,7 +170,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , (8, 9)
               ]
           r = HashSet.fromList [1, 2, 3]
-      r `shouldBe` G.connectedNodes 2 (g :: AlgaGraph () () Int)
+      r `shouldBe` G.connectedNodes 2 (g :: IntGraph)
 
     it "should return nodes that can only be reached through loop" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -178,7 +181,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , (3, 1)
               ]
           r = HashSet.fromList [1, 2, 3, 8, 9]
-      r `shouldBe` G.connectedNodes 2 (g :: AlgaGraph () () Int)
+      r `shouldBe` G.connectedNodes 2 (g :: IntGraph)
 
     it "should be reachable by nodes that must go through loop" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -189,15 +192,15 @@ spec = describe "Blaze.Util.Graph" $ do
               , (9, 1)
               ]
           r = HashSet.fromList [1, 2, 3, 8, 9]
-      r `shouldBe` G.connectedNodes 2 (g :: AlgaGraph () () Int)
+      r `shouldBe` G.connectedNodes 2 (g :: IntGraph)
 
   context "mkBiDirectional" $ do
     it "should be identity for empty graph" $ do
-      let g = G.empty :: AlgaGraph () () Text
+      let g = G.empty :: TextGraph
       G.mkBiDirectional g  `shouldBe` G.empty
 
     it "should be identity for singleton graph" $ do
-      let g = G.fromNode "hey" :: AlgaGraph () () Text
+      let g = G.fromNode "hey" :: TextGraph
       G.mkBiDirectional g `shouldBe` g
 
     it "should make duplicate edge for single edge graph" $ do
@@ -207,7 +210,7 @@ spec = describe "Blaze.Util.Graph" $ do
               [ (1, 2)
               , (2, 1)
               ]
-      G.mkBiDirectional (g :: AlgaGraph () () Int) `shouldBe` r
+      G.mkBiDirectional (g :: IntGraph) `shouldBe` r
 
     it "should leave label if backedge already exists" $ do
       let g = G.fromEdges . fmap G.fromTupleLEdge $
@@ -215,15 +218,15 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("there", (2, 1))
               ]
           r = g
-      G.mkBiDirectional (g :: AlgaGraph Text () Int) `shouldBe` r
+      G.mkBiDirectional (g :: LabeledIntGraph) `shouldBe` r
 
   context "getWeaklyConnectedComponents" $ do
     it "should return nothing if graph is empty" $ do
-      let g = G.empty :: AlgaGraph () () Text
-      G.getWeaklyConnectedComponents g  `shouldBe` [] 
+      let g = G.empty :: TextGraph
+      G.getWeaklyConnectedComponents g  `shouldBe` []
 
     it "should return single node in singleton graph" $ do
-      let g = G.fromNode "hey" :: AlgaGraph () () Text
+      let g = G.fromNode "hey" :: TextGraph
           r = [HashSet.fromList ["hey"]]
       G.getWeaklyConnectedComponents g  `shouldBe` r
 
@@ -235,11 +238,11 @@ spec = describe "Blaze.Util.Graph" $ do
               , (7, 8)
               ]
           r = [HashSet.fromList [1, 2, 3], HashSet.fromList [6, 7, 8]]
-      sort (G.getWeaklyConnectedComponents (g :: AlgaGraph () () Int)) `shouldBe` sort r
+      sort (G.getWeaklyConnectedComponents (g :: IntGraph)) `shouldBe` sort r
 
   context "getDescendants" $ do
     it "should return an empty set for singleton graph" $ do
-      let g = G.fromNode "a" :: AlgaGraph () () Text
+      let g = G.fromNode "a" :: TextGraph
           r = HashSet.empty
       G.getDescendants "a" g `shouldBe` r
 
@@ -247,7 +250,7 @@ spec = describe "Blaze.Util.Graph" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
               [ ("a", "b")
               , ("b", "c")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["c"]
       G.getDescendants "b" g `shouldBe` r
 
@@ -256,7 +259,7 @@ spec = describe "Blaze.Util.Graph" $ do
               [ ("a", "b")
               , ("b", "c")
               , ("c", "a")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["a", "b", "c"]
       G.getDescendants "b" g `shouldBe` r
 
@@ -265,13 +268,13 @@ spec = describe "Blaze.Util.Graph" $ do
               [ ("a", "b")
               , ("b", "c")
               , ("b", "d")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["b", "c", "d"]
       G.getDescendants "a" g `shouldBe` r
 
   context "getAncestors" $ do
     it "should return empty set for singleton graph" $ do
-      let g = G.fromNode "a"  :: AlgaGraph () () Text
+      let g = G.fromNode "a"  :: TextGraph
           r = HashSet.empty
       G.getAncestors "a" g `shouldBe` r
 
@@ -279,7 +282,7 @@ spec = describe "Blaze.Util.Graph" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
               [ ("a", "b")
               , ("b", "c")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["a"]
       G.getAncestors "b" g `shouldBe` r
 
@@ -288,7 +291,7 @@ spec = describe "Blaze.Util.Graph" $ do
               [ ("a", "b")
               , ("b", "c")
               , ("c", "a")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["a", "b", "c"]
       G.getAncestors "b" g `shouldBe` r
 
@@ -297,13 +300,13 @@ spec = describe "Blaze.Util.Graph" $ do
               [ ("a", "b")
               , ("d", "b")
               , ("b", "c")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["b", "a", "d"]
       G.getAncestors "c" g `shouldBe` r
 
   context "getTermNodes" $ do
     it "should get root as term for single node graph" $ do
-      let g = G.fromNode "a"  :: AlgaGraph () () Text
+      let g = G.fromNode "a"  :: TextGraph
           r = HashSet.singleton "a"
       G.getTermNodes g `shouldBe` r
 
@@ -311,7 +314,7 @@ spec = describe "Blaze.Util.Graph" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
               [ ("a", "b")
               , ("b", "c")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["c"]
       G.getTermNodes g `shouldBe` r
 
@@ -320,14 +323,14 @@ spec = describe "Blaze.Util.Graph" $ do
               [ ("a", "b")
               , ("b", "c")
               , ("b", "d")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["c", "d"]
       G.getTermNodes g `shouldBe` r
 
     it "should get self-looping root node as term node" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
               [ ("a", "a")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["a"]
       G.getTermNodes g `shouldBe` r
 
@@ -336,6 +339,6 @@ spec = describe "Blaze.Util.Graph" $ do
               [ ("a", "b")
               , ("b", "c")
               , ("c", "c")
-              ] :: AlgaGraph () () Text
+              ] :: TextGraph
           r = HashSet.fromList ["c"]
       G.getTermNodes g `shouldBe` r

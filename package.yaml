@@ -5,7 +5,7 @@ author:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
-maintainer:          
+maintainer:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
@@ -30,6 +30,7 @@ dependencies:
   - bv
   - bytestring
   - casing
+  - constraints
   - containers
   - data-binary-ieee754
   - directory
@@ -61,32 +62,20 @@ dependencies:
   - vector
 
 default-extensions:
+  - GHC2021
   - AllowAmbiguousTypes
-  - BangPatterns
   - DataKinds
   - DeriveAnyClass
-  - DeriveDataTypeable
-  - DeriveFoldable
-  - DeriveFunctor
-  - DeriveGeneric
-  - DeriveTraversable
   - DerivingStrategies
   - DuplicateRecordFields
-  - FlexibleContexts
-  - FlexibleInstances
   - FunctionalDependencies
   - GADTs
-  - GeneralizedNewtypeDeriving
   - LambdaCase
   - MultiParamTypeClasses
   - NoImplicitPrelude
   - NoMonomorphismRestriction
   - OverloadedLabels
   - OverloadedStrings
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TupleSections
-  - TypeApplications
   - TypeFamilies
 
 library:
@@ -120,9 +109,7 @@ library:
   - Blaze.Import.Source.BinaryNinja.CallGraph
   - Blaze.Import.Source.BinaryNinja.Cfg
   - Blaze.Import.Source.BinaryNinja.Types
-  - Blaze.Import.Source.BinaryNinja.Pil.Path
   - Blaze.IndirectCallResolution
-  - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
   - Blaze.Pil.Checker
@@ -132,7 +119,6 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Function
   - Blaze.Pil.Parse
-  - Blaze.Pil.Path
   - Blaze.Prelude
   - Blaze.Pretty
   - Blaze.Search
@@ -141,13 +127,13 @@ library:
   - Blaze.Types.Cfg
   - Blaze.Types.Cfg.Analysis
   - Blaze.Types.Cfg.Grouping
-  - Blaze.Types.Cfg.Interprocedural  
+  - Blaze.Types.Cfg.Interprocedural
   - Blaze.Types.Cfg.Loop
   - Blaze.Types.Fir
   - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
-  - Blaze.Types.Path.AlgaPath
+  - Blaze.Types.Graph.EdgeGraph
   - Blaze.Types.Import
   - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Pil
@@ -159,7 +145,7 @@ library:
   - Blaze.Util.MLIL
   - Blaze.Util.Spec
   - Blaze.VTable
-  
+
 include-dirs:
   - "src"
   - "../binaryninja-haskell/res"
@@ -215,7 +201,7 @@ executables:
     - hspec
     - text
 
-    
+
 benchmarks:
   call-graph-benchmark:
     main:                CallGraph.hs

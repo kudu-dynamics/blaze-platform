@@ -1,7 +1,7 @@
 module Blaze.Types.Cfg.Interprocedural where
 
 import Blaze.Prelude
-import Blaze.Types.Cfg (PilCfg)
+import Blaze.Types.Cfg (PilCfg, CfNode)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (Stmt)
 import Blaze.Types.Import (ImportResult)
@@ -29,7 +29,7 @@ data BuilderState a = BuilderState
 
 mkBuilderState ::
   ( CfgImporter a
-  , NodeDataType a ~ [Stmt]
+  , NodeDataType a ~ CfNode [Stmt]
   , NodeMapType a ~ b) =>
   a ->
   BuilderState b

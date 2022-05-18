@@ -2,12 +2,11 @@ module Blaze.Cfg.Solver.General where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 
-import Blaze.Types.Pil ( Statement, Stmt )
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
-import Blaze.Types.Pil.Checker (DeepSymType)
-import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge)
-import qualified Blaze.Types.Cfg as Cfg
+import Blaze.Types.Pil.Checker (DeepSymType, SymTypedStmt)
+import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge (CfEdge), PilCfg, PilNode)
+import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Pil.Analysis ( DataDependenceGraph )
 import qualified Blaze.Cfg.Analysis as CfgA
@@ -31,8 +30,8 @@ data DecidedBranchCond = DecidedBranchCond
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
 getDecidedBranchCondNode
-  :: CfNode [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  :: CfNode [(Int, SymTypedStmt)]
+  -> Cfg (CfNode [(Int, SymTypedStmt)])
   -> Maybe DecidedBranchCond
 getDecidedBranchCondNode n cfg = case outBranchTypes of
   [] -> Nothing
@@ -56,13 +55,13 @@ getDecidedBranchCondNode n cfg = case outBranchTypes of
 -- Phi vars are Or'd together. TODO memory
 generalCfgFormula
   :: DataDependenceGraph
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> Cfg (CfNode [(Int, SymTypedStmt)])
   -> Solver ()
 generalCfgFormula ddg cfg = do
   mapM_ addDecidedBranchConstraint decidedBranchConditions
   mapM_ setIndexAndSolveStmt $ Cfg.gatherCfgData cfg
   where
-    setIndexAndSolveStmt :: (Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))) -> Solver ()
+    setIndexAndSolveStmt :: (Int, SymTypedStmt) -> Solver ()
     setIndexAndSolveStmt (i, stmt) = do
       #currentStmtIndex .= i
       solveStmt ddg stmt
@@ -80,14 +79,15 @@ generalCfgFormula ddg cfg = do
 
 solveStmt
   :: DataDependenceGraph
-  -> Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
+  -> SymTypedStmt
   -> Solver ()
 solveStmt ddg stmt = case stmt of
   -- this is handled elsewhere (only used if there is single outgoing branch edge)
   Pil.BranchCond _ -> return ()
   -- TODO: convert stores/loads into immutable SSA vars
   Pil.Store _ -> return ()
-  Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (or $ isDependentOn <$> vars) pilSolveStmt
+  Pil.DefPhi (Pil.DefPhiOp dest vars) -> do
+    unless (or $ isDependentOn <$> vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
       isDependentOn = flip HashSet.member destDescendants
@@ -116,19 +116,19 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) =
 
 ----------------------------
 
-data UndecidedBranchCond = UndecidedBranchCond
+data UndecidedBranchCond n = UndecidedBranchCond
   { conditionStatementIndex :: Int
   , condition :: Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
-  , trueEdge :: CfEdge ()
-  , falseEdge :: CfEdge ()
+  , trueEdge :: CfEdge n
+  , falseEdge :: CfEdge n
   } deriving (Eq, Ord, Show, Generic)
 
 -- | If the node is a conditional if-node, and one of the branches has been removed,
 -- this returns which branch remains (True or False) and the conditional expr.
 getUndecidedBranchCondNode
-  :: CfNode [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Maybe  UndecidedBranchCond
+  :: CfNode [(Int, SymTypedStmt)]
+  -> Cfg (CfNode [(Int, SymTypedStmt)])
+  -> Maybe (UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]))
 getUndecidedBranchCondNode n cfg = case outBranches of
   [(TrueBranch, tnode), (FalseBranch, fnode)] ->
     mcond <*> pure tnode <*> pure fnode
@@ -140,9 +140,9 @@ getUndecidedBranchCondNode n cfg = case outBranches of
       (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ UndecidedBranchCond i x
       _ -> Nothing
 
-    outBranches :: [(BranchType, CfEdge ())]
+    outBranches :: [(BranchType, CfEdge (CfNode [(Int, SymTypedStmt)]))]
     outBranches =
-      fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
+      fmap (\e -> (e ^. #branchType, e))
       . HashSet.toList
       $ Cfg.succEdges n cfg
 
@@ -151,8 +151,8 @@ getUndecidedBranchCondNode n cfg = case outBranches of
 -- Returns a list of inconsistant branch edges.
 unsatBranches
   :: DataDependenceGraph
-  -> Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-  -> Solver [CfEdge ()]
+  -> Cfg (CfNode [(Int, SymTypedStmt)])
+  -> Solver [CfEdge (CfNode [(Int, SymTypedStmt)])]
 unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
   [] -> return []
   ubranches -> do
@@ -165,7 +165,9 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
         return []
       Right xs -> return xs
   where
-    getBranchCondSVal :: UndecidedBranchCond -> Solver (UndecidedBranchCond, SVal)
+    getBranchCondSVal :: 
+      UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]) -> 
+      Solver (UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)
     getBranchCondSVal u = do
       #currentStmtIndex .= u ^. #conditionStatementIndex
       c <- solveExpr ddg $ u ^. #condition
@@ -180,8 +182,8 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
 
     -- | Returns either generic non-sat result, or list of edges that can be removed
     findRemoveableUnsats
-      :: [(UndecidedBranchCond, SVal)]
-      -> Query (Either SolverResult [CfEdge ()])
+      :: [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]
+      -> Query (Either SolverResult [CfEdge (CfNode [(Int, SymTypedStmt)])])
     findRemoveableUnsats xs = Q.checkSat >>= \case
       Q.DSat _ -> Q.push 1 >> Right <$> f xs [] []
       Q.Sat -> Q.push 1 >> Right <$> f xs [] []
@@ -190,10 +192,10 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
         -- | This goes through unseen. If it finds a pruneable branch,
         -- it puts the edge in toRemove and puts prepends `seen` onto `unseen`
         -- and adds the new constraint to the assertion stack.
-        f :: [(UndecidedBranchCond, SVal)]  -- unseen
-          -> [(UndecidedBranchCond, SVal)]  -- seen
-          -> [CfEdge ()]
-          -> Query [CfEdge ()]
+        f :: [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]  -- unseen
+          -> [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]  -- seen
+          -> [CfEdge (CfNode [(Int, SymTypedStmt)])]
+          -> Query [CfEdge (CfNode [(Int, SymTypedStmt)])]
         f [] _ toRemove = return toRemove
         f ((u, c):unseen) seen toRemove = do
           tryConstraint c >>= \case
@@ -224,14 +226,16 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
 
     undecidedBranchCondNodes = mapMaybe (`getUndecidedBranchCondNode` typedCfg)
       . concat
-      . G.bfs [typedCfg ^. #root]
+      . G.bfs [Cfg.getRootNode typedCfg]
       $ typedCfg
 
 data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
                        | SolverError Ch.TypeReport PilSolver.SolverError
                        deriving (Eq, Ord, Show, Generic)
 
-getUnsatBranches :: Cfg [Stmt] -> IO (Either GeneralSolveError [CfEdge ()])
+getUnsatBranches :: 
+  PilCfg -> 
+  IO (Either GeneralSolveError [CfEdge PilNode])
 getUnsatBranches cfg = case checkCfg cfg of
   Left err -> return . Left . TypeCheckerError $ err
   Right (_, cfg', tr) -> do
@@ -243,9 +247,15 @@ getUnsatBranches cfg = case checkCfg cfg of
           $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
     case er of
       Left err -> return . Left $ SolverError tr err
-      Right (r, _) -> return $ Right r
+      Right (unsatEdges, _) -> return . Right $ fmap getOrigEdge unsatEdges
+   where
+     getOrigEdge :: CfEdge (CfNode [(Int, SymTypedStmt)]) -> CfEdge PilNode
+     getOrigEdge (CfEdge src dst label) = 
+       let src' = fromJust $ Cfg.getNode cfg (G.getNodeId src)
+           dst' = fromJust $ Cfg.getNode cfg (G.getNodeId dst) in
+             CfEdge src' dst' label
 
-simplify_ :: Bool -> Int -> Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
+simplify_ :: Bool -> Int -> PilCfg -> IO (Either GeneralSolveError PilCfg)
 simplify_ isRecursiveCall numItersLeft cfg
   | numItersLeft <= 0 = return . Right $ cfg
   | otherwise = do
@@ -256,8 +266,8 @@ simplify_ isRecursiveCall numItersLeft cfg
           Left err -> return $ Left err
           Right [] -> return . Right $ cfg'
           Right es -> simplify_ True (numItersLeft - 1)
-                      $ foldr Cfg.removeIdEdge cfg' es
+                      $ foldr Cfg.removeEdge cfg' es
 
-simplify :: Cfg [Stmt] -> IO (Either GeneralSolveError (Cfg [Stmt]))
+simplify :: PilCfg -> IO (Either GeneralSolveError PilCfg)
 simplify stmts = do
   simplify_ False 10 stmts

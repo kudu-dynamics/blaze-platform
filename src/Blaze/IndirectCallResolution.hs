@@ -2,20 +2,17 @@ module Blaze.IndirectCallResolution where
 
 import Blaze.Prelude
 
-import qualified Algebra.Graph.AdjacencyMap as G
-import qualified Algebra.Graph.AdjacencyMap.Algorithm as Aag
+import qualified Blaze.Graph as G
 import Binja.Core (BNBinaryView)
 import qualified Binja.Function as BnFunc
 import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Function as Func
 import qualified Blaze.Import.CallGraph as Cgi
-import qualified Blaze.Import.Source.BinaryNinja as Bni
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
 import qualified Blaze.Import.Source.BinaryNinja.Pil as BnPil
 import Blaze.Import.Source.BinaryNinja.Types (CallInstruction)
 import Blaze.Import.Pil as Pili
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import qualified Blaze.Types.Graph.Alga as Ag
 import Blaze.Types.IndirectCallResolution (IndirectCall, ClassConstructor (ClassConstructor))
 import qualified Blaze.Types.IndirectCallResolution as Icr
 import qualified Blaze.VTable as VTable
@@ -45,20 +42,21 @@ getUndirectedCg imp = do
   return $ Cg.getUndirectedCallGraph cg
 
 getEdgeList :: Cg.CallGraph -> [(Func.Function, Func.Function)]
-getEdgeList = G.edgeList . Ag.adjacencyMap
+getEdgeList g = G.toTupleEdge . view #edge <$> G.edges g
 
 extractFuncsFromConstructors :: [ClassConstructor] -> [Func.Function]
 extractFuncsFromConstructors = map (^. Icr.cFunction)
 
-getIndirectCallTrees :: BNBinaryView -> IO [Tree Func.Function]
-getIndirectCallTrees bv = do
-  cg <- getUndirectedCg importer
-  let adMap = Ag.adjacencyMap cg
-  iCs <- getIndirectCallSites bv
-  let forests = (`Aag.bfsForest` adMap) . (: []) . (^. Icr.iFunction) <$> iCs
-  return $ catMaybes $ headMay <$> forests
-  where
-    importer = Bni.BNImporter bv
+-- TODO: Rewrite using bfs method from Graph type class.
+-- getIndirectCallTrees :: BNBinaryView -> IO [Tree Func.Function]
+-- getIndirectCallTrees bv = do
+--   cg <- getUndirectedCg importer
+--   let adMap = Ag.adjacencyMap cg
+--   iCs <- getIndirectCallSites bv
+--   let forests = (`Aag.bfsForest` adMap) . (: []) . (^. Icr.iFunction) <$> iCs
+--   return $ catMaybes $ headMay <$> forests
+--   where
+--     importer = Bni.BNImporter bv
 
 pathsToNode :: Eq a => a -> Tree a -> [[a]]
 pathsToNode x (Node y ns) = [[x] | x == y] ++ map (y :) (pathsToNode x =<< ns)

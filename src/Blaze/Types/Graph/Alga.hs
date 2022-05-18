@@ -4,104 +4,135 @@ import Blaze.Prelude hiding (pred)
 
 import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
+import Control.Arrow ((&&&))
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import Blaze.Types.Graph hiding (edge, label, src, dst)
 import qualified Algebra.Graph.Export.Dot as Dot
 
-data AlgaGraph e attr n = AlgaGraph
-  { adjacencyMap :: G.AdjacencyMap n
-  , edgeMap :: HashMap (Edge n) e
-  , nodeAttrMap :: HashMap n attr
-  } deriving (Generic, Show, Ord, Eq)
+
+-- | A graph implementation that is build atop the Alga graph library.
+-- The 'l' type specifies the edge label, the 'i' type specifies the 
+-- node idenitifier, and the 'n' type specifies the node.
+data AlgaGraph l i n = AlgaGraph
+  -- TODO: We can move to AdjacencyIntMap if we assert NodeId is an Int
+  { adjacencyMap :: G.AdjacencyMap (NodeId i)
+  , edgeMap :: HashMap (Edge (NodeId i)) l
+  , nodeMap :: HashMap (NodeId i) n
+  } deriving (Generic, Show, Ord, Eq, Functor, Foldable, Traversable)
 
 -- TODO: see if G.AdjacencyMap's Eq is good enough
 -- I think that two graphs with identitcal nodes and edges will not be equal
 
-instance (NFData e, NFData n, NFData attr) => NFData (AlgaGraph e attr n)
+instance (NFData l, NFData i, NFData n) => NFData (AlgaGraph l i n)
 
-instance (Ord n, Hashable n) => Graph e attr n (AlgaGraph e attr n) where
+instance
+  (Ord i, Hashable i, Hashable n, Identifiable n i) =>
+  Graph l n (AlgaGraph l i)
+  where
   empty = AlgaGraph G.empty HMap.empty HMap.empty
-  fromNode node = AlgaGraph (G.vertex node) HMap.empty HMap.empty
-  fromEdges ledges = AlgaGraph
-    { adjacencyMap = G.edges . fmap (toTupleEdge . view #edge) $ ledges
-    , edgeMap = HMap.fromList $ (\e -> (e ^. #edge, e ^. #label)) <$> ledges
-    , nodeAttrMap = HMap.empty
-    }
-  succs n = HSet.fromList . Set.toList . G.postSet n . adjacencyMap
-  preds n = HSet.fromList . Set.toList . G.preSet n . adjacencyMap
-  nodes = HSet.fromList . G.vertexList . adjacencyMap
-  edges g = mapMaybe (f . fromTupleEdge) . G.edgeList . adjacencyMap $ g
-    where
-      f e = flip LEdge e <$> HMap.lookup e (edgeMap g)
+  fromNode node =
+    AlgaGraph
+      (G.vertex $ getNodeId node)
+      HMap.empty
+      (HMap.singleton (getNodeId node) node)
+  fromEdges ledges =
+    AlgaGraph
+      { adjacencyMap = G.edges . fmap (toTupleEdge . fmap getNodeId . view #edge) $ ledges
+      , edgeMap = HMap.fromList $ (\e -> (getNodeId <$> e ^. #edge, e ^. #label)) <$> ledges
+      , nodeMap = HMap.fromList $ (\n -> (getNodeId n, n)) <$> HSet.toList (nodesFromEdges ledges)
+      }
+  succs n g =
+    HSet.fromList . mapMaybe (getNode g) . Set.toList . G.postSet (getNodeId n) $ adjacencyMap g
+  preds n g =
+    HSet.fromList . mapMaybe (getNode g) . Set.toList . G.preSet (getNodeId n) $ adjacencyMap g
+  nodes g = HSet.fromList . mapMaybe (getNode g) . G.vertexList $ adjacencyMap g
+  edges g = mapMaybe (f . fromTupleEdge) . G.edgeList $ adjacencyMap g
+   where
+    f e = HMap.lookup e (edgeMap g) >>= traverse (getNode g) . flip LEdge e
 
-  getEdgeLabel edge = HMap.lookup edge . edgeMap
-  setEdgeLabel label edge g = g { edgeMap = HMap.insert edge label $ edgeMap g }
+  getEdgeLabel edge = HMap.lookup (fmap getNodeId edge) . edgeMap
+  setEdgeLabel label edge g = g{edgeMap = HMap.insert (fmap getNodeId edge) label $ edgeMap g}
 
-  getNodeAttr node = HMap.lookup node . nodeAttrMap
-  setNodeAttr attr node g = g & #nodeAttrMap %~ HMap.insert node attr
-  getNodeAttrMap g = g ^. #nodeAttrMap
-
-  removeEdge e@(Edge n1 n2) g = AlgaGraph
-    { adjacencyMap = G.removeEdge n1 n2 $ adjacencyMap g
-    , edgeMap = HMap.delete e $ edgeMap g
-    , nodeAttrMap = nodeAttrMap g
-    }
-  removeNode n g = AlgaGraph
-    { adjacencyMap = G.removeVertex n $ adjacencyMap g
-    , edgeMap = foldl' (flip HMap.delete) (edgeMap g) edgesToRemove
-    , nodeAttrMap = HMap.delete n $ nodeAttrMap g
-    }
-      where
-        edgesToRemove :: [Edge n]
-        edgesToRemove = (Edge n <$> HSet.toList (succs n g))
-          ++ ((`Edge` n) <$> HSet.toList (preds n g))
+  removeEdge e@(Edge n1 n2) g =
+    AlgaGraph
+      { adjacencyMap = G.removeEdge (getNodeId n1) (getNodeId n2) $ adjacencyMap g
+      , edgeMap = HMap.delete (fmap getNodeId e) $ edgeMap g
+      , nodeMap = nodeMap g
+      }
+  removeNode n g =
+    AlgaGraph
+      { adjacencyMap = G.removeVertex (getNodeId n) $ adjacencyMap g
+      , edgeMap = foldl' (flip HMap.delete) (edgeMap g) edgesToRemove
+      , nodeMap = HMap.delete (getNodeId n) $ nodeMap g
+      }
+   where
+    edgesToRemove :: [Edge (NodeId i)]
+    edgesToRemove =
+      fmap getNodeId
+        <$> (Edge n <$> HSet.toList (succs n g))
+        ++ ((`Edge` n) <$> HSet.toList (preds n g))
 
   addNodes ns g = AlgaGraph
+  -- Adding nodes that are already in the graph should end up having no effect.
+  -- The node IDs are used to reference those nodes in the adjacencyMap and nodeMap,
+  -- and there will still be a single entry for each node.
     { adjacencyMap = G.overlay (adjacencyMap g)
                      . G.vertices
+                     . fmap getNodeId
                      $ ns
     , edgeMap = edgeMap g
-    , nodeAttrMap = nodeAttrMap g
+    , nodeMap = HMap.union (nodeMap g)
+                $ HMap.fromList ((getNodeId &&& identity) <$> ns)
     }
 
-  addNodesWithAttrs ns g = AlgaGraph
-    { adjacencyMap = G.overlay (adjacencyMap g)
-                     . G.vertices
-                     . fmap fst
-                     $ ns
-    , edgeMap = edgeMap g
-    , nodeAttrMap = HMap.union (HMap.fromList ns) $ nodeAttrMap g
-    }
+  addEdge (LEdge lbl e) g =
+    AlgaGraph
+      { adjacencyMap =
+          G.overlay (adjacencyMap g) $
+            G.edge (getNodeId (e ^. #src)) (getNodeId (e ^. #dst))
+      , edgeMap = HMap.insert (getNodeId <$> e) lbl $ edgeMap g
+      , nodeMap =
+          HMap.insert dstId (e ^. #dst)
+            . HMap.insert srcId (e ^. #src)
+            $ nodeMap g
+      }
+   where
+    srcId :: NodeId i
+    dstId :: NodeId i
+    (srcId, dstId) = toTupleEdge $ getNodeId <$> e
 
-  addEdge (LEdge lbl e) g = AlgaGraph
-    { adjacencyMap = G.overlay (adjacencyMap g) $ G.edge (e ^. #src) (e ^. #dst)
-    , edgeMap = HMap.insert e lbl $ edgeMap g
-    , nodeAttrMap = nodeAttrMap g
-    }
-  hasNode n = G.hasVertex n . adjacencyMap
+  hasNode n = G.hasVertex (getNodeId n) . adjacencyMap
+  updateNode f n = over #nodeMap (HMap.alter (fmap f) (getNodeId n))
   transpose g = g { adjacencyMap = G.transpose $ adjacencyMap g
                   , edgeMap = HMap.mapKeys (\(Edge a b) -> Edge b a) $ edgeMap g
                   }
-  bfs startNodes = GA.bfs startNodes . adjacencyMap
+  bfs startNodes g = mapMaybe (getNode g) <$> GA.bfs (fmap getNodeId startNodes) (adjacencyMap g)
   subgraph pred g = AlgaGraph
     { adjacencyMap = subgraphAdjMap
     , edgeMap = (`HMap.filterWithKey` edgeMap g) $ \k _ ->
         Set.member k subgraphEdges
-    , nodeAttrMap = flip HMap.mapMaybeWithKey (nodeAttrMap g) $ \k v ->
-        if pred k then Just v else Nothing
+    , nodeMap = flip HMap.mapMaybeWithKey (nodeMap g) $ \k v ->
+        if pred' k then Just v else Nothing
     }
       where
-        subgraphAdjMap :: G.AdjacencyMap n
-        subgraphAdjMap = G.induce pred (adjacencyMap g)
-        subgraphEdges :: Set (Edge n)
+        pred' :: NodeId i -> Bool
+        pred' nid = maybe False pred $ HMap.lookup nid (nodeMap g)
+        subgraphAdjMap :: G.AdjacencyMap (NodeId i)
+        subgraphAdjMap = G.induce pred' (adjacencyMap g)
+        subgraphEdges :: Set (Edge (NodeId i))
         subgraphEdges = Set.fromList . fmap (uncurry Edge) $ G.edgeList subgraphAdjMap
 
-  reachable n g = GA.reachable n (adjacencyMap g)
+  reachable n g = mapMaybe (getNode g) $ GA.reachable (getNodeId n) (adjacencyMap g)
 
-toDot :: Ord n => (n -> Text) -> AlgaGraph e attr n -> Text
-toDot nodeToText g = Dot.export (Dot.defaultStyle nodeToText) (adjacencyMap g)
+getNode :: Hashable i => AlgaGraph l i n -> NodeId i -> Maybe n
+getNode graph nodeId = HMap.lookup nodeId (nodeMap graph)
 
-isAcyclic :: Ord n => AlgaGraph e attr n -> Bool
+-- | Exports the graph to a DOT representation.
+toDot :: (Ord i, Hashable i) => (n -> Text) -> AlgaGraph l i n -> Text
+toDot nodeToText g =
+  Dot.export (Dot.defaultStyle (nodeToText . fromJust . (`HMap.lookup` nodeMap g))) (adjacencyMap g)
+
+isAcyclic :: Ord i => AlgaGraph l i n -> Bool
 isAcyclic = GA.isAcyclic . adjacencyMap

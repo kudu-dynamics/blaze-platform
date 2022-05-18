@@ -2,6 +2,7 @@ module Blaze.Types.Pil.Common where
 
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Function (Function)
+import Blaze.Types.Graph (Identifiable (getNodeId), NodeId (NodeId))
 
 
 newtype StmtIndex = StmtIndex { val :: Int }
@@ -46,6 +47,9 @@ data PilVar = PilVar
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
+
+instance Identifiable PilVar Int where
+  getNodeId pv = NodeId $ hash pv
 
 newtype Storage = Storage
   { label :: Label

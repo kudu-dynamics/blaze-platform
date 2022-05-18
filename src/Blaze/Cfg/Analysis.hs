@@ -9,7 +9,7 @@ import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import Blaze.Types.Pil.Analysis (DataDependenceGraph)
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Prelude hiding (to, succ)
-import Blaze.Types.Cfg (CfNode (BasicBlock), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
+import Blaze.Types.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc, Grouping), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
 -- import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Blaze.Types.Pil as Pil
@@ -25,7 +25,7 @@ import Control.Lens (to)
 
 transformStmts :: ([Stmt] -> [Stmt]) -> PilCfg -> PilCfg
 transformStmts f cfg =
-  foldl' (flip $ Cfg.updateNodeData f)
+  foldl' (flip $ G.updateNode (Cfg.updateNodeData f))
          cfg
          (HashSet.toList $ G.nodes cfg)
 
@@ -49,7 +49,7 @@ constantProp cfg =
 
 getStmts :: PilCfg -> [[Stmt]]
 getStmts cfg =
-  fmap concat . HashSet.toList $ Cfg.nodes cfg
+  fmap Cfg.getNodeData (HashSet.toList $ Cfg.nodes cfg)
 
 fixed :: Eq a => (a -> a) -> a -> a
 fixed f x =
@@ -109,7 +109,7 @@ _simplify numItersLeft cfg =
   deadNodes :: HashSet PilNode
   deadNodes = getDeadNodes cfg''
   removedVars :: HashSet PilVar
-  removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+  removedVars = PA.getDefinedVars (concatMap Cfg.getNodeData deadNodes)
   cfg''' :: PilCfg
   cfg''' =
     reducePhi removedVars
@@ -152,7 +152,7 @@ simplifyJumpTo xs = case xs of
 focus :: PilNode -> PilCfg -> PilCfg
 focus focalNode cfg = fromMaybe cfg' $ do
   jumpToPred <- parseJumpToPred cfg' focalNode
-  return . Cfg.updateNodeData simplifyJumpTo jumpToPred $ cfg'
+  return . G.updateNode (Cfg.updateNodeData simplifyJumpTo) jumpToPred $ cfg'
   where
     cfg' = simplify
            . reducePhi removedVars
@@ -163,7 +163,7 @@ focus focalNode cfg = fromMaybe cfg' $ do
     cnodes :: HashSet PilNode
     cedges :: HashSet (G.LEdge BranchType PilNode)
     (cnodes, cedges) = G.connectedNodesAndEdges
-                       (Proxy :: Proxy (AlgaGraph () () (G.EdgeGraphNode BranchType PilNode)))
+                       (Proxy :: Proxy (AlgaGraph () Int))
                        focalNode
                        cfg
 
@@ -175,14 +175,14 @@ focus focalNode cfg = fromMaybe cfg' $ do
       . HashSet.difference (HashSet.fromList $ G.edges cfg)
       $ cedges
     removedVars :: HashSet PilVar
-    removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+    removedVars = PA.getDefinedVars (concatMap Cfg.getNodeData deadNodes)
 
 -- TODO: refactor with regular prune
 -- | Like `focus` but doesn't call `simplify`
 focus_ :: PilNode -> PilCfg -> PilCfg
 focus_ focalNode cfg = fromMaybe cfg' $ do
   jumpToPred <- parseJumpToPred cfg' focalNode
-  return $ Cfg.updateNodeData simplifyJumpTo jumpToPred cfg'
+  return $ G.updateNode (Cfg.updateNodeData simplifyJumpTo) jumpToPred cfg'
   where
     cfg' = reducePhi removedVars
            . Cfg.removeEdges deadEdges
@@ -192,7 +192,7 @@ focus_ focalNode cfg = fromMaybe cfg' $ do
     cnodes :: HashSet PilNode
     cedges :: HashSet (G.LEdge BranchType PilNode)
     (cnodes, cedges) = G.connectedNodesAndEdges
-                       (Proxy :: Proxy (AlgaGraph () () (G.EdgeGraphNode BranchType PilNode)))
+                       (Proxy :: Proxy (AlgaGraph () Int))
                        focalNode
                        cfg
 
@@ -204,7 +204,7 @@ focus_ focalNode cfg = fromMaybe cfg' $ do
       . HashSet.difference (HashSet.fromList $ G.edges cfg)
       $ cedges
     removedVars :: HashSet PilVar
-    removedVars = PA.getDefinedVars (concatMap concat deadNodes)
+    removedVars = PA.getDefinedVars (concatMap Cfg.getNodeData deadNodes)
 
 
 getDeadBranches :: PilCfg -> [PilEdge]
@@ -248,23 +248,27 @@ getDeadNodes cfg =
   origNodes :: HashSet PilNode
   origNodes = HashSet.fromList . HashSet.toList $ G.nodes cfg
   reachableNodes :: HashSet PilNode
-  reachableNodes = HashSet.fromList . concat $ G.bfs [cfg ^. #root] cfg
+  reachableNodes = HashSet.fromList . concat $ G.bfs [Cfg.getRootNode cfg] cfg
 
-removeEmptyBasicBlockNodes :: forall a. Hashable a => Cfg [a] -> Cfg [a]
-removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault f
-  where
-    f (Cfg.BasicBlock x) = null $ x ^. #nodeData
-    f _ = False
+removeEmptyBasicBlockNodes ::
+  forall f a.
+  (Hashable (f a), Foldable f) =>
+  Cfg (CfNode (f a)) ->
+  Cfg (CfNode (f a))
+removeEmptyBasicBlockNodes = Cfg.removeNodesBy Cfg.mergeBranchTypeDefault isEmpty
+ where
+  isEmpty :: CfNode (f a) -> Bool
+  isEmpty (Cfg.BasicBlock x) = null $ x ^. #nodeData
+  isEmpty _ = False
 
-getNodesContainingAddress :: Hashable a => Address -> Cfg a -> HashSet (CfNode a)
+getNodesContainingAddress :: Hashable a => Address -> Cfg (CfNode a) -> HashSet (CfNode a)
 getNodesContainingAddress addr = HashSet.filter containsAddr . G.nodes
   where
-    containsAddr (Cfg.BasicBlock bb) = bb ^. #start <= addr && addr <= bb ^. #end
-    containsAddr (Cfg.Call n) = n ^. #start == addr
-    containsAddr (Cfg.EnterFunc _) = False
-    containsAddr (Cfg.LeaveFunc _) = False
-    -- TODO: Consider recursing into groups
-    containsAddr (Cfg.Grouping _) = False
+    containsAddr (BasicBlock bb) = bb ^. #start <= addr && addr <= bb ^. #end
+    containsAddr (Call n) = n ^. #start == addr
+    containsAddr (EnterFunc _) = False
+    containsAddr (LeaveFunc _) = False
+    containsAddr (Grouping n) = not . HashSet.null . getNodesContainingAddress addr $ n ^. #grouping
 
 ------------- Call Node rating --------------
 
@@ -281,7 +285,7 @@ getCallNodeRatings
   :: Hashable a
   => CallNodeRatingCtx
   -> Target
-  -> Cfg a
+  -> Cfg (CfNode a)
   -> HashMap (CallNode a) CallNodeRating
 getCallNodeRatings ctx tgt cfg =
   HashMap.map (maybe Unreachable (Reachable . metric)) distances
@@ -307,5 +311,5 @@ getCallNodeDistances ctx tgt =
     dstFunc = tgt ^. #function
     shortestPath src = G.getDescendantDistance (ctx ^. #descendantsDistanceMap) src dstFunc
 
-getDataDependenceGraph :: Cfg [Stmt] -> DataDependenceGraph
+getDataDependenceGraph :: PilCfg -> DataDependenceGraph
 getDataDependenceGraph = PA.getDataDependenceGraph . Cfg.gatherCfgData

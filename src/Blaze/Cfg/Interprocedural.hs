@@ -24,6 +24,7 @@ import Blaze.Types.Pil (
   mkCallStatement,
  )
 import qualified Data.List.NonEmpty as NEList
+import qualified Blaze.Graph as G
 
 
 getCallTargetFunction :: CallDest a -> Maybe Function
@@ -172,10 +173,8 @@ wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg
       LeaveFunc
         . mkLeaveFuncNode leaveFuncUUID callerCtx calleeCtx callStmt
         $ getRetExprs targetCfg
-
     -- Connect the enter and leave function nodes to the targetCfg
-
-    prevRoot = targetCfg ^. #root
+    prevRoot = Cfg.getRootNode targetCfg
     retNodes = getRetNodes targetCfg
     linkRetNodes :: PilNode -> PilCfg -> ReturnNode [Stmt] -> PilCfg
     linkRetNodes leaveFunc' cfg retNode =
@@ -187,7 +186,7 @@ wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg
       foldl'
         (linkRetNodes leaveFunc')
         (Cfg.addEdge (CfEdge enterFunc' prevRoot UnconditionalBranch) $
-           targetCfg & #root .~ enterFunc')
+           targetCfg & #rootId .~ G.getNodeId enterFunc')
         retNodes
 
 getRetNodes :: PilCfg -> [ReturnNode [Stmt]]

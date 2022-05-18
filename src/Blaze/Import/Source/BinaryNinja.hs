@@ -17,8 +17,7 @@ import qualified Blaze.Import.Source.BinaryNinja.Pil as PilImp
 import Blaze.Import.Source.BinaryNinja.Types as Exports
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
-import qualified Blaze.Types.Path.AlgaPath as AlgaPath
-import Blaze.Types.Pil (Stmt)
+import Blaze.Types.Cfg (PilNode)
 
 newtype BNImporter = BNImporter
   { binaryView :: BNBinaryView
@@ -41,12 +40,12 @@ instance CallGraphImporter BNImporter where
   getCallSites imp = CallGraph.getCallSites (imp ^. #binaryView)
 
 instance CfgImporter BNImporterAlt where
-  type NodeDataType BNImporterAlt = NonEmpty MlilSsaInstruction
+  type NodeDataType BNImporterAlt = MlilSsaCfNode
   type NodeMapType BNImporterAlt = MlilNodeRefMap
   getCfg imp = Cfg.getCfgAlt (imp ^. #bnImporter . #binaryView)
 
 instance CfgImporter BNImporter where
-  type NodeDataType BNImporter = [Stmt]
+  type NodeDataType BNImporter = PilNode
   type NodeMapType BNImporter = PilMlilNodeMap
   getCfg imp = Cfg.getCfg imp (imp ^. #binaryView)
 
@@ -54,10 +53,6 @@ instance PilImporter BNImporter where
   type IndexType BNImporter = MlilSsaInstructionIndex
   getFuncStatements imp =
     PilImp.getFuncStatements (imp ^. #binaryView)
-
-  getPathStatements _imp =
-    -- Path.convertPath (imp ^. #binaryView)
-    error "Not supported."
 
   getCodeRefStatements imp ctxIndex' codeRef = do
     let fn = codeRef ^. #function
@@ -78,7 +73,6 @@ instance PilImporter BNImporter where
                 Pil.knownFuncDefs
                 addrWidth
                 fn
-                AlgaPath.empty
         PilImp.convert convSt $ PilImp.convertInstrsSplitPhi nodeInstrs
    where
     bv :: BNBinaryView
