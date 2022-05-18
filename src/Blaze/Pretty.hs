@@ -16,11 +16,14 @@ module Blaze.Pretty
     Tokenizable(..),
     runTokenize,
     blankTokenizerCtx,
+    instructionToken,
+    instr,
     plainToken,
     varToken,
     addressToken,
     stringToken,
     textToken,
+    tt,
     keywordToken,
     mkTokenizerCtx,
     paren,
@@ -30,6 +33,7 @@ module Blaze.Pretty
     tokenizeAsList,
     tokenizeAsTuple,
     tokenizeAsCurlyList,
+    tokenizeExprOp,
     pretty,
     pretty',
     prettyPrint,
@@ -269,8 +273,17 @@ textToken = plainToken TextToken
 tt :: Text -> Token
 tt = textToken
 
+instructionToken :: Text -> Token
+instructionToken = plainToken InstructionToken
+
+instr :: Text -> Token
+instr = instructionToken
+
 keywordToken :: Text -> Token
 keywordToken = plainToken KeywordToken
+
+kt :: Text -> Token
+kt = keywordToken
 
 between :: [a] -> [a] -> [a] -> [a]
 between start end xs = start ++ xs ++ end
@@ -394,7 +407,7 @@ tokenizeBinop ::
   a ->
   Tokenizer [Token]
 tokenizeBinop tsym opSym op =
-  setSym tsym (tt opSym)
+  setSym tsym (instr opSym)
     <++> tt " "
     <++> parenExpr (op ^. #left)
     <++> tt " "
@@ -413,7 +426,7 @@ tokenizeBinopInfix ::
 tokenizeBinopInfix tsym opSym op =
   parenExpr (op ^. #left)
     <++> tt " "
-    <++> setSym tsym (tt opSym)
+    <++> setSym tsym (instr opSym)
     <++> tt " "
     <++> parenExpr (op ^. #right)
 
@@ -426,7 +439,7 @@ tokenizeUnop ::
   Text ->
   a ->
   Tokenizer [Token]
-tokenizeUnop tsym opSym op = setSym tsym (tt opSym)
+tokenizeUnop tsym opSym op = setSym tsym (instr opSym)
   <++> tt " "
   <++> parenExpr (op ^. #src)
 
@@ -455,7 +468,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.ASR op) -> tokenizeBinop msym "asr" op
   (Pil.BOOL_TO_INT op) -> tokenizeUnop msym "boolToInt" op
   (Pil.CEIL op) -> tokenizeUnop msym "ceil" op
-  (Pil.CONST_BOOL op) -> pure [tt . show $ op ^. #constant]
+  (Pil.CONST_BOOL op) -> pure [kt . show $ op ^. #constant]
   (Pil.CMP_E op) -> tokenizeBinopInfix msym "==" op
   (Pil.CMP_NE op) -> tokenizeBinopInfix msym "!=" op
   (Pil.CMP_SGE op) -> tokenizeBinopInfix msym ">=" op
@@ -466,8 +479,8 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.CMP_UGT op) -> tokenizeBinopInfix msym "u>" op
   (Pil.CMP_ULE op) -> tokenizeBinopInfix msym "u<=" op
   (Pil.CMP_ULT op) -> tokenizeBinopInfix msym "u<" op
-  (Pil.CONST op) -> pure [integerToken (op ^. #constant)]
-  (Pil.CONST_PTR op) -> pure [addressToken Nothing $ fromIntegral (op ^. #constant)]
+  (Pil.CONST op) -> pure [setSym msym $ integerToken (op ^. #constant)]
+  (Pil.CONST_PTR op) -> pure [setSym msym . addressToken Nothing $ fromIntegral (op ^. #constant)]
   (Pil.DIVS op) -> tokenizeBinopInfix msym "/" op
   (Pil.DIVS_DP op) -> tokenizeBinop msym "divsDP" op
   (Pil.DIVU op) -> tokenizeBinopInfix msym "u/" op
@@ -734,39 +747,39 @@ instance Tokenizable Word64 where
 instance Tokenizable t => Tokenizable (PI.PilType t) where
   tokenize = \case
     PI.TArray len elemType ->
-      [keywordToken "Array", tt " "]
+      [kt "Array", tt " "]
         <++> tokenize len
         <++> tt " "
         <++> tokenize elemType
     --    PI.TZeroField pt -> "ZeroField" <-> paren (tokenize pt)
-    PI.TBool -> pure [keywordToken "Bool"]
-    PI.TChar bitWidth -> [keywordToken "Char"] <++> tokenize bitWidth
+    PI.TBool -> pure [kt "Bool"]
+    PI.TChar bitWidth -> [kt "Char"] <++> tokenize bitWidth
     -- PI.TQueryChar -> "QueryChar"
-    PI.TInt bitWidth signed -> return [tt $ intName <> intWidth]
+    PI.TInt bitWidth signed -> return [kt $ intName <> intWidth]
       where
         intName = case signed of
           Nothing -> "_Int"
           Just True -> "SInt"
           Just False -> "UInt"
         intWidth = showAsInt_ bitWidth
-    PI.TFloat bitWidth -> return [keywordToken "Float", tt $ showAsInt_ bitWidth]
-    PI.TBitVector bitWidth -> return [keywordToken "BitVector", tt $ showAsInt_ bitWidth]
+    PI.TFloat bitWidth -> return [kt "Float", tt $ showAsInt_ bitWidth]
+    PI.TBitVector bitWidth -> return [kt "BitVector", tt $ showAsInt_ bitWidth]
     PI.TPointer bitWidth pointeeType ->
-      [keywordToken "Pointer", tt $ showAsInt_ bitWidth]
+      [kt "Pointer", tt $ showAsInt_ bitWidth]
         <++> tt " "
         <++> (paren <$> tokenize pointeeType)
-    PI.TCString len -> [keywordToken "CString", tt " "] <++> tokenize len
+    PI.TCString len -> [kt "CString", tt " "] <++> tokenize len
     PI.TRecord m ->
-      [keywordToken "Record", tt " "]
+      [kt "Record", tt " "]
         <++> ( delimitedList [tt "["] [tt ", "] [tt "]"]
                 <$> traverse rfield (sortOn fst $ HashMap.toList m)
              )
       where
         rfield :: forall a. Tokenizable a => (BitOffset, a) -> Tokenizer [Token]
         rfield (BitOffset n, t) = paren <$> [tt (show n), tt ", "] <++> tokenize t
-    PI.TBottom s -> paren <$> [keywordToken "Bottom", tt " "] <++> tokenize s
-    PI.TUnit -> pure [keywordToken "Unit"]
-    PI.TFunction _ret _params -> pure [keywordToken "Func"]
+    PI.TBottom s -> paren <$> [kt "Bottom", tt " "] <++> tokenize s
+    PI.TUnit -> pure [kt "Unit"]
+    PI.TFunction _ret _params -> pure [kt "Func"]
 
 -- | Shows something as an Integer or, if Nothing, as an underscore
 showAsInt_ :: (Integral a, IsString b, StringConv String b) => Maybe a -> b
