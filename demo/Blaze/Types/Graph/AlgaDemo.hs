@@ -7,7 +7,7 @@ import Blaze.Types.Graph.Alga
 toEdge :: (a, a) -> Edge a
 toEdge (a, b) = Edge a b
 
-demograph :: AlgaGraph () () Char
+demograph :: AlgaGraph () Char Char
 demograph = fromEdges
   . fmap (LEdge () . toEdge)
   $ [ ('z', 'a')
@@ -19,7 +19,7 @@ demograph = fromEdges
     , ('c', 'e')
     ]
 
-demograph2 :: AlgaGraph () () Int
+demograph2 :: AlgaGraph () Int Int
 demograph2 = fromEdges
   . fmap (LEdge () . toEdge)
   $ [ (0, 3), (3, 0)

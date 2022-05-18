@@ -2,18 +2,12 @@ module Blaze.Cfg.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import Blaze.Pil.Checker as Checker
-import qualified Blaze.Types.Pil.Checker as Ch
-import Blaze.Types.Pil ( Expression, Statement, Stmt )
+import Blaze.Types.Pil (Stmt)
 import qualified Data.HashMap.Strict as HashMap
-import Blaze.Types.Pil.Checker (TypeReport, ConstraintGenError)
-import Blaze.Types.Cfg (Cfg)
-import qualified Blaze.Types.Cfg as Cfg
-import qualified Blaze.Types.Graph as G
+import Blaze.Types.Pil.Checker (TypeReport, ConstraintGenError, SymTypedStmt)
+import Blaze.Types.Cfg (Cfg, CfNode)
 import qualified Blaze.Pil.Analysis as Analysis
-
-
-gatherCfgData :: Hashable a => Cfg [a] -> [a]
-gatherCfgData = concatMap concat . HashMap.elems . G.getNodeAttrMap
+import Blaze.Cfg (gatherCfgData)
 
 -- | Checks indexed statements pulled from a CFG.
 -- First performs analysis pass to make field accesses explicit
@@ -24,33 +18,36 @@ checkFromCfg cfgStmts =
   checkIndexedStmts . removeUnusedPhi $
     zip (fmap fst cfgStmts) (Analysis.substAddrs $ fmap snd cfgStmts)
 
-checkCfg :: Cfg [Statement Expression]
+checkCfg :: Cfg (CfNode [Stmt])
          -> Either ConstraintGenError
-            ( Cfg [(Int, Statement Expression)]
-            , Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe Ch.DeepSymType)))]
+            ( Cfg (CfNode [(Int, Stmt)])
+            , Cfg (CfNode [(Int, SymTypedStmt)])
             , TypeReport
             )
 checkCfg cfg = case checkFromCfg indexedStmts' of
   Left err -> Left err
   Right tr -> Right (cfg', typedCfg, tr)
     where
-      stmtMap :: HashMap Int (Statement (Ch.InfoExpression (Ch.SymInfo, Maybe Ch.DeepSymType)))
-      stmtMap = HashMap.fromList $ tr ^. #symTypeStmts
-      typedCfg :: Cfg [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe Ch.DeepSymType)))]
-      typedCfg = Cfg.mapAttrs replaceStmts cfg'
-
-      replaceStmts = mapMaybe (\(i, _) -> (i,) <$> HashMap.lookup i stmtMap)
+      stmtMap :: HashMap Int SymTypedStmt
+      stmtMap = HashMap.fromList $ tr ^. #symTypedStmts
+      typedCfg :: Cfg (CfNode [(Int, SymTypedStmt)])
+      typedCfg = fmap replaceStmts cfg'
+      replaceStmts :: CfNode [(Int, Stmt)] -> CfNode [(Int, SymTypedStmt)]
+      replaceStmts = fmap lookupStmts
+      lookupStmts :: [(Int, Stmt)] -> [(Int, SymTypedStmt)]
+      -- NB: Some statements may have been removed from checkFromCfg.
+      lookupStmts = mapMaybe (\(i, _) -> (i,) <$> HashMap.lookup i stmtMap)
   where
     indexedStmts = gatherCfgData cfg'
     indexedStmts' = zip (fst <$> indexedStmts) (prep $ snd <$> indexedStmts)
     prep = Analysis.substAddrs
     cfg' = indexedCfg cfg
 
-indexedCfg :: Cfg [a] -> Cfg [(Int, a)]
-indexedCfg cfg = flip evalState 0 $ Cfg.traverseAttrs (traverse f) cfg
+indexedCfg :: forall f a. Traversable f => Cfg (CfNode (f a)) -> Cfg (CfNode (f (Int, a)))
+indexedCfg cfg = evalState ((traverse . traverse . traverse) index cfg) 0
   where
-    f :: a -> State Int (Int, a)
-    f x = do
+    index :: a -> State Int (Int, a)
+    index x = do
       n <- get
       modify (+1)
       return (n, x)

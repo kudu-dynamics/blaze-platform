@@ -18,7 +18,8 @@ import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (getCfg))
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.Pil as Pil
-import qualified Blaze.Types.Cfg as Cfg
+import qualified Blaze.Cfg as Cfg
+import Blaze.Types.Cfg (CfNode, CfEdge)
 import Blaze.Import.Source.BinaryNinja (
   BNImporter (
     BNImporter
@@ -88,12 +89,12 @@ spec = describe "Blaze.Import.Source.BinaryNinja" $ do
         `shouldBe` (HashSet.fromList [(0, 1), (2, 2), (3, 4), (6, 7), (8, 8), (9, 11), (12, 12), (14, 18)] :: HashSet (Int, Int))
 
     it "should include correct edges" $ do
-      let nodes :: [Cfg.CfNode [Pil.Stmt]]
+      let nodes :: [CfNode [Pil.Stmt]]
           nodes = HashSet.toList . Cfg.nodes $ cfg
-          nodesByStart :: HashMap MlilSsaInstructionIndex (Cfg.CfNode [Pil.Stmt])
+          nodesByStart :: HashMap MlilSsaInstructionIndex (CfNode [Pil.Stmt])
           nodesByStart = HMap.fromList $ zip (view #startIndex . (mapping HMap.!) <$> nodes) nodes
           nodeAt = (nodesByStart HMap.!)
-          edges :: [Cfg.CfEdge [Pil.Stmt]]
+          edges :: [CfEdge (CfNode [Pil.Stmt])]
           edges = Cfg.edges cfg
       HashSet.fromList edges
         `shouldBe` HashSet.fromList
@@ -106,4 +107,3 @@ spec = describe "Blaze.Import.Source.BinaryNinja" $ do
           , Cfg.fromTupleEdge (UnconditionalBranch, (nodeAt 9, nodeAt 12))
           , Cfg.fromTupleEdge (UnconditionalBranch, (nodeAt 12, nodeAt 14))
           ]
-

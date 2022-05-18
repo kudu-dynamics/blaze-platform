@@ -460,7 +460,7 @@ memSubst' valMap stmt =
     traverseToSnd :: (a -> Maybe b) -> a -> Maybe (a, b)
     traverseToSnd g load = (load,) <$> g load
     constLoadsWithText :: HashMap Word64 Text -> Stmt -> [(LoadExpr, Text)]
-    constLoadsWithText valMap' x = catMaybes $ traverseToSnd (getConstAddress >=> (`HMap.lookup` valMap')) <$> findLoads x
+    constLoadsWithText valMap' x = mapMaybe (traverseToSnd (getConstAddress >=> (`HMap.lookup` valMap'))) (findLoads x)
     -- TODO: Consider using unipatterns
     getConstAddress :: LoadExpr -> Maybe Word64
     getConstAddress l =

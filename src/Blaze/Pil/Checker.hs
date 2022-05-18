@@ -162,7 +162,7 @@ checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
                 )
              -> TypeReport
     toReport (stmts', s, unSt) = TypeReport
-      { symTypeStmts = zip (fmap fst indexedStmts) $ fmap (fmap fillTypesInStmt) stmts'
+      { symTypedStmts = zip (fmap fst indexedStmts) $ fmap (fmap fillTypesInStmt) stmts'
       , symStmts = zip (fmap fst indexedStmts) stmts'
       , varSymMap = originsVarSymMap
       , varSymTypeMap = pilVarMap
