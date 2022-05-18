@@ -1026,6 +1026,6 @@ instance Tokenizable a => Tokenizable (PI.UnifyError a) where
 
 instance Tokenizable a => Tokenizable (PI.UnifyConstraintsError a) where
   tokenize x = [tt "UnifyConstraintsError", tt " "]
-    <++> [tt "stmtOrigin", tt " "] <++> (tokenize $ x ^. #stmtOrigin)
-    <++> [tt "sym", tt " "] <++> (tokenize $ x ^. #sym)
-    <++> [tt "error", tt " "] <++> (tokenize $ x ^. #error)
+    <++> [tt "stmtOrigin", tt " "] <++> tokenize (x ^. #stmtOrigin)
+    <++> [tt "sym", tt " "] <++> tokenize (x ^. #sym)
+    <++> [tt "error", tt " "] <++> tokenize (x ^. #error)
