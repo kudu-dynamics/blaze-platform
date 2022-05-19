@@ -5,6 +5,7 @@ module Blaze.Types.Cfg.GroupingSpec where
 import qualified Blaze.Cfg as Cfg
 import Blaze.Function (Function (Function))
 import Blaze.Prelude
+import Blaze.Graph (getNodeId)
 import Blaze.Types.Cfg (
   BasicBlockNode (BasicBlockNode),
   BranchType (..),
@@ -38,7 +39,7 @@ groupbb :: a -> CfNode a -> Cfg (CfNode a) -> CfNode a
 groupbb ndata end subcfg =
   Grouping
     GroupingNode
-      { termNode = end
+      { termNodeId = getNodeId end
       , uuid = Cfg.getNodeUUID . Cfg.getRootNode $ subcfg
       , grouping = subcfg
       , nodeData = ndata
@@ -287,7 +288,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               endNode
               UnconditionalBranch
             ]
-          expected = GroupingNode endNode (Cfg.getNodeUUID startNode) cfg [""]
+          expected = GroupingNode (getNodeId endNode) (Cfg.getNodeUUID startNode) cfg [""]
 
           innerGroupNodes = findNodesInGroup startNode endNode cfg
       extractGroupingNode startNode endNode innerGroupNodes cfg [""] `prettyShouldBe` expected
@@ -357,7 +358,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               endNode
               UnconditionalBranch
             ]
-          expected = GroupingNode endNode (Cfg.getNodeUUID startNode) groupCfg [""]
+          expected = GroupingNode (getNodeId endNode) (Cfg.getNodeUUID startNode) groupCfg [""]
 
           innerGroupNodes = findNodesInGroup startNode endNode outerCfg
       extractGroupingNode startNode endNode innerGroupNodes outerCfg [""] `prettyShouldBe` expected
@@ -429,7 +430,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               UnconditionalBranch
             ]
 
-          gnode = Grouping $ GroupingNode endNode (Cfg.getNodeUUID startNode) groupCfg [""]
+          gnode = Grouping $ GroupingNode (getNodeId endNode) (Cfg.getNodeUUID startNode) groupCfg [""]
 
           outerCfg' = Cfg.mkCfg 0
             rootNode
@@ -524,7 +525,7 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
               FalseBranch
             ]
 
-          gnode = Grouping $ GroupingNode endNode (Cfg.getNodeUUID startNode) groupCfg [""]
+          gnode = Grouping $ GroupingNode (getNodeId endNode) (Cfg.getNodeUUID startNode) groupCfg [""]
 
           outerCfg' = Cfg.mkCfg 0
             rootNode

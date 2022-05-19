@@ -85,7 +85,7 @@ data LeaveFuncNode a = LeaveFuncNode
 
 -- | A node type that represents a "grouped" sub-CFG within a larger CFG
 data GroupingNode a = GroupingNode
-  { termNode :: CfNode a
+  { termNodeId :: NodeId UUID
   , uuid :: UUID
   , grouping :: Cfg (CfNode a)
   , nodeData :: a
