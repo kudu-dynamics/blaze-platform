@@ -38,8 +38,6 @@ import qualified Binja.Variable as BNVar
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
 import Blaze.Import.Source.BinaryNinja.Types
 import qualified Blaze.Types.Function as Func
-import Blaze.Types.Path.AlgaPath (AlgaPath)
-import qualified Blaze.Types.Path.AlgaPath as AlgaPath
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.GenericConv (GConv, gconv)
 import qualified Data.HashMap.Strict as HMap
@@ -54,13 +52,11 @@ newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
 -- TODO: Conversions sometimes occur without need for
 --       a path. Identify and refactor appropriately.
 data ConverterState = ConverterState
-  { -- | The path being converted.
-    path :: AlgaPath
-    -- | The current context should be on the top of the stack.
+  { -- | The current context should be on the top of the stack.
     -- I.e., the stack should never be empty.
-  ,  ctxStack :: NonEmpty Ctx
+    ctxStack :: NonEmpty Ctx
     -- | The current context
-  ,  ctx :: Ctx
+  , ctx :: Ctx
     -- | Currently known defined PilVars for all contexts.
     -- This is assumed to be ordered by most recently defined first.
     -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
@@ -88,10 +84,9 @@ data ConverterState = ConverterState
 
 -- TODO: Consider moving Blaze.Pil.knownFuncDefs to this module and use that instead of
 --       accepting a map from the user.
-mkConverterState :: BNBinaryView -> CtxId -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> AlgaPath -> ConverterState
-mkConverterState bv startCtxId knownFuncDefs_ addrSize_ f p =
+mkConverterState :: BNBinaryView -> CtxId -> HashMap Text Func.FuncInfo -> AddressWidth -> Func.Function -> ConverterState
+mkConverterState bv startCtxId knownFuncDefs_ addrSize_ f =
   ConverterState
-    p
     (startCtx :| [])
     startCtx
     []
@@ -574,7 +569,7 @@ getFuncStatementsIndexed bv func' ctxId' = do
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
     Just bnFunc -> do
       addrSize' <- BN.getViewAddressSize bv
-      let st = mkConverterState bv ctxId' Pil.knownFuncDefs addrSize' func' AlgaPath.empty
+      let st = mkConverterState bv ctxId' Pil.knownFuncDefs addrSize' func'
       fst <$> runConverter (convertFunction bnFunc) st
 
 getFuncStatements :: BNBinaryView -> Func.Function -> CtxId -> IO [Stmt]

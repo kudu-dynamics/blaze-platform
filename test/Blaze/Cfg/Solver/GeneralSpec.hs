@@ -1,38 +1,37 @@
 {- HLINT ignore "Redundant do" -}
 {- HLINT ignore "Reduce duplication" -}
+{- HLINT ignore "Evaluate" -}
 
 module Blaze.Cfg.Solver.GeneralSpec where
 
-import Blaze.Prelude hiding (Type, sym, bitSize, Constraint, const, Symbol)
-import qualified Prelude as P
+import Blaze.Prelude hiding (Constraint, Symbol, Type, bitSize, const, sym)
+import Prelude qualified as P
 
-import Blaze.Cfg hiding
-  ( BasicBlockNode (ctx)
-  , CallNode (ctx)
-  , func
-  )
-import qualified Blaze.Cfg as Cfg
-import Blaze.Function (Function (Function))
-import qualified Blaze.Function as Func
-import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil (Ctx (Ctx), Symbol)
-import qualified Blaze.Types.Pil as Pil
-import Blaze.Util.Spec (mkUuid1)
-import qualified Data.HashMap.Strict as HashMap
+import Blaze.Cfg hiding (
+  BasicBlockNode (ctx),
+  CallNode (ctx),
+  func,
+ )
+import Blaze.Cfg qualified as Cfg
+import Blaze.Cfg.Analysis qualified as CfgA
 import Blaze.Cfg.Checker
-import Blaze.Pretty (PrettyShow'(PrettyShow'))
-import Blaze.Pil.Construct
-import qualified Data.SBV.Trans as SBV
 import Blaze.Cfg.Solver.General (generalCfgFormula, getUnsatBranches, simplify)
+import Blaze.Function (Function (Function))
+import Blaze.Function qualified as Func
+import Blaze.Pil.Construct
+import Blaze.Pil.Construct qualified as C
+import Blaze.Pil.Solver qualified as PilSolver
+import Blaze.Pretty (PrettyShow' (PrettyShow'))
+import Blaze.Types.Pil (CallDest (CallFunc), Ctx (Ctx), Expression, Stmt, Symbol)
+import Blaze.Types.Pil.Solver (SolverCtx (SolverCtx), SolverLeniency (SkipStatementsWithErrors), checkSatWith)
+import Blaze.Util.Spec (mkUuid1)
+import Data.HashMap.Strict qualified as HashMap
 import Data.SBV.Dynamic as D hiding (Solver, name)
-import Blaze.Types.Pil.Solver (checkSatWith, SolverCtx(SolverCtx), SolverLeniency(SkipStatementsWithErrors))
-import qualified Blaze.Types.Pil.Solver as PilSolver
-import qualified Blaze.Pil.Solver as PilSolver
-import qualified Blaze.Cfg.Analysis as CfgA
+import Data.SBV.Trans qualified as SBV
 import Test.Hspec
 
 
-bbp :: Ctx -> Text -> [Pil.Stmt] -> CfNode [Pil.Stmt]
+bbp :: Ctx -> Text -> [Stmt] -> CfNode [Stmt]
 bbp ctx name stmts = BasicBlock $ BasicBlockNode
   { ctx = ctx
   , start = 0
@@ -43,16 +42,16 @@ bbp ctx name stmts = BasicBlock $ BasicBlockNode
   where
     uuid' = mkUuid1 . hash $ name
 
-pilCall :: Symbol -> Function -> [Pil.Expression] -> Pil.Stmt
+pilCall :: Symbol -> Function -> [Expression] -> Stmt
 pilCall varSym func args =
-  C.defCall varSym (Pil.CallFunc func) args 8
+  C.defCall varSym (CallFunc func) args 8
 
-mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Pil.Expression] -> (Cfg.CallNode [Pil.Stmt], Pil.Stmt)
+mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Expression] -> (Cfg.CallNode [Stmt], Stmt)
 mkCallNode ctx name retVarSym targetFunc' args =
   ( CallNode
     { ctx = ctx
     , start = 0
-    , callDest = Pil.CallFunc targetFunc'
+    , callDest = CallFunc targetFunc'
     , uuid = uuid'
     , nodeData = [callStmt']
     }
@@ -89,7 +88,7 @@ targetCtx = Ctx targetFunc 1
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver.General" $ do
   context "generalCfgFormula" $ do
-    let generalSolve :: Cfg [Pil.Stmt] -> IO PilSolver.SolverResult
+    let generalSolve :: PilCfg -> IO PilSolver.SolverResult
         generalSolve cfg = case checkCfg cfg of
           Left err -> P.error $ show err
           Right (_, cfg', tr) -> do
@@ -239,7 +238,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
       r `shouldBe` PilSolver.Sat rvars
 
   context "unsatBranches" $ do
-    let solve :: Cfg [Pil.Stmt] -> IO [CfEdge ()]
+    let solve :: PilCfg -> IO [CfEdge PilNode]
         solve cfg = getUnsatBranches cfg >>= either (P.error . show) return
 
     it "should find single unsat branch" $ do
@@ -260,7 +259,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                 , CfEdge falseNode endNode Cfg.UnconditionalBranch
                 , CfEdge trueNode endNode Cfg.UnconditionalBranch
                 ]
-          r = Cfg.asIdEdge <$> [CfEdge rootNode trueNode Cfg.TrueBranch]
+          r = [CfEdge rootNode trueNode Cfg.TrueBranch]
 
       r' <- solve cfg
       r' `shouldBe` r
@@ -294,7 +293,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                 , CfEdge joinNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
-          r = Cfg.asIdEdge <$> [ CfEdge joinNode1 trueNode2 Cfg.TrueBranch ]
+          r = [ CfEdge joinNode1 trueNode2 Cfg.TrueBranch ]
 
       r' <- solve cfg
       r' `shouldBe` r
@@ -328,8 +327,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                 , CfEdge joinNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
-          r = Cfg.asIdEdge <$>
-              [ CfEdge rootNode trueNode1 Cfg.TrueBranch
+          r = [ CfEdge rootNode trueNode1 Cfg.TrueBranch
               , CfEdge joinNode1 trueNode2 Cfg.TrueBranch
               ]
 
@@ -360,13 +358,13 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                 , CfEdge joinNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
-          r = Cfg.asIdEdge <$> [ CfEdge rootNode falseNode1 Cfg.FalseBranch ]
+          r = [ CfEdge rootNode falseNode1 Cfg.FalseBranch ]
 
       r' <- solve cfg
       r' `shouldBe` r
 
   context "simplify" $ do
-    let solve :: Cfg [Pil.Stmt] -> IO (Cfg [Pil.Stmt])
+    let solve :: PilCfg -> IO PilCfg
         solve cfg = simplify cfg >>= either (P.error . show) return
 
     it "should find single unsat branch and reduce phi" $ do

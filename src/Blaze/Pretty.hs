@@ -299,7 +299,7 @@ brace :: [Token] -> [Token]
 brace = between [tt "{"] [tt "}"]
 
 delimitedList :: [a] -> [a] -> [a] -> [[a]] -> [a]
-delimitedList start sep end = between start end . concat . intersperse sep
+delimitedList start sep end = between start end . intercalate sep
 
 tokenizeAsList :: Tokenizable a => [a] -> Tokenizer [Token]
 tokenizeAsList x = delimitedList [tt "["] [tt ", "] [tt "]"] <$> traverse tokenize x
@@ -553,7 +553,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
         arg "var" [varToken vsym $ op ^. #dest . #symbol] True
           <++> arg "offset" (tokenize $ op ^. #offset) True
           <++> arg "val" (tokenize $ op ^. #src) False
-  (Pil.VAR_PHI op) -> [tt (op ^. #dest ^. #symbol), tt " <- "] <++> srcs
+  (Pil.VAR_PHI op) -> [tt (op ^. #dest . #symbol), tt " <- "] <++> srcs
     where
       srcs :: [Token]
       srcs = tt . view #symbol <$> (op ^. #src)
@@ -835,7 +835,7 @@ instance Tokenizable (CfNode a) where
     LeaveFunc n -> tokenize n
     Grouping n -> tokenize n
 
-instance Tokenizable (CfEdge a) where
+instance Tokenizable a => Tokenizable (CfEdge a) where
   tokenize e =
     tokenize (e ^. #src)
       <++> tt " ---> "
@@ -883,7 +883,7 @@ instance Tokenizable BranchType where
   tokenize bt = pure [tt (show bt)]
 
 -- | This matches each node to an Int and uses the Int to show the edges
-instance Tokenizable a => Tokenizable (Cfg a) where
+instance (Hashable a, Tokenizable a) => Tokenizable (Cfg (CfNode a)) where
   tokenize cfg =
     [tt "---CFG---\n", tt "--- Node Mapping:\n"]
       <++> showNodeMapping
@@ -895,26 +895,24 @@ instance Tokenizable a => Tokenizable (Cfg a) where
     where
       cflow = cfg ^. #graph
 
-      nodeMapList :: [(CfNode (), Int)]
+      nodeMapList :: [(CfNode a, Int)]
       nodeMapList = zip (HashSet.toList $ G.nodes cflow) [0..]
 
-      nodeMap :: HashMap (CfNode ()) Int
+      nodeMap :: HashMap (CfNode a) Int
       nodeMap = HashMap.fromList nodeMapList
 
       showNodeMapping :: Tokenizer [Token]
       showNodeMapping = intercalate [tt "\n"] <$> traverse showNode nodeMapList
 
-      showNode (node, nid) =
-        [tt (show nid), tt " : "]
-          <++> (tokenize . fromJust $ G.getNodeAttr node cflow)
+      showNode :: (CfNode a, Int) -> Tokenizer [Token]
+      showNode (node, nid) = [tt (show nid), tt " : "] <++> tokenize node
 
       showEdges :: Tokenizer [Token]
       showEdges =
         pure
           [ tt
               . Text.concat
-              . fmap (cs . pshow)
-              . fmap (fmap $ fromJust . flip HashMap.lookup nodeMap)
+              . fmap (cs . pshow . fmap (fromJust . flip HashMap.lookup nodeMap))
               . G.edges
               $ cflow
           ]
@@ -922,10 +920,9 @@ instance Tokenizable a => Tokenizable (Cfg a) where
       showAttrs :: Tokenizer [Token]
       showAttrs = intercalate [tt "\n"] <$> sequence (mapMaybe showAttr nodeMapList)
 
-      showAttr :: forall t. Show t => (CfNode (), t) -> Maybe (Tokenizer [Token])
+      showAttr :: forall t. (Show t) => (CfNode a, t) -> Maybe (Tokenizer [Token])
       showAttr (node, nid) = do
-        attr <- G.getNodeAttr node cflow
-        return $ [tt (show nid), tt " : "] <++> tokenizeAsList (toList attr)
+        return $ [tt (show nid), tt " : "] <++> tokenizeAsList (toList node)
 
 -- | Tokenizable print to IO.
 prettyPrint :: (MonadIO m, Tokenizable a) => TokenizerCtx -> a -> m ()

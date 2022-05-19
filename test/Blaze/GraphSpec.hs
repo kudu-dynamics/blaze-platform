@@ -6,44 +6,46 @@ import Blaze.Prelude
 
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Graph as G
-import qualified Blaze.Types.Graph.Alga as GA
+import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import Test.Hspec
+
+type TextGraph = AlgaGraph () Text Text
 
 spec :: Spec
 spec = describe "Blaze.Graph" $ do
   let toLedge = G.fromTupleLEdge . ((),)
   context "getPostDominators_" $ do
     it "should get empty PostDominators for singleton graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromNode "a"
           termNode = "a"
           expected = G.PostDominators . HashMap.fromList $ []
-          
+
       G.getPostDominators_ termNode g `shouldBe` expected
 
     it "should get single PostDominator for graph with one edge" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [("a", "b")]
           termNode = "b"
           expected = G.PostDominators . HashMap.fromList $
             [("a", HashSet.fromList ["b"])]
-          
+
       G.getPostDominators_ termNode g `shouldBe` expected
 
     it "should get empty PostDominator when root node is supplied as term node" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [("a", "b")]
           termNode = "a"
           expected = G.PostDominators . HashMap.fromList $ []
-          
+
       G.getPostDominators_ termNode g `shouldBe` expected
 
     it "should get two PostDominator entries for two-to-one graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [ ("a", "c")
             , ("b", "c")
@@ -53,7 +55,7 @@ spec = describe "Blaze.Graph" $ do
             [ ("a", HashSet.fromList ["c"])
             , ("b", HashSet.fromList ["c"])
             ]
-          
+
       G.getPostDominators_ termNode g `shouldBe` expected
 
   context "getPostDominators" $ do
@@ -62,23 +64,23 @@ spec = describe "Blaze.Graph" $ do
         getPostDominators = G.getPostDominators dummyTermNode dummyTermEdgeLabel
 
     it "should get empty PostDominators for singleton graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromNode "a"
           expected = G.PostDominators . HashMap.fromList $ []
-          
+
       getPostDominators g `shouldBe` expected
 
     it "should get single PostDominator for graph with one edge" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [("a", "b")]
           expected = G.PostDominators . HashMap.fromList $
             [("a", HashSet.fromList ["b"])]
-          
+
       getPostDominators g `shouldBe` expected
 
     it "should get two PostDominator entries for two-to-one graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [ ("a", "c")
             , ("b", "c")
@@ -87,11 +89,11 @@ spec = describe "Blaze.Graph" $ do
             [ ("a", HashSet.fromList ["c"])
             , ("b", HashSet.fromList ["c"])
             ]
-          
+
       getPostDominators g `shouldBe` expected
 
     it "should find post dominators when graphs have multiple term nodes" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [ ("a", "c")
             , ("c", "e")
@@ -104,11 +106,11 @@ spec = describe "Blaze.Graph" $ do
             , ("b", HashSet.fromList ["d", "f"])
             , ("d", HashSet.fromList ["f"])
             ]
-          
+
       getPostDominators g `shouldBe` expected
 
     it "should find post dominators for double diamond graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [ ("a", "b1")
             , ("a", "b2")
@@ -132,34 +134,34 @@ spec = describe "Blaze.Graph" $ do
 
   context "getDominators" $ do
     it "should get empty Dominators for singleton graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromNode "a"
           rootNode = "a"
           expected = G.Dominators . HashMap.fromList $ []
-          
+
       G.getDominators rootNode g `shouldBe` expected
 
     it "should get single Dominator for graph with one edge" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromEdges . fmap toLedge $
             [("a", "b")]
           rootNode = "a"
           expected = G.Dominators . HashMap.fromList $
             [("b", HashSet.fromList ["a"])]
-          
+
       G.getDominators rootNode g `shouldBe` expected
 
   context "reachable" $ do
     it "should reach nothing if node is not in graph" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromNode "a"
           expected = []
-          
+
       G.reachable "n" g `shouldBe` expected
 
     it "should include search node in results" $ do
-      let g :: GA.AlgaGraph () () Text
+      let g :: TextGraph
           g = G.fromNode "a"
           expected = ["a"]
-          
+
       G.reachable "a" g `shouldBe` expected

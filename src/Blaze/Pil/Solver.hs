@@ -92,13 +92,13 @@ deepSymTypeToKind t = case t of
   Ch.DSType pt -> case pt of
     Ch.TArray _alen _etype -> err "Array should be handled only when wrapped in Ptr"
     Ch.TBool -> return KBool
-    Ch.TChar bw -> KBounded <$> pure False <*> getBitWidth bw
+    Ch.TChar bw -> KBounded False <$> getBitWidth bw
     Ch.TInt bw s -> KBounded <$> (getSigned s <|> pure False) <*> getBitWidth bw
     Ch.TFloat _ -> return KDouble
                    -- SBV only has float or double, so we'll just pick double
 
-    Ch.TBitVector bw -> KBounded <$> pure False <*> getBitWidth bw
-    Ch.TPointer bw _pt -> KBounded <$> pure False <*> getBitWidth bw
+    Ch.TBitVector bw -> KBounded False <$> getBitWidth bw
+    Ch.TPointer bw _pt -> KBounded False <$> getBitWidth bw
     -- Ch.TPointer bwt ptrElemType -> case ptrElemType of
     --   Ch.DSType (Ch.TArray _alen arrayElemType) ->
     --     -- alen constraint is handled at sym var creation
@@ -141,9 +141,12 @@ makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
 makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm dst
 
 catchIfLenient :: Solver a -> (SolverError -> Solver a) -> Solver a
-catchIfLenient m f = catchError m $ \e -> (view #leniency <$> ask) >>= \case
-  AbortOnError -> throwError e
-  SkipStatementsWithErrors -> warn e >> f e
+catchIfLenient m handleError = do
+  solverLeniency <- view #leniency
+  catchError m $ \e ->
+    case solverLeniency of
+      AbortOnError -> throwError e
+      SkipStatementsWithErrors -> warn e >> handleError e
 
 declarePilVars :: Solver ()
 declarePilVars = ask >>= mapM_ f . HashMap.toList . typeEnv
@@ -307,7 +310,7 @@ safeExtract endIndex' startIndex' var = case k of
     | endIndex' >= fromIntegral w -> error "endIndex out of bounds"
     | startIndex' < 0 -> error "startIndex out of bounds"
     | otherwise -> return $ svExtract (fromIntegral endIndex') (fromIntegral startIndex') var
-  _ -> error "must be KBounded" 
+  _ -> error "must be KBounded"
   where
     k = kindOf var
     error msg' = throwError $ ExtractError
@@ -1001,7 +1004,7 @@ solveStmtsWith solverCfg stmts = do
   let er = Ch.checkStmts stmts
   case er of
     Left e -> return $ Left (Left e)
-    Right tr -> solveTypedStmtsWith solverCfg (tr ^. #varSymTypeMap) (tr ^. #symTypeStmts) >>= \case
+    Right tr -> solveTypedStmtsWith solverCfg (tr ^. #varSymTypeMap) (tr ^. #symTypedStmts) >>= \case
       Left e -> return $ Left (Right (e, tr))
       Right sr -> return $ Right (sr, tr)
 

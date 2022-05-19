@@ -21,7 +21,7 @@ bbn name = bb ctx x x name
   where
     x = fromIntegral $ hash name
 
-simpleCfg :: Cfg Text
+simpleCfg :: Cfg (CfNode Text)
 simpleCfg = mkCfg 0
   (bbn "root")
   [ bbn "goto"
@@ -60,8 +60,8 @@ simpleCfg = mkCfg 0
     (bbn "terminal")
     UnconditionalBranch
   ]
-  
-cfgWithSimpleLoop :: Cfg ()
+
+cfgWithSimpleLoop :: Cfg (CfNode ())
 cfgWithSimpleLoop =
   mkCfg 0
     (bb ctx 0x00 0x0F ())

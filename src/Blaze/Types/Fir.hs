@@ -61,9 +61,9 @@ data FirNode a = FirBasicBlock a
                | FirIfChain (IfChain a)
                deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable)
 
-data FirEdgeLabel e = ChainEscapeEdge
+data FirEdgeLabel l = ChainEscapeEdge
                     | ChainDestinationEdge
-                    | NormalEdge e
+                    | Standard l
                     deriving (Eq, Ord, Show)
 
 -- -- eventually should actually contain PIL instead of referring to binja bb

@@ -30,6 +30,7 @@ import Blaze.Types.Cfg (
   mkCfg,
  )
 import qualified Blaze.Types.Cfg as Cfg
+import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt, CtxId, Ctx)
@@ -53,7 +54,7 @@ tellEntry :: MlilNodeRefMapEntry -> NodeConverter ()
 tellEntry = tell . DList.singleton
 
 -- | Assumes instructions are consecutive
-nodeFromInstrs :: Ctx -> NonEmpty NonCallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+nodeFromInstrs :: Ctx -> NonEmpty NonCallInstruction -> NodeConverter MlilSsaCfNode
 nodeFromInstrs ctx instrs = do
   uuid' <- liftIO randomIO
   let node =
@@ -75,7 +76,8 @@ nodeFromInstrs ctx instrs = do
     )
   return node
 
-nodeFromCallInstr :: Ctx -> CallInstruction -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+-- TODO: Here we are using a NonEmpty but current refactor is asserting that nodeData is a "[a]"
+nodeFromCallInstr :: Ctx -> CallInstruction -> NodeConverter MlilSsaCfNode
 nodeFromCallInstr ctx callInstr' = do
   uuid' <- liftIO randomIO
   let node =
@@ -97,7 +99,7 @@ nodeFromCallInstr ctx callInstr' = do
     )
   return node
 
-nodeFromGroup :: Ctx -> InstrGroup -> NodeConverter (CfNode (NonEmpty MlilSsaInstruction))
+nodeFromGroup :: Ctx -> InstrGroup -> NodeConverter MlilSsaCfNode
 nodeFromGroup ctx = \case
   (SingleCall x) -> nodeFromCallInstr ctx x
   (ManyNonCalls xs) -> nodeFromInstrs ctx xs
@@ -171,7 +173,7 @@ importCfg ::
   CtxId ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
-  IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+  IO (Maybe (ImportResult (Cfg MlilSsaCfNode) MlilNodeRefMap))
 importCfg func currentCtxId bnNodes bnEdges = do
   let ctx = Pil.Ctx func currentCtxId
       nextCtxId' = currentCtxId + 1
@@ -190,20 +192,20 @@ importCfg func currentCtxId bnNodes bnEdges = do
           (mkCfg nextCtxId' cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
 
-isGotoBlock :: CfNode (NonEmpty MlilSsaInstruction) -> Bool
+isGotoBlock :: MlilSsaCfNode -> Bool
 isGotoBlock (Cfg.BasicBlock bb) = NEList.length (bb ^. #nodeData) == 1 &&
   case NEList.head (bb ^. #nodeData) ^. Mlil.op of
     Mlil.GOTO _ -> True
     _ -> False
 isGotoBlock _ = False
 
-removeGotoBlocks :: Cfg (NonEmpty MlilSsaInstruction)
-                 -> Cfg (NonEmpty MlilSsaInstruction)
+removeGotoBlocks :: Cfg MlilSsaCfNode
+                 -> Cfg MlilSsaCfNode
 removeGotoBlocks cfg = foldl' (flip Cfg.removeAndRebindEdges) cfg gotoNodes
   where
     gotoNodes = filter isGotoBlock . HashSet.toList . Cfg.nodes $ cfg
 
-getCfgAlt :: BNBinaryView -> Function -> CtxId -> IO (Maybe (ImportResult (Cfg (NonEmpty MlilSsaInstruction)) MlilNodeRefMap))
+getCfgAlt :: BNBinaryView -> Function -> CtxId -> IO (Maybe (ImportResult (Cfg MlilSsaCfNode) MlilNodeRefMap))
 getCfgAlt bv func currentCtxId = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
   case mBnFunc of
@@ -231,7 +233,7 @@ getCfg imp bv func currentCtxId = do
     Just (ImportResult _mlilCtx mlilCfgWithGotos mlilRefMapWithGotos) -> do
       let mlilCfg = removeGotoBlocks mlilCfgWithGotos
           mlilRefMap = HMap.filterWithKey (\k _ -> not $ isGotoBlock k) mlilRefMapWithGotos
-          mlilRootNode = mlilCfg ^. #root
+          mlilRootNode = Cfg.getRootNode mlilCfg
           mlilRestNodes = HashSet.toList $ (HashSet.delete mlilRootNode . G.nodes) mlilCfg
 
       pilRootNode <- convertToPilNode imp (ctx ^. #ctxId) mlilRefMap mlilRootNode
@@ -258,7 +260,7 @@ getPilFromNode ::
   a ->
   CtxId ->
   MlilNodeRefMap ->
-  CfNode (NonEmpty MlilSsaInstruction) ->
+  MlilSsaCfNode ->
   IO [Stmt]
 getPilFromNode imp ctxId_ nodeMap node =
   case HMap.lookup node nodeMap of
@@ -284,7 +286,7 @@ convertToPilNode imp ctxId_ mapping mlilSsaNode = do
       let callDest = fromMaybe (Pil.CallExpr ()) $ do
             stmt <- headMay stmts
             callStmt <- Pil.mkCallStatement stmt
-            return $ const () <$> Pil.getCallDest callStmt
+            return $ void (Pil.getCallDest callStmt)
       uuid' <- randomIO
       return $ Call (CallNode fun startAddr callDest uuid' stmts)
     EnterFunc _ -> P.error "MLIL CFGs shouldn't have a EnterFunc node"

@@ -5,7 +5,7 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Types.Function (Function)
 
 -- TODO: Consider adding information about call sites as edge metadata
-type CallGraph = AlgaGraph () () Function
+type CallGraph = AlgaGraph () Int Function
 type CallEdge = (Function, Function)
 
 data CallSite
@@ -20,4 +20,3 @@ newtype CallDest
   = DestFunc Function
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (FromJSON, ToJSON)
-

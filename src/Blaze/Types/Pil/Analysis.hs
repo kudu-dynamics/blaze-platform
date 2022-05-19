@@ -137,7 +137,7 @@ runAnalysis :: Analysis a -> HashSet Symbol -> a
 runAnalysis m usedSymbols = flip evalState s . _runAnalysis $ m
   where
     s = emptyAnalysisState
-        & #newSymbols .~ symbolGenerator usedSymbols 
+        & #newSymbols .~ symbolGenerator usedSymbols
 
 runAnalysis_ :: Analysis a -> a
 runAnalysis_ = flip evalState s . _runAnalysis
@@ -158,6 +158,4 @@ symbolGenerator usedNames = [x | x <- names, not $ HSet.member x usedNames]
       [ Text.pack [a, b, c] | a <- letters, b <- letters, c <- letters
       ]
 
-type DataDependenceGraph = AlgaGraph () () PilVar
-
-
+type DataDependenceGraph = AlgaGraph () Int PilVar

@@ -20,6 +20,8 @@ charSize = 8
 
 type SymConstraint = (Sym, ConstraintSymType)
 
+type SymTypedStmt = Statement (InfoExpression (SymInfo, Maybe DeepSymType))
+
 newtype Sym = Sym Int
   deriving (Eq, Ord, Read, Show, Generic)
   deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, Hashable)
@@ -143,7 +145,7 @@ type VarSymMap = HashMap PilVar Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { symTypeStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
+  { symTypedStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
   , symStmts :: [(Int, Statement SymExpression)]
   , varSymTypeMap :: HashMap PilVar DeepSymType
   , varSymMap :: VarSymMap

@@ -137,7 +137,7 @@ liftMaybe e Nothing = throwError e
 liftMaybe _ (Just x) = return x
 
 liftMaybeM :: Monad m => e -> m (Maybe a) -> ExceptT e m a
-liftMaybeM e m = ExceptT $ m >>= return . maybe (Left e) Right
+liftMaybeM e m = ExceptT $ maybe (Left e) Right <$> m
 
 --sort of redundant, actually...
 liftEitherM :: m (Either e a) -> ExceptT e m a

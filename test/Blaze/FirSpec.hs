@@ -43,13 +43,16 @@ comboEdges = ifChainEdges1 <> ifChainEdges2 <>
    , ('s', 'q')
    ])
 
-singleIfChainGraph :: AlgaGraph () () Char
+type CharGraph = AlgaGraph () Char Char
+type FirGraph = AlgaGraph (FirEdgeLabel ()) (FirNode Char) (FirNode Char)
+
+singleIfChainGraph :: CharGraph
 singleIfChainGraph = G.fromEdges . fmap (G.LEdge ()) $ ifChainEdges1
 
-comboIfChainGraph :: AlgaGraph () () Char
+comboIfChainGraph :: CharGraph
 comboIfChainGraph = G.fromEdges . fmap (G.LEdge ()) $ comboEdges
 
-singleIfChainGraph2 :: AlgaGraph () () Char
+singleIfChainGraph2 :: CharGraph
 singleIfChainGraph2 = G.fromEdges . fmap (G.LEdge ()) $ G.Edge 'z' 'a' : ifChainEdges1
 
 spec :: Spec
@@ -68,7 +71,7 @@ spec = describe "Blaze.Fir" $ do
   context "toFirGraph" $ do
     it "should convert an obvious if-chain" $ do
       let chains = getIfChains singleIfChainGraph
-          g = toFirGraph chains singleIfChainGraph :: AlgaGraph (FirEdgeLabel ()) () (FirNode Char)
+          g = toFirGraph chains singleIfChainGraph :: FirGraph
           answer = [ G.fromTupleLEdge
                      ( ChainDestinationEdge
                      , ( FirIfChain (IfChain { _commonEscape = 's'
@@ -84,5 +87,3 @@ spec = describe "Blaze.Fir" $ do
       G.edges g `shouldBe` answer
 
     return ()
-
-

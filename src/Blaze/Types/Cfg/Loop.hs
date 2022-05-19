@@ -1,26 +1,26 @@
 module Blaze.Types.Cfg.Loop where
 
 import Blaze.Prelude
-import Blaze.Types.Cfg (CfEdge, CfNode, Cfg)
+import Blaze.Types.Cfg (CfEdge, Cfg)
 
-newtype BackEdge a = BackEdge {edge :: CfEdge a}
+newtype BackEdge n = BackEdge {edge :: CfEdge n}
   deriving (Eq, Show, Generic)
   deriving anyclass Hashable
 
 -- TODO: Consider using a type that can only be a basic block node?
-newtype LoopHeader a = LoopHeader {node :: CfNode a}
+newtype LoopHeader n = LoopHeader {node :: n}
   deriving (Eq, Show, Generic)
 
-newtype LoopBody a = LoopBody {nodes :: HashSet (CfNode a)}
+newtype LoopBody n = LoopBody {nodes :: HashSet n}
   deriving (Eq, Show, Generic)
 
-newtype LoopTail a = LoopTail {node :: CfNode a}
+newtype LoopTail n = LoopTail {node :: n}
   deriving (Eq, Show, Generic)
 
-newtype LoopNodes a = LoopNodes {nodes :: HashSet (CfNode a)}
+newtype LoopNodes n = LoopNodes {nodes :: HashSet n}
   deriving (Eq, Show, Generic)
 
-newtype LoopCfg a = LoopCfg {cfg :: Cfg a}
+newtype LoopCfg n = LoopCfg {cfg :: Cfg n}
   deriving (Eq, Show, Generic)
 
 data NatLoop a b = NatLoop

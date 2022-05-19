@@ -80,11 +80,11 @@ targetCurrentCtxId = CtxId 1
 targetCtx :: Ctx
 targetCtx = Ctx targetFunc targetCurrentCtxId
 
-callerCfg :: Cfg [Pil.Stmt]
+callerCfg :: PilCfg
 callNode :: Cfg.CallNode [Pil.Stmt]
 callStmt :: Pil.CallStatement
-targetCfg :: Cfg [Pil.Stmt]
-expandedCfg :: Cfg [Pil.Stmt]
+targetCfg :: PilCfg
+expandedCfg :: PilCfg
 leaveFuncUUID :: UUID
 (callerCfg, callNode, callStmt, targetCfg, expandedCfg, leaveFuncUUID) =
   (callerCfg', callNodeInner1, callStmt1, targetCfg', expandedCfg', leaveFuncUUID')
@@ -224,7 +224,7 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
       PrettyShow' (result ^. #nodeData) `shouldBe` PrettyShow' (expected ^. #nodeData)
       PrettyShow' result `shouldBe` PrettyShow' expected
 
-  context "ExpandCall" $ do
+  context "expandCall" $ do
     let expanded = Cfg.incNextCtxIndex
           $ ICfg.expandCall_ callerCfg callNode callStmt targetCfg targetCtx leaveFuncUUID
     it "should expand a call" $ do

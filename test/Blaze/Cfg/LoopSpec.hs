@@ -16,9 +16,9 @@ ctx :: Ctx
 ctx = Ctx func 0
   where
     func = Function Nothing "foo" 0x00 []
-  
 
-cfgWithSimpleLoop :: Cfg ()
+
+cfgWithSimpleLoop :: Cfg (CfNode ())
 cfgWithSimpleLoop = do
   mkCfg 0
     (bb ctx 0x00 0x0F ())
@@ -75,7 +75,7 @@ spec = describe "Blaze.Cfg" $ do
 
   describe "getBodyNodes" $ do
     it "should get body nodes for loop" $ do
-      
+
       let expected =
             HS.fromList
               [ bb ctx 0x20 0x2F ()

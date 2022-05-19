@@ -1,14 +1,14 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Blaze.Cfg (
-  module Cfg,
+  module Exports,
   module Blaze.Cfg,
 ) where
 
-import Blaze.Graph (Dominators, PostDominators)
+import Blaze.Graph (Dominators, PostDominators, Identifiable, NodeId)
 import qualified Blaze.Graph as G
 import Blaze.Prelude
-import Blaze.Types.Cfg hiding (nodes)
+import Blaze.Types.Cfg as Exports
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (BranchCondOp, Expression, PilVar, Statement (Exit, NoRet), Stmt, Ctx)
 import qualified Blaze.Types.Pil as Pil
@@ -22,37 +22,23 @@ import Data.Bimap (Bimap)
 import qualified Data.Bimap as Bimap
 import Blaze.Pil.Analysis (getVarsFromExpr)
 import qualified Blaze.Pil.Analysis as PilA
+import qualified Blaze.Types.Graph.Alga as Ag
 
-{- | Finds all dominators for a CFG. Converts the CFG to a Data.Graph.Dom#Graph and then uses dom-lt
- to find dominators. The result is converted back to CfNodes before being returned.
- Per dom-lt, the complexity is:
- O(|E|*alpha(|E|,|V|)), where alpha(m,n) is "a functional inverse of Ackermann's function".
--}
-getDominators_ :: Cfg a -> Dominators (CfNode ())
-getDominators_ cfg = G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
+-- | Finds all dominators for a CFG.
+getDominators :: (Hashable n, Identifiable n UUID) => Cfg n -> Dominators n
+getDominators cfg = G.getDominators (getRootNode cfg) (cfg ^. #graph)
 
-getDominators :: Hashable a => Cfg a -> Dominators (CfNode a)
-getDominators cfg = G.domMap (getFullNode cfg)
-  $ G.getDominators (asIdNode $ cfg ^. #root) (cfg ^. #graph)
-
-getPostDominatorsAsIdNodes_ :: CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode ())
-getPostDominatorsAsIdNodes_ dummyTermNode dummyBranchType cfg = G.getPostDominators dummyTermNode dummyBranchType (cfg ^. #graph)
-
-getPostDominatorsAsIdNodes :: Cfg a -> PostDominators (CfNode ())
-getPostDominatorsAsIdNodes = getPostDominatorsAsIdNodes_ dummyTermNode UnconditionalBranch
-  where
-    dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
-
-getPostDominators_ :: Hashable a => CfNode () -> BranchType -> Cfg a -> PostDominators (CfNode a)
+getPostDominators_ :: (Hashable n, Identifiable n UUID) => n -> BranchType -> Cfg n -> PostDominators n
 getPostDominators_ dummyTermNode dummyBranchType cfg
-  = G.domMap (getFullNode cfg)
-  . G.getPostDominators dummyTermNode dummyBranchType
-  $ cfg ^. #graph
+  = G.getPostDominators dummyTermNode dummyBranchType $ cfg ^. #graph
 
-getPostDominators :: Hashable a => Cfg a -> PostDominators (CfNode a)
+getPostDominators ::
+  Hashable (CfNode [a]) =>
+  Cfg (CfNode [a]) ->
+  PostDominators (CfNode [a])
 getPostDominators = getPostDominators_ dummyTermNode UnconditionalBranch
-  where
-    dummyTermNode = mkDummyTermNode (mkDummyCtx 0) ()
+ where
+  dummyTermNode = mkDummyTermNode (mkDummyCtx 0) []
 
 lastStmtFrom :: (HasField' "nodeData" n [Stmt]) => n -> Maybe Stmt
 lastStmtFrom = lastMay . view #nodeData
@@ -101,12 +87,12 @@ getTerminalBlocks :: PilCfg -> NonEmpty (TerminalNode [Stmt])
 getTerminalBlocks cfg =
   -- TODO: We may want to add a 'FuncCfg' type so that arbitrary CFGs that may not correspond
   --       to an entire function do not cause errors.
-  if List.null nodes
+  if List.null termNodes
     then error "CFGs should always have at least one terminal basic block."
-    else NEList.fromList nodes
+    else NEList.fromList termNodes
  where
-  nodes :: [TerminalNode [Stmt]]
-  nodes =
+  termNodes :: [TerminalNode [Stmt]]
+  termNodes =
     mapMaybe
       parseTerminalNode
       (HashSet.toList $ Cfg.nodes cfg)
@@ -149,92 +135,110 @@ evalCondition bn = case bn ^. #cond . #op of
   getConstArg :: Expression -> Maybe Int64
   getConstArg x = x ^? #op . #_CONST . #constant
 
-getOutBranchingType :: Hashable a => CfNode a -> Cfg a -> Maybe BranchingType
+getOutBranchingType :: forall a. Hashable a => CfNode a -> Cfg (CfNode a) -> Maybe (BranchingType (CfNode a))
 getOutBranchingType n cfg = case outBranches of
   [(TrueBranch, tedge), (FalseBranch, fedge)] ->
-    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
+    Just . Undecided $ UndecidedIfBranches{falseEdge = fedge, trueEdge = tedge}
   [(FalseBranch, fedge), (TrueBranch, tedge)] ->
-    Just . Undecided $ UndecidedIfBranches { falseEdge = fedge, trueEdge = tedge }
+    Just . Undecided $ UndecidedIfBranches{falseEdge = fedge, trueEdge = tedge}
   [(TrueBranch, tedge)] ->
     Just $ OnlyTrue tedge
   [(FalseBranch, fedge)] ->
     Just $ OnlyFalse fedge
   _ -> Nothing
-  where
-    outBranches :: [(BranchType, CfEdge ())]
-    outBranches =
-      fmap (\e -> (e ^. #branchType, Cfg.asIdEdge e))
-      . HashSet.toList
-      $ Cfg.succEdges n cfg
+ where
+  outBranches :: [(BranchType, CfEdge (CfNode a))]
+  outBranches =
+    fmap (\e -> (e ^. #branchType, e)) . HashSet.toList $ succEdges n cfg
 
-
--- | If the node is a conditional if-node, and one of the branches has been removed,
--- this returns which branch remains (True or False) and the conditional expr.
-getBranchCondNode
-  :: Hashable a
-  => (a -> (Maybe Int, Statement b))
-  -> CfNode [a]
-  -> Cfg [a]
-  -> Maybe (BranchCond b)
+{- | If the node is a conditional if-node, and one of the branches has been removed,
+  this returns which branch remains (True or False) and the conditional expr.
+  TODO: Rerwrite this for clarity
+-}
+getBranchCondNode ::
+  forall a b.
+  Hashable a =>
+  (a -> (Maybe Int, Statement b)) ->
+  CfNode [a] ->
+  Cfg (CfNode [a]) ->
+  Maybe (BranchCond (CfNode [a]) b)
 getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg
-  where
-    mcond = lastMay (Cfg.getNodeData n) >>= (\case
-      (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
-      _ -> Nothing)
-      . extractIndexStmt
+ where
+  mcond =
+    lastMay (getNodeData n)
+      >>= ( \case
+              (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
+              _ -> Nothing
+          )
+        . extractIndexStmt
 
 getBranchCondNodes
-  :: Hashable a
+  :: (Hashable a, Identifiable (CfNode [a]) UUID)
   => (a -> (Maybe Int, Statement b))
-  -> Cfg [a]
-  -> [BranchCond b]
+  -> Cfg (CfNode [a])
+  -> [BranchCond (CfNode [a]) b]
 getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode extractIndexStmt) typedCfg)
   . HashSet.toList
   . G.nodes
   $ typedCfg
 
 -- | Substitute a node with another CFG.
-substNode :: forall a. Hashable a => Cfg a -> CfNode a -> Cfg a -> CfNode a -> Cfg a
+substNode ::
+  forall a.
+  (Hashable a, Identifiable (CfNode a) UUID) =>
+  Cfg (CfNode a) ->
+  CfNode a ->
+  Cfg (CfNode a) ->
+  CfNode a ->
+  Cfg (CfNode a)
 substNode
-  outerCfg@(Cfg _ outerRoot _)
+  outerCfg@(Cfg _ outerRootId _)
   node
-  innerCfg@(Cfg _ innerRoot _)
+  innerCfg@(Cfg _ innerRootId _)
   exitNode' =
     -- Check if the node we are substituting is the outer CFG's root
-    if asIdNode outerRoot /= asIdNode node
-       then newCfg & #root .~ outerRoot
-       else newCfg & #root .~ innerRoot
+    if outerRootId == G.getNodeId node
+      then newCfg & #rootId .~ innerRootId
+      else newCfg & #rootId .~ outerRootId
    where
     -- TODO: Improve Graph API for fetching edges
-    predEdges' :: [CfEdge a]
-    predEdges' = HashSet.toList $ Cfg.predEdges node outerCfg
-    succEdges' :: [CfEdge a]
-    succEdges' = HashSet.toList $ Cfg.succEdges node outerCfg
-
-    newPredEdges :: [CfEdge a]
+    predEdges' :: [CfEdge (CfNode a)]
+    predEdges' = HashSet.toList $ predEdges node outerCfg
+    succEdges' :: [CfEdge (CfNode a)]
+    succEdges' = HashSet.toList $ succEdges node outerCfg
+    innerRoot :: CfNode a
+    innerRoot = getRootNode innerCfg
+    newPredEdges :: [CfEdge (CfNode a)]
     newPredEdges = set #dst innerRoot <$> predEdges'
-    newSuccEdges :: [CfEdge a]
+    newSuccEdges :: [CfEdge (CfNode a)]
     newSuccEdges = set #src exitNode' <$> succEdges'
-    newCfg :: Cfg a
+    newCfg :: Cfg (CfNode a)
     newCfg =
-      Cfg.removeNode node
-      . Cfg.addNodes (HashSet.toList $ Cfg.nodes innerCfg)
-      . Cfg.addEdges (Cfg.edges innerCfg)
-      . Cfg.addEdges newPredEdges
-      . Cfg.addEdges newSuccEdges $ outerCfg
+      addNodes (HashSet.toList $ Cfg.nodes innerCfg)
+        . addEdges (edges innerCfg)
+        . addEdges newPredEdges
+        . addEdges newSuccEdges
+        -- Removal of the node should happen first as the root node
+        -- of the inner CFG shares the UUID with the removed node.
+        . removeNode node 
+        $ outerCfg
 
 
-findNodeByUUID :: forall a. Hashable a => UUID -> Cfg a -> Maybe (CfNode a)
+findNodeByUUID ::
+  (Hashable a, Identifiable (CfNode [a]) UUID) =>
+  UUID ->
+  Cfg (CfNode [a]) ->
+  Maybe (CfNode [a])
 findNodeByUUID id cfg = case filter ((== id) . getNodeUUID) . HashSet.toList . G.nodes $ cfg of
   [] -> Nothing
   [x] -> Just x
-  (x:_xs) -> Just x -- Should never happen. Maybe print warning?
+  (x : _xs) -> Just x -- Should never happen. Maybe print warning?
 
 stmtCtxs :: Stmt -> HashSet Ctx
 stmtCtxs = foldMap (HSet.fromList . mapMaybe (view #ctx) . HSet.toList . getVarsFromExpr)
 
 nodeCtxs :: CfNode [Stmt] -> HashSet Ctx
-nodeCtxs = foldMap (foldMap stmtCtxs)
+nodeCtxs = foldMap $ foldMap stmtCtxs
 
 getCtxIndices :: PilCfg -> Bimap Int Ctx
 getCtxIndices cfg = Bimap.fromList . fmap asTupleCtx $ ctxs
@@ -243,5 +247,20 @@ getCtxIndices cfg = Bimap.fromList . fmap asTupleCtx $ ctxs
     asTupleCtx ctx' = (fromIntegral $ ctx' ^. #ctxId, ctx')
     ctxs = HSet.toList . foldMap nodeCtxs . G.nodes $ cfg
 
-substVars :: (PilVar -> PilVar) -> Cfg [Stmt] -> Cfg [Stmt]
-substVars f = mapAttrs $ PilA.substVars f
+substVars :: (PilVar -> PilVar) -> PilCfg -> PilCfg
+substVars f = fmap (updateNodeData (PilA.substVars f))
+
+gatherCfgData ::
+  (Hashable stmt, Identifiable (CfNode [stmt]) UUID) =>
+  Cfg (CfNode [stmt]) ->
+  [stmt]
+gatherCfgData cfg = concatMap getNodeData (HashSet.toList . G.nodes $ cfg)
+
+-- | A convenience function that uses 'fromJust' to extract the root
+-- node from a 'Maybe n'.
+getRootNode :: Cfg n -> n
+getRootNode cfg = fromJust $ Ag.getNode (cfg ^. #graph) (cfg ^. #rootId)
+
+-- | A convenience function that looks up a node by an ID.
+getNode :: Cfg n -> NodeId UUID -> Maybe n
+getNode cfg = Ag.getNode (cfg ^. #graph)

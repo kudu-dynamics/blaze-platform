@@ -1677,7 +1677,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, stmtInfoExpr) = (tReport ^. #symTypeStmts) !! 0
+              let (_, stmtInfoExpr) = (tReport ^. #symTypedStmts) !! 0
               solveStmt stmtInfoExpr
 
 
@@ -1700,8 +1700,8 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, defA) = (tReport ^. #symTypeStmts) !! 0
-              let (_, defB) = (tReport ^. #symTypeStmts) !! 1
+              let (_, defA) = (tReport ^. #symTypedStmts) !! 0
+              let (_, defB) = (tReport ^. #symTypedStmts) !! 1
               solveStmt defA
               solveStmt defB
 
@@ -1732,10 +1732,10 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, defA) = (tReport ^. #symTypeStmts) !! 0
-                  (_, defB) = (tReport ^. #symTypeStmts) !! 1
-                  (_, defC) = (tReport ^. #symTypeStmts) !! 2
-                  (_, defD) = (tReport ^. #symTypeStmts) !! 3
+              let (_, defA) = (tReport ^. #symTypedStmts) !! 0
+                  (_, defB) = (tReport ^. #symTypedStmts) !! 1
+                  (_, defC) = (tReport ^. #symTypedStmts) !! 2
+                  (_, defD) = (tReport ^. #symTypedStmts) !! 3
               solveStmt defA
               solveStmt defB
               solveStmt defC
@@ -1760,7 +1760,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, stmtInfoExpr) = (tReport ^. #symTypeStmts) !! 0
+              let (_, stmtInfoExpr) = (tReport ^. #symTypedStmts) !! 0
               solveStmt stmtInfoExpr
 
             errs = [ StmtError
@@ -1780,7 +1780,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, stmtInfoExpr) = (tReport ^. #symTypeStmts) !! 0
+              let (_, stmtInfoExpr) = (tReport ^. #symTypedStmts) !! 0
               solveStmt stmtInfoExpr
 
             rvars = [("a", CV (KBounded False 32) (CInteger 42))]
@@ -1801,8 +1801,8 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, storeStmt) = (tReport ^. #symTypeStmts) !! 0
-              let (_, loadStmt) = (tReport ^. #symTypeStmts) !! 1
+              let (_, storeStmt) = (tReport ^. #symTypedStmts) !! 0
+              let (_, loadStmt) = (tReport ^. #symTypedStmts) !! 1
               solveStmt storeStmt
               solveStmt loadStmt
 
@@ -1822,7 +1822,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, loadStmt) = (tReport ^. #symTypeStmts) !! 0
+              let (_, loadStmt) = (tReport ^. #symTypedStmts) !! 0
               solveStmt loadStmt
 
             rvars = [ ("s1", CV (KBounded False 32) (CInteger 0))
@@ -1848,9 +1848,9 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, arg0) = (tReport ^. #symTypeStmts) !! 0
-              let (_, arg1) = (tReport ^. #symTypeStmts) !! 1
-              let (_, arg2) = (tReport ^. #symTypeStmts) !! 2
+              let (_, arg0) = (tReport ^. #symTypedStmts) !! 0
+              let (_, arg1) = (tReport ^. #symTypedStmts) !! 1
+              let (_, arg2) = (tReport ^. #symTypedStmts) !! 2
               solveStmt arg0
               solveStmt arg1
               solveStmt arg2
@@ -1875,7 +1875,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             (Right tReport) = eTReport
 
             cmd = do
-              let (_, arg0) = (tReport ^. #symTypeStmts) !! 0
+              let (_, arg0) = (tReport ^. #symTypedStmts) !! 0
               solveStmt arg0
 
             rvars = [ ("s1", CV (KBounded False 8) (CInteger 0))

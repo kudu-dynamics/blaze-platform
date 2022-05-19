@@ -4,7 +4,7 @@
 
 module Blaze.Cfg.AnalysisSpec where
 
-import Blaze.Cfg hiding (BasicBlockNode (ctx), CallNode (ctx), func, root, end)
+import Blaze.Cfg hiding (BasicBlockNode (ctx), CallNode (ctx), func, rootId, end)
 import Blaze.Cfg.Analysis (removeEmptyBasicBlockNodes, getStmts, removeUnusedPhi, focus)
 import qualified Blaze.Cfg.Analysis as CfgA
 import Blaze.Function (Function (Function))

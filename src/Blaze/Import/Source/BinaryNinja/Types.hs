@@ -18,21 +18,13 @@ import Data.DList (DList)
 type MLILSSAOp = Mlil.Operation (Mlil.Expression BNFunc.MLILSSAFunction)
 
 ----- CFG
-
 type MlilSsaFunc = BNFunc.MLILSSAFunction
-
 type MlilSsaBlock = BNBb.BasicBlock MlilSsaFunc
-
 type MlilSsaBlockEdge = BNBb.BlockEdge MlilSsaFunc
-
 type MlilSsaInstruction = Mlil.Instruction MlilSsaFunc
-
 type MlilSsaInstructionIndex = Binja.InstructionIndex MlilSsaFunc
-
 type MlilSsaCfNode = CfNode (NonEmpty MlilSsaInstruction)
-
-type MlilSsaCfEdge = CfEdge (NonEmpty MlilSsaInstruction)
-
+type MlilSsaCfEdge = CfEdge MlilSsaCfNode
 type MlilSsaBlockMap = HashMap MlilSsaBlock [MlilSsaCfNode]
 
 newtype NonCallInstruction = NonCallInstruction

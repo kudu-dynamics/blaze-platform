@@ -4,31 +4,30 @@
 
 module Blaze.Cfg.Solver.BranchContextSpec where
 
-import Blaze.Prelude hiding (Type, sym, bitSize, Constraint, const, Symbol)
+import Blaze.Prelude hiding (Constraint, Symbol, Type, bitSize, const, sym)
 
-import Blaze.Cfg hiding
-  ( BasicBlockNode (ctx)
-  , CallNode (ctx)
-  , func
-  )
-import qualified Blaze.Cfg as Cfg
+import Blaze.Cfg hiding (
+  BasicBlockNode (ctx),
+  CallNode (ctx),
+  func,
+ )
+import Blaze.Cfg qualified as Cfg
+import Blaze.Cfg.Solver.BranchContext qualified as BC
 import Blaze.Function (Function (Function))
-import qualified Blaze.Function as Func
-import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil (Ctx (Ctx), Symbol)
-import qualified Blaze.Types.Pil as Pil
-import Blaze.Util.Spec (mkUuid1, mkDummyCtx, mkDummyTermNode)
-import qualified Data.HashMap.Strict as HashMap
-import Blaze.Pretty (PrettyShow'(PrettyShow'))
+import Blaze.Function qualified as Func
+import Blaze.Graph qualified as G
 import Blaze.Pil.Construct
-import qualified Blaze.Cfg.Solver.BranchContext as BC
-import qualified Blaze.Graph as G
-import Blaze.Types.Graph.Alga (AlgaGraph)
-import qualified Data.HashSet as HashSet
+import Blaze.Pil.Construct qualified as C
+import Blaze.Pretty (PrettyShow' (PrettyShow'))
+import Blaze.Types.Graph.EdgeGraph (EdgeGraph, EdgeGraphNode (NodeNode))
+import Blaze.Types.Graph.EdgeGraph qualified as Eg
+import Blaze.Types.Pil (CallDest (CallFunc), Ctx (Ctx), Expression, Stmt, Symbol)
+import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode, mkUuid1)
+import Data.HashMap.Strict qualified as HashMap
+import Data.HashSet qualified as HashSet
 import Test.Hspec
 
-
-bbp :: Ctx -> Text -> [Pil.Stmt] -> CfNode [Pil.Stmt]
+bbp :: Ctx -> Text -> [Stmt] -> CfNode [Stmt]
 bbp ctx name stmts = BasicBlock $ BasicBlockNode
   { ctx = ctx
   , start = 0
@@ -39,7 +38,7 @@ bbp ctx name stmts = BasicBlock $ BasicBlockNode
   where
     uuid' = mkUuid1 . hash $ name
 
-bbpn :: Int -> Ctx -> Text -> [Pil.Stmt] -> CfNode [Pil.Stmt]
+bbpn :: Int -> Ctx -> Text -> [Stmt] -> CfNode [Stmt]
 bbpn n ctx name stmts = BasicBlock $ BasicBlockNode
   { ctx = ctx
   , start = fromIntegral n
@@ -50,16 +49,16 @@ bbpn n ctx name stmts = BasicBlock $ BasicBlockNode
   where
     uuid' = mkUuid1 . hash $ name
 
-pilCall :: Symbol -> Function -> [Pil.Expression] -> Pil.Stmt
+pilCall :: Symbol -> Function -> [Expression] -> Stmt
 pilCall varSym func args =
-  C.defCall varSym (Pil.CallFunc func) args 8
+  C.defCall varSym (CallFunc func) args 8
 
-mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Pil.Expression] -> (Cfg.CallNode [Pil.Stmt], Pil.Stmt)
+mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Expression] -> (Cfg.CallNode [Stmt], Stmt)
 mkCallNode ctx name retVarSym targetFunc' args =
   ( CallNode
     { ctx = ctx
     , start = 0
-    , callDest = Pil.CallFunc targetFunc'
+    , callDest = CallFunc targetFunc'
     , uuid = uuid'
     , nodeData = [callStmt']
     }
@@ -96,7 +95,7 @@ targetCtx = Ctx targetFunc 1
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
   let dummyCtx = mkDummyCtx 0
-      dummyTermNode = G.NodeNode $ mkDummyTermNode dummyCtx ()
+      dummyTermNode = NodeNode $ mkDummyTermNode dummyCtx []
       dummyTermEdgeType = ()
 
   context "Edge Dominators" $ do
@@ -104,12 +103,14 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
       let rootNode = bbp callerCtx "root"
                      [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
 
+          cfg :: Cfg (CfNode [Stmt])
           cfg = mkCfg 0 rootNode [] []
 
-          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
-          eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
+          edgeGraph :: EdgeGraph PilNode
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph
+
+          eRoot = NodeNode $ Cfg.getRootNode cfg
           edgeDoms = BC.filterEdges $ G.getDominators eRoot edgeGraph
-                
           expectedEdgeDom = G.Dominators . HashMap.fromList $ []
 
       PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
@@ -137,24 +138,19 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
 
-          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
-          eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
+          eRoot = NodeNode $ Cfg.getRootNode cfg
           edgeDoms = BC.filterEdges $ G.getDominators eRoot edgeGraph
 
-          rootNode' = asIdNode rootNode
-          falseNode1' = asIdNode falseNode1
-          trueNode2' = asIdNode trueNode2
-          endNode' = asIdNode endNode
-
-          edge1 = CfEdge rootNode' falseNode1' Cfg.FalseBranch
-          edge2 = CfEdge falseNode1' trueNode2' Cfg.TrueBranch
-          edge3 = CfEdge trueNode2' endNode' Cfg.UnconditionalBranch
+          edge1 = CfEdge rootNode falseNode1 Cfg.FalseBranch
+          edge2 = CfEdge falseNode1 trueNode2 Cfg.TrueBranch
+          edge3 = CfEdge trueNode2 endNode Cfg.UnconditionalBranch
 
           expectedEdgeDom = G.Dominators . HashMap.fromList $
             [ (edge2, HashSet.fromList [edge1])
             , (edge3, HashSet.fromList [edge1, edge2])
             ]
-      
+
       PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
     it "should create a proper edge Dominators map for complex CFG" $ do
@@ -183,34 +179,28 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge falseNode1 trueNode2 Cfg.TrueBranch
                 , CfEdge falseNode2 endNode Cfg.UnconditionalBranch
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
-                , CfEdge rootNode endNode Cfg.TrueBranch                
+                , CfEdge rootNode endNode Cfg.TrueBranch
                 ]
 
-          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
-          eRoot = G.NodeNode . Cfg.asIdNode $ cfg ^. #root
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
+          eRoot = NodeNode $ Cfg.getRootNode cfg
           edgeDoms = BC.filterEdges $ G.getDominators eRoot edgeGraph
 
-          rootNode' = asIdNode rootNode
-          falseNode1' = asIdNode falseNode1
-          falseNode2' = asIdNode falseNode2
-          trueNode2' = asIdNode trueNode2
-          endNode' = asIdNode endNode
+          rootToFalse1 = CfEdge rootNode falseNode1 Cfg.FalseBranch
+          false1ToFalse2 = CfEdge falseNode1 falseNode2 Cfg.FalseBranch
+          false1ToTrue2 = CfEdge falseNode1 trueNode2 Cfg.TrueBranch
+          false2ToEnd = CfEdge falseNode2 endNode Cfg.UnconditionalBranch
+          true2ToEnd = CfEdge trueNode2 endNode Cfg.UnconditionalBranch
 
-          rootToFalse1 = CfEdge rootNode' falseNode1' Cfg.FalseBranch
-          false1ToFalse2 = CfEdge falseNode1' falseNode2' Cfg.FalseBranch
-          false1ToTrue2 = CfEdge falseNode1' trueNode2' Cfg.TrueBranch
-          false2ToEnd = CfEdge falseNode2' endNode' Cfg.UnconditionalBranch
-          true2ToEnd = CfEdge trueNode2' endNode' Cfg.UnconditionalBranch
-                
           expectedEdgeDom = G.Dominators . HashMap.fromList $
             [ (false1ToFalse2, HashSet.fromList [rootToFalse1])
             , (false1ToTrue2, HashSet.fromList [rootToFalse1])
             , (false2ToEnd, HashSet.fromList [rootToFalse1, false1ToFalse2])
             , (true2ToEnd, HashSet.fromList [rootToFalse1, false1ToTrue2])
             ]
-      
+
       PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
-  
+
   context "Edge PostDominators" $ do
     it "should create an empty edge PostDominators map for graph with single node" $ do
       let rootNode = bbp callerCtx "root"
@@ -218,9 +208,10 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           cfg = mkCfg 0 rootNode [] []
 
-          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
+          edgeGraph :: EdgeGraph PilNode
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
-                
+
           expectedEdgeDom = G.PostDominators . HashMap.fromList $ []
 
       PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
@@ -248,24 +239,19 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
 
-          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
 
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
-          rootNode' = asIdNode rootNode
-          falseNode1' = asIdNode falseNode1
-          trueNode2' = asIdNode trueNode2
-          endNode' = asIdNode endNode
-
-          edge1 = CfEdge rootNode' falseNode1' Cfg.FalseBranch
-          edge2 = CfEdge falseNode1' trueNode2' Cfg.TrueBranch
-          edge3 = CfEdge trueNode2' endNode' Cfg.UnconditionalBranch
+          edge1 = CfEdge rootNode falseNode1 Cfg.FalseBranch
+          edge2 = CfEdge falseNode1 trueNode2 Cfg.TrueBranch
+          edge3 = CfEdge trueNode2 endNode Cfg.UnconditionalBranch
 
           expectedEdgeDom = G.PostDominators . HashMap.fromList $
             [ (edge1, HashSet.fromList [edge2, edge3])
             , (edge2, HashSet.fromList [edge3])
             ]
-      
+
       PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
 
@@ -287,7 +273,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           joinNode2 = bbpn 6 callerCtx "joinNode2"
                       [ defPhi "c4" ["c2", "c3"] ]
-                      
+
           endNode = bbpn 7 callerCtx "endNode"
                     [ defPhi "c" ["c1", "c4"]
                     ]
@@ -303,7 +289,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 [ CfEdge rootNode falseNode1 Cfg.FalseBranch
                 , CfEdge rootNode trueNode1 Cfg.TrueBranch
                 , CfEdge falseNode1 ifNode2 Cfg.UnconditionalBranch
-                , CfEdge ifNode2 falseNode2 Cfg.FalseBranch                
+                , CfEdge ifNode2 falseNode2 Cfg.FalseBranch
                 , CfEdge ifNode2 trueNode2 Cfg.TrueBranch
                 , CfEdge falseNode2 joinNode2 Cfg.UnconditionalBranch
                 , CfEdge trueNode2 joinNode2 Cfg.UnconditionalBranch
@@ -311,28 +297,19 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge trueNode1 endNode Cfg.UnconditionalBranch
                 ]
 
-          edgeGraph = G.toEdgeGraph $ cfg ^. #graph :: AlgaGraph () () (G.EdgeGraphNode BranchType (CfNode ()))
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
-          rootNode' = asIdNode rootNode
-          falseNode1' = asIdNode falseNode1
-          trueNode1' = asIdNode trueNode1
-          ifNode2' = asIdNode ifNode2
-          trueNode2' = asIdNode trueNode2
-          falseNode2' = asIdNode falseNode2
-          joinNode2' = asIdNode joinNode2
-          endNode' = asIdNode endNode
+          rootToFalse1 = CfEdge rootNode falseNode1 Cfg.FalseBranch
+          rootToTrue1 = CfEdge rootNode trueNode1 Cfg.TrueBranch
+          false1ToIf2 = CfEdge falseNode1 ifNode2 Cfg.UnconditionalBranch
+          if2ToFalse2 = CfEdge ifNode2 falseNode2 Cfg.FalseBranch
+          if2ToTrue2 = CfEdge ifNode2 trueNode2 Cfg.TrueBranch
+          false2ToJoin2 = CfEdge falseNode2 joinNode2 Cfg.UnconditionalBranch
+          true2ToJoin2 = CfEdge trueNode2 joinNode2 Cfg.UnconditionalBranch
+          join2ToEnd = CfEdge joinNode2 endNode Cfg.UnconditionalBranch
+          true1ToEnd = CfEdge trueNode1 endNode Cfg.UnconditionalBranch
 
-          rootToFalse1 = CfEdge rootNode' falseNode1' Cfg.FalseBranch
-          rootToTrue1 = CfEdge rootNode' trueNode1' Cfg.TrueBranch
-          false1ToIf2 = CfEdge falseNode1' ifNode2' Cfg.UnconditionalBranch
-          if2ToFalse2 = CfEdge ifNode2' falseNode2' Cfg.FalseBranch                
-          if2ToTrue2 = CfEdge ifNode2' trueNode2' Cfg.TrueBranch
-          false2ToJoin2 = CfEdge falseNode2' joinNode2' Cfg.UnconditionalBranch
-          true2ToJoin2 = CfEdge trueNode2' joinNode2' Cfg.UnconditionalBranch
-          join2ToEnd = CfEdge joinNode2' endNode' Cfg.UnconditionalBranch
-          true1ToEnd = CfEdge trueNode1' endNode' Cfg.UnconditionalBranch
-                
           expectedEdgeDom = G.PostDominators . HashMap.fromList $
             [ (rootToFalse1, HashSet.fromList [false1ToIf2, join2ToEnd])
             , (false1ToIf2, HashSet.fromList [join2ToEnd])
@@ -344,7 +321,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
             ]
 
           getPostDomCounts (G.PostDominators m) = HashSet.size <$> m
-          
+
       PrettyShow' (getPostDomCounts edgeDoms) `shouldBe` PrettyShow' (getPostDomCounts expectedEdgeDom)
       PrettyShow' edgeDoms `shouldBe` PrettyShow' expectedEdgeDom
 
@@ -356,7 +333,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
           ifNode = bbpn 1 callerCtx "ifNode"
                     [ branchCond $ cmpE (var "x" 4) (const 0 4) 4 ]
 
-          falseNode = bbpn 2 callerCtx "falseNode" [ nop ] 
+          falseNode = bbpn 2 callerCtx "falseNode" [ nop ]
 
           trueNode = bbpn 3 callerCtx "trueNode" [ nop ]
 
@@ -374,12 +351,10 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge falseNode endNode Cfg.UnconditionalBranch
                 ]
 
-          ifNode' = asIdNode ifNode
-          trueNode' = asIdNode trueNode
-          expectedRemoved = [CfEdge ifNode' trueNode' Cfg.TrueBranch]
+          expectedRemoved = [CfEdge ifNode trueNode Cfg.TrueBranch]
 
       r <- BC.getUnsatBranches cfg
-      
+
       (PrettyShow' . snd <$> r) `shouldBe` (PrettyShow' <$> Right expectedRemoved)
 
     it "should work around a type error" $ do
@@ -406,10 +381,8 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge falseNode endNode Cfg.UnconditionalBranch
                 ]
 
-          rootNode' = asIdNode rootNode
-          trueNode' = asIdNode trueNode
-          expectedRemoved = [CfEdge rootNode' trueNode' Cfg.TrueBranch]
+          expectedRemoved = [CfEdge rootNode trueNode Cfg.TrueBranch]
 
       r <- BC.getUnsatBranches cfg
-      
+
       (PrettyShow' . snd <$> r) `shouldBe` (PrettyShow' <$> Right  expectedRemoved)
