@@ -60,21 +60,21 @@ initialNode (LeaveFunc n) = Cfg.LeaveFunc n
 initialNode (Grouping (GroupingNode _ _ gCfg _)) = initialNode $ Cfg.getRootNode gCfg
 
 -- | Find the final, non-'Grouping' node inside a node @n@, recursively
-terminalNode ::
+deepTerminalNode ::
   -- | A node @n@
   CfNode a ->
   CfNode a
-terminalNode (BasicBlock n) = Cfg.BasicBlock n
-terminalNode (Call n) = Cfg.Call n
-terminalNode (EnterFunc n) = Cfg.EnterFunc n
-terminalNode (LeaveFunc n) = Cfg.LeaveFunc n
-terminalNode (Grouping grp) = getTerminalTermNodeFromGroupingNode grp
+deepTerminalNode (BasicBlock n) = Cfg.BasicBlock n
+deepTerminalNode (Call n) = Cfg.Call n
+deepTerminalNode (EnterFunc n) = Cfg.EnterFunc n
+deepTerminalNode (LeaveFunc n) = Cfg.LeaveFunc n
+deepTerminalNode (Grouping grp) = getDeepTermNodeFromGroupingNode grp
 
 -- | Find the final, non-'Grouping' node inside a group @grp@, recursively
-getTerminalTermNodeFromGroupingNode :: GroupingNode a -> CfNode a
-getTerminalTermNodeFromGroupingNode = terminalNode . getTermNode
+getDeepTermNodeFromGroupingNode :: GroupingNode a -> CfNode a
+getDeepTermNodeFromGroupingNode = deepTerminalNode . getTermNode
 
--- | Gets the term node out of the graph. Non-recursive.
+-- | Gets the term node out of the graph. Non-recursive. Unsafe.
 getTermNode :: GroupingNode a -> CfNode a
 getTermNode grp = fromMaybe err $ Cfg.getNode (grp ^. #grouping) (grp ^. #termNodeId)
   where
@@ -106,7 +106,7 @@ unfoldGroups = expandAll
       (LeaveFunc _) -> Nothing
       n@(Grouping grp@(GroupingNode _ _ sub gData)) ->
         let (subExpanded, groupingTree) = expandAll sub
-            finalTermNode = getTerminalTermNodeFromGroupingNode grp
+            finalTermNode = getDeepTermNodeFromGroupingNode grp
          in Just
               ( finalTermNode
               , subExpanded
