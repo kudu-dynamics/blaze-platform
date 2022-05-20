@@ -8,7 +8,6 @@ import Binja.Core (BNBinaryView)
 import Test.Hspec
 import qualified Binja.TypeLibrary as BT
 import Prelude (error)
-import Control.Monad.Error.Class (liftEither)
 import Data.Text (unpack)
 
 typeLibTestBin :: FilePath
