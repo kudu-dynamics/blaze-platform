@@ -45,26 +45,21 @@ dependencies:
   - unordered-containers
 
 default-extensions:
-  - BangPatterns
+  - GHC2021
+  - AllowAmbiguousTypes
+  - DataKinds
   - DeriveAnyClass
-  - DeriveDataTypeable
-  - DeriveFoldable
-  - DeriveFunctor
-  - DeriveGeneric
-  - DeriveTraversable
   - DerivingStrategies
   - DuplicateRecordFields
-  - FlexibleContexts
-  - FlexibleInstances
   - FunctionalDependencies
-  - GeneralizedNewtypeDeriving
+  - GADTs
   - LambdaCase
   - MultiParamTypeClasses
   - NoImplicitPrelude
+  - NoMonomorphismRestriction
+  - OverloadedLabels
   - OverloadedStrings
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TupleSections
+  - TypeFamilies
 
 
 library:
