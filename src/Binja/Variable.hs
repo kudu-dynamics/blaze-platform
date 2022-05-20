@@ -19,6 +19,7 @@ import qualified Binja.C.Main         as BN
 import qualified Binja.Types.Function as Func
 import Binja.Types.Function (Function)
 import           Binja.Types.Variable as Exports
+import Binja.C.Enums (BNTokenEscapingType(NoTokenEscapingType))
 
 getVarType' :: BN.BNType -> Confidence -> IO VarType
 getVarType' t c = do
@@ -27,7 +28,7 @@ getVarType' t c = do
   tclass <- BN.getTypeClass t
   talignment <- BN.getTypeAlignment t
   twidth <- BN.getTypeWidth t
-  ttypeString <- BN.getTypeString t Nothing
+  ttypeString <- BN.getTypeString t Nothing NoTokenEscapingType
   tchildType <- BN.getChildType t >>= getVarType
   return $ VarType { _confidence = c
                    , _typeClass = tclass
