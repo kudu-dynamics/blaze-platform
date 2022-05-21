@@ -378,7 +378,7 @@ insertNodeBetween nodeA nodeB nodeMiddle cfg' =
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance (Hashable a, Identifiable (CfNode a) UUID) => Graph BranchType (CfNode a) Cfg where
+instance (Hashable a, Identifiable a UUID) => Graph BranchType a Cfg where
 
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
