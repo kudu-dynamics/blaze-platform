@@ -35,14 +35,14 @@
 
 
 
-#define BN_CURRENT_CORE_ABI_VERSION 20
+#define BN_CURRENT_CORE_ABI_VERSION 19
 
 
 
 
 
 
-#define BN_MINIMUM_CORE_ABI_VERSION 20
+#define BN_MINIMUM_CORE_ABI_VERSION 19
 
 #ifdef __GNUC__
 	#ifdef BINARYNINJACORE_LIBRARY
@@ -53,17 +53,12 @@
 	#define BINARYNINJAPLUGIN __attribute__((visibility("default")))
 #else
 	#ifdef _MSC_VER
-		#ifndef DEMO_VERSION
-			#ifdef BINARYNINJACORE_LIBRARY
-				#define BINARYNINJACOREAPI __declspec(dllexport)
-			#else
-				#define BINARYNINJACOREAPI
-			#endif
-			#define BINARYNINJAPLUGIN __declspec(dllexport)
+		#ifdef BINARYNINJACORE_LIBRARY
+			#define BINARYNINJACOREAPI __declspec(dllexport)
 		#else
 			#define BINARYNINJACOREAPI
-			#define BINARYNINJAPLUGIN
 		#endif
+		#define BINARYNINJAPLUGIN __declspec(dllexport)
 	#else
 		#define BINARYNINJACOREAPI
 	#endif
@@ -216,12 +211,6 @@ typedef struct BNWebsocketProvider BNWebsocketProvider;
 
 	
 typedef struct BNWebsocketClient BNWebsocketClient;
-
-	
-typedef struct BNTypeParser BNTypeParser;
-
-	
-typedef struct BNTypePrinter BNTypePrinter;
 
 	
 typedef struct BNFlowGraph BNFlowGraph;
@@ -2323,15 +2312,6 @@ typedef struct BNQualifiedNameAndType
 
 
 	
-typedef struct BNQualifiedNameTypeAndId
-{
-    BNQualifiedName name;
-    char* id;
-    BNType* type;
-} BNQualifiedNameTypeAndId;
-
-
-	
 typedef struct BNStructureMember
 {
     BNType* type;
@@ -2376,45 +2356,13 @@ typedef struct BNCustomRelocationHandler
 
 
 	
-typedef struct BNParsedType
-{
-    BNQualifiedName name;
-    BNType* type;
-    bool isUser;
-} BNParsedType;
-
-
-	
 typedef struct BNTypeParserResult
 {
-    BNParsedType* types;
-    BNParsedType* variables;
-    BNParsedType* functions;
+    BNQualifiedNameAndType* types;
+    BNQualifiedNameAndType* variables;
+    BNQualifiedNameAndType* functions;
     size_t typeCount, variableCount, functionCount;
 } BNTypeParserResult;
-
-
-	
-typedef enum BNTypeParserErrorSeverity
-{
-    IgnoredSeverity = 0,
-    NoteSeverity = 1,
-    RemarkSeverity = 2,
-    WarningSeverity = 3,
-    ErrorSeverity = 4,
-    FatalSeverity = 5
-} BNTypeParserErrorSeverity;
-
-
-	
-typedef struct BNTypeParserError
-{
-    BNTypeParserErrorSeverity severity;
-    char* message;
-    char* fileName;
-    uint64_t line;
-    uint64_t column;
-} BNTypeParserError;
 
 
 	
@@ -2855,67 +2803,6 @@ typedef struct BNMainThreadCallbacks
     void* context;
     void (*addAction)(void* ctxt, BNMainThreadAction* action);
 } BNMainThreadCallbacks;
-
-
-	
-typedef struct BNTypeParserCallbacks
-{
-    void* context;
-    bool (*preprocessSource)(void* ctxt,
-    const char* source, const char* fileName, BNPlatform* platform,
-    const BNQualifiedNameTypeAndId* existingTypes, size_t existingTypeCount,
-    const char* const* options, size_t optionCount,
-    const char* const* includeDirs, size_t includeDirCount,
-    char** output, BNTypeParserError** errors, size_t* errorCount
-    );
-    bool (*parseTypesFromSource)(void* ctxt,
-    const char* source, const char* fileName, BNPlatform* platform,
-    const BNQualifiedNameTypeAndId* existingTypes, size_t existingTypeCount,
-    const char* const* options, size_t optionCount,
-    const char* const* includeDirs, size_t includeDirCount,
-    const char* autoTypeSource, BNTypeParserResult* result,
-    BNTypeParserError** errors, size_t* errorCount
-    );
-    bool (*parseTypeString)(void* ctxt,
-    const char* source, BNPlatform* platform,
-    const BNQualifiedNameTypeAndId* existingTypes, size_t existingTypeCount,
-    BNQualifiedNameAndType* result,
-    BNTypeParserError** errors, size_t* errorCount
-    );
-    void (*freeString)(void* ctxt, char* string);
-    void (*freeResult)(void* ctxt, BNTypeParserResult* result);
-    void (*freeErrorList)(void* ctxt, BNTypeParserError* errors, size_t errorCount);
-} BNTypeParserCallbacks;
-
-
-	
-typedef struct BNTypePrinterCallbacks
-{
-    void* context;
-    bool (*getTypeTokens)(void* ctxt, BNType* type, BNPlatform* platform,
-    BNQualifiedName* name, uint8_t baseConfidence, BNTokenEscapingType escaping,
-    BNInstructionTextToken** result, size_t* resultCount);
-    bool (*getTypeTokensBeforeName)(void* ctxt, BNType* type,
-    BNPlatform* platform, uint8_t baseConfidence, BNType* parentType,
-    BNTokenEscapingType escaping, BNInstructionTextToken** result,
-    size_t* resultCount);
-    bool (*getTypeTokensAfterName)(void* ctxt, BNType* type,
-    BNPlatform* platform, uint8_t baseConfidence, BNType* parentType,
-    BNTokenEscapingType escaping, BNInstructionTextToken** result,
-    size_t* resultCount);
-    bool (*getTypeString)(void* ctxt, BNType* type, BNPlatform* platform,
-    BNQualifiedName* name, BNTokenEscapingType escaping, char** result);
-    bool (*getTypeStringBeforeName)(void* ctxt, BNType* type,
-    BNPlatform* platform, BNTokenEscapingType escaping, char** result);
-    bool (*getTypeStringAfterName)(void* ctxt, BNType* type,
-    BNPlatform* platform, BNTokenEscapingType escaping, char** result);
-    bool (*getTypeLines)(void* ctxt, BNType* type, BNBinaryView* data,
-    BNQualifiedName* name, int lineWidth, bool collapsed,
-    BNTokenEscapingType escaping, BNTypeDefinitionLine** result, size_t* resultCount);
-    void (*freeTokens)(void* ctxt, BNInstructionTextToken* tokens, size_t count);
-    void (*freeString)(void* ctxt, char* string);
-    void (*freeLines)(void* ctxt, BNTypeDefinitionLine* lines, size_t count);
-} BNTypePrinterCallbacks;
 
 
 	
@@ -4662,7 +4549,6 @@ typedef struct BNSecretsProviderCallbacks
 
 	BINARYNINJACOREAPI BNQualifiedNameAndType* BNGetAnalysisTypeList(BNBinaryView* view, size_t* count);
 	BINARYNINJACOREAPI void BNFreeTypeList(BNQualifiedNameAndType* types, size_t count);
-	BINARYNINJACOREAPI void BNFreeTypeIdList(BNQualifiedNameTypeAndId* types, size_t count);
 	BINARYNINJACOREAPI BNQualifiedName* BNGetAnalysisTypeNames(BNBinaryView* view, size_t* count, const char* matching);
 	BINARYNINJACOREAPI void BNFreeTypeNameList(BNQualifiedName* names, size_t count);
 	BINARYNINJACOREAPI BNType* BNGetAnalysisTypeByName(BNBinaryView* view, BNQualifiedName* name);
@@ -4673,8 +4559,6 @@ typedef struct BNSecretsProviderCallbacks
 	BINARYNINJACOREAPI BNQualifiedName BNDefineAnalysisType(
 	    BNBinaryView* view, const char* id, BNQualifiedName* defaultName, BNType* type);
 	BINARYNINJACOREAPI void BNDefineUserAnalysisType(BNBinaryView* view, BNQualifiedName* name, BNType* type);
-	BINARYNINJACOREAPI void BNDefineAnalysisTypes(BNBinaryView* view, BNQualifiedNameAndType* types, size_t count, bool (*progress)(void*, size_t, size_t), void* progressContext);
-	BINARYNINJACOREAPI void BNDefineUserAnalysisTypes(BNBinaryView* view, BNQualifiedNameAndType* types, size_t count, bool (*progress)(void*, size_t, size_t), void* progressContext);
 	BINARYNINJACOREAPI void BNUndefineAnalysisType(BNBinaryView* view, const char* id);
 	BINARYNINJACOREAPI void BNUndefineUserAnalysisType(BNBinaryView* view, BNQualifiedName* name);
 	BINARYNINJACOREAPI void BNRenameAnalysisType(
@@ -4947,7 +4831,6 @@ typedef struct BNSecretsProviderCallbacks
 	
 	BINARYNINJACOREAPI BNDisassemblySettings* BNCreateDisassemblySettings(void);
 	BINARYNINJACOREAPI BNDisassemblySettings* BNNewDisassemblySettingsReference(BNDisassemblySettings* settings);
-	BINARYNINJACOREAPI BNDisassemblySettings* BNDuplicateDisassemblySettings(BNDisassemblySettings* settings);
 	BINARYNINJACOREAPI void BNFreeDisassemblySettings(BNDisassemblySettings* settings);
 
 	BINARYNINJACOREAPI bool BNIsDisassemblySettingsOptionSet(
@@ -4961,7 +4844,6 @@ typedef struct BNSecretsProviderCallbacks
 	BINARYNINJACOREAPI void BNSetDisassemblyMaximumSymbolWidth(BNDisassemblySettings* settings, size_t width);
 	BINARYNINJACOREAPI size_t BNGetDisassemblyGutterWidth(BNDisassemblySettings* settings);
 	BINARYNINJACOREAPI void BNSetDisassemblyGutterWidth(BNDisassemblySettings* settings, size_t width);
-
 
 	
 	BINARYNINJACOREAPI BNFlowGraph* BNCreateFlowGraph();
@@ -5588,11 +5470,9 @@ typedef struct BNSecretsProviderCallbacks
 	BINARYNINJACOREAPI BNType* BNCreatePointerTypeOfWidth(size_t width, const BNTypeWithConfidence* const type,
 	    BNBoolWithConfidence* cnst, BNBoolWithConfidence* vltl, BNReferenceType refType);
 	BINARYNINJACOREAPI BNType* BNCreateArrayType(const BNTypeWithConfidence* const type, uint64_t elem);
-	BINARYNINJACOREAPI BNType* BNCreateFunctionType(BNTypeWithConfidence* returnValue, BNCallingConventionWithConfidence* callingConvention,
-	    BNFunctionParameter* params, size_t paramCount, BNBoolWithConfidence* varArg,
-	    BNBoolWithConfidence* canReturn, BNOffsetWithConfidence* stackAdjust,
-	    uint32_t* regStackAdjustRegs, BNOffsetWithConfidence* regStackAdjustValues, size_t regStackAdjustCount,
-	    BNRegisterSetWithConfidence* returnRegs, BNNameType ft);
+	BINARYNINJACOREAPI BNType* BNCreateFunctionType(BNTypeWithConfidence* returnValue,
+	    BNCallingConventionWithConfidence* callingConvention, BNFunctionParameter* params, size_t paramCount,
+	    BNBoolWithConfidence* varArg, BNOffsetWithConfidence* stackAdjust);
 	BINARYNINJACOREAPI BNType* BNNewTypeReference(BNType* type);
 	BINARYNINJACOREAPI BNType* BNDuplicateType(BNType* type);
 	BINARYNINJACOREAPI char* BNGetTypeAndName(BNType* type, BNQualifiedName* name, BNTokenEscapingType escaping);
@@ -5618,11 +5498,9 @@ typedef struct BNSecretsProviderCallbacks
 	    const BNTypeWithConfidence* const type, BNBoolWithConfidence* cnst, BNBoolWithConfidence* vltl,
 	    BNReferenceType refType);
 	BINARYNINJACOREAPI BNTypeBuilder* BNCreateArrayTypeBuilder(const BNTypeWithConfidence* const type, uint64_t elem);
-	BINARYNINJACOREAPI BNTypeBuilder* BNCreateFunctionTypeBuilder(BNTypeWithConfidence* returnValue, BNCallingConventionWithConfidence* callingConvention,
-		BNFunctionParameter* params, size_t paramCount, BNBoolWithConfidence* varArg,
-		BNBoolWithConfidence* canReturn, BNOffsetWithConfidence* stackAdjust,
-		uint32_t* regStackAdjustRegs, BNOffsetWithConfidence* regStackAdjustValues, size_t regStackAdjustCount,
-		BNRegisterSetWithConfidence* returnRegs, BNNameType ft);
+	BINARYNINJACOREAPI BNTypeBuilder* BNCreateFunctionTypeBuilder(BNTypeWithConfidence* returnValue,
+	    BNCallingConventionWithConfidence* callingConvention, BNFunctionParameter* params, size_t paramCount,
+	    BNBoolWithConfidence* varArg, BNOffsetWithConfidence* stackAdjust);
 	BINARYNINJACOREAPI BNType* BNFinalizeTypeBuilder(BNTypeBuilder* type);
 	BINARYNINJACOREAPI BNTypeBuilder* BNDuplicateTypeBuilder(BNTypeBuilder* type);
 	BINARYNINJACOREAPI char* BNGetTypeBuilderTypeAndName(BNTypeBuilder* type, BNQualifiedName* name);
@@ -5841,71 +5719,8 @@ typedef struct BNSecretsProviderCallbacks
 	BINARYNINJACOREAPI bool BNParseTypesFromSourceFile(BNPlatform* platform, const char* fileName,
 	    BNTypeParserResult* result, char** errors, const char** includeDirs, size_t includeDirCount,
 	    const char* autoTypeSource);
-
-	BINARYNINJACOREAPI BNTypeParser* BNRegisterTypeParser(
-		const char* name, BNTypeParserCallbacks* callbacks);
-	BINARYNINJACOREAPI BNTypeParser** BNGetTypeParserList(size_t* count);
-	BINARYNINJACOREAPI void BNFreeTypeParserList(BNTypeParser** parsers);
-	BINARYNINJACOREAPI BNTypeParser* BNGetTypeParserByName(const char* name);
-
-	BINARYNINJACOREAPI char* BNGetTypeParserName(BNTypeParser* parser);
-
-	BINARYNINJACOREAPI bool BNTypeParserPreprocessSource(BNTypeParser* parser,
-	    const char* source, const char* fileName, BNPlatform* platform,
-	    const BNQualifiedNameTypeAndId* existingTypes, size_t existingTypeCount,
-	    const char* const* options, size_t optionCount,
-	    const char* const* includeDirs, size_t includeDirCount,
-	    char** output, BNTypeParserError** errors, size_t* errorCount
-	);
-	BINARYNINJACOREAPI bool BNTypeParserParseTypesFromSource(BNTypeParser* parser,
-	    const char* source, const char* fileName, BNPlatform* platform,
-	    const BNQualifiedNameTypeAndId* existingTypes, size_t existingTypeCount,
-	    const char* const* options, size_t optionCount,
-	    const char* const* includeDirs, size_t includeDirCount,
-	    const char* autoTypeSource, BNTypeParserResult* result,
-	    BNTypeParserError** errors, size_t* errorCount
-	);
-	BINARYNINJACOREAPI bool BNTypeParserParseTypeString(BNTypeParser* parser,
-	    const char* source, BNPlatform* platform,
-	    const BNQualifiedNameTypeAndId* existingTypes, size_t existingTypeCount,
-	    BNQualifiedNameAndType* result,
-	    BNTypeParserError** errors, size_t* errorCount
-	);
-
-	BINARYNINJACOREAPI BNTypePrinter* BNRegisterTypePrinter(
-		const char* name, BNTypePrinterCallbacks* callbacks);
-	BINARYNINJACOREAPI BNTypePrinter** BNGetTypePrinterList(size_t* count);
-	BINARYNINJACOREAPI void BNFreeTypePrinterList(BNTypePrinter** printers);
-	BINARYNINJACOREAPI BNTypePrinter* BNGetTypePrinterByName(const char* name);
-
-	BINARYNINJACOREAPI char* BNGetTypePrinterName(BNTypePrinter* printer);
-
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeTokens(BNTypePrinter* printer,
-		BNType* type, BNPlatform* platform, BNQualifiedName* name,
-		uint8_t baseConfidence, BNTokenEscapingType escaping,
-		BNInstructionTextToken** result, size_t* resultCount);
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeTokensBeforeName(BNTypePrinter* printer,
-		BNType* type, BNPlatform* platform, uint8_t baseConfidence, BNType* parentType,
-		BNTokenEscapingType escaping, BNInstructionTextToken** result,
-		size_t* resultCount);
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeTokensAfterName(BNTypePrinter* printer,
-		BNType* type, BNPlatform* platform, uint8_t baseConfidence, BNType* parentType,
-		BNTokenEscapingType escaping, BNInstructionTextToken** result,
-		size_t* resultCount);
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeString(BNTypePrinter* printer,
-		BNType* type, BNPlatform* platform, BNQualifiedName* name,
-		BNTokenEscapingType escaping, char** result);
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeStringBeforeName(BNTypePrinter* printer,
-		BNType* type, BNPlatform* platform, BNTokenEscapingType escaping, char** result);
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeStringAfterName(BNTypePrinter* printer,
-		BNType* type, BNPlatform* platform, BNTokenEscapingType escaping, char** result);
-	BINARYNINJACOREAPI bool BNGetTypePrinterTypeLines(BNTypePrinter* printer,
-		BNType* type, BNBinaryView* data,
-		BNQualifiedName* name, int lineWidth, bool collapsed,
-		BNTokenEscapingType escaping, BNTypeDefinitionLine** result, size_t* resultCount);
-
 	BINARYNINJACOREAPI void BNFreeTypeParserResult(BNTypeParserResult* result);
-	BINARYNINJACOREAPI void BNFreeTypeParserErrors(BNTypeParserError* errors, size_t count);
+
 	
 	BINARYNINJACOREAPI BNUpdateChannel* BNGetUpdateChannels(size_t* count, char** errors);
 	BINARYNINJACOREAPI void BNFreeUpdateChannelList(BNUpdateChannel* list, size_t count);
