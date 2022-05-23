@@ -46,7 +46,7 @@ data PilVar = PilVar
   , ctx :: Maybe Ctx
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 instance Identifiable PilVar Int where
   getNodeId pv = NodeId $ hash pv

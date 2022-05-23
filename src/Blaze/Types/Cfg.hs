@@ -14,65 +14,13 @@ module Blaze.Types.Cfg
   , G.sinks
   ) where
 
-import Blaze.Prelude
-    ( filter,
-      fst,
-      snd,
-      ($),
-      Eq(..),
-      Monad(return),
-      Functor(fmap),
-      Num((+)),
-      Ord,
-      Show,
-      Applicative((<*>)),
-      Foldable(foldl'),
-      Traversable,
-      Generic,
-      Semigroup((<>)),
-      Bool,
-      Int,
-      Maybe(..),
-      IO,
-      Address,
-      HashMap,
-      Hashable(..),
-      UUID,
-      HashSet,
-      foldM,
-      find,
-      (&),
-      (<$>),
-      fromJust,
-      mapMaybe,
-      (.),
-      flip,
-      error,
-      drop,
-      (&&),
-      (^?),
-      (^.),
-      view,
-      (%~),
-      (.~),
-      over,
-      identity,
-      show,
-      randomIO,
-      runState,
-      FromJSON,
-      ToJSON,
-      MonadIO(..),
-      MonadState(put, get),
-      State,
-      StateT(StateT) )
+import Blaze.Prelude hiding (pred, succ)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (Graph, Identifiable (getNodeId), NodeId (NodeId), Edge (Edge), LEdge (LEdge))
 import Blaze.Types.Graph qualified as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Types.Pil (BranchCondOp, CallDest, CtxId, Expression, RetOp, Stmt)
+import Blaze.Types.Pil (BranchCondOp, CallDest, Ctx, CtxId, Expression, RetOp, Stmt)
 import Blaze.Types.Pil qualified as Pil
-import Blaze.Types.Pil.Common (Ctx)
 import Control.Arrow ((&&&))
 import Control.Lens (ix)
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
@@ -137,7 +85,7 @@ data LeaveFuncNode a = LeaveFuncNode
 
 -- | A node type that represents a "grouped" sub-CFG within a larger CFG
 data GroupingNode a = GroupingNode
-  { termNode :: CfNode a
+  { termNodeId :: NodeId UUID
   , uuid :: UUID
   , grouping :: Cfg (CfNode a)
   , nodeData :: a
@@ -254,11 +202,11 @@ getEdge cfg e = CfEdge (e ^. #src) (e ^. #dst) <$> G.getEdgeLabel e cfg
 
 -- TODO: How to best "prove" this generates a proper ControlFlowGraph?
 mkControlFlowGraph ::
-  Hashable a =>
-  CfNode a ->
-  [CfNode a] ->
-  [CfEdge (CfNode a)] ->
-  ControlFlowGraph (CfNode a)
+  (Identifiable a UUID, Hashable a) =>
+  a ->
+  [a] ->
+  [CfEdge a] ->
+  ControlFlowGraph a
 mkControlFlowGraph root' ns es =
   G.addNodes (root' : ns) $ G.fromEdges (fmap toLEdge es)
 
@@ -274,31 +222,31 @@ data Cfg n = Cfg
   }
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
-incNextCtxIndex :: Cfg a -> Cfg a
+incNextCtxIndex :: Cfg n -> Cfg n
 incNextCtxIndex = over #nextCtxIndex (+1)
 
-instance Hashable a => Hashable (Cfg (CfNode a)) where
+instance (Identifiable n UUID, Hashable n) => Hashable (Cfg n) where
   hashWithSalt n = hashWithSalt n . toTransport
   hash = hash . toTransport
 
-instance (Hashable a, ToJSON a) => ToJSON (Cfg (CfNode a)) where
+instance (Identifiable n UUID, Hashable n, ToJSON n) => ToJSON (Cfg n) where
  toJSON = toJSON . toTransport
 
-instance (Hashable a, FromJSON a) => FromJSON (Cfg (CfNode a)) where
+instance (Identifiable n UUID, Hashable n, FromJSON n) => FromJSON (Cfg n) where
  parseJSON = fmap fromTransport . parseJSON
 
 
 mkCfg ::
-  Hashable a =>
+  (Identifiable n UUID, Hashable n) =>
   CtxId ->
-  CfNode a ->
-  [CfNode a] ->
-  [CfEdge (CfNode a)] ->
-  Cfg (CfNode a)
+  n ->
+  [n] ->
+  [CfEdge n] ->
+  Cfg n
 mkCfg nextCtxIndex_ root_ rest es =
   Cfg
     { graph = mkControlFlowGraph root_ rest es
-    , rootId = NodeId $ getNodeUUID root_
+    , rootId = getNodeId root_
     , nextCtxIndex = nextCtxIndex_
     }
 
@@ -430,7 +378,7 @@ insertNodeBetween nodeA nodeB nodeMiddle cfg' =
 
 -- TODO: Is there a deriving trick to have the compiler generate this?
 -- TODO: Separate graph construction from graph use and/or graph algorithms
-instance (Hashable a, Identifiable (CfNode a) UUID) => Graph BranchType (CfNode a) Cfg where
+instance (Hashable a, Identifiable a UUID) => Graph BranchType a Cfg where
 
   empty = error "The empty function is unsupported for CFGs."
   fromNode _ = error "Use mkCfg to construct a CFG."
@@ -596,10 +544,10 @@ data CfgTransport n = CfgTransport
   deriving anyclass (Hashable)
 
 toTransport ::
-  forall a.
-  (Hashable a) =>
-  Cfg (CfNode a) ->
-  CfgTransport (CfNode a)
+  forall n.
+  (Hashable n, Identifiable n UUID) =>
+  Cfg n ->
+  CfgTransport n
 toTransport pcfg =
   CfgTransport
     { transportEdges = edges'
@@ -608,13 +556,13 @@ toTransport pcfg =
     , transportNextCtxIndex = pcfg ^. #nextCtxIndex
     }
  where
-  nodes' :: [(NodeId UUID, CfNode a)]
-  nodes' = (NodeId . getNodeUUID &&& identity) <$> (HashSet.toList . G.nodes $ pcfg ^. #graph)
+  nodes' :: [(NodeId UUID, n)]
+  nodes' = (getNodeId &&& identity) <$> (HashSet.toList . G.nodes $ pcfg ^. #graph)
 
-  edges' :: [CfEdge (CfNode a)]
+  edges' :: [CfEdge n]
   edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
 
-fromTransport :: Hashable a => CfgTransport (CfNode a) -> Cfg (CfNode a)
+fromTransport :: (Identifiable n UUID, Hashable n) => CfgTransport n -> Cfg n
 fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
   where
     root' = snd . fromJust $ find ((== t ^. #transportRootId) . fst) (t ^. #transportNodes)

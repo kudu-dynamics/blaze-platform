@@ -59,15 +59,25 @@ initialNode (LeaveFunc n) = Cfg.LeaveFunc n
 initialNode (Grouping (GroupingNode _ _ gCfg _)) = initialNode $ Cfg.getRootNode gCfg
 
 -- | Find the final, non-'Grouping' node inside a node @n@, recursively
-terminalNode ::
+deepTerminalNode ::
   -- | A node @n@
   CfNode a ->
   CfNode a
-terminalNode (BasicBlock n) = Cfg.BasicBlock n
-terminalNode (Call n) = Cfg.Call n
-terminalNode (EnterFunc n) = Cfg.EnterFunc n
-terminalNode (LeaveFunc n) = Cfg.LeaveFunc n
-terminalNode (Grouping (GroupingNode exit _ _ _)) = terminalNode exit
+deepTerminalNode (BasicBlock n) = Cfg.BasicBlock n
+deepTerminalNode (Call n) = Cfg.Call n
+deepTerminalNode (EnterFunc n) = Cfg.EnterFunc n
+deepTerminalNode (LeaveFunc n) = Cfg.LeaveFunc n
+deepTerminalNode (Grouping grp) = getDeepTermNodeFromGroupingNode grp
+
+-- | Find the final, non-'Grouping' node inside a group @grp@, recursively
+getDeepTermNodeFromGroupingNode :: GroupingNode a -> CfNode a
+getDeepTermNodeFromGroupingNode = deepTerminalNode . getTermNode
+
+-- | Gets the term node out of the graph. Non-recursive. Unsafe.
+getTermNode :: GroupingNode a -> CfNode a
+getTermNode grp = fromMaybe err $ Cfg.getNode (grp ^. #grouping) (grp ^. #termNodeId)
+  where
+    err = error "could not find term NodeId in grouping cfg"
 
 -- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
 -- 'Cfg'. Also, summarize the recursive structure of 'Grouping' nodes into a
@@ -93,14 +103,15 @@ unfoldGroups = expandAll
       (Call _) -> Nothing
       (EnterFunc _) -> Nothing
       (LeaveFunc _) -> Nothing
-      n@(Grouping (GroupingNode exit _ sub gData)) ->
+      n@(Grouping grp@(GroupingNode _ _ sub gData)) ->
         let (subExpanded, groupingTree) = expandAll sub
+            finalTermNode = getDeepTermNodeFromGroupingNode grp
          in Just
-              ( terminalNode exit
+              ( finalTermNode
               , subExpanded
               , GroupSpec
                   { groupRoot = initialNode n
-                  , groupTerm = terminalNode exit
+                  , groupTerm = finalTermNode
                   , innerGroups = groupingTree
                   , groupData = gData
                   }
@@ -141,7 +152,7 @@ foldOneGroup enter exit cfg nData =
     exitCand = Cfg.getNode cfg $ G.getNodeId exit
 
 expandGroupingNode :: Hashable a => GroupingNode a -> Cfg (CfNode a) -> Cfg (CfNode a)
-expandGroupingNode n cfg = Cfg.substNode cfg (Grouping n) (n ^. #grouping) (n ^. #termNode)
+expandGroupingNode n cfg = Cfg.substNode cfg (Grouping n) (n ^. #grouping) (getTermNode n)
 
 -- | Returns the set of nodes that could be group terminals, given the start node.
 -- A group terminal must be a post dominator of the start node and dominated by it.
@@ -220,7 +231,7 @@ extractGroupingNode ::
   GroupingNode a
 extractGroupingNode startNode endNode groupNodes cfg nData =
   GroupingNode
-    endNode
+    (G.getNodeId endNode)
     (Cfg.getNodeUUID startNode)
     (Cfg.mkCfg (cfg ^. #nextCtxIndex) startNode (HashSet.toList nodes') edges')
     nData

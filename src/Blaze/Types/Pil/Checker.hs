@@ -24,7 +24,7 @@ type SymTypedStmt = Statement (InfoExpression (SymInfo, Maybe DeepSymType))
 
 newtype Sym = Sym Int
   deriving (Eq, Ord, Read, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON, Hashable)
+  deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, Hashable)
 
 data TypeTag = TagDirty
              | TagSanitized
@@ -54,7 +54,7 @@ data PilType t
     -- it only results from a unification error
   | TBottom Sym
   | TFunction {ret :: PilType t, params :: [PilType t]}
-  deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable)
+  deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable, FromJSON, ToJSON)
 
 newtype T = T (PilType T)
   deriving (Eq, Ord, Read, Show, Generic)
@@ -68,7 +68,7 @@ type FlatPilType = PilType Sym
 
 data SymType = SVar Sym
              | SType FlatPilType
-             deriving (Eq, Ord, Read, Show, Generic)
+             deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
 
 -- TODO: Can we mege SymType with ConstraintSymType? It's looking like "yes".
 -- | Used to represent shallow/flat types where nested types are looked up
@@ -81,13 +81,13 @@ data ConstraintSymType = CSVar Sym
 data DeepSymType = DSVar Sym
                  | DSRecursive Sym (PilType DeepSymType)
                  | DSType (PilType DeepSymType)
-               deriving (Eq, Ord, Read, Show, Generic, Hashable)
+               deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
 
 data Constraint = Constraint
   { stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
   , sym :: Sym
   , symType :: SymType
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON)
 
 -- | Solutions should be the "final unification" for any sym.
 -- Complex types might still contain SVars subject to substitution
@@ -128,25 +128,25 @@ data UnifyError t
       { recordFields :: HashMap BitOffset t
       , offendingOffset :: BitOffset
       }
-  deriving (Eq, Ord, Read, Show, Functor)
+  deriving (Eq, Ord, Read, Show, Functor, Generic, Hashable, FromJSON, ToJSON)
 
 data UnifyConstraintsError t = UnifyConstraintsError
   { stmtOrigin :: Int -- ^ Index in list of pil stmts for now
   , sym :: Sym
   , error :: UnifyError t
   }
-  deriving (Eq, Ord, Read, Show, Generic, Functor)
+  deriving (Eq, Ord, Read, Show, Generic, Functor, Hashable, FromJSON, ToJSON)
 
-type EqualityMap a = HashMap a (HashSet a)
+type VarEqMap = HashMap Sym (HashSet Sym)
 
-type VarEqMap = EqualityMap Sym
+type VarSymMap = HashMap PilVar Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
   { symTypedStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
   , symStmts :: [(Int, Statement SymExpression)]
   , varSymTypeMap :: HashMap PilVar DeepSymType
-  , varSymMap :: HashMap PilVar Sym
+  , varSymMap :: VarSymMap
   , varEqMap :: VarEqMap
   , funcSymTypeMap :: HashMap (FuncVar SymExpression) DeepSymType
   , funcSymMap :: HashMap (FuncVar SymExpression) Sym
@@ -156,7 +156,7 @@ data TypeReport = TypeReport
   , originMap :: HashMap Sym Sym -- ^ from UnifyState
   , errorConstraints :: HashMap Sym [Constraint] -- ^ original constraints
   , ogConstraints :: [Constraint]
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------
