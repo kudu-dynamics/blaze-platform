@@ -16,10 +16,6 @@ newtype NodeId a = NodeId a
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable, NFData, ToJSON, FromJSON)
 
--- Is there a way to put this in the record and have it exported despite NoFieldSelectors?
-unNodeId :: NodeId a -> a
-unNodeId (NodeId x) = x
-
 data Edge node = Edge
   { src :: node
   , dst :: node

@@ -137,9 +137,7 @@ data UnifyConstraintsError t = UnifyConstraintsError
   }
   deriving (Eq, Ord, Read, Show, Generic, Functor, Hashable, FromJSON, ToJSON)
 
-type EqualityMap a = HashMap a (HashSet a)
-
-type VarEqMap = EqualityMap Sym
+type VarEqMap = HashMap Sym (HashSet Sym)
 
 type VarSymMap = HashMap PilVar Sym
 

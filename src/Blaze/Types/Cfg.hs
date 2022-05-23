@@ -222,27 +222,27 @@ data Cfg n = Cfg
   }
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
-incNextCtxIndex :: Cfg a -> Cfg a
+incNextCtxIndex :: Cfg n -> Cfg n
 incNextCtxIndex = over #nextCtxIndex (+1)
 
-instance (Identifiable a UUID, Hashable a) => Hashable (Cfg a) where
+instance (Identifiable n UUID, Hashable n) => Hashable (Cfg n) where
   hashWithSalt n = hashWithSalt n . toTransport
   hash = hash . toTransport
 
-instance (Identifiable a UUID, Hashable a, ToJSON a) => ToJSON (Cfg a) where
+instance (Identifiable n UUID, Hashable n, ToJSON n) => ToJSON (Cfg n) where
  toJSON = toJSON . toTransport
 
-instance (Identifiable a UUID, Hashable a, FromJSON a) => FromJSON (Cfg a) where
+instance (Identifiable n UUID, Hashable n, FromJSON n) => FromJSON (Cfg n) where
  parseJSON = fmap fromTransport . parseJSON
 
 
 mkCfg ::
-  (Identifiable a UUID, Hashable a) =>
+  (Identifiable n UUID, Hashable n) =>
   CtxId ->
-  a ->
-  [a] ->
-  [CfEdge a] ->
-  Cfg a
+  n ->
+  [n] ->
+  [CfEdge n] ->
+  Cfg n
 mkCfg nextCtxIndex_ root_ rest es =
   Cfg
     { graph = mkControlFlowGraph root_ rest es
@@ -544,10 +544,10 @@ data CfgTransport n = CfgTransport
   deriving anyclass (Hashable)
 
 toTransport ::
-  forall a.
-  (Hashable a, Identifiable a UUID) =>
-  Cfg a ->
-  CfgTransport a
+  forall n.
+  (Hashable n, Identifiable n UUID) =>
+  Cfg n ->
+  CfgTransport n
 toTransport pcfg =
   CfgTransport
     { transportEdges = edges'
@@ -556,13 +556,13 @@ toTransport pcfg =
     , transportNextCtxIndex = pcfg ^. #nextCtxIndex
     }
  where
-  nodes' :: [(NodeId UUID, a)]
+  nodes' :: [(NodeId UUID, n)]
   nodes' = (getNodeId &&& identity) <$> (HashSet.toList . G.nodes $ pcfg ^. #graph)
 
-  edges' :: [CfEdge a]
+  edges' :: [CfEdge n]
   edges' = fmap fromLEdge . G.edges $ pcfg ^. #graph
 
-fromTransport :: (Identifiable a UUID, Hashable a) => CfgTransport a -> Cfg a
+fromTransport :: (Identifiable n UUID, Hashable n) => CfgTransport n -> Cfg n
 fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
   where
     root' = snd . fromJust $ find ((== t ^. #transportRootId) . fst) (t ^. #transportNodes)

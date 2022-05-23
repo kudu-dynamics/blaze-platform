@@ -19,7 +19,6 @@ where
 
 import Blaze.Prelude
 
-import qualified Prelude as P
 import qualified Blaze.Graph as G
 import Blaze.Types.Cfg as Exports (
   BasicBlockNode (BasicBlockNode),
@@ -78,7 +77,7 @@ getDeepTermNodeFromGroupingNode = deepTerminalNode . getTermNode
 getTermNode :: GroupingNode a -> CfNode a
 getTermNode grp = fromMaybe err $ Cfg.getNode (grp ^. #grouping) (grp ^. #termNodeId)
   where
-    err = P.error "could not find term NodeId in grouping cfg"
+    err = error "could not find term NodeId in grouping cfg"
 
 -- | Recursively unfolds all 'Grouping' nodes in the 'Cfg', creating a flat
 -- 'Cfg'. Also, summarize the recursive structure of 'Grouping' nodes into a
