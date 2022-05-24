@@ -356,7 +356,7 @@ void wrapBNIsTypeConst(BNType* ty, BNBoolWithConfidence* bc) {
 
 {#fun BNGetTypeClass as getTypeClass {withPtr* `BNType'} -> `BNTypeClass' integralToEnum #}
 
-{#fun BNGetTypeString as getTypeString {withPtr* `BNType', withNilablePtr* `Maybe BNPlatform'} -> `String' #}
+{#fun BNGetTypeString as getTypeString {withPtr* `BNType', withNilablePtr* `Maybe BNPlatform', enumToIntegral `BNTokenEscapingType'} -> `String' #}
 
 ---- Code References
 

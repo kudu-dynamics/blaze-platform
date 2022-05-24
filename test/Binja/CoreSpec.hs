@@ -114,8 +114,7 @@ spec = describe "Binja.Core" $ do
     it "should should not error when getting original binary" $ do
       isRight er `shouldBe` True
 
-    let (Right ogb) = er
-        r = show (hash ogb :: Digest MD5) :: Text
+    let r :: Text = (fromRight "") $ show @(Digest MD5) . hash <$> er
     
-    it "should get exact original binary" $ do
+    it "should match original binary hash digest" $ do
       r `shouldBe` "58d7e707a6d51ec96e87c4c76747f24f"

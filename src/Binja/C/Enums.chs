@@ -29,6 +29,8 @@ import Prelude (error)
 
 {#enum BNStringType {} deriving (Eq, Ord, Read, Show)#}
 
+{#enum BNTokenEscapingType {} deriving (Eq, Ord, Read, Show)#}
+
 {#enum BNTypeClass {} deriving (Eq, Ord, Read, Show)#}
 
 {#enum BNVariableSourceType {} deriving (Eq, Ord, Read, Show)#}
