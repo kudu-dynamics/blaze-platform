@@ -110,6 +110,11 @@ data Expression = Expression
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
+widthToSize :: Bits -> OperationSize
+widthToSize x = OperationSize $ toBytes x
+
+sizeToWidth :: OperationSize -> Bits
+sizeToWidth (OperationSize x) = toBits x
 
 -- TODO: Move these into the PIL op generator
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
