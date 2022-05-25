@@ -86,6 +86,7 @@ import Blaze.Pil.Display (needsParens)
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic (SVal)
 
+
 data TokenType
   = TextToken
   | InstructionToken
@@ -614,7 +615,7 @@ instance Tokenizable PI.Sym where
 
 instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
-    tokenizeExprOp (Just s) op (coerce $ bitwidth * 8)
+    tokenizeExprOp (Just s) op (Pil.widthToSize bitwidth)
       <++> tt " :: "
       <++> fmap paren (tokenize s <++> tt " | " <++> mstype')
     where
@@ -622,7 +623,7 @@ instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
 
 instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
-    tokenizeExprOp (Just s) op (coerce $ bitwidth * 8)
+    tokenizeExprOp (Just s) op (Pil.widthToSize bitwidth)
       <++> tt " :: "
       <++> (paren <$> tokenize s <++> tt " | " <++> mstype')
     where
@@ -631,7 +632,7 @@ instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) wher
 instance Tokenizable (PI.InfoExpression PI.SymInfo) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth (PI.Sym n)) op) =
     [tt (show n), tt ":"]
-      <++> (paren <$> tokenizeExprOp (Just $ PI.Sym n) op (coerce $ bitwidth * 8))
+      <++> (paren <$> tokenizeExprOp (Just $ PI.Sym n) op (Pil.widthToSize bitwidth))
 
 instance Tokenizable Pil.Expression where
   tokenize (Pil.Expression size' exprOp) = tokenizeExprOp Nothing exprOp size'

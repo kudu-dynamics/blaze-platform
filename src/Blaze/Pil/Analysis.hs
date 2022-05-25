@@ -57,12 +57,6 @@ import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
 
 
-widthToSize :: Bits -> Pil.OperationSize
-widthToSize x = Pil.OperationSize $ toBytes x
-
-sizeToWidth :: Pil.OperationSize -> Bits
-sizeToWidth (Pil.OperationSize x) = toBits x
-
 getDefinedVar :: Stmt -> Maybe PilVar
 getDefinedVar (Def d) = Just $ d ^. #var
 getDefinedVar (Pil.DefPhi d) = Just $ d ^. #dest
@@ -415,11 +409,11 @@ usesStorage storage stmt = case stmt of
   Pil.Def Pil.DefOp {value = expr@Pil.Expression {op = (Pil.LOAD loadOp)}} ->
     loadStorage == storage
     where
-      loadStorage = mkMemStorage (loadOp ^. #src) (sizeToWidth $ expr ^. #size)
+      loadStorage = mkMemStorage (loadOp ^. #src) (Pil.sizeToWidth $ expr ^. #size)
   Pil.Store storeOp ->
     storeStorage == storage
     where
-      storeStorage = mkMemStorage (storeOp ^. #addr) (sizeToWidth $ storeOp ^. (#value . #size))
+      storeStorage = mkMemStorage (storeOp ^. #addr) (Pil.sizeToWidth $ storeOp ^. (#value . #size))
   _ -> False
 
 getAddr :: MemStmt -> MemAddr
@@ -485,7 +479,7 @@ mkStoreStmt idx s = case s of
   Pil.Store storeOp ->
     Just $ StoreStmt s storeOp storage idx
     where
-      storage = mkMemStorage (storeOp ^. #addr) (sizeToWidth $ storeOp ^. (#value . #size))
+      storage = mkMemStorage (storeOp ^. #addr) (Pil.sizeToWidth $ storeOp ^. (#value . #size))
   _ -> Nothing
 
 -- | A Def Load statement is "def x = [y]" (load is not nested)
@@ -494,7 +488,7 @@ mkDefLoadStmt idx s = case s of
   Pil.Def (Pil.DefOp pv expr@Pil.Expression {op = (Pil.LOAD loadOp)}) ->
     Just . DefLoadStmt pv $ LoadStmt s (LoadExpr expr) storage idx
     where
-      storage = mkMemStorage (loadOp ^. #src) (sizeToWidth $ expr ^. #size)
+      storage = mkMemStorage (loadOp ^. #src) (Pil.sizeToWidth $ expr ^. #size)
   _ -> Nothing
 
 loadExprToLoadStmt :: Index -> Stmt -> LoadExpr -> Maybe LoadStmt
@@ -620,7 +614,7 @@ resolveMemGroup group name xs =
     loadIdxs :: HashSet Index
     loadIdxs = HSet.fromList . fmap (^. #index) $ allLoads
     varExpr :: Expression
-    varExpr = C.var name $ widthToSize (group ^. (#storage . #width))
+    varExpr = C.var name $ Pil.widthToSize (group ^. (#storage . #width))
     loadExprMap :: HashMap Expression Expression
     loadExprMap =
       HMap.fromList
