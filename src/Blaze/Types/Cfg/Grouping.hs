@@ -39,8 +39,8 @@ type GroupingTree a = [GroupSpec a]
 -- The 'a' type parameter is presumed to be 'Foldable' such that the 'a' values associated
 -- with every node in a group can be folded into a single 'groupData' field of 'a'.
 data GroupSpec a = GroupSpec
-  { groupRoot :: CfNode a
-  , groupTerm :: CfNode a
+  { groupRoot :: UUID
+  , groupTerm :: UUID
   , innerGroups :: GroupingTree a
   , groupData :: a
   }
@@ -110,8 +110,8 @@ unfoldGroups = expandAll
               ( finalTermNode
               , subExpanded
               , GroupSpec
-                  { groupRoot = initialNode n
-                  , groupTerm = finalTermNode
+                  { groupRoot = Cfg.getNodeUUID $ initialNode n
+                  , groupTerm = Cfg.getNodeUUID finalTermNode
                   , innerGroups = groupingTree
                   , groupData = gData
                   }
@@ -126,10 +126,14 @@ foldGroups = foldMany
     foldMany :: Cfg (CfNode [a]) -> GroupingTree [a] -> Cfg (CfNode [a])
     foldMany = foldl' foldSubtree
     foldSubtree :: Cfg (CfNode [a]) -> GroupSpec [a] -> Cfg (CfNode [a])
-    foldSubtree cfg (GroupSpec enter exit gss gdata) =
+    foldSubtree cfg (GroupSpec enterId exitId gss gdata) =
       let cfg' = foldMany cfg gss
       in
-        foldOneGroup enter exit cfg' gdata
+        case (Cfg.findNodeByUUID enterId cfg, Cfg.findNodeByUUID exitId cfg) of
+          (Just enter, Just exit) -> foldOneGroup enter exit cfg' gdata
+          (Nothing, Nothing) -> error "Cannot find enter and exit node"
+          (Nothing, _) -> error "Cannot find enter node"
+          (_, Nothing) -> error "Cannot find exit node"
 
 -- | Fold away one group in the CFG
 foldOneGroup ::

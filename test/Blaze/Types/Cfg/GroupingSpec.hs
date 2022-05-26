@@ -12,6 +12,7 @@ import Blaze.Types.Cfg (
   CfNode (Grouping),
   Cfg,
   GroupingNode (GroupingNode),
+  getNodeUUID,
  )
 import Blaze.Types.Cfg.Grouping (
   GroupSpec (GroupSpec),
@@ -64,6 +65,9 @@ cbbn :: Text -> CfNode [Text]
 (gbbn, cbbn) = (go gbb, go cbb)
   where
     go f n = let x = fromIntegral $ hash n in f x x [n]
+
+cbbn' :: Text -> UUID
+cbbn' = getNodeUUID . cbbn
 
 spec :: Spec
 spec = describe "Blaze.Types.Cfg.Grouping" $ do
@@ -130,24 +134,24 @@ spec = describe "Blaze.Types.Cfg.Grouping" $ do
           ]
       expectedGrouping =
         [ GroupSpec
-            (cbbn "branch1")
-            (cbbn "end1")
+            (cbbn' "branch1")
+            (cbbn' "end1")
             [ GroupSpec
-                (cbbn "branch11")
-                (cbbn "end11")
+                (cbbn' "branch11")
+                (cbbn' "end11")
                 [ GroupSpec
-                    (cbbn "mid111")
-                    (cbbn "mid111")
+                    (cbbn' "mid111")
+                    (cbbn' "mid111")
                     [ GroupSpec
-                        (cbbn "mid111")
-                        (cbbn "mid111")
+                        (cbbn' "mid111")
+                        (cbbn' "mid111")
                         []
                         [""]
                     ]
                     [""]
                 , GroupSpec
-                    (cbbn "mid112")
-                    (cbbn "mid112")
+                    (cbbn' "mid112")
+                    (cbbn' "mid112")
                     []
                     [""]
                 ]

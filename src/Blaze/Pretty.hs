@@ -1027,3 +1027,6 @@ instance Tokenizable a => Tokenizable (PI.UnifyConstraintsError a) where
     <++> [tt "stmtOrigin", tt " "] <++> tokenize (x ^. #stmtOrigin)
     <++> [tt "sym", tt " "] <++> tokenize (x ^. #sym)
     <++> [tt "error", tt " "] <++> tokenize (x ^. #error)
+
+instance Tokenizable UUID where
+  tokenize x = return [tt $ show x]
