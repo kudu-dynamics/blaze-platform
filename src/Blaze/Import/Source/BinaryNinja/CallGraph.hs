@@ -58,14 +58,14 @@ convertFunction bv bnf = do
         if hasVarArgs
           then
             let posParams =
-                  fmap (FuncParamInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name)
+                  fmap (FuncParamInfo . (`ParamInfo` Func.Unknown) . getSymbol 0)
                     <$> initMay bnParams
                 varArgParam =
-                  FuncVarArgInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name
+                  FuncVarArgInfo . (`ParamInfo` Func.Unknown) . getSymbol 0
                     <$> lastMay bnParams
              in fromMaybe [] (fmap (++) posParams <*> sequence [varArgParam])
           else
-            FuncParamInfo . (`ParamInfo` Func.Unknown) . (<> "#0") . view BnVar.name
+            FuncParamInfo . (`ParamInfo` Func.Unknown) . getSymbol 0
               <$> bnParams
   -- varParam = FuncParamInfo (ParamInfo )
   return
