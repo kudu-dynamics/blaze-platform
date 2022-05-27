@@ -8,11 +8,14 @@ import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry, PilNode)
 import Blaze.Types.Pil (
   CallDest,
-  Expression,
+  Expression, 
+  Symbol
  )
 import qualified Blaze.Types.Pil as Pil
 import Control.Monad.Trans.Writer.Lazy (WriterT)
 import Data.DList (DList)
+import Binja.Variable (Variable)
+import qualified Binja.Variable as BNVar
 
 ---- CallGraph
 type MLILSSAOp = Mlil.Operation (Mlil.Expression BNFunc.MLILSSAFunction)
@@ -159,3 +162,9 @@ data CallSite = CallSite
   , callDest :: CallDest Expression
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
+getSymbol :: Int -> Variable -> Symbol
+getSymbol version var =
+  var ^. BNVar.name
+    <> ":" <> show (fromEnum (var ^. BNVar.sourceType))
+    <> "_" <> show (toInteger (var ^. BNVar.storage))
+    <> "#" <> show version

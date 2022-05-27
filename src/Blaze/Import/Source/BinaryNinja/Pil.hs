@@ -302,12 +302,6 @@ convertExpr expr = do
         | otherwise = runExceptT (mkConstFuncPtrExpr addr <|> mkConstStrExpr addr)
                       >>= either (const def) return
 
-getSymbol :: MLIL.SSAVariable -> Symbol
-getSymbol v = v ^. (MLIL.var . BNVar.name)
-              <> ":" <> show (fromEnum (v ^. MLIL.var . BNVar.sourceType))
-              <> "_" <> show (toInteger (v ^. MLIL.var . BNVar.storage))
-              <> "#" <> show (v ^. MLIL.version)
-
 convertToBinjaFunction :: Func.Function -> Converter (Maybe BNFunc.Function)
 convertToBinjaFunction cgFunc = do
   bv <- use #binaryView
@@ -323,7 +317,7 @@ convertToPilVar v = do
   ctx' <- use #ctx
   bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
   let sourceVar = SSAVariableRef v bnfunc (ctx' ^. #ctxId)
-      pilVar = PilVar (getSymbol v) (Just ctx')
+      pilVar = PilVar (getSymbol (v ^. MLIL.version) (v ^. MLIL.var)) (Just ctx')
   #sourceVars %= HMap.insert pilVar sourceVar
   return pilVar
 
