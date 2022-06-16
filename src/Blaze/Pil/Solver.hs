@@ -49,6 +49,7 @@ import qualified Blaze.Pil.Checker as Ch
 import Blaze.Types.Pil.Checker ( DeepSymType )
 import Data.SBV.Internals (SBV(SBV), unSBV)
 
+
 stubbedFunctionConstraintGen :: HashMap Text (SVal -> [SVal] -> Solver ())
 stubbedFunctionConstraintGen = HashMap.fromList
   [ ( "memcpy"
@@ -112,7 +113,9 @@ deepSymTypeToKind t = case t of
     Ch.TFunction _ _ -> err "Can't handle Function type"
   where
     getBitWidth :: Maybe Bits -> Solver Int
-    getBitWidth (Just b) = return $ fromIntegral b
+    getBitWidth (Just b) = case fromIntegral b of
+      0 -> err "Bitwidth cannot be zero."
+      n -> return n
     -- TODO: Will this show the error in context or do we need to manage that ourselves here?
     getBitWidth Nothing = err "Can't get bitwidth."
 
@@ -140,18 +143,26 @@ makeSymVar nm _dst k = do
 makeSymVarOfType :: Maybe Text -> DeepSymType -> Solver SVal
 makeSymVarOfType nm dst = deepSymTypeToKind dst >>= makeSymVar nm dst
 
-catchIfLenient :: Solver a -> (SolverError -> Solver a) -> Solver a
-catchIfLenient m handleError = do
+catchIfLenient :: (SolverError -> SolverError) -> Solver a -> (SolverError -> Solver a) -> Solver a
+catchIfLenient wrapErr m handleError = do
   solverLeniency <- view #leniency
   catchError m $ \e ->
     case solverLeniency of
       AbortOnError -> throwError e
-      SkipStatementsWithErrors -> warn e >> handleError e
+      SkipStatementsWithErrors -> warn (wrapErr e) >> handleError e
+
+catchIfLenientForPilVar :: PilVar -> Solver () -> Solver ()
+catchIfLenientForPilVar pv m = catchIfLenient (PilVarConversionError $ pv ^. #symbol) m (const $ return ())
+  
+catchIfLenientForStmt :: Solver () -> Solver ()
+catchIfLenientForStmt m = do
+  sindex <- use #currentStmtIndex
+  catchIfLenient (StmtError sindex) m (const $ return ())
 
 declarePilVars :: Solver ()
 declarePilVars = ask >>= mapM_ f . HashMap.toList . typeEnv
   where
-    f (pv, dst) = flip catchIfLenient (const $ return ()) $ do
+    f (pv, dst) = catchIfLenientForPilVar pv $ do
       sval <- makeSymVarOfType (Just nm) dst
       #varNames %= HashMap.insert pv nm
       #varMap %= HashMap.insert pv sval
@@ -527,7 +538,7 @@ svAggrAnd = foldr svAnd svTrue
 
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
           -> Solver ()
-solveStmt = flip catchIfLenient (const $ return ()) . solveStmt_ solveExpr
+solveStmt = catchIfLenientForStmt . solveStmt_ solveExpr
 
 -- | Generates consraints for statement, using provided expr solver
 solveStmt_ :: (DSTExpression -> Solver SVal)

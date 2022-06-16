@@ -7,7 +7,7 @@ import Blaze.Cfg.Analysis qualified as CfgA
 import Blaze.Cfg.Checker (checkCfg)
 import Blaze.Graph qualified as G
 import Blaze.Pil.Analysis qualified as PA
-import Blaze.Pil.Solver (catchIfLenient, makeSymVarOfType, warn)
+import Blaze.Pil.Solver (catchIfLenient, catchIfLenientForStmt, makeSymVarOfType, warn)
 import Blaze.Pil.Solver qualified as PilSolver
 import Blaze.Types.Cfg (
   BranchCond,
@@ -86,7 +86,7 @@ generalCfgFormula ddg cfg = do
     setIndexAndSolveStmt :: (Int, SymTypedStmt) -> Solver ()
     setIndexAndSolveStmt (i, stmt) = do
       #currentStmtIndex .= i
-      catchIfLenient (solveStmt ddg stmt) . const $ return ()
+      catchIfLenientForStmt $ solveStmt ddg stmt
 
 solveStmt
   :: DataDependenceGraph
@@ -139,7 +139,7 @@ toSolvedBranchCondNode ddg bnode = do
   traverse solveExprOrMakeAmbiguous bnode
   where
     solveExprOrMakeAmbiguous :: TypedExpression -> Solver SVal
-    solveExprOrMakeAmbiguous expr = catchIfLenient (solveExpr ddg expr)
+    solveExprOrMakeAmbiguous expr = catchIfLenient identity (solveExpr ddg expr)
       . const $ D.svNewVar_ D.KBool
 
 getSolvedBranchCondNodes

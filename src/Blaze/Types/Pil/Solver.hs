@@ -6,7 +6,7 @@ module Blaze.Types.Pil.Solver
   , module Blaze.Types.Pil.Solver
   ) where
 
-import Blaze.Prelude
+import Blaze.Prelude hiding (Symbol)
 
 import Data.SBV.Internals (SolverContext (..), modelAssocs)
 import Data.SBV.Dynamic (SVal, CV)
@@ -21,7 +21,7 @@ import Data.SBV.Trans as Exports ( SymbolicT
 import Data.SBV.Trans.Control as Exports (ExtractIO)
 import Data.SBV.Trans.Control (QueryT)
 import qualified Data.SBV.Trans.Control as Q
-import Blaze.Types.Pil (Expression, PilVar)
+import Blaze.Types.Pil (Expression, PilVar, Symbol)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Monad.Fail (MonadFail(fail))
 import Blaze.Types.Pil.Checker (DeepSymType, Sym, SymInfo)
@@ -32,6 +32,7 @@ type StmtIndex = Int
 type DSTExpression = Ch.InfoExpression (SymInfo, Maybe DeepSymType)
 
 data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg ::  Text }
+                 | PilVarConversionError { pilVar :: Symbol, conversionError :: SolverError }
                  | StmtError { stmtIndex :: Int, stmtErr :: SolverError }
                  | ExprError { exprSym :: Sym, exprErr :: SolverError }
                  | GuardError { name :: Text, kinds :: [SBV.Kind], msg :: Text }
