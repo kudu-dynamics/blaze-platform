@@ -8,7 +8,7 @@ module Blaze.Pil.SolverSpec where
 
 import Blaze.Prelude hiding (const)
 
-import Blaze.Pil.Solver
+import Blaze.Pil.Solver hiding (pilVar)
 import Blaze.Pil.Construct
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.SBV.Trans as SBV
