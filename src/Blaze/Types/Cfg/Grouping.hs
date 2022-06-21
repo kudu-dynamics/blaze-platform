@@ -131,9 +131,7 @@ foldGroups = foldMany
       in
         case (Cfg.findNodeByUUID enterId cfg, Cfg.findNodeByUUID exitId cfg) of
           (Just enter, Just exit) -> foldOneGroup enter exit cfg' gdata
-          (Nothing, Nothing) -> error "Cannot find enter and exit node"
-          (Nothing, _) -> error "Cannot find enter node"
-          (_, Nothing) -> error "Cannot find exit node"
+          (_, _) -> cfg'
 
 -- | Fold away one group in the CFG
 foldOneGroup ::
