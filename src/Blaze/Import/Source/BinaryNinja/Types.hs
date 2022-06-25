@@ -8,7 +8,7 @@ import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (CfEdge, CfNode, CodeReference, NodeRefMap, NodeRefMapEntry, PilNode)
 import Blaze.Types.Pil (
   CallDest,
-  Expression, 
+  Expression,
   Symbol
  )
 import qualified Blaze.Types.Pil as Pil
@@ -120,18 +120,18 @@ toCallInstruction inst = toCallInstr <$> case inst ^. Mlil.op of
         getOutputDest $ op' ^. Mlil.output,
         TAILCALL_UNTYPED_SSA op'
       )
-  Mlil.SYSCALL_SSA op' ->
-    Just
-      ( Nothing,
-        getOutputDest $ op' ^. Mlil.output,
-        SYSCALL_SSA op'
-      )
-  Mlil.SYSCALL_UNTYPED_SSA op' ->
-    Just
-      ( Nothing,
-        getOutputDest $ op' ^. Mlil.output,
-        SYSCALL_UNTYPED_SSA op'
-      )
+  -- Mlil.SYSCALL_SSA op' ->
+  --   Just
+  --     ( Nothing,
+  --       getOutputDest $ op' ^. Mlil.output,
+  --       SYSCALL_SSA op'
+  --     )
+  -- Mlil.SYSCALL_UNTYPED_SSA op' ->
+  --   Just
+  --     ( Nothing,
+  --       getOutputDest $ op' ^. Mlil.output,
+  --       SYSCALL_UNTYPED_SSA op'
+  --     )
   _ -> Nothing
   where
     toCallInstr (mdest', mOutputDest, op') =
