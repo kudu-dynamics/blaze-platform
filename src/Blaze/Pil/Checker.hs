@@ -20,7 +20,7 @@ The major steps of type checking a list of PIL statements is to:
 1. Add intial type information to symbols, equivalence constraints on symbols, and
    generate a flat type representation where any nested types (e.g., the 'pointeeType' of a 'TPointer')
    are represented as a 'Sym' and the current type definition can be looked up using a mapping of
-   'Sym' to 'FlatPilType'.
+   'Sym' to 'PilType Sym'.
    Construct a mapping of PIL statementes and expressions to symbols.
    Construct a mapping of equivalent symbols.
    Construct a mapping of symbols to type information.
@@ -30,8 +30,8 @@ The major steps of type checking a list of PIL statements is to:
 2. Canonicalize the symbols.
 2a. Use the 'Sym' to 'Sym' mappings to identify sets of equivalent symbols.
 2b. Select a canonical symbol for each set of equivalent symbols.
-2c. Update the 'Sym' keys in the 'Sym' to 'FlatPilType' mapping to use canonical symbols.
-2d. Update all 'Sym' values for 'FlatPilType' fields to use canonical symbols.
+2c. Update the 'Sym' keys in the 'Sym' to 'PilType Sym' mapping to use canonical symbols.
+2d. Update all 'Sym' values for 'PilType Sym' fields to use canonical symbols.
 2e. Update all 'Sym' values in the 'SymInfo' of 'Statement SymExpression' values to use
     canonical symbls.
 3. Perform unification for each symbol by considering all partial type information
