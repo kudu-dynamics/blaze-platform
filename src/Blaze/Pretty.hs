@@ -1005,16 +1005,16 @@ instance Tokenizable a => Tokenizable (PI.UnifyError a) where
   tokenize = \case
     (PI.UnifyError t1 t2 err) ->
       [tt "UnifyError", tt " "]
-      <++> tokenize t1
+      <++> (paren <$> tokenize t1)
       <++> tt " "
-      <++> tokenize t2
+      <++> (paren <$> tokenize t2)
       <++> tt " "
       <++> tokenize err
     (PI.IncompatibleTypes t1 t2) ->
       [tt "IncompatibleTypes", tt " "]
-      <++> tokenize t1
+      <++> (paren <$> tokenize t1)
       <++> tt " "
-      <++> tokenize t2
+      <++> (paren <$> tokenize t2)
     PI.IncompatibleTypeLevelValues -> return [tt "UnifyError"]
     (PI.OverlappingRecordField recFields badOffsets) ->
       [tt "OverlappingRecordField", tt "\n"]
