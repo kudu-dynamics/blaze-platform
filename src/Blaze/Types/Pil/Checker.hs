@@ -22,6 +22,8 @@ type SymConstraint = (Sym, ConstraintSymType)
 
 type SymTypedStmt = Statement (InfoExpression (SymInfo, Maybe DeepSymType))
 
+-- | Type symbols. Both type variables and metavariables are represented as
+-- 'Sym's
 newtype Sym = Sym Int
   deriving (Eq, Ord, Read, Show, Generic)
   deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, Hashable)
@@ -34,6 +36,9 @@ data TypeTag = TagDirty
              | TagNonNull
              deriving (Eq, Ord, Read, Show, Generic)
 
+-- | PIL types, as a functor over the type of nested types. 'ConcretePilType',
+-- 'DeepSymType', and 'RecursiveSymType' all use instances of this parameterized
+-- type
 data PilType t
   = TBool
   -- | Represents a character from some character set. Please use TInt {bitWidth = Bits 8, ...} for
@@ -53,35 +58,37 @@ data PilType t
     -- | Bottom is labeled with error info,
     -- it only results from a unification error
   | TBottom Sym
-  | TFunction {ret :: PilType t, params :: [PilType t]}
+  | TFunction {ret :: t, params :: [t]}
   deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable, FromJSON, ToJSON)
 
-newtype T = T (PilType T)
+-- | Fully concrete, non-recursive PIL types
+newtype ConcretePilType = ConcretePilType (PilType ConcretePilType)
   deriving (Eq, Ord, Read, Show, Generic)
 
-unT :: T -> PilType T
-unT (T pt) = pt
-
--- | A flat representation of PIL types where composite types are referenced through
--- `Sym` values rather than directly referencing a PIL type.
-type FlatPilType = PilType Sym
-
-data SymType = SVar Sym
-             | SType FlatPilType
-             deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
+-- | Symbolic, non-recursive PIL types where nested types (whether symbolic or
+-- concrete) must be referenced through type symbols rather than included
+-- directly
+data SymType
+  = SVar Sym
+  | SType (PilType Sym)
+  deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
 
 -- TODO: Can we mege SymType with ConstraintSymType? It's looking like "yes".
--- | Used to represent shallow/flat types where nested types are looked up
--- via symbol.
-data ConstraintSymType = CSVar Sym
-                       | CSType (PilType ConstraintSymType)
-                       deriving (Eq, Ord, Read, Show, Generic)
+-- | Symbolic, Non-recursive PIL types where nested types can either be included
+-- directly or referenced through type symbols
+data ConstraintSymType
+  = CSVar Sym
+  | CSType (PilType ConstraintSymType)
+  deriving (Eq, Ord, Read, Show, Generic)
 
 -- TODO: Can rescursive types be nested? If so, is this supported?
-data DeepSymType = DSVar Sym
-                 | DSRecursive Sym (PilType DeepSymType)
-                 | DSType (PilType DeepSymType)
-               deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
+-- | Recursive, symbolic PIL types were both nested and recursive types can be
+-- included directly or referenced through type symbols
+data DeepSymType
+  = DSVar Sym
+  | DSRecursive Sym (PilType DeepSymType)
+  | DSType (PilType DeepSymType)
+  deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
 
 data Constraint = Constraint
   { stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
@@ -118,7 +125,7 @@ data SymInfo = SymInfo
 
 type SymExpression = InfoExpression SymInfo
 
-type TypedExpression = InfoExpression (PilType T)
+type TypedExpression = InfoExpression ConcretePilType
 
 data UnifyError t
   = UnifyError (PilType t) (PilType t) (UnifyError t)
@@ -232,7 +239,7 @@ addConstraint_ s st = do
 assignType :: ( HasField' "constraints" s [Constraint]
               , HasField' "currentStmt" s Int
               , MonadState s m)
-               => Sym -> FlatPilType -> m ()
+               => Sym -> PilType Sym -> m ()
 assignType s t = addConstraint_ s (SType t)
 
 equals :: ( HasField' "constraints" s [Constraint]
