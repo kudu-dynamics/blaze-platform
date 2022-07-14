@@ -1,0 +1,105 @@
+name:                haskell-clojure
+version:             0.1.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:          
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+copyright:           "2022 Kudu Dynamics"
+synopsis:            Call Clojure from Haskell
+category:            Bindings
+description:         Please see the README.
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+dependencies:
+  - base
+  - containers
+  - directory
+  - envy
+  - errors
+  - extra
+  - lens
+  - mtl
+  - newtype
+  - pretty-simple
+  - protolude
+  - stm
+  - template-haskell >= 2.18.0.0
+  - text
+  - transformers
+  - unordered-containers
+
+default-extensions:
+  - BangPatterns
+  - DeriveAnyClass
+  - DeriveDataTypeable
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NoImplicitPrelude
+  - OverloadedStrings
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+
+
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -j4
+  - -O2
+  # extra-libraries: jvm
+  source-dirs:
+    - src
+    - res/c
+    - res/bridge
+  c-sources:
+    - res/c/java.c
+    - res/bridge/ffijni.c
+  exposed-modules:
+  - Clojure.JNI
+
+include-dirs:
+  - "src"
+  - "res"
+  - "res/bridge"
+  - "/usr/lib/jvm/java-11-openjdk-amd64/include"
+
+# tests:
+#   binja-test:
+#     main: Spec.hs
+#     source-dirs:
+#     - test
+#     ghc-options:
+#     - -Wall
+#     - -threaded
+#     - -rtsopts
+#     - -with-rtsopts=-N
+#     - -j4
+#     - -O2
+#     extra-libraries: binaryninjacore
+#     dependencies:
+#     - containers
+#     - binaryninja
+#     - hspec
+#     - text
