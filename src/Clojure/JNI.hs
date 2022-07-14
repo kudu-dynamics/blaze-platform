@@ -7,6 +7,7 @@ import Prelude
 import Foreign
 import Foreign.C.Types
 import Foreign.C.String
+import System.IO.Unsafe (unsafePerformIO)
 
 -- Clojure objects are just Java objects, and jsvalue is a union with size 64
 -- bits. Since we are cutting corners, we might as well just derive 'Storable'
@@ -14,7 +15,7 @@ import Foreign.C.String
 newtype ClojureObject = ClojureObject CLong deriving newtype (Storable)
 
 foreign import ccall "load_methods" load_methods :: IO ()
-foreign import ccall "create_vm" create_vm :: IO ()
+foreign import ccall "create_vm" create_vm :: IO CBool
 foreign import ccall "check_exception" checkException :: IO ()
 foreign import ccall "invokeFn" invokeFn :: ClojureObject -> CUInt -> Ptr ClojureObject -> IO ClojureObject
 foreign import ccall "readObj" readObj :: CString -> IO ClojureObject
@@ -23,9 +24,14 @@ foreign import ccall "varObjQualified" varObjQualified :: CString -> CString -> 
 foreign import ccall "newLong" newLong :: CLong -> ClojureObject
 foreign import ccall "longValue" longValue :: ClojureObject -> CLong
 
+foreign import ccall "getStringUTFChars" getStringUTFChars :: ClojureObject -> CString
+
+
 -- | In order for anything to work, this needs to be called first.
 loadClojure :: IO ()
-loadClojure = create_vm *> load_methods
+loadClojure = create_vm >>= \case
+  1 -> load_methods
+  0 -> return ()
 
 -- | Make a Clojure function call
 invoke :: ClojureObject -> [ClojureObject] -> IO ClojureObject
@@ -41,6 +47,9 @@ long l = newLong (CLong l)
 -- | Make a Haskell number from a Clojure one
 unLong :: ClojureObject -> Int64
 unLong cl = let CLong l = longValue cl in l
+
+unString :: ClojureObject -> IO String
+unString x = peekCString $ getStringUTFChars x
 
 readEdn :: String -> IO ClojureObject
 readEdn s = withCString s readObj
@@ -58,14 +67,18 @@ method0 :: String -> ClojureObject -> IO ClojureObject
 method0 methodName x = do
   eval <- varQual "clojure.core" "eval"
   checkException
-  putStrLn "yes 1"
   methSym <- readEdn $ "(fn [x] (." <> methodName <> " x))"
   checkException
-  putStrLn "yes 2"
   meth <- invoke eval [methSym]
   checkException
-  putStrLn "yes 3"
   invoke meth [x]
+
+instance Show ClojureObject where
+  show x = unsafePerformIO $ do
+    s <- method0 "toString" x
+    checkException
+    unString s
+
 
 main :: IO ()
 main = do
@@ -73,6 +86,7 @@ main = do
   putStrLn "Clojure loaded"
   eval <- varQual "clojure.core" "eval"
   plus <- varQual "clojure.core" "+"
+  minus <- varQual "clojure.core" "-"
   putStrLn "really works"
   return ()
   out <- invoke plus [long 3, long 4]
@@ -89,3 +103,4 @@ main = do
   checkException
   print $ unLong out3'
   print $ unLong out3
+  print out3

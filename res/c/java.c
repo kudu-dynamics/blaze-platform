@@ -17,34 +17,37 @@ jmethodID readM, varM, varQualM, // defined on 'clojure.java.api.Clojure'
 
 // Initialize the JVM with the Clojure JAR on classpath.
 bool create_vm() {
-  // Configuration options for the JVM
-  JavaVMOption opts[] = {
+  if (env == NULL) {
+    // Configuration options for the JVM
+    JavaVMOption opts[] = {
       {
 
-          // CHANGEME link to Clojure and Spec JAR
-          .optionString =
-              "-Djava.class.path=res/clojure/clojure-1.11.1.jar:res/clojure/spec.alpha-0.3.218.jar",
-
+        // CHANGEME link to Clojure and Spec JAR
+        .optionString = "-Djava.class.path=res/clojure/clojure-1.11.1.jar:res/clojure/spec.alpha-0.3.218.jar",
       },
       {
         .optionString = "-Dclojure.spec.skip-macros=true"
       },
-  };
+    };
 
-  JavaVMInitArgs args = {
+    JavaVMInitArgs args = {
       .version = JNI_VERSION_10,
       .nOptions = sizeof(opts) / sizeof(opts[0]),
       .options = opts,
       .ignoreUnrecognized = false,
-  };
+    };
 
-  // Make the VM
-  int rv = JNI_CreateJavaVM(&jvm, (void **)&env, &args);
-  if (rv < 0 || !env) {
-    printf("Unable to Launch JVM %d\n", rv);
+    // Make the VM
+    int rv = JNI_CreateJavaVM(&jvm, (void **)&env, &args);
+    if (rv < 0 || !env) {
+      printf("Unable to Launch JVM %d\n", rv);
+      return false;
+    }
+    return true;
+  }
+  else {
     return false;
   }
-  return true;
 }
 
 void check_exception() {
@@ -127,21 +130,25 @@ void load_methods() {
   /* longDecode = (*env)->GetMethodID(env, longClass, "decode", "(S)V"); */
 }
 
+jobject newGlobalRef(jobject jobj) {
+  return (*env)->NewGlobalRef(env, jobj);
+}
+
 // call the 'invoke' function of the right arity on 'IFn'.
 jobject invokeFn(jobject obj, unsigned n, jobject *args) {
-  return (*env)->CallObjectMethodA(env, obj, invoke[n], (jvalue *)args);
+  return newGlobalRef((*env)->CallObjectMethodA(env, obj, invoke[n], (jvalue *)args));
 }
 
 // 'read' static method from 'Clojure' object.
 jobject readObj(const char *cStr) {
   jstring str = (*env)->NewStringUTF(env, cStr);
-  return (*env)->CallStaticObjectMethod(env, clojure, readM, str);
+  return newGlobalRef((*env)->CallStaticObjectMethod(env, clojure, readM, str));
 }
 
 // 'var' static method from 'Clojure' object.
 jobject varObj(const char *fnCStr) {
   jstring fn = (*env)->NewStringUTF(env, fnCStr);
-  return (*env)->CallStaticObjectMethod(env, clojure, varM, fn);
+  return newGlobalRef((*env)->CallStaticObjectMethod(env, clojure, varM, fn));
 }
 
 // qualified 'var' static method from 'Clojure' object.
@@ -168,15 +175,19 @@ jobject varObjQualified(const char *nsCStr, const char *fnCStr) {
   /* r = (*env)->CallStaticObjectMethod(env, clojure, varM, fn); */
   printf("Oh well, charlie\n");
   check_exception();
-  return r;
+  return newGlobalRef(r);
 }
 
 jobject newLong(long n) {
-  return (*env)->NewObject(env, longClass, longC, n);
+  return newGlobalRef((*env)->NewObject(env, longClass, longC, n));
 }
 
 long longValue(jobject n) {
   return (*env)->CallLongMethod(env, n, longValueM);
+}
+
+const char *getStringUTFChars(jstring str) {
+  return (*env)->GetStringUTFChars(env, str, JNI_FALSE);
 }
 
 /* void main() { */
