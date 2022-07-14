@@ -1,36 +1,37 @@
-JAVAPATH ?= /usr/lib/jvm/java-11-openjdk-amd64
-# JAVA_LIB_PATH = /usr/lib/jvm/java-1.8.0-openjdk-amd64/jre/lib/amd64/server
-# JAVA_INCLUDE_PATH = /usr/lib/jvm/java-1.8.0-openjdk-amd64/include
+# JAVA_INCLUDE_PATH = /usr/lib/jvm/java-11-openjdk-amd64/include
+# JAVA_LIB_PATH = /usr/lib/jvm/java-11-openjdk-amd64/lib/server
 
-JAVA_INCLUDE_PATH = /usr/lib/jvm/java-11-openjdk-amd64/include
-JAVA_LIB_PATH = /usr/lib/jvm/java-11-openjdk-amd64/lib/server
+# java:
+# 	gcc -O -c -g \
+# 		-I ${JAVA_INCLUDE_PATH}/ \
+# 		-I ${JAVA_INCLUDE_PATH}/linux/ \
+# 		java.c
 
-java:
-	gcc -O -c -g \
-		-I ${JAVA_INCLUDE_PATH}/ \
-		-I ${JAVA_INCLUDE_PATH}/linux/ \
-		java.c
+# testjava:
+# 	gcc -o testjava \
+# 		-I ${JAVA_INCLUDE_PATH}/ \
+# 		-I ${JAVA_INCLUDE_PATH}/linux/ \
+# 		-L ${JAVA_LIB_PATH}/ \
+# 		java.c \
+# 		-ljvm
 
-testjava:
-	gcc -o testjava \
-		-I ${JAVA_INCLUDE_PATH}/ \
-		-I ${JAVA_INCLUDE_PATH}/linux/ \
-		-L ${JAVA_LIB_PATH}/ \
-		java.c \
-		-ljvm
+# haskell:
+# 	ghc -O2 -Wall \
+# 		-L${JAVA_LIB_PATH}/ \
+# 		-ljvm \
+# 		clojure.hs \
+# 		java.o
 
-haskell:
-	ghc -O2 -Wall \
-		-L${JAVA_LIB_PATH}/ \
-		-ljvm \
-		clojure.hs \
-		java.o
+build:
+	stack build
 
-all: java haskell
+download-clojure-jar:
+	wget https://repo1.maven.org/maven2/org/clojure/clojure/1.11.1/clojure-1.11.1.jar -P res/clojure
 
-run:
-	./clojure
+download-spec-jar:
+	wget https://repo1.maven.org/maven2/org/clojure/spec.alpha/0.3.218/spec.alpha-0.3.218.jar -P res/clojure
+
+download: download-clojure-jar download-spec-jar
 
 clean:
-	rm -f java.o 
-	rm -f clojure clojure.o clojure.hi
+	stack clean

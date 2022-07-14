@@ -23,7 +23,7 @@ bool create_vm() {
 
           // CHANGEME link to Clojure and Spec JAR
           .optionString =
-              "-Djava.class.path=clojure-1.11.1.jar:spec.alpha-0.3.218.jar",
+              "-Djava.class.path=res/clojure/clojure-1.11.1.jar:res/clojure/spec.alpha-0.3.218.jar",
 
       },
       {

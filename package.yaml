@@ -68,7 +68,7 @@ library:
   - -Wredundant-constraints
   - -j4
   - -O2
-  # extra-libraries: jvm
+  extra-libraries: jvm
   source-dirs:
     - src
     - res/c
