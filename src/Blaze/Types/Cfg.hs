@@ -53,12 +53,10 @@ data BasicBlockNode a = BasicBlockNode
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
   deriving anyclass (Hashable)
 
--- TODO: maybe one day add `expr` parameter to this type
--- to be used instead of `()` in `CallDest ()`
 data CallNode a = CallNode
   { ctx :: Ctx
   , start :: Address
-  , callDest :: CallDest ()
+  , callDest :: CallDest Expression
   , uuid :: UUID
   , nodeData :: a
   }

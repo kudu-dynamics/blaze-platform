@@ -358,11 +358,13 @@ instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
 
 instance Tokenizable a => Tokenizable (Pil.CallDest a) where
   tokenize dest = case dest of
-    (Pil.CallAddr fptr) -> tokenize fptr
-    (Pil.CallExpr e) -> tokenize e
-    (Pil.CallExprs es) -> tokenizeAsList es
-    (Pil.CallFunc fn) -> tokenize fn
-    (Pil.CallExtern x) -> tokenize x
+    Pil.CallAddr fptr -> tokenize fptr
+    Pil.CallExpr e -> tokenize e
+    Pil.CallExprs es -> tokenizeAsList es
+    Pil.CallFunc fn -> tokenize fn
+    Pil.CallExtern x -> tokenize x
+    Pil.CallUnk -> return [tt "unknown"]
+
 
 instance Tokenizable Binja.Function.Function where
   tokenize f =

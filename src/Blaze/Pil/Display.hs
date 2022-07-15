@@ -145,11 +145,12 @@ instance Disp Pil.OperationSize where
 
 instance Disp a => Disp (Pil.CallDest a) where
   disp dest = case dest of
-    (Pil.CallAddr addr) -> show addr
-    (Pil.CallExpr e) -> disp e
-    (Pil.CallExprs es) -> show $ fmap disp es
-    (Pil.CallFunc fn) -> disp fn
-    (Pil.CallExtern x) -> disp x
+    Pil.CallAddr addr -> show addr
+    Pil.CallExpr e -> disp e
+    Pil.CallExprs es -> show $ fmap disp es
+    Pil.CallFunc fn -> disp fn
+    Pil.CallExtern x -> disp x
+    Pil.CallUnk -> "unknown call dest"
 
 instance Disp Pil.ExternPtrOp where
   disp x = Text.pack $ printf "extern (%s) (%s) (%s)"

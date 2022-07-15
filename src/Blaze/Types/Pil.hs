@@ -444,37 +444,26 @@ data CallStmt = CallStmt
   , args :: [Expression]
   , dest :: CallDest Expression
   , outputDest :: [PilVar]
-  } 
+  }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass Hashable
 
 -- TODO: Consider removing the CallConstPtr data constructor
 --       as const ptrs can juse be an expression.
---       The purpose was to disambiguate between static 
+--       The purpose was to disambiguate between static
 --       and dynamic call destinations, but perhaps this could
 --       be represented in a better way?
 -- TODO: Need a syscall dest?
+-- | Represent possible call destinations found in a call statement.
+-- The 'CallUnk' constructor is used in cases where recovering the call destination may
+-- fail.
 data CallDest expr = CallAddr ConstFuncPtrOp
                    | CallFunc Function
                    | CallExpr expr
                    | CallExprs [expr]
                    | CallExtern ExternPtrOp
+                   | CallUnk
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
-
--- TODO: Consider removing separate DestCollAddr constructor
---       and then replacing DestCollOpt with just Expression.
---       One awkward effect of the change is needing to wrap addresses
---       from a jump table or vtable with a PIL expression, but that may
---       be preferred anyway?
--- data DestCollOpt = DestCollAddr Address
---                  | DestCollExpr Expression
---                  deriving (Eq, Ord, Show, Generic)
-
--- data CallDest = DestAddr Address
---               | DestFunc Function
---               | DestExpr Expression
---               | DestColl (Set DestCollOpt)
---               deriving (Eq, Ord, Show, Generic)
 
 data CallSite = CallSite
   { caller :: Function

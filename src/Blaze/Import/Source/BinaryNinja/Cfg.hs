@@ -85,7 +85,7 @@ nodeFromCallInstr ctx callInstr' = do
           CallNode
             { ctx = ctx
             , start = callInstr' ^. #address
-            , callDest = Pil.CallExpr ()
+            , callDest = Pil.CallUnk
             , nodeData = callInstr' ^. #instr :| []
             , uuid = uuid'
             }
@@ -283,10 +283,10 @@ convertToPilNode imp ctxId_ mapping mlilSsaNode = do
       return $ BasicBlock (BasicBlockNode fun startAddr lastAddr uuid' stmts)
     Call (CallNode fun startAddr _ _ _) -> do
       stmts <- getPilFromNode imp ctxId_ mapping mlilSsaNode
-      let callDest = fromMaybe (Pil.CallExpr ()) $ do
+      let callDest = fromMaybe Pil.CallUnk $ do
             stmt <- headMay stmts
             callStmt <- Pil.mkCallStatement stmt
-            return $ void (Pil.getCallDest callStmt)
+            return $ Pil.getCallDest callStmt
       uuid' <- randomIO
       return $ Call (CallNode fun startAddr callDest uuid' stmts)
     EnterFunc _ -> P.error "MLIL CFGs shouldn't have a EnterFunc node"
