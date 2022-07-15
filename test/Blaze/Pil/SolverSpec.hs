@@ -13,7 +13,7 @@ import Blaze.Pil.Construct
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
-import Data.SBV.Dynamic as D hiding (Solver)
+import Data.SBV.Dynamic hiding (Solver)
 import Blaze.Types.Pil.Checker as Ch hiding (signed)
 import Blaze.Pil.Checker (checkStmts)
 import Data.SBV.Trans ( (.>=)

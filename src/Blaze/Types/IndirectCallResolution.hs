@@ -1,23 +1,17 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.IndirectCallResolution where
-    
+
 import Blaze.Prelude
 import Blaze.Types.Function (Function)
-import Blaze.Types.Pil (Stmt)
+import Blaze.Types.Pil (Stmt, CallStmt)
 import Blaze.Types.VTable (VTable)
-import Blaze.Import.Source.BinaryNinja.Types (CallInstruction)
 
 data ClassConstructor = ClassConstructor
-    { _cFunction :: Function
-    , _instruction :: Stmt
-    , _vtable :: VTable
-    } deriving (Eq, Show)
+    { function :: Function
+    , vptrStore :: Stmt
+    , vtable :: VTable
+    } deriving (Eq, Show, Generic)
 
 data IndirectCall = IndirectCall
-    { _iFunction :: Function
-    , _callInstr :: CallInstruction
-    } deriving (Eq, Show)
-
-$(makeFieldsNoPrefix ''ClassConstructor)
-$(makeFieldsNoPrefix ''IndirectCall)
+    { function :: Function
+    , callInstr :: CallStmt
+    } deriving (Eq, Show, Generic)

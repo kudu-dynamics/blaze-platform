@@ -290,66 +290,11 @@ instance VarSubst SymType where
   varSubst m (SVar v) = SVar $ varSubst m v
   varSubst m (SType t) = SType $ varSubst m t
 
--- -- shouldn't really need to do this because DeepSymTypes are constructed
--- -- using the `Solutions` map, which already should only have origin vars
--- instance VarSubst DeepSymType where
---   varSubst m (DSVar v) = DSVar $ varSubst m v
---   varSubst m (DSType t) = DSType $ varSubst m t
---   varSubst m (DSRecursive s t) = DSRecursive (varSubst m s) (varSubst m t)
-
 instance VarSubst Constraint where
   varSubst m (Constraint i v t) = Constraint i (varSubst m v) (varSubst m t)
 
 instance VarSubst a => VarSubst (Statement a) where
   varSubst m = fmap (varSubst m)
-
--- instance
---   VarSubst f
---   =>
---   VarSubst (PilType f)
---   where
---   varSubst m pt = case pt of
---     TBool -> pt
---     TChar -> pt
---     TInt bw sign ->
---       TInt
---         { bitWidth = varSubst m bw
---         , signed = varSubst m sign
---         }
---     TFloat bw -> TFloat{bitWidth = varSubst m bw}
---     TBitVector bw -> TBitVector{bitWidth = varSubst m bw}
---     TPointer bw pnt ->
---       TPointer
---         { bitWidth = varSubst m bw
---         , pointeeType = varSubst m pnt
---         }
---     TCString l -> TCString{len = varSubst m l}
---     TArray l et ->
---       TArray
---         { len = varSubst m l
---         , elemType = varSubst m et
---         }
---     TRecord _ -> pt
---     TRecursive _ _ -> pt
---     TUnit -> pt
---     TBottom _ -> pt
---     TFunction _ _ -> pt
---     TVBitWidth _ -> pt
---     TVLength _ -> pt
---     TVSign _ -> pt
-
--- instance VarSubst (Either Sym a) where
---   varSubst m x = case x of
---     Left s -> Left $ HashMap.findWithDefault s s m
---     Right _ -> x
-
--- -- TODO: Do we need this definition? Do variable substitutions only
--- --       occur in a PilType that contains symbols?
--- instance VarSubst (Identity a) where
---   varSubst _m x = x
-
--- instance VarSubst PilType where
---   varSubst m x = PType (varSubst m $ unPType x)
 
 instance VarSubst a => VarSubst (InfoExpression a) where
   varSubst m = fmap (varSubst m)
@@ -359,14 +304,6 @@ instance VarSubst a => VarSubst (InfoExpression a) where
 
 instance VarSubst SymInfo where
   varSubst m (SymInfo sz s) = SymInfo sz (varSubst m s)
-
--- instance VarSubst UnifyError where
---   varSubst m (UnifyError pt1 pt2 uerr) =
---     UnifyError (varSubst m pt1) (varSubst m pt2) (varSubst m uerr)
---   varSubst m (IncompatibleTypes pt1 pt2) =
---     IncompatibleTypes (varSubst m pt1) (varSubst m pt2)
---   varSubst m (OverlappingRecordField fields off) =
---     OverlappingRecordField (fmap (varSubst m) fields) off
 
 instance VarSubst a => VarSubst (UnifyError a) where
   varSubst m (UnifyError pt1 pt2 uerr) =

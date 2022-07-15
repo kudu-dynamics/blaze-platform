@@ -2,41 +2,46 @@ module Blaze.IndirectCallResolution where
 
 import Blaze.Prelude
 
-import qualified Blaze.Graph as G
-import Binja.Core (BNBinaryView)
-import qualified Binja.Function as BnFunc
-import qualified Blaze.CallGraph as Cg
-import qualified Blaze.Function as Func
-import qualified Blaze.Import.CallGraph as Cgi
-import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
-import qualified Blaze.Import.Source.BinaryNinja.Pil as BnPil
-import Blaze.Import.Source.BinaryNinja.Types (CallInstruction)
-import Blaze.Import.Pil as Pili
-import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Types.IndirectCallResolution (IndirectCall, ClassConstructor (ClassConstructor))
-import qualified Blaze.Types.IndirectCallResolution as Icr
-import qualified Blaze.VTable as VTable
+-- import Binja.Core (BNBinaryView)
+-- import Binja.Function qualified as BnFunc
+import Blaze.CallGraph qualified as Cg
+import Blaze.Function qualified as Func
+import Blaze.Graph qualified as G
+import Blaze.Import.CallGraph (CallGraphImporter)
+import Blaze.Import.CallGraph qualified as Cgi
+-- import Blaze.Import.Pil as Pili
+-- import Blaze.Import.Source.BinaryNinja (BNImporter)
+-- import Blaze.Import.Source.BinaryNinja.CallGraph qualified as BNCG
+-- import Blaze.Import.Source.BinaryNinja.Pil qualified as BnPil
+-- import Blaze.Import.Source.BinaryNinja.Types (CallInstruction)
+import Blaze.Types.IndirectCallResolution (ClassConstructor, IndirectCall)
+-- import Blaze.Types.IndirectCallResolution qualified as Icr
+-- import Blaze.VTable qualified as VTable
 import Data.Tree
 
-getIndirectCallSites :: BNBinaryView -> IO [IndirectCall]
-getIndirectCallSites bv = BnFunc.getFunctions bv >>= BnPil.getIndirectCallSites >>= traverse convertToIndirectCall
-  where
-    convertToIndirectCall :: (BnFunc.Function, CallInstruction) -> IO IndirectCall
-    convertToIndirectCall (func, callInstr) = (`Icr.IndirectCall` callInstr) <$> BNCG.convertFunction bv func
+---- TODO: This code isn't currently used. Needs to be updated.
 
-getConstructorsInFunction :: BNImporter -> Func.Function -> IO [ClassConstructor]
-getConstructorsInFunction imp fn = do
-  let bv = imp ^. #binaryView
-  vtStores <- Pili.getFuncStatements imp fn 0 >>= VTable.getVTableStores bv
-  return $ uncurry (ClassConstructor fn) <$> vtStores
+-- TODO: We will need a CallGraphImporter to fetch the functions, but a PilImporter to find indirect calls
+-- getIndirectCallSites :: (CallGraphImporter a, PilImporter a) => a -> IO [IndirectCall]
+-- getIndirectCallSites imp = do
+--   callSites <- Cgi.getFunctions imp >>= Cgi.getCallSites
+--   where
+--     convertToIndirectCall :: (BnFunc.Function, CallInstruction) -> IO IndirectCall
+--     convertToIndirectCall (func, callInstr) = (`Icr.IndirectCall` callInstr) <$> BNCG.convertFunction bv func
 
-getConstructors :: BNImporter -> IO [ClassConstructor]
-getConstructors imp = Cgi.getFunctions imp >>= concatMapM (getConstructorsInFunction imp)
+-- getConstructorsInFunction :: PilImporter a => a -> Func.Function -> IO [ClassConstructor]
+-- getConstructorsInFunction imp fn = do
+--   let bv = imp ^. #binaryView
+--   vtStores <- Pili.getFuncStatements imp fn 0 >>= VTable.getVTableStores bv
+--   return $ uncurry (ClassConstructor fn) <$> vtStores
 
-getDirectedCg :: BNImporter -> IO Cg.CallGraph
+-- getConstructors :: CallGraphImporter a => a -> IO [ClassConstructor]
+-- getConstructors imp = Cgi.getFunctions imp >>= concatMapM (getConstructorsInFunction imp)
+
+getDirectedCg :: CallGraphImporter a => a -> IO Cg.CallGraph
 getDirectedCg imp = Cgi.getFunctions imp >>= Cg.getCallGraph imp
 
-getUndirectedCg :: BNImporter -> IO Cg.CallGraph
+getUndirectedCg :: CallGraphImporter a => a -> IO Cg.CallGraph
 getUndirectedCg imp = do
   cg <- Cgi.getFunctions imp >>= Cg.getCallGraph imp
   return $ Cg.getUndirectedCallGraph cg
@@ -45,7 +50,7 @@ getEdgeList :: Cg.CallGraph -> [(Func.Function, Func.Function)]
 getEdgeList g = G.toTupleEdge . view #edge <$> G.edges g
 
 extractFuncsFromConstructors :: [ClassConstructor] -> [Func.Function]
-extractFuncsFromConstructors = map (^. Icr.cFunction)
+extractFuncsFromConstructors = map (view #function)
 
 -- TODO: Rewrite using bfs method from Graph type class.
 -- getIndirectCallTrees :: BNBinaryView -> IO [Tree Func.Function]

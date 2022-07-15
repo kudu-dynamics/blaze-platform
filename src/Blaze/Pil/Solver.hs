@@ -153,7 +153,7 @@ catchIfLenient wrapErr m handleError = do
 
 catchIfLenientForPilVar :: PilVar -> Solver () -> Solver ()
 catchIfLenientForPilVar pv m = catchIfLenient (PilVarConversionError $ pv ^. #symbol) m (const $ return ())
-  
+
 catchIfLenientForStmt :: Solver () -> Solver ()
 catchIfLenientForStmt m = do
   sindex <- use #currentStmtIndex
