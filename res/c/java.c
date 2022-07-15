@@ -15,6 +15,10 @@ jmethodID readM, varM, varQualM, // defined on 'clojure.java.api.Clojure'
     longValueM, longC,           // defined on 'java.lang.Long'
     intValueM, intC;
 
+/* #define GLOBAL_REF(LOCAL, GLOBAL) \ */
+/*     jobject GLOBAL = (*env)->NewGlobalRef(env, LOCAL); \ */
+/*     (*env)->DeleteLocalRef(env, LOCAL); \ */
+
 // Initialize the JVM with the Clojure JAR on classpath.
 bool create_vm() {
   if (env == NULL) {
@@ -131,7 +135,9 @@ void load_methods() {
 }
 
 jobject newGlobalRef(jobject jobj) {
-  return (*env)->NewGlobalRef(env, jobj);
+  jobject r = (*env)->NewGlobalRef(env, jobj);
+  (*env)->DeleteLocalRef(env, jobj);
+  return r;
 }
 
 // call the 'invoke' function of the right arity on 'IFn'.
@@ -188,6 +194,11 @@ long longValue(jobject n) {
 
 const char *getStringUTFChars(jstring str) {
   return (*env)->GetStringUTFChars(env, str, JNI_FALSE);
+}
+
+void releaseStringUTFChars(jstring str, const char* chars) {
+  // why does this take two args instead of just chars?
+  (*env)->ReleaseStringUTFChars(env, str, chars);
 }
 
 /* void main() { */

@@ -24,7 +24,8 @@ foreign import ccall "varObjQualified" varObjQualified :: CString -> CString -> 
 foreign import ccall "newLong" newLong :: CLong -> ClojureObject
 foreign import ccall "longValue" longValue :: ClojureObject -> CLong
 
-foreign import ccall "getStringUTFChars" getStringUTFChars :: ClojureObject -> CString
+foreign import ccall "getStringUTFChars" getStringUTFChars :: ClojureObject -> IO CString
+foreign import ccall "releaseStringUTFChars" releaseStringUTFChars :: ClojureObject -> CString -> IO ()
 
 
 -- | In order for anything to work, this needs to be called first.
@@ -49,7 +50,11 @@ unLong :: ClojureObject -> Int64
 unLong cl = let CLong l = longValue cl in l
 
 unString :: ClojureObject -> IO String
-unString x = peekCString $ getStringUTFChars x
+unString jstr = do
+  cstr <- getStringUTFChars jstr
+  str <- peekCString cstr
+  -- releaseStringUTFChars jstr cstr
+  return str
 
 readEdn :: String -> IO ClojureObject
 readEdn s = withCString s readObj
