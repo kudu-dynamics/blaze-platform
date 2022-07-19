@@ -12,7 +12,8 @@ import System.IO.Unsafe (unsafePerformIO)
 -- Clojure objects are just Java objects, and jsvalue is a union with size 64
 -- bits. Since we are cutting corners, we might as well just derive 'Storable'
 -- from something else that has the same size - 'CLong'.
-newtype ClojureObject = ClojureObject CLong deriving newtype (Storable)
+newtype ClojureObject = ClojureObject (Ptr ())
+  deriving newtype (Storable)
 
 foreign import ccall "load_methods" load_methods :: IO ()
 foreign import ccall "create_vm" create_vm :: IO CBool
@@ -21,12 +22,13 @@ foreign import ccall "invokeFn" invokeFn :: ClojureObject -> CUInt -> Ptr Clojur
 foreign import ccall "readObj" readObj :: CString -> IO ClojureObject
 foreign import ccall "varObj" varObj :: CString -> IO ClojureObject
 foreign import ccall "varObjQualified" varObjQualified :: CString -> CString -> IO ClojureObject
+
 foreign import ccall "newLong" newLong :: CLong -> ClojureObject
 foreign import ccall "longValue" longValue :: ClojureObject -> CLong
 
 foreign import ccall "getStringUTFChars" getStringUTFChars :: ClojureObject -> IO CString
 foreign import ccall "releaseStringUTFChars" releaseStringUTFChars :: ClojureObject -> CString -> IO ()
-
+foreign import ccall "deleteGlobalRef" deleteGlobalRef :: ClojureObject -> IO ()
 
 -- | In order for anything to work, this needs to be called first.
 loadClojure :: IO ()
@@ -59,10 +61,20 @@ unString jstr = do
 readEdn :: String -> IO ClojureObject
 readEdn s = withCString s readObj
 
--- -- | Look up a var in Clojure based on the namespace and name
--- varQual :: String -> String -> IO ClojureObject
--- varQual ns fn = withCString ns (\nsCStr ->
---                 withCString fn (\fnCStr -> varObjQualified nsCStr fnCStr))
+showClassLoader :: IO ()
+showClassLoader = do
+  eval <- varQual "clojure.core" "eval"
+  c <- readEdn "(.getContextClassLoader (java.lang.Thread/currentThread))"
+  x <- invoke eval [c]
+  print x
+
+-- | Look up a var in Clojure based on the namespace and name
+varQual2 :: String -> String -> IO ClojureObject
+varQual2 ns fn = withCString ns
+  (\nsCStr ->
+      withCString fn
+      (\fnCStr ->
+         varObjQualified nsCStr fnCStr))
 
 -- | Look up a var in Clojure based on the namespace and name
 varQual :: String -> String -> IO ClojureObject
@@ -76,7 +88,8 @@ method0 methodName x = do
   checkException
   meth <- invoke eval [methSym]
   checkException
-  invoke meth [x]
+  r <- invoke meth [x]
+  return r
 
 instance Show ClojureObject where
   show x = unsafePerformIO $ do
@@ -84,6 +97,15 @@ instance Show ClojureObject where
     checkException
     unString s
 
+
+main2 :: IO ()
+main2 = do
+  loadClojure
+  showClassLoader
+  putStrLn "Clojure loaded"
+  plus <- varQual2 "clojure.core" "+"
+  print plus
+  return ()
 
 main :: IO ()
 main = do
