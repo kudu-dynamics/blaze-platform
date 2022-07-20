@@ -10,13 +10,15 @@
 JavaVM *jvm = NULL;
 
 // JClass for Clojure
-jclass clojure, ifn, longClass, intClass, threadClass, objectClass;
+jclass clojure, ifn, longClass, intClass, threadClass, objectClass, classLoaderClass;
 jmethodID readM, varM, varQualM, // defined on 'clojure.java.api.Clojure'
   invoke[20],                   // defined on 'closure.lang.IFn'
   longValueM, longC,           // defined on 'java.lang.Long'
   intValueM, intC,
   toStringM,             // Object Class
-  getThreadNameM, currentThreadM, getContextClassLoaderM, setContextClassLoaderM;
+  getThreadNameM, currentThreadM, getContextClassLoaderM, setContextClassLoaderM,
+  getSystemClassLoaderM;
+
 
 jobject clojureClassLoader = NULL;
 
@@ -115,7 +117,10 @@ jobject get_current_classloader (JNIEnv *env) {
 
 void set_classloader(JNIEnv *env, jobject classLoader) {
   jobject current_thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
+  check_null("set_classloader: current thread", current_thread);
+  check_null("global classloader", classLoader);
   (*env)->CallObjectMethod(env, current_thread, setContextClassLoaderM, classLoader);
+  printf("set the class loader\n");
 }
 
 
@@ -124,6 +129,15 @@ void print_current_classloader(JNIEnv *env) {
   printf("momo 1\n");
   jobject cloader = (*env)->CallObjectMethod(env, thread, getContextClassLoaderM);
   check_null("cloader", cloader);
+
+  if ((*env)->IsSameObject(env, cloader, NULL)) {
+    printf("Classloader was NULL. Setting to global classloader.\n");
+    cloader = (*env)->CallStaticObjectMethod(env, classLoaderClass, getSystemClassLoaderM);
+    printf("Got system loader\n");
+    set_classloader(env, cloader);
+    printf("Set it\n");
+  }
+
   jobject cname = (*env)->CallObjectMethod(env, cloader, toStringM);
   printf("momo 3\n");
   
@@ -222,16 +236,29 @@ void load_methods() {
   getContextClassLoaderM = (*env)->GetMethodID(env, threadClass, "getContextClassLoader", "()Ljava/lang/ClassLoader;");
   check_null2("getContextClassLoaderM", getContextClassLoaderM);
 
-  setContextClassLoaderM = (*env)->GetMethodID(env, threadClass, "setContextClassLoader", "(Ljava/lang/ClassLoader;)");
-
+  setContextClassLoaderM = (*env)->GetMethodID(env, threadClass, "setContextClassLoader", "(Ljava/lang/ClassLoader;)V");
+  check_null2("setContextClassLoaderM", setContextClassLoaderM);
+  
   jclass localObjectClass = (*env)->FindClass(env, "java/lang/Object");
   objectClass = (*env)->NewGlobalRef(env, localObjectClass);
-
+  (*env)->DeleteLocalRef(env, localObjectClass);
   check_null("object", objectClass);
   
   toStringM = (*env)->GetMethodID(env, objectClass, "toString", "()Ljava/lang/String;");
   check_null2("toString", toStringM);
-  
+
+  /* jobject localClassLoader = get_current_classloader(env); */
+  /* clojureClassLoader = (*env)->NewGlobalRef(env, localObjectClass); */
+  /* (*env)->DeleteLocalRef(env, localClassLoader); */
+
+  jclass localClassLoaderClass = (*env)->FindClass(env, "java/lang/ClassLoader");
+  check_null("ClassLoader", localClassLoaderClass);
+  classLoaderClass = (*env)->NewGlobalRef(env, localClassLoaderClass);
+  (*env)->DeleteLocalRef(env, localClassLoaderClass);
+
+  getSystemClassLoaderM = (*env)->GetStaticMethodID(env, classLoaderClass, "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
+  check_null2("getSystemClassLoader", getSystemClassLoaderM);
+
   print_current_thread_name(env);  
 }
 
