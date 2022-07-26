@@ -10,7 +10,7 @@
 JavaVM *jvm = NULL;
 
 // JClass for Clojure
-jclass clojure, ifn, longClass, intClass, threadClass, objectClass, classLoaderClass;
+jclass clojureClass, ifnClass, longClass, intClass, threadClass, objectClass, classLoaderClass;
 jmethodID readM, varM, varQualM, // defined on 'clojure.java.api.Clojure'
   invoke[20],                   // defined on 'closure.lang.IFn'
   longValueM, longC,           // defined on 'java.lang.Long'
@@ -20,13 +20,8 @@ jmethodID readM, varM, varQualM, // defined on 'clojure.java.api.Clojure'
   getSystemClassLoaderM;
 
 
-jobject clojureClassLoader = NULL;
-
-/* #define GLOBAL_REF(LOCAL, GLOBAL) \ */
-/*     jobject GLOBAL = (*env)->NewGlobalRef(env, LOCAL); \ */
-/*     (*env)->DeleteLocalRef(env, LOCAL); \ */
-
 // Initialize the JVM with the Clojure JAR on classpath.
+// returns True if new vm is created
 bool create_vm() {
   JNIEnv *env;
 
@@ -63,51 +58,67 @@ bool create_vm() {
   }
 }
 
-void check_exception() {
+void _print_version(JNIEnv *env) {
+  printf("Env version: %d\n", (*env)->GetVersion(env));
+}
+  
+
+/* creates global ref and deletes local ref */
+jobject _newGlobalRef(JNIEnv *env, jobject jobj) {
+  jobject r = (*env)->NewGlobalRef(env, jobj);
+  (*env)->DeleteLocalRef(env, jobj);
+  return r;
+}
+
+jboolean check_exception() {
   JNIEnv *env;
   (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
+  jboolean r = (*env)->ExceptionCheck(env);
+  (*jvm)->DetachCurrentThread(jvm);
+  return r;
+}
 
+void print_exception() {
+  JNIEnv *env;
+  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
+  (*env)->ExceptionDescribe(env);
+  (*jvm)->DetachCurrentThread(jvm);
+}
+
+void _check_exception(JNIEnv *env) {
   if ((*env)->ExceptionCheck(env)) {
     printf("There was an exception\n");
     (*env)->ExceptionDescribe(env);
-    return;
   }
-  /* (*jvm)->DetachCurrentThread(jvm); */
   return;
 }
 
-void check_null(char *objName, jobject obj) {
-  JNIEnv *env;
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
+bool _is_null(JNIEnv *env, jobject obj) {
+  return (*env)->IsSameObject(env, obj, NULL);
+}
+
+void _check_null(JNIEnv *env, char *objName, jobject obj) {
   if ((*env)->IsSameObject(env, obj, NULL)) {
     printf("%s is NULL\n", objName);
-    check_exception();
+    _check_exception(env);
   } else {
-    printf("Found %s\n", objName);
+    /* printf("Found %s\n", objName); */
   }
-  /* (*jvm)->DetachCurrentThread(jvm); */
   return;
 }
 
-void check_null2(char *objName, jmethodID mid) {
+void _check_null_method(JNIEnv *env, char *objName, jmethodID mid) {
   if (mid == NULL) {
     printf("%s is NULL\n", objName);
-    check_exception();
+    _check_exception(env);
   } else {
     printf("Found methodId %s (%d)\n", objName, mid);
   }
   return;
 }
 
-void check_globals() {
-  check_null("clojure", clojure);
-  check_null("ifn", ifn);
-  check_null("longClass", longClass);
-}
 
-jobject get_current_classloader (JNIEnv *env) {
+jobject _get_current_classloader (JNIEnv *env) {
   jobject current_thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
   
   jobject current_class_loader = (*env)->CallObjectMethod(env, current_thread, getContextClassLoaderM);
@@ -115,26 +126,24 @@ jobject get_current_classloader (JNIEnv *env) {
   return current_class_loader;
 }
 
-void set_classloader(JNIEnv *env, jobject classLoader) {
+void _set_classloader(JNIEnv *env, jobject classLoader) {
   jobject current_thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
-  check_null("set_classloader: current thread", current_thread);
-  check_null("global classloader", classLoader);
+  _check_null(env, "set_classloader: current thread", current_thread);
+  _check_null(env, "global classloader", classLoader);
   (*env)->CallObjectMethod(env, current_thread, setContextClassLoaderM, classLoader);
-  printf("set the class loader\n");
 }
 
 
-void print_current_classloader(JNIEnv *env) {
+void _print_current_classloader(JNIEnv *env) {
   jobject thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
-  printf("momo 1\n");
   jobject cloader = (*env)->CallObjectMethod(env, thread, getContextClassLoaderM);
-  check_null("cloader", cloader);
+  _check_null(env, "cloader", cloader);
 
   if ((*env)->IsSameObject(env, cloader, NULL)) {
     printf("Classloader was NULL. Setting to global classloader.\n");
     cloader = (*env)->CallStaticObjectMethod(env, classLoaderClass, getSystemClassLoaderM);
     printf("Got system loader\n");
-    set_classloader(env, cloader);
+    _set_classloader(env, cloader);
     printf("Set it\n");
   }
 
@@ -152,10 +161,10 @@ void print_current_classloader(JNIEnv *env) {
   return;
 }
 
-void print_current_thread_name(JNIEnv *env) {
+void _print_current_thread_name(JNIEnv *env) {
   jobject thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
   jobject tname = (*env)->CallObjectMethod(env, thread, getThreadNameM);
-
+  
   const char *c_str;
   c_str = (*env)->GetStringUTFChars(env, tname, NULL);
   if(c_str == NULL) {
@@ -164,7 +173,7 @@ void print_current_thread_name(JNIEnv *env) {
   printf("+++++++++++++++++ Current Thread: %s ++++++++++++++++\n", c_str);
 
   (*env)->ReleaseStringUTFChars(env, tname, c_str);
-  print_current_classloader(env);
+  /* _print_current_classloader(env); */
   return;
 }
 
@@ -174,250 +183,242 @@ void load_methods() {
   JNIEnv *env;
   /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
   (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  jclass localClojure, localIfn, localLongClass, localIntClass;
+  jclass localClojureClass, localIfnClass, localLongClass, localIntClass;
 
-  localClojure = (*env)->FindClass(env, "clojure/java/api/Clojure");
-  clojure = (*env)->NewGlobalRef(env, localClojure);
-  (*env)->DeleteLocalRef(env, localClojure);
+  localClojureClass = (*env)->FindClass(env, "clojure/java/api/Clojure");
+  clojureClass = (*env)->NewGlobalRef(env, localClojureClass);
+  (*env)->DeleteLocalRef(env, localClojureClass);
 
-  check_null("clojure", clojure);
+  _check_null(env, "clojureClass", clojureClass);
 
-  readM      = (*env)->GetStaticMethodID(env, clojure, "read",
-  "(Ljava/lang/String;)Ljava/lang/Object;");
-
-  check_exception();
+  readM      = (*env)->GetStaticMethodID(env, clojureClass, "read", "(Ljava/lang/String;)Ljava/lang/Object;");
+  _check_exception(env);
   
-  varM       = (*env)->GetStaticMethodID(env, clojure, "var", "(Ljava/lang/Object;)Lclojure/lang/IFn;");
+  varM       = (*env)->GetStaticMethodID(env, clojureClass, "var", "(Ljava/lang/Object;)Lclojure/lang/IFn;");
 
   // "(Ljava/lang/Object;Ljava/lang/Object;)Lclojure/lang/IFn;"
-  varQualM   = (*env)->GetStaticMethodID(env, clojure, "var", "(Ljava/lang/Object;Ljava/lang/Object;)Lclojure/lang/IFn;");
+  varQualM   = (*env)->GetStaticMethodID(env, clojureClass, "var", "(Ljava/lang/Object;Ljava/lang/Object;)Lclojure/lang/IFn;");
   
-  check_null2("varQualM", varQualM);
+  _check_null_method(env, "varQualM", varQualM);
   
-  localIfn = (*env)->FindClass(env, "clojure/lang/IFn");
-  ifn = (*env)->NewGlobalRef(env, localIfn);
-  (*env)->DeleteLocalRef(env, localIfn);
+  localIfnClass = (*env)->FindClass(env, "clojure/lang/IFn");
+  ifnClass = (*env)->NewGlobalRef(env, localIfnClass);
+  (*env)->DeleteLocalRef(env, localIfnClass);
 
-  check_null("ifn", ifn);
+  _check_null(env, "ifn", ifnClass);
 
-  invoke[0]  = (*env)->GetMethodID(env, ifn, "invoke",
+  invoke[0]  = (*env)->GetMethodID(env, ifnClass, "invoke",
   "()Ljava/lang/Object;");
-  invoke[1]  = (*env)->GetMethodID(env, ifn, "invoke",
+  invoke[1]  = (*env)->GetMethodID(env, ifnClass, "invoke",
   "(Ljava/lang/Object;)Ljava/lang/Object;");
-  invoke[2]  = (*env)->GetMethodID(env, ifn, "invoke",
+  invoke[2]  = (*env)->GetMethodID(env, ifnClass, "invoke",
   "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
-
-  // Obviously we could keep going here. The Clojure API has 'invoke' for up to
-  // 20 arguments...
+  invoke[3]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[4]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[5]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[6]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[7]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[8]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[9]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[10]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[11]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[12]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[13]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[14]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[15]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[16]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[17]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[18]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  invoke[19]  = (*env)->GetMethodID(env, ifnClass, "invoke",
+  "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+  
 
   localLongClass = (*env)->FindClass(env, "java/lang/Long");
   longClass = (*env)->NewGlobalRef(env, localLongClass);
   (*env)->DeleteLocalRef(env, localLongClass);
 
-  check_null("longClass", longClass);
+  _check_null(env, "longClass", longClass);
 
   longValueM = (*env)->GetMethodID(env, longClass, "longValue", "()J");
   longC = (*env)->GetMethodID(env, longClass, "<init>", "(J)V");
-  /* longDecode = (*env)->GetMethodID(env, longClass, "decode", "(S)V"); */
-  /* (*jvm)->DetachCurrentThread(jvm); */
 
   /* THREADS */
   jclass localThreadClass = (*env)->FindClass(env, "java/lang/Thread");
   threadClass = (*env)->NewGlobalRef(env, localThreadClass);
   (*env)->DeleteLocalRef(env, localThreadClass);
 
-  check_null("threadClass", threadClass);
+  _check_null(env, "threadClass", threadClass);
 
   currentThreadM = (*env)->GetStaticMethodID(env, threadClass, "currentThread", "()Ljava/lang/Thread;");
   
-  check_null2("currentThread", currentThreadM);
+  _check_null_method(env, "currentThread", currentThreadM);
 
   getThreadNameM = (*env)->GetMethodID(env, threadClass, "getName", "()Ljava/lang/String;");
   getContextClassLoaderM = (*env)->GetMethodID(env, threadClass, "getContextClassLoader", "()Ljava/lang/ClassLoader;");
-  check_null2("getContextClassLoaderM", getContextClassLoaderM);
+  _check_null_method(env, "getContextClassLoaderM", getContextClassLoaderM);
 
   setContextClassLoaderM = (*env)->GetMethodID(env, threadClass, "setContextClassLoader", "(Ljava/lang/ClassLoader;)V");
-  check_null2("setContextClassLoaderM", setContextClassLoaderM);
+  _check_null_method(env, "setContextClassLoaderM", setContextClassLoaderM);
   
   jclass localObjectClass = (*env)->FindClass(env, "java/lang/Object");
   objectClass = (*env)->NewGlobalRef(env, localObjectClass);
   (*env)->DeleteLocalRef(env, localObjectClass);
-  check_null("object", objectClass);
+  _check_null(env, "object", objectClass);
   
   toStringM = (*env)->GetMethodID(env, objectClass, "toString", "()Ljava/lang/String;");
-  check_null2("toString", toStringM);
-
-  /* jobject localClassLoader = get_current_classloader(env); */
-  /* clojureClassLoader = (*env)->NewGlobalRef(env, localObjectClass); */
-  /* (*env)->DeleteLocalRef(env, localClassLoader); */
+  _check_null_method(env, "toString", toStringM);
 
   jclass localClassLoaderClass = (*env)->FindClass(env, "java/lang/ClassLoader");
-  check_null("ClassLoader", localClassLoaderClass);
+  _check_null(env, "ClassLoader", localClassLoaderClass);
   classLoaderClass = (*env)->NewGlobalRef(env, localClassLoaderClass);
   (*env)->DeleteLocalRef(env, localClassLoaderClass);
 
   getSystemClassLoaderM = (*env)->GetStaticMethodID(env, classLoaderClass, "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
-  check_null2("getSystemClassLoader", getSystemClassLoaderM);
+  _check_null_method(env, "getSystemClassLoader", getSystemClassLoaderM);
 
-  print_current_thread_name(env);  
+  _print_current_thread_name(env);  
+  (*jvm)->DetachCurrentThread(jvm);
 }
 
-
-jobject newGlobalRef(jobject jobj) {
+/* use this to get the Env and prep the thread */
+/* Call this at the start of any user-api facing function */
+JNIEnv *getThreadEnv() {
   JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
+
+  if (create_vm()) {
+    load_methods();
+  }
   (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  jobject r = (*env)->NewGlobalRef(env, jobj);
-  (*env)->DeleteLocalRef(env, jobj);
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+
+  printf("getThreadEnv: \n");
+  _print_current_thread_name(env);
+
+  jobject thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
+  _check_null(env, "getThreadEnv thread", thread);
+  
+  jobject cloader = (*env)->CallObjectMethod(env, thread, getContextClassLoaderM);
+  if ((*env)->IsSameObject(env, cloader, NULL)) {
+    cloader = (*env)->CallStaticObjectMethod(env, classLoaderClass, getSystemClassLoaderM);
+    _set_classloader(env, cloader);
+  }
+  return env;
+}
+
+/* call this at the end of a user facing api function */
+void _cleanup() {
+  jint r = (*jvm)->DetachCurrentThread(jvm);
+  // TODO: do something with r
+  return;
+}
+
+void deleteGlobalRefE(JNIEnv *env, jobject obj) {
+  (*env)->DeleteGlobalRef(env, obj);
 }
 
 void deleteGlobalRef(jobject obj) {
-  JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  (*env)->DeleteGlobalRef(env, obj);
-  /* (*jvm)->DetachCurrentThread(jvm); */
+  printf("DELETE global ref\n");
+  deleteGlobalRefE(getThreadEnv(), obj);
 }
 
 // call the 'invoke' function of the right arity on 'IFn'.
+jobject invokeFnE(JNIEnv *env, jobject obj, unsigned n, jobject *args) {
+  return _newGlobalRef(env, (*env)->CallObjectMethodA(env, obj, invoke[n], (jvalue *)args));
+}
+
 jobject invokeFn(jobject obj, unsigned n, jobject *args) {
-  JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  print_current_thread_name(env);
-  printf("Call invoke %d\n", n);
-  jobject r = newGlobalRef((*env)->CallObjectMethodA(env, obj, invoke[n], (jvalue *)args));
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+  return invokeFnE(getThreadEnv(), obj, n, args);
 }
 
 // 'read' static method from 'Clojure' object.
-jobject readObj(const char *cStr) {
-  JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  print_current_thread_name(env);
-  jstring str = (*env)->NewStringUTF(env, cStr);
-  jmethodID localReadM = (*env)->GetStaticMethodID(env, clojure, "read",
-  "(Ljava/lang/String;)Ljava/lang/Object;");
-  printf("Call localReadM\n");
-  jobject r = newGlobalRef((*env)->CallStaticObjectMethod(env, clojure, localReadM, str));
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+jobject readObjE(JNIEnv *env, const char *cStr) {
+  jstring str = (*env)->NewStringUTF(env, cStr); // need to release later?
+  return _newGlobalRef(env, (*env)->CallStaticObjectMethod(env, clojureClass, readM, str));
 }
 
-void print_version() {
-  JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  printf("Env version: %d\n", (*env)->GetVersion(env));
-  /* (*jvm)->DetachCurrentThread(jvm); */
+jobject readObj(const char *cStr) {
+  return readObjE(getThreadEnv(), cStr);
 }
-  
 
 // 'var' static method from 'Clojure' object.
-jobject varObj(const char *fnCStr) {
-  JNIEnv *env;
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  print_current_thread_name(env);
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  print_version();
-  check_globals();
-  /* (*env)->EnsureLocalCapacity(env,1); */
-  check_exception();
+jobject varObjE(JNIEnv *env, const char *fnCStr) {
   jstring fn = (*env)->NewStringUTF(env, fnCStr);
-  jmethodID localVarM = (*env)->GetStaticMethodID(env, clojure, "var", "(Ljava/lang/Object;)Lclojure/lang/IFn;");
-  
-  printf("localVarM: %d, varM: %d\n", localVarM, varM);
+  return _newGlobalRef(env, (*env)->CallStaticObjectMethod(env, clojureClass, varM, fn));
+}
 
-  /* localVarQualM   = (*env)->GetStaticMethodID(env, clojure, "var", "(Ljava/lang/Object;Ljava/lang/Object;)Lclojure/lang/IFn;"); */
-
-  printf("Call localVarM\n");
-  jobject r = newGlobalRef((*env)->CallStaticObjectMethod(env, clojure, varM, fn));
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+jobject varObj(const char *fnCStr) {
+  return varObjE(getThreadEnv(), fnCStr);
 }
 
 // qualified 'var' static method from 'Clojure' object.
-jobject varObjQualified(const char *nsCStr, const char *fnCStr) {
-  jobject r;
-  JNIEnv *env;
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  print_current_thread_name(env);
-  /* print_current_thread_name(env); */
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  printf("new strings\n");
-
+jobject varObjQualifiedE(JNIEnv *env, const char *nsCStr, const char *fnCStr) {
   jstring ns = (*env)->NewStringUTF(env, nsCStr);
   jstring fn = (*env)->NewStringUTF(env, fnCStr);
-  /* jstring ns = newGlobalRef((*env)->NewStringUTF(env, "clojure.core")); */
-  /* jstring fn = newGlobalRef((*env)->NewStringUTF(env, "+")); */
-  jmethodID localVarQualM;
 
-  printf("strings: %s %s\n", nsCStr, fnCStr);
-  printf("strings': %s %s\n", ns, fn);
+  return _newGlobalRef(env, (*env)->CallStaticObjectMethod(env, clojureClass, varQualM, ns, fn));
+}
 
-  check_exception();
-  /* (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL); */
-  /* printf("attached thread\n"); */
-
-  /* check_null("clojure2", clojure); */
-  /* check_null2("varQualM2", varQualM); */
-  /* check_null2("varM", varM); */
-  localVarQualM   = (*env)->GetStaticMethodID(env, clojure, "var", "(Ljava/lang/Object;Ljava/lang/Object;)Lclojure/lang/IFn;");
-  printf("nah uh\n");
-  check_exception();
-  printf("not me\n");
-
-  printf("localVarQualM: 0x%x, varQualM: 0x%x\n", localVarQualM, varQualM);
-
-  printf("Call varQualM\n");
-  r = (*env)->CallStaticObjectMethod(env, clojure, localVarQualM, ns, fn);
-  /* r = (*env)->CallStaticObjectMethod(env, clojure, varM, fn); */
-  printf("Oh well, charlie\n");
-  check_exception();
-  jobject r2 = newGlobalRef(r);
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r2;
+jobject varObjQualified(const char *nsCStr, const char *fnCStr) {
+  return varObjQualifiedE(getThreadEnv(), nsCStr, fnCStr); 
+}
+  
+jobject newLongE(JNIEnv *env, long n) {
+  return _newGlobalRef(env, (*env)->NewObject(env, longClass, longC, n));
 }
 
 jobject newLong(long n) {
-  JNIEnv *env;
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  jobject r = newGlobalRef((*env)->NewObject(env, longClass, longC, n));
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+  newLongE(getThreadEnv(), n);
+}
+  
+
+long longValueE(JNIEnv *env, jobject n) {
+  return (*env)->CallLongMethod(env, n, longValueM);
 }
 
 long longValue(jobject n) {
-  JNIEnv *env;
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  printf("Call longValueM\n");
-  long r = (*env)->CallLongMethod(env, n, longValueM);
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+  return longValueE(getThreadEnv(), n);
+}
+
+const char *getStringUTFCharsE(JNIEnv *env, jstring str) {
+  return (*env)->GetStringUTFChars(env, str, JNI_FALSE);
 }
 
 const char *getStringUTFChars(jstring str) {
-  JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  const char *r = (*env)->GetStringUTFChars(env, str, JNI_FALSE);
-  /* (*jvm)->DetachCurrentThread(jvm); */
-  return r;
+  return getStringUTFCharsE(getThreadEnv(), str);
+}
+  
+void releaseStringUTFCharsE(JNIEnv *env, jstring str, const char* chars) {
+  (*env)->ReleaseStringUTFChars(env, str, chars);
 }
 
 void releaseStringUTFChars(jstring str, const char* chars) {
-  JNIEnv *env;
-  /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
-  (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  // why does this take two args instead of just chars?
-  (*env)->ReleaseStringUTFChars(env, str, chars);
-  /* (*jvm)->DetachCurrentThread(jvm); */
+  return releaseStringUTFCharsE(getThreadEnv(), str, chars);
+}
+
+jstring toStringE(JNIEnv *env, jobject obj) {
+  _print_current_thread_name(getThreadEnv());
+  printf("Maybe the env is bad\n");
+  _check_null(env, "toStringE obj", obj);
+  return _newGlobalRef(env, (*env)->CallObjectMethod(env, obj, toStringM));
+}
+
+jstring toString(jobject obj) {
+  return toStringE(getThreadEnv(), obj);
 }
 
 /* void main() { */

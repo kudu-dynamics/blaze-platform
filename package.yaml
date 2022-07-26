@@ -20,21 +20,26 @@ extra-source-files:
 
 dependencies:
   - base
+  - bytestring
   - containers
   - directory
   - envy
   - errors
   - extra
+  - generic-lens
+  - jni
   - lens
   - mtl
   - newtype
   - pretty-simple
   - protolude
+  - singletons-base
   - stm
   - template-haskell >= 2.18.0.0
   - text
   - transformers
   - unordered-containers
+  - vector
 
 default-extensions:
   - BangPatterns
