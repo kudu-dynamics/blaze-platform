@@ -34,6 +34,8 @@ foreign import ccall "varObjE" varObjE :: Ptr JNIEnv -> CString -> IO (Ptr Cloju
 foreign import ccall "varObjQualifiedE" varObjQualifiedE :: Ptr JNIEnv -> CString -> CString -> IO (Ptr ClojureObject)
 foreign import ccall "newLongE" newLongE :: Ptr JNIEnv -> CLong -> IO (Ptr ClojureObject)
 foreign import ccall "longValueE" longValueE :: Ptr JNIEnv -> (Ptr ClojureObject) -> IO CLong
+foreign import ccall "newBooleanE" newBooleanE :: Ptr JNIEnv -> CBool -> IO (Ptr ClojureObject)
+foreign import ccall "booleanValueE" booleanValueE :: Ptr JNIEnv -> (Ptr ClojureObject) -> IO CBool
 foreign import ccall "getStringUTFCharsE" getStringUTFCharsE :: Ptr JNIEnv -> Ptr JString -> IO CString
 foreign import ccall "releaseStringUTFCharsE" releaseStringUTFCharsE :: Ptr JNIEnv -> Ptr JString -> CString -> IO ()
 foreign import ccall "toStringE" toStringE :: Ptr JNIEnv -> Ptr ClojureObject -> IO (Ptr JString)
@@ -49,17 +51,20 @@ foreign import ccall "varObj" varObj :: CString -> IO (Ptr ClojureObject)
 foreign import ccall "varObjQualified" varObjQualified :: CString -> CString -> IO (Ptr ClojureObject)
 foreign import ccall "newLong" newLong :: CLong -> IO (Ptr ClojureObject)
 foreign import ccall "longValue" longValue :: Ptr ClojureObject -> IO CLong
+foreign import ccall "newBoolean" newBoolean :: CBool -> IO (Ptr ClojureObject)
+foreign import ccall "booleanValue" booleanValue :: Ptr ClojureObject -> IO CBool
+
 foreign import ccall "getStringUTFChars" getStringUTFChars :: (Ptr JString) -> IO CString
 foreign import ccall "releaseStringUTFChars" releaseStringUTFChars :: Ptr JString -> CString -> IO ()
-foreign import ccall "toString" toString :: Ptr ClojureObject -> IO (Ptr JString)
+foreign import ccall "toString" toString_ :: Ptr ClojureObject -> IO (Ptr JString)
 foreign import ccall "deleteGlobalRef" deleteGlobalRef :: FunPtr ((Ptr a) -> IO ())
 
 data JavaException = JavaException deriving (Show, Exception)
 
 mkObject :: Ptr ClojureObject -> IO ClojureObject
 mkObject x = do
-  putStrLn $ "mkObject: " <> show x
-  fmap ClojureObject . newForeignPtr deleteGlobalRef $ x
+  -- fmap ClojureObject . newForeignPtr deleteGlobalRef $ x
+  fmap ClojureObject . newForeignPtr_ $ x -- deleteGlobalRef $ x
 
 -- I'm not really sure this works.
 -- The idea is to keep each withForeignPtr unfinished until f is executed
@@ -107,7 +112,7 @@ invoke fn args = withClojureObject fn $ \fnPtr -> do
 long :: Int64 -> IO ClojureObject
 long l = do
   x <- newLong (CLong l)
-  putStrLn "Got it ok"
+  -- putStrLn "Got it ok"
   checkException
   mkObject x
 
@@ -146,6 +151,13 @@ varQual2 ns fn = withCString ns
 varQual :: String -> String -> IO ClojureObject
 varQual ns fn = withCString (ns <> "/" <> fn) (mkObject <=< varObj)
 
+readEval :: String -> IO ClojureObject
+readEval s = do
+  -- putStrLn $ "readEval: " <> s
+  eval <- varQual "clojure.core" "eval"
+  edn <- readEdn s
+  invoke eval [edn]
+
 method0 :: String -> ClojureObject -> IO ClojureObject
 method0 methodName x = do
   eval <- varQual "clojure.core" "eval"
@@ -173,52 +185,91 @@ main2 = do
   -- print plus
   return ()
 
--- main :: IO ()
--- main = do
---   loadClojure
---   putStrLn "Clojure loaded"
---   eval <- varQual "clojure.core" "eval"
---   plus <- varQual "clojure.core" "+"
---   minus <- varQual "clojure.core" "-"
---   putStrLn "really works"
---   return ()
---   out <- invoke plus [long 3, long 4]
---   print $ unLong out -- prints "7" on my tests
---   out2 <- invoke plus [long 100, out]
---   print $ unLong out2
+toString :: ClojureObject -> IO String
+toString obj = withClojureObject obj $ \pobj -> do
+  jstr <- toString_ pobj
+  cstr <- getStringUTFChars jstr
+  str <- peekCString cstr
+  releaseStringUTFChars jstr cstr
+  return str
 
---   plusSymbol <- readEdn "+"
---   plus' <- invoke eval [plusSymbol]
---   out3 <- invoke plus' [long 8, long 10]
---   print $ unLong out3
-
---   out3' <- method0 "byteValue" out3
---   checkException
---   print $ unLong out3'
---   print $ unLong out3
---   -- print out3
-
-
-jackson :: Int
-jackson = unsafePerformIO $ do
-  putStrLn "hey guys"
-  return 5
-
-
-jackson2 :: Int -> Int
-jackson2 n = unsafePerformIO $ do
-  putStrLn "hey"
-  return 5
+printObj :: ClojureObject -> IO ()
+printObj = putStrLn <=< toString
 
 
 test :: IO ()
 test = runInBoundThread $ do
-  putStrLn "HEY 0"
-  x <- long 34
-  putStrLn "hey 1"
-  -- jstr <- withClojureObject x toString
-  -- putStrLn "hey 2"
-  -- s <- unString jstr
-  -- putStrLn "hey 3"
-  -- putStrLn s
-  putStrLn "got it"
+  n <- readEval "(+ 34 88)"
+  printObj n
+
+  _ <- readEval "(require (quote [ghidra-clojure.state]))"
+  _ <- readEval "(require (quote [ghidra-clojure.function]))"
+
+  gs <- openDatabase "/tmp/kudu/assembly/contrived4" >>= analyze
+
+  funcs <- getFunctions gs >>= vec >>= toList
+
+  mapM_ printObj funcs
+
+--------- Clojure Functions --------------
+
+toClojureString :: String -> IO ClojureObject
+toClojureString t = readEdn $ "\"" <> t <> "\""
+
+vec :: ClojureObject -> IO ClojureObject
+vec ls = do
+  fn <- varQual "clojure.core" "vec"
+  invoke fn [ls]
+
+invokeFunc :: String -> String -> [ClojureObject] -> IO ClojureObject
+invokeFunc ns funcName args = do
+  fn <- varQual ns funcName
+  invoke fn args
+  
+isNil :: ClojureObject -> IO ClojureObject
+isNil x = invokeFunc "clojure.core" "nil?" [x]
+
+isNil' :: ClojureObject -> IO Bool
+isNil' x = do
+  jb <- isNil x
+  toBool <$> withClojureObject jb booleanValue
+
+first :: ClojureObject -> IO ClojureObject
+first coll = invokeFunc "clojure.core" "first" [coll]
+
+rest :: ClojureObject -> IO ClojureObject
+rest coll = invokeFunc "clojure.core" "rest" [coll]
+
+toList :: ClojureObject -> IO [ClojureObject]
+toList ls = do
+  x <- first ls
+  checkException
+  b <- isNil' x
+  checkException
+  case b of
+    True -> return []
+    False -> do
+      r <- rest ls
+      (x:) <$> toList r
+  
+  
+-------- Ghidra Functions ---------------
+
+openDatabase :: FilePath -> IO ClojureObject
+openDatabase fp = do
+  openDb <- varQual "ghidra-clojure.state" "open-database"
+  fp' <- toClojureString fp
+  putStrLn "open db"
+  printObj fp'
+  invoke openDb [fp']
+
+analyze :: ClojureObject -> IO ClojureObject
+analyze db = do
+  fn <- varQual "ghidra-clojure.state" "analyze"
+  invoke fn [db]
+  
+getFunctions :: ClojureObject -> IO ClojureObject
+getFunctions gs = do
+  fn <- varQual "ghidra-clojure.function" "get-functions"
+  checkException
+  invoke fn [gs]

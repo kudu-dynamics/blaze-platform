@@ -10,10 +10,11 @@
 JavaVM *jvm = NULL;
 
 // JClass for Clojure
-jclass clojureClass, ifnClass, longClass, intClass, threadClass, objectClass, classLoaderClass;
+jclass booleanClass, clojureClass, ifnClass, longClass, intClass, threadClass, objectClass, classLoaderClass;
 jmethodID readM, varM, varQualM, // defined on 'clojure.java.api.Clojure'
   invoke[20],                   // defined on 'closure.lang.IFn'
   longValueM, longC,           // defined on 'java.lang.Long'
+  booleanValueM, booleanC,
   intValueM, intC,
   toStringM,             // Object Class
   getThreadNameM, currentThreadM, getContextClassLoaderM, setContextClassLoaderM,
@@ -31,7 +32,7 @@ bool create_vm() {
       {
 
         // CHANGEME link to Clojure and Spec JAR
-        .optionString = "-Djava.class.path=res/clojure/clojure-1.11.1.jar:res/clojure/spec.alpha-0.3.218.jar",
+        .optionString = "-Djava.class.path=res/clojure/clojure-1.11.1.jar:res/clojure/spec.alpha-0.3.218.jar:res/ghidra-10.1.4.jar:res/ghidra-clojure-0.4.0-SNAPSHOT.jar",
       },
       {
         .optionString = "-Dclojure.spec.skip-macros=true"
@@ -112,7 +113,7 @@ void _check_null_method(JNIEnv *env, char *objName, jmethodID mid) {
     printf("%s is NULL\n", objName);
     _check_exception(env);
   } else {
-    printf("Found methodId %s (%d)\n", objName, mid);
+    /* printf("Found methodId %s (%d)\n", objName, mid); */
   }
   return;
 }
@@ -170,7 +171,7 @@ void _print_current_thread_name(JNIEnv *env) {
   if(c_str == NULL) {
     return;
   }
-  printf("+++++++++++++++++ Current Thread: %s ++++++++++++++++\n", c_str);
+  /* printf("+++++++++++++++++ Current Thread: %s ++++++++++++++++\n", c_str); */
 
   (*env)->ReleaseStringUTFChars(env, tname, c_str);
   /* _print_current_classloader(env); */
@@ -183,7 +184,7 @@ void load_methods() {
   JNIEnv *env;
   /* (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION); */
   (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-  jclass localClojureClass, localIfnClass, localLongClass, localIntClass;
+  jclass localClojureClass, localIfnClass, localLongClass, localIntClass, localBooleanClass;
 
   localClojureClass = (*env)->FindClass(env, "clojure/java/api/Clojure");
   clojureClass = (*env)->NewGlobalRef(env, localClojureClass);
@@ -258,6 +259,23 @@ void load_methods() {
   longValueM = (*env)->GetMethodID(env, longClass, "longValue", "()J");
   longC = (*env)->GetMethodID(env, longClass, "<init>", "(J)V");
 
+  /* Bools */
+
+  localBooleanClass = (*env)->FindClass(env, "java/lang/Boolean");
+  booleanClass = (*env)->NewGlobalRef(env, localBooleanClass);
+  (*env)->DeleteLocalRef(env, localBooleanClass);
+
+  _check_null(env, "booleanClass", booleanClass);
+
+  booleanValueM = (*env)->GetMethodID(env, booleanClass, "booleanValue", "()Z");
+  _check_null_method(env, "booleanValueM", booleanValueM);
+  
+  booleanC = (*env)->GetMethodID(env, booleanClass, "<init>", "(Z)V");
+  _check_null_method(env, "booleanC", booleanC);
+
+
+
+
   /* THREADS */
   jclass localThreadClass = (*env)->FindClass(env, "java/lang/Thread");
   threadClass = (*env)->NewGlobalRef(env, localThreadClass);
@@ -292,8 +310,12 @@ void load_methods() {
   getSystemClassLoaderM = (*env)->GetStaticMethodID(env, classLoaderClass, "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   _check_null_method(env, "getSystemClassLoader", getSystemClassLoaderM);
 
+
+  
   _print_current_thread_name(env);  
   (*jvm)->DetachCurrentThread(jvm);
+
+
 }
 
 /* use this to get the Env and prep the thread */
@@ -305,9 +327,6 @@ JNIEnv *getThreadEnv() {
     load_methods();
   }
   (*jvm)->AttachCurrentThread(jvm, (void **)&env, NULL);
-
-  printf("getThreadEnv: \n");
-  _print_current_thread_name(env);
 
   jobject thread = (*env)->CallStaticObjectMethod(env, threadClass, currentThreadM);
   _check_null(env, "getThreadEnv thread", thread);
@@ -394,6 +413,29 @@ long longValue(jobject n) {
   return longValueE(getThreadEnv(), n);
 }
 
+
+
+jobject newBooleanE(JNIEnv *env, bool n) {
+  return _newGlobalRef(env, (*env)->NewObject(env, booleanClass, booleanC, n));
+}
+
+jobject newBoolean(bool n) {
+  newBooleanE(getThreadEnv(), n);
+}
+  
+
+bool booleanValueE(JNIEnv *env, jobject n) {
+  return (*env)->CallBooleanMethod(env, n, booleanValueM);
+}
+
+bool booleanValue(jobject b) {
+  return booleanValueE(getThreadEnv(), b);
+}
+
+/* bool boolValue(jobject b) { */
+/*   return  */
+/* } */
+
 const char *getStringUTFCharsE(JNIEnv *env, jstring str) {
   return (*env)->GetStringUTFChars(env, str, JNI_FALSE);
 }
@@ -412,7 +454,6 @@ void releaseStringUTFChars(jstring str, const char* chars) {
 
 jstring toStringE(JNIEnv *env, jobject obj) {
   _print_current_thread_name(getThreadEnv());
-  printf("Maybe the env is bad\n");
   _check_null(env, "toStringE obj", obj);
   return _newGlobalRef(env, (*env)->CallObjectMethod(env, obj, toStringM));
 }
