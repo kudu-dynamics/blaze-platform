@@ -1,4 +1,4 @@
-name:                haskell-clojure
+name:                ghidra-haskell
 version:             0.1.0
 license:             BSD-2-Clause
 author:
@@ -19,7 +19,9 @@ extra-source-files:
 - ChangeLog.md
 
 dependencies:
+  - async
   - base
+  - binary-analysis
   - bytestring
   - containers
   - directory
@@ -27,14 +29,18 @@ dependencies:
   - errors
   - extra
   - generic-lens
+  - io-memoize
   - jni
+  - jvm
   - lens
   - mtl
   - newtype
   - pretty-simple
   - protolude
+  - random
   - singletons-base
   - stm
+  - string-conversions
   - template-haskell >= 2.18.0.0
   - text
   - transformers
@@ -58,6 +64,7 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - NoImplicitPrelude
+  - OverloadedLabels
   - OverloadedStrings
   - ScopedTypeVariables
   - StandaloneDeriving
@@ -82,7 +89,10 @@ library:
     - res/c/java.c
     - res/bridge/ffijni.c
   exposed-modules:
-  - Clojure.JNI
+    - Ghidra.Core
+    - Ghidra.Function
+    - Language.Clojure
+
 
 include-dirs:
   - "src"

@@ -5,7 +5,11 @@ packages:
   - .
 
 extra-deps:
+  - ../binary-analysis
   - ../jni
+  - ../jvm
+  - git: https://github.com/tweag/distributed-closure
+    commit: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
   - git: https://github.com/protolude/protolude
     commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
   - envy-2.1.0.0@sha256:b58b12d9b61a4e07562e7718f28a864178cfc4bb4c24a45c68b5e46cfd9b39be,1772
