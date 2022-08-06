@@ -3,7 +3,6 @@ module Ghidra.State where
 import Ghidra.Prelude hiding (force)
 
 import Language.Clojure
-import System.IO.Unsafe (unsafePerformIO)
 import Foreign.JNI.Types (JObject)
 import qualified Data.Text as Text
 import qualified Language.Java as Java
@@ -25,13 +24,16 @@ data DatabaseOptions = DatabaseOptions
   , quiet :: Maybe Bool
   } deriving (Eq, Ord, Show, Generic)
 
+defaultDatabaseOptions :: DatabaseOptions
+defaultDatabaseOptions = DatabaseOptions Nothing Nothing Nothing
 
-databaseOptsToClojureMap :: DatabaseOptions -> IO JObject
-databaseOptsToClojureMap opts = do
-  compilerOpt <- convertOpt "compiler" $ opts ^. #compiler
-  languageOpt <- convertOpt "language" $ opts ^. #language
-  quietOpt <- convertOpt "quiet" $ opts ^. #quiet
-  ClojureMap.fromList $ compilerOpt <> languageOpt <> quietOpt
+prepDatabaseOpts :: DatabaseOptions -> IO [JObject]
+prepDatabaseOpts opts = do
+  a <- convertOpt "compiler" $ opts ^. #compiler
+  b <- convertOpt "language" $ opts ^. #language
+  c <- convertOpt "quiet" $ opts ^. #quiet
+  return $ a <> b <> c
+
 
 openDatabase' :: Maybe DatabaseOptions -> FilePath -> IO GhidraState
 openDatabase' mOpts fp = do
@@ -41,33 +43,30 @@ openDatabase' mOpts fp = do
   case mOpts of
     Nothing -> GhidraState <$> invoke openDb (coerce dbPath :: JObject)
     Just opts -> do
-      cljOpts <- databaseOptsToClojureMap opts
-      GhidraState <$> invoke openDb (coerce dbPath :: JObject) cljOpts
+      cljOpts <- prepDatabaseOpts opts
+      GhidraState <$> applyInvoke openDb ((coerce dbPath :: JObject) : cljOpts)
 
 openDatabase :: FilePath -> IO GhidraState
 openDatabase = openDatabase' Nothing
-
 
 data AnalyzeOptions = AnalyzeOptions
   { force :: Maybe Bool
   , quiet :: Maybe Bool
   } deriving (Eq, Ord, Show, Generic)
 
-analyzeOptsToClojureMap :: AnalyzeOptions -> IO JObject
-analyzeOptsToClojureMap opts = do
-  forceOpt <- convertOpt "force" $ opts ^. #force
-  quietOpt <- convertOpt "quiet" $ opts ^. #quiet
-  ClojureMap.fromList $ forceOpt <> quietOpt
+prepAnalyzeOpts :: AnalyzeOptions -> IO [JObject]
+prepAnalyzeOpts opts = do
+  a <- convertOpt "force" $ opts ^. #force
+  b <- convertOpt "quiet" $ opts ^. #quiet
+  return $ a <> b
 
-  
 analyze' :: Maybe AnalyzeOptions -> GhidraState -> IO GhidraState
 analyze' mOpts (GhidraState gs) = do
   requireModule
   let analyzeFn = unsafeDupablePerformIO $ varQual "ghidra-clojure.state" "analyze"
   GhidraState <$> case mOpts of
     Nothing -> invoke analyzeFn gs
-    Just opts -> invoke analyzeFn gs =<< analyzeOptsToClojureMap opts
-
+    Just opts -> applyInvoke analyzeFn . (gs:) =<< prepAnalyzeOpts opts
 
 analyze :: GhidraState -> IO GhidraState
 analyze = analyze' Nothing

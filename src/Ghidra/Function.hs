@@ -42,14 +42,14 @@ defaultGetFunctionsOptions = GetFunctionsOptions
   , thunks = Nothing
   }
 
-getFunctionsOptsToClojureMap :: GetFunctionsOptions -> IO JObject
-getFunctionsOptsToClojureMap opts = do
-  defaultsOpt <- convertOpt "defaults" $ opts ^. #defaults
-  externalOpt <- convertOpt "external" $ opts ^. #external
-  localOpt <- convertOpt "local" $ opts ^. #local
-  resolveThunksOpt <- convertOpt "resolveThunks" $ opts ^. #resolveThunks
-  thunksOpt <- convertOpt "thunks" $ opts ^. #thunks
-  ClojureMap.fromList $ defaultsOpt <> externalOpt <> localOpt <> resolveThunksOpt <> thunksOpt
+prepGetFunctionsOpts :: GetFunctionsOptions -> IO [JObject]
+prepGetFunctionsOpts opts = do
+  a <- convertOpt "defaults" $ opts ^. #defaults
+  b <- convertOpt "external" $ opts ^. #external
+  c <- convertOpt "local" $ opts ^. #local
+  d <- convertOpt "resolveThunks" $ opts ^. #resolveThunks
+  e <- convertOpt "thunks" $ opts ^. #thunks
+  return $ a <> b <> c <> d <> e
 
 getFunctions' :: Maybe GetFunctionsOptions -> GhidraState -> IO [Function]
 getFunctions' mOpts (GhidraState gs) = do
@@ -57,7 +57,7 @@ getFunctions' mOpts (GhidraState gs) = do
   let getFunctionsFn = unsafeDupablePerformIO $ varQual "ghidra-clojure.function" "get-functions"
   funcs <- case mOpts of
     Nothing -> invoke getFunctionsFn gs
-    Just opts -> invoke getFunctionsFn gs =<< getFunctionsOptsToClojureMap opts
+    Just opts -> applyInvoke getFunctionsFn . (gs:) =<< prepGetFunctionsOpts opts
   funcs' <- vec funcs >>= toList
   return $ Function <$> funcs'
 

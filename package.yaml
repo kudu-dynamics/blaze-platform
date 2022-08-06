@@ -1,4 +1,4 @@
-name:                ghidra-haskell
+name:                ghidra
 version:             0.1.0
 license:             BSD-2-Clause
 author:
@@ -91,7 +91,11 @@ library:
   exposed-modules:
     - Ghidra.Core
     - Ghidra.Function
+    - Ghidra.Prelude
+    - Ghidra.State
     - Language.Clojure
+    - Language.Clojure.Core
+    - Language.Clojure.Map
 
 
 include-dirs:
@@ -100,21 +104,21 @@ include-dirs:
   - "res/bridge"
   - "/usr/lib/jvm/java-11-openjdk-amd64/include"
 
-# tests:
-#   binja-test:
-#     main: Spec.hs
-#     source-dirs:
-#     - test
-#     ghc-options:
-#     - -Wall
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     - -j4
-#     - -O2
-#     extra-libraries: binaryninjacore
-#     dependencies:
-#     - containers
-#     - binaryninja
-#     - hspec
-#     - text
+tests:
+  binja-test:
+    main: Spec.hs
+    source-dirs:
+    - test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -j4
+    - -O2
+    extra-libraries: jvm
+    dependencies:
+    - containers
+    - ghidra
+    - hspec
+    - text

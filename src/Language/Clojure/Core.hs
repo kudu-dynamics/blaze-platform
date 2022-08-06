@@ -3,7 +3,7 @@
 
 module Language.Clojure.Core where
 
-import Prelude
+import Ghidra.Prelude hiding (toList, first)
 
 import Control.Concurrent
 import Control.Monad.Reader
@@ -12,12 +12,16 @@ import Data.Coerce
 import Data.Text (Text)
 import qualified Data.Text.IO as Text
 import Foreign (Int64)
+import qualified Foreign.JNI as JNI
 import qualified Foreign.JNI.Types as JNIT
 import Foreign.JNI.Types (JObject)
-import System.IO.Unsafe (unsafeDupablePerformIO)
+import System.IO.Unsafe (unsafeDupablePerformIO, unsafePerformIO)
 import qualified Language.Java as Java
 import Language.Java (J, VariadicIO)
 import qualified Data.ByteString as BS
+import System.IO.Memoize (once)
+import Control.Concurrent.STM.TMVar
+import Prelude.Singletons (Sing, SingI(sing), SomeSing(..))
 
 
 type JBool = J ('Java.Class "java.lang.Boolean")
@@ -40,8 +44,30 @@ mkClojureOpts nonClojureJars =
 toString :: Coercible a JObject => a -> IO Text
 toString x = Java.call (coerce x :: JObject) "toString" >>= Java.reify
 
+previousNonClojureJars :: TMVar [ByteString]
+previousNonClojureJars = unsafePerformIO newEmptyTMVarIO
+
+
+-- | You can only call Java.withJVM once in the life of a program, for some reason,
+-- according to the tweag jvm lib docs.
+-- So we just start it and never stop it. If the opts change, we throw an error.
+withJVM :: [ByteString] -> IO a -> IO a
+withJVM nonClojureJars action = do
+  pjars <- atomically $ isEmptyTMVar previousNonClojureJars >>= \case
+    False -> readTMVar previousNonClojureJars
+    True -> do
+      putTMVar previousNonClojureJars nonClojureJars
+      return nonClojureJars
+  if pjars == nonClojureJars
+    then join . once $ newJVM_
+    else error "withJVM: options changed" -- see doc above
+  action
+  where
+    newJVM_ :: IO ()
+    newJVM_ = void $ JNI.newJVM (mkClojureOpts nonClojureJars)
+
 runClojure :: [ByteString] -> IO a -> IO a
-runClojure nonClojureJars = runInBoundThread . Java.withJVM (mkClojureOpts nonClojureJars)
+runClojure nonClojureJars = runInBoundThread . withJVM (mkClojureOpts nonClojureJars)
 
 printObj :: JObject -> IO ()
 printObj = Text.putStrLn <=< toString
@@ -76,6 +102,9 @@ readEval s = do
 toClojureString :: Text -> IO JObject
 toClojureString t = readEdn $ "\"" <> t <> "\""
 
+nil :: IO JObject
+nil = unsafePerformIO . once $ readEval "nil"  
+
 isNil :: JObject -> IO JObject
 isNil x = do
   let fn = unsafeDupablePerformIO $ varQual "clojure.core" "nil?"
@@ -99,6 +128,16 @@ invoke
      , VariadicIO f a
      ) => IFn -> f
 invoke fn = Java.call fn "invoke"
+
+applyInvoke :: IFn -> [JObject] -> IO JObject
+applyInvoke fn args
+  = fmap Java.unsafeUncoerce
+  $ Java.callToJValue
+      (JNIT.SClass "java.lang.Object")
+      fn
+      "invoke"
+      (take (length args) . repeat $ SomeSing (sing :: Sing ('JNIT.Class "java/lang/Object")))
+      (JNIT.JObject <$> args)
 
 -- invokeFunc
 --   :: forall a f sym.
