@@ -69,13 +69,13 @@ lex :: MonadParsec e Text m => m a -> m a
 lex = L.lexeme space
 
 binl :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
-binl p f = InfixL (lex p $> (\x y -> f x y 8))
+binl p f = InfixL (lex p $> (\x y -> f x y 4))
 
 binr :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
-binr p f = InfixR (lex p $> (\x y -> f x y 8))
+binr p f = InfixR (lex p $> (\x y -> f x y 4))
 
 binn :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
-binn p f = InfixN (lex p $> (\x y -> f x y 8))
+binn p f = InfixN (lex p $> (\x y -> f x y 4))
 
 -- NOTE if any of these characters get introduced elsewhere in the grammar,
 -- they _might_ need to be removed as valid identifier characters. Prefix
@@ -125,9 +125,9 @@ parseTerm :: Parser Expression
 parseTerm =
   choice
     [ between (lex "(") (lex ")") parseExpr
-    , (\x -> C.load x 8) <$> between (lex "[") (lex "]") parseExpr
-    , (\v -> C.var' v 8) <$> parseVar
-    , (\n -> C.const (fromIntegral n) 8) <$> parseInt
+    , (\x -> C.load x 4) <$> between (lex "[") (lex "]") parseExpr
+    , (\v -> C.var' v 4) <$> parseVar
+    , (\n -> C.const (fromIntegral n) 4) <$> parseInt
     ]
 
 parseExpr :: Parser Expression
@@ -154,7 +154,7 @@ parseExpr =
       , binn "s<" C.cmpSlt
       ]
     ,
-      [ Prefix (foldr1 (.) <$> some (lex "!" $> (\x -> C.not x 8)))
+      [ Prefix (foldr1 (.) <$> some (lex "!" $> (\x -> C.not x 4)))
       ]
     ,
       [ binr "&&" C.and

@@ -170,51 +170,51 @@ spec = do
 
   describe "parseExpr" $ do
     it "respects associativity" $ do
-      testpPretty bc parseExpr "1 + 2 + 3 + 4" $ foldl1 (\x y -> C.add x y 8) (flip C.const 8 <$> [1, 2, 3, 4])
-      testpPretty bc parseExpr "1 - 2 - 3 - 4" $ foldl1 (\x y -> C.sub x y 8) (flip C.const 8 <$> [1, 2, 3, 4])
+      testpPretty bc parseExpr "1 + 2 + 3 + 4" $ foldl1 (\x y -> C.add x y 4) (flip C.const 4 <$> [1, 2, 3, 4])
+      testpPretty bc parseExpr "1 - 2 - 3 - 4" $ foldl1 (\x y -> C.sub x y 4) (flip C.const 4 <$> [1, 2, 3, 4])
       testpPretty bc parseExpr "1 - 2 + 3 - 4 + 5" $
         C.add
           ( C.sub
               ( C.add
                   ( C.sub
-                      (C.const 1 8)
-                      (C.const 2 8)
-                      8
+                      (C.const 1 4)
+                      (C.const 2 4)
+                      4
                   )
-                  (C.const 3 8)
-                  8
+                  (C.const 3 4)
+                  4
               )
-              (C.const 4 8)
-              8
+              (C.const 4 4)
+              4
           )
-          (C.const 5 8)
-          8
-      testpPretty bc parseExpr "1 * 2 * 3 * 4" $ foldl1 (\x y -> C.mul x y 8) (flip C.const 8 <$> [1, 2, 3, 4])
+          (C.const 5 4)
+          4
+      testpPretty bc parseExpr "1 * 2 * 3 * 4" $ foldl1 (\x y -> C.mul x y 4) (flip C.const 4 <$> [1, 2, 3, 4])
       failpPretty bc parseExpr "x == y == z"
       failpPretty bc parseExpr "x != y == z"
-      testpPretty bc parseExpr "! ! ! 1" $ C.not (C.not (C.not (C.const 1 8) 8) 8) 8
-      testpPretty bc parseExpr "1 && 2 && 3 && 4" $ foldr1 (\x y -> C.and x y 8) (flip C.const 8 <$> [1, 2, 3, 4])
-      testpPretty bc parseExpr "1 || 2 || 3 || 4" $ foldr1 (\x y -> C.or x y 8) (flip C.const 8 <$> [1, 2, 3, 4])
+      testpPretty bc parseExpr "! ! ! 1" $ C.not (C.not (C.not (C.const 1 4) 4) 4) 4
+      testpPretty bc parseExpr "1 && 2 && 3 && 4" $ foldr1 (\x y -> C.and x y 4) (flip C.const 4 <$> [1, 2, 3, 4])
+      testpPretty bc parseExpr "1 || 2 || 3 || 4" $ foldr1 (\x y -> C.or x y 4) (flip C.const 4 <$> [1, 2, 3, 4])
     it "respects precedence" $ do
       testpPretty bc parseExpr "1 + 2 * 3 - 4" $
-        C.sub (C.add (C.const 1 8) (C.mul (C.const 2 8) (C.const 3 8) 8) 8) (C.const 4 8) 8
+        C.sub (C.add (C.const 1 4) (C.mul (C.const 2 4) (C.const 3 4) 4) 4) (C.const 4 4) 4
       testpPretty bc parseExpr "1 == 2 * 3" $
-        C.cmpE (C.const 1 8) (C.mul (C.const 2 8) (C.const 3 8) 8) 8
+        C.cmpE (C.const 1 4) (C.mul (C.const 2 4) (C.const 3 4) 4) 4
       testpPretty bc parseExpr "2 * 3 == 1" $
-        C.cmpE (C.mul (C.const 2 8) (C.const 3 8) 8) (C.const 1 8) 8
+        C.cmpE (C.mul (C.const 2 4) (C.const 3 4) 4) (C.const 1 4) 4
       testpPretty bc parseExpr "!!1==2" $
-        C.not (C.not (C.cmpE (C.const 1 8) (C.const 2 8) 8) 8) 8
+        C.not (C.not (C.cmpE (C.const 1 4) (C.const 2 4) 4) 4) 4
       testpPretty bc parseExpr "!!1==2&&!!1==2" $
         C.and
-          (C.not (C.not (C.cmpE (C.const 1 8) (C.const 2 8) 8) 8) 8)
-          (C.not (C.not (C.cmpE (C.const 1 8) (C.const 2 8) 8) 8) 8)
-          8
+          (C.not (C.not (C.cmpE (C.const 1 4) (C.const 2 4) 4) 4) 4)
+          (C.not (C.not (C.cmpE (C.const 1 4) (C.const 2 4) 4) 4) 4)
+          4
       testpPretty bc parseExpr "1&&2||3&&4" $
-        C.or (C.and (C.const 1 8) (C.const 2 8) 8) (C.and (C.const 3 8) (C.const 4 8) 8) 8
+        C.or (C.and (C.const 1 4) (C.const 2 4) 4) (C.and (C.const 3 4) (C.const 4 4) 4) 4
       testpPretty bc parseExpr "1&&[2||3]&&4" $
-        C.and (C.const 1 8) (C.and (C.load (C.or (C.const 2 8) (C.const 3 8) 8) 8) (C.const 4 8) 8) 8
+        C.and (C.const 1 4) (C.and (C.load (C.or (C.const 2 4) (C.const 3 4) 4) 4) (C.const 4 4) 4) 4
 
     it "unambiguously parses expressions involving symbols with weird characters" $ do
       let weirdSym1 = "a_1#b'2$c:d.4!e~5"
-          weirdVar1 = C.var weirdSym1 8
-      testpPretty bc parseExpr ("!" <> weirdSym1 <> "||!a") $ C.or (C.not weirdVar1 8) (C.not (C.var "a" 8) 8) 8
+          weirdVar1 = C.var weirdSym1 4
+      testpPretty bc parseExpr ("!" <> weirdSym1 <> "||!a") $ C.or (C.not weirdVar1 4) (C.not (C.var "a" 4) 4) 4
