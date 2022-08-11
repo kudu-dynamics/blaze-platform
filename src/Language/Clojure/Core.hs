@@ -121,7 +121,6 @@ vec ls = do
   let fn = unsafeDupablePerformIO $ varQual "clojure.core" "vec"
   invoke fn ls
 
-
 invoke
   :: forall a f.
      ( Java.Coercible a
@@ -176,7 +175,7 @@ first coll = do
 
 rest :: JObject -> IO JObject
 rest coll = do
-  let fn = unsafeDupablePerformIO $ varQual "clojure.core" "first"
+  let fn = unsafeDupablePerformIO $ varQual "clojure.core" "rest"
   invoke fn coll
 
 toList :: JObject -> IO [JObject]

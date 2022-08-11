@@ -58,7 +58,11 @@ getFunctions' mOpts (GhidraState gs) = do
   funcs <- case mOpts of
     Nothing -> invoke getFunctionsFn gs
     Just opts -> applyInvoke getFunctionsFn . (gs:) =<< prepGetFunctionsOpts opts
-  funcs' <- vec funcs >>= toList
+  vfuncs <- vec funcs
+  putText "Here1"
+  funcs' <- toList vfuncs
+  putText "here2"
+  -- funcs' <- vec funcs >>= toList
   return $ Function <$> funcs'
 
 getFunctions :: GhidraState -> IO [Function]
