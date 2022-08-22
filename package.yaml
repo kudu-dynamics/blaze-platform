@@ -91,7 +91,10 @@ library:
   exposed-modules:
     - Ghidra.Core
     - Ghidra.Function
+    - Ghidra.Instruction
     - Ghidra.Prelude
+    - Ghidra.Program
+    - Ghidra.Reference
     - Ghidra.State
     - Language.Clojure
     - Language.Clojure.Core
@@ -105,7 +108,7 @@ include-dirs:
   - "/usr/lib/jvm/java-11-openjdk-amd64/include"
 
 tests:
-  binja-test:
+  ghidra-test:
     main: Spec.hs
     source-dirs:
     - test

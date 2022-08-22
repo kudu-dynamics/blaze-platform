@@ -44,6 +44,14 @@ mkClojureOpts nonClojureJars =
 toString :: Coercible a JObject => a -> IO Text
 toString x = Java.call (coerce x :: JObject) "toString" >>= Java.reify
 
+showClass :: JObject -> IO Text
+showClass = toString <=< getClass
+
+getClass :: JObject -> IO JObject
+getClass x = do
+  let fn = unsafeDupablePerformIO $ varQual "clojure.core" "class"
+  invoke fn x
+  
 previousNonClojureJars :: TMVar [ByteString]
 previousNonClojureJars = unsafePerformIO newEmptyTMVarIO
 
@@ -71,6 +79,11 @@ runClojure nonClojureJars = runInBoundThread . withJVM (mkClojureOpts nonClojure
 
 printObj :: JObject -> IO ()
 printObj = Text.putStrLn <=< toString
+
+plus :: [JObject] -> IO JObject
+plus xs = do
+  let fn = unsafeDupablePerformIO $ varQual "clojure.core" "+"
+  applyInvoke fn xs
 
 testClojure :: IO ()
 testClojure = do

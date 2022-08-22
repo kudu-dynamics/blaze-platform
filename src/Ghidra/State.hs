@@ -1,14 +1,16 @@
 module Ghidra.State where
 
-import Ghidra.Prelude hiding (force)
+import Ghidra.Prelude hiding (force, get)
 
 import Language.Clojure
 import Foreign.JNI.Types (JObject)
 import qualified Data.Text as Text
 import qualified Language.Java as Java
 import System.IO.Memoize (once)
-import qualified Language.Clojure.Map as ClojureMap
+import Ghidra.Program (Program)
 import Ghidra.Util (convertOpt)
+import Ghidra.Types (Address, FlatDecompilerAPI, TaskMonitor)
+import qualified Data.BinaryAnalysis as BA
 
 requireModule :: IO ()
 requireModule = unsafePerformIO . once $ do
@@ -33,7 +35,6 @@ prepDatabaseOpts opts = do
   b <- convertOpt "language" $ opts ^. #language
   c <- convertOpt "quiet" $ opts ^. #quiet
   return $ a <> b <> c
-
 
 openDatabase' :: Maybe DatabaseOptions -> FilePath -> IO GhidraState
 openDatabase' mOpts fp = do
@@ -70,3 +71,33 @@ analyze' mOpts (GhidraState gs) = do
 
 analyze :: GhidraState -> IO GhidraState
 analyze = analyze' Nothing
+
+getProgram :: GhidraState -> IO Program
+getProgram (GhidraState gs) = do
+  k <- keyword "program"
+  coerce <$> get gs k
+
+getFlatDecompilerAPI :: GhidraState -> IO FlatDecompilerAPI
+getFlatDecompilerAPI (GhidraState gs) = do
+  k <- keyword "flat-dec-api"
+  coerce <$> get gs k
+
+getTaskMonitor :: GhidraState -> IO TaskMonitor
+getTaskMonitor (GhidraState gs) = do
+  k <- keyword "task-monitor"
+  coerce <$> get gs k
+
+-- | Adds address to image base.
+-- Only use this with PIE binaries.
+mkAddressBased :: GhidraState -> BA.Address -> IO Address
+mkAddressBased gs addr = do
+  prg <- getProgram gs
+  baseAddr :: Address <- Java.call prg "getImageBase"
+  Java.call baseAddr "add" (fromIntegral addr :: Int64)
+
+-- | Makes a new address
+mkAddress :: GhidraState -> BA.Address -> IO Address
+mkAddress gs addr = do
+  prg <- getProgram gs
+  baseAddr :: Address <- Java.call prg "getImageBase"
+  Java.call baseAddr "getNewAddress" (fromIntegral addr :: Int64)

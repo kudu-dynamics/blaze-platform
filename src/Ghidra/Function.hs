@@ -1,14 +1,22 @@
-module Ghidra.Function where
+{-# LANGUAGE DataKinds #-}
+module Ghidra.Function
+  ( module Ghidra.Function
+  , Function(..)
+  ) where
 
 import Ghidra.Prelude hiding (toList)
 
 import Language.Clojure
 import System.IO.Memoize (once)
 import Foreign.JNI.Types (JObject)
+import qualified Data.BinaryAnalysis as BA
+import qualified Ghidra.Program as Program
 import Ghidra.State (GhidraState(GhidraState))
+import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Util (convertOpt)
-import qualified Language.Clojure.Map as ClojureMap
+import Language.Java (J)
+import Ghidra.Types
 
 
 requireModule :: IO ()
@@ -16,14 +24,20 @@ requireModule = unsafePerformIO . once $ do
   _ <- readEval "(require (quote [ghidra-clojure.function]))"
   return ()
 
-newtype Function = Function JObject
+type Function = J ('Java.Class "ghidra.program.model.listing.Function")
 
-fromAddr :: Address -> GhidraState -> IO Function
-fromAddr addr (GhidraState gs) = do
+type HighFunction = J ('Java.Class "ghidra.program.model.pcode.HighFunction")
+
+instance Addressable Function where
+  toAddr fn = Java.call fn "getEntryPoint"
+  toAddrSet fn = Java.call fn "getBody"
+
+fromAddr :: GhidraState -> Address -> IO (Maybe Function)
+fromAddr (GhidraState gs) addr = do
   requireModule
   let fn = unsafeDupablePerformIO $ varQual "ghidra-clojure.function" "from-addr"
-  addr' :: JObject <- coerce <$> Java.reflect (fromIntegral addr :: Int64)
-  Function <$> invoke fn addr' gs
+  r <- invoke fn (coerce addr :: JObject) gs
+  isNil' r >>= return . bool (Just . coerce $ r) Nothing
 
 data GetFunctionsOptions = GetFunctionsOptions
   { defaults :: Maybe Bool
@@ -57,13 +71,37 @@ getFunctions' mOpts (GhidraState gs) = do
   let getFunctionsFn = unsafeDupablePerformIO $ varQual "ghidra-clojure.function" "get-functions"
   funcs <- case mOpts of
     Nothing -> invoke getFunctionsFn gs
-    Just opts -> applyInvoke getFunctionsFn . (gs:) =<< prepGetFunctionsOpts opts
-  vfuncs <- vec funcs
-  putText "Here1"
-  funcs' <- toList vfuncs
-  putText "here2"
-  -- funcs' <- vec funcs >>= toList
-  return $ Function <$> funcs'
+    Just opts -> do
+      -- TODO: Function opts seem not to work
+      opts' <- prepGetFunctionsOpts opts
+      mapM_ (\x -> do
+                toString x >>= putText
+                showClass x >>= putText
+            ) opts'
+      applyInvoke getFunctionsFn $ gs : opts'
+  funcs' <- vec funcs >>= toList
+  return $ coerce <$> funcs'
 
 getFunctions :: GhidraState -> IO [Function]
 getFunctions = getFunctions' Nothing
+
+-- | This is expensive and should be performed only once per function.
+decompileFunction :: GhidraState -> Function -> IO DecompilerResults
+decompileFunction gs fn = do
+  flatDecAPI <- State.getFlatDecompilerAPI gs
+  _ :: () <-  Java.call flatDecAPI "initialize"
+  ifc :: DecompInterface <- Java.call flatDecAPI "getDecompiler"
+  mon <- State.getTaskMonitor gs
+  res :: DecompilerResults <- Java.call ifc "decompileFunction" fn (0 :: Int32) mon
+  finished <- Java.call res "decompileCompleted"
+  if finished
+    then return res
+    else error "Could not decompile function"
+  
+getHighFunction :: GhidraState -> Function -> IO HighFunction
+getHighFunction gs fn = do
+  r <- decompileFunction gs fn
+  Java.call r "getHighFunction"
+
+getName :: Function -> IO Text
+getName fn = Java.call fn "getName" >>= Java.reify
