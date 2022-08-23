@@ -92,6 +92,7 @@ library:
     - Ghidra.Core
     - Ghidra.Function
     - Ghidra.Instruction
+    - Ghidra.Pcode
     - Ghidra.Prelude
     - Ghidra.Program
     - Ghidra.Reference

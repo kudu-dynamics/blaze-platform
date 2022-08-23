@@ -17,6 +17,8 @@ type FlatDecompilerAPI = J ('Java.Class "ghidra.app.decompiler.flatapi.FlatDecom
 type DecompInterface = J ('Java.Class "ghidra.app.decompiler.DecompInterface")
 type TaskMonitor = J ('Java.Class "ghidra.util.task.TaskMonitor")
 type DecompilerResults = J ('Java.Class "ghidra.app.decompiler.DecompileResults")
+type Iterator a = J ('Java.Class "java.util.Iterator")
+
 
 class Addressable a where
   toAddr :: a -> IO Address
