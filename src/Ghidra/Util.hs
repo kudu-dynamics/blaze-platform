@@ -6,6 +6,8 @@ import Language.Clojure
 import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
 import Ghidra.Types (Iterator)
+import Language.Java (J)
+import qualified Foreign.JNI.Types as JNIT
 
 -- | returns a [key, val] list, to be used with invokeApply
 convertOpt
@@ -26,3 +28,9 @@ iteratorToList it = do
     True -> do
       x :: JObject <- Java.call it "next"
       (coerce x:) <$> iteratorToList it
+
+isJNull :: J a -> Bool
+isJNull x = x == JNIT.jnull
+
+maybeNull :: J a -> Maybe (J a)
+maybeNull x = bool Nothing (Just x) $ isJNull x

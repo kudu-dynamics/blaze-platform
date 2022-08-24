@@ -10,14 +10,22 @@ import qualified Foreign.JNI.Types as JNIT
 -- newtype AddressSet = AddressSet (J ('Java.Class "ghidra.program.model.address.AddressSet"))
 
 type Address = J ('Java.Class "ghidra.program.model.address.Address")
-type AddressSet = J ('Java.Class "ghidra.program.model.address.AddressSetView")
 type AddressIterator = J ('Java.Class "ghidra.program.model.address.AddressIterator")
-type Listing = J ('Java.Class "ghidra.program.model.listing.Listing")
-type FlatDecompilerAPI = J ('Java.Class "ghidra.app.decompiler.flatapi.FlatDecompilerAPI")
+type AddressSet = J ('Java.Class "ghidra.program.model.address.AddressSetView")
 type DecompInterface = J ('Java.Class "ghidra.app.decompiler.DecompInterface")
-type TaskMonitor = J ('Java.Class "ghidra.util.task.TaskMonitor")
 type DecompilerResults = J ('Java.Class "ghidra.app.decompiler.DecompileResults")
+type FlatDecompilerAPI = J ('Java.Class "ghidra.app.decompiler.flatapi.FlatDecompilerAPI")
+type Function = J ('Java.Class "ghidra.program.model.listing.Function")
+type HighFunction = J ('Java.Class "ghidra.program.model.pcode.HighFunction")
+type Instruction = J ('Java.Class "ghidra.program.model.listing.Instruction")
+type InstructionIterator = J ('Java.Class "ghidra.program.model.listing.InstructionIterator")
 type Iterator a = J ('Java.Class "java.util.Iterator")
+type Listing = J ('Java.Class "ghidra.program.model.listing.Listing")
+type PcodeOp = J ('Java.Class "ghidra.program.model.pcode.PcodeOp")
+type PcodeOpAST = J ('Java.Class "ghidra.program.model.pcode.PcodeOpAST")
+type TaskMonitor = J ('Java.Class "ghidra.util.task.TaskMonitor")
+type VarNode = J ('Java.Class "ghidra.program.model.pcode.Varnode")
+type VarNodeAST = J ('Java.Class "ghidra.program.model.pcode.VarnodeAST")
 
 
 class Addressable a where
@@ -42,8 +50,10 @@ toAddrs x = do
   s <- toAddrSet x
   Java.call s "getAddresses" True >>= addressIteratorToList
 
-isJNull :: J a -> Bool
-isJNull x = x == JNIT.jnull
+instance Addressable Instruction where
+  toAddr x = Java.call x "getAddress"
+  toAddrSet = Java.new <=< toAddr
 
-maybeNull :: J a -> Maybe (J a)
-maybeNull x = bool Nothing (Just x) $ isJNull x
+instance Addressable Function where
+  toAddr fn = Java.call fn "getEntryPoint"
+  toAddrSet fn = Java.call fn "getBody"

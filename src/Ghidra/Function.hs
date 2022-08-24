@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 module Ghidra.Function
   ( module Ghidra.Function
-  , Function(..)
+  , Function
+  , HighFunction
   ) where
 
 import Ghidra.Prelude hiding (toList)
@@ -9,13 +10,10 @@ import Ghidra.Prelude hiding (toList)
 import Language.Clojure
 import System.IO.Memoize (once)
 import Foreign.JNI.Types (JObject)
-import qualified Data.BinaryAnalysis as BA
-import qualified Ghidra.Program as Program
 import Ghidra.State (GhidraState(GhidraState))
 import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Util (convertOpt)
-import Language.Java (J)
 import Ghidra.Types
 
 
@@ -23,14 +21,6 @@ requireModule :: IO ()
 requireModule = unsafePerformIO . once $ do
   _ <- readEval "(require (quote [ghidra-clojure.function]))"
   return ()
-
-type Function = J ('Java.Class "ghidra.program.model.listing.Function")
-
-type HighFunction = J ('Java.Class "ghidra.program.model.pcode.HighFunction")
-
-instance Addressable Function where
-  toAddr fn = Java.call fn "getEntryPoint"
-  toAddrSet fn = Java.call fn "getBody"
 
 fromAddr :: GhidraState -> Address -> IO (Maybe Function)
 fromAddr (GhidraState gs) addr = do
