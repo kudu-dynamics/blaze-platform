@@ -1,11 +1,12 @@
 {-# LANGUAGE DataKinds #-}
 module Ghidra.Variable
   ( module Ghidra.Variable
-  , VarType
-  , VarNode
+  , DataType
+  , HighVarNode
   , HighVariable
   , HighVariableType
-  , DataType
+  , VarNode
+  , VarType
   ) where
 
 import Ghidra.Prelude hiding (toList, Const(Const), DataType, mkDataType)
@@ -64,4 +65,10 @@ mkHighVariable hv = do
     , size = fromIntegral sz
     , highVariableType = hvt
     }
+
+mkHighVarNode :: J.VarNodeAST -> IO HighVarNode
+mkHighVarNode v = do
+  sz :: Int32 <- Java.call v "getSize"
+  hv <- Java.call v "getHigh" >>= mkHighVariable
+  HighVarNode <$> mkVarType (coerce v) <*> pure (fromIntegral sz) <*> pure hv
 

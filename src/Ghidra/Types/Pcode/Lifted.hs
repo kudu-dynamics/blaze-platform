@@ -5,6 +5,15 @@ import Ghidra.Prelude hiding (toList)
 
 import qualified Ghidra.Types as J
 import Ghidra.Variable (HighVariable, VarNode)
+import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address)
+
+data ParserCtx = ParserCtx
+  { addressSpaces :: HashMap AddressSpaceId AddressSpace
+  } deriving (Eq, Ord, Show, Generic)
+  
+-- Lifts pcode into pure Haskell types
+newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
+  deriving newtype (Functor, Applicative, Monad)
 
 newtype Output a = Output a
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
@@ -12,18 +21,25 @@ newtype Output a = Output a
 newtype Input a = Input a
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
+type Offset = Int64
+
+data Destination
+  = Absolute Address
+  | Relative Offset
+  deriving (Eq, Ord, Show, Generic)
+
 data PcodeOp a
   = BOOL_AND (Output a) (Input a) (Input a)
   | BOOL_NEGATE (Output a) (Input a) 
   | BOOL_OR (Output a) (Input a) (Input a)
   | BOOL_XOR (Output a) (Input a) (Input a)
-  | BRANCH (Input a)
+  | BRANCH (Input Destination)
   | BRANCHIND (Input a)
-  | CALL (Input a) [Input a]
+  | CALL (Input Destination) [Input a]
   | CALLIND (Input a) [Input a]
   | CALLOTHER (Input a) [Input a] -- Can't find this in the docs
   | CAST (Output a) (Input a)
-  | CBRANCH (Input a) (Input a)
+  | CBRANCH (Input Destination) (Input a)
   | COPY (Output a) (Input a) (Input a)
   | CPOOLRE (Output a) (Input a) (Input a) [Input a]
   | EXTRACT (Output a) (Input a) (Input a) -- NOT in docs. guessing
@@ -73,7 +89,7 @@ data PcodeOp a
   | INT_SUB (Output a) (Input a) (Input a)
   | INT_XOR (Output a) (Input a) (Input a)
   | INT_ZEXT (Output a) (Input a)
-  | LOAD (Output a) (Input a) (Input a)
+  | LOAD (Output a) (Input AddressSpace) (Input a)
   | MULTIEQUAL (Output a) (Input a) (Input a) [Input a]
   | NEW (Output a) (Input a) [Input a]
   | PCODE_MAX -- unknown
@@ -82,8 +98,8 @@ data PcodeOp a
   | PTRADD (Output a) (Input a) (Input a) (Input a)
   | PTRSUB (Output a) (Input a) (Input a)
   | RETURN (Input a) [Input a]
-  | SEGMENTOP -- unknown
-  | STORE (Input a) (Input a) (Input a)
-  | SUBPIECE (Output a) (Input a) (Input a)
+  | SEGMENTOP -- unknowng
+  | STORE (Input AddressSpace) (Input a) (Input a)
+  | SUBPIECE (Output a) (Input Int64) (Input a)
   | UNIMPLEMENTED
   deriving (Eq, Ord, Show, Generic)

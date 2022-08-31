@@ -4,7 +4,7 @@ module Ghidra.Types.Pcode where
 import Ghidra.Prelude hiding (toList)
 
 import qualified Ghidra.Types as J
-import Ghidra.Variable (HighVariable, VarNode)
+import Ghidra.Variable (HighVarNode, VarNode)
 
 
 data PcodeInstruction a = PcodeInstruction
@@ -19,7 +19,7 @@ type BareHighPcodeInstruction = PcodeInstruction J.VarNodeAST
 
 type RawPcodeInstruction = PcodeInstruction VarNode
 
-type HighPcodeInstruction = PcodeInstruction HighVariable
+type HighPcodeInstruction = PcodeInstruction HighVarNode
 
 data BarePcodeOp
   = BOOL_AND

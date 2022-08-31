@@ -16,9 +16,11 @@ import Ghidra.Types.Pcode ( BareHighPcodeInstruction
                           , BarePcodeOp
                           , RawPcodeInstruction
                           , HighPcodeInstruction
+                          , BarePcodeOp(..)
                           )
 import qualified Ghidra.Variable as Var
-import Ghidra.Variable (HighVariable)
+import qualified Ghidra.Types.Pcode.Lifted as L
+import Ghidra.Types.Pcode.Lifted (PcodeOp)
 
 
 getPcode :: J.Instruction -> IO [J.PcodeOp]
@@ -61,10 +63,85 @@ mkBareHighPcodeInstruction x = PcodeInstruction
   <*> (Java.call x "getInputs" >>= Java.reify)
 
 mkHighPcodeInstruction :: BareHighPcodeInstruction -> IO HighPcodeInstruction
-mkHighPcodeInstruction = traverse f
-  where
-    f :: J.VarNodeAST -> IO HighVariable
-    f v = Java.call v "getHigh" >>= Var.mkHighVariable
+mkHighPcodeInstruction = traverse Var.mkHighVarNode
 
 mkRawPcodeInstruction :: BareRawPcodeInstruction -> IO RawPcodeInstruction
 mkRawPcodeInstruction = traverse Var.mkVarNode
+
+-- runPcodeParser :: Parser a -> ParserCtx -> IO (P
+
+liftPcodeInstruction :: PcodeInstruction a -> Maybe (PcodeOp a)
+liftPcodeInstruction x = case x ^. #op of
+  BOOL_AND -> undefined -- L.BOOL_AND <$> out x <*> 
+  BOOL_NEGATE -> undefined
+  BOOL_OR -> undefined
+  BOOL_XOR -> undefined
+  BRANCH -> undefined
+  BRANCHIND -> undefined
+  CALL -> undefined
+  CALLIND -> undefined
+  CALLOTHER -> undefined
+  CAST -> undefined
+  CBRANCH -> undefined
+  COPY -> undefined
+  CPOOLREF -> undefined
+  EXTRACT -> undefined
+  FLOAT_ABS -> undefined
+  FLOAT_ADD -> undefined
+  FLOAT_CEIL -> undefined
+  FLOAT_DIV -> undefined
+  FLOAT_EQUAL -> undefined
+  FLOAT_FLOAT2FLOAT -> undefined
+  FLOAT_FLOOR -> undefined
+  FLOAT_INT2FLOAT -> undefined
+  FLOAT_LESS -> undefined
+  FLOAT_LESSEQUAL -> undefined
+  FLOAT_MULT -> undefined
+  FLOAT_NAN -> undefined
+  FLOAT_NEG -> undefined
+  FLOAT_NOTEQUAL -> undefined
+  FLOAT_ROUND -> undefined
+  FLOAT_SQRT -> undefined
+  FLOAT_SUB -> undefined
+  FLOAT_TRUNC -> undefined
+  INDIRECT -> undefined
+  INSERT -> undefined
+  INT_2COMP -> undefined
+  INT_ADD -> undefined
+  INT_AND -> undefined
+  INT_CARRY -> undefined
+  INT_DIV -> undefined
+  INT_EQUAL -> undefined
+  INT_LEFT -> undefined
+  INT_LESS -> undefined
+  INT_LESSEQUAL -> undefined
+  INT_MULT -> undefined
+  INT_NEGATE -> undefined
+  INT_NOTEQUAL -> undefined
+  INT_OR -> undefined
+  INT_REM -> undefined
+  INT_RIGHT -> undefined
+  INT_SBORROW -> undefined
+  INT_SCARRY -> undefined
+  INT_SDIV -> undefined
+  INT_SEXT -> undefined
+  INT_SLESS -> undefined
+  INT_SLESSEQUAL -> undefined
+  INT_SREM -> undefined
+  INT_SRIGHT -> undefined
+  INT_SUB -> undefined
+  INT_XOR -> undefined
+  INT_ZEXT -> undefined
+  LOAD -> undefined
+  MULTIEQUAL -> undefined
+  NEW -> undefined
+  PCODE_MAX -> undefined
+  PIECE -> undefined
+  POPCOUNT -> undefined
+  PTRADD -> undefined
+  PTRSUB -> undefined
+  RETURN -> undefined
+  SEGMENTOP -> undefined
+  STORE -> undefined
+  SUBPIECE -> undefined
+  UNIMPLEMENTED -> undefined

@@ -16,7 +16,6 @@ data VarNode = VarNode
   , size :: Bytes
   } deriving (Eq, Ord, Show, Generic)
 
-
 data HighVariableType
   = HighConstant Int64
   | HighGlobal
@@ -32,4 +31,10 @@ data HighVariable = HighVariable
   , symbol :: Text
   , size :: Bytes
   , highVariableType :: HighVariableType
+  } deriving (Eq, Ord, Show, Generic)
+
+data HighVarNode = HighVarNode
+  { varType :: VarType
+  , size :: Bytes
+  , highVariable :: HighVariable
   } deriving (Eq, Ord, Show, Generic)
