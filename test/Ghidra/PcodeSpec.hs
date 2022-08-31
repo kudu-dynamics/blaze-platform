@@ -4,10 +4,11 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import Ghidra.Function (Function)
-import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps)
+import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps, mkRawPcodeInstruction, mkBareRawPcodeInstruction)
+import Ghidra.Types.Pcode
+import Ghidra.Types.Variable
+import Ghidra.Types.Address
 import Ghidra.Core
-import qualified Language.Java as Java
 import Language.Clojure.Core
 import Test.Hspec
 
@@ -26,7 +27,7 @@ spec = describe "Ghidra.Pcode" $ do
     when b $ error "Couldn't open a1"
     return gs
   
-  context "getRawPcodeOps" $ do
+  context "getRawPcode" $ do
     let faddr = 0x13ad
     raws <- runIO . runGhidra $ do
       faddr' <- State.mkAddressBased gs faddr
@@ -36,7 +37,34 @@ spec = describe "Ghidra.Pcode" $ do
     it "should get raw pcode" $ do
       length raws `shouldBe` 104
 
-  context "getHighPcodeOps" $ do
+    rawInstr <- runIO . runGhidra $ do
+      x <- mkBareRawPcodeInstruction $ head raws
+      x' <- mkRawPcodeInstruction x
+      print x'
+      return x'
+
+    let expected = PcodeInstruction
+          { op = COPY
+          , output = Nothing
+          , inputs =
+              [ VarNode
+                { varType =
+                    Addr (Address
+                           { space = AddressSpace
+                                     { ptrSize = 4
+                                     , addressableUnitSize = 1
+                                     , name = "register"
+                                     }
+                           , offset = 40
+                           })
+                , size = Bytes 8
+                }]}
+
+    it "should convert to raw pcode instruction" $ do
+      rawInstr `shouldBe` expected
+    
+
+  context "getHighPcode" $ do
     let faddr = 0x13ad
     highs <- runIO . runGhidra $ do
       faddr' <- State.mkAddressBased gs faddr

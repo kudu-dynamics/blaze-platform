@@ -15,7 +15,7 @@ import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Util (convertOpt)
 import Ghidra.Types
-
+import qualified Ghidra.Address as Addr
 
 requireModule :: IO ()
 requireModule = unsafePerformIO . once $ do
@@ -95,3 +95,6 @@ getHighFunction gs fn = do
 
 getName :: Function -> IO Text
 getName fn = Java.call fn "getName" >>= Java.reify
+
+getAddress :: Function -> IO Addr.Address
+getAddress = Addr.mkAddress <=< toAddr

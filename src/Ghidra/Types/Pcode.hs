@@ -3,15 +3,23 @@ module Ghidra.Types.Pcode where
 
 import Ghidra.Prelude hiding (toList)
 
-import Ghidra.Types (VarNode)
 import qualified Ghidra.Types as J
+import Ghidra.Variable (HighVariable, VarNode)
 
 
-data BarePcodeInstruction = BarePcodeInstruction
+data PcodeInstruction a = PcodeInstruction
   { op :: BarePcodeOp
-  , output :: Maybe J.VarNode
-  , inputs :: [J.VarNode]
-  } deriving (Eq, Show, Generic)
+  , output :: Maybe a
+  , inputs :: [a]
+  } deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
+
+type BareRawPcodeInstruction = PcodeInstruction J.VarNode
+
+type BareHighPcodeInstruction = PcodeInstruction J.VarNodeAST
+
+type RawPcodeInstruction = PcodeInstruction VarNode
+
+type HighPcodeInstruction = PcodeInstruction HighVariable
 
 data BarePcodeOp
   = BOOL_AND
