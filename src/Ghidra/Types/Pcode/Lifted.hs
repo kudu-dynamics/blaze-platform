@@ -7,10 +7,13 @@ import qualified Ghidra.Types as J
 import Ghidra.Variable (HighVariable, VarNode)
 import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address)
 
+type AddressSpaceMap = HashMap AddressSpaceId AddressSpace
+
 data ParserCtx = ParserCtx
-  { addressSpaces :: HashMap AddressSpaceId AddressSpace
+  { addressSpaces :: AddressSpaceMap
   } deriving (Eq, Ord, Show, Generic)
   
+
 -- Lifts pcode into pure Haskell types
 newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
   deriving newtype (Functor, Applicative, Monad)
@@ -18,8 +21,10 @@ newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
 newtype Output a = Output a
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
-newtype Input a = Input a
-  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+data Input a = Input
+  { index :: Word64
+  , value :: a
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 type Offset = Int64
 
@@ -41,7 +46,7 @@ data PcodeOp a
   | CAST (Output a) (Input a)
   | CBRANCH (Input Destination) (Input a)
   | COPY (Output a) (Input a) (Input a)
-  | CPOOLRE (Output a) (Input a) (Input a) [Input a]
+  | CPOOLREF (Output a) (Input a) (Input a) [Input a]
   | EXTRACT (Output a) (Input a) (Input a) -- NOT in docs. guessing
   | FLOAT_ABS (Output a) (Input a)
   | FLOAT_ADD (Output a) (Input a) (Input a)

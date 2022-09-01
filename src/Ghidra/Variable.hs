@@ -6,7 +6,7 @@ module Ghidra.Variable
   , HighVariable
   , HighVariableType
   , VarNode
-  , VarType
+  , VarType(..)
   ) where
 
 import Ghidra.Prelude hiding (toList, Const(Const), DataType, mkDataType)

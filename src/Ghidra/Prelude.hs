@@ -41,6 +41,7 @@ import Control.Lens as Exports
     (^?),
     (^?!),
     iso,
+    ix,
     lens,
     makeClassy,
     makeClassyPrisms,
