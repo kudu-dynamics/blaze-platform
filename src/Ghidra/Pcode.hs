@@ -6,8 +6,9 @@ import Ghidra.Prelude hiding (toList, getConst)
 
 import Ghidra.State (GhidraState)
 import qualified Language.Java as Java
+import Ghidra.Function (getLowFunction)
 import Ghidra.Instruction (getInstructions)
-import Ghidra.Util (iteratorToList)
+import Ghidra.Util (iteratorToList, isJNull)
 import qualified Ghidra.Types as J
 import Ghidra.Util (maybeNull)
 import Ghidra.Types.Pcode ( BareHighPcodeInstruction
@@ -21,12 +22,14 @@ import Ghidra.Types.Pcode ( BareHighPcodeInstruction
 import qualified Ghidra.Variable as Var
 import Ghidra.Variable (VarNode, HighVarNode)
 import qualified Ghidra.Types.Pcode.Lifted as L
-import Ghidra.Types.Pcode.Lifted (PcodeOp, Input(Input), Output(Output), Destination, AddressSpaceMap)
-import Ghidra.Types.Address (AddressSpace)
+import Ghidra.Types.Pcode.Lifted (PcodeOp, Input(Input), Output(Output), Destination, LiftPcodeError(..))
+import Ghidra.Types.Address (AddressSpace, AddressSpaceMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Foreign.JNI as JNI
+
 
 getPcode :: J.Instruction -> IO [J.PcodeOp]
-getPcode x = Java.call x "getPcode" >>= Java.reify
+getPcode x = Java.call x "getPcode" >>= Java.reify >>= traverse JNI.newGlobalRef
 
 getRawPcodeOps :: J.Addressable a => GhidraState -> a -> IO [J.PcodeOp]
 getRawPcodeOps gs x = do
@@ -36,11 +39,11 @@ getRawPcodeOps gs x = do
 getPcodeOpAST :: J.HighFunction -> J.Instruction -> IO [J.PcodeOpAST]
 getPcodeOpAST hfunc instr = do
   addr <- J.toAddr instr
-  iter :: J.Iterator J.PcodeOpAST <- Java.call hfunc "getPcodeOps" addr
+  iter :: J.Iterator J.PcodeOpAST <- Java.call hfunc "getPcodeOps" addr >>= JNI.newGlobalRef
   iteratorToList iter
 
 getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> IO [J.PcodeOpAST]
-getHighPcodeOps gs hfunc x = getInstructions gs x >>= concatMapM (getPcodeOpAST hfunc)
+getHighPcodeOps gs hfunc x = getInstructions gs x >>= concatMapM (getPcodeOpAST hfunc) >>= traverse JNI.newGlobalRef
 
 getBarePcodeOp :: Coercible a J.PcodeOp => a -> IO BarePcodeOp
 getBarePcodeOp x = do
@@ -55,17 +58,35 @@ getBarePcodeOp x = do
 mkBareRawPcodeInstruction :: J.PcodeOp -> IO BareRawPcodeInstruction
 mkBareRawPcodeInstruction x = PcodeInstruction
   <$> getBarePcodeOp x
-  <*> (maybeNull <$> Java.call x "getOutput")
-  <*> (Java.call x "getInputs" >>= Java.reify)
+  <*> (maybeNull <$> (Java.call x "getOutput" >>= JNI.newGlobalRef))
+  <*> (Java.call x "getInputs" >>= Java.reify >>= traverse JNI.newGlobalRef)
+
+getHighOutput :: J.PcodeOpAST -> IO (Maybe J.VarNodeAST)
+getHighOutput x = do
+  vnode :: J.VarNode <- Java.call (coerce x :: J.PcodeOp) "getOutput" >>= JNI.newGlobalRef
+  if isJNull vnode then return Nothing else return . Just $ coerce vnode
+
+getHighInputs :: J.PcodeOpAST -> IO [J.VarNodeAST]
+getHighInputs x = do
+  putText "getHighInputs"
+  vnodes :: [J.VarNode] <- Java.call (coerce x :: J.PcodeOp) "getInputs" >>= Java.reify
+  putText $ "gotHighInputs" <> show vnodes
+  return $ coerce <$> vnodes
 
 mkBareHighPcodeInstruction :: J.PcodeOpAST -> IO BareHighPcodeInstruction
 mkBareHighPcodeInstruction x = PcodeInstruction
   <$> getBarePcodeOp x
-  <*> (maybeNull <$> Java.call x "getOutput")
-  <*> (Java.call x "getInputs" >>= Java.reify)
+  <*> getHighOutput x
+  -- <*> (maybeNull <$> Java.call x "getOutput")
+  <*> getHighInputs x -- (Java.call x "getInputs" >>= Java.reify)
 
 mkHighPcodeInstruction :: BareHighPcodeInstruction -> IO HighPcodeInstruction
-mkHighPcodeInstruction = traverse Var.mkHighVarNode
+mkHighPcodeInstruction x = do
+  putText "mkHighPcodeInstruction"
+  catch (traverse Var.mkHighVarNode x) (\(_ :: SomeException) -> do
+                                           putText "BAAD"
+                                           print x
+                                           error "sorry")
 
 mkRawPcodeInstruction :: BareRawPcodeInstruction -> IO RawPcodeInstruction
 mkRawPcodeInstruction = traverse Var.mkVarNode
@@ -96,13 +117,12 @@ instance GetConst VarNode where
 instance GetConst HighVarNode where
   getConst = getConst . view #varType
 
-
 liftPcodeInstruction
   :: forall a. (CanBeDestination a, GetConst a)
   => AddressSpaceMap
   -> PcodeInstruction a
-  -> Maybe (PcodeOp a)
-liftPcodeInstruction addressSpaceMap x = case x ^. #op of
+  -> Either LiftPcodeError (PcodeOp a)
+liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op)) $ case x ^. #op of
   BOOL_AND -> binOp L.BOOL_AND
   BOOL_NEGATE -> unOp L.BOOL_NEGATE
   BOOL_OR -> binOp L.BOOL_OR
@@ -114,7 +134,7 @@ liftPcodeInstruction addressSpaceMap x = case x ^. #op of
   CALLOTHER -> unknown "CALLOTHER" -- L.CALLOTHER <$> input 0 <*> inputList 1
   CAST -> unOp L.CAST
   CBRANCH -> L.CBRANCH <$> inputDest 0 <*> input 1
-  COPY -> binOp L.COPY
+  COPY -> unOp L.COPY
   CPOOLREF -> L.CPOOLREF <$> out <*> input 0 <*> input 1 <*> inputList 2
   EXTRACT -> unknown "EXTRACT" -- binOp L.EXTRACT
   FLOAT_ABS -> unOp L.FLOAT_ABS
@@ -164,48 +184,86 @@ liftPcodeInstruction addressSpaceMap x = case x ^. #op of
   INT_XOR -> binOp L.INT_XOR
   INT_ZEXT -> unOp L.INT_ZEXT
   LOAD -> L.LOAD <$> out <*> inputAddressSpace 0 <*> input 1
-  MULTIEQUAL -> undefined
-  NEW -> undefined
-  PCODE_MAX -> undefined
-  PIECE -> undefined
-  POPCOUNT -> undefined
-  PTRADD -> undefined
-  PTRSUB -> undefined
-  RETURN -> undefined
-  SEGMENTOP -> undefined
-  STORE -> undefined
-  SUBPIECE -> undefined
-  UNIMPLEMENTED -> undefined
+  MULTIEQUAL -> L.MULTIEQUAL <$> out <*> input 0 <*> input 1 <*> inputList 2
+  NEW -> L.NEW <$> out <*> input 0 <*> inputList 1
+  PCODE_MAX -> unknown "PCODE_MAX"
+  PIECE -> binOp L.PIECE
+  POPCOUNT -> unOp L.POPCOUNT
+  PTRADD -> L.PTRADD <$> out <*> input 0 <*> input 1 <*> input 2
+  PTRSUB -> binOp L.PTRSUB
+  RETURN -> L.RETURN <$> input 0 <*> inputList 1
+  SEGMENTOP -> unknown "SEGMENTOP"
+  STORE -> L.STORE <$> inputAddressSpace 0 <*> input 1 <*> input 2
+  SUBPIECE -> L.SUBPIECE <$> out <*> inputConst 0 <*> input 1
+  UNIMPLEMENTED -> return L.UNIMPLEMENTED
   where
-    out :: Maybe (Output a)
-    out = Output <$> x ^. #output
+    me = maybeToEither
 
-    input :: Word64 -> Maybe (Input a)
-    input n = Input n <$> x ^? #inputs . ix (fromIntegral n )
+    out :: Either LiftPcodeError (Output a)
+    out = Output <$> me OutputNotFound (x ^. #output)
 
-    inputList :: Word64 -> Maybe [Input a]
+    input :: Word64 -> Either LiftPcodeError (Input a)
+    input n = Input n <$> me (ArgNotFound n) (x ^? #inputs . ix (fromIntegral n ))
+
+    inputList :: Word64 -> Either LiftPcodeError [Input a]
     inputList startingInput = traverse input
       . drop (fromIntegral startingInput)
       . fmap fst
       . zip [0..] 
       $ x ^. #inputs
 
-    inputDest :: Word64 -> Maybe (Input Destination)
+    getConst' = me VarNotConst . getConst
+  
+    inputDest :: Word64 -> Either LiftPcodeError (Input Destination)
     inputDest n = fmap toDestination <$> input n
 
-    inputAddressSpace :: Word64 -> Maybe (Input AddressSpace)
+    inputConst :: Word64 -> Either LiftPcodeError (Input Int64)
+    inputConst n = input n >>= traverse getConst'
+
+    inputAddressSpace :: Word64 -> Either LiftPcodeError (Input AddressSpace)
     inputAddressSpace n = input n >>= traverse f
       where
-        f :: a -> Maybe AddressSpace
+        f :: a -> Either LiftPcodeError AddressSpace
         f a = do
-          spaceId <- fromIntegral <$> getConst a
-          HashMap.lookup spaceId addressSpaceMap
+          spaceId <- fromIntegral <$> getConst' a
+          me (CannotFindAddressSpace n spaceId) $ HashMap.lookup spaceId addressSpaceMap
 
-    binOp :: (Output a -> Input a -> Input a -> PcodeOp a) -> Maybe (PcodeOp a)
+    binOp :: (Output a -> Input a -> Input a -> PcodeOp a)
+          -> Either LiftPcodeError (PcodeOp a)
     binOp constructor = constructor <$> out <*> input 0 <*> input 1
 
-    unOp :: (Output a -> Input a -> PcodeOp a) -> Maybe (PcodeOp a)
+    unOp :: (Output a -> Input a -> PcodeOp a)
+         -> Either LiftPcodeError (PcodeOp a)
     unOp constructor = constructor <$> out <*> input 0
 
-    unknown :: forall b. Text -> b
-    unknown t = error $ "Encountered undocumented pcode op: " <> cs t
+    unknown :: forall b. Text -> Either LiftPcodeError b
+    unknown = Left . UnknownOp
+
+getRawPcode :: GhidraState -> AddressSpaceMap -> J.Function -> IO [PcodeOp VarNode]
+getRawPcode gs addressSpaceMap fn = do
+  jpcodes <- getRawPcodeOps gs fn
+  rawInstrs :: [RawPcodeInstruction] <- traverse (mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
+  let liftedInstrs = liftPcodeInstruction addressSpaceMap <$> rawInstrs
+      (errs, instrs) = foldr separateError ([],[]) liftedInstrs
+  case errs of
+    [] -> return instrs
+    _ -> error $ "Encountered Pcode decoding errors:\n" <> cs (pshow errs)
+  where
+    separateError (Right x) (errs, instrs) = (errs, x:instrs)
+    separateError (Left err) (errs, instrs) = (err:errs, instrs)
+
+getHighPcode :: GhidraState -> AddressSpaceMap -> J.HighFunction -> IO [PcodeOp HighVarNode]
+getHighPcode gs addressSpaceMap hfn = do
+  fn <- getLowFunction hfn
+  jpcodes <- getHighPcodeOps gs hfn fn
+  putText "GOT HERE 2"
+  highInstrs :: [HighPcodeInstruction] <- traverse (mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
+  putText "GOT HERE 3"
+  let liftedInstrs = liftPcodeInstruction addressSpaceMap <$> highInstrs
+      (errs, instrs) = foldr separateError ([],[]) liftedInstrs
+  case errs of
+    [] -> return instrs
+    _ -> error $ "Encountered Pcode decoding errors:\n" <> cs (pshow errs)
+  where
+    separateError (Right x) (errs, instrs) = (errs, x:instrs)
+    separateError (Left err) (errs, instrs) = (err:errs, instrs)

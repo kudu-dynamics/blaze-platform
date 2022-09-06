@@ -4,10 +4,11 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps, mkRawPcodeInstruction, mkBareRawPcodeInstruction)
+import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps, mkRawPcodeInstruction, mkBareRawPcodeInstruction, getHighPcode)
 import Ghidra.Types.Pcode
 import Ghidra.Types.Variable
 import Ghidra.Types.Address
+import Ghidra.Address (getAddressSpaceMap)
 import Ghidra.Core
 import Language.Clojure.Core
 import Test.Hspec
@@ -62,16 +63,21 @@ spec = describe "Ghidra.Pcode" $ do
 
     it "should convert to raw pcode instruction" $ do
       rawInstr `shouldBe` expected
-    
 
-  context "getHighPcode" $ do
+  context "getHighPcodeOps" $ do
     let faddr = 0x13ad
-    highs <- runIO . runGhidra $ do
+    (highs, liftedHighs) <- runIO . runGhidra $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
-      getHighPcodeOps gs hfunc func
+      highs <- getHighPcodeOps gs hfunc func
+      addrSpaceMap <- getAddressSpaceMap gs
+      liftedHighs <- getHighPcode gs addrSpaceMap hfunc
+      return (highs, liftedHighs)
       
-    it "should get high pcode" $ do
+    it "should get high pcode ops" $ do
       length highs `shouldBe` 15
+
+    it "should lift high pcode ops" $ do
+      length liftedHighs `shouldBe` 15
 

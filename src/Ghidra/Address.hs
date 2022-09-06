@@ -3,24 +3,27 @@ module Ghidra.Address
   ( module Ghidra.Address
   , AddressSpace
   , Address
+  , AddressSpaceMap
+  , AddressSpaceId
   ) where
 
 import Ghidra.Prelude hiding (toList)
 
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
-import Ghidra.Types.Address (AddressSpace(AddressSpace), Address(Address), AddressSpaceId(AddressSpaceId))
+import Ghidra.Types.Address (AddressSpace(AddressSpace), Address(Address), AddressSpaceId(AddressSpaceId), AddressSpaceMap)
 import qualified Ghidra.State as State
 import Ghidra.State (GhidraState)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Ghidra.Program as Program
+import qualified Foreign.JNI as JNI
 
 
 mkAddressSpace :: J.AddressSpace -> IO AddressSpace
 mkAddressSpace x = do
   ptrSize :: Int32 <- Java.call x "getPointerSize"
   addressableUnitSize :: Int32 <- Java.call x "getAddressableUnitSize"
-  name :: Text <- Java.call x "getName" >>= Java.reify
+  name :: Text <- Java.call x "getName" >>= JNI.newGlobalRef >>= Java.reify
   return $ AddressSpace (fromIntegral ptrSize) (fromIntegral addressableUnitSize) name
 
 mkAddress :: J.Address -> IO Address
@@ -29,10 +32,12 @@ mkAddress addr = do
   offset :: Int64 <- Java.call addr "getOffset"
   return $ Address addrSpace (fromIntegral offset)
 
-getAddressSpaces :: GhidraState -> IO (HashMap AddressSpaceId AddressSpace)
-getAddressSpaces gs = do
+getAddressSpaceMap :: GhidraState -> IO AddressSpaceMap
+getAddressSpaceMap gs = do
   af <- State.getProgram gs >>= Program.getAddressFactory
-  spaces :: [J.AddressSpace] <- Java.call af "getAllAddressSpaces" >>= Java.reify
+  spaces :: [J.AddressSpace] <- Java.call af "getAllAddressSpaces"
+                                >>= Java.reify
+                                >>= traverse JNI.newGlobalRef
   HashMap.fromList <$> traverse f spaces
   where
     f :: J.AddressSpace -> IO (AddressSpaceId, AddressSpace)

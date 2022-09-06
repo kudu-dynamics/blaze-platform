@@ -6,8 +6,12 @@ import Language.Clojure
 import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
 import Ghidra.Types (Iterator)
-import Language.Java (J)
+import Language.Java (J(J))
 import qualified Foreign.JNI.Types as JNIT
+import qualified Foreign.JNI as JNI
+import Foreign.Ptr (nullPtr)
+import Foreign.ForeignPtr (withForeignPtr)
+
 
 -- | returns a [key, val] list, to be used with invokeApply
 convertOpt
@@ -33,4 +37,16 @@ isJNull :: J a -> Bool
 isJNull x = x == JNIT.jnull
 
 maybeNull :: J a -> Maybe (J a)
-maybeNull x = bool Nothing (Just x) $ isJNull x
+maybeNull x = bool (Just x) Nothing $ isJNull x
+
+isJNull' :: J a -> IO Bool
+isJNull' (J fptr) = withForeignPtr fptr $ return . (== nullPtr)
+
+maybeNull' :: J a -> IO (Maybe (J a))
+maybeNull' x = isJNull' x >>= return . bool (Just x) Nothing
+
+-- | Catches call that failes with Java NullPointerException
+maybeNullCall :: IO a -> IO (Maybe a)
+maybeNullCall callAction = do
+  jvm <- JNI.getJNIEnv
+  catch (Just <$> JNI.throwIfException jvm callAction) (\(_ :: SomeException) -> return Nothing)

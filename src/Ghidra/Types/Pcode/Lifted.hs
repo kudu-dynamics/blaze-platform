@@ -5,14 +5,22 @@ import Ghidra.Prelude hiding (toList)
 
 import qualified Ghidra.Types as J
 import Ghidra.Variable (HighVariable, VarNode)
-import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address)
-
-type AddressSpaceMap = HashMap AddressSpaceId AddressSpace
+import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address, AddressSpaceMap)
+import Ghidra.Types.Pcode (BarePcodeOp)
 
 data ParserCtx = ParserCtx
   { addressSpaces :: AddressSpaceMap
   } deriving (Eq, Ord, Show, Generic)
   
+
+data LiftPcodeError
+  = UnknownOp Text
+  | OutputNotFound
+  | ArgNotFound Word64
+  | VarNotConst
+  | CannotFindAddressSpace Word64 AddressSpaceId
+  | LiftInstructionError BarePcodeOp LiftPcodeError
+  deriving (Eq, Ord, Show, Generic)
 
 -- Lifts pcode into pure Haskell types
 newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
@@ -45,7 +53,7 @@ data PcodeOp a
   | CALLOTHER (Input a) [Input a] -- Can't find this in the docs
   | CAST (Output a) (Input a)
   | CBRANCH (Input Destination) (Input a)
-  | COPY (Output a) (Input a) (Input a)
+  | COPY (Output a) (Input a)
   | CPOOLREF (Output a) (Input a) (Input a) [Input a]
   | EXTRACT (Output a) (Input a) (Input a) -- NOT in docs. guessing
   | FLOAT_ABS (Output a) (Input a)

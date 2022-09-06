@@ -25,6 +25,7 @@ type HighConstant = J ('Java.Class "ghidra.program.model.pcode.HighConstant")
 type HighGlobal = J ('Java.Class "ghidra.program.model.pcode.HighGlobal")
 type HighLocal = J ('Java.Class "ghidra.program.model.pcode.HighLocal")
 type HighOther = J ('Java.Class "ghidra.program.model.pcode.HighOther")
+type HighParam = J ('Java.Class "ghidra.program.model.pcode.HighParam")
 type HighSymbol = J ('Java.Class "ghidra.program.model.pcode.HighSymbol")
 type Instruction = J ('Java.Class "ghidra.program.model.listing.Instruction")
 type InstructionIterator = J ('Java.Class "ghidra.program.model.listing.InstructionIterator")
@@ -67,3 +68,4 @@ instance Addressable Instruction where
 instance Addressable Function where
   toAddr fn = Java.call fn "getEntryPoint"
   toAddrSet fn = Java.call fn "getBody"
+

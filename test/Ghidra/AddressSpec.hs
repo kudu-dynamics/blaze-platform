@@ -28,7 +28,7 @@ spec = describe "Ghidra.Address" $ do
     return gs
   
   context "getAddressSpaces" $ do
-    spaces <- runIO . runGhidra $ getAddressSpaces gs
+    spaces <- runIO . runGhidra $ getAddressSpaceMap gs
     let names = (view $ _2 . #name) <$> HashMap.toList spaces
         expectedNames =
           [ "unique"

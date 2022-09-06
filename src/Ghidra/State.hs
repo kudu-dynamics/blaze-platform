@@ -11,6 +11,8 @@ import Ghidra.Program (Program)
 import Ghidra.Util (convertOpt)
 import Ghidra.Types (Address, FlatDecompilerAPI, TaskMonitor)
 import qualified Data.BinaryAnalysis as BA
+import qualified Foreign.JNI as JNI
+
 
 requireModule :: IO ()
 requireModule = unsafePerformIO . once $ do
@@ -92,12 +94,12 @@ getTaskMonitor (GhidraState gs) = do
 mkAddressBased :: GhidraState -> BA.Address -> IO Address
 mkAddressBased gs addr = do
   prg <- getProgram gs
-  baseAddr :: Address <- Java.call prg "getImageBase"
+  baseAddr :: Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
   Java.call baseAddr "add" (fromIntegral addr :: Int64)
 
 -- | Makes a new address
 mkAddress :: GhidraState -> BA.Address -> IO Address
 mkAddress gs addr = do
   prg <- getProgram gs
-  baseAddr :: Address <- Java.call prg "getImageBase"
+  baseAddr :: Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
   Java.call baseAddr "getNewAddress" (fromIntegral addr :: Int64)

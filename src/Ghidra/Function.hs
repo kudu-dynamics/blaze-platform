@@ -16,6 +16,8 @@ import qualified Language.Java as Java
 import Ghidra.Util (convertOpt)
 import Ghidra.Types
 import qualified Ghidra.Address as Addr
+import qualified Foreign.JNI as JNI
+
 
 requireModule :: IO ()
 requireModule = unsafePerformIO . once $ do
@@ -82,7 +84,7 @@ decompileFunction gs fn = do
   _ :: () <-  Java.call flatDecAPI "initialize"
   ifc :: DecompInterface <- Java.call flatDecAPI "getDecompiler"
   mon <- State.getTaskMonitor gs
-  res :: DecompilerResults <- Java.call ifc "decompileFunction" fn (0 :: Int32) mon
+  res :: DecompilerResults <- Java.call ifc "decompileFunction" fn (0 :: Int32) mon >>= JNI.newGlobalRef
   finished <- Java.call res "decompileCompleted"
   if finished
     then return res
@@ -91,10 +93,13 @@ decompileFunction gs fn = do
 getHighFunction :: GhidraState -> Function -> IO HighFunction
 getHighFunction gs fn = do
   r <- decompileFunction gs fn
-  Java.call r "getHighFunction"
+  Java.call r "getHighFunction" >>= JNI.newGlobalRef
+
+getLowFunction :: HighFunction -> IO Function
+getLowFunction fn = Java.call fn "getFunction" >>= JNI.newGlobalRef
 
 getName :: Function -> IO Text
-getName fn = Java.call fn "getName" >>= Java.reify
+getName fn = Java.call fn "getName" >>= JNI.newGlobalRef >>= Java.reify
 
 getAddress :: Function -> IO Addr.Address
 getAddress = Addr.mkAddress <=< toAddr

@@ -2,6 +2,9 @@ module Ghidra.Types.Address where
 
 import Ghidra.Prelude
 
+
+type AddressSpaceMap = HashMap AddressSpaceId AddressSpace
+
 newtype AddressSpaceId = AddressSpaceId Int32
   deriving (Generic)
   deriving newtype (Eq, Ord, Read, Show, Num, Hashable)

@@ -16,6 +16,7 @@ import Ghidra.Util (convertOpt)
 import qualified Language.Clojure.Map as ClojureMap
 import Language.Java (J, VariadicIO)
 import Ghidra.Types (Addressable, Address, toAddrs)
+import qualified Foreign.JNI as JNI
 
 
 requireModule :: IO ()
@@ -34,15 +35,15 @@ referenceIteratorToList x = do
   hasNext :: Bool <- Java.call x "hasNext"
   if hasNext
     then do
-      ref <- Java.call x "next"
+      ref <- Java.call x "next" >>= JNI.newGlobalRef
       (ref:) <$> referenceIteratorToList x
     else return []
 
 getReferencesToAddress :: GhidraState -> Address -> IO [Reference]
 getReferencesToAddress gs addr = do
   prg <- State.getProgram gs
-  rm :: ReferenceManager <- Java.call prg "getReferenceManager"
-  Java.call rm "getReferencesTo" addr >>= referenceIteratorToList
+  rm :: ReferenceManager <- Java.call prg "getReferenceManager" >>= JNI.newGlobalRef
+  Java.call rm "getReferencesTo" addr >>= JNI.newGlobalRef >>= referenceIteratorToList
 
 getReferencesTo :: (Addressable a) => GhidraState -> a -> IO [Reference]
 getReferencesTo gs x = toAddrs x >>= concatMapM (getReferencesToAddress gs)
