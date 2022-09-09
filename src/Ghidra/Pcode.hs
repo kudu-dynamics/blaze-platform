@@ -239,9 +239,14 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
     unknown :: forall b. Text -> Either LiftPcodeError b
     unknown = Left . UnknownOp
 
-getRawPcode :: GhidraState -> AddressSpaceMap -> J.Function -> IO [PcodeOp VarNode]
-getRawPcode gs addressSpaceMap fn = do
-  jpcodes <- getRawPcodeOps gs fn
+getRawPcode
+  :: J.Addressable a
+  => GhidraState
+  -> AddressSpaceMap
+  -> a
+  -> IO [PcodeOp VarNode]
+getRawPcode gs addressSpaceMap a = do
+  jpcodes <- getRawPcodeOps gs a
   rawInstrs :: [RawPcodeInstruction] <- traverse (mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
   let liftedInstrs = liftPcodeInstruction addressSpaceMap <$> rawInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
@@ -252,10 +257,15 @@ getRawPcode gs addressSpaceMap fn = do
     separateError (Right x) (errs, instrs) = (errs, x:instrs)
     separateError (Left err) (errs, instrs) = (err:errs, instrs)
 
-getHighPcode :: GhidraState -> AddressSpaceMap -> J.HighFunction -> IO [PcodeOp HighVarNode]
-getHighPcode gs addressSpaceMap hfn = do
-  fn <- getLowFunction hfn
-  jpcodes <- getHighPcodeOps gs hfn fn
+getHighPcode
+  :: J.Addressable a
+  => GhidraState
+  -> AddressSpaceMap
+  -> J.HighFunction
+  -> a
+  -> IO [PcodeOp HighVarNode]
+getHighPcode gs addressSpaceMap hfn a = do
+  jpcodes <- getHighPcodeOps gs hfn a
   putText "GOT HERE 2"
   highInstrs :: [HighPcodeInstruction] <- traverse (mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
   putText "GOT HERE 3"

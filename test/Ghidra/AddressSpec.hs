@@ -3,11 +3,8 @@ module Ghidra.AddressSpec where
 import Ghidra.Prelude
 
 import qualified Ghidra.State as State
-import qualified Ghidra.Function as Function
 import Ghidra.Address
-import Ghidra.Function (Function)
 import Ghidra.Core
-import qualified Language.Java as Java
 import Language.Clojure.Core
 import Test.Hspec
 import qualified Data.HashMap.Strict as HashMap

@@ -9,12 +9,7 @@ import Language.Java (J)
 import Ghidra.Types
 import qualified Foreign.JNI as JNI
 
-
-type Program = J ('Java.Class "ghidra.program.database.ProgramDB")
-
-type AddressFactory = J ('Java.Class "ghidra.program.model.address.AddressFactory")
-
-getAddressFactory :: Program -> IO AddressFactory
+getAddressFactory :: ProgramDB -> IO AddressFactory
 getAddressFactory p = Java.call p "getAddressFactory" >>= JNI.newGlobalRef
 
 -- | Returns an address from the constant space of the program

@@ -4,8 +4,9 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps, mkRawPcodeInstruction, mkBareRawPcodeInstruction, getHighPcode)
+import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps, mkRawPcodeInstruction, mkBareRawPcodeInstruction, getHighPcode, getRawPcode)
 import Ghidra.Types.Pcode
+import Ghidra.Types.Pcode.Lifted (PcodeOp)
 import Ghidra.Types.Variable
 import Ghidra.Types.Address
 import Ghidra.Address (getAddressSpaceMap)
@@ -30,13 +31,20 @@ spec = describe "Ghidra.Pcode" $ do
   
   context "getRawPcode" $ do
     let faddr = 0x13ad
-    raws <- runIO . runGhidra $ do
+    (raws, liftedRaws) <- runIO . runGhidra $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
-      getRawPcodeOps gs func
+      raws <- getRawPcodeOps gs func
+      addrSpaceMap <- getAddressSpaceMap gs
+      liftedRaws <- getRawPcode gs addrSpaceMap func
+      return (raws, liftedRaws)
       
     it "should get raw pcode" $ do
       length raws `shouldBe` 104
+
+    it "should lift raw pcode ops" $ do
+      length liftedRaws `shouldBe` 104
+
 
     rawInstr <- runIO . runGhidra $ do
       x <- mkBareRawPcodeInstruction $ head raws
@@ -46,7 +54,17 @@ spec = describe "Ghidra.Pcode" $ do
 
     let expected = PcodeInstruction
           { op = COPY
-          , output = Nothing
+          , output = Just VarNode
+            { varType = Addr Address
+                        { space = AddressSpace
+                          { ptrSize = 4
+                          , addressableUnitSize = 1
+                          , name = "unique"
+                          }
+                        , offset = 59904
+                        }
+            , size = Bytes 8
+            }
           , inputs =
               [ VarNode
                 { varType =
@@ -72,7 +90,7 @@ spec = describe "Ghidra.Pcode" $ do
       hfunc <- Function.getHighFunction gs func
       highs <- getHighPcodeOps gs hfunc func
       addrSpaceMap <- getAddressSpaceMap gs
-      liftedHighs <- getHighPcode gs addrSpaceMap hfunc
+      liftedHighs <- getHighPcode gs addrSpaceMap hfunc func
       return (highs, liftedHighs)
       
     it "should get high pcode ops" $ do
@@ -81,3 +99,17 @@ spec = describe "Ghidra.Pcode" $ do
     it "should lift high pcode ops" $ do
       length liftedHighs `shouldBe` 15
 
+
+getHighPcodeDemo :: IO [PcodeOp HighVarNode]
+getHighPcodeDemo = runGhidra $ do
+  gs <- State.openDatabase diveBin >>= State.analyze
+  b <- isNil' $ gs ^. #unGhidraState
+  when b $ error "Couldn't open a1"
+  let cgc_printf_addr = 0x804c6e0
+  addr <- State.mkAddress gs cgc_printf_addr
+  (Just func) <- Function.fromAddr gs addr
+  hfunc <- Function.getHighFunction gs func
+  -- highs <- getHighPcodeOps gs hfunc func
+  addrSpaceMap <- getAddressSpaceMap gs
+  getHighPcode gs addrSpaceMap hfunc func
+  

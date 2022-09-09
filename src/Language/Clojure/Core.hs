@@ -201,7 +201,6 @@ toList ls = do
       r <- rest ls
       (x:) <$> toList r
 
-
 apply :: IFn -> [JObject] -> IO JObject
 apply fn ls = do
   let apply' = unsafeDupablePerformIO $ varQual "clojure.core" "apply"

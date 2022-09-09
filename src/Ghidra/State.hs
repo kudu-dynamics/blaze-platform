@@ -7,9 +7,8 @@ import Foreign.JNI.Types (JObject)
 import qualified Data.Text as Text
 import qualified Language.Java as Java
 import System.IO.Memoize (once)
-import Ghidra.Program (Program)
 import Ghidra.Util (convertOpt)
-import Ghidra.Types (Address, FlatDecompilerAPI, TaskMonitor)
+import qualified Ghidra.Types as J
 import qualified Data.BinaryAnalysis as BA
 import qualified Foreign.JNI as JNI
 
@@ -74,32 +73,37 @@ analyze' mOpts (GhidraState gs) = do
 analyze :: GhidraState -> IO GhidraState
 analyze = analyze' Nothing
 
-getProgram :: GhidraState -> IO Program
+getProgram :: GhidraState -> IO J.ProgramDB
 getProgram (GhidraState gs) = do
   k <- keyword "program"
   coerce <$> get gs k
 
-getFlatDecompilerAPI :: GhidraState -> IO FlatDecompilerAPI
+getListing :: GhidraState -> IO J.Listing
+getListing gs = do
+  prg <- getProgram gs
+  Java.call prg "getListing" 
+
+getFlatDecompilerAPI :: GhidraState -> IO J.FlatDecompilerAPI
 getFlatDecompilerAPI (GhidraState gs) = do
   k <- keyword "flat-dec-api"
   coerce <$> get gs k
 
-getTaskMonitor :: GhidraState -> IO TaskMonitor
+getTaskMonitor :: GhidraState -> IO J.TaskMonitor
 getTaskMonitor (GhidraState gs) = do
   k <- keyword "task-monitor"
   coerce <$> get gs k
 
 -- | Adds address to image base.
 -- Only use this with PIE binaries.
-mkAddressBased :: GhidraState -> BA.Address -> IO Address
+mkAddressBased :: GhidraState -> BA.Address -> IO J.Address
 mkAddressBased gs addr = do
   prg <- getProgram gs
-  baseAddr :: Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
+  baseAddr :: J.Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
   Java.call baseAddr "add" (fromIntegral addr :: Int64)
 
 -- | Makes a new address
-mkAddress :: GhidraState -> BA.Address -> IO Address
+mkAddress :: GhidraState -> BA.Address -> IO J.Address
 mkAddress gs addr = do
   prg <- getProgram gs
-  baseAddr :: Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
+  baseAddr :: J.Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
   Java.call baseAddr "getNewAddress" (fromIntegral addr :: Int64)

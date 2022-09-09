@@ -4,7 +4,7 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import Ghidra.Function (Function)
+import Ghidra.Types (Function)
 import Ghidra.Core
 import qualified Language.Java as Java
 import Language.Clojure.Core

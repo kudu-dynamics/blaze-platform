@@ -90,6 +90,7 @@ library:
     - res/bridge/ffijni.c
   exposed-modules:
     - Ghidra.Address
+    - Ghidra.BasicBlock
     - Ghidra.Core
     - Ghidra.Function
     - Ghidra.Instruction
@@ -98,8 +99,11 @@ library:
     - Ghidra.Program
     - Ghidra.Reference
     - Ghidra.State
+    - Ghidra.Types
     - Ghidra.Types.Address
+    - Ghidra.Types.BasicBlock
     - Ghidra.Types.Pcode
+    - Ghidra.Types.Pcode.Lifted
     - Ghidra.Types.Variable
     - Language.Clojure
     - Language.Clojure.Core
