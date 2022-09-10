@@ -16,7 +16,8 @@ import qualified Ghidra.Types as J
 import Ghidra.Types.Function (Function(Function))
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
-
+import qualified Foreign.JNI.String as JString
+import Ghidra.Util (iteratorToList)
 
 requireModule :: IO ()
 requireModule = unsafePerformIO . once $ do
@@ -28,51 +29,78 @@ fromAddr gs addr = do
   listing <- State.getListing gs
   maybeNull <$> Java.call listing "getFunctionContaining" addr
 
+
+functionIteratorToList :: J.FunctionIterator -> IO [J.Function]
+functionIteratorToList = iteratorToList . coerce
+
+getFuncs_ :: JString.String -> GhidraState -> IO [J.Function]
+getFuncs_ methodName gs = do
+  listing <- State.getListing gs
+  Java.call listing methodName >>= functionIteratorToList
+  
+
+getExternalFunctions :: GhidraState -> IO [J.Function]
+getExternalFunctions gs = do
+  listing <- State.getListing gs
+  Java.call listing "getExternalFunctions" >>= functionIteratorToList
+
+getLocalFunctions :: GhidraState -> IO [J.Function]
+getLocalFunctions gs = do
+  listing <- State.getListing gs
+  Java.call listing "getFunctions" True >>= functionIteratorToList
+
+isThunk :: J.Function -> IO Bool
+isThunk func = Java.call func "isThunk"
+
+-- getThunk :: J.Function -> IO (Maybe Thunk)
+-- getThunk func = isThunk func >>= return . bool Nothing (Just func)
+
+resolveThunk :: J.Function -> IO J.Function
+resolveThunk func = do
+  isThunk func >>= \case
+    False -> return func
+    True -> Java.call func "getThunkedFunction" >>= JNI.newGlobalRef
+
+hasDefaultName :: J.Function -> IO Bool
+hasDefaultName func = do
+  funcAddr <- J.toAddr func
+  defFname :: Text <- Java.callStatic "ghidra.program.model.symbol.SymbolUtilities" "getDefaultFunctionName" funcAddr >>= Java.reify
+  fname <- getName func
+  return $ fname == defFname
+
 data GetFunctionsOptions = GetFunctionsOptions
-  { defaults :: Maybe Bool
-  , external :: Maybe Bool
-  , local :: Maybe Bool
-  , resolveThunks :: Maybe Bool
-  , thunks :: Maybe Bool
+  { includeExternalFuncs :: Bool
+  , includeLocalFuncs :: Bool
+  , excludeDefaultFuncs :: Bool
+  , excludeThunks :: Bool
+  , resolveThunks :: Bool
   } deriving (Eq, Ord, Show, Generic)
 
 defaultGetFunctionsOptions :: GetFunctionsOptions
 defaultGetFunctionsOptions = GetFunctionsOptions
-  { defaults = Nothing
-  , external = Nothing
-  , local = Nothing
-  , resolveThunks = Nothing
-  , thunks = Nothing
+  { includeExternalFuncs = True
+  , includeLocalFuncs = True
+  , excludeDefaultFuncs = False
+  , excludeThunks = False
+  , resolveThunks = False
   }
 
-prepGetFunctionsOpts :: GetFunctionsOptions -> IO [JObject]
-prepGetFunctionsOpts opts = do
-  a <- convertOpt "defaults" $ opts ^. #defaults
-  b <- convertOpt "external" $ opts ^. #external
-  c <- convertOpt "local" $ opts ^. #local
-  d <- convertOpt "resolveThunks" $ opts ^. #resolveThunks
-  e <- convertOpt "thunks" $ opts ^. #thunks
-  return $ a <> b <> c <> d <> e
-
-getFunctions' :: Maybe GetFunctionsOptions -> GhidraState -> IO [J.Function]
-getFunctions' mOpts (GhidraState gs) = do
-  requireModule
-  let getFunctionsFn = unsafeDupablePerformIO $ varQual "ghidra-clojure.function" "get-functions"
-  funcs <- case mOpts of
-    Nothing -> invoke getFunctionsFn gs
-    Just opts -> do
-      -- TODO: Function opts seem not to work
-      opts' <- prepGetFunctionsOpts opts
-      mapM_ (\x -> do
-                toString x >>= putText
-                showClass x >>= putText
-            ) opts'
-      applyInvoke getFunctionsFn $ gs : opts'
-  funcs' <- vec funcs >>= toList
-  return $ coerce <$> funcs'
+getFunctions' :: GetFunctionsOptions -> GhidraState -> IO [J.Function]
+getFunctions' opts gs = do
+  externals <- bool (return []) (getExternalFunctions gs) $ opts ^. #includeExternalFuncs
+  locals <- bool (return []) (getLocalFunctions gs) $ opts ^. #includeLocalFuncs
+  let allFuncs = externals <> locals
+  allFuncs' <- case opts ^. #excludeDefaultFuncs of
+    False -> return allFuncs
+    True -> filterM (fmap not . hasDefaultName) allFuncs
+  case opts ^. #excludeThunks of
+    False -> if opts ^. #resolveThunks
+      then traverse resolveThunk allFuncs'
+      else return allFuncs'
+    True -> filterM (fmap not . isThunk) allFuncs'
 
 getFunctions :: GhidraState -> IO [J.Function]
-getFunctions = getFunctions' Nothing
+getFunctions = getFunctions' defaultGetFunctionsOptions
 
 -- | This is expensive and should be performed only once per function.
 decompileFunction :: GhidraState -> J.Function -> IO J.DecompilerResults

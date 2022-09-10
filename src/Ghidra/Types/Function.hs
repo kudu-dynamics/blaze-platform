@@ -14,3 +14,6 @@ instance Eq Function where
 
 instance Ord Function where
   compare a b = compare (a ^. #startAddress) (b ^. #startAddress)
+
+newtype Thunk = Thunk J.Function
+  deriving (Eq, Ord, Show, Generic)

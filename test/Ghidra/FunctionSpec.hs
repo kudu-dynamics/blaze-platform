@@ -32,9 +32,11 @@ spec = describe "Ghidra.Function" $ do
 
     funcs' <- runIO . runGhidra $ do
       let opts = Function.defaultGetFunctionsOptions
-                 & #defaults .~ Just False
-                 & #external .~ Just False
-      Function.getFunctions' (Just opts) gs
+                 & #includeLocalFuncs .~ True
+                 & #includeExternalFuncs .~ False
+                 & #excludeDefaultFuncs .~ True
+                 & #excludeThunks .~ False
+      Function.getFunctions' opts gs
     it "should accept options when getting all functions" $ do
       length funcs' `shouldBe` 29
 
