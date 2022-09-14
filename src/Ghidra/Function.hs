@@ -7,11 +7,10 @@ import Ghidra.Prelude hiding (toList)
 
 import Language.Clojure
 import System.IO.Memoize (once)
-import Foreign.JNI.Types (JObject)
-import Ghidra.State (GhidraState(GhidraState))
+import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Language.Java as Java
-import Ghidra.Util (convertOpt, maybeNull)
+import Ghidra.Util (maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Function (Function(Function))
 import qualified Ghidra.Address as Addr

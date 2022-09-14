@@ -5,6 +5,7 @@ import Ghidra.Prelude hiding (force)
 import Language.Clojure
 import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
+import qualified Ghidra.Types as J
 import Ghidra.Types (Iterator)
 import Language.Java (J(J))
 import qualified Foreign.JNI.Types as JNIT
@@ -50,3 +51,24 @@ maybeNullCall :: IO a -> IO (Maybe a)
 maybeNullCall callAction = do
   jvm <- JNI.getJNIEnv
   catch (Just <$> JNI.throwIfException jvm callAction) (\(_ :: SomeException) -> return Nothing)
+
+suppressOut :: IO a -> IO a
+suppressOut action = do
+  nullStream :: J.OutputStream <- Java.callStatic "java.io.OutputStream" "nullOutputStream"
+  printStream :: J.PrintStream <- Java.new nullStream
+  bracket quietStreams setStreams $ const action
+  where
+    quietStreams :: IO (J.PrintStream, J.PrintStream)
+    quietStreams = do
+      nullStream :: J.OutputStream <- Java.callStatic "java.io.OutputStream" "nullOutputStream"
+      nullPrintStream :: J.PrintStream <- Java.new nullStream
+      r <- (,) <$> Java.getStaticField "java.lang.System" "out" <*> Java.getStaticField "java.lang.System" "err"
+      setStreams (nullPrintStream, nullPrintStream)
+      return r
+
+    setStreams :: (J.PrintStream, J.PrintStream) -> IO ()
+    setStreams (out, err) = do
+      _ :: () <- Java.callStatic "java.lang.System" "setOut" out
+      _ :: () <- Java.callStatic "java.lang.System" "setErr" err
+      return ()
+
