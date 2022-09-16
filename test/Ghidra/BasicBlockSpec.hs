@@ -7,14 +7,8 @@ import Ghidra.Types.BasicBlock (BasicBlockGraph(BasicBlockGraph))
 import qualified Ghidra.Types.BasicBlock as BB
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import Ghidra.Types.Variable
-import Ghidra.Types.Address
-import qualified Ghidra.Types as J
-import Ghidra.Address (getAddressSpaceMap)
 import Ghidra.Core
-import Language.Clojure.Core
 import Test.Hspec
-
 
 
 diveBin :: FilePath

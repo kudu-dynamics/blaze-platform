@@ -7,7 +7,6 @@ import qualified Ghidra.Function as Function
 import Ghidra.Types (Function)
 import Ghidra.Core
 import qualified Language.Java as Java
-import Language.Clojure.Core
 import Test.Hspec
 
 
@@ -16,10 +15,6 @@ diveBin = "res/test_bins/Dive_Logger/Dive_Logger"
 
 a1Bin :: FilePath
 a1Bin = "res/test_bins/a1/a1"
-
--- spec :: Spec
--- spec = return ()
-
 
 spec :: Spec
 spec = describe "Ghidra.Function" $ do

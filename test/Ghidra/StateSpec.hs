@@ -4,7 +4,6 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import Ghidra.Core
-import Language.Clojure.Core
 import Test.Hspec
 
 

@@ -6,8 +6,6 @@ module Ghidra.Instruction
 
 import Ghidra.Prelude hiding (toList)
 
-import Language.Clojure
-import System.IO.Memoize (once)
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Language.Java as Java

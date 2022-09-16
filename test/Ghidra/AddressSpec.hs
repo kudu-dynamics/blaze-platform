@@ -5,7 +5,6 @@ import Ghidra.Prelude
 import qualified Ghidra.State as State
 import Ghidra.Address
 import Ghidra.Core
-import Language.Clojure.Core
 import Test.Hspec
 import qualified Data.HashMap.Strict as HashMap
 

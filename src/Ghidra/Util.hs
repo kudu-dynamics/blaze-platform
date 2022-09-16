@@ -2,7 +2,6 @@ module Ghidra.Util where
 
 import Ghidra.Prelude hiding (force)
 
-import Language.Clojure
 import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
@@ -13,18 +12,6 @@ import qualified Foreign.JNI as JNI
 import Foreign.Ptr (nullPtr)
 import Foreign.ForeignPtr (withForeignPtr)
 
-
--- | returns a [key, val] list, to be used with invokeApply
-convertOpt
-  :: forall a. (Java.Reflect a)
-  => Text
-  -> Maybe a
-  -> IO [JObject]
-convertOpt _ Nothing = return []
-convertOpt lbl (Just x) = do
-  x' :: JObject <- coerce <$> Java.reflect x
-  k <- keyword lbl
-  return [k, x']
 
 iteratorToList :: forall a. (Java.Coercible a, Coercible JObject a) => Iterator a -> IO [a]
 iteratorToList it = do
@@ -54,8 +41,6 @@ maybeNullCall callAction = do
 
 suppressOut :: IO a -> IO a
 suppressOut action = do
-  nullStream :: J.OutputStream <- Java.callStatic "java.io.OutputStream" "nullOutputStream"
-  printStream :: J.PrintStream <- Java.new nullStream
   bracket quietStreams setStreams $ const action
   where
     quietStreams :: IO (J.PrintStream, J.PrintStream)

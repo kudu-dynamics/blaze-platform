@@ -5,8 +5,6 @@ module Ghidra.BasicBlock
 
 import Ghidra.Prelude hiding (toList)
 
-import Language.Clojure
-import System.IO.Memoize (once)
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import Ghidra.Types.BasicBlock (BasicBlockGraph(BasicBlockGraph))

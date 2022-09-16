@@ -5,7 +5,6 @@ import Ghidra.Prelude hiding (force)
 
 import qualified Language.Java as Java
 import qualified Data.BinaryAnalysis as BA
-import Language.Java (J)
 import Ghidra.Types
 import qualified Foreign.JNI as JNI
 

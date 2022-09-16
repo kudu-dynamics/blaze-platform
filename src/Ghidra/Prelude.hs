@@ -27,7 +27,6 @@ import qualified Prelude as P
 --import Data.Typeable as Exports
 
 import Control.Concurrent.Async as Exports (mapConcurrently)
-import Control.Concurrent.STM as Exports (atomically)
 import Control.Lens as Exports
   ( (%=),
     (%~),
@@ -104,7 +103,7 @@ import Prelude as Exports
     head,
     error,
   )
-import qualified Data.Text as Text
+
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e

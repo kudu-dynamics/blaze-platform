@@ -83,11 +83,11 @@ library:
   extra-libraries: jvm
   source-dirs:
     - src
-    - res/c
-    - res/bridge
-  c-sources:
-    - res/c/java.c
-    - res/bridge/ffijni.c
+  #   - res/c
+  #   - res/bridge
+  # c-sources:
+  #   - res/c/java.c
+  #   - res/bridge/ffijni.c
   exposed-modules:
     - Ghidra.Address
     - Ghidra.BasicBlock
@@ -105,15 +105,10 @@ library:
     - Ghidra.Types.Pcode
     - Ghidra.Types.Pcode.Lifted
     - Ghidra.Types.Variable
-    - Language.Clojure
-    - Language.Clojure.Core
-    - Language.Clojure.Map
-
 
 include-dirs:
   - "src"
   - "res"
-  - "res/bridge"
   - "/usr/lib/jvm/java-11-openjdk-amd64/include"
 
 tests:

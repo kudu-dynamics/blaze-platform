@@ -11,7 +11,6 @@ import Ghidra.Types.Variable
 import Ghidra.Types.Address
 import Ghidra.Address (getAddressSpaceMap)
 import Ghidra.Core
-import Language.Clojure.Core
 import Test.Hspec
 
 

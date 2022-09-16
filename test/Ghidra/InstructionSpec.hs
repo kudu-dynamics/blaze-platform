@@ -4,11 +4,8 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import qualified Ghidra.Program as Program
-import qualified Ghidra.Reference as Ref
 import Ghidra.Instruction (getInstructions)
 import Ghidra.Core
-import Language.Clojure.Core
 import Test.Hspec
 
 

@@ -16,7 +16,7 @@ import qualified Language.Java as Java
 import qualified Ghidra.Types as J
 import Ghidra.Types.Variable
 import Ghidra.Address (mkAddress)
-import Ghidra.Util (maybeNullCall, maybeNull, isJNull)
+import Ghidra.Util (maybeNullCall, maybeNull)
 import qualified Data.Text as Text
 import qualified Foreign.JNI as JNI
 
