@@ -16,7 +16,7 @@ import qualified Language.Clojure.Map as Map
 ghidraJars :: [ByteString]
 ghidraJars =
   [ "res/ghidra-10.1.4.jar"
-  , "res/ghidra-clojure-1.0.9-standalone.jar"
+--  , "res/ghidra-clojure-1.0.9-standalone.jar"
   ]
 
 runGhidra :: IO a -> IO a

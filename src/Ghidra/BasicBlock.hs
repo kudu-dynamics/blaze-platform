@@ -18,10 +18,6 @@ import Ghidra.Types.Address (Address)
 import Ghidra.Types.BasicBlock (BasicBlock(BasicBlock))
 import qualified Data.Set as Set
 
-requireModule :: IO ()
-requireModule = unsafePerformIO . once $ do
-  _ <- readEval "(import (quote [ghidra.program.model.block BasicBlockModel]))"
-  return ()
 
 codeBlockIteratorToList :: J.CodeBlockIterator -> IO [J.CodeBlock]
 codeBlockIteratorToList x = do
@@ -43,12 +39,8 @@ codeBlockReferenceIteratorToList x = do
 
 getCodeBlocks :: J.Addressable a => GhidraState -> a -> IO [J.CodeBlock]
 getCodeBlocks gs x = do
-  requireModule
   prg <- State.getProgram gs
-  -- TODO: fix this so you don't have to use clojure
-  -- bbModel :: J.BasicBlockModel <- Java.new (coerce prg :: J.Program)
-  newBBModelIfn :: IFn <- coerce <$> readEval "(fn [prg] (BasicBlockModel. prg))"
-  bbModel :: J.BasicBlockModel <- coerce <$> applyInvoke newBBModelIfn [coerce prg]
+  bbModel :: J.BasicBlockModel <- Java.new (coerce prg :: J.Program)
   
   tm <- State.getTaskMonitor gs
   addrSet <- J.toAddrSet x
