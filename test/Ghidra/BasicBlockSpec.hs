@@ -27,8 +27,8 @@ spec :: Spec
 spec = describe "Ghidra.BasicBlock" $ do
   (gs, jfunc, highJfunc) <- runIO . runGhidra $ do
     gs <- State.openDatabase a1Bin >>= State.analyze
-    b <- isNil' $ gs ^. #unGhidraState
-    when b $ error "Couldn't open a1"
+    -- b <- isNil' $ gs ^. #unGhidraState
+    -- when b $ error "Couldn't open a1"
     let jaddr = 0x1348
     jaddr' <- State.mkAddressBased gs jaddr
     (Just jfunc) <- Function.fromAddr gs jaddr'

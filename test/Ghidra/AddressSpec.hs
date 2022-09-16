@@ -20,8 +20,8 @@ spec :: Spec
 spec = describe "Ghidra.Address" $ do
   gs <- runIO . runGhidra $ do
     gs <- State.openDatabase a1Bin >>= State.analyze
-    b <- isNil' $ gs ^. #unGhidraState
-    when b $ error "Couldn't open a1"
+    -- b <- isNil' $ gs ^. #unGhidraState
+    -- when b $ error "Couldn't open a1"
     return gs
   
   context "getAddressSpaces" $ do

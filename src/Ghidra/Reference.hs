@@ -19,11 +19,6 @@ import Ghidra.Types (Addressable, Address, toAddrs)
 import qualified Foreign.JNI as JNI
 
 
-requireModule :: IO ()
-requireModule = unsafePerformIO . once $ do
-  _ <- readEval "(require (quote [ghidra-clojure.reference]))"
-  return ()
-
 type Reference = J ('Java.Class "ghidra.program.model.symbol.Reference")
 
 type ReferenceManager = J ('Java.Class "ghidra.program.model.symbol.ReferenceManager")

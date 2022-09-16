@@ -68,9 +68,7 @@ getHighOutput x = do
 
 getHighInputs :: J.PcodeOpAST -> IO [J.VarNodeAST]
 getHighInputs x = do
-  putText "getHighInputs"
   vnodes :: [J.VarNode] <- Java.call (coerce x :: J.PcodeOp) "getInputs" >>= Java.reify
-  putText $ "gotHighInputs" <> show vnodes
   return $ coerce <$> vnodes
 
 mkBareHighPcodeInstruction :: J.PcodeOpAST -> IO BareHighPcodeInstruction
@@ -81,12 +79,7 @@ mkBareHighPcodeInstruction x = PcodeInstruction
   <*> getHighInputs x -- (Java.call x "getInputs" >>= Java.reify)
 
 mkHighPcodeInstruction :: BareHighPcodeInstruction -> IO HighPcodeInstruction
-mkHighPcodeInstruction x = do
-  putText "mkHighPcodeInstruction"
-  catch (traverse Var.mkHighVarNode x) (\(_ :: SomeException) -> do
-                                           putText "BAAD"
-                                           print x
-                                           error "sorry")
+mkHighPcodeInstruction = traverse Var.mkHighVarNode
 
 mkRawPcodeInstruction :: BareRawPcodeInstruction -> IO RawPcodeInstruction
 mkRawPcodeInstruction = traverse Var.mkVarNode
@@ -266,9 +259,7 @@ getHighPcode
   -> IO [PcodeOp HighVarNode]
 getHighPcode gs addressSpaceMap hfn a = do
   jpcodes <- getHighPcodeOps gs hfn a
-  putText "GOT HERE 2"
   highInstrs :: [HighPcodeInstruction] <- traverse (mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
-  putText "GOT HERE 3"
   let liftedInstrs = liftPcodeInstruction addressSpaceMap <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of

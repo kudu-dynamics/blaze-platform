@@ -25,8 +25,8 @@ spec :: Spec
 spec = describe "Ghidra.Pcode" $ do
   gs <- runIO . runGhidra $ do
     gs <- State.openDatabase a1Bin >>= State.analyze
-    b <- isNil' $ gs ^. #unGhidraState
-    when b $ error "Couldn't open a1"
+    -- b <- isNil' $ gs ^. #unGhidraState
+    -- when b $ error "Couldn't open a1"
     return gs
   
   context "getRawPcode" $ do
@@ -49,7 +49,6 @@ spec = describe "Ghidra.Pcode" $ do
     rawInstr <- runIO . runGhidra $ do
       x <- mkBareRawPcodeInstruction $ head raws
       x' <- mkRawPcodeInstruction x
-      print x'
       return x'
 
     let expected = PcodeInstruction
@@ -103,8 +102,8 @@ spec = describe "Ghidra.Pcode" $ do
 getHighPcodeDemo :: IO [PcodeOp HighVarNode]
 getHighPcodeDemo = runGhidra $ do
   gs <- State.openDatabase diveBin >>= State.analyze
-  b <- isNil' $ gs ^. #unGhidraState
-  when b $ error "Couldn't open a1"
+  -- b <- isNil' $ gs ^. #unGhidraState
+  -- when b $ error "Couldn't open a1"
   let cgc_printf_addr = 0x804c6e0
   addr <- State.mkAddress gs cgc_printf_addr
   (Just func) <- Function.fromAddr gs addr

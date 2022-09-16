@@ -17,12 +17,16 @@ diveBin = "res/test_bins/Dive_Logger/Dive_Logger"
 a1Bin :: FilePath
 a1Bin = "res/test_bins/a1/a1"
 
+-- spec :: Spec
+-- spec = return ()
+
+
 spec :: Spec
 spec = describe "Ghidra.Function" $ do
   gs <- runIO . runGhidra $ do
     gs <- State.openDatabase a1Bin >>= State.analyze
-    b <- isNil' $ gs ^. #unGhidraState
-    when b $ error "Couldn't open a1"
+    -- b <- isNil' $ gs ^. #unGhidraState
+    -- when b $ error "Couldn't open a1"
     return gs
   
   context "getFunctions" $ do

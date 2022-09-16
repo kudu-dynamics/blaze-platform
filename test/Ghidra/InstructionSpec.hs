@@ -22,8 +22,8 @@ spec :: Spec
 spec = describe "Ghidra.Instruction" $ do
   gs <- runIO . runGhidra $ do
     gs <- State.openDatabase diveBin >>= State.analyze
-    b <- isNil' $ gs ^. #unGhidraState
-    when b $ error "Couldn't open diveBin"
+    -- b <- isNil' $ gs ^. #unGhidraState
+    -- when b $ error "Couldn't open diveBin"
     return gs
   
   context "getInstructions" $ do

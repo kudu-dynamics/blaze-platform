@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 module Ghidra.Types where
 
-import Ghidra.Prelude
+import Ghidra.Prelude hiding (String)
 import qualified Language.Java as Java
 import Language.Java (J)
 import qualified Foreign.JNI.Types as JNIT
@@ -14,6 +14,11 @@ type AddressFactory = J ('Java.Class "ghidra.program.model.address.AddressFactor
 type AddressIterator = J ('Java.Class "ghidra.program.model.address.AddressIterator")
 type AddressSpace = J ('Java.Class "ghidra.program.model.address.AddressSpace")
 type AddressSet = J ('Java.Class "ghidra.program.model.address.AddressSetView")
+
+
+type ApplicationConfiguration = J ('Java.Class "ghidra.framework.ApplicationConfiguration")
+type ApplicationLayout = J ('Java.Class "utility.application.ApplicationLayout")
+
 type AutoImporter = J ('Java.Class "ghidra.app.util.importer.AutoImporter")
 type BasicBlockModel = J ('Java.Class "ghidra.program.model.block.BasicBlockModel")
 type Class = J ('Java.Class "java.lang.Class")
@@ -26,6 +31,7 @@ type CompilerSpecID = J ('Java.Class "ghidra.program.model.lang.CompilerSpecID")
 type DataType = J ('Java.Class "ghidra.program.model.data.DataType")
 type DecompInterface = J ('Java.Class "ghidra.app.decompiler.DecompInterface")
 type DecompilerResults = J ('Java.Class "ghidra.app.decompiler.DecompileResults")
+type DomainFolder = J ('Java.Class "ghidra.framework.model.DomainFolder")
 type File = J ('Java.Class "java.io.File")
 type FlatDecompilerAPI = J ('Java.Class "ghidra.app.decompiler.flatapi.FlatDecompilerAPI")
 type FlatProgramAPI = J ('Java.Class "ghidra.program.flatapi.FlatProgramAPI")
@@ -49,15 +55,17 @@ type LanguageID = J ('Java.Class "ghidra.program.model.lang.LanguageID")
 type Listing = J ('Java.Class "ghidra.program.model.listing.Listing")
 type MessageLog = J ('Java.Class "ghidra.app.util.importer.MessageLog")
 type Object = J ('Java.Class "java.lang.Object")
+type Options = J ('Java.Class "ghidra.framework.options.Options")
 type OutputStream = J ('Java.Class "java.io.OutputStream")
 type PcodeOp = J ('Java.Class "ghidra.program.model.pcode.PcodeOp")
 type PcodeOpAST = J ('Java.Class "ghidra.program.model.pcode.PcodeOpAST")
 type PrintStream = J ('Java.Class "java.io.PrintStream")
-type Program = J ('Java.Class "ghidra.program.database.Program")
+type Program = J ('Java.Class "ghidra.program.model.listing.Program")
 type ProgramDB = J ('Java.Class "ghidra.program.database.ProgramDB")
 type Scalar = J ('Java.Class "ghidra.program.model.scalar.Scalar")
 type SimpleBlockModel = J ('Java.Class "ghidra.program.model.block.SimpleBlockModel")
 type SleighLanguageProvider = J ('Java.Class "ghidra.app.plugin.processors.sleigh.SleighLanguageProvider")
+type String = J ('Java.Class "java.lang.String")
 
 type TaskMonitor = J ('Java.Class "ghidra.util.task.TaskMonitor")
 type VarNode = J ('Java.Class "ghidra.program.model.pcode.Varnode")

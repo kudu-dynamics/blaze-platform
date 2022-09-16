@@ -17,11 +17,6 @@ import Ghidra.Types (toAddrSet)
 import qualified Foreign.JNI as JNI
 
 
-requireModule :: IO ()
-requireModule = unsafePerformIO . once $ do
-  _ <- readEval "(require (quote [ghidra-clojure.function]))"
-  return ()
-
 fromAddr :: GhidraState -> J.Address -> IO (Maybe J.Instruction)
 fromAddr gs addr = do
   prg <- State.getProgram gs

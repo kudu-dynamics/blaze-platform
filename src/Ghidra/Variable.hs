@@ -63,11 +63,8 @@ mkDataType hv = do
 
 mkHighVariable :: J.HighVariable -> IO HighVariable
 mkHighVariable hv = do
-  putText $ "getting size " <> show hv
   sz :: Int32 <- Java.call hv "getSize"
-  putText "got size"
   mVarNameStr <- maybeNullCall $ Java.call hv "getName" >>= Java.reify
-  putText "got name"
   dt <- mkDataType hv
   hvt <- mkHighVariableType hv
   return $ HighVariable
@@ -80,11 +77,8 @@ mkHighVariable hv = do
 mkHighVarNode :: J.VarNodeAST -> IO HighVarNode
 mkHighVarNode v = do
   -- sz :: Int32 <- Java.call (coerce v :: J.VarNode)  "getSize"
-  putText $ "mkHighVarNode " <> show v
   sz :: Int32 <- Java.call v "getSize"
-  putText $ "got size " <> show sz
   mhv <- maybeNull <$> Java.call v "getHigh"
-  putText $ "Got high: " <> show mhv <> " " <> (show $ isJNull <$> mhv)
   mhv' <- maybe (return Nothing) (fmap Just . (mkHighVariable <=< JNI.newGlobalRef)) mhv
   HighVarNode <$> mkVarType (coerce v) <*> pure (fromIntegral sz) <*> pure mhv'
 

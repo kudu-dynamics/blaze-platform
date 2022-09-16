@@ -18,10 +18,6 @@ import qualified Foreign.JNI as JNI
 import qualified Foreign.JNI.String as JString
 import Ghidra.Util (iteratorToList)
 
-requireModule :: IO ()
-requireModule = unsafePerformIO . once $ do
-  _ <- readEval "(require (quote [ghidra-clojure.function]))"
-  return ()
 
 fromAddr :: GhidraState -> J.Address -> IO (Maybe J.Function)
 fromAddr gs addr = do
