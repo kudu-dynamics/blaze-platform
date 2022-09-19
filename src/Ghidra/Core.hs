@@ -7,10 +7,16 @@ import qualified Data.ByteString as BS
 import System.IO.Memoize (once)
 
 
+-- ghidraJars :: [ByteString]
+-- ghidraJars =
+--   [ "res/ghidra-10.1.4.jar"
+--   ]
+
 ghidraJars :: [ByteString]
 ghidraJars =
-  [ "res/ghidra-10.1.4.jar"
+  [ "res/ghidra.jar"
   ]
+
 
 clojureJars :: [ByteString]
 clojureJars =

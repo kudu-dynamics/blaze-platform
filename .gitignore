@@ -28,5 +28,5 @@ cabal.project.local~
 .ghcid
 *.lock
 res/extra_bins
-res/clojure
+res/ghidra.jar
 *.log
