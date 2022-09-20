@@ -10,6 +10,4 @@ mkdir -p /tmp/ghidra_zip
 unzip /tmp/ghidra.zip -d /tmp/ghidra_zip
 cd res && /tmp/ghidra_zip/ghidra*/support/buildGhidraJar
 rm /tmp/ghidra.zip
-
-# # is it frowned upon to use rm -rf for cleanup in a script?
-# rm -rf /tmp/ghidra_zip
+rm -r /tmp/ghidra_zip

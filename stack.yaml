@@ -6,8 +6,11 @@ packages:
 
 extra-deps:
   - ../binary-analysis
-  - ../jni
-  - ../jvm
+  - git: git@github.com:kudu-dynamics/inline-java.git
+    commit: fd8c607dfc04a672f7267edecc8be28dc7227ad3
+    subdirs:
+      - jni
+      - jvm
   - git: https://github.com/tweag/distributed-closure
     commit: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
   - git: https://github.com/protolude/protolude
