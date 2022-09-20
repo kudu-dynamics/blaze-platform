@@ -37,10 +37,10 @@ getFlatDecompilerAPI = return . view #flatDecompilerAPI
 getLang :: Text -> IO (Maybe J.Language)
 getLang lang = do
   langProvider :: J.SleighLanguageProvider <- Java.new >>= JNI.newGlobalRef
-  maybeNullCall (Java.reflect lang >>= Java.new) >>= \case
+  maybeNullCall (Java.reflect lang >>= Java.new >>= JNI.newGlobalRef) >>= \case
     Nothing -> return Nothing
     Just (langId :: J.LanguageID) -> do
-      Just <$> (Java.call langProvider "getLanguage" langId >>= JNI.newGlobalRef)
+      maybeNullCall $ Java.call langProvider "getLanguage" langId >>= JNI.newGlobalRef
 
 getCSpec :: J.Language -> Maybe Text -> IO J.CompilerSpec
 getCSpec lang Nothing = Java.call lang "getDefaultCompilerSpec"

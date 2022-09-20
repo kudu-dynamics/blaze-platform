@@ -29,16 +29,18 @@ spec = describe "Ghidra.State" $ do
     it "should analyze binary" $ do
       hasAnalyzed `shouldBe` True
 
-    -- b <- runIO . runGhidra $ do
-    --   gs <- State.openDatabase a1Bin >>= State.analyze
-    --   isNil' $ gs ^. #unGhidraState
-    -- it "should be able to load it again after closing the JVM" $ do
-    --   b `shouldBe` False
+  context "handles errors" $ do
+    egs1 <- runIO . runGhidra $ State.openDatabase "/tmp/hopefullydoesnotexist"
+    it "should be unable to load binary without options" $ do
+      egs1 `shouldBe` (Left State.ImportByUsingBestGuessError)
 
-    -- b2 <- runIO . runGhidra $ do
-    --   let openDbOpts = State.defaultOpenDatabaseOptions
-    --         & #quiet .~ Just True
-    --   gs <- State.openDatabase' (Just openDbOpts) a1Bin >>= State.analyze
-    --   isNil' $ gs ^. #unGhidraState
-    -- it "should load and analyze binary with options" $ do
-    --   b2 `shouldBe` False
+    let badlang = "langdoesnotexist"
+    egs2 <- runIO . runGhidra $ do
+      let opts = State.OpenDatabaseOptions
+            { compiler = Nothing
+            , language = Just badlang
+            , quiet = True
+            }
+      State.openDatabase' opts a1Bin
+    it "should be unable to load binary with options" $ do
+      egs2 `shouldBe` (Left $ State.CouldNotFindLang badlang)
