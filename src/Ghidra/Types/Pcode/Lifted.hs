@@ -3,8 +3,6 @@ module Ghidra.Types.Pcode.Lifted where
 
 import Ghidra.Prelude hiding (toList)
 
-import qualified Ghidra.Types as J
-import Ghidra.Variable (HighVariable, VarNode)
 import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address, AddressSpaceMap)
 import Ghidra.Types.Pcode (BarePcodeOp)
 

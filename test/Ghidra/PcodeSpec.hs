@@ -23,9 +23,7 @@ a1Bin = "res/test_bins/a1/a1"
 spec :: Spec
 spec = describe "Ghidra.Pcode" $ do
   gs <- runIO . runGhidra $ do
-    gs <- State.openDatabase a1Bin >>= State.analyze
-    -- b <- isNil' $ gs ^. #unGhidraState
-    -- when b $ error "Couldn't open a1"
+    gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
   
   context "getRawPcode" $ do
@@ -43,7 +41,6 @@ spec = describe "Ghidra.Pcode" $ do
 
     it "should lift raw pcode ops" $ do
       length liftedRaws `shouldBe` 104
-
 
     rawInstr <- runIO . runGhidra $ do
       x <- mkBareRawPcodeInstruction $ head raws
@@ -100,7 +97,7 @@ spec = describe "Ghidra.Pcode" $ do
 
 getHighPcodeDemo :: IO [PcodeOp HighVarNode]
 getHighPcodeDemo = runGhidra $ do
-  gs <- State.openDatabase diveBin >>= State.analyze
+  gs <- State.openDatabase_ diveBin >>! State.analyze
   -- b <- isNil' $ gs ^. #unGhidraState
   -- when b $ error "Couldn't open a1"
   let cgc_printf_addr = 0x804c6e0

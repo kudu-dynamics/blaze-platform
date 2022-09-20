@@ -20,6 +20,7 @@ module Ghidra.Prelude
   , toSnd
   , unfoldWhileJustM
   , unsafeFromRight
+  , (>>!)
   ) where
 
 import qualified Prelude as P
@@ -174,3 +175,9 @@ unsafeFromRight = \case
 toSnd :: (a -> b) -> a -> (a, b)
 toSnd f a = (a, f a)
 {-# INLINE toSnd #-}
+
+(>>!) :: Monad m => m a -> (a -> m b) -> m a
+(>>!) a f = do
+  r <- a
+  void $ f r
+  return r

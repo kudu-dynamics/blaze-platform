@@ -6,7 +6,6 @@ import Ghidra.Prelude hiding (toList, getConst)
 
 import Ghidra.State (GhidraState)
 import qualified Language.Java as Java
-import Ghidra.Function (getLowFunction)
 import Ghidra.Instruction (getInstructions)
 import Ghidra.Util (iteratorToList, isJNull)
 import qualified Ghidra.Types as J

@@ -19,9 +19,7 @@ a1Bin = "res/test_bins/a1/a1"
 spec :: Spec
 spec = describe "Ghidra.Function" $ do
   gs <- runIO . runGhidra $ do
-    gs <- State.openDatabase a1Bin >>= State.analyze
-    -- b <- isNil' $ gs ^. #unGhidraState
-    -- when b $ error "Couldn't open a1"
+    gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
   
   context "getFunctions" $ do
