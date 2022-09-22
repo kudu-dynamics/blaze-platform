@@ -38,10 +38,10 @@ mkVarNode v = do
 mkHighVariableType :: J.HighVariable -> IO HighVariableType
 mkHighVariableType hv = do
   cls :: J.Class <- Java.call (coerce hv :: JObject) "getClass" >>= JNI.newGlobalRef
-  name :: Text <- Java.call cls "getName"
+  name' :: Text <- Java.call cls "getName"
                   >>= JNI.newGlobalRef
                   >>= Java.reify
-  case lastMay $ Text.splitOn "." name of
+  case lastMay $ Text.splitOn "." name' of
     Nothing -> error "Class name invalid"
     Just cname -> case cname of
       "HighConstant" -> do

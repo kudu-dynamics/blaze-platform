@@ -17,3 +17,10 @@ instance Ord Function where
 
 newtype Thunk = Thunk J.Function
   deriving (Eq, Ord, Show, Generic)
+
+data Parameter = Parameter
+  { handle :: J.Parameter
+  , ordinalIndex :: Word64
+  , isAutoParameter :: Bool
+  , name :: Text
+  } deriving (Eq, Ord, Show, Generic)

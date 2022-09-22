@@ -58,3 +58,14 @@ spec = describe "Ghidra.Function" $ do
     it "should get high function" $ do
       fname1 `shouldBe` fname2
 
+  context "getParams" $ do
+    let faddr = 0x13ad
+    params <- runIO . runGhidra $ do
+      faddr' <- State.mkAddressBased gs faddr
+      (Just func) <- Function.fromAddr gs faddr'
+      hfunc <- Function.getHighFunction gs func
+      func' <- Java.call hfunc "getFunction"
+      Function.getParams func'
+    it "should find params for high func" $ do
+      params `shouldBe` []
+

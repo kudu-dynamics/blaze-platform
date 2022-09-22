@@ -10,7 +10,7 @@ import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Util (maybeNull)
 import qualified Ghidra.Types as J
-import Ghidra.Types.Function (Function(Function))
+import Ghidra.Types.Function (Function(Function), Parameter(Parameter))
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
 import qualified Foreign.JNI.String as JString
@@ -22,7 +22,6 @@ fromAddr gs addr = do
   listing <- State.getListing gs
   maybeNull <$> Java.call listing "getFunctionContaining" addr
 
-
 functionIteratorToList :: J.FunctionIterator -> IO [J.Function]
 functionIteratorToList = iteratorToList . coerce
 
@@ -31,7 +30,6 @@ getFuncs_ methodName gs = do
   listing <- State.getListing gs
   Java.call listing methodName >>= functionIteratorToList
   
-
 getExternalFunctions :: GhidraState -> IO [J.Function]
 getExternalFunctions gs = do
   listing <- State.getListing gs
@@ -107,7 +105,9 @@ decompileFunction gs fn = do
   if finished
     then return res
     else error "Could not decompile function"
-  
+
+-- | Gets the High version of the function, based off of decompilation analysis.
+-- This is expensive.
 getHighFunction :: GhidraState -> J.Function -> IO J.HighFunction
 getHighFunction gs fn = do
   r <- decompileFunction gs fn
@@ -122,5 +122,21 @@ getName fn = Java.call fn "getName" >>= JNI.newGlobalRef >>= Java.reify
 getAddress :: J.Function -> IO Addr.Address
 getAddress = Addr.mkAddress <=< J.toAddr
 
+hasVarArgs :: J.Function -> IO Bool
+hasVarArgs fn = Java.call fn "hasVarArgs"
+
 mkFunction :: J.Function -> IO Function
 mkFunction fn = Function fn <$> getAddress fn
+
+mkParameter :: J.Parameter -> IO Parameter
+mkParameter p = do
+  ordIndex :: Int32 <- Java.call p "getOrdinal"
+  isAuto <- Java.call p "isAutoParameter"
+  mname :: Maybe Text <- (maybeNull <$> Java.call p "getName")
+    >>= traverse Java.reify
+  let name = fromMaybe ("arg" <> show ordIndex) mname
+  return $ Parameter p (fromIntegral ordIndex) isAuto name
+
+getParams :: J.Function -> IO [Parameter]
+getParams fn =
+  Java.call fn "getParameters" >>= Java.reify >>= traverse mkParameter
