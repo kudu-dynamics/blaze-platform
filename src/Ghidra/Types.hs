@@ -9,7 +9,8 @@ import Language.Java (J)
 type Address = J ('Java.Class "ghidra.program.model.address.Address")
 type AddressFactory = J ('Java.Class "ghidra.program.model.address.AddressFactory")
 type AddressIterator = J ('Java.Class "ghidra.program.model.address.AddressIterator")
-type AddressSet = J ('Java.Class "ghidra.program.model.address.AddressSetView")
+type AddressSet = J ('Java.Class "ghidra.program.model.address.AddressSet")
+type AddressSetView = J ('Java.Class "ghidra.program.model.address.AddressSetView")
 type AddressSpace = J ('Java.Class "ghidra.program.model.address.AddressSpace")
 type ApplicationConfiguration = J ('Java.Class "ghidra.framework.ApplicationConfiguration")
 type ApplicationLayout = J ('Java.Class "utility.application.ApplicationLayout")
@@ -97,7 +98,9 @@ instance Addressable Instruction where
 
 instance Addressable Function where
   toAddr fn = Java.call fn "getEntryPoint"
-  toAddrSet fn = Java.call fn "getBody"
+  toAddrSet fn = do
+    r :: AddressSetView <- Java.call fn "getBody"
+    return $ coerce r
 
 instance Addressable CodeBlock where
   toAddr block = Java.call block "getFirstStartAddress"

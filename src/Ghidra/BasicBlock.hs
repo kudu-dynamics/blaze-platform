@@ -41,7 +41,7 @@ getCodeBlocks gs x = do
   bbModel :: J.BasicBlockModel <- Java.new (coerce prg :: J.Program)
   
   tm <- State.getTaskMonitor gs
-  addrSet <- J.toAddrSet x
+  addrSet :: J.AddressSetView <- coerce $ J.toAddrSet x
   Java.call bbModel "getCodeBlocksContaining" addrSet tm >>= codeBlockIteratorToList
 
 getDestinations :: GhidraState -> J.CodeBlock -> IO [J.CodeBlock]

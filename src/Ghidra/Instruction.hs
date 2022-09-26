@@ -25,7 +25,7 @@ getInstructions :: J.Addressable a => GhidraState -> a -> IO [J.Instruction]
 getInstructions gs x = do
   prg <- State.getProgram gs
   listing :: J.Listing <- Java.call prg "getListing" >>= JNI.newGlobalRef
-  addrSet <- toAddrSet x
+  addrSet :: J.AddressSetView <- coerce <$> toAddrSet x
   instrsIterator :: J.InstructionIterator <- Java.call listing "getInstructions" addrSet True >>= JNI.newGlobalRef
   instructionIteratorToList instrsIterator
   

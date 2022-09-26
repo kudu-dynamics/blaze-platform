@@ -102,6 +102,7 @@ library:
     - Ghidra.Types
     - Ghidra.Types.Address
     - Ghidra.Types.BasicBlock
+    - Ghidra.Types.Function
     - Ghidra.Types.Pcode
     - Ghidra.Types.Pcode.Lifted
     - Ghidra.Types.Variable
