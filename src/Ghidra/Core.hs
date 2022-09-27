@@ -17,20 +17,11 @@ ghidraJars =
   [ "res/ghidra.jar"
   ]
 
-
-clojureJars :: [ByteString]
-clojureJars =
-  [ "res/clojure/clojure-1.11.1.jar"
-  , "res/clojure/spec.alpha-0.3.218.jar"
-  ]
-
 -- | You can only call Java.withJVM once in the life of a program, for some reason,
 -- according to the tweag jvm lib docs.
 -- So we just start it and never stop it. If the opts change, we throw an error.
-withJVM :: IO a -> IO a
-withJVM action = do
-  join . once $ newJVM_
-  action
+attachJVM :: IO ()
+attachJVM = unsafePerformIO $ once newJVM_
   where
     mkJarOpts :: [ByteString] -> [ByteString]
     mkJarOpts jars =
@@ -38,6 +29,11 @@ withJVM action = do
 
     newJVM_ :: IO ()
     newJVM_ = void . JNI.newJVM $ mkJarOpts ghidraJars
+
+withJVM :: IO a -> IO a
+withJVM action = do
+  attachJVM
+  action
 
 runGhidra :: IO a -> IO a
 runGhidra = withJVM

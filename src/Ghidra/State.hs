@@ -14,7 +14,7 @@ data GhidraState = GhidraState
   , program :: J.ProgramDB
   , flatProgramAPI :: J.FlatProgramAPI
   , flatDecompilerAPI :: J.FlatDecompilerAPI
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic)
 
 data OpenDatabaseOptions = OpenDatabaseOptions
   { compiler :: Maybe Text

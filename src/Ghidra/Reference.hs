@@ -12,6 +12,7 @@ import Ghidra.Types (Addressable, toAddrs)
 import qualified Ghidra.Types as J
 import qualified Foreign.JNI as JNI
 import qualified Ghidra.Address as Addr
+import Ghidra.Address (Address)
 import Ghidra.Types.Function (Function)
 import qualified Ghidra.Function as Func
 
@@ -43,7 +44,7 @@ getToAddress ref = Java.call ref "getToAddress"
 data FuncRef = FuncRef
   { caller :: Function
   , callee :: Function
-  , callerAddr :: J.Address
+  , callerAddr :: Address
   } deriving (Eq, Ord, Show, Generic)
 
 toFuncReference :: GhidraState -> J.Reference -> IO (Maybe FuncRef)
@@ -52,7 +53,7 @@ toFuncReference gs ref = do
   calleeAddr <- getToAddress ref
   (,) <$> Func.fromAddr gs callerAddr <*> Func.fromAddr gs calleeAddr >>= \case
     (Just callerFunc, Just calleeFunc) -> fmap Just $
-      FuncRef <$> Func.mkFunction callerFunc <*> Func.mkFunction calleeFunc <*> return callerAddr
+      FuncRef <$> Func.mkFunction callerFunc <*> Func.mkFunction calleeFunc <*> Addr.mkAddress callerAddr
     _ -> return Nothing
 
 getFunctionRefs :: GhidraState -> J.Function -> IO [FuncRef]
