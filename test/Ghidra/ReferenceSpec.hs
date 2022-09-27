@@ -31,22 +31,19 @@ spec = describe "Ghidra.Reference" $ do
       case mfunc of
         Nothing -> error "Couldn't find cgc_printf."
         Just func -> do
-          -- addr <- Program.mkAddress prg cgc_printf_addr
-          Ref.getReferencesTo gs func
+          -- startAddr <- J.toAddr func
+          Ref.getReferencesTo gs func -- startAddr
     it "should get references to func" $ do
       length refs `shouldBe` 37
 
-  context "toFuncReference" $ do
+  context "getFunctionRefs" $ do
     let cgc_AddDive_addr = 0x804c7d0
     refs <- runIO . runGhidra $ do
       addr <- State.mkAddress gs cgc_AddDive_addr
       mfunc <- Function.fromAddr gs addr
       case mfunc of
         Nothing -> error "Couldn't find cgc_AddDive."
-        Just func -> do
-          funcStart <- J.toAddr func
-          refs <- Ref.getReferencesTo gs funcStart
-          catMaybes <$> traverse (Ref.toFuncReference gs) refs
+        Just func -> Ref.getFunctionRefs gs func
     let refs' = sort $ fmap (\x -> ( x ^. #caller . #startAddress . #offset
                                    , x ^. #callee . #startAddress . #offset ))
                        refs
