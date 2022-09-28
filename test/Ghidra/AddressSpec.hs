@@ -4,6 +4,7 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import Ghidra.Address
+import qualified Ghidra.Types.Address as Addr
 import Ghidra.Core
 import Test.Hspec
 import qualified Data.HashMap.Strict as HashMap
@@ -27,20 +28,20 @@ spec = describe "Ghidra.Address" $ do
     spaces <- runIO . runGhidra $ getAddressSpaceMap gs
     let names = (view $ _2 . #name) <$> HashMap.toList spaces
         expectedNames =
-          [ "unique"
-          , "register"
-          , "EXTERNAL"
-          , "const"
-          , "ram"
-          , "stack"
-          , ".comment"
-          , "OTHER"
-          , "_elfSectionHeaders"
-          , ".shstrtab"
-          , ".strtab"
-          , ".symtab"
-          , "HASH"
+          [ Addr.EXTERNAL
+          , Addr.HASH
+          , Addr.Const
+          , Addr.Ram
+          , Addr.Register
+          , Addr.Stack
+          , Addr.Unique
+          , Addr.Other ".comment"
+          , Addr.Other ".shstrtab"
+          , Addr.Other ".strtab"
+          , Addr.Other ".symtab"
+          , Addr.Other "OTHER"
+          , Addr.Other "_elfSectionHeaders"
           ]
 
     it "should get all address spaces" $ do
-      names `shouldBe` expectedNames
+      sort names `shouldBe` sort expectedNames

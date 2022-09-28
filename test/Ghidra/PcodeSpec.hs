@@ -54,7 +54,7 @@ spec = describe "Ghidra.Pcode" $ do
                         { space = AddressSpace
                           { ptrSize = 4
                           , addressableUnitSize = 1
-                          , name = "unique"
+                          , name = Unique
                           }
                         , offset = 59904
                         }
@@ -67,7 +67,7 @@ spec = describe "Ghidra.Pcode" $ do
                            { space = AddressSpace
                                      { ptrSize = 4
                                      , addressableUnitSize = 1
-                                     , name = "register"
+                                     , name = Register
                                      }
                            , offset = 40
                            })

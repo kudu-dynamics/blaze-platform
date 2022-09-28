@@ -11,7 +11,8 @@ import Ghidra.Prelude hiding (toList)
 
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
-import Ghidra.Types.Address (AddressSpace(AddressSpace), Address(Address), AddressSpaceId(AddressSpaceId), AddressSpaceMap)
+import Ghidra.Types.Address (AddressSpace(AddressSpace), Address(Address), AddressSpaceId(AddressSpaceId), AddressSpaceMap, AddressSpaceName)
+import qualified Ghidra.Types.Address as Addr
 import qualified Ghidra.State as State
 import Ghidra.State (GhidraState)
 import qualified Data.HashMap.Strict as HashMap
@@ -19,12 +20,23 @@ import qualified Ghidra.Program as Program
 import qualified Foreign.JNI as JNI
 
 
+readAddressSpaceName :: Text -> AddressSpaceName
+readAddressSpaceName t = case t of
+  "EXTERNAL" -> Addr.EXTERNAL
+  "HASH" -> Addr.HASH
+  "const" -> Addr.Const
+  "ram" -> Addr.Ram
+  "register" -> Addr.Register
+  "stack" -> Addr.Stack
+  "unique" -> Addr.Unique
+  _ -> Addr.Other t
+
 mkAddressSpace :: J.AddressSpace -> IO AddressSpace
 mkAddressSpace x = do
   ptrSize :: Int32 <- Java.call x "getPointerSize"
   addressableUnitSize :: Int32 <- Java.call x "getAddressableUnitSize"
   name :: Text <- Java.call x "getName" >>= JNI.newGlobalRef >>= Java.reify
-  return $ AddressSpace (fromIntegral ptrSize) (fromIntegral addressableUnitSize) name
+  return $ AddressSpace (fromIntegral ptrSize) (fromIntegral addressableUnitSize) (readAddressSpaceName name)
 
 mkAddress :: J.Address -> IO Address
 mkAddress addr = do
