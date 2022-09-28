@@ -17,10 +17,6 @@ import Blaze.Types.Function (
   ParamInfo (ParamInfo),
  )
 import qualified Blaze.Types.Function as BFunc
-import Control.Monad.Extra (mapMaybeM)
-import Data.BinaryAnalysis (Symbol (Symbol, _symbolName, _symbolRawName))
-import qualified Data.Set as Set
-import qualified Data.Text as Text
 
 import Ghidra.Core (runGhidra)
 import Ghidra.State (GhidraState)
