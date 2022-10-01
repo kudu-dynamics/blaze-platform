@@ -27,9 +27,9 @@ data AddressSpace = AddressSpace
   { ptrSize :: Int
   , addressableUnitSize :: Int
   , name :: AddressSpaceName
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data Address = Address
   { space :: AddressSpace
-  , offset :: Word64 -- multiply by addressableUnitSize to get byte offset
-  } deriving (Eq, Ord, Show, Generic)
+  , offset :: Int64 -- multiply by addressableUnitSize to get byte offset
+  } deriving (Eq, Ord, Show, Generic, Hashable)
