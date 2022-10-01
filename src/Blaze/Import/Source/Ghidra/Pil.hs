@@ -10,8 +10,10 @@ import qualified Ghidra.Function as GFunc
 import qualified Ghidra.Pcode as Pcode
 import qualified Ghidra.Types.Pcode as Pcode
 import qualified Ghidra.State as GState
-import Ghidra.Types.Pcode.Lifted (PcodeOp)
+import Ghidra.Types.Pcode.Lifted (PcodeOp, Output(Output))
 import qualified Ghidra.Types.Pcode.Lifted as P
+import qualified Ghidra.Types.Address as GAddr
+import qualified Ghidra.Types.Variable as GVar
 
 import qualified Blaze.Pil as Pil
 import qualified Data.BinaryAnalysis as BA
@@ -47,15 +49,41 @@ import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 
+data ConverterError
+  = ExpectedConstButGotAddress GAddr.Address
+  | ExpectedAddressButGotConst Int64
+  | AddressSpaceTypeCannotBeVar GAddr.Address
+  | OutOfChoicesError -- for Alternative instance, Monoid's mempty
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
+  { -- | The current context should be on the top of the stack.
+    -- I.e., the stack should never be empty.
+    ctxStack :: NonEmpty Ctx
+    -- | The current context
+  , ctx :: Ctx
+    -- | Currently known defined PilVars for all contexts.
+    -- This is assumed to be ordered by most recently defined first.
+    -- TODO: Can we safeguard for overwriting/colliding with already used PilVars?
+    --       This could happen for synthesized PilVars with a Nothing context.
+  , definedVars :: [PilVar]
+    -- | All PilVars referenced for all contexts.
+    -- This differs from _definedVars, as order is not preserved and referenced,
+    -- but undefined, PilVars are included
+  , usedVars :: HashSet PilVar
+    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
+    --       when moving to a PilImporter instance.
+    -- TODO: Does this need to be a set or just a single variable?
+
+    -- | A mapping of PilVars to the a variable from the import source.
+  , sourceVars :: HashMap PilVar VarNode
+  }
   deriving (Eq, Ord, Show, Generic)
 
 -- TODO: Add map of PilVars to original vars to the state being tracked
-newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
+newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (StateT ConverterState IO) a}
   deriving (Functor)
-  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
-
+  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
 
 class IsVariable a where
   getSize :: a -> Bytes
@@ -69,9 +97,100 @@ instance IsVariable VarNode where
   getSize = view #size
   getVarType = view #varType
 
-convertPcodeOpToPilStmt :: IsVariable a => PcodeOp a -> Converter Pil.Stmt
+data VarNodeType
+  = VUnique Int64
+  | VReg Int64
+  | VStack Int64
+  | VRam Int64
+  | VConstAddr Int64
+  | VExtern Int64
+  | VConst Int64
+  | VOther Text
+  deriving (Eq, Ord, Read, Show, Generic)
+
+getVarNodeType :: IsVariable a => a -> VarNodeType
+getVarNodeType v = case getVarType v of
+  GVar.Const n -> VConst n
+  GVar.Addr x -> case x ^. #space . #name of
+    GAddr.EXTERNAL -> VExtern off
+    GAddr.HASH -> VOther "HASH"
+    GAddr.Const -> VConstAddr off
+    GAddr.Ram -> VRam off
+    GAddr.Register -> VReg off
+    GAddr.Stack -> VStack off
+    GAddr.Unique -> VUnique off
+    GAddr.Other t -> VOther t
+    where
+      off = x ^. #offset
+
+
+-- The point of these individual funcs instead of a single `VarNode -> Expression`
+-- func is so you can choose only the correct possibility and `<|>` them together
+getConstIntExpr :: IsVariable a => a -> Maybe Pil.Expression
+getConstIntExpr v = case getVarNodeType v of
+  VConst n -> return . mkExpr v . Pil.CONST . Pil.ConstOp $ n
+  _ -> Nothing
+
+getConstPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
+getConstPtrExpr v = case getVarNodeType v of
+  VConst n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
+  VRam n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
+  _ -> Nothing
+
+getExternPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
+getExternPtrExpr v = case getVarNodeType v of
+  -- TODO: figure out what to put for address and offset of ExternPtrOp
+  VExtern n -> return . mkExpr v . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing
+  _ -> Nothing
+
+getPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
+getPtrExpr v = getExternPtrExpr v <|> getConstPtrExpr v
+
+getVarExpr :: IsVariable a => Ctx -> a -> Maybe Pil.Expression
+getVarExpr ctx v = case getVarNodeType v of
+  VUnique n -> pv $ "unique" <> show n
+  VReg n -> pv $ "reg" <> show n
+  VStack n -> pv $ "stack" <> show n
+  _ -> Nothing
+  where
+    pv :: Text -> Maybe Pil.Expression
+    pv name = return . mkExpr v . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx
+
+-- | Converts a ghidra address into a PilVar.
+convertVar :: GAddr.Address -> Converter PilVar
+convertVar x = do
+  name <- case x ^. #space . #name of
+    GAddr.Register -> return $ "reg" <> show (x ^. #offset)
+    GAddr.Stack -> return $ "var" <> show (x ^. #offset)
+    _ -> throwError $ AddressSpaceTypeCannotBeVar x
+  PilVar name . Just <$> use #ctx
+
+-- | Converts a Ghidra VarNode to be a PilVar, or throws error.
+requirePilVar :: IsVariable a => a -> Converter PilVar
+requirePilVar v = case getVarType v of
+  GVar.Const n -> throwError $ ExpectedAddressButGotConst n
+  GVar.Addr x -> convertVar x
+
+mkExpr :: IsVariable a => a -> Pil.ExprOp Pil.Expression -> Pil.Expression
+mkExpr v = Pil.Expression (fromIntegral $ getSize v)
+
+-- | Converts a Ghidra var to be a Pil Var expression, or throws error.
+requireVarExpr :: IsVariable a => a -> Converter Pil.Expression
+requireVarExpr v = mkExpr v . Pil.VAR . Pil.VarOp <$> requirePilVar v
+
+requireConst :: IsVariable a => a -> Converter Int64
+requireConst v = case getVarType v of
+  GVar.Const n -> return n
+  GVar.Addr x -> throwError $ ExpectedConstButGotAddress x
+
+requireConstIntExpr :: IsVariable a => a -> Converter Pil.Expression
+requireConstIntExpr v = mkExpr v . Pil.CONST . Pil.ConstOp <$> requireConst v
+
+
+  
+convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
 convertPcodeOpToPilStmt op = case op of
-  P.BOOL_AND out in1 in2 -> undefined
+  P.BOOL_AND out in1 in2 -> mkDef out =<< binExpr Pil.AND Pil.AndOp in1 in2
   P.BOOL_NEGATE out in1 -> undefined
   P.BOOL_OR out in1 in2 -> undefined
   P.BOOL_XOR out in1 in2 -> undefined
@@ -145,3 +264,16 @@ convertPcodeOpToPilStmt op = case op of
   P.SUBPIECE out off in1 -> undefined
   P.UNIMPLEMENTED -> undefined
 
+  where
+    mkDef :: P.Output a -> Pil.Expression -> Converter Pil.Stmt
+    mkDef (P.Output v) x = do
+      pv <- requirePilVar v
+      return . Pil.Def $ Pil.DefOp pv x
+
+    binExpr :: forall b.
+               (b -> Pil.ExprOp Pil.Expression)
+            -> (Pil.Expression -> Pil.Expression -> b)
+            -> P.Input a
+            -> P.Input a
+            -> Converter Pil.Expression
+    binExpr opCons opArgsCons in1 in2 = undefined
