@@ -1,4 +1,7 @@
-module Ghidra.Core where
+module Ghidra.Core
+  ( runGhidra
+  )
+where
 
 import Ghidra.Prelude
 
@@ -19,7 +22,7 @@ ghidraJars =
 
 -- | You can only call Java.withJVM once in the life of a program, for some reason,
 -- according to the tweag jvm lib docs.
--- So we just start it and never stop it. If the opts change, we throw an error.
+-- So we just start it and never stop it.
 attachJVM :: IO ()
 attachJVM = unsafePerformIO $ once newJVM_
   where
@@ -29,6 +32,7 @@ attachJVM = unsafePerformIO $ once newJVM_
 
     newJVM_ :: IO ()
     newJVM_ = void . JNI.newJVM $ mkJarOpts ghidraJars
+{-# NOINLINE attachJVM #-}
 
 withJVM :: IO a -> IO a
 withJVM action = do
