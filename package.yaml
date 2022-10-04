@@ -220,10 +220,10 @@ benchmarks:
     #- criterion
 
 tests:
-  blaze-test:
+  blaze-general-test:
     main: Spec.hs
     source-dirs:
-    - test
+    - test/general
     ghc-options:
     - -Wall
     - -j4

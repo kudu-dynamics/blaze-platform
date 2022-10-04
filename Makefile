@@ -16,11 +16,11 @@ build:
 	stack $(stack_options) build --test --no-run-tests $(STACK_BUILD_OPTIONS)
 
 test: build
-	.ci/scripts/run_test.py $$(stack $(stack_options) path --dist-dir)/build/blaze-test/blaze-test
+	.ci/scripts/run_test.py $$(stack $(stack_options) path --dist-dir)/build/blaze-general-test/blaze-general-test
 
 copy-tests: build
 	if ! [ -d "$${TEST_BIN_DEST_DIR}" ]; then echo "TEST_BIN_DEST_DIR does not exist or is not a directory" >&2; exit 2; fi
-	cp $$(stack $(stack_options) path --dist-dir)/build/blaze-test/blaze-test "$${TEST_BIN_DEST_DIR}"
+	cp $$(stack $(stack_options) path --dist-dir)/build/blaze-general-test/blaze-general-test "$${TEST_BIN_DEST_DIR}"
 
 hlint:
 	hlint src test demo

@@ -115,7 +115,7 @@ test:
   script:
     - cp -T "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     - cd /blaze/build/blaze
-    - .ci/scripts/run_test.py ~/.local/bin/blaze-test
+    - .ci/scripts/run_test.py ~/.local/bin/blaze-general-test
 
 push:latest:
   stage: push
