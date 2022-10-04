@@ -232,10 +232,22 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - algebraic-graphs
-    - containers
+    - blaze
+    - hspec
+    - hspec-megaparsec
+
+  blaze-binja-test:
+    main: Spec.hs
+    source-dirs:
+    - test/binja
+    ghc-options:
+    - -Wall
+    - -j4
+    - -O2
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
     - blaze
     - binaryninja
     - hspec
-    - hspec-megaparsec
-    - text

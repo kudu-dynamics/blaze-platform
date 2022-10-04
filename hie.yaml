@@ -4,5 +4,7 @@ cradle:
       component: "blaze:lib"
     - path: "test/general/"
       component: "blaze:test:blaze-general-test"
+    - path: "test/binja/"
+      component: "blaze:test:blaze-binja-test"
     - path: "demo/"
       component: "blaze:exe:demo"
