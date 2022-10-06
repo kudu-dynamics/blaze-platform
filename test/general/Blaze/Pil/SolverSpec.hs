@@ -282,6 +282,8 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
 
     context "solveExpr: DIVS" $ do
       let tenv = [(pilVar "a", char)]
+          numerator = 88
+          expected = 8
           arg1 :: DSTExpression
           arg1 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 2, Just char)
                  . Pil.VAR . Pil.VarOp $ pilVar "a"
@@ -290,21 +292,24 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
           --        . Pil.CONST . Pil.ConstOp $ 88
           arg2 :: DSTExpression
           arg2 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 1, Just char)
-                 . Pil.CONST . Pil.ConstOp $ 88
+                 . Pil.CONST . Pil.ConstOp $ numerator
           expr = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 0, Just char)
                  . Pil.DIVS $ Pil.DivsOp arg2 arg1
 
           cmd = do
             r <- solveExpr expr
-            constrain $ r `svEqual` constWord 8 8
+            constrain $ r `svEqual` constWord 8 expected
 
-          rvars = [("a", CV (KBounded False 8) (CInteger 11))]
-          errs = []
+          rvsMatch [("a", CV (KBounded False 8) (CInteger denominator))] =
+            denominator /= 0 && numerator `div` denominator == expected
+          rvsMatch _ = False
 
       r <- runIO $ runSolveCmd tenv cmd
       it "two constants of same size" $ do
-        r `shouldBe` Right ( Sat $ HashMap.fromList rvars
-                            , errs )
+        r `shouldSatisfy`
+          \case
+            Right (Sat rvs, []) -> rvsMatch $ HashMap.toList rvs
+            _ -> False
 
     context "solveExpr: MODS" $ do
       let tenv = [(pilVar "a", signed32)]
