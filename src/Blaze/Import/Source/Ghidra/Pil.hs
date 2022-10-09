@@ -41,7 +41,7 @@ import Blaze.Types.Pil
 
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
-import Blaze.Import.Source.BinaryNinja.Types
+import Blaze.Import.Source.Ghidra.Types (convertAddress)
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.GenericConv (GConv, gconv)
@@ -54,6 +54,8 @@ data ConverterError
   | ExpectedAddressButGotConst Int64
   | AddressSpaceTypeCannotBeVar GAddr.Address
   | OutOfChoicesError -- for Alternative instance, Monoid's mempty
+  | UnsuportedPcodeOp Text
+  | UnsuportedAddressSpace Text
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
@@ -74,9 +76,10 @@ data ConverterState = ConverterState
     -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
     --       when moving to a PilImporter instance.
     -- TODO: Does this need to be a set or just a single variable?
-
+  , defaultPtrSize :: Bytes
     -- | A mapping of PilVars to the a variable from the import source.
   , sourceVars :: HashMap PilVar VarNode
+  , ghidraState :: GhidraState
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -97,6 +100,11 @@ instance IsVariable VarNode where
   getSize = view #size
   getVarType = view #varType
 
+-- -- TODO: Rename IsVariable
+-- instance IsVariable Address where
+--   getSize = fromIntegral . view $ #space . #ptrSize
+--   getVarType = GVar.Addr
+
 data VarNodeType
   = VUnique Int64
   | VReg Int64
@@ -104,13 +112,13 @@ data VarNodeType
   | VRam Int64
   | VConstAddr Int64
   | VExtern Int64
-  | VConst Int64
+  | VImmediate Int64
   | VOther Text
   deriving (Eq, Ord, Read, Show, Generic)
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
 getVarNodeType v = case getVarType v of
-  GVar.Const n -> VConst n
+  GVar.Const n -> VImmediate n
   GVar.Addr x -> case x ^. #space . #name of
     GAddr.EXTERNAL -> VExtern off
     GAddr.HASH -> VOther "HASH"
@@ -128,12 +136,12 @@ getVarNodeType v = case getVarType v of
 -- func is so you can choose only the correct possibility and `<|>` them together
 getConstIntExpr :: IsVariable a => a -> Maybe Pil.Expression
 getConstIntExpr v = case getVarNodeType v of
-  VConst n -> return . mkExpr v . Pil.CONST . Pil.ConstOp $ n
+  VImmediate n -> return . mkExpr v . Pil.CONST . Pil.ConstOp $ n
   _ -> Nothing
 
 getConstPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
 getConstPtrExpr v = case getVarNodeType v of
-  VConst n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
+  VImmediate n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
   VRam n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
   _ -> Nothing
 
@@ -174,6 +182,17 @@ requirePilVar v = case getVarType v of
 mkExpr :: IsVariable a => a -> Pil.ExprOp Pil.Expression -> Pil.Expression
 mkExpr v = Pil.Expression (fromIntegral $ getSize v)
 
+mkExpr' :: Pil.OperationSize -> Pil.ExprOp Pil.Expression -> Pil.Expression
+mkExpr' sz = Pil.Expression sz
+
+mkExprWithDefaultSize :: Pil.ExprOp Pil.Expression -> Converter Pil.Expression
+mkExprWithDefaultSize x = do
+  sz <- fromIntegral <$> use #defaultPtrSize
+  return $ mkExpr' sz x
+
+mkAddressExpr :: GAddr.Address -> Pil.Expression
+mkAddressExpr x = Pil.Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ x ^. #offset
+
 -- | Converts a Ghidra var to be a Pil Var expression, or throws error.
 requireVarExpr :: IsVariable a => a -> Converter Pil.Expression
 requireVarExpr v = mkExpr v . Pil.VAR . Pil.VarOp <$> requirePilVar v
@@ -186,17 +205,61 @@ requireConst v = case getVarType v of
 requireConstIntExpr :: IsVariable a => a -> Converter Pil.Expression
 requireConstIntExpr v = mkExpr v . Pil.CONST . Pil.ConstOp <$> requireConst v
 
+convertDest :: P.Destination -> Converter Pil.Expression
+convertDest (P.Absolute addr) = return $ mkAddressExpr addr
+convertDest (P.Relative off) = mkExprWithDefaultSize . Pil.CONST . Pil.ConstOp $ off
 
-  
+callDestFromDest :: P.Destination -> Converter (Pil.CallDest Pil.Expression)
+callDestFromDest (P.Relative _off) =
+  -- Calling into the pcode for the same instruction doesn't make much sense
+  -- so assume it won't happen, even though the docs say its the same as Branch
+  error "Got a realative offset. Expected only Absolute calls"
+callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
+  GAddr.EXTERNAL -> return . Pil.CallExtern $ Pil.ExternPtrOp 0 (fromIntegral $ addr ^. #offset) Nothing
+  GAddr.Ram -> do
+    gs <- use #ghidraState
+    paddr <- return $ convertAddress addr
+    liftIO (GCG.getFunction gs paddr) >>= \case
+      Just func -> return . Pil.CallFunc $ func
+      Nothing -> return . Pil.CallExpr $ mkAddressExpr addr
+  GAddr.Const -> do
+    paddr <- return $ convertAddress addr
+    return . Pil.CallAddr $ Pil.ConstFuncPtrOp paddr Nothing
+  _ -> return . Pil.CallExpr $ mkAddressExpr addr
+
+-- TODO: consolodate the other funcs to use this one
+convertVarNodeType :: VarNodeType -> Converter (Pil.ExprOp Pil.Expression)
+convertVarNodeType vnt = do
+  ctx' <- use #ctx
+  let pv name = return . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx'
+  case vnt of
+    VReg n -> pv $ "reg" <> show n
+    VStack n -> pv $ "stack" <> show n
+    VUnique n -> pv $ "unique" <> show n
+    VRam n -> return . Pil.CONST_PTR . Pil.ConstPtrOp $ n
+    VConstAddr n -> return . Pil.CONST_PTR . Pil.ConstPtrOp $ n -- TODO needs to know addr space for this to make sense. Pil's CONST_PTR just means it's a immediate that is a pointer, not necessarily that it points into the Constant binary address space.
+    VExtern n -> return . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing 
+    VImmediate n -> return . Pil.CONST . Pil.ConstOp $ n
+    VOther t -> throwError $ UnsuportedAddressSpace t
+
+convertVarNode :: IsVariable a => a -> Converter Pil.Expression
+convertVarNode v = Pil.Expression (fromIntegral . getSize $ v) <$> convertVarNodeType (getVarNodeType v)
+ 
 convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
-convertPcodeOpToPilStmt op = case op of
-  P.BOOL_AND out in1 in2 -> mkDef out =<< binExpr Pil.AND Pil.AndOp in1 in2
-  P.BOOL_NEGATE out in1 -> undefined
-  P.BOOL_OR out in1 in2 -> undefined
-  P.BOOL_XOR out in1 in2 -> undefined
-  P.BRANCH dest -> undefined
-  P.BRANCHIND in1 -> undefined
-  P.CALL dest inputs -> undefined
+convertPcodeOpToPilStmt op = use #ctx >>= \st -> case op of
+  P.BOOL_AND out in1 in2 -> unsupported "BOOL_AND"
+  P.BOOL_NEGATE out in1 -> unsupported "BOOL_NEGATE"
+  P.BOOL_OR out in1 in2 -> unsupported "BOOL_OR"
+  P.BOOL_XOR out in1 in2 -> unsupported "BOOL_XOR"
+  P.BRANCH dest -> Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
+  -- Branch indirect. Var contains offset from current instr.
+  -- Offset is in context of current addr space
+  -- TODO: maybe should use `JumpTo instrAddr [off]`
+  P.BRANCHIND in1 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in1 ^. #value)
+  P.CALL dest inputs -> do
+    cdest <- callDestFromDest $ dest ^. #value
+    params <-  mapM convertVarNode . fmap (view #value) $ inputs
+    return . Pil.Call $ Pil.CallOp cdest Nothing params
   P.CALLIND in1 inputs -> undefined
   P.CALLOTHER in1 inputs -> undefined -- Can't find this in the docs
   P.CAST out in1 -> undefined
@@ -225,7 +288,7 @@ convertPcodeOpToPilStmt op = case op of
   P.INDIRECT out in1 in2 -> undefined
   P.INSERT -> undefined -- not in docs
   P.INT_2COMP out in1 -> undefined
-  P.INT_ADD out in1 in2 -> undefined
+  P.INT_ADD out in1 in2 -> mkDef out =<< binExpr Pil.ADD Pil.AddOp in1 in2
   P.INT_AND out in1 in2 -> undefined
   P.INT_CARRY out in1 in2 -> undefined
   P.INT_DIV out in1 in2 -> undefined
@@ -277,3 +340,6 @@ convertPcodeOpToPilStmt op = case op of
             -> P.Input a
             -> Converter Pil.Expression
     binExpr opCons opArgsCons in1 in2 = undefined
+
+    unsupported :: Text -> Converter Pil.Stmt
+    unsupported = throwError . UnsuportedPcodeOp
