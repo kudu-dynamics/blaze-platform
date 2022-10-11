@@ -2,7 +2,9 @@ cradle:
   stack:
     - path: "src/"
       component: "blaze:lib"
-    - path: "test/"
-      component: "blaze:test:blaze-test"
+    - path: "test/general/"
+      component: "blaze:test:blaze-general-test"
+    - path: "test/binja/"
+      component: "blaze:test:blaze-binja-test"
     - path: "demo/"
       component: "blaze:exe:demo"

@@ -103,7 +103,7 @@ build:
       -t "${image}:pipeline-${CI_PIPELINE_IID}"
     - docker push "${image}:pipeline-${CI_PIPELINE_IID}"
 
-test:
+test-general:
   stage: test
   extends: .haskell-job
   needs:
@@ -115,7 +115,21 @@ test:
   script:
     - cp -T "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     - cd /blaze/build/blaze
-    - .ci/scripts/run_test.py ~/.local/bin/blaze-test
+    - .ci/scripts/run_test.py ~/.local/bin/blaze-general-test
+
+.test-binja:
+  stage: test
+  extends: .haskell-job
+  needs:
+    - build
+  variables:
+    <<: *variables
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - cp -T "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
+    - cd /blaze/build/blaze
+    - .ci/scripts/run_test.py ~/.local/bin/blaze-binja-test
 
 push:latest:
   stage: push
@@ -123,7 +137,7 @@ push:latest:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
-    - test
+    - test-general
   variables:
     <<: *variables
     GIT_STRATEGY: none
@@ -140,7 +154,7 @@ push:tag:
   rules:
     - if: $CI_COMMIT_TAG
   needs:
-    - test
+    - test-general
   variables:
     <<: *variables
     GIT_STRATEGY: none
@@ -160,7 +174,7 @@ pages:
     - if: $CI_MERGE_REQUEST_ID == null
       when: manual
   needs:
-    - test
+    - test-general
   variables:
     <<: *variables
   script:
