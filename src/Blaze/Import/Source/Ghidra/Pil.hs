@@ -17,6 +17,7 @@ import qualified Ghidra.Types.Variable as GVar
 
 import qualified Blaze.Pil as Pil
 import qualified Data.BinaryAnalysis as BA
+import Data.Binary.IEEE754 (wordToDouble)
 import qualified Prelude as P
 import Blaze.Types.Pil
     ( BranchCondOp(BranchCondOp),
@@ -48,6 +49,7 @@ import Blaze.Util.GenericConv (GConv, gconv)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
+import Unsafe.Coerce (unsafeCoerce)
 
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
@@ -56,6 +58,7 @@ data ConverterError
   | OutOfChoicesError -- for Alternative instance, Monoid's mempty
   | UnsuportedPcodeOp Text
   | UnsuportedAddressSpace Text
+  | ExpectedVarExpr Bytes VarType
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
@@ -99,6 +102,15 @@ instance IsVariable HighVarNode where
 instance IsVariable VarNode where
   getSize = view #size
   getVarType = view #varType
+
+instance IsVariable a => IsVariable (Output a) where
+  getSize (P.Output a) = getSize a
+  getVarType (P.Output a) = getVarType a
+
+instance IsVariable a => IsVariable (P.Input a) where
+  getSize = getSize . view #value
+  getVarType = getVarType . view #value
+
 
 -- -- TODO: Rename IsVariable
 -- instance IsVariable Address where
@@ -154,6 +166,7 @@ getExternPtrExpr v = case getVarNodeType v of
 getPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
 getPtrExpr v = getExternPtrExpr v <|> getConstPtrExpr v
 
+-- | Only returns variables
 getVarExpr :: IsVariable a => Ctx -> a -> Maybe Pil.Expression
 getVarExpr ctx v = case getVarNodeType v of
   VUnique n -> pv $ "unique" <> show n
@@ -164,12 +177,33 @@ getVarExpr ctx v = case getVarNodeType v of
     pv :: Text -> Maybe Pil.Expression
     pv name = return . mkExpr v . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx
 
+getFloatConstExpr :: IsVariable a => a -> Maybe Pil.Expression
+getFloatConstExpr v = case getVarNodeType v of
+  VImmediate n ->
+    -- TODO: make sure this is the proper way to convert const from ghidra to floats
+    return . mkExpr v . Pil.CONST_FLOAT . Pil.ConstFloatOp . wordToDouble . unsafeCoerce $ n
+  _ -> Nothing
+
+convertAny :: [a -> Maybe Pil.Expression] -> a -> Converter Pil.Expression
+convertAny converters a = case asum $ fmap ($ a) converters of
+  Nothing -> throwError OutOfChoicesError
+  Just x -> return x
+
+convertConstFloatOrVar :: IsVariable a => a -> Converter Pil.Expression
+convertConstFloatOrVar v= do
+  ctx' <- use #ctx
+  convertAny [ getFloatConstExpr
+             , getVarExpr ctx'
+             ]
+    v
+
 -- | Converts a ghidra address into a PilVar.
-convertVar :: GAddr.Address -> Converter PilVar
-convertVar x = do
+convertVarAddress :: GAddr.Address -> Converter PilVar
+convertVarAddress x = do
   name <- case x ^. #space . #name of
     GAddr.Register -> return $ "reg" <> show (x ^. #offset)
     GAddr.Stack -> return $ "var" <> show (x ^. #offset)
+    GAddr.Unique -> return $ "unique" <> show (x ^. #offset)
     _ -> throwError $ AddressSpaceTypeCannotBeVar x
   PilVar name . Just <$> use #ctx
 
@@ -177,7 +211,7 @@ convertVar x = do
 requirePilVar :: IsVariable a => a -> Converter PilVar
 requirePilVar v = case getVarType v of
   GVar.Const n -> throwError $ ExpectedAddressButGotConst n
-  GVar.Addr x -> convertVar x
+  GVar.Addr x -> convertVarAddress x
 
 mkExpr :: IsVariable a => a -> Pil.ExprOp Pil.Expression -> Pil.Expression
 mkExpr v = Pil.Expression (fromIntegral $ getSize v)
@@ -246,7 +280,7 @@ convertVarNode :: IsVariable a => a -> Converter Pil.Expression
 convertVarNode v = Pil.Expression (fromIntegral . getSize $ v) <$> convertVarNodeType (getVarNodeType v)
  
 convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
-convertPcodeOpToPilStmt op = use #ctx >>= \st -> case op of
+convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.BOOL_AND out in1 in2 -> unsupported "BOOL_AND"
   P.BOOL_NEGATE out in1 -> unsupported "BOOL_NEGATE"
   P.BOOL_OR out in1 in2 -> unsupported "BOOL_OR"
@@ -260,13 +294,28 @@ convertPcodeOpToPilStmt op = use #ctx >>= \st -> case op of
     cdest <- callDestFromDest $ dest ^. #value
     params <-  mapM convertVarNode . fmap (view #value) $ inputs
     return . Pil.Call $ Pil.CallOp cdest Nothing params
-  P.CALLIND in1 inputs -> undefined
-  P.CALLOTHER in1 inputs -> undefined -- Can't find this in the docs
-  P.CAST out in1 -> undefined
-  P.CBRANCH dest in1 -> undefined
-  P.COPY out in1 -> undefined
-  P.CPOOLREF out in1 in2 inputs -> undefined
-  P.EXTRACT out in1 in2 -> undefined -- NOT in docs. guessing
+  P.CALLIND in1 inputs -> case getVarExpr (st ^. #ctx) (in1 ^. #value) of
+    Nothing -> do
+      let v = in1 ^. #value
+      throwError $ ExpectedVarExpr (getSize v) (getVarType v)
+    Just destVarExpr -> do
+      params <- mapM convertVarNode . fmap (view #value) $ inputs
+      return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
+    
+  P.CALLOTHER in1 inputs -> unsupported "CALLOTHER" -- Can't find this in the docs
+  P.CAST out in1 -> unsupported "CAST"    
+  P.CBRANCH _dest in1 -> do
+    cond <- convertVarNode $ in1 ^. #value
+    -- Ignore the dest for now, as it gets encoded in the CFG edges.
+    return . Pil.BranchCond . Pil.BranchCondOp $ cond
+  P.COPY out in1 -> do
+    destVar <- requirePilVar out
+    Pil.Def . Pil.DefOp destVar <$> convertVarNode (in1 ^. #value)
+  P.CPOOLREF _out _in1 _in2 _inputs -> unsupported "CPOOLREF"
+  P.EXTRACT out in1 in2 -> do -- NOT in docs. guessing `Extract dest src offset
+    srcExpr <- convertVarNode in1
+    offsetExpr <- requireConst in2
+    mkDef out . Pil.Extract $ Pil.ExtractOp srcExpr offsetExpr
   P.FLOAT_ABS out in2 -> undefined
   P.FLOAT_ADD out in1 in2 -> undefined
   P.FLOAT_CEIL out in1 -> undefined
@@ -328,18 +377,42 @@ convertPcodeOpToPilStmt op = use #ctx >>= \st -> case op of
   P.UNIMPLEMENTED -> undefined
 
   where
-    mkDef :: P.Output a -> Pil.Expression -> Converter Pil.Stmt
-    mkDef (P.Output v) x = do
+    mkDef :: P.Output a -> Pil.ExprOp Pil.Expression -> Converter Pil.Stmt
+    mkDef v xop = do
       pv <- requirePilVar v
-      return . Pil.Def $ Pil.DefOp pv x
+      return . Pil.Def . Pil.DefOp pv $ Pil.Expression (fromIntegral $ getSize v) xop
 
     binExpr :: forall b.
                (b -> Pil.ExprOp Pil.Expression)
             -> (Pil.Expression -> Pil.Expression -> b)
             -> P.Input a
             -> P.Input a
-            -> Converter Pil.Expression
-    binExpr opCons opArgsCons in1 in2 = undefined
+            -> Converter (Pil.ExprOp Pil.Expression)
+    binExpr opCons opArgsCons in1 in2 = do
+      a <- convertVarNode in1
+      b <- convertVarNode in2
+      return . opCons $ opArgsCons a b
+
+    binFloatExpr :: forall b.
+                    (b -> Pil.ExprOp Pil.Expression)
+                 -> (Pil.Expression -> Pil.Expression -> b)
+                 -> P.Input a
+                 -> P.Input a
+                 -> Converter (Pil.ExprOp Pil.Expression)
+    binFloatExpr opCons opArgsCons in1 in2 = do
+      a <- convertConstFloatOrVar in1
+      b <- convertConstFloatOrVar in2
+      return . opCons $ opArgsCons a b
+
+    unFloatExpr :: forall b.
+                    (b -> Pil.ExprOp Pil.Expression)
+                 -> (Pil.Expression -> b)
+                 -> P.Input a
+                 -> Converter (Pil.ExprOp Pil.Expression)
+    unFloatExpr opCons opArgsCons in1 = do
+      a <- convertConstFloatOrVar in1
+      return . opCons $ opArgsCons a
+    
 
     unsupported :: Text -> Converter Pil.Stmt
     unsupported = throwError . UnsuportedPcodeOp
