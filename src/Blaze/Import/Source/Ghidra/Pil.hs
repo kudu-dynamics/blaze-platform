@@ -181,7 +181,9 @@ getFloatConstExpr :: IsVariable a => a -> Maybe Pil.Expression
 getFloatConstExpr v = case getVarNodeType v of
   VImmediate n ->
     -- TODO: make sure this is the proper way to convert const from ghidra to floats
+    -- TODO: see if Ghidra will do this for us, since it's arch dependent.
     return . mkExpr v . Pil.CONST_FLOAT . Pil.ConstFloatOp . wordToDouble . unsafeCoerce $ n
+    
   _ -> Nothing
 
 convertAny :: [a -> Maybe Pil.Expression] -> a -> Converter Pil.Expression
@@ -190,7 +192,7 @@ convertAny converters a = case asum $ fmap ($ a) converters of
   Just x -> return x
 
 convertConstFloatOrVar :: IsVariable a => a -> Converter Pil.Expression
-convertConstFloatOrVar v= do
+convertConstFloatOrVar v = do
   ctx' <- use #ctx
   convertAny [ getFloatConstExpr
              , getVarExpr ctx'
@@ -267,7 +269,7 @@ convertVarNodeType vnt = do
   ctx' <- use #ctx
   let pv name = return . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx'
   case vnt of
-    VReg n -> pv $ "reg" <> show n
+    VReg n -> pv $ "reg" <> show n -- TODO: add size
     VStack n -> pv $ "stack" <> show n
     VUnique n -> pv $ "unique" <> show n
     VRam n -> return . Pil.CONST_PTR . Pil.ConstPtrOp $ n
@@ -281,99 +283,105 @@ convertVarNode v = Pil.Expression (fromIntegral . getSize $ v) <$> convertVarNod
  
 convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
 convertPcodeOpToPilStmt op = get >>= \st -> case op of
-  P.BOOL_AND out in1 in2 -> unsupported "BOOL_AND"
-  P.BOOL_NEGATE out in1 -> unsupported "BOOL_NEGATE"
-  P.BOOL_OR out in1 in2 -> unsupported "BOOL_OR"
-  P.BOOL_XOR out in1 in2 -> unsupported "BOOL_XOR"
+  P.BOOL_AND out in0 in1 -> unsupported "BOOL_AND"
+  P.BOOL_NEGATE out in0 -> unsupported "BOOL_NEGATE"
+  P.BOOL_OR out in0 in1 -> unsupported "BOOL_OR"
+  P.BOOL_XOR out in0 in1 -> unsupported "BOOL_XOR"
   P.BRANCH dest -> Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
   -- Branch indirect. Var contains offset from current instr.
   -- Offset is in context of current addr space
   -- TODO: maybe should use `JumpTo instrAddr [off]`
-  P.BRANCHIND in1 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in1 ^. #value)
+  P.BRANCHIND in0 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in0 ^. #value)
   P.CALL dest inputs -> do
     cdest <- callDestFromDest $ dest ^. #value
     params <-  mapM convertVarNode . fmap (view #value) $ inputs
     return . Pil.Call $ Pil.CallOp cdest Nothing params
-  P.CALLIND in1 inputs -> case getVarExpr (st ^. #ctx) (in1 ^. #value) of
+  P.CALLIND in0 inputs -> case getVarExpr (st ^. #ctx) (in0 ^. #value) of
     Nothing -> do
-      let v = in1 ^. #value
+      let v = in0 ^. #value
       throwError $ ExpectedVarExpr (getSize v) (getVarType v)
     Just destVarExpr -> do
       params <- mapM convertVarNode . fmap (view #value) $ inputs
       return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
     
-  P.CALLOTHER in1 inputs -> unsupported "CALLOTHER" -- Can't find this in the docs
-  P.CAST out in1 -> unsupported "CAST"    
-  P.CBRANCH _dest in1 -> do
-    cond <- convertVarNode $ in1 ^. #value
+  P.CALLOTHER in0 inputs -> unsupported "CALLOTHER" -- Can't find this in the docs
+  P.CAST out in0 -> unsupported "CAST"    
+  P.CBRANCH _dest in0 -> do
+    cond <- convertVarNode $ in0 ^. #value
     -- Ignore the dest for now, as it gets encoded in the CFG edges.
     return . Pil.BranchCond . Pil.BranchCondOp $ cond
-  P.COPY out in1 -> do
+  P.COPY out in0 -> do
     destVar <- requirePilVar out
-    Pil.Def . Pil.DefOp destVar <$> convertVarNode (in1 ^. #value)
-  P.CPOOLREF _out _in1 _in2 _inputs -> unsupported "CPOOLREF"
-  P.EXTRACT out in1 in2 -> do -- NOT in docs. guessing `Extract dest src offset
-    srcExpr <- convertVarNode in1
-    offsetExpr <- requireConst in2
+    Pil.Def . Pil.DefOp destVar <$> convertVarNode (in0 ^. #value)
+  P.CPOOLREF _out _in0 _in1 _inputs -> unsupported "CPOOLREF"
+  P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
+    srcExpr <- convertVarNode in0
+    offsetExpr <- requireConst in1
     mkDef out . Pil.Extract $ Pil.ExtractOp srcExpr offsetExpr
-  P.FLOAT_ABS out in2 -> undefined
-  P.FLOAT_ADD out in1 in2 -> undefined
-  P.FLOAT_CEIL out in1 -> undefined
-  P.FLOAT_DIV out in1 in2 -> undefined
-  P.FLOAT_EQUAL out in1 in2 -> undefined
-  P.FLOAT_FLOAT2FLOAT out in1 -> undefined
-  P.FLOAT_FLOOR out in1 -> undefined
-  P.FLOAT_INT2FLOAT out in1 -> undefined
-  P.FLOAT_LESS out in1 in2 -> undefined
-  P.FLOAT_LESSEQUAL out in1 in2 -> undefined
-  P.FLOAT_MULT out in1 in2 -> undefined
-  P.FLOAT_NAN out in1 -> undefined
-  P.FLOAT_NEG out in1 -> undefined
-  P.FLOAT_NOTEQUAL out in1 in2 -> undefined
-  P.FLOAT_ROUND out in1 -> undefined
-  P.FLOAT_SQRT out in1 -> undefined
-  P.FLOAT_SUB out in1 in2 -> undefined
-  P.FLOAT_TRUNC out in1 in2 -> undefined -- not in docs
-  P.INDIRECT out in1 in2 -> undefined
-  P.INSERT -> undefined -- not in docs
-  P.INT_2COMP out in1 -> undefined
-  P.INT_ADD out in1 in2 -> mkDef out =<< binExpr Pil.ADD Pil.AddOp in1 in2
-  P.INT_AND out in1 in2 -> undefined
-  P.INT_CARRY out in1 in2 -> undefined
-  P.INT_DIV out in1 in2 -> undefined
-  P.INT_EQUAL out in1 in2 -> undefined
-  P.INT_LEFT out in1 in2 -> undefined
-  P.INT_LESS out in1 in2 -> undefined
-  P.INT_LESSEQUAL out in1 in2 -> undefined
-  P.INT_MULT out in1 in2 -> undefined
-  P.INT_NEGATE out in1 -> undefined
-  P.INT_NOTEQUAL out in1 in2 -> undefined
-  P.INT_OR out in1 in2 -> undefined
-  P.INT_REM out in1 in2 -> undefined
-  P.INT_RIGHT out in1 in2 -> undefined
-  P.INT_SBORROW out in1 in2 -> undefined
-  P.INT_SCARRY out in1 in2 -> undefined
-  P.INT_SDIV out in1 in2 -> undefined
-  P.INT_SEXT out in1 -> undefined
-  P.INT_SLESS out in1 in2 -> undefined
-  P.INT_SLESSEQUAL out in1 in2 -> undefined
-  P.INT_SREM out in1 in2 -> undefined
-  P.INT_SRIGHT out in1 in2 -> undefined
-  P.INT_SUB out in1 in2 -> undefined
-  P.INT_XOR out in1 in2 -> undefined
-  P.INT_ZEXT out in1 -> undefined
-  P.LOAD out addrSpace in2 -> undefined
-  P.MULTIEQUAL out in1 in2 inputs -> undefined
-  P.NEW out in1 inputs -> undefined
+  P.FLOAT_ABS out in0 -> mkDef out =<< unFloatOp Pil.FABS Pil.FabsOp in0
+  P.FLOAT_ADD out in0 in1 -> mkDef out =<< binFloatOp Pil.FADD Pil.FaddOp in0 in1
+  P.FLOAT_CEIL out in0 -> mkDef out =<< unFloatOp Pil.CEIL Pil.CeilOp in0
+  P.FLOAT_DIV out in0 in1 -> mkDef out =<< binFloatOp Pil.FDIV Pil.FdivOp in0 in1
+  P.FLOAT_EQUAL out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_E Pil.FcmpEOp in0 in1
+  P.FLOAT_FLOAT2FLOAT out in0 -> mkDef out =<< unFloatOp Pil.FLOAT_CONV Pil.FloatConvOp in0
+  P.FLOAT_FLOOR out in0 -> mkDef out =<< unFloatOp Pil.FLOOR Pil.FloorOp in0
+  P.FLOAT_INT2FLOAT out in0 -> mkDef out =<< unFloatOp Pil.INT_TO_FLOAT Pil.IntToFloatOp in0
+  P.FLOAT_LESS out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_LT Pil.FcmpLtOp in0 in1
+  P.FLOAT_LESSEQUAL out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_LE Pil.FcmpLeOp in0 in1
+  P.FLOAT_MULT out in0 in1 -> mkDef out =<< binFloatOp Pil.FMUL Pil.FmulOp in0 in1
+  P.FLOAT_NAN out in0 -> mkDef out =<< binFloatOp Pil.FCMP_UO Pil.FcmpUoOp in0 in0
+  P.FLOAT_NEG out in0 -> mkDef out =<< unFloatOp Pil.FNEG Pil.FnegOp in0
+  P.FLOAT_NOTEQUAL out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_NE Pil.FcmpNeOp in0 in1
+  P.FLOAT_ROUND out in0 -> mkDef out =<< unFloatOp Pil.ROUND_TO_INT Pil.RoundToIntOp in0
+  P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
+  P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
+  P.FLOAT_TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
+  P.INDIRECT out in0 in1 -> unsupported "INDIRECT"
+  P.INSERT -> unsupported "INSERT" -- not in docs
+  P.INT_2COMP out in0 -> mkDef out =<< unIntOp Pil.NEG Pil.NegOp in0
+  P.INT_ADD out in0 in1 -> mkDef out =<< binIntOp Pil.ADD Pil.AddOp in0 in1
+  P.INT_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
+  P.INT_CARRY out in0 in1 -> do
+    pv <- requirePilVar out
+    addOverExpr <- Pil.Expression (fromIntegral $ getSize in0) <$> binIntOp Pil.ADD_OVERFLOW Pil.AddOverflowOp in0 in1
+    let zero = Pil.Expression (fromIntegral $ getSize in0) . Pil.CONST $ Pil.ConstOp 0
+        eqZeroExpr = Pil.Expression (fromIntegral $ getSize out) . Pil.CMP_E $ Pil.CmpEOp addOverExpr zero
+    return . Pil.Def . Pil.DefOp pv $ eqZeroExpr
+
+  P.INT_DIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVU Pil.DivuOp in0 in1
+  P.INT_EQUAL out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_E Pil.CmpEOp in0 in1
+  P.INT_LEFT out in0 in1 -> mkDef out =<< binIntOp Pil.LSL Pil.LslOp in0 in1
+  P.INT_LESS out in0 in1 -> undefined
+  P.INT_LESSEQUAL out in0 in1 -> undefined
+  P.INT_MULT out in0 in1 -> undefined
+  P.INT_NEGATE out in0 -> undefined
+  P.INT_NOTEQUAL out in0 in1 -> undefined
+  P.INT_OR out in0 in1 -> undefined
+  P.INT_REM out in0 in1 -> undefined
+  P.INT_RIGHT out in0 in1 -> mkDef out =<< binIntOp Pil.LSR Pil.LsrOp in0 in1
+  P.INT_SBORROW out in0 in1 -> undefined
+  P.INT_SCARRY out in0 in1 -> undefined
+  P.INT_SDIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVS Pil.DivsOp in0 in1
+  P.INT_SEXT out in0 -> undefined
+  P.INT_SLESS out in0 in1 -> undefined
+  P.INT_SLESSEQUAL out in0 in1 -> undefined
+  P.INT_SREM out in0 in1 -> undefined
+  P.INT_SRIGHT out in0 in1 -> undefined
+  P.INT_SUB out in0 in1 -> undefined
+  P.INT_XOR out in0 in1 -> undefined
+  P.INT_ZEXT out in0 -> undefined
+  P.LOAD out addrSpace in1 -> undefined
+  P.MULTIEQUAL out in0 in1 inputs -> undefined
+  P.NEW out in0 inputs -> undefined
   P.PCODE_MAX -> undefined -- unknown
-  P.PIECE out in1 in2 -> undefined
-  P.POPCOUNT out in1 -> undefined
-  P.PTRADD out in1 in2 in3 -> undefined
-  P.PTRSUB out in1 in2 -> undefined
-  P.RETURN in1 inputs -> undefined
+  P.PIECE out in0 in1 -> undefined
+  P.POPCOUNT out in0 -> undefined
+  P.PTRADD out in0 in1 in2 -> undefined
+  P.PTRSUB out in0 in1 -> undefined
+  P.RETURN in0 inputs -> undefined
   P.SEGMENTOP -> undefined -- unknowng
-  P.STORE addrSpace in1 in2 -> undefined
-  P.SUBPIECE out off in1 -> undefined
+  P.STORE addrSpace in0 in1 -> undefined
+  P.SUBPIECE out off in0 -> undefined
   P.UNIMPLEMENTED -> undefined
 
   where
@@ -382,35 +390,44 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       pv <- requirePilVar v
       return . Pil.Def . Pil.DefOp pv $ Pil.Expression (fromIntegral $ getSize v) xop
 
-    binExpr :: forall b.
+    unIntOp :: forall b.
                (b -> Pil.ExprOp Pil.Expression)
-            -> (Pil.Expression -> Pil.Expression -> b)
-            -> P.Input a
-            -> P.Input a
-            -> Converter (Pil.ExprOp Pil.Expression)
-    binExpr opCons opArgsCons in1 in2 = do
-      a <- convertVarNode in1
-      b <- convertVarNode in2
+             -> (Pil.Expression -> b)
+             -> P.Input a
+             -> Converter (Pil.ExprOp Pil.Expression)
+    unIntOp opCons opArgsCons in0 = do
+      a <- convertVarNode in0
+      return . opCons $ opArgsCons a
+
+    binIntOp :: forall b.
+               (b -> Pil.ExprOp Pil.Expression)
+             -> (Pil.Expression -> Pil.Expression -> b)
+             -> P.Input a
+             -> P.Input a
+             -> Converter (Pil.ExprOp Pil.Expression)
+    binIntOp opCons opArgsCons in0 in1 = do
+      a <- convertVarNode in0
+      b <- convertVarNode in1
       return . opCons $ opArgsCons a b
 
-    binFloatExpr :: forall b.
-                    (b -> Pil.ExprOp Pil.Expression)
-                 -> (Pil.Expression -> Pil.Expression -> b)
-                 -> P.Input a
-                 -> P.Input a
-                 -> Converter (Pil.ExprOp Pil.Expression)
-    binFloatExpr opCons opArgsCons in1 in2 = do
-      a <- convertConstFloatOrVar in1
-      b <- convertConstFloatOrVar in2
+    binFloatOp :: forall b.
+                  (b -> Pil.ExprOp Pil.Expression)
+               -> (Pil.Expression -> Pil.Expression -> b)
+               -> P.Input a
+               -> P.Input a
+               -> Converter (Pil.ExprOp Pil.Expression)
+    binFloatOp opCons opArgsCons in0 in1 = do
+      a <- convertConstFloatOrVar in0
+      b <- convertConstFloatOrVar in1
       return . opCons $ opArgsCons a b
 
-    unFloatExpr :: forall b.
+    unFloatOp :: forall b.
                     (b -> Pil.ExprOp Pil.Expression)
                  -> (Pil.Expression -> b)
                  -> P.Input a
                  -> Converter (Pil.ExprOp Pil.Expression)
-    unFloatExpr opCons opArgsCons in1 = do
-      a <- convertConstFloatOrVar in1
+    unFloatOp opCons opArgsCons in0 = do
+      a <- convertConstFloatOrVar in0
       return . opCons $ opArgsCons a
     
 
