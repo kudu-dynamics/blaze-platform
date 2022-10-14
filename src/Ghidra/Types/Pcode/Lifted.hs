@@ -24,7 +24,7 @@ data LiftPcodeError
 newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
   deriving newtype (Functor, Applicative, Monad)
 
-newtype Output a = Output a
+newtype Output a = Output { getOutput :: a }
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 data Input a = Input
@@ -71,7 +71,7 @@ data PcodeOp a
   | FLOAT_ROUND (Output a) (Input a)
   | FLOAT_SQRT (Output a) (Input a)
   | FLOAT_SUB (Output a) (Input a) (Input a)
-  | FLOAT_TRUNC (Output a) (Input a) (Input a) -- not in docs
+  | FLOAT_TRUNC (Output a) (Input a) -- not in docs
   | INDIRECT (Output a) (Input a) (Input a)
   | INSERT -- not in docs
   | INT_2COMP (Output a) (Input a)
