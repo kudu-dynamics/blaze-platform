@@ -111,6 +111,6 @@ data PcodeOp a
   | RETURN (Input a) [Input a]
   | SEGMENTOP -- unknowng
   | STORE (Input AddressSpace) (Input a) (Input a)
-  | SUBPIECE (Output a) (Input Int64) (Input a)
+  | SUBPIECE (Output a) (Input a) (Input Int64)
   | UNIMPLEMENTED
   deriving (Eq, Ord, Show, Generic)
