@@ -374,15 +374,35 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.MULTIEQUAL out in0 in1 inputs -> undefined
   P.NEW out in0 inputs -> undefined
   P.PCODE_MAX -> undefined -- unknown
-  P.PIECE out in0 in1 -> undefined
+  P.PIECE out high low -> do
+    high' <- convertVarNode high
+    low' <- convertVarNode low
+    let outSize = fromIntegral (getSize out)
+        lowSize = low' ^. #size
+        highSize = high' ^. #size
+    if outSize/= lowSize + highSize
+      then error "PIECE operand sizes do not add up to output size" -- make this a ConverterError
+      else pure ()
+    let highShifted = Pil.LSL $ Pil.LslOp high' (mkExpr _ . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
+        lowExtended = Pil.ZX . Pil.ZxOp $ low'
+        res = Pil.OR $ Pil.OrOp (mkExpr out highShifted) (mkExpr out lowExtended)
+    mkDef out res
   P.POPCOUNT out in0 -> undefined
-  P.PTRADD out in0 in1 in2 -> undefined
-  P.PTRSUB out in0 in1 -> undefined
+  P.PTRADD out base idx stride -> mkDef out =<< triIntOp Pil.ARRAY_ADDR Pil.ArrayAddrOp base idx stride
+  P.PTRSUB out base offset -> mkDef out =<< binIntOp Pil.VAR_FIELD Pil.VarFieldOp base offset
   P.RETURN in0 inputs -> undefined
   P.SEGMENTOP -> undefined -- unknowng
   P.STORE addrSpace in0 in1 -> undefined
-  P.SUBPIECE out off in0 -> undefined
-  P.UNIMPLEMENTED -> undefined
+  P.SUBPIECE out in0 lowOff -> do
+    in0' <- convertVarNode in0
+    lowOff' <- case getVarNodeType lowOff of
+                 VImmediate n -> pure n
+                 _ -> error "SUBPIECE second argument was not IMMEDIATE"
+    let shiftedSize = (in0' ^. #size) - fromIntegral lowOff'
+        shifted = Pil.Expression shiftedSize . Pil.LSR $ Pil.LsrOp in0' (mkExpr _ . Pil.CONST $ Pil.ConstOp lowOff')
+        truncated = Pil.LOW_PART . Pil.LowPartOp $ shifted
+    mkDef out truncated
+  P.UNIMPLEMENTED -> pure $ Pil.UnimplInstr "unimpl"
 
   where
     mkDef :: P.Output a -> Pil.ExprOp Pil.Expression -> Converter Pil.Stmt
@@ -409,6 +429,19 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       a <- convertVarNode in0
       b <- convertVarNode in1
       return . opCons $ opArgsCons a b
+
+    triIntOp :: forall b.
+               (b -> Pil.ExprOp Pil.Expression)
+             -> (Pil.Expression -> Pil.Expression -> Pil.Expression -> b)
+             -> P.Input a
+             -> P.Input a
+             -> P.Input a
+             -> Converter (Pil.ExprOp Pil.Expression)
+    triIntOp opCons opArgsCons in0 in1 in2 = do
+      a <- convertVarNode in0
+      b <- convertVarNode in1
+      c <- convertVarNode in2
+      return . opCons $ opArgsCons a b c
 
     binFloatOp :: forall b.
                   (b -> Pil.ExprOp Pil.Expression)
