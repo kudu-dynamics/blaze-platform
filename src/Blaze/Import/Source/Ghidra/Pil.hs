@@ -351,25 +351,25 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_DIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVU Pil.DivuOp in0 in1
   P.INT_EQUAL out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_E Pil.CmpEOp in0 in1
   P.INT_LEFT out in0 in1 -> mkDef out =<< binIntOp Pil.LSL Pil.LslOp in0 in1
-  P.INT_LESS out in0 in1 -> undefined
-  P.INT_LESSEQUAL out in0 in1 -> undefined
-  P.INT_MULT out in0 in1 -> undefined
-  P.INT_NEGATE out in0 -> undefined
-  P.INT_NOTEQUAL out in0 in1 -> undefined
-  P.INT_OR out in0 in1 -> undefined
-  P.INT_REM out in0 in1 -> undefined
+  P.INT_LESS out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_ULT Pil.CmpUltOp in0 in1
+  P.INT_LESSEQUAL out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_ULE Pil.CmpUleOp in0 in1
+  P.INT_MULT out in0 in1 -> mkDef out =<< binIntOp Pil.MUL Pil.MulOp in0 in1
+  P.INT_NEGATE out in0 -> mkDef out =<< unIntOp Pil.NOT Pil.NotOp in0
+  P.INT_NOTEQUAL out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_NE Pil.CmpNeOp in0 in1
+  P.INT_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
+  P.INT_REM out in0 in1 -> mkDef out =<< binIntOp Pil.MODU Pil.ModuOp in0 in1
   P.INT_RIGHT out in0 in1 -> mkDef out =<< binIntOp Pil.LSR Pil.LsrOp in0 in1
-  P.INT_SBORROW out in0 in1 -> undefined
-  P.INT_SCARRY out in0 in1 -> undefined
+  P.INT_SBORROW out in0 in1 -> unsupported "SBORROW"
+  P.INT_SCARRY out in0 in1 -> unsupported "SCARRY" -- maybe use ADD_OVERFLOW wrapped in (> 0), but what about signedness?
   P.INT_SDIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVS Pil.DivsOp in0 in1
-  P.INT_SEXT out in0 -> undefined
-  P.INT_SLESS out in0 in1 -> undefined
-  P.INT_SLESSEQUAL out in0 in1 -> undefined
-  P.INT_SREM out in0 in1 -> undefined
-  P.INT_SRIGHT out in0 in1 -> undefined
-  P.INT_SUB out in0 in1 -> undefined
-  P.INT_XOR out in0 in1 -> undefined
-  P.INT_ZEXT out in0 -> undefined
+  P.INT_SEXT out in0 -> mkDef out =<< unIntOp Pil.SX Pil.SxOp in0
+  P.INT_SLESS out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_SLT Pil.CmpSltOp in0 in1
+  P.INT_SLESSEQUAL out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_SLE Pil.CmpSleOp in0 in1
+  P.INT_SREM out in0 in1 -> mkDef out =<< binIntOp Pil.MODS Pil.ModsOp in0 in1
+  P.INT_SRIGHT out in0 in1 -> mkDef out =<< binIntOp Pil.ASR Pil.AsrOp in0 in1
+  P.INT_SUB out in0 in1 -> mkDef out =<< binIntOp Pil.SUB Pil.SubOp in0 in1
+  P.INT_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
+  P.INT_ZEXT out in0 -> mkDef out =<< unIntOp Pil.ZX Pil.ZxOp in0
   P.LOAD out addrSpace in1 -> undefined
   P.MULTIEQUAL out in0 in1 inputs -> undefined
   P.NEW out in0 inputs -> undefined
