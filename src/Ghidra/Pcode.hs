@@ -186,7 +186,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   RETURN -> L.RETURN <$> input 0 <*> inputList 1
   SEGMENTOP -> unknown "SEGMENTOP"
   STORE -> L.STORE <$> inputAddressSpace 0 <*> input 1 <*> input 2
-  SUBPIECE -> L.SUBPIECE <$> out <*> inputConst 0 <*> input 1
+  SUBPIECE -> L.SUBPIECE <$> out <*> input 0 <*> inputConst 1
   UNIMPLEMENTED -> return L.UNIMPLEMENTED
   where
     me = maybeToEither
