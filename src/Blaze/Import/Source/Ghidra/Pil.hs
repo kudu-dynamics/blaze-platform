@@ -20,25 +20,40 @@ import qualified Data.BinaryAnalysis as BA
 import Data.Binary.IEEE754 (wordToDouble)
 import qualified Prelude as P
 import Blaze.Types.Pil
-    ( BranchCondOp(BranchCondOp),
-      CallOp(CallOp),
-      TailCallOp(TailCallOp),
-      Ctx(Ctx),
-      DefOp(DefOp),
-      DefPhiOp(DefPhiOp),
-      Expression(Expression),
-      PilVar(PilVar),
-      RetOp(RetOp),
-      Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
-                UnimplInstr, UnimplMem, NoRet, TailCall, Jump, JumpTo),
-      Stmt,
-      StoreOp(StoreOp),
-      Symbol,
-      UnimplMemOp(UnimplMemOp),
-      Ctx,
-      CtxId,
-      Expression,
-      PilVar, JumpOp (JumpOp), JumpToOp (JumpToOp) )
+  ( BranchCondOp (BranchCondOp),
+    CallOp (CallOp),
+    Ctx (Ctx),
+    CtxId,
+    DefOp (DefOp),
+    DefPhiOp (DefPhiOp),
+    Expression (Expression),
+    JumpOp (JumpOp),
+    JumpToOp (JumpToOp),
+    OperationSize,
+    PilVar (PilVar),
+    RetOp (RetOp),
+    Statement
+      ( BranchCond,
+        Call,
+        Def,
+        DefPhi,
+        Jump,
+        JumpTo,
+        NoRet,
+        Nop,
+        Ret,
+        Store,
+        TailCall,
+        Undef,
+        UnimplInstr,
+        UnimplMem
+      ),
+    Stmt,
+    StoreOp (StoreOp),
+    Symbol,
+    TailCallOp (TailCallOp),
+    UnimplMemOp (UnimplMemOp),
+  )
 
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
@@ -59,6 +74,16 @@ data ConverterError
   | UnsuportedPcodeOp Text
   | UnsuportedAddressSpace Text
   | ExpectedVarExpr Bytes VarType
+  -- | The sizes of the operands to PIECE did not add up to the size of its output
+  | PieceOperandsIncorrectSizes
+    { outputSize :: OperationSize
+    , highArg :: Expression
+    , lowArg :: Expression
+    }
+  -- | The offset argument (input1) to PTRSUB was not @.isConstant()@
+  | PtrsubOffsetNotConstant
+    { arg2 :: VarNodeType
+    }
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
@@ -126,7 +151,7 @@ data VarNodeType
   | VExtern Int64
   | VImmediate Int64
   | VOther Text
-  deriving (Eq, Ord, Read, Show, Generic)
+  deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
 getVarNodeType v = case getVarType v of
@@ -382,7 +407,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
         lowSize = low' ^. #size
         highSize = high' ^. #size
     if outSize/= lowSize + highSize
-      then error "PIECE operand sizes do not add up to output size" -- make this a ConverterError
+      then throwError PieceOperandsIncorrectSizes{outputSize=outSize, highArg=high', lowArg=low'}
       else pure ()
     let highShifted = Pil.LSL $ Pil.LslOp high' (Pil.Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
         lowExtended = Pil.ZX . Pil.ZxOp $ low'
@@ -395,7 +420,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     base' <- requirePilVar base
     offset' <- case getVarNodeType offset of
                  VImmediate n -> pure n
-                 _ -> error "PTR second argument was not a constant"
+                 vnt -> throwError $ PtrsubOffsetNotConstant vnt
     mkDef out . Pil.VAR_FIELD $ Pil.VarFieldOp base' (fromIntegral offset')
   P.RETURN in0 inputs -> undefined
   P.SEGMENTOP -> undefined -- unknowng
