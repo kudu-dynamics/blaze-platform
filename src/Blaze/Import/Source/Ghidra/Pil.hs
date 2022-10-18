@@ -375,6 +375,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.NEW out in0 inputs -> undefined
   P.PCODE_MAX -> undefined -- unknown
   P.PIECE out high low -> do
+    -- out := (high << low.size) | low
     high' <- convertVarNode high
     low' <- convertVarNode low
     let outSize = fromIntegral (getSize out)
@@ -383,26 +384,32 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     if outSize/= lowSize + highSize
       then error "PIECE operand sizes do not add up to output size" -- make this a ConverterError
       else pure ()
-    let highShifted = Pil.LSL $ Pil.LslOp high' (mkExpr _ . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
+    let highShifted = Pil.LSL $ Pil.LslOp high' (Pil.Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
         lowExtended = Pil.ZX . Pil.ZxOp $ low'
         res = Pil.OR $ Pil.OrOp (mkExpr out highShifted) (mkExpr out lowExtended)
     mkDef out res
   P.POPCOUNT out in0 -> undefined
   P.PTRADD out base idx stride -> mkDef out =<< triIntOp Pil.ARRAY_ADDR Pil.ArrayAddrOp base idx stride
-  P.PTRSUB out base offset -> mkDef out =<< binIntOp Pil.VAR_FIELD Pil.VarFieldOp base offset
+  P.PTRSUB out base offset -> do
+    -- out := (void *)base + offset
+    base' <- requirePilVar base
+    offset' <- case getVarNodeType offset of
+                 VImmediate n -> pure n
+                 _ -> error "PTR second argument was not a constant"
+    mkDef out . Pil.VAR_FIELD $ Pil.VarFieldOp base' (fromIntegral offset')
   P.RETURN in0 inputs -> undefined
   P.SEGMENTOP -> undefined -- unknowng
   P.STORE addrSpace in0 in1 -> undefined
   P.SUBPIECE out in0 lowOff -> do
+    -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
     in0' <- convertVarNode in0
-    lowOff' <- case getVarNodeType lowOff of
-                 VImmediate n -> pure n
-                 _ -> error "SUBPIECE second argument was not IMMEDIATE"
-    let shiftedSize = (in0' ^. #size) - fromIntegral lowOff'
-        shifted = Pil.Expression shiftedSize . Pil.LSR $ Pil.LsrOp in0' (mkExpr _ . Pil.CONST $ Pil.ConstOp lowOff')
+    let shiftedSize = (in0' ^. #size) - fromIntegral (lowOff ^. #value)
+        shifted = Pil.Expression shiftedSize . Pil.LSR $ Pil.LsrOp in0' (Pil.Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral (lowOff ^. #value))
         truncated = Pil.LOW_PART . Pil.LowPartOp $ shifted
     mkDef out truncated
-  P.UNIMPLEMENTED -> pure $ Pil.UnimplInstr "unimpl"
+  P.UNIMPLEMENTED ->
+    -- TODO: grab the disassembly for the unimplemented instruction
+    pure $ Pil.UnimplInstr "unimpl"
 
   where
     mkDef :: P.Output a -> Pil.ExprOp Pil.Expression -> Converter Pil.Stmt
