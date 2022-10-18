@@ -283,10 +283,10 @@ convertVarNode v = Pil.Expression (fromIntegral . getSize $ v) <$> convertVarNod
  
 convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
 convertPcodeOpToPilStmt op = get >>= \st -> case op of
-  P.BOOL_AND out in0 in1 -> unsupported "BOOL_AND"
-  P.BOOL_NEGATE out in0 -> unsupported "BOOL_NEGATE"
-  P.BOOL_OR out in0 in1 -> unsupported "BOOL_OR"
-  P.BOOL_XOR out in0 in1 -> unsupported "BOOL_XOR"
+  P.BOOL_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
+  P.BOOL_NEGATE out in0 -> mkDef out =<< unIntOp Pil.NOT Pil.NotOp in0
+  P.BOOL_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
+  P.BOOL_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   P.BRANCH dest -> Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
   -- Branch indirect. Var contains offset from current instr.
   -- Offset is in context of current addr space
