@@ -171,38 +171,38 @@ getVarNodeType v = case getVarType v of
 
 -- The point of these individual funcs instead of a single `VarNode -> Expression`
 -- func is so you can choose only the correct possibility and `<|>` them together
-getConstIntExpr :: IsVariable a => a -> Maybe Pil.Expression
+getConstIntExpr :: IsVariable a => a -> Maybe Expression
 getConstIntExpr v = case getVarNodeType v of
   VImmediate n -> return . mkExpr v . Pil.CONST . Pil.ConstOp $ n
   _ -> Nothing
 
-getConstPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
+getConstPtrExpr :: IsVariable a => a -> Maybe Expression
 getConstPtrExpr v = case getVarNodeType v of
   VImmediate n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
   VRam n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
   _ -> Nothing
 
-getExternPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
+getExternPtrExpr :: IsVariable a => a -> Maybe Expression
 getExternPtrExpr v = case getVarNodeType v of
   -- TODO: figure out what to put for address and offset of ExternPtrOp
   VExtern n -> return . mkExpr v . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing
   _ -> Nothing
 
-getPtrExpr :: IsVariable a => a -> Maybe Pil.Expression
+getPtrExpr :: IsVariable a => a -> Maybe Expression
 getPtrExpr v = getExternPtrExpr v <|> getConstPtrExpr v
 
 -- | Only returns variables
-getVarExpr :: IsVariable a => Ctx -> a -> Maybe Pil.Expression
+getVarExpr :: IsVariable a => Ctx -> a -> Maybe Expression
 getVarExpr ctx v = case getVarNodeType v of
   VUnique n -> pv $ "unique" <> show n
   VReg n -> pv $ "reg" <> show n
   VStack n -> pv $ "stack" <> show n
   _ -> Nothing
   where
-    pv :: Text -> Maybe Pil.Expression
+    pv :: Text -> Maybe Expression
     pv name = return . mkExpr v . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx
 
-getFloatConstExpr :: IsVariable a => a -> Maybe Pil.Expression
+getFloatConstExpr :: IsVariable a => a -> Maybe Expression
 getFloatConstExpr v = case getVarNodeType v of
   VImmediate n ->
     -- TODO: make sure this is the proper way to convert const from ghidra to floats
@@ -211,12 +211,12 @@ getFloatConstExpr v = case getVarNodeType v of
     
   _ -> Nothing
 
-convertAny :: [a -> Maybe Pil.Expression] -> a -> Converter Pil.Expression
+convertAny :: [a -> Maybe Expression] -> a -> Converter Expression
 convertAny converters a = case asum $ fmap ($ a) converters of
   Nothing -> throwError OutOfChoicesError
   Just x -> return x
 
-convertConstFloatOrVar :: IsVariable a => a -> Converter Pil.Expression
+convertConstFloatOrVar :: IsVariable a => a -> Converter Expression
 convertConstFloatOrVar v = do
   ctx' <- use #ctx
   convertAny [ getFloatConstExpr
@@ -240,22 +240,22 @@ requirePilVar v = case getVarType v of
   GVar.Const n -> throwError $ ExpectedAddressButGotConst n
   GVar.Addr x -> convertVarAddress x
 
-mkExpr :: IsVariable a => a -> Pil.ExprOp Pil.Expression -> Pil.Expression
-mkExpr v = Pil.Expression (fromIntegral $ getSize v)
+mkExpr :: IsVariable a => a -> Pil.ExprOp Expression -> Expression
+mkExpr v = Expression (fromIntegral $ getSize v)
 
-mkExpr' :: Pil.OperationSize -> Pil.ExprOp Pil.Expression -> Pil.Expression
-mkExpr' sz = Pil.Expression sz
+mkExpr' :: Pil.OperationSize -> Pil.ExprOp Expression -> Expression
+mkExpr' sz = Expression sz
 
-mkExprWithDefaultSize :: Pil.ExprOp Pil.Expression -> Converter Pil.Expression
+mkExprWithDefaultSize :: Pil.ExprOp Expression -> Converter Expression
 mkExprWithDefaultSize x = do
   sz <- fromIntegral <$> use #defaultPtrSize
   return $ mkExpr' sz x
 
-mkAddressExpr :: GAddr.Address -> Pil.Expression
-mkAddressExpr x = Pil.Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ x ^. #offset
+mkAddressExpr :: GAddr.Address -> Expression
+mkAddressExpr x = Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ x ^. #offset
 
 -- | Converts a Ghidra var to be a Pil Var expression, or throws error.
-requireVarExpr :: IsVariable a => a -> Converter Pil.Expression
+requireVarExpr :: IsVariable a => a -> Converter Expression
 requireVarExpr v = mkExpr v . Pil.VAR . Pil.VarOp <$> requirePilVar v
 
 requireConst :: IsVariable a => a -> Converter Int64
@@ -263,14 +263,14 @@ requireConst v = case getVarType v of
   GVar.Const n -> return n
   GVar.Addr x -> throwError $ ExpectedConstButGotAddress x
 
-requireConstIntExpr :: IsVariable a => a -> Converter Pil.Expression
+requireConstIntExpr :: IsVariable a => a -> Converter Expression
 requireConstIntExpr v = mkExpr v . Pil.CONST . Pil.ConstOp <$> requireConst v
 
-convertDest :: P.Destination -> Converter Pil.Expression
+convertDest :: P.Destination -> Converter Expression
 convertDest (P.Absolute addr) = return $ mkAddressExpr addr
 convertDest (P.Relative off) = mkExprWithDefaultSize . Pil.CONST . Pil.ConstOp $ off
 
-callDestFromDest :: P.Destination -> Converter (Pil.CallDest Pil.Expression)
+callDestFromDest :: P.Destination -> Converter (Pil.CallDest Expression)
 callDestFromDest (P.Relative _off) =
   -- Calling into the pcode for the same instruction doesn't make much sense
   -- so assume it won't happen, even though the docs say its the same as Branch
@@ -289,7 +289,7 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
   _ -> return . Pil.CallExpr $ mkAddressExpr addr
 
 -- TODO: consolodate the other funcs to use this one
-convertVarNodeType :: VarNodeType -> Converter (Pil.ExprOp Pil.Expression)
+convertVarNodeType :: VarNodeType -> Converter (Pil.ExprOp Expression)
 convertVarNodeType vnt = do
   ctx' <- use #ctx
   let pv name = return . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx'
@@ -303,8 +303,8 @@ convertVarNodeType vnt = do
     VImmediate n -> return . Pil.CONST . Pil.ConstOp $ n
     VOther t -> throwError $ UnsuportedAddressSpace t
 
-convertVarNode :: IsVariable a => a -> Converter Pil.Expression
-convertVarNode v = Pil.Expression (fromIntegral . getSize $ v) <$> convertVarNodeType (getVarNodeType v)
+convertVarNode :: IsVariable a => a -> Converter Expression
+convertVarNode v = Expression (fromIntegral . getSize $ v) <$> convertVarNodeType (getVarNodeType v)
  
 convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
 convertPcodeOpToPilStmt op = get >>= \st -> case op of
@@ -368,9 +368,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
   P.INT_CARRY out in0 in1 -> do
     pv <- requirePilVar out
-    addOverExpr <- Pil.Expression (fromIntegral $ getSize in0) <$> binIntOp Pil.ADD_OVERFLOW Pil.AddOverflowOp in0 in1
-    let zero = Pil.Expression (fromIntegral $ getSize in0) . Pil.CONST $ Pil.ConstOp 0
-        eqZeroExpr = Pil.Expression (fromIntegral $ getSize out) . Pil.CMP_E $ Pil.CmpEOp addOverExpr zero
+    addOverExpr <- Expression (fromIntegral $ getSize in0) <$> binIntOp Pil.ADD_OVERFLOW Pil.AddOverflowOp in0 in1
+    let zero = Expression (fromIntegral $ getSize in0) . Pil.CONST $ Pil.ConstOp 0
+        eqZeroExpr = Expression (fromIntegral $ getSize out) . Pil.CMP_E $ Pil.CmpEOp addOverExpr zero
     return . Pil.Def . Pil.DefOp pv $ eqZeroExpr
 
   P.INT_DIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVU Pil.DivuOp in0 in1
@@ -409,7 +409,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     if outSize/= lowSize + highSize
       then throwError PieceOperandsIncorrectSizes{outputSize=outSize, highArg=high', lowArg=low'}
       else pure ()
-    let highShifted = Pil.LSL $ Pil.LslOp high' (Pil.Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
+    let highShifted = Pil.LSL $ Pil.LslOp high' (Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
         lowExtended = Pil.ZX . Pil.ZxOp $ low'
         res = Pil.OR $ Pil.OrOp (mkExpr out highShifted) (mkExpr out lowExtended)
     mkDef out res
@@ -429,7 +429,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
     in0' <- convertVarNode in0
     let shiftedSize = (in0' ^. #size) - fromIntegral (lowOff ^. #value)
-        shifted = Pil.Expression shiftedSize . Pil.LSR $ Pil.LsrOp in0' (Pil.Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral (lowOff ^. #value))
+        shifted = Expression shiftedSize . Pil.LSR $ Pil.LsrOp in0' (Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral (lowOff ^. #value))
         truncated = Pil.LOW_PART . Pil.LowPartOp $ shifted
     mkDef out truncated
   P.UNIMPLEMENTED ->
@@ -437,38 +437,38 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     pure $ Pil.UnimplInstr "unimpl"
 
   where
-    mkDef :: P.Output a -> Pil.ExprOp Pil.Expression -> Converter Pil.Stmt
+    mkDef :: P.Output a -> Pil.ExprOp Expression -> Converter Pil.Stmt
     mkDef v xop = do
       pv <- requirePilVar v
-      return . Pil.Def . Pil.DefOp pv $ Pil.Expression (fromIntegral $ getSize v) xop
+      return . Pil.Def . Pil.DefOp pv $ Expression (fromIntegral $ getSize v) xop
 
     unIntOp :: forall b.
-               (b -> Pil.ExprOp Pil.Expression)
-             -> (Pil.Expression -> b)
+               (b -> Pil.ExprOp Expression)
+             -> (Expression -> b)
              -> P.Input a
-             -> Converter (Pil.ExprOp Pil.Expression)
+             -> Converter (Pil.ExprOp Expression)
     unIntOp opCons opArgsCons in0 = do
       a <- convertVarNode in0
       return . opCons $ opArgsCons a
 
     binIntOp :: forall b.
-               (b -> Pil.ExprOp Pil.Expression)
-             -> (Pil.Expression -> Pil.Expression -> b)
+               (b -> Pil.ExprOp Expression)
+             -> (Expression -> Expression -> b)
              -> P.Input a
              -> P.Input a
-             -> Converter (Pil.ExprOp Pil.Expression)
+             -> Converter (Pil.ExprOp Expression)
     binIntOp opCons opArgsCons in0 in1 = do
       a <- convertVarNode in0
       b <- convertVarNode in1
       return . opCons $ opArgsCons a b
 
     triIntOp :: forall b.
-               (b -> Pil.ExprOp Pil.Expression)
-             -> (Pil.Expression -> Pil.Expression -> Pil.Expression -> b)
+               (b -> Pil.ExprOp Expression)
+             -> (Expression -> Expression -> Expression -> b)
              -> P.Input a
              -> P.Input a
              -> P.Input a
-             -> Converter (Pil.ExprOp Pil.Expression)
+             -> Converter (Pil.ExprOp Expression)
     triIntOp opCons opArgsCons in0 in1 in2 = do
       a <- convertVarNode in0
       b <- convertVarNode in1
@@ -476,21 +476,21 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       return . opCons $ opArgsCons a b c
 
     binFloatOp :: forall b.
-                  (b -> Pil.ExprOp Pil.Expression)
-               -> (Pil.Expression -> Pil.Expression -> b)
+                  (b -> Pil.ExprOp Expression)
+               -> (Expression -> Expression -> b)
                -> P.Input a
                -> P.Input a
-               -> Converter (Pil.ExprOp Pil.Expression)
+               -> Converter (Pil.ExprOp Expression)
     binFloatOp opCons opArgsCons in0 in1 = do
       a <- convertConstFloatOrVar in0
       b <- convertConstFloatOrVar in1
       return . opCons $ opArgsCons a b
 
     unFloatOp :: forall b.
-                    (b -> Pil.ExprOp Pil.Expression)
-                 -> (Pil.Expression -> b)
+                    (b -> Pil.ExprOp Expression)
+                 -> (Expression -> b)
                  -> P.Input a
-                 -> Converter (Pil.ExprOp Pil.Expression)
+                 -> Converter (Pil.ExprOp Expression)
     unFloatOp opCons opArgsCons in0 = do
       a <- convertConstFloatOrVar in0
       return . opCons $ opArgsCons a
