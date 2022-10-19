@@ -16,6 +16,7 @@ import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Types.Variable as GVar
 
 import qualified Blaze.Pil as Pil
+import qualified Blaze.Pil.Construct as C
 import qualified Data.BinaryAnalysis as BA
 import Data.Binary.IEEE754 (wordToDouble)
 import qualified Prelude as P
@@ -330,7 +331,8 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
     
   P.CALLOTHER in0 inputs -> unsupported "CALLOTHER" -- Can't find this in the docs
-  P.CAST out in0 -> unsupported "CAST"    
+  -- TODO do we want to record CASTs into PIL somehow?
+  P.CAST out in0 -> mkDef out . view #op =<< convertVarNode in0
   P.CBRANCH _dest in0 -> do
     cond <- convertVarNode $ in0 ^. #value
     -- Ignore the dest for now, as it gets encoded in the CFG edges.
@@ -361,7 +363,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.FLOAT_TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
-  P.INDIRECT out in0 in1 -> unsupported "INDIRECT"
+  P.INDIRECT _out _in0 _in1 -> unsupported "INDIRECT"
   P.INSERT -> unsupported "INSERT" -- not in docs
   P.INT_2COMP out in0 -> mkDef out =<< unIntOp Pil.NEG Pil.NegOp in0
   P.INT_ADD out in0 in1 -> mkDef out =<< binIntOp Pil.ADD Pil.AddOp in0 in1
@@ -384,7 +386,22 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
   P.INT_REM out in0 in1 -> mkDef out =<< binIntOp Pil.MODU Pil.ModuOp in0 in1
   P.INT_RIGHT out in0 in1 -> mkDef out =<< binIntOp Pil.LSR Pil.LsrOp in0 in1
-  P.INT_SBORROW out in0 in1 -> unsupported "SBORROW"
+  P.INT_SBORROW out a b -> do
+    -- From https://codereview.stackexchange.com/a/93699
+    -- (b s< 0) ? (a s> INT_MAX + b) : (a s< INT_MIN + b)
+    pv <- requirePilVar out
+    a' <- convertVarNode a
+    b' <- convertVarNode b
+    let outSize = fromIntegral $ getSize out
+        bSize = b' ^. #size
+        intMin = C.const undefined bSize
+        intMax = C.const undefined bSize
+        cond = C.cmpSlt b' (C.const 0 bSize) 1
+        case1 = C.cmpSgt a' (C.add intMax b' bSize) outSize
+        case2 = C.cmpSlt a' (C.add intMin b' bSize) outSize
+        res = undefined
+    mkDef out res
+
   P.INT_SCARRY out in0 in1 -> unsupported "SCARRY" -- maybe use ADD_OVERFLOW wrapped in (> 0), but what about signedness?
   P.INT_SDIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVS Pil.DivsOp in0 in1
   P.INT_SEXT out in0 -> mkDef out =<< unIntOp Pil.SX Pil.SxOp in0
