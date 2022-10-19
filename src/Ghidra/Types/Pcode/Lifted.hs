@@ -73,7 +73,7 @@ data PcodeOp a
   | FLOAT_SUB (Output a) (Input a) (Input a)
   | FLOAT_TRUNC (Output a) (Input a) -- not in docs
   | INDIRECT (Output a) (Input a) (Input a)
-  | INSERT -- not in docs
+  | INSERT (Output a) (Input a) (Input a) (Input Int64) (Input Int64)
   | INT_2COMP (Output a) (Input a)
   | INT_ADD (Output a) (Input a) (Input a)
   | INT_AND (Output a) (Input a) (Input a)
