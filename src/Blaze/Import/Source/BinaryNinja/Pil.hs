@@ -140,7 +140,7 @@ convertExpr expr = do
         . Pil.FieldAddrOp stackAddr
         . fromIntegral
         $ x ^. MLIL.offset
-    (MLIL.ADD_OVERFLOW x) -> mkExpr . Pil.ADD_OVERFLOW <$> f x
+    (MLIL.ADD_OVERFLOW x) -> mkExpr . Pil.ADD_WILL_OVERFLOW <$> f x
     (MLIL.AND x) -> mkExpr . Pil.AND <$> f x
     (MLIL.ASR x) -> mkExpr . Pil.ASR <$> f x
     (MLIL.BOOL_TO_INT x) -> mkExpr . Pil.BOOL_TO_INT <$> f x

@@ -246,7 +246,8 @@ dispExprOp :: (Disp a, HasField' "op" a (Pil.ExprOp a))
 dispExprOp exprOp size = case exprOp of
   (Pil.ADC op) -> dispBinop "adc" op size
   (Pil.ADD op) -> dispBinop "add" op size
-  (Pil.ADD_OVERFLOW op) -> dispBinop "addOf" op size
+  (Pil.ADD_WILL_CARRY op) -> dispBinop "addWillCarry" op size
+  (Pil.ADD_WILL_OVERFLOW op) -> dispBinop "addWillOverflow" op size
   (Pil.AND op) -> dispBinop "and" op size
   (Pil.ASR op) -> dispBinop "asr" op size
   (Pil.BOOL_TO_INT op) -> dispUnop "boolToInt" op size
@@ -319,6 +320,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.SBB op) -> dispBinop "sbb" op size
   (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. #stackOffset)
   (Pil.SUB op) -> dispBinop "sub" op size
+  (Pil.SUB_WILL_OVERFLOW op) -> dispBinop "subWillOverflow" op size
   (Pil.SX op) -> dispUnop "sx" op size
   (Pil.TEST_BIT op) -> dispBinop "testBit" op size
   (Pil.UNIMPL t) -> "unimpl" <-> paren t

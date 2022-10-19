@@ -19,7 +19,7 @@ import Blaze.Types.Pil ( Expression
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Solver
 import qualified Blaze.Pil.Solver.List as BSList
-import Data.SBV.Tools.Overflow (bvAddO)
+import Data.SBV.Tools.Overflow (bvAddO, bvSubO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.Trans ( (.==)
@@ -584,7 +584,10 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
 
   Pil.ADD x -> integralBinOpMatchSecondArgToFirst x svPlus
 
-  Pil.ADD_OVERFLOW x ->
+  Pil.ADD_WILL_CARRY x ->
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO a b
+
+  Pil.ADD_WILL_OVERFLOW x ->
     integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO a b
 
   Pil.AND x -> integralBinOpMatchSecondArgToFirst x svAnd
@@ -768,6 +771,9 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
 --   Pil.STACK_LOCAL_ADDR _ -> retPointer
 
   Pil.SUB x -> integralBinOpMatchSecondArgToFirst x svMinus
+
+  Pil.SUB_WILL_OVERFLOW x ->
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvSubO a b
 
   Pil.SX x -> bitVectorUnOp x (signExtend sz)
 

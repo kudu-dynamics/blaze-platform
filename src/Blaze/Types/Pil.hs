@@ -12,7 +12,8 @@ import Blaze.Types.Pil.Common as Exports
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
-    | ADD_OVERFLOW (AddOverflowOp expr)
+    | ADD_WILL_CARRY (AddWillCarryOp expr)
+    | ADD_WILL_OVERFLOW (AddWillOverflowOp expr)
     | AND (AndOp expr)
     | ASR (AsrOp expr)
     | BOOL_TO_INT (BoolToIntOp expr)
@@ -76,6 +77,7 @@ data ExprOp expr
     | RRC (RrcOp expr)
     | SBB (SbbOp expr)
     | SUB (SubOp expr)
+    | SUB_WILL_OVERFLOW (SubWillOverflowOp expr)
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text

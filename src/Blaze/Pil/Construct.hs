@@ -73,8 +73,17 @@ var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
 add :: Expression -> Expression -> OperationSize -> Expression
 add = binOp Pil.ADD Pil.AddOp
 
+addWillCarry :: Expression -> Expression -> OperationSize -> Expression
+addWillCarry = binOp Pil.ADD_WILL_CARRY Pil.AddWillCarryOp
+
+addWillOverflow :: Expression -> Expression -> OperationSize -> Expression
+addWillOverflow = binOp Pil.ADD_WILL_OVERFLOW Pil.AddWillOverflowOp
+
 sub :: Expression -> Expression -> OperationSize -> Expression
 sub = binOp Pil.SUB Pil.SubOp
+
+subWillOverflow :: Expression -> Expression -> OperationSize -> Expression
+subWillOverflow = binOp Pil.SUB_WILL_OVERFLOW Pil.SubWillOverflowOp
 
 mul :: Expression -> Expression -> OperationSize -> Expression
 mul = binOp Pil.MUL Pil.MulOp

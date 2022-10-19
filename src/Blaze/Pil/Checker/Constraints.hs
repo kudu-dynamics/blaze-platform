@@ -170,9 +170,11 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add =<< integralBinOpFirstArgIsReturn Nothing True x
     addChildConstraints
 
-  -- should this be unsigned ret because overflow is always positive?
-  Pil.ADD_OVERFLOW x -> do
-    add =<< integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADD_WILL_CARRY x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just False) True x
+    addChildConstraints
+  Pil.ADD_WILL_OVERFLOW x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just True) True x
     addChildConstraints
 
   Pil.AND x -> do
@@ -488,6 +490,10 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     addChildConstraints
   Pil.SX x -> do
     add =<< integralExtendOp (Just True) x
+    addChildConstraints
+
+  Pil.SUB_WILL_OVERFLOW x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just True) True x
     addChildConstraints
 
   Pil.TEST_BIT _ -> do

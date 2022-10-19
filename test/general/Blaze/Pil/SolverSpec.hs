@@ -1437,7 +1437,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         r `shouldBe` Right ( Sat $ HashMap.fromList rvars
                             , errs )
 
-    context "solveExpr: ADD_OVERFLOW" $ do
+    context "solveExpr: ADD_WILL_OVERFLOW" $ do
       let tenv = [(pilVar "a", tbool)]
           arg0 :: DSTExpression
           arg0 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 3, Just tbool)
@@ -1450,7 +1450,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                  . Pil.CONST . Pil.ConstOp $ 4294967293
           expr :: DSTExpression
           expr = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 0, Just tbool)
-                 . Pil.ADD_OVERFLOW $ Pil.AddOverflowOp arg1 arg2
+                 . Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp arg1 arg2
           cmd = do
             rArg0 <- solveExpr arg0
             r <- solveExpr expr
@@ -1464,7 +1464,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         r `shouldBe` Right ( Sat $ HashMap.fromList rvars
                             , errs )
 
-    context "solveExpr: ADD_OVERFLOW" $ do
+    context "solveExpr: ADD_WILL_OVERFLOW" $ do
       let tenv = [(pilVar "a", tbool)]
           arg0 :: DSTExpression
           arg0 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 3, Just tbool)
@@ -1477,7 +1477,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                  . Pil.CONST . Pil.ConstOp $ 22
           expr :: DSTExpression
           expr = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 0, Just tbool)
-                 . Pil.ADD_OVERFLOW $ Pil.AddOverflowOp arg1 arg2
+                 . Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp arg1 arg2
           cmd = do
             rArg0 <- solveExpr arg0
             r <- solveExpr expr

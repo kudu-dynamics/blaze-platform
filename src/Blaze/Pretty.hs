@@ -467,7 +467,8 @@ tokenizeExprOp ::
 tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.ADC op) -> tokenizeBinop msym "adc" op
   (Pil.ADD op) -> tokenizeBinopInfix msym "+" op
-  (Pil.ADD_OVERFLOW op) -> tokenizeBinopInfix msym "&+" op
+  (Pil.ADD_WILL_CARRY op) -> tokenizeBinop msym "addOF" op
+  (Pil.ADD_WILL_OVERFLOW op) -> tokenizeBinop msym "addCF" op
   (Pil.AND op) -> tokenizeBinopInfix msym "&&" op
   (Pil.ASR op) -> tokenizeBinop msym "asr" op
   (Pil.BOOL_TO_INT op) -> tokenizeUnop msym "boolToInt" op
@@ -544,6 +545,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
       , varToken Nothing $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
       ]
   (Pil.SUB op) -> tokenizeBinopInfix msym "-" op
+  (Pil.SUB_WILL_OVERFLOW op) -> tokenizeBinop msym "subOF" op
   (Pil.SX op) -> tokenizeUnop msym "sx" op
   (Pil.TEST_BIT op) -> tokenizeBinop msym "testBit" op
   (Pil.UNIMPL t) -> keywordToken "unimpl" <++> paren [tt t]

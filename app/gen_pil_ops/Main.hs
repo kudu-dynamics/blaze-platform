@@ -16,7 +16,8 @@ ops :: HashMap Text [(Text, Text)]
 ops = HashMap.fromList
   [ ("Adc", binOpWithCarry)
   , ("Add", binOp)
-  , ("AddOverflow", binOp)
+  , ("AddWillCarry", binOp)
+  , ("AddWillOverflow", binOp)
   , ("And", binOp)
   , ("Asr", binOp)
   , ("BoolToInt", srcExpr)
@@ -97,6 +98,7 @@ ops = HashMap.fromList
 
   , ("Sbb", binOpWithCarry)
   , ("Sub", binOp)
+  , ("SubWillOverflow", binOp)
   , ("Sx", srcExpr)
 
   , ("TestBit", binOp)
