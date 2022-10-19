@@ -368,13 +368,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_2COMP out in0 -> mkDef out =<< unIntOp Pil.NEG Pil.NegOp in0
   P.INT_ADD out in0 in1 -> mkDef out =<< binIntOp Pil.ADD Pil.AddOp in0 in1
   P.INT_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
-  P.INT_CARRY out in0 in1 -> do
-    pv <- requirePilVar out
-    addOverExpr <- Expression (fromIntegral $ getSize in0) <$> binIntOp Pil.ADD_OVERFLOW Pil.AddOverflowOp in0 in1
-    let zero = Expression (fromIntegral $ getSize in0) . Pil.CONST $ Pil.ConstOp 0
-        eqZeroExpr = Expression (fromIntegral $ getSize out) . Pil.CMP_E $ Pil.CmpEOp addOverExpr zero
-    return . Pil.Def . Pil.DefOp pv $ eqZeroExpr
-
+  P.INT_CARRY out in0 in1 -> mkDef out =<< binIntOp Pil.ADD_WILL_CARRY Pil.AddWillCarryOp in0 in1
   P.INT_DIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVU Pil.DivuOp in0 in1
   P.INT_EQUAL out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_E Pil.CmpEOp in0 in1
   P.INT_LEFT out in0 in1 -> mkDef out =<< binIntOp Pil.LSL Pil.LslOp in0 in1
@@ -386,23 +380,8 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
   P.INT_REM out in0 in1 -> mkDef out =<< binIntOp Pil.MODU Pil.ModuOp in0 in1
   P.INT_RIGHT out in0 in1 -> mkDef out =<< binIntOp Pil.LSR Pil.LsrOp in0 in1
-  P.INT_SBORROW out a b -> do
-    -- From https://codereview.stackexchange.com/a/93699
-    -- (b s< 0) ? (a s> INT_MAX + b) : (a s< INT_MIN + b)
-    pv <- requirePilVar out
-    a' <- convertVarNode a
-    b' <- convertVarNode b
-    let outSize = fromIntegral $ getSize out
-        bSize = b' ^. #size
-        intMin = C.const undefined bSize
-        intMax = C.const undefined bSize
-        cond = C.cmpSlt b' (C.const 0 bSize) 1
-        case1 = C.cmpSgt a' (C.add intMax b' bSize) outSize
-        case2 = C.cmpSlt a' (C.add intMin b' bSize) outSize
-        res = undefined
-    mkDef out res
-
-  P.INT_SCARRY out in0 in1 -> unsupported "SCARRY" -- maybe use ADD_OVERFLOW wrapped in (> 0), but what about signedness?
+  P.INT_SBORROW out in0 in1 -> mkDef out =<< binIntOp Pil.SUB_WILL_OVERFLOW Pil.SubWillOverflowOp in0 in1
+  P.INT_SCARRY out in0 in1 -> mkDef out =<< binIntOp Pil.ADD_WILL_OVERFLOW Pil.AddWillOverflowOp in0 in1
   P.INT_SDIV out in0 in1 -> mkDef out =<< binIntOp Pil.DIVS Pil.DivsOp in0 in1
   P.INT_SEXT out in0 -> mkDef out =<< unIntOp Pil.SX Pil.SxOp in0
   P.INT_SLESS out in0 in1 -> mkDef out =<< binIntOp Pil.CMP_SLT Pil.CmpSltOp in0 in1
