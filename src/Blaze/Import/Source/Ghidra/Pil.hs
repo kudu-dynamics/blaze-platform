@@ -84,11 +84,13 @@ data ConverterError
     , highArg :: Expression
     , lowArg :: Expression
     }
-  -- | The offset argument (input1) to PTRSUB was not @.isConstant()@
+  -- | The offset argument (input1) to 'PTRSUB' was not @.isConstant()@
   | PtrsubOffsetNotConstant
     { arg2 :: VarNodeType
     }
+  -- | The result list of 'RETURN' was empty
   | ReturningNoResults
+  -- | The result list of 'RETURN' was greater than 1
   | ReturningTooManyResults
   deriving (Eq, Ord, Show, Generic, Hashable)
 
