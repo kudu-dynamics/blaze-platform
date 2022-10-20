@@ -30,7 +30,8 @@ import Data.SBV.Trans ( (.==)
                       , (.<=)
                       , (.||)
                       , (.~|)
-                      , ite
+                      , sPopCount
+                      , SFiniteBits
                       , SInteger
                       , SInt8
                       , SInt16
@@ -538,6 +539,27 @@ warn e = #errors %= (e :)
 svAggrAnd :: [SVal] -> SVal
 svAggrAnd = foldr svAnd svTrue
 
+-- | Convert an 'SVal' to an 'SBV a', where 'a' is one of 'Word8', 'Word16',
+-- 'Word32', 'Word64', and then run a function with this wrapped SBV. If 'SVal'
+-- is not one of these supported sizes, then the result will be @Just (f ...)@,
+-- otherwise 'Nothing' is returned
+liftSFiniteBits :: (forall a. SFiniteBits a => SBV a -> b) -> SVal -> Maybe b
+liftSFiniteBits f sv =
+  -- Can easily extend this if we need to support more sizes later by adding
+  -- more @WordN@ cases
+  case intSizeOf sv of
+    1 -> Just . f $ (SBV sv :: SBV (WordN 1))
+    8 -> Just . f $ (SBV sv :: SBV Word8)
+    16 -> Just . f $ (SBV sv :: SBV Word16)
+    32 -> Just . f $ (SBV sv :: SBV Word32)
+    64 -> Just . f $ (SBV sv :: SBV Word64)
+    _ -> Nothing
+
+-- | Like 'liftSFiniteBits' but discard the phantom type information of the 'SBV _'
+-- result and return a typeless 'SVal'
+liftSFiniteBits' :: (forall a. SFiniteBits a => SBV a -> SBV b) -> SVal -> Maybe SVal
+liftSFiniteBits' sv f = (\(SBV x) -> x) <$> liftSFiniteBits sv f
+
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
           -> Solver ()
 solveStmt = catchIfLenientForStmt . solveStmt_ solveExpr
@@ -760,13 +782,11 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       _ -> throwError . ErrorMessage $ "NOT expecting Bool or Integral, got " <> show k
 
   Pil.OR x -> integralBinOpMatchSecondArgToFirst x svOr
-  Pil.POPCNT x -> integralUnOp x go
-    where
-      go :: SVal -> SVal
-      -- Where's the 'ite' for 'SVal's?
-      go x = (\(SBV x') -> x') $ sum @_ @SWord8 [ite b 1 0 | b <- blastLE x]
-      blastLE :: SVal -> [SVal]
-      blastLE x = map (svTestBit x) [0 .. intSizeOf x - 1]
+  Pil.POPCNT x ->
+    integralUnOpM x $ \bv -> do
+      case liftSFiniteBits' sPopCount bv of
+        Just res -> pure res
+        Nothing -> throwError . ErrorMessage $ "Unsupported POPCNT operand size: " <> show (intSizeOf bv)
 
   Pil.RLC x -> rotateBinOpWithCarry x rotateLeftWithCarry
   Pil.ROL x -> integralBinOpUnrelatedArgs x svRotateLeft
