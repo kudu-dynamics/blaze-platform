@@ -72,7 +72,10 @@ data ConverterError
   | ExpectedAddressButGotConst Int64
   | AddressSpaceTypeCannotBeVar GAddr.Address
   | OutOfChoicesError -- for Alternative instance, Monoid's mempty
-  | UnsuportedPcodeOp Text
+  | UnsuportedPcodeOp
+    { op :: Text
+    , note :: Text
+    }
   | UnsuportedAddressSpace Text
   | ExpectedVarExpr Bytes VarType
   -- | The sizes of the operands to PIECE did not add up to the size of its output
@@ -329,8 +332,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     Just destVarExpr -> do
       params <- mapM convertVarNode . fmap (view #value) $ inputs
       return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
-    
-  P.CALLOTHER in0 inputs -> unsupported "CALLOTHER" -- Can't find this in the docs
+
+  -- TODO CALLOTHER is pretty much a black-box
+  P.CALLOTHER in0 inputs -> unsupported "CALLOTHER" "unsupported pseudo-op"
   -- TODO do we want to record CASTs into PIL somehow?
   P.CAST out in0 -> mkDef out . view #op =<< convertVarNode in0
   P.CBRANCH _dest in0 -> do
@@ -340,7 +344,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.COPY out in0 -> do
     destVar <- requirePilVar out
     Pil.Def . Pil.DefOp destVar <$> convertVarNode (in0 ^. #value)
-  P.CPOOLREF _out _in0 _in1 _inputs -> unsupported "CPOOLREF"
+  P.CPOOLREF _out _in0 _in1 _inputs -> unsupported "CPOOLREF" "unsupported pseudo-op"
   P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
     srcExpr <- convertVarNode in0
     offsetExpr <- requireConst in1
@@ -363,8 +367,8 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.FLOAT_TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
-  P.INDIRECT _out _in0 _in1 -> unsupported "INDIRECT"
-  P.INSERT -> unsupported "INSERT" -- not in docs
+  P.INDIRECT _out _in0 _in1 -> unsupported "INDIRECT" "unsupported high op"
+  P.INSERT _out _in0 _in1 _position _size -> undefined
   P.INT_2COMP out in0 -> mkDef out =<< unIntOp Pil.NEG Pil.NegOp in0
   P.INT_ADD out in0 in1 -> mkDef out =<< binIntOp Pil.ADD Pil.AddOp in0 in1
   P.INT_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
@@ -393,8 +397,8 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_ZEXT out in0 -> mkDef out =<< unIntOp Pil.ZX Pil.ZxOp in0
   P.LOAD out addrSpace in1 -> undefined
   P.MULTIEQUAL out in0 in1 inputs -> undefined
-  P.NEW out in0 inputs -> undefined
-  P.PCODE_MAX -> undefined -- unknown
+  P.NEW out in0 inputs -> unsupported "NEW" "unsupported pseudo-op"
+  P.PCODE_MAX -> unsupported "PCODE_MAX" "undocumented op"
   P.PIECE out high low -> do
     -- out := (high << low.size) | low
     high' <- convertVarNode high
@@ -419,7 +423,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
                  vnt -> throwError $ PtrsubOffsetNotConstant vnt
     mkDef out . Pil.VAR_FIELD $ Pil.VarFieldOp base' (fromIntegral offset')
   P.RETURN in0 inputs -> undefined
-  P.SEGMENTOP -> undefined -- unknowng
+  P.SEGMENTOP -> unsupported "SEGMENTOP" "undocumented op"
   P.STORE addrSpace in0 in1 -> undefined
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
@@ -492,5 +496,5 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       return . opCons $ opArgsCons a
     
 
-    unsupported :: Text -> Converter Pil.Stmt
-    unsupported = throwError . UnsuportedPcodeOp
+    unsupported :: Text -> Text -> Converter Pil.Stmt
+    unsupported op note = throwError UnsuportedPcodeOp{op=op, note=note}
