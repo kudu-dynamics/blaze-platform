@@ -88,6 +88,8 @@ data ConverterError
   | PtrsubOffsetNotConstant
     { arg2 :: VarNodeType
     }
+  | ReturningNoResults
+  | ReturningTooManyResults
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
@@ -426,7 +428,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
                  VImmediate n -> pure n
                  vnt -> throwError $ PtrsubOffsetNotConstant vnt
     mkDef out . Pil.VAR_FIELD $ Pil.VarFieldOp base' (fromIntegral offset')
-  P.RETURN in0 inputs -> undefined
+  P.RETURN _ [] -> throwError ReturningNoResults
+  P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
+  P.RETURN _retAddr [result] -> Pil.Ret . Pil.RetOp <$> convertVarNode result
   P.SEGMENTOP -> unsupported "SEGMENTOP" "undocumented op"
   P.STORE addrSpace in0 in1 -> undefined
   P.SUBPIECE out in0 lowOff -> do
