@@ -414,7 +414,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
         res = Pil.OR $ Pil.OrOp (mkExpr out highShifted) (mkExpr out lowExtended)
     mkDef out res
   P.POPCOUNT out in0 -> undefined
-  P.PTRADD out base idx stride -> mkDef out =<< triIntOp Pil.ARRAY_ADDR Pil.ArrayAddrOp base idx stride
+  P.PTRADD out base idx stride ->
+    let stride' = C.const (stride ^. #value) 8 in
+      mkDef out =<< binIntOp Pil.ARRAY_ADDR (\b i -> Pil.ArrayAddrOp b i stride') base idx
   P.PTRSUB out base offset -> do
     -- out := (void *)base + offset
     base' <- requirePilVar base
