@@ -106,7 +106,7 @@ data PcodeOp a
   | PCODE_MAX -- unknown
   | PIECE (Output a) (Input a) (Input a)
   | POPCOUNT (Output a) (Input a)
-  | PTRADD (Output a) (Input a) (Input a) (Input a)
+  | PTRADD (Output a) (Input a) (Input a) (Input Int64)
   | PTRSUB (Output a) (Input a) (Input a)
   | RETURN (Input a) [Input a]
   | SEGMENTOP -- unknowng

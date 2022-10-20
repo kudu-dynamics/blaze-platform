@@ -181,7 +181,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   PCODE_MAX -> unknown "PCODE_MAX"
   PIECE -> binOp L.PIECE
   POPCOUNT -> unOp L.POPCOUNT
-  PTRADD -> L.PTRADD <$> out <*> input 0 <*> input 1 <*> input 2
+  PTRADD -> L.PTRADD <$> out <*> input 0 <*> input 1 <*> inputConst 2
   PTRSUB -> binOp L.PTRSUB
   RETURN -> L.RETURN <$> input 0 <*> inputList 1
   SEGMENTOP -> unknown "SEGMENTOP"
