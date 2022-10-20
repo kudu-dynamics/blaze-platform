@@ -30,6 +30,7 @@ import Data.SBV.Trans ( (.==)
                       , (.<=)
                       , (.||)
                       , (.~|)
+                      , ite
                       , SInteger
                       , SInt8
                       , SInt16
@@ -41,6 +42,7 @@ import Data.SBV.Trans ( (.==)
                       , SWord32
                       , SWord64
                       , SWord
+                      , WordN
                       )
 import qualified Data.Text as Text
 import Data.SBV.Dynamic as D hiding (Solver)
@@ -758,6 +760,14 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       _ -> throwError . ErrorMessage $ "NOT expecting Bool or Integral, got " <> show k
 
   Pil.OR x -> integralBinOpMatchSecondArgToFirst x svOr
+  Pil.POPCNT x -> integralUnOp x go
+    where
+      go :: SVal -> SVal
+      -- Where's the 'ite' for 'SVal's?
+      go x = (\(SBV x') -> x') $ sum @_ @SWord8 [ite b 1 0 | b <- blastLE x]
+      blastLE :: SVal -> [SVal]
+      blastLE x = map (svTestBit x) [0 .. intSizeOf x - 1]
+
   Pil.RLC x -> rotateBinOpWithCarry x rotateLeftWithCarry
   Pil.ROL x -> integralBinOpUnrelatedArgs x svRotateLeft
   Pil.ROR x -> integralBinOpUnrelatedArgs x svRotateRight

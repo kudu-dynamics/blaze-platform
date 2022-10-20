@@ -87,6 +87,8 @@ ops = HashMap.fromList
   , ("Not", srcExpr)
 
   , ("Or", binOp)
+
+  , ("Popcnt", srcExpr)
   
   , ("Rlc", binOpWithCarry)
   , ("Rol", binOp)

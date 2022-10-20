@@ -70,6 +70,7 @@ data ExprOp expr
     | NEG (NegOp expr)
     | NOT (NotOp expr)
     | OR (OrOp expr)
+    | POPCNT (PopcntOp expr)
     | RLC (RlcOp expr)
     | ROL (RolOp expr)
     | ROR (RorOp expr)

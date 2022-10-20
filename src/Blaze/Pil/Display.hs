@@ -310,6 +310,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.NEG op) -> dispUnop "neg" op size
   (Pil.NOT op) -> dispUnop "not" op size
   (Pil.OR op) -> dispBinop "or" op size
+  (Pil.POPCNT op) -> dispUnop "popcnt" op size
   -- TODO: Need to add carry
   (Pil.RLC op) -> dispBinop "rlc" op size
   (Pil.ROL op) -> dispBinop "rol" op size

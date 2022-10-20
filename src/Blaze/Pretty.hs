@@ -531,6 +531,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.NEG op) -> tokenizeUnop msym "neg" op
   (Pil.NOT op) -> tokenizeUnop msym "not" op
   (Pil.OR op) -> tokenizeBinopInfix msym "|" op
+  (Pil.POPCNT op) -> tokenizeUnop msym "popcnt" op
   -- TODO: Need to add carry
   (Pil.RLC op) -> tokenizeBinop msym "rlc" op
   (Pil.ROL op) -> tokenizeBinop msym "rol" op

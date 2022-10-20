@@ -66,6 +66,7 @@ import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
 import Unsafe.Coerce (unsafeCoerce)
+import qualified Ghidra.Types.Pcode as Pil
 
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
@@ -433,7 +434,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
         lowExtended = Pil.ZX . Pil.ZxOp $ low'
         res = Pil.OR $ Pil.OrOp (mkExpr out highShifted) (mkExpr out lowExtended)
     mkDef out res
-  P.POPCOUNT out in0 -> undefined
+  P.POPCOUNT out in0 -> mkDef out =<< unIntOp Pil.POPCNT Pil.PopcntOp in0
   P.PTRADD out base idx stride ->
     let stride' = C.const (stride ^. #value) 8 in
       mkDef out =<< binIntOp Pil.ARRAY_ADDR (\b i -> Pil.ArrayAddrOp b i stride') base idx
