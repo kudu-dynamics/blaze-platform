@@ -396,7 +396,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   P.INT_ZEXT out in0 -> mkDef out =<< unIntOp Pil.ZX Pil.ZxOp in0
   P.LOAD out addrSpace in1 -> undefined
-  P.MULTIEQUAL out in0 in1 inputs -> undefined
+  P.MULTIEQUAL out in0 in1 rest -> do
+    pout <- requirePilVar out
+    Pil.DefPhi . Pil.DefPhiOp pout <$> traverse requirePilVar (in0:in1:rest)
   P.NEW out in0 inputs -> unsupported "NEW" "unsupported pseudo-op"
   P.PCODE_MAX -> unsupported "PCODE_MAX" "undocumented op"
   P.PIECE out high low -> do
