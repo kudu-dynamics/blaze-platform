@@ -15,11 +15,8 @@ import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Types.Variable as GVar
 
-import qualified Blaze.Pil as Pil
 import qualified Blaze.Pil.Construct as C
-import qualified Data.BinaryAnalysis as BA
 import Data.Binary.IEEE754 (wordToDouble)
-import qualified Prelude as P
 import Blaze.Types.Pil
   ( BranchCondOp (BranchCondOp),
     CallOp (CallOp),
@@ -59,14 +56,8 @@ import Blaze.Types.Pil
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
 import Blaze.Import.Source.Ghidra.Types (convertAddress)
-import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Util.GenericConv (GConv, gconv)
-import qualified Data.HashMap.Strict as HMap
-import qualified Data.HashSet as HSet
-import qualified Data.Text as Text
 import Unsafe.Coerce (unsafeCoerce)
-import qualified Ghidra.Types.Pcode as Pil
 
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
