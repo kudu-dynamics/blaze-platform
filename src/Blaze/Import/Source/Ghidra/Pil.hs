@@ -92,6 +92,8 @@ data ConverterError
   | ReturningNoResults
   -- | The result list of 'RETURN' was greater than 1
   | ReturningTooManyResults
+  -- | The argument to 'BRANCH' or 'CBRANCH' was a /p-code relative/ offset
+  | PcodeRelativeBranch
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
@@ -276,7 +278,7 @@ requireConstIntExpr v = mkExpr v . Pil.CONST . Pil.ConstOp <$> requireConst v
 
 convertDest :: P.Destination -> Converter Expression
 convertDest (P.Absolute addr) = return $ mkAddressExpr addr
-convertDest (P.Relative off) = mkExprWithDefaultSize . Pil.CONST . Pil.ConstOp $ off
+convertDest (P.Relative _off) = throwError PcodeRelativeBranch
 
 callDestFromDest :: P.Destination -> Converter (Pil.CallDest Expression)
 callDestFromDest (P.Relative _off) =
@@ -320,6 +322,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.BOOL_NEGATE out in0 -> mkDef out =<< unIntOp Pil.NOT Pil.NotOp in0
   P.BOOL_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
   P.BOOL_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
+  -- TODO: Handle p-code relative jumps
   P.BRANCH dest -> Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
   -- Branch indirect. Var contains offset from current instr.
   -- Offset is in context of current addr space
