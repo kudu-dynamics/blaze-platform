@@ -402,7 +402,11 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.INT_SUB out in0 in1 -> mkDef out =<< binIntOp Pil.SUB Pil.SubOp in0 in1
   P.INT_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   P.INT_ZEXT out in0 -> mkDef out =<< unIntOp Pil.ZX Pil.ZxOp in0
-  P.LOAD out addrSpace in1 -> undefined
+  P.LOAD out _addrSpace in1 -> do
+    offset <- mkExpr in1 <$> unIntOp Pil.LOAD Pil.LoadOp in1
+    -- TODO: we need to make use of the address space during the second LOAD. How?
+    let target = Pil.LOAD $ Pil.LoadOp offset
+    mkDef out target
   P.MULTIEQUAL out in0 in1 rest -> do
     pout <- requirePilVar out
     Pil.DefPhi . Pil.DefPhiOp pout <$> traverse requirePilVar (in0:in1:rest)
