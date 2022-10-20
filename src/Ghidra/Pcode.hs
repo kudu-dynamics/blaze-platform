@@ -148,7 +148,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   FLOAT_SUB -> binOp L.FLOAT_SUB
   FLOAT_TRUNC -> unknown "FLOAT_TRUNC" -- unOp L.FLOAT_TRUNC
   INDIRECT -> binOp L.INDIRECT
-  INSERT -> unknown "INSERT"
+  INSERT -> L.INSERT <$> out <*> input 0 <*> input 1 <*> inputConst 2 <*> inputConst 3
   INT_2COMP -> unOp L.INT_2COMP
   INT_ADD -> binOp L.INT_ADD
   INT_AND -> binOp L.INT_AND
@@ -181,7 +181,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   PCODE_MAX -> unknown "PCODE_MAX"
   PIECE -> binOp L.PIECE
   POPCOUNT -> unOp L.POPCOUNT
-  PTRADD -> L.PTRADD <$> out <*> input 0 <*> input 1 <*> input 2
+  PTRADD -> L.PTRADD <$> out <*> input 0 <*> input 1 <*> inputConst 2
   PTRSUB -> binOp L.PTRSUB
   RETURN -> L.RETURN <$> input 0 <*> inputList 1
   SEGMENTOP -> unknown "SEGMENTOP"
