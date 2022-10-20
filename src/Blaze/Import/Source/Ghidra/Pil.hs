@@ -375,7 +375,14 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.FLOAT_TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
   P.INDIRECT _out _in0 _in1 -> unsupported "INDIRECT" "unsupported high op"
-  P.INSERT _out _in0 _in1 _position _size -> undefined
+  P.INSERT out in0 in1 position size -> do
+    in0' <- requirePilVar in0
+    in1' <- convertVarNode in1
+    let size' = fromIntegral (size ^. #value)
+        position' = fromIntegral (position ^. #value)
+        truncated = Pil.Expression size' . Pil.LOW_PART $ Pil.LowPartOp in1'
+        updated = Pil.UPDATE_VAR $ Pil.UpdateVarOp in0' position' truncated
+    mkDef out updated
   P.INT_2COMP out in0 -> mkDef out =<< unIntOp Pil.NEG Pil.NegOp in0
   P.INT_ADD out in0 in1 -> mkDef out =<< binIntOp Pil.ADD Pil.AddOp in0 in1
   P.INT_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
