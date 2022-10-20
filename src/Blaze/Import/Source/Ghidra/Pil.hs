@@ -441,7 +441,11 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.RETURN _retAddr [result] -> Pil.Ret . Pil.RetOp <$> convertVarNode result
   P.SEGMENTOP -> unsupported "SEGMENTOP" "undocumented op"
-  P.STORE addrSpace in0 in1 -> undefined
+  P.STORE _addrSpace destOffset in1 -> do
+    destOffset' <- mkExpr destOffset <$> unIntOp Pil.LOAD Pil.LoadOp in1
+    in1' <- convertVarNode in1
+    -- TODO: we need to make use of the address space during the Store. How?
+    pure . Pil.Store $ Pil.StoreOp destOffset' in1'
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
     in0' <- convertVarNode in0
