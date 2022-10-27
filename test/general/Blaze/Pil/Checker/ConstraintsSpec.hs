@@ -179,6 +179,85 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
           vars' = []
       constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
 
+    let helper op signedness =
+         let cxs = []
+             vars = []
+             expr = InfoExpression
+               { info = SymInfo 64 (Sym 0)
+               , op = op (constExpr 1 64 888) (constExpr 2 64 999)
+               }
+
+             nextSym = 3
+
+             cxs' =
+               [ (Sym 0, SType TBool)
+               , (Sym 1, SType TInt{bitWidth = Nothing, signed = signedness})
+               , (Sym 1, SType TBitVector{bitWidth = Just 64})
+               , (Sym 1, SVar (Sym 2))
+               , (Sym 2, SType TInt{bitWidth = Nothing, signed = signedness})
+               , (Sym 2, SType TBitVector{bitWidth = Just 64})
+               ]
+
+             vars' = []
+         in constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
+      in do
+        it "generates constraints for an ADD_WILL_CARRY with consts" $ do
+          helper (\l r -> Pil.ADD_WILL_CARRY $ Pil.AddWillCarryOp l r) (Just False)
+
+        it "generates constraints for an ADD_WILL_OVERFLOW with consts" $ do
+          helper (\l r -> Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp l r) (Just True)
+
+        it "generates constraints for a SUB_WILL_OVERFLOW with consts" $ do
+          helper (\l r -> Pil.SUB_WILL_OVERFLOW $ Pil.SubWillOverflowOp l r) (Just True)
+
+    it "generates constraints for an ARRAY_ADDR with consts" $ do
+      let cxs = []
+          vars = []
+          expr = InfoExpression
+            { info = SymInfo 64 (Sym 0)
+            , op = Pil.ARRAY_ADDR $ Pil.ArrayAddrOp (constExpr 1 64 888) (constExpr 2 32 999) (constExpr 3 24 999)
+            }
+
+          nextSym = 4
+
+          res = constrainExpr nextSym cxs vars expr
+          pointeeCandidates =
+            concatMap (\case (Sym 0, SType (TPointer _ pt)) -> [pt]; _ -> []) (fst res)
+
+      length pointeeCandidates `shouldBe` 1
+      let pointee = pointeeCandidates !! 0
+          cxs' =
+            [ (Sym 0, SVar (Sym 1))
+            , (Sym 0, SType (TPointer (Just 64) pointee))
+            , (Sym 1, SType (TBitVector (Just 64)))
+            , (Sym 2, SType (TInt Nothing Nothing))
+            , (Sym 2, SType (TBitVector (Just 32)))
+            , (Sym 3, SType (TInt Nothing Nothing))
+            , (Sym 3, SType (TBitVector (Just 24)))
+            ]
+          vars' = []
+
+      res `shouldBe` (sort cxs', sort vars')
+
+    it "generates constraints for a POPCNT with consts" $ do
+      let cxs = []
+          vars = []
+          expr = InfoExpression
+            { info = SymInfo 64 (Sym 0)
+            , op = Pil.POPCNT $ Pil.PopcntOp (constExpr 1 64 888)
+            }
+
+          nextSym = 2
+
+          cxs' =
+            [ (Sym 0, SType TInt{bitWidth = Just 64, signed = Nothing})
+            , (Sym 1, SType (TBitVector Nothing))
+            , (Sym 1, SType (TBitVector (Just 64)))
+            ]
+
+          vars' = []
+      constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
+
     it "generates constraints for a var" $ do
       let cxs = []
           vars = [(pv "a", Sym 0)]
