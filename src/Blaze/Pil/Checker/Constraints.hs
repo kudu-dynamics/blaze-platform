@@ -181,6 +181,16 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add $ bitVectorBinOp x
     addChildConstraints
 
+  Pil.ARRAY_ADDR x -> do
+    pt <- newSym
+    add
+      [ (r, CSType (TPointer jSz (CSVar pt)))
+      , (r, CSVar $ x ^. #baseAddr . #info . #sym)
+      , (x ^. #arrayIndex . #info . #sym, CSType (TInt Nothing Nothing))
+      , (x ^. #stride . #info . #sym, CSType (TInt Nothing Nothing))
+      ]
+    addChildConstraints
+
   -- Arithmetic shift right
   Pil.ASR x -> do
     add =<< integralFirstArgIsReturn x
