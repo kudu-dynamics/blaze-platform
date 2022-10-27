@@ -94,3 +94,5 @@ getBasicBlockGraph gs func = do
   edges <- concatMapM (getEdgesForBlock gs $ Set.fromList blocks) blocks
   return $ BasicBlockGraph blocks edges
 
+getMaxAddress :: J.CodeBlock -> IO J.Address
+getMaxAddress bb = Java.call (coerce bb :: J.AddressSetView) "getMaxAddress"
