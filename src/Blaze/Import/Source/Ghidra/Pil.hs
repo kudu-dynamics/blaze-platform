@@ -2,15 +2,15 @@ module Blaze.Import.Source.Ghidra.Pil where
 
 import Blaze.Prelude hiding (Symbol)
 
-import qualified Ghidra.BasicBlock as BB
+-- import qualified Ghidra.BasicBlock as BB
 import Ghidra.State (GhidraState)
-import qualified Ghidra.Core as Ghidra
-import Ghidra.Types.Function (Function)
-import qualified Ghidra.Function as GFunc
-import qualified Ghidra.Pcode as Pcode
-import qualified Ghidra.Types.Pcode as Pcode
-import qualified Ghidra.State as GState
-import Ghidra.Types.Pcode.Lifted (PcodeOp, Output(Output))
+-- import qualified Ghidra.Core as Ghidra
+-- import Ghidra.Types.Function (Function)
+-- import qualified Ghidra.Function as GFunc
+-- import qualified Ghidra.Pcode as Pcode
+-- import qualified Ghidra.Types.Pcode as Pcode
+-- import qualified Ghidra.State as GState
+-- import Ghidra.Types.Pcode.Lifted (PcodeOp, Output(Output))
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Types.Variable as GVar
@@ -18,39 +18,11 @@ import qualified Ghidra.Types.Variable as GVar
 import qualified Blaze.Pil.Construct as C
 import Data.Binary.IEEE754 (wordToDouble)
 import Blaze.Types.Pil
-  ( BranchCondOp (BranchCondOp),
-    CallOp (CallOp),
-    Ctx (Ctx),
-    CtxId,
-    DefOp (DefOp),
-    DefPhiOp (DefPhiOp),
+  (
+    Ctx,
     Expression (Expression),
-    JumpOp (JumpOp),
-    JumpToOp (JumpToOp),
     OperationSize,
     PilVar (PilVar),
-    RetOp (RetOp),
-    Statement
-      ( BranchCond,
-        Call,
-        Def,
-        DefPhi,
-        Jump,
-        JumpTo,
-        NoRet,
-        Nop,
-        Ret,
-        Store,
-        TailCall,
-        Undef,
-        UnimplInstr,
-        UnimplMem
-      ),
-    Stmt,
-    StoreOp (StoreOp),
-    Symbol,
-    TailCallOp (TailCallOp),
-    UnimplMemOp (UnimplMemOp),
   )
 
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
@@ -130,7 +102,7 @@ instance IsVariable VarNode where
   getSize = view #size
   getVarType = view #varType
 
-instance IsVariable a => IsVariable (Output a) where
+instance IsVariable a => IsVariable (P.Output a) where
   getSize (P.Output a) = getSize a
   getVarType (P.Output a) = getVarType a
 
@@ -308,7 +280,7 @@ convertVarNodeType vnt = do
 convertVarNode :: IsVariable a => a -> Converter Expression
 convertVarNode v = Expression (fromIntegral . getSize $ v) <$> convertVarNodeType (getVarNodeType v)
  
-convertPcodeOpToPilStmt :: forall a. IsVariable a => PcodeOp a -> Converter Pil.Stmt
+convertPcodeOpToPilStmt :: forall a. IsVariable a => P.PcodeOp a -> Converter Pil.Stmt
 convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.BOOL_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
   P.BOOL_NEGATE out in0 -> mkDef out =<< unIntOp Pil.NOT Pil.NotOp in0
@@ -333,7 +305,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
 
   -- TODO CALLOTHER is pretty much a black-box
-  P.CALLOTHER in0 inputs -> unsupported "CALLOTHER" "unsupported pseudo-op"
+  P.CALLOTHER _in0 _inputs -> unsupported "CALLOTHER" "unsupported pseudo-op"
   -- TODO do we want to record CASTs into PIL somehow?
   P.CAST out in0 -> mkDef out . view #op =<< convertVarNode in0
   P.CBRANCH _dest in0 -> do
@@ -409,7 +381,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.MULTIEQUAL out in0 in1 rest -> do
     pout <- requirePilVar out
     Pil.DefPhi . Pil.DefPhiOp pout <$> traverse requirePilVar (in0:in1:rest)
-  P.NEW out in0 inputs -> unsupported "NEW" "unsupported pseudo-op"
+  P.NEW _out _in0 _inputs -> unsupported "NEW" "unsupported pseudo-op"
   P.PCODE_MAX -> unsupported "PCODE_MAX" "undocumented op"
   P.PIECE out high low -> do
     -- out := (high << low.size) | low
@@ -481,19 +453,6 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       a <- convertVarNode in0
       b <- convertVarNode in1
       return . opCons $ opArgsCons a b
-
-    triIntOp :: forall b.
-               (b -> Pil.ExprOp Expression)
-             -> (Expression -> Expression -> Expression -> b)
-             -> P.Input a
-             -> P.Input a
-             -> P.Input a
-             -> Converter (Pil.ExprOp Expression)
-    triIntOp opCons opArgsCons in0 in1 in2 = do
-      a <- convertVarNode in0
-      b <- convertVarNode in1
-      c <- convertVarNode in2
-      return . opCons $ opArgsCons a b c
 
     binFloatOp :: forall b.
                   (b -> Pil.ExprOp Expression)
