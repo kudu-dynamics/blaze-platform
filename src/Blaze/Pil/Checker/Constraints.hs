@@ -468,7 +468,10 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add $ bitVectorBinOp x
     addChildConstraints
   Pil.POPCNT x -> do
-    add =<< integralUnOp Nothing x
+    add
+      [ (r, CSType (TInt jSz Nothing))
+      , (x ^. #src . #info . #sym, CSType (TBitVector Nothing))
+      ]
     addChildConstraints
   Pil.RLC x -> do
     integralConstraint <- integralFirstArgIsReturn x
