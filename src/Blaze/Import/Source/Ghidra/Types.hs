@@ -15,18 +15,8 @@ convertAddress :: GAddr.Address -> Address
 convertAddress x = fromIntegral
   $ x ^. #offset * (fromIntegral $ x ^. #space . #addressableUnitSize)
 
--- ---- CallGraph
--- type MLILSSAOp = Mlil.Operation (Mlil.Expression BNFunc.MLILSSAFunction)
 
--- ----- CFG
--- type MlilSsaFunc = BNFunc.MLILSSAFunction
--- type MlilSsaBlock = BNBb.BasicBlock MlilSsaFunc
--- type MlilSsaBlockEdge = BNBb.BlockEdge MlilSsaFunc
--- type MlilSsaInstruction = Mlil.Instruction MlilSsaFunc
--- type MlilSsaInstructionIndex = Binja.InstructionIndex MlilSsaFunc
--- type MlilSsaCfNode = CfNode (NonEmpty MlilSsaInstruction)
--- type MlilSsaCfEdge = CfEdge MlilSsaCfNode
--- type MlilSsaBlockMap = HashMap MlilSsaBlock [MlilSsaCfNode]
+----- CFG
 
 -- newtype NonCallInstruction = NonCallInstruction
 --   {unNonCallInstruction :: MlilSsaInstruction}
