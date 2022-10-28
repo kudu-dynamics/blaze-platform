@@ -23,6 +23,7 @@ import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as G
 import qualified Ghidra.Types.Function as G
+import qualified Ghidra.Types as J
 import qualified Ghidra.Reference as GRef
 
 
@@ -49,15 +50,18 @@ convertFunction gfunc = runGhidra $ do
       , params = params
       }
 
+getFunction_ :: GhidraState -> Address -> IO (Maybe J.Function)
+getFunction_ gs addr = runGhidra $ do
+  jaddr <- State.mkAddress gs addr
+  G.fromAddr gs jaddr
+
 -- | Gets a Function based on address. Assumes function is in "ram"
 -- Ghidra might not agree with your base addr, depending on if your
 -- binary is PIEd. See internal issue #5
 getFunction :: GhidraState -> Address -> IO (Maybe Function)
-getFunction gs addr = runGhidra $ do
-  jaddr <- State.mkAddress gs addr
-  G.fromAddr gs jaddr >>= \case
-    Nothing -> return Nothing
-    Just jfunc -> Just <$> (G.mkFunction jfunc >>= convertFunction)
+getFunction gs addr = getFunction_ gs addr >>= \case
+  Nothing -> return Nothing
+  Just jfunc -> Just <$> (G.mkFunction jfunc >>= convertFunction)
   
 getFunctions :: GhidraState -> IO [Function]
 getFunctions gs = runGhidra $ G.getFunctions' opts gs
