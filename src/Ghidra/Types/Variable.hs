@@ -15,7 +15,7 @@ data VarNode = VarNode
   { varType :: VarType
   , size :: Bytes
   -- , highVariable :: Maybe HighVariable
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 type Slot = Word64
 
@@ -25,20 +25,20 @@ data HighVariableType
   | HighLocal
   | HighParam Slot
   | HighOther
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 data DataType = DataType { name :: Text }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 data HighVariable = HighVariable
   { dataType :: DataType
   , name :: Maybe Text
   , size :: Bytes
   , highVariableType :: HighVariableType
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data HighVarNode = HighVarNode
   { varType :: VarType
   , size :: Bytes
   , highVariable :: Maybe HighVariable
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Hashable)

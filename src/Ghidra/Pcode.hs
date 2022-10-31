@@ -134,7 +134,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   FLOAT_CEIL -> unOp L.FLOAT_CEIL
   FLOAT_DIV -> binOp L.FLOAT_DIV
   FLOAT_EQUAL -> binOp L.FLOAT_EQUAL
-  FLOAT_FLOAT2FLOAT -> unOp L.FLOAT_FLOAT2FLOAT
+  FLOAT2FLOAT -> unOp L.FLOAT2FLOAT
   FLOAT_FLOOR -> unOp L.FLOAT_FLOOR
   FLOAT_INT2FLOAT -> unOp L.FLOAT_INT2FLOAT
   FLOAT_LESS -> binOp L.FLOAT_LESS

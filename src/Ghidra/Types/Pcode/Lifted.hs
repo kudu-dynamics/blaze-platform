@@ -25,19 +25,19 @@ newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
   deriving newtype (Functor, Applicative, Monad)
 
 newtype Output a = Output { getOutput :: a }
-  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, Hashable)
 
 data Input a = Input
   { index :: Word64
   , value :: a
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, Hashable)
 
 type Offset = Int64
 
 data Destination
   = Absolute Address
   | Relative Offset
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 data PcodeOp a
   = BOOL_AND (Output a) (Input a) (Input a)
@@ -59,7 +59,7 @@ data PcodeOp a
   | FLOAT_CEIL (Output a) (Input a)
   | FLOAT_DIV (Output a) (Input a) (Input a)
   | FLOAT_EQUAL (Output a) (Input a) (Input a)
-  | FLOAT_FLOAT2FLOAT (Output a) (Input a)
+  | FLOAT2FLOAT (Output a) (Input a)
   | FLOAT_FLOOR (Output a) (Input a)
   | FLOAT_INT2FLOAT (Output a) (Input a)
   | FLOAT_LESS (Output a) (Input a) (Input a)
@@ -113,4 +113,4 @@ data PcodeOp a
   | STORE (Input AddressSpace) (Input a) (Input a)
   | SUBPIECE (Output a) (Input a) (Input Int64)
   | UNIMPLEMENTED
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Hashable)
