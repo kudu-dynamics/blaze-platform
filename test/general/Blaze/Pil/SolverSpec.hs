@@ -1450,6 +1450,48 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         r `shouldBe` Right ( Sat $ HashMap.fromList rvars
                             , errs )
 
+    let helper op (inw, x) (outw, outv) = do
+          let tenv = []
+              arg :: DSTExpression
+              arg = Ch.InfoExpression (Ch.SymInfo inw $ Sym 1, Just (bitVec $ Just inw))
+                     . Pil.CONST . Pil.ConstOp $ x
+              expr = Ch.InfoExpression (Ch.SymInfo outw $ Sym 0, Just (bitVec $ Just outw))
+                     $ op arg
+
+              cmd = do
+                res <- solveExpr expr
+                constrain $ res `svEqual` constWord outw outv
+
+              rvars = []
+              errs = []
+
+          res <- runIO $ runSolveCmd tenv cmd
+          let hex n = let n' = fromIntegral n :: Word64 in (if n' >= 0 then "0x" else "-0x") <> showHex (abs n') ""
+          it (hex x <> " ~> " <> hex outv) $ do
+            res `shouldBe` Right (Sat $ HashMap.fromList rvars, errs)
+      in do
+        context "POPCNT" $ do
+          context "one constant" $ do
+            let helper' = helper (\x -> Pil.POPCNT $ Pil.PopcntOp x)
+            helper' (64, -0x5335533553355336) (8, 32)
+            helper' (64, -0x0000000000000001) (8, 64)
+            helper' (64, -0x8000000000000000) (8, 1)
+            helper' (32, 0x00000000) (8, 0)
+            helper' (32, 0x00000001) (8, 1)
+            helper' (32, 0x80000000) (8, 1)
+            helper' (32, 0xf1f1f1f1) (8, 20)
+            helper' (32, 0xffffffff) (8, 32)
+            helper' (16, 0x0000) (8, 0)
+            helper' (16, 0x0001) (8, 1)
+            helper' (16, 0x8000) (8, 1)
+            helper' (16, 0xf1f1) (8, 10)
+            helper' (16, 0xffff) (8, 16)
+            helper' (8, 0x0000) (8, 0)
+            helper' (8, 0x01) (8, 1)
+            helper' (8, 0x80) (8, 1)
+            helper' (8, 0xf1) (8, 5)
+            helper' (8, 0xff) (8, 8)
+
     context "solveExpr: SX" $ do
       let tenv = [(pilVar "a", signed64)]
           arg0 :: DSTExpression
