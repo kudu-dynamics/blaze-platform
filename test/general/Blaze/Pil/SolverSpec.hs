@@ -22,6 +22,7 @@ import Data.SBV.Trans ( (.>=)
                       )
 import Data.SBV.Internals (unSBV)
 import Test.Hspec
+import Numeric (showHex)
 
 type SolverOutput = Either SolverError (SolverResult, [SolverError])
 
@@ -229,6 +230,119 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       it "two constants of same size" $ do
         r `shouldBe` Right ( Sat $ HashMap.fromList rvars
                            , errs )
+
+    let helper op (inw, l, r) (outw, outv) = do
+          let tenv = []
+              -- arg1 :: DSTExpression
+              -- arg1 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 1)
+              --        . Pil.VAR . Pil.VarOp $ pilVar "a"
+              arg1 :: DSTExpression
+              arg1 = Ch.InfoExpression (Ch.SymInfo inw $ Sym 2, Just (bitVec $ Just inw))
+                     . Pil.CONST . Pil.ConstOp $ l
+              arg2 :: DSTExpression
+              arg2 = Ch.InfoExpression (Ch.SymInfo inw $ Sym 1, Just (bitVec $ Just inw))
+                     . Pil.CONST . Pil.ConstOp $ r
+              expr = Ch.InfoExpression (Ch.SymInfo outw $ Sym 0, Just (bitVec $ Just outw))
+                     $ op arg1 arg2
+
+              cmd = do
+                res <- solveExpr expr
+                constrain $ res `svEqual` constWord outw outv
+
+              rvars = []
+              errs = []
+
+          res <- runIO $ runSolveCmd tenv cmd
+          let hex n = "0x" <> showHex n ""
+          it (hex l <> " " <> hex r <> " ~> " <> hex outv) $ do
+            res `shouldBe` Right (Sat $ HashMap.fromList rvars, errs)
+      in do
+        context "ADD_WILL_CARRY" $ do
+          context "two constants of the same size" $ do
+            let helper' = helper (\l r -> Pil.ADD_WILL_CARRY $ Pil.AddWillCarryOp l r)
+            helper' (32, 0x00000000, 0x00000000) (1, 0)
+            helper' (32, 0x00000000, 0x00000001) (1, 0)
+            helper' (32, 0x00000000, 0xffffffff) (1, 0)
+            helper' (32, 0x7fffffff, 0x00000000) (1, 0)
+            helper' (32, 0x7fffffff, 0x00000001) (1, 0)
+            helper' (32, 0x7fffffff, 0xffffffff) (1, 1)
+            helper' (32, 0x80000000, 0x00000000) (1, 0)
+            helper' (32, 0x80000000, 0x00000001) (1, 0)
+            helper' (32, 0x80000000, 0xffffffff) (1, 1)
+            helper' (32, 0xffffffff, 0x00000000) (1, 0)
+            helper' (32, 0xffffffff, 0x00000001) (1, 1)
+            helper' (32, 0xffffffff, 0xffffffff) (1, 1)
+
+            helper' (8, 0x00, 0x00) (1, 0)
+            helper' (8, 0x00, 0x01) (1, 0)
+            helper' (8, 0x00, 0xff) (1, 0)
+            helper' (8, 0x7f, 0x00) (1, 0)
+            helper' (8, 0x7f, 0x01) (1, 0)
+            helper' (8, 0x7f, 0xff) (1, 1)
+            helper' (8, 0x80, 0x00) (1, 0)
+            helper' (8, 0x80, 0x01) (1, 0)
+            helper' (8, 0x80, 0xff) (1, 1)
+            helper' (8, 0xff, 0x00) (1, 0)
+            helper' (8, 0xff, 0x01) (1, 1)
+            helper' (8, 0xff, 0xff) (1, 1)
+
+        context "ADD_WILL_OVERFLOW" $ do
+          context "two constants of the same size" $ do
+            let helper' = helper (\l r -> Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp l r)
+            helper' (32, 0x00000000, 0x00000000) (1, 0)
+            helper' (32, 0x00000000, 0x00000001) (1, 0)
+            helper' (32, 0x00000000, 0xffffffff) (1, 0)
+            helper' (32, 0x7fffffff, 0x00000000) (1, 0)
+            helper' (32, 0x7fffffff, 0x00000001) (1, 1)
+            helper' (32, 0x7fffffff, 0xffffffff) (1, 0)
+            helper' (32, 0x80000000, 0x00000000) (1, 0)
+            helper' (32, 0x80000000, 0x00000001) (1, 0)
+            helper' (32, 0x80000000, 0xffffffff) (1, 1)
+            helper' (32, 0xffffffff, 0x00000000) (1, 0)
+            helper' (32, 0xffffffff, 0x00000001) (1, 0)
+            helper' (32, 0xffffffff, 0xffffffff) (1, 0)
+
+            helper' (8, 0x00, 0x00) (1, 0)
+            helper' (8, 0x00, 0x01) (1, 0)
+            helper' (8, 0x00, 0xff) (1, 0)
+            helper' (8, 0x7f, 0x00) (1, 0)
+            helper' (8, 0x7f, 0x01) (1, 1)
+            helper' (8, 0x7f, 0xff) (1, 0)
+            helper' (8, 0x80, 0x00) (1, 0)
+            helper' (8, 0x80, 0x01) (1, 0)
+            helper' (8, 0x80, 0xff) (1, 1)
+            helper' (8, 0xff, 0x00) (1, 0)
+            helper' (8, 0xff, 0x01) (1, 0)
+            helper' (8, 0xff, 0xff) (1, 0)
+
+        context "SUB_WILL_OVERFLOW" $ do
+          context "two constants of the same size" $ do
+            let helper' = helper (\l r -> Pil.SUB_WILL_OVERFLOW $ Pil.SubWillOverflowOp l r)
+            helper' (32, 0x00000000, 0x00000000) (1, 0)
+            helper' (32, 0x00000000, 0x00000001) (1, 0)
+            helper' (32, 0x00000000, 0xffffffff) (1, 0)
+            helper' (32, 0x7fffffff, 0x00000000) (1, 0)
+            helper' (32, 0x7fffffff, 0x00000001) (1, 0)
+            helper' (32, 0x7fffffff, 0xffffffff) (1, 1)
+            helper' (32, 0x80000000, 0x00000000) (1, 0)
+            helper' (32, 0x80000000, 0x00000001) (1, 1)
+            helper' (32, 0x80000000, 0xffffffff) (1, 0)
+            helper' (32, 0xffffffff, 0x00000000) (1, 0)
+            helper' (32, 0xffffffff, 0x00000001) (1, 0)
+            helper' (32, 0xffffffff, 0xffffffff) (1, 0)
+
+            helper' (8, 0x00, 0x00) (1, 0)
+            helper' (8, 0x00, 0x01) (1, 0)
+            helper' (8, 0x00, 0xff) (1, 0)
+            helper' (8, 0x7f, 0x00) (1, 0)
+            helper' (8, 0x7f, 0x01) (1, 0)
+            helper' (8, 0x7f, 0xff) (1, 1)
+            helper' (8, 0x80, 0x00) (1, 0)
+            helper' (8, 0x80, 0x01) (1, 1)
+            helper' (8, 0x80, 0xff) (1, 0)
+            helper' (8, 0xff, 0x00) (1, 0)
+            helper' (8, 0xff, 0x01) (1, 0)
+            helper' (8, 0xff, 0xff) (1, 0)
 
 
     context "solveExpr: VAR" $ do
@@ -1436,61 +1550,6 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       it "two constants of same size" $ do
         r `shouldBe` Right ( Sat $ HashMap.fromList rvars
                             , errs )
-
-    context "solveExpr: ADD_WILL_OVERFLOW" $ do
-      let tenv = [(pilVar "a", tbool)]
-          arg0 :: DSTExpression
-          arg0 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 3, Just tbool)
-                 . Pil.VAR . Pil.VarOp $ pilVar "a"
-          arg1 :: DSTExpression
-          arg1 = Ch.InfoExpression (Ch.SymInfo 32 $ Sym 2, Just unsigned32)
-                 . Pil.CONST . Pil.ConstOp $ 4294967293
-          arg2 :: DSTExpression
-          arg2 = Ch.InfoExpression (Ch.SymInfo 32 $ Sym 1, Just unsigned32)
-                 . Pil.CONST . Pil.ConstOp $ 4294967293
-          expr :: DSTExpression
-          expr = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 0, Just tbool)
-                 . Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp arg1 arg2
-          cmd = do
-            rArg0 <- solveExpr arg0
-            r <- solveExpr expr
-            constrain $ rArg0 `svEqual` r
-
-          rvars = [("a", CV KBool (CInteger 1))]
-          errs = []
-
-      r <- runIO $ runSolveCmd tenv cmd
-      it "with overflow" $ do
-        r `shouldBe` Right ( Sat $ HashMap.fromList rvars
-                            , errs )
-
-    context "solveExpr: ADD_WILL_OVERFLOW" $ do
-      let tenv = [(pilVar "a", tbool)]
-          arg0 :: DSTExpression
-          arg0 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 3, Just tbool)
-                 . Pil.VAR . Pil.VarOp $ pilVar "a"
-          arg1 :: DSTExpression
-          arg1 = Ch.InfoExpression (Ch.SymInfo 32 $ Sym 2, Just unsigned32)
-                 . Pil.CONST . Pil.ConstOp $ 34
-          arg2 :: DSTExpression
-          arg2 = Ch.InfoExpression (Ch.SymInfo 32 $ Sym 1, Just unsigned32)
-                 . Pil.CONST . Pil.ConstOp $ 22
-          expr :: DSTExpression
-          expr = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 0, Just tbool)
-                 . Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp arg1 arg2
-          cmd = do
-            rArg0 <- solveExpr arg0
-            r <- solveExpr expr
-            constrain $ rArg0 `svEqual` r
-
-          rvars = [("a", CV KBool (CInteger 0))]
-          errs = []
-
-      r <- runIO $ runSolveCmd tenv cmd
-      it "without overflow" $ do
-        r `shouldBe` Right ( Sat $ HashMap.fromList rvars
-                            , errs )
-
 
     -- TODO: All these tests could use a CONST_BOOL pil instruction for the carry:
     context "solveExpr: ADC" $ do
