@@ -38,11 +38,13 @@ import Blaze.Types.Cfg (
     Call, EnterFunc, LeaveFunc, Grouping
   ),
   Cfg,
+  MkCfgRootError(ZeroRootNodes, MultipleRootNodes),
   PilCfg,
   PilEdge,
   PilNode,
   getNodeData,
   mkCfg,
+  mkCfgFindRoot,
  )
 import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Cfg as Cfg
@@ -60,6 +62,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.List as List
 import Data.Tuple.Extra ((***))
 
+
 data ConverterError
   = ExpectedConditionalOp Text
   deriving (Eq, Ord, Show, Generic, Hashable)
@@ -70,7 +73,6 @@ data ConverterState = ConverterState
 newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (StateT ConverterState IO) a}
   deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
-
 
 getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [PcodeOp VarNode]
 getRawPcodeForBasicBlock gs bb = do
@@ -91,24 +93,6 @@ isTrueCondBranch pcodeOp destBlockStart = case pcodeOp of
     P.Relative off -> P.error $ "RelativeAddress not expected at end of basic block: offset: "
                                       <> show off
   _ -> Nothing
-  
-
-data OutgoingBranchResults a = OutgoingBranchResults
-  { block :: GBB.BasicBlock
-  , blockData :: PcodeOp a
-  , branchType :: BranchType
-  }
-  deriving (Eq, Ord, Show, Generic)
-
--- makeOutgoingBranches :: (GBB.BasicBlock -> IO (NonEmpty a)) -> GBB.BasicBlock -> [GBB.BasicBlock] -> IO (OutgoingBranchResults [a])
--- makeOutgoingBranches = undefined
-
--- get basic block graph
--- get [PcodeOp a] for each BB node, make map of BB -> [PcodeOp a]
--- get branchtypes for each (BB, [PcodeOp a]) from mapping
---   + any with 2 branches get conditionals
---   + any with 1 get fallthrough
---   + error if more than one
 
 -- | Generates a single UUID for each basic block found in the graph.
 -- TODO: make sure bbg ^. #nodes doesn't have duplicates
@@ -145,15 +129,15 @@ getGhidraFunction gs fn = CGI.getFunction_ gs (fn ^. #address) >>= \case
 mkCfEdgesFromEdgeSet :: Map GBB.BasicBlock (CfNode [PcodeOp VarNode]) -> (GBB.BasicBlock, [GBB.BasicBlock]) -> [CfEdge (CfNode [PcodeOp VarNode])]
 mkCfEdgesFromEdgeSet bbCfNodeMap (src, dests) = case dests of
   [dest] -> [CfEdge src' (bbCfNodeMap Map.! dest) Cfg.UnconditionalBranch]
-  [a, b] -> case sort [checkTrue a, checkTrue b] of
-    [False, True] -> [ CfEdge src' (bbCfNodeMap Map.! a) FalseBranch
+  [a, b] -> case (checkTrue a, checkTrue b) of
+    (False, True) -> [ CfEdge src' (bbCfNodeMap Map.! a) FalseBranch
                      , CfEdge src' (bbCfNodeMap Map.! b) TrueBranch
                      ]
-    [True, False] -> [ CfEdge src' (bbCfNodeMap Map.! a) TrueBranch
+    (True, False) -> [ CfEdge src' (bbCfNodeMap Map.! a) TrueBranch
                      , CfEdge src' (bbCfNodeMap Map.! b) FalseBranch
                      ]
-    [False, False] -> error "Neither child is destination of CBRANCH"
-    [True, True] -> error "Both children are destination of CBRANCH"
+    (False, False) -> error "Neither child is destination of CBRANCH"
+    (True, True) -> error "Both children are destination of CBRANCH"
     where
       lastSrcStmt :: PcodeOp VarNode
       lastSrcStmt = case lastMay (getNodeData src') of
@@ -171,22 +155,28 @@ mkCfEdgesFromEdgeSet bbCfNodeMap (src, dests) = case dests of
   xs -> error $ "Expected 1 or 2 edges, got " <> show (length xs)
   where
     src' = bbCfNodeMap Map.! src
-    dests' = (bbCfNodeMap Map.!) <$> dests
 
-getRawPcodeCfg :: GhidraState -> Function -> CtxId -> IO (Cfg (CfNode [PcodeOp VarNode]))
-getRawPcodeCfg gs fn ctxId = do
+type ThunkDestFunc = J.Function
+
+getRawPcodeCfg :: GhidraState -> CtxId -> Function -> IO (Either ThunkDestFunc (Cfg (CfNode [PcodeOp VarNode])))
+getRawPcodeCfg gs ctxId fn = do
   jfunc <- getGhidraFunction gs fn
-  bbGraph <- BB.getBasicBlockGraph gs jfunc
-  let ctx = Ctx fn ctxId
-  -- uuidMap <- genBlockUUIDs bbGraph
-  -- bbPcodeMap <- traverse (\bb -> (bb,) <$> getRawPcodeForBasicBlock gs bb)
-  --   $ bbGraph ^. #nodes
-  bbCfNodeMap <- fmap Map.fromList
-    . traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock gs ctx bb)
-    $ bbGraph ^. #nodes
-  let edgeSets = getEdgeSets bbGraph
-  let cfEdges = concatMap (mkCfEdgesFromEdgeSet bbCfNodeMap) . Map.toList $ edgeSets
-  undefined
-  
-
--- getRawPcodeCfg :: GhidraState -> GFunc.Function -> IO [PcodeOp HighVarNode]
+  GFunc.isThunk jfunc >>= \case
+    True -> do
+      Left <$> GFunc.unsafeGetThunkedFunction jfunc
+    False -> fmap Right $ do
+      bbGraph <- BB.getBasicBlockGraph gs jfunc
+      let ctx = Ctx fn ctxId
+      bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock gs ctx bb)
+        $ bbGraph ^. #nodes
+      let bbCfNodeMap = Map.fromList bbCfNodeTuples
+          edgeSets = getEdgeSets bbGraph
+          cfEdges = concatMap (mkCfEdgesFromEdgeSet bbCfNodeMap) . Map.toList $ edgeSets
+      case mkCfgFindRoot ctxId (snd <$> bbCfNodeTuples) cfEdges of
+        Left err -> case err of
+          ZeroRootNodes -> do
+            print $ length bbCfNodeTuples
+            print bbGraph
+            error "Cfg has no root node"
+          MultipleRootNodes -> error "Cfg has more than one root node"
+        Right cfg -> return cfg

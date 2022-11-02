@@ -325,9 +325,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_CEIL out in0 -> mkDef out =<< unFloatOp Pil.CEIL Pil.CeilOp in0
   P.FLOAT_DIV out in0 in1 -> mkDef out =<< binFloatOp Pil.FDIV Pil.FdivOp in0 in1
   P.FLOAT_EQUAL out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_E Pil.FcmpEOp in0 in1
-  P.FLOAT_FLOAT2FLOAT out in0 -> mkDef out =<< unFloatOp Pil.FLOAT_CONV Pil.FloatConvOp in0
+  P.FLOAT2FLOAT out in0 -> mkDef out =<< unFloatOp Pil.FLOAT_CONV Pil.FloatConvOp in0
   P.FLOAT_FLOOR out in0 -> mkDef out =<< unFloatOp Pil.FLOOR Pil.FloorOp in0
-  P.FLOAT_INT2FLOAT out in0 -> mkDef out =<< unFloatOp Pil.INT_TO_FLOAT Pil.IntToFloatOp in0
+  P.INT2FLOAT out in0 -> mkDef out =<< unFloatOp Pil.INT_TO_FLOAT Pil.IntToFloatOp in0
   P.FLOAT_LESS out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_LT Pil.FcmpLtOp in0 in1
   P.FLOAT_LESSEQUAL out in0 in1 -> mkDef out =<< binFloatOp Pil.FCMP_LE Pil.FcmpLeOp in0 in1
   P.FLOAT_MULT out in0 in1 -> mkDef out =<< binFloatOp Pil.FMUL Pil.FmulOp in0 in1
@@ -337,7 +337,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_ROUND out in0 -> mkDef out =<< unFloatOp Pil.ROUND_TO_INT Pil.RoundToIntOp in0
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
-  P.FLOAT_TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
+  P.TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
   P.INDIRECT _out _in0 _in1 -> unsupported "INDIRECT" "unsupported high op"
   P.INSERT out in0 in1 position size -> do
     in0' <- requirePilVar in0
