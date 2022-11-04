@@ -78,3 +78,10 @@ getOutgoingEdges bb = getType bb >>= \case
           tbb <- Java.call pb "getTrueOut" >>= mkPcodeBlock
           return [(TrueBranch, (bb, tbb)), (FalseBranch, (bb, fbb))]
         _ -> error $ "Expected 2 outgoing edges to conditional block, got " <> show n
+
+
+getPcodeBlockGraph :: J.HighFunction -> IO (PcodeBlockGraph PcodeBlock)
+getPcodeBlockGraph hfunc = do
+  nodes <- getBlocksFromHighFunction hfunc
+  edges <- concatMapM getOutgoingEdges nodes
+  return $ PcodeBlockGraph nodes edges
