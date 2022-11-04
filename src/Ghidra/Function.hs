@@ -43,8 +43,14 @@ getLocalFunctions gs = do
 isThunk :: J.Function -> IO Bool
 isThunk func = Java.call func "isThunk"
 
--- getThunk :: J.Function -> IO (Maybe Thunk)
--- getThunk func = isThunk func >>= return . bool Nothing (Just func)
+-- | Only safe if `isThunk func` is True.
+unsafeGetThunkedFunction :: J.Function -> IO J.Function
+unsafeGetThunkedFunction func = Java.call func "getThunkedFunction" False
+
+getThunkedFunction :: J.Function -> IO (Maybe J.Function)
+getThunkedFunction func = isThunk func >>= \case
+  False -> return Nothing
+  True -> Just <$> unsafeGetThunkedFunction func
 
 resolveThunk :: J.Function -> IO J.Function
 resolveThunk func = do
@@ -124,6 +130,12 @@ getAddress = Addr.mkAddress <=< J.toAddr
 
 hasVarArgs :: J.Function -> IO Bool
 hasVarArgs fn = Java.call fn "hasVarArgs"
+
+isInline :: J.Function -> IO Bool
+isInline fn = Java.call fn "isInline"
+
+isExternal :: J.Function -> IO Bool
+isExternal fn = Java.call fn "isExternal"
 
 mkFunction :: J.Function -> IO Function
 mkFunction fn = Function fn <$> getAddress fn

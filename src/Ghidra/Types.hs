@@ -53,8 +53,13 @@ type Object = J ('Java.Class "java.lang.Object")
 type Options = J ('Java.Class "ghidra.framework.options.Options")
 type OutputStream = J ('Java.Class "java.io.OutputStream")
 type Parameter = J ('Java.Class "ghidra.program.model.listing.Parameter")
+type PcodeBlock = J ('Java.Class "ghidra.program.model.pcode.PcodeBlock")
+type PcodeBlockBasic = J ('Java.Class "ghidra.program.model.pcode.PcodeBlockBasic")
+
 type PcodeOp = J ('Java.Class "ghidra.program.model.pcode.PcodeOp")
 type PcodeOpAST = J ('Java.Class "ghidra.program.model.pcode.PcodeOpAST")
+type PcodeSyntaxTree = J ('Java.Class "ghidra.program.model.pcode.PcodeSyntaxTree")
+
 type PrintStream = J ('Java.Class "java.io.PrintStream")
 type Program = J ('Java.Class "ghidra.program.model.listing.Program")
 type ProgramDB = J ('Java.Class "ghidra.program.database.ProgramDB")

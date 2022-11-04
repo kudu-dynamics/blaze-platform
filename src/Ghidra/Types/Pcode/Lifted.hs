@@ -61,7 +61,7 @@ data PcodeOp a
   | FLOAT_EQUAL (Output a) (Input a) (Input a)
   | FLOAT2FLOAT (Output a) (Input a)
   | FLOAT_FLOOR (Output a) (Input a)
-  | FLOAT_INT2FLOAT (Output a) (Input a)
+  | INT2FLOAT (Output a) (Input a)
   | FLOAT_LESS (Output a) (Input a) (Input a)
   | FLOAT_LESSEQUAL (Output a) (Input a) (Input a)
   | FLOAT_MULT (Output a) (Input a) (Input a)
@@ -71,7 +71,7 @@ data PcodeOp a
   | FLOAT_ROUND (Output a) (Input a)
   | FLOAT_SQRT (Output a) (Input a)
   | FLOAT_SUB (Output a) (Input a) (Input a)
-  | FLOAT_TRUNC (Output a) (Input a) -- not in docs
+  | TRUNC (Output a) (Input a)
   | INDIRECT (Output a) (Input a) (Input a)
   | INSERT (Output a) (Input a) (Input a) (Input Int64) (Input Int64)
   | INT_2COMP (Output a) (Input a)

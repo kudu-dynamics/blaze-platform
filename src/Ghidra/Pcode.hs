@@ -136,7 +136,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   FLOAT_EQUAL -> binOp L.FLOAT_EQUAL
   FLOAT2FLOAT -> unOp L.FLOAT2FLOAT
   FLOAT_FLOOR -> unOp L.FLOAT_FLOOR
-  FLOAT_INT2FLOAT -> unOp L.FLOAT_INT2FLOAT
+  INT2FLOAT -> unOp L.INT2FLOAT
   FLOAT_LESS -> binOp L.FLOAT_LESS
   FLOAT_LESSEQUAL -> binOp L.FLOAT_LESSEQUAL
   FLOAT_MULT -> binOp L.FLOAT_MULT
@@ -146,7 +146,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   FLOAT_ROUND -> unOp L.FLOAT_ROUND
   FLOAT_SQRT -> unOp L.FLOAT_SQRT
   FLOAT_SUB -> binOp L.FLOAT_SUB
-  FLOAT_TRUNC -> unknown "FLOAT_TRUNC" -- unOp L.FLOAT_TRUNC
+  TRUNC -> unOp L.TRUNC
   INDIRECT -> binOp L.INDIRECT
   INSERT -> L.INSERT <$> out <*> input 0 <*> input 1 <*> inputConst 2 <*> inputConst 3
   INT_2COMP -> unOp L.INT_2COMP
