@@ -670,6 +670,9 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.DIVU x -> integralBinOpMatchSecondArgToFirst x svDivide
   Pil.DIVU_DP x -> divOrModDP False x svDivide
 
+  Pil.Extract _ -> unhandled
+  Pil.ExternPtr _ -> unhandled
+
   Pil.FABS x -> floatUnOp x SBV.fpAbs
   Pil.FADD x -> floatBinOp x $ SBV.fpAdd SBV.sRoundNearestTiesToAway
   Pil.FDIV x -> floatBinOp x $ SBV.fpDiv SBV.sRoundNearestTiesToAway
@@ -791,14 +794,16 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.RLC x -> rotateBinOpWithCarry x rotateLeftWithCarry
   Pil.ROL x -> integralBinOpUnrelatedArgs x svRotateLeft
   Pil.ROR x -> integralBinOpUnrelatedArgs x svRotateRight
---   Pil.ROUND_TO_INT x -> floatToInt x
+  Pil.ROUND_TO_INT _ -> unhandled
   Pil.RRC x -> rotateBinOpWithCarry x rotateRightWithCarry
   Pil.SBB x -> integralBinOpWithCarry x $ \a b c -> (a `svMinus` b) `svMinus` c
--- --   -- STORAGE _ -> unknown
--- --   StrCmp _ -> intRet
--- --   StrNCmp _ -> intRet
--- --   MemCmp _ -> intRet
---   Pil.STACK_LOCAL_ADDR _ -> retPointer
+
+  Pil.MemCmp _ -> unhandled
+  Pil.StrCmp _ -> unhandled
+  Pil.StrNCmp _ -> unhandled
+
+  Pil.STACK_LOCAL_ADDR _ -> unhandled
+  Pil.FIELD_ADDR _ -> unhandled
 
   Pil.SUB x -> integralBinOpMatchSecondArgToFirst x svMinus
 
@@ -816,6 +821,8 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     _ -> svFalse
 
   Pil.UNIMPL _ -> throwError . ErrorMessage $ "UNIMPL"
+
+  Pil.UNIT -> unhandled
 
   Pil.UPDATE_VAR x -> do
     dest <- lookupVarSym $ x ^. #dest
@@ -850,13 +857,15 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     guardIntegral high
     return $ svJoin high low
 
+  Pil.VAR_PHI _ -> unhandled
+
   Pil.XOR x -> integralBinOpUnrelatedArgs x svXOr
   Pil.ZX x -> bitVectorUnOp x (zeroExtend sz)
--- --   Extract _ -> bitvecRet
-        -- expr offset sz --> expr 0 sz -> takes low sz of expr
-  _ -> throwError . ErrorMessage $ "unhandled PIL op: "
-       <> Text.takeWhile (/= ' ') (show op)
+
   where
+    -- | Throws an error that says exactly which 'ExprOp' constructor is unhandled
+    unhandled = throwError . ErrorMessage $ "unhandled PIL op: " <> show (toConstr op)
+
     fallbackAsFreeVar :: Solver SVal
     fallbackAsFreeVar = case mdst of
       Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"
