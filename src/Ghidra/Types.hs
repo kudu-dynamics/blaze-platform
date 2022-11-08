@@ -14,6 +14,7 @@ type AddressSetView = J ('Java.Class "ghidra.program.model.address.AddressSetVie
 type AddressSpace = J ('Java.Class "ghidra.program.model.address.AddressSpace")
 type ApplicationConfiguration = J ('Java.Class "ghidra.framework.ApplicationConfiguration")
 type ApplicationLayout = J ('Java.Class "utility.application.ApplicationLayout")
+type ArrayList a = J ('Java.Class "java.util.ArrayList")
 type AutoImporter = J ('Java.Class "ghidra.app.util.importer.AutoImporter")
 type BasicBlockModel = J ('Java.Class "ghidra.program.model.block.BasicBlockModel")
 type Class = J ('Java.Class "java.lang.Class")
@@ -133,3 +134,8 @@ instance JEqual Function where
 
 instance JEqual CodeBlock where
   (<==>) = jEqualAddressable
+
+arrayListToList :: (Coercible Object a) => ArrayList a -> IO [a]
+arrayListToList al = do
+  xs :: [Object] <- Java.call al "toArray" >>= Java.reify
+  return $ coerce <$> xs

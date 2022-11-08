@@ -16,6 +16,8 @@ import Ghidra.Types.Address (Address)
 import Ghidra.Types.PcodeBlock (PcodeBlock(PcodeBlock))
 import qualified Data.Set as Set
 
+toBlockBasic :: J.PcodeBlock -> J.PcodeBlockBasic
+toBlockBasic = coerce
 
 mkPcodeBlock :: J.PcodeBlockBasic -> IO PcodeBlock
 mkPcodeBlock jblock = do
@@ -24,7 +26,8 @@ mkPcodeBlock jblock = do
 
 getBlocksFromHighFunction :: J.HighFunction -> IO [PcodeBlock]
 getBlocksFromHighFunction hfunc = do
-  blocks :: [J.PcodeBlockBasic] <- Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks" >>= Java.reify
+  blocks :: [J.PcodeBlockBasic] <- Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks" >>= J.arrayListToList
+  -- blocks :: [J.PcodeBlockBasic] <- Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks" >>= Java.reify
   traverse mkPcodeBlock blocks
 
 -- This will error if Ghidra ever adds a new block type
@@ -33,6 +36,12 @@ getType bb = do
   let (pb :: J.PcodeBlock) = coerce $ bb ^. #handle
   n :: Int32 <- Java.call pb "getType"
   return . toEnum $ fromIntegral n
+
+getOut :: PcodeBlock -> Int32 -> IO PcodeBlock
+getOut bb outIndex = Java.call pb "getOut" outIndex >>= mkPcodeBlock . toBlockBasic
+  where
+    pb :: J.PcodeBlock
+    pb = coerce $ bb ^. #handle
 
 getOutgoingEdges :: PcodeBlock -> IO [(BranchType, (PcodeBlock, PcodeBlock))]
 getOutgoingEdges bb = getType bb >>= \case
@@ -58,14 +67,22 @@ getOutgoingEdges bb = getType bb >>= \case
       case outSize of
         0 -> return []
         1 -> do
-          dest <- Java.call pb "getOut" (0 :: Int32) >>= mkPcodeBlock
+          dest <- getOut bb 0
           return [(UnconditionalBranch, (bb, dest))]
-        n -> case edgeTypeIfMany of
-          Nothing -> error $ "Expected 0 or 1 edges, got " <> show n
-          Just manyEdgeType -> do
-            outs <- mapM (Java.call pb "getOut") ([0..n] :: [Int32]) >>= traverse mkPcodeBlock
-            return $ (manyEdgeType,) . (bb,) <$> outs
 
+        -- This is here because `getType` semms to always return 'BASIC'.
+        -- so if the outgoing edges are 2, we attempt to getCondEdges, else
+        -- treat them like unconditional edges (like for a MULTIGOTO?)
+        2 -> catch getCondEdges (\ (_ :: SomeException) -> handleMultipleEdges 2)
+         
+        n -> handleMultipleEdges n
+        where
+          handleMultipleEdges n = case edgeTypeIfMany of
+            Nothing -> error $ "Expected 0 or 1 edges, got " <> show n
+            Just manyEdgeType -> do
+              outs <- mapM (getOut bb) [0..(n-1)]
+              return $ (manyEdgeType,) . (bb,) <$> outs
+    
     pb :: J.PcodeBlock
     pb = coerce $ bb ^. #handle
 
@@ -74,8 +91,8 @@ getOutgoingEdges bb = getType bb >>= \case
       n :: Int32 <- Java.call pb "getOutSize"
       case n of
         2 -> do
-          fbb <- Java.call pb "getFalseOut" >>= mkPcodeBlock
-          tbb <- Java.call pb "getTrueOut" >>= mkPcodeBlock
+          fbb <- Java.call pb "getFalseOut" >>= mkPcodeBlock . toBlockBasic
+          tbb <- Java.call pb "getTrueOut" >>= mkPcodeBlock . toBlockBasic
           return [(TrueBranch, (bb, tbb)), (FalseBranch, (bb, fbb))]
         _ -> error $ "Expected 2 outgoing edges to conditional block, got " <> show n
 

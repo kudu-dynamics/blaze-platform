@@ -95,6 +95,7 @@ library:
     - Ghidra.Function
     - Ghidra.Instruction
     - Ghidra.Pcode
+    - Ghidra.PcodeBlock
     - Ghidra.Prelude
     - Ghidra.Program
     - Ghidra.Reference
@@ -104,6 +105,7 @@ library:
     - Ghidra.Types.BasicBlock
     - Ghidra.Types.Function
     - Ghidra.Types.Pcode
+    - Ghidra.Types.PcodeBlock
     - Ghidra.Types.Pcode.Lifted
     - Ghidra.Types.Variable
 
