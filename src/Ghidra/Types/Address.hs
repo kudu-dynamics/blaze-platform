@@ -24,8 +24,8 @@ data AddressSpaceName
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
 data AddressSpace = AddressSpace
-  { ptrSize :: Int
-  , addressableUnitSize :: Int
+  { ptrSize :: Word64
+  , addressableUnitSize :: Word64
   , name :: AddressSpaceName
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
