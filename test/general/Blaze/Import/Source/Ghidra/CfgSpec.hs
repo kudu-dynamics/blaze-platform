@@ -25,7 +25,7 @@ import Blaze.Types.Import (ImportResult(ImportResult))
 import Control.Arrow ((&&&))
 import Data.HashMap.Strict as HMap
 import Data.HashSet as HashSet
-import Blaze.Import.Source.Ghidra.Cfg (getRawPcodeCfg)
+import Blaze.Import.Source.Ghidra.Cfg (getRawPcodeCfg, getHighPcodeCfg)
 import Test.Hspec
 
 
@@ -34,15 +34,26 @@ diveBin = "res/test_bins/Dive_Logger/Dive_Logger"
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
+  importer <- runIO $ G.getImporter diveBin
+  let gs = importer ^. #ghidraState
+  funcs <- runIO $ getFunctions importer
+
   context "getRawPcodeCfg" $ do
-    importer <- runIO $ G.getImporter diveBin
-    let gs = importer ^. #ghidraState
-    funcs <- runIO $ getFunctions importer
     cfgs <- runIO $ traverse (getRawPcodeCfg gs 0) funcs
     let f (Left _) = 0
         f (Right cfg) = HashSet.size . Cfg.nodes $ cfg
         nodeCounts = f <$> cfgs
         expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,8,9,9,9,9,10,10,10,11,11,11,14,14,15,16,16,17,21,32,34,36,37,40,41,117,117]
+
+    it "should import Cfgs for all functions without crashing" $ do
+      sort nodeCounts `shouldBe` expected
+
+  context "getHighPcodeCfg" $ do
+    cfgs <- runIO $ traverse (getHighPcodeCfg gs 0) funcs
+    let f (Left _) = 0
+        f (Right cfg) = HashSet.size . Cfg.nodes $ cfg
+        nodeCounts = f <$> cfgs
+        expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5,6,6,6,6,6,6,6,6,6,7,7,8,8,8,8,9,9,9,9,11,11,11,12,13,15,16,24,28,28,30,31,31,98,98]
 
     it "should import Cfgs for all functions without crashing" $ do
       sort nodeCounts `shouldBe` expected

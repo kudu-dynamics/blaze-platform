@@ -12,6 +12,7 @@ import qualified Binja.MLIL as MLIL
 import qualified Data.Text as Text
 import Blaze.Pretty (showHex)
 
+
 type F = MLILSSAFunction
 
 data FoundInstruction fun = FoundInstruction
