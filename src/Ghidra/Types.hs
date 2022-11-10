@@ -3,6 +3,7 @@ module Ghidra.Types where
 
 import Ghidra.Prelude hiding (String)
 import qualified Language.Java as Java
+import qualified Foreign.JNI as JNI
 import Language.Java (J)
 
 
@@ -44,6 +45,7 @@ type HighParam = J ('Java.Class "ghidra.program.model.pcode.HighParam")
 type HighSymbol = J ('Java.Class "ghidra.program.model.pcode.HighSymbol")
 type HighVariable = J ('Java.Class "ghidra.program.model.pcode.HighVariable")
 type Instruction = J ('Java.Class "ghidra.program.model.listing.Instruction")
+type InstructionDB = J ('Java.Class "ghidra.program.database.code.InstructionDB")
 type InstructionIterator = J ('Java.Class "ghidra.program.model.listing.InstructionIterator")
 type Iterator a = J ('Java.Class "java.util.Iterator")
 type Language = J ('Java.Class "ghidra.program.model.lang.Language")
@@ -89,7 +91,7 @@ addressIteratorToList x = do
   hasNext :: Bool <- Java.call x "hasNext"
   if hasNext
     then do
-      addr <- Java.call x "next"
+      addr <- Java.call x "next" >>= JNI.newGlobalRef
       (addr:) <$> addressIteratorToList x
     else return []
 
@@ -111,6 +113,13 @@ instance Addressable Function where
 instance Addressable CodeBlock where
   toAddr block = Java.call block "getFirstStartAddress"
   toAddrSet = return . coerce
+
+instance Addressable PcodeBlockBasic where
+  toAddr pb = Java.call pb "getStart"
+  toAddrSet pb = do
+    start :: Address <- Java.call pb "getStart"
+    end :: Address <- Java.call pb "getStop"
+    Java.new start end
 
 -- | Equality check that extends beyond pointer location of J objects
 -- This is especially necessary because we use newGlobalRef so often.

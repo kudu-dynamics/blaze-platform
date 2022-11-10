@@ -7,6 +7,7 @@ import Ghidra.Prelude hiding (toList, getConst)
 import Ghidra.State (GhidraState)
 import qualified Language.Java as Java
 import Ghidra.Instruction (getInstructions)
+import qualified Ghidra.Instruction as Instr
 import Ghidra.Util (iteratorToList, isJNull)
 import qualified Ghidra.Types as J
 import Ghidra.Util (maybeNull)
@@ -30,10 +31,12 @@ import qualified Foreign.JNI as JNI
 getPcode :: J.Instruction -> IO [J.PcodeOp]
 getPcode x = Java.call x "getPcode" >>= Java.reify >>= traverse JNI.newGlobalRef
 
-getRawPcodeOps :: J.Addressable a => GhidraState -> a -> IO [J.PcodeOp]
+getRawPcodeOps :: J.Addressable a => GhidraState -> a -> IO [(J.Address, J.PcodeOp)]
 getRawPcodeOps gs x = do
   instrs <- getInstructions gs x
-  concatMapM getPcode instrs
+  flip concatMapM instrs $ \instr -> do
+    addr <- Instr.getAddress instr
+    fmap (addr,) <$> getPcode instr
 
 getPcodeOpAST :: J.HighFunction -> J.Instruction -> IO [J.PcodeOpAST]
 getPcodeOpAST hfunc instr = do
@@ -41,8 +44,12 @@ getPcodeOpAST hfunc instr = do
   iter :: J.Iterator J.PcodeOpAST <- Java.call hfunc "getPcodeOps" addr >>= JNI.newGlobalRef
   iteratorToList iter
 
-getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> IO [J.PcodeOpAST]
-getHighPcodeOps gs hfunc x = getInstructions gs x >>= concatMapM (getPcodeOpAST hfunc) >>= traverse JNI.newGlobalRef
+getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> IO [(J.Address, J.PcodeOpAST)]
+getHighPcodeOps gs hfunc x = do
+  instrs <- getInstructions gs x
+  flip concatMapM instrs $ \instr -> do
+    addr <- Instr.getAddress instr
+    fmap (addr,) <$> getPcodeOpAST hfunc instr
 
 getBarePcodeOp :: Coercible a J.PcodeOp => a -> IO BarePcodeOp
 getBarePcodeOp x = do
@@ -236,11 +243,11 @@ getRawPcode
   => GhidraState
   -> AddressSpaceMap
   -> a
-  -> IO [PcodeOp VarNode]
+  -> IO [(J.Address, PcodeOp VarNode)]
 getRawPcode gs addressSpaceMap a = do
   jpcodes <- getRawPcodeOps gs a
-  rawInstrs :: [RawPcodeInstruction] <- traverse (mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
-  let liftedInstrs = liftPcodeInstruction addressSpaceMap <$> rawInstrs
+  rawInstrs :: [(J.Address, RawPcodeInstruction)] <- traverse (traverse $ mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
+  let liftedInstrs = (traverse $ liftPcodeInstruction addressSpaceMap) <$> rawInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of
     [] -> return instrs
@@ -255,11 +262,11 @@ getHighPcode
   -> AddressSpaceMap
   -> J.HighFunction
   -> a
-  -> IO [PcodeOp HighVarNode]
+  -> IO [(J.Address, PcodeOp HighVarNode)]
 getHighPcode gs addressSpaceMap hfn a = do
   jpcodes <- getHighPcodeOps gs hfn a
-  highInstrs :: [HighPcodeInstruction] <- traverse (mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
-  let liftedInstrs = liftPcodeInstruction addressSpaceMap <$> highInstrs
+  highInstrs :: [(J.Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
+  let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of
     [] -> return instrs

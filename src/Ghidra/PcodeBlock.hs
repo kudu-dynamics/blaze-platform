@@ -10,6 +10,7 @@ import qualified Ghidra.State as State
 import Ghidra.Types.PcodeBlock (PcodeBlockGraph(PcodeBlockGraph), BranchType(..), PcodeBlockType(..))
 import qualified Language.Java as Java
 import qualified Ghidra.Address as Addr
+import Ghidra.Address (mkAddress)
 import qualified Foreign.JNI as JNI
 import qualified Ghidra.Types as J
 import Ghidra.Types.Address (Address)
@@ -29,6 +30,12 @@ getBlocksFromHighFunction hfunc = do
   blocks :: [J.PcodeBlockBasic] <- Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks" >>= J.arrayListToList
   -- blocks :: [J.PcodeBlockBasic] <- Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks" >>= Java.reify
   traverse mkPcodeBlock blocks
+
+getStart :: PcodeBlock -> IO Address
+getStart pb = Java.call (pb ^. #handle) "getStart" >>= mkAddress
+
+getStop :: PcodeBlock -> IO Address
+getStop pb = Java.call (pb ^. #handle) "getStop" >>= mkAddress
 
 -- This will error if Ghidra ever adds a new block type
 getType :: PcodeBlock -> IO PcodeBlockType

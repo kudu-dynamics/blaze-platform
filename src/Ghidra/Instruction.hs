@@ -38,3 +38,5 @@ instructionIteratorToList x = do
       (ref:) <$> instructionIteratorToList x
     else return []
 
+getAddress :: J.Instruction -> IO J.Address
+getAddress x = Java.call (coerce x :: J.InstructionDB) "getAddress"

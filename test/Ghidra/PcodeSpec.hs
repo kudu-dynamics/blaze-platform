@@ -43,7 +43,7 @@ spec = describe "Ghidra.Pcode" $ do
       length liftedRaws `shouldBe` 104
 
     rawInstr <- runIO . runGhidra $ do
-      x <- mkBareRawPcodeInstruction $ head raws
+      x <- mkBareRawPcodeInstruction . head . fmap snd $ raws
       x' <- mkRawPcodeInstruction x
       return x'
 
@@ -106,5 +106,5 @@ getHighPcodeDemo = runGhidra $ do
   hfunc <- Function.getHighFunction gs func
   -- highs <- getHighPcodeOps gs hfunc func
   addrSpaceMap <- getAddressSpaceMap gs
-  getHighPcode gs addrSpaceMap hfunc func
+  fmap snd <$> getHighPcode gs addrSpaceMap hfunc func
   
