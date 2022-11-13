@@ -181,7 +181,7 @@ data CodeReference a = CodeReference
   , startIndex :: a
   , endIndex :: a
   }
-  deriving (Eq, Ord, Functor, Show, Generic)
+  deriving (Eq, Ord, Functor, Show, Generic, Hashable)
 
 type NodeRefMap a b = HashMap a b
 

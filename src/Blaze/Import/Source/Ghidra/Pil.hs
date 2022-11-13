@@ -30,6 +30,10 @@ import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
 import Blaze.Import.Source.Ghidra.Types (convertAddress)
 import qualified Blaze.Types.Pil as Pil
 import Unsafe.Coerce (unsafeCoerce)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
+import qualified Data.List.NonEmpty as NE
+
 
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
@@ -85,10 +89,27 @@ data ConverterState = ConverterState
   }
   deriving (Eq, Ord, Show, Generic)
 
+mkConverterState :: GhidraState -> Ctx -> Bytes -> ConverterState
+mkConverterState gs ctx defPtrSz = ConverterState
+  { ctxStack = NE.singleton ctx
+  , ctx = ctx
+  , definedVars = []
+  , usedVars = HashSet.empty
+  , defaultPtrSize = defPtrSz
+  , sourceVars = HashMap.empty
+  , ghidraState = gs
+  }
+
 -- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (StateT ConverterState IO) a}
   deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
+
+runConverter
+  :: Converter a
+  -> ConverterState
+  -> IO (Either ConverterError a, ConverterState)
+runConverter m s = flip runStateT s . runExceptT $ _runConverter m
 
 class IsVariable a where
   getSize :: a -> Bytes

@@ -14,6 +14,7 @@ import qualified Ghidra.State as GState
 import Ghidra.Types.Pcode.Lifted (PcodeOp, Output(Output))
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
+import qualified Ghidra.Address as GAddr
 import qualified Ghidra.Types.Variable as GVar
 import qualified Ghidra.Types.BasicBlock as GBB
 import qualified Ghidra.Types.PcodeBlock as PB
@@ -54,8 +55,9 @@ import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
-import Blaze.Types.Pil (Stmt, CtxId, Ctx(Ctx))
+import Blaze.Types.Pil (Stmt, CtxId, Ctx(Ctx), PilVar)
 import qualified Blaze.Types.Pil as Pil
+import qualified Blaze.Import.Source.Ghidra.Pil as PilConv
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.DList (DList)
 import qualified Data.Map.Strict as Map
@@ -78,10 +80,11 @@ newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (State
   deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
 
-getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [PcodeOp VarNode]
+getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
 getRawPcodeForBasicBlock gs bb = do
   addrSpaceMap <- getAddressSpaceMap gs
-  Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
+  xs <- Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
+  traverse (\(addr, op) -> (,op) . convertAddress <$> GAddr.mkAddress addr) xs
 
 -- | Returns 'True' if the branch jumps to destBlockStart iff the branch cond is true.
 -- Returns Nothing if the pcode op isn't a conditional branch.
@@ -112,7 +115,7 @@ getEdgeSets bbg = foldr f Map.empty $ bbg ^. #edges
         g Nothing = Just [dst]
         g (Just xs) = Just $ dst:xs
 
-mkCfNodeBasicBlock :: (GBB.BasicBlock -> IO [PcodeOp a]) -> Ctx -> GBB.BasicBlock -> IO (CfNode [PcodeOp a])
+mkCfNodeBasicBlock :: (GBB.BasicBlock -> IO [(Address, PcodeOp a)]) -> Ctx -> GBB.BasicBlock -> IO (CfNode [(Address, PcodeOp a)])
 mkCfNodeBasicBlock getPcode ctx bb = do
   uuid <- randomIO
   pcode <- getPcode bb
@@ -128,9 +131,9 @@ getGhidraFunction gs fn = CGI.getFunction_ gs (fn ^. #address) >>= \case
 mkCfEdgesFromEdgeSet
   :: forall a. Show a
   => Function
-  -> Map GBB.BasicBlock (CfNode [PcodeOp a])
+  -> Map GBB.BasicBlock (CfNode [(Address, PcodeOp a)])
   -> (GBB.BasicBlock, [GBB.BasicBlock])
-  -> [CfEdge (CfNode [PcodeOp a])]
+  -> [CfEdge (CfNode [(Address, PcodeOp a)])]
 mkCfEdgesFromEdgeSet fn bbCfNodeMap (src, dests) = case dests of
   [dest] -> [CfEdge src' (bbCfNodeMap Map.! dest) Cfg.UnconditionalBranch]
   [a, b] -> case (checkTrue a, checkTrue b) of
@@ -146,7 +149,7 @@ mkCfEdgesFromEdgeSet fn bbCfNodeMap (src, dests) = case dests of
       lastSrcStmt :: PcodeOp a
       lastSrcStmt = case lastMay (getNodeData src') of
         Nothing -> error "Block as two outgoing edges but contains no statements"
-        Just stmt -> stmt
+        Just (_addr, stmt) -> stmt
 
       -- | Returns True if start addr of basic block is CBranch dest
       checkTrue :: GBB.BasicBlock -> Bool
@@ -165,11 +168,11 @@ type ThunkDestFunc = J.Function
 
 getPcodeCfg
   :: (Show a, Hashable a)
-  => (J.Function -> GhidraState -> GBB.BasicBlock -> IO [PcodeOp a])
+  => (J.Function -> GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
   -> GhidraState
   -> CtxId
   -> Function
-  -> IO (Either ThunkDestFunc (Cfg (CfNode [PcodeOp a])))
+  -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)])))
 getPcodeCfg getPcode gs ctxId fn = do
   jfunc <- getGhidraFunction gs fn
   GFunc.isThunk jfunc >>= \case
@@ -196,7 +199,7 @@ getRawPcodeCfg
   :: GhidraState
   -> CtxId
   -> Function
-  -> IO (Either ThunkDestFunc (Cfg (CfNode [PcodeOp VarNode])))
+  -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp VarNode)])))
 getRawPcodeCfg = getPcodeCfg $ const getRawPcodeForBasicBlock
 
 
@@ -206,12 +209,13 @@ getHighPcodeForPcodeBlock
   :: GhidraState
   -> J.HighFunction
   -> PB.PcodeBlock
-  -> IO [PcodeOp HighVarNode]
+  -> IO [(Address, PcodeOp HighVarNode)]
 getHighPcodeForPcodeBlock gs hfunc pb = do
   addrSpaceMap <- getAddressSpaceMap gs
-  Pcode.getHighPcode gs addrSpaceMap hfunc $ pb ^. #handle
+  xs <- Pcode.getHighPcode gs addrSpaceMap hfunc $ pb ^. #handle
+  traverse (\(addr, op) -> (,op) . convertAddress <$> GAddr.mkAddress addr) xs
 
-mkCfNodePcodeBlock :: (PB.PcodeBlock -> IO [PcodeOp HighVarNode]) -> Ctx -> PB.PcodeBlock -> IO (CfNode [PcodeOp HighVarNode])
+mkCfNodePcodeBlock :: (PB.PcodeBlock -> IO [(Address, PcodeOp HighVarNode)]) -> Ctx -> PB.PcodeBlock -> IO (CfNode [(Address, PcodeOp HighVarNode)])
 mkCfNodePcodeBlock getPcode ctx pb = do
   uuid <- randomIO
   pcode <- getPcode pb
@@ -229,7 +233,7 @@ getHighPcodeCfg
   :: GhidraState
   -> CtxId
   -> Function
-  -> IO (Either ThunkDestFunc (Cfg (CfNode [PcodeOp HighVarNode])))
+  -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp HighVarNode)])))
 getHighPcodeCfg gs ctxId fn = do
   jfunc <- getGhidraFunction gs fn
   GFunc.isThunk jfunc >>= \case
@@ -253,4 +257,69 @@ getHighPcodeCfg gs ctxId fn = do
             error "Cfg has no root node"
           MultipleRootNodes -> error "Cfg has more than one root node"
         Right cfg -> return cfg
+
+
+-------------- Convert Pcode CFG to PIL Cfg --------------
+
+
+
+-- | Converts a pcode Cfg to a PIL cfg.
+convertToPilCfg
+  :: IsVariable a
+  => GhidraState
+  -> Ctx
+  -> Bytes
+  -> Cfg (CfNode [(Address, PcodeOp a)])
+  -> IO (HashMap PilVar VarNode, Cfg (CfNode [(Address, Pil.Stmt)]))
+convertToPilCfg gs ctx defPtrSz cfg = do
+  let convState = PilConv.mkConverterState gs ctx defPtrSz
+
+  (r, cstate) <- flip PilConv.runConverter convState $ do
+    traverse (traverse . traverse $ traverse PilConv.convertPcodeOpToPilStmt) $ cfg
+  case r of
+    Left err -> error $ "Failed to convert Pcode to PIL:\n" <> cs (pshow err)
+    Right pcfg -> return (cstate ^. #sourceVars, pcfg)
+
+splitNodeOnCalls :: Ctx -> CfNode [(Address, Pil.Stmt)] -> IO [CfNode [Pil.Stmt]]
+splitNodeOnCalls ctx' = groupNodes . fmap (fmap isCallOrNot) . Cfg.getNodeData
+  where
+    -- | Take non-call statements up to a Call or end. Returns:
+    --   (addr of last stmt, non-call stmts, remaining list)
+    takeWhileNotCall
+      :: [(Address, Either Pil.Stmt Pil.CallStatement)]
+      -> Address
+      -> (Address, [Pil.Stmt], [(Address, Either Pil.Stmt Pil.CallStatement)])
+    takeWhileNotCall [] lastAddr = (lastAddr, [], [])
+    takeWhileNotCall ((x@(_, Right _)):xs) lastAddr = (lastAddr, [], x:xs)
+    takeWhileNotCall ((addr, Left stmt):xs) _ = ((takeWhileNotCall xs addr) & _2 %~ (stmt:))
+
+    groupNodes :: [(Address, Either Pil.Stmt Pil.CallStatement)] -> IO [CfNode [Pil.Stmt]]
+    groupNodes [] = return []
+    groupNodes ((addr, Right cstmt):xs) = do
+      uuid <- randomIO
+      let callNode = Cfg.Call $ Cfg.CallNode
+                     { ctx = ctx'
+                     , start = addr
+                     , callDest = Pil.getCallDest cstmt
+                     , uuid = uuid
+                     , nodeData = [cstmt ^. #stmt]
+                     }
+      (callNode:) <$> groupNodes xs
+    groupNodes (x@(firstAddr, Left _):xs) = do
+      let (lastAddr, nonCallStmts, restXs) = takeWhileNotCall (x:xs) firstAddr
+      case nonCallStmts of
+        [] -> groupNodes restXs
+        _ -> do
+          uuid <- randomIO
+          let bbNode = Cfg.BasicBlock $ Cfg.BasicBlockNode
+                       { ctx = ctx'
+                       , start = firstAddr
+                       , end = lastAddr
+                       , uuid = uuid
+                       , nodeData = nonCallStmts
+                       }
+          (bbNode:) <$> groupNodes restXs
+
+    isCallOrNot :: Pil.Stmt -> Either Pil.Stmt Pil.CallStatement
+    isCallOrNot stmt = maybe (Left stmt) Right $ Pil.mkCallStatement stmt
 
