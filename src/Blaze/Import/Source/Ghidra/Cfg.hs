@@ -170,10 +170,10 @@ getPcodeCfg
   :: (Show a, Hashable a)
   => (J.Function -> GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
   -> GhidraState
-  -> CtxId
   -> Function
+  -> CtxId
   -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)])))
-getPcodeCfg getPcode gs ctxId fn = do
+getPcodeCfg getPcode gs fn ctxId = do
   jfunc <- getGhidraFunction gs fn
   GFunc.isThunk jfunc >>= \case
     True -> do
@@ -197,8 +197,8 @@ getPcodeCfg getPcode gs ctxId fn = do
 
 getRawPcodeCfg
   :: GhidraState
-  -> CtxId
   -> Function
+  -> CtxId
   -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp VarNode)])))
 getRawPcodeCfg = getPcodeCfg $ const getRawPcodeForBasicBlock
 
@@ -231,10 +231,10 @@ mkCfEdgeFromPcodeBlockEdge (bt, edges) = Cfg.fromTupleEdge $ case bt of
 
 getHighPcodeCfg
   :: GhidraState
-  -> CtxId
   -> Function
+  -> CtxId
   -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp HighVarNode)])))
-getHighPcodeCfg gs ctxId fn = do
+getHighPcodeCfg gs fn ctxId = do
   jfunc <- getGhidraFunction gs fn
   GFunc.isThunk jfunc >>= \case
     True -> do
@@ -268,11 +268,10 @@ convertToPilCfg
   :: IsVariable a
   => GhidraState
   -> Ctx
-  -> Bytes
   -> Cfg (CfNode [(Address, PcodeOp a)])
   -> IO (HashMap PilVar VarNode, Cfg (CfNode [(Address, Pil.Stmt)]))
-convertToPilCfg gs ctx defPtrSz cfg = do
-  let convState = PilConv.mkConverterState gs ctx defPtrSz
+convertToPilCfg gs ctx cfg = do
+  let convState = PilConv.mkConverterState gs ctx
 
   (r, cstate) <- flip PilConv.runConverter convState $ do
     traverse (traverse . traverse $ traverse PilConv.convertPcodeOpToPilStmt) $ cfg
@@ -323,3 +322,34 @@ splitNodeOnCalls ctx' = groupNodes . fmap (fmap isCallOrNot) . Cfg.getNodeData
     isCallOrNot :: Pil.Stmt -> Either Pil.Stmt Pil.CallStatement
     isCallOrNot stmt = maybe (Left stmt) Right $ Pil.mkCallStatement stmt
 
+getPilCfg
+  :: IsVariable a
+  => (GhidraState -> Function -> CtxId -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)]))))
+  -> GhidraState
+  -> Function
+  -> CtxId
+  -> IO (Maybe (HashMap PilVar VarNode, Cfg (CfNode [(Address, Pil.Stmt)])))
+getPilCfg pcodeCfgGetter gs func ctxId = do
+  let ctx = Ctx func ctxId
+  pcodeCfgGetter gs func ctxId >>= \case
+    Left thunkedDest -> do
+      -- TODO: maybe try to recur?
+      putText $ "Warning: getPilCfg returned ThunkedDestFunc for function: " <> show func
+      putText $ "The thunk dest is: " <> show thunkedDest
+      return Nothing
+    Right pcodeCfg ->
+      Just <$> convertToPilCfg gs ctx pcodeCfg
+
+getPilCfgFromRawPcode
+  :: GhidraState
+  -> Function
+  -> CtxId
+  -> IO (Maybe (HashMap PilVar VarNode, Cfg (CfNode [(Address, Pil.Stmt)])))
+getPilCfgFromRawPcode = getPilCfg getRawPcodeCfg
+
+getPilCfgFromHighPcode
+  :: GhidraState
+  -> Function
+  -> CtxId
+  -> IO (Maybe (HashMap PilVar VarNode, Cfg (CfNode [(Address, Pil.Stmt)])))
+getPilCfgFromHighPcode = getPilCfg getHighPcodeCfg

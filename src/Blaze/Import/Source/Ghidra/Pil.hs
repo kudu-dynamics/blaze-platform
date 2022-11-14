@@ -79,23 +79,18 @@ data ConverterState = ConverterState
     -- This differs from _definedVars, as order is not preserved and referenced,
     -- but undefined, PilVars are included
   , usedVars :: HashSet PilVar
-    -- TODO: This is fixed to BN MLIL SSA variables here, but will be generalized
-    --       when moving to a PilImporter instance.
-    -- TODO: Does this need to be a set or just a single variable?
-  , defaultPtrSize :: Bytes
     -- | A mapping of PilVars to the a variable from the import source.
   , sourceVars :: HashMap PilVar VarNode
   , ghidraState :: GhidraState
   }
   deriving (Eq, Ord, Show, Generic)
 
-mkConverterState :: GhidraState -> Ctx -> Bytes -> ConverterState
-mkConverterState gs ctx defPtrSz = ConverterState
+mkConverterState :: GhidraState -> Ctx -> ConverterState
+mkConverterState gs ctx = ConverterState
   { ctxStack = NE.singleton ctx
   , ctx = ctx
   , definedVars = []
   , usedVars = HashSet.empty
-  , defaultPtrSize = defPtrSz
   , sourceVars = HashMap.empty
   , ghidraState = gs
   }
@@ -240,11 +235,6 @@ mkExpr v = Expression (fromIntegral $ getSize v)
 
 mkExpr' :: Pil.OperationSize -> Pil.ExprOp Expression -> Expression
 mkExpr' sz = Expression sz
-
-mkExprWithDefaultSize :: Pil.ExprOp Expression -> Converter Expression
-mkExprWithDefaultSize x = do
-  sz <- fromIntegral <$> use #defaultPtrSize
-  return $ mkExpr' sz x
 
 mkAddressExpr :: GAddr.Address -> Expression
 mkAddressExpr x = Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ x ^. #offset
