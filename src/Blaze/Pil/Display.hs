@@ -251,9 +251,9 @@ dispExprOp exprOp size = case exprOp of
   (Pil.AND op) -> dispBinop "and" op size
   (Pil.ARRAY_ADDR op) ->
     "arrayAddr"
-    <-> parenExpr (op ^. #baseAddr)
-    <-> parenExpr (op ^. #arrayIndex)
-    <-> paren (disp $ op ^. #stride)
+    <-> parenExpr (op ^. #base)
+    <-> parenExpr (op ^. #index)
+    <-> paren (show $ op ^. #stride)
   (Pil.ASR op) -> dispBinop "asr" op size
   (Pil.BOOL_TO_INT op) -> dispUnop "boolToInt" op size
   (Pil.CEIL op) -> dispUnop "ceil" op size

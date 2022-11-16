@@ -148,7 +148,7 @@ fieldAddr :: Pil.Expression -> ByteOffset -> OperationSize -> Expression
 fieldAddr base offset size = 
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
-arrayAddr :: Pil.Expression -> Pil.Expression -> Pil.Expression -> OperationSize -> Expression
+arrayAddr :: Pil.Expression -> Pil.Expression -> Word64 -> OperationSize -> Expression
 arrayAddr base index stride size =
   mkExpr size . Pil.ARRAY_ADDR $ Pil.ArrayAddrOp base index stride
 

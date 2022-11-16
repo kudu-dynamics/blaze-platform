@@ -471,8 +471,8 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.ADD_WILL_OVERFLOW op) -> tokenizeBinop msym "addCF" op
   (Pil.AND op) -> tokenizeBinopInfix msym "&&" op
   (Pil.ARRAY_ADDR op) ->
-    (paren <$> tokenize (op ^. #baseAddr))
-      <++> tokenize (op ^. #arrayIndex)
+    (paren <$> tokenize (op ^. #base))
+      <++> tokenize (op ^. #index)
       <++> tt "["
       <++> tt " slots of "
       <++> tokenize (op ^. #stride)

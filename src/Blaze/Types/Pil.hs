@@ -211,9 +211,9 @@ data ConstBoolOp expr = ConstBoolOp
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data ArrayAddrOp expr = ArrayAddrOp
-  { baseAddr :: expr
-  , arrayIndex :: expr
-  , stride :: expr
+  { base :: expr
+  , index :: expr
+  , stride :: Word64
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 

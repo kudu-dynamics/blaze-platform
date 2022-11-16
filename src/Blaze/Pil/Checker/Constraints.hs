@@ -185,9 +185,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     pt <- newSym
     add
       [ (r, CSType (TPointer jSz (CSVar pt)))
-      , (r, CSVar $ x ^. #baseAddr . #info . #sym)
-      , (x ^. #arrayIndex . #info . #sym, CSType (TInt Nothing Nothing))
-      , (x ^. #stride . #info . #sym, CSType (TInt Nothing Nothing))
+      , (r, CSVar $ x ^. #base . #info . #sym)
+      , (x ^. #index . #info . #sym, CSType (TInt Nothing (Just False)))
       ]
     addChildConstraints
 
