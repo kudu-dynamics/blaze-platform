@@ -344,6 +344,35 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             helper' (8, 0xff, 0x01) (1, 0)
             helper' (8, 0xff, 0xff) (1, 0)
 
+    let helper (baseW, base) (indexW, index) stride (outw, outv) = do
+          let tenv = []
+              base' = Ch.InfoExpression (Ch.SymInfo baseW $ Sym 0, Just (bitVec $ Just baseW))
+                      . Pil.CONST . Pil.ConstOp $ base
+              index' = Ch.InfoExpression (Ch.SymInfo indexW $ Sym 1, Just (bitVec $ Just indexW))
+                       . Pil.CONST . Pil.ConstOp $ index
+              expr = Ch.InfoExpression (Ch.SymInfo outw $ Sym 3, Just (bitVec $ Just outw))
+                     . Pil.ARRAY_ADDR $ Pil.ArrayAddrOp base' index' stride
+
+              cmd = do
+                res <- solveExpr expr
+                constrain $ res `svEqual` constWord outw outv
+
+              rvars = []
+              errs = []
+
+          res <- runIO $ runSolveCmd tenv cmd
+          let hex n = let n' = fromIntegral n :: Word64 in (if n' >= 0 then "0x" else "-0x") <> showHex (abs n') ""
+          it (hex base <> "[" <> hex index <> " * " <> hex stride <> " bits] ~> " <> hex outv) $ do
+            res `shouldBe` Right (Sat $ HashMap.fromList rvars, errs)
+      in do
+        context "ARRAY_ADDRESS" $ do
+          context "all constants" $ do
+            let base = fromIntegral (0xdeadbeefdeadbeef :: Word64) :: Int64
+                res = 0xdeadbeefdeadbf3f
+            helper (64, base) (32, 5) 16 (64, res)
+            helper (64, base) ( 8, 5) 16 (64, res)
+            helper (64, base) ( 3, 5) 16 (64, res)
+
 
     context "solveExpr: VAR" $ do
       let tenv = [(pilVar "a", char)]
