@@ -613,6 +613,14 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.ADD_WILL_OVERFLOW x ->
     integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO (svSign a) (svSign b)
 
+  Pil.ARRAY_ADDR x -> do
+    base <- solveExprRec (x ^. #base)
+    index <- solveExprRec (x ^. #index)
+    guardIntegral base
+    guardIntegral index
+    let stride = svInteger (kindOf base) . fromIntegral $ x ^. #stride
+    pure $ base `svPlus` (zeroExtend (fromIntegral $ intSizeOf base) index `svTimes` stride)
+
   Pil.AND x -> integralBinOpMatchSecondArgToFirst x svAnd
   Pil.ASR x -> integralBinOpUnrelatedArgs x sSignedShiftArithRight
   Pil.BOOL_TO_INT x -> do
