@@ -2,24 +2,23 @@ module Blaze.Import.Source.Ghidra.Pil where
 
 import Blaze.Prelude hiding (Symbol)
 
--- import qualified Ghidra.BasicBlock as BB
+import Ghidra.Address (getAddressSpaceMap)
 import Ghidra.State (GhidraState)
--- import qualified Ghidra.Core as Ghidra
--- import Ghidra.Types.Function (Function)
--- import qualified Ghidra.Function as GFunc
--- import qualified Ghidra.Pcode as Pcode
--- import qualified Ghidra.Types.Pcode as Pcode
--- import qualified Ghidra.State as GState
--- import Ghidra.Types.Pcode.Lifted (PcodeOp, Output(Output))
+import qualified Ghidra.State as GState
+import qualified Ghidra.Function as GFunc
+import qualified Ghidra.Pcode as P
+import qualified Ghidra.Types as J
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Types.Variable as GVar
 
 import qualified Blaze.Pil.Construct as C
 import Data.Binary.IEEE754 (wordToDouble)
+import Blaze.Types.Cfg (CodeReference)
 import Blaze.Types.Pil
   (
-    Ctx,
+    CtxId,
+    Ctx(Ctx),
     Expression (Expression),
     OperationSize,
     PilVar (PilVar),
@@ -29,10 +28,13 @@ import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
 import Blaze.Import.Source.Ghidra.Types (convertAddress)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Function ( Function )
+
 import Unsafe.Coerce (unsafeCoerce)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
+
 
 
 data ConverterError
@@ -488,3 +490,61 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
 
     unsupported :: Text -> Text -> Converter Pil.Stmt
     unsupported op note = throwError UnsuportedPcodeOp{op=op, note=note}
+
+getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Pil.Stmt]
+getFuncStatementsFromRawPcode gs func ctxId = do
+  jfunc <- GCG.toGhidraFunction gs func
+  let ctx = Ctx func ctxId
+  addrSpaceMap <- getAddressSpaceMap gs
+  pcodeOps <- fmap snd <$> P.getRawPcode gs addrSpaceMap jfunc
+  convertPcodeOps gs ctx pcodeOps
+
+getFuncStatementsFromHighPcode :: GhidraState -> Function -> CtxId -> IO [Pil.Stmt]
+getFuncStatementsFromHighPcode gs func ctxId = do
+  jfunc <- GCG.toGhidraFunction gs func
+  hfunc <- GFunc.getHighFunction gs jfunc
+  let ctx = Ctx func ctxId
+  addrSpaceMap <- getAddressSpaceMap gs
+  pcodeOps <- fmap snd <$> P.getHighPcode gs addrSpaceMap hfunc jfunc
+  convertPcodeOps gs ctx pcodeOps
+
+convertPcodeOps :: IsVariable a => GhidraState -> Ctx -> [P.PcodeOp a] -> IO [Pil.Stmt]
+convertPcodeOps gs ctx pcodeOps = do
+  let cstate = mkConverterState gs ctx
+  runConverter (traverse convertPcodeOpToPilStmt pcodeOps) cstate >>= \case
+    (Left err, _st) -> error $ show err
+    (Right stmts, _st) -> return stmts
+
+
+getCodeRefStatementsFromRawPcode
+  :: GhidraState
+  -> CtxId
+  -> CodeReference Address
+  -> IO [Pil.Stmt]
+getCodeRefStatementsFromRawPcode gs ctxId ref = do
+  let ctx = Ctx (ref ^. #function) ctxId
+  addrSpaceMap <- getAddressSpaceMap gs
+  start <- GState.mkAddress gs $ ref ^. #startIndex
+  end <- GState.mkAddress gs $ ref ^. #endIndex
+  addrSet <- J.mkAddressSetFromRange start end
+  pcodeOps <- fmap snd <$> P.getRawPcode gs addrSpaceMap addrSet
+  convertPcodeOps gs ctx pcodeOps
+
+getCodeRefStatementsFromHighPcode
+  :: GhidraState
+  -> CtxId
+  -> CodeReference Address
+  -> IO [Pil.Stmt]
+getCodeRefStatementsFromHighPcode gs ctxId ref = do
+  jfunc <- GCG.toGhidraFunction gs $ ref ^. #function
+  hfunc <- GFunc.getHighFunction gs jfunc
+  let ctx = Ctx (ref ^. #function) ctxId
+  addrSpaceMap <- getAddressSpaceMap gs
+  start <- GState.mkAddress gs $ ref ^. #startIndex
+  end <- GState.mkAddress gs $ ref ^. #endIndex
+  addrSet <- J.mkAddressSetFromRange start end
+  pcodeOps <- fmap snd <$> P.getHighPcode gs addrSpaceMap hfunc addrSet
+  convertPcodeOps gs ctx pcodeOps
+
+  
+

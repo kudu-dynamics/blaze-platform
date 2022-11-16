@@ -69,7 +69,7 @@ spec = describe "Blaze.Import.Source.BinaryNinja" $ do
     logNewDiveBnFunc <- runIO $ fromJust <$> BNFunc.getFunctionStartingAt bv Nothing (Address 0x0804d1c0)
     logNewDiveMlilSsaFunc <- runIO $ BNFunc.getMLILSSAFunction logNewDiveBnFunc
     mlilBbs <- runIO $ BNBb.getBasicBlocks logNewDiveMlilSsaFunc
-    (ImportResult ctx cfg mapping) <- runIO $ fromJust <$> getCfg importer logNewDiveFunc 0
+    (ImportResult ctx mapping cfg) <- runIO $ fromJust <$> getCfg importer logNewDiveFunc 0
     (cfNodes, nodeMapEntries) <- runIO $ runNodeConverter $ convertNode ctx (head mlilBbs)
 
     it "should convert a BN basic block with calls into multiple nodes" $ do

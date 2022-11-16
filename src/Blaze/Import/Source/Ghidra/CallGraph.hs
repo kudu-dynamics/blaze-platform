@@ -33,8 +33,13 @@ getFuncAddr = convertAddress . view #startAddress
 convertParam :: G.Parameter -> ParamInfo
 convertParam p = ParamInfo (p ^. #name) BFunc.Unknown
 
-convertFunction :: G.Function -> IO Function
-convertFunction gfunc = runGhidra $ do
+toGhidraFunction :: GhidraState -> Function -> IO J.Function
+toGhidraFunction gs fn = getFunction_ gs (fn ^. #address) >>= \case
+    Nothing -> error $ "Couldn't find function at addr: " <> show (fn ^. #address)
+    Just fn' -> return fn'
+
+toBlazeFunction :: G.Function -> IO Function
+toBlazeFunction gfunc = runGhidra $ do
   let fn = gfunc ^. #handle
   name <- G.getName fn
   isVariadic <- G.hasVarArgs fn
@@ -61,12 +66,12 @@ getFunction_ gs addr = runGhidra $ do
 getFunction :: GhidraState -> Address -> IO (Maybe Function)
 getFunction gs addr = getFunction_ gs addr >>= \case
   Nothing -> return Nothing
-  Just jfunc -> Just <$> (G.mkFunction jfunc >>= convertFunction)
+  Just jfunc -> Just <$> (G.mkFunction jfunc >>= toBlazeFunction)
   
 getFunctions :: GhidraState -> IO [Function]
 getFunctions gs = runGhidra $ G.getFunctions' opts gs
   >>= traverse G.mkFunction
-  >>= traverse convertFunction
+  >>= traverse toBlazeFunction
   where
     -- Are these sensible options for blaze?
     opts = G.GetFunctionsOptions
@@ -86,7 +91,7 @@ getCallSites gs fn = runGhidra $ do
   where
     f :: GRef.FuncRef -> IO CallSite
     f x = do
-      caller <- convertFunction $ x ^. #caller
+      caller <- toBlazeFunction $ x ^. #caller
       let addr = convertAddress $ x ^. #callerAddr
           dest = CG.DestFunc fn
       return $ CallSite { CG.caller = caller

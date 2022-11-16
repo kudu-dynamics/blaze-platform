@@ -11,11 +11,9 @@ convertAddress :: GAddr.Address -> Address
 convertAddress x = fromIntegral
   $ x ^. #offset * (fromIntegral $ x ^. #space . #addressableUnitSize)
 
-
 type PcodeReference = CodeReference GAddr.Address
 
 data PilPcodeMap a = PilPcodeMap
   { sourceVars :: HashMap PilVar a
-  , nodeMap :: HashMap (CfNode [Pil.Stmt]) (CodeReference GAddr.Address)
   } deriving (Eq, Ord, Show, Generic, Hashable)
 

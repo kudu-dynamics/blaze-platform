@@ -6,9 +6,9 @@ import Blaze.Prelude
 
 import Blaze.Types.Pil (Ctx)
 
-data ImportResult a b = ImportResult
+data ImportResult b a = ImportResult
   { ctx :: Ctx
-  , result :: a
   , mapping :: b
+  , result :: a
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)

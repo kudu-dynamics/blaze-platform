@@ -173,7 +173,7 @@ importCfg ::
   CtxId ->
   [MlilSsaBlock] ->
   [MlilSsaBlockEdge] ->
-  IO (Maybe (ImportResult (Cfg MlilSsaCfNode) MlilNodeRefMap))
+  IO (Maybe (ImportResult MlilNodeRefMap (Cfg MlilSsaCfNode)))
 importCfg func currentCtxId bnNodes bnEdges = do
   let ctx = Pil.Ctx func currentCtxId
       nextCtxId' = currentCtxId + 1
@@ -189,8 +189,8 @@ importCfg func currentCtxId bnNodes bnEdges = do
       return
         . Just
         $ ImportResult ctx
-          (mkCfg nextCtxId' cfRoot cfRest cfEdges)
           (HMap.fromList . DList.toList $ mapEntries)
+          (mkCfg nextCtxId' cfRoot cfRest cfEdges)
 
 isGotoBlock :: MlilSsaCfNode -> Bool
 isGotoBlock (Cfg.BasicBlock bb) = NEList.length (bb ^. #nodeData) == 1 &&
@@ -205,7 +205,7 @@ removeGotoBlocks cfg = foldl' (flip Cfg.removeAndRebindEdges) cfg gotoNodes
   where
     gotoNodes = filter isGotoBlock . HashSet.toList . Cfg.nodes $ cfg
 
-getCfgAlt :: BNBinaryView -> Function -> CtxId -> IO (Maybe (ImportResult (Cfg MlilSsaCfNode) MlilNodeRefMap))
+getCfgAlt :: BNBinaryView -> Function -> CtxId -> IO (Maybe (ImportResult MlilNodeRefMap (Cfg MlilSsaCfNode)))
 getCfgAlt bv func currentCtxId = do
   mBnFunc <- BNFunc.getFunctionStartingAt bv Nothing (func ^. #address)
   case mBnFunc of
@@ -223,14 +223,14 @@ getCfg ::
   BNBinaryView ->
   Function ->
   CtxId ->
-  IO (Maybe (ImportResult PilCfg PilMlilNodeMap))
+  IO (Maybe (ImportResult PilMlilNodeMap PilCfg))
 getCfg imp bv func currentCtxId = do
   result <- getCfgAlt bv func currentCtxId
   let ctx = Pil.Ctx func currentCtxId
       nextCtxId' = currentCtxId + 1
   case result of
     Nothing -> return Nothing
-    Just (ImportResult _mlilCtx mlilCfgWithGotos mlilRefMapWithGotos) -> do
+    Just (ImportResult _mlilCtx mlilRefMapWithGotos mlilCfgWithGotos) -> do
       let mlilCfg = removeGotoBlocks mlilCfgWithGotos
           mlilRefMap = HMap.filterWithKey (\k _ -> not $ isGotoBlock k) mlilRefMapWithGotos
           mlilRootNode = Cfg.getRootNode mlilCfg
@@ -251,9 +251,8 @@ getCfg imp bv func currentCtxId = do
       mPilCfg' <- traverse Cfg.splitTailCallNodes mPilCfg
       return $
         ImportResult ctx
-          <$> mPilCfg'
-          <*> Just pilStmtsMap
-
+          <$> Just pilStmtsMap
+          <*> mPilCfg'
 
 getPilFromNode ::
   (PilImporter a, IndexType a ~ MlilSsaInstructionIndex) =>
