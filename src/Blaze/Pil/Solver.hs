@@ -45,7 +45,6 @@ import Data.SBV.Trans ( (.==)
                       , SWord
                       , WordN
                       )
-import qualified Data.Text as Text
 import Data.SBV.Dynamic as D hiding (Solver)
 import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
@@ -670,8 +669,8 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.DIVU x -> integralBinOpMatchSecondArgToFirst x svDivide
   Pil.DIVU_DP x -> divOrModDP False x svDivide
 
-  Pil.Extract _ -> unhandled
-  Pil.ExternPtr _ -> unhandled
+  Pil.Extract _ -> unhandled "Extract"
+  Pil.ExternPtr _ -> unhandled "ExternPtr"
 
   Pil.FABS x -> floatUnOp x SBV.fpAbs
   Pil.FADD x -> floatBinOp x $ SBV.fpAdd SBV.sRoundNearestTiesToAway
@@ -794,16 +793,16 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.RLC x -> rotateBinOpWithCarry x rotateLeftWithCarry
   Pil.ROL x -> integralBinOpUnrelatedArgs x svRotateLeft
   Pil.ROR x -> integralBinOpUnrelatedArgs x svRotateRight
-  Pil.ROUND_TO_INT _ -> unhandled
+  Pil.ROUND_TO_INT _ -> unhandled "ROUND_TO_INT"
   Pil.RRC x -> rotateBinOpWithCarry x rotateRightWithCarry
   Pil.SBB x -> integralBinOpWithCarry x $ \a b c -> (a `svMinus` b) `svMinus` c
 
-  Pil.MemCmp _ -> unhandled
-  Pil.StrCmp _ -> unhandled
-  Pil.StrNCmp _ -> unhandled
+  Pil.MemCmp _ -> unhandled "MemCmp"
+  Pil.StrCmp _ -> unhandled "StrCmp"
+  Pil.StrNCmp _ -> unhandled "StrNCmp"
 
-  Pil.STACK_LOCAL_ADDR _ -> unhandled
-  Pil.FIELD_ADDR _ -> unhandled
+  Pil.STACK_LOCAL_ADDR _ -> unhandled "STACK_LOCAL_ADDR"
+  Pil.FIELD_ADDR _ -> unhandled "FIELD_ADDR"
 
   Pil.SUB x -> integralBinOpMatchSecondArgToFirst x svMinus
 
@@ -822,7 +821,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
 
   Pil.UNIMPL _ -> throwError . ErrorMessage $ "UNIMPL"
 
-  Pil.UNIT -> unhandled
+  Pil.UNIT -> unhandled "UNIT"
 
   Pil.UPDATE_VAR x -> do
     dest <- lookupVarSym $ x ^. #dest
@@ -857,14 +856,14 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     guardIntegral high
     return $ svJoin high low
 
-  Pil.VAR_PHI _ -> unhandled
+  Pil.VAR_PHI _ -> unhandled "VAR_PHI"
 
   Pil.XOR x -> integralBinOpUnrelatedArgs x svXOr
   Pil.ZX x -> bitVectorUnOp x (zeroExtend sz)
 
   where
     -- | Throws an error that says exactly which 'ExprOp' constructor is unhandled
-    unhandled = throwError . ErrorMessage $ "unhandled PIL op: " <> show (toConstr op)
+    unhandled opName = throwError . ErrorMessage $ "unhandled PIL op: " <> opName
 
     fallbackAsFreeVar :: Solver SVal
     fallbackAsFreeVar = case mdst of
