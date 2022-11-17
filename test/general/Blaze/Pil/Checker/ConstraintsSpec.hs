@@ -215,7 +215,7 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
           vars = []
           expr = InfoExpression
             { info = SymInfo 64 (Sym 0)
-            , op = Pil.ARRAY_ADDR $ Pil.ArrayAddrOp (constExpr 1 64 888) (constExpr 2 32 999) (constExpr 3 24 999)
+            , op = Pil.ARRAY_ADDR $ Pil.ArrayAddrOp (constExpr 1 64 888) (constExpr 2 32 999) 999
             }
 
           nextSym = 4

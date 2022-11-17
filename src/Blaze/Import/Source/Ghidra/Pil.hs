@@ -412,7 +412,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     mkDef out res
   P.POPCOUNT out in0 -> mkDef out =<< unIntOp Pil.POPCNT Pil.PopcntOp in0
   P.PTRADD out base idx stride ->
-    let stride' = C.const (stride ^. #value) 8 in
+    let stride' = fromIntegral $ stride ^. #value in
       mkDef out =<< binIntOp Pil.ARRAY_ADDR (\b i -> Pil.ArrayAddrOp b i stride') base idx
   P.PTRSUB out base offset -> do
     -- out := (void *)base + offset
