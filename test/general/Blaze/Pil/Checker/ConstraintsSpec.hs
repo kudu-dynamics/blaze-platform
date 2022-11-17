@@ -230,10 +230,8 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
             [ (Sym 0, SVar (Sym 1))
             , (Sym 0, SType (TPointer (Just 64) pointee))
             , (Sym 1, SType (TBitVector (Just 64)))
-            , (Sym 2, SType (TInt Nothing Nothing))
+            , (Sym 2, SType (TInt Nothing (Just False)))
             , (Sym 2, SType (TBitVector (Just 32)))
-            , (Sym 3, SType (TInt Nothing Nothing))
-            , (Sym 3, SType (TBitVector (Just 24)))
             ]
           vars' = []
 
