@@ -64,8 +64,6 @@ data OpenDatabaseError
   deriving (Eq, Ord, Show, Generic)
 
 -- | Opens binary as Ghidra database.
--- Throws error if file not found.
--- TODO: make this return (Either err GhidraState)
 openDatabase'
   :: OpenDatabaseOptions
   -> FilePath
