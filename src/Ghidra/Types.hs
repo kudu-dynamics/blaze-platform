@@ -121,6 +121,13 @@ instance Addressable PcodeBlockBasic where
     end :: Address <- Java.call pb "getStop"
     Java.new start end
 
+instance Addressable AddressSet where
+  toAddr x = Java.call x "getMinAddress"
+  toAddrSet = return
+
+mkAddressSetFromRange :: Address -> Address -> IO AddressSet
+mkAddressSetFromRange startAddr endAddr = Java.new startAddr endAddr
+
 -- | Equality check that extends beyond pointer location of J objects
 -- This is especially necessary because we use newGlobalRef so often.
 class JEqual a where
