@@ -269,10 +269,25 @@ convertToPilCfg gs ctx cfg = do
   let convState = PilConv.mkConverterState gs ctx
 
   (r, cstate) <- flip PilConv.runConverter convState $ do
-    traverse (traverse . traverse $ traverse PilConv.convertPcodeOpToPilStmt) $ cfg
+    traverse (traverse . traverse $ convertIndexedPcodeOpToPilStmt ctx) $ cfg
   case r of
     Left err -> error $ "Failed to convert Pcode to PIL:\n" <> cs (pshow err)
     Right pcfg -> return (cstate ^. #sourceVars, pcfg)
+
+convertIndexedPcodeOpToPilStmt
+  :: IsVariable a
+  => Ctx
+  -> (Address, PcodeOp a)
+  -> PilConv.Converter (Address, Pil.Stmt)
+convertIndexedPcodeOpToPilStmt ctx (addr, op) = do
+  catchError ((addr,) <$> PilConv.convertPcodeOpToPilStmt op) $ \e ->
+    throwError $ PilConv.PCodeOpToPilStmtConversionError
+    { address = addr
+    , function = ctx ^. #func
+    , failedOp = const () <$> op
+    , conversionError = e
+    }
+                                                   
 
 splitCallsInCfg
   :: Ctx

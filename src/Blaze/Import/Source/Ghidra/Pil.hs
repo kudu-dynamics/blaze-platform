@@ -64,6 +64,12 @@ data ConverterError
   | ReturningTooManyResults
   -- | The argument to 'BRANCH' or 'CBRANCH' was a /p-code relative/ offset
   | PcodeRelativeBranch
+  | PCodeOpToPilStmtConversionError
+    { address :: Address
+    , function :: Function
+    , failedOp :: P.PcodeOp ()
+    , conversionError :: ConverterError
+    }
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ConverterState = ConverterState
