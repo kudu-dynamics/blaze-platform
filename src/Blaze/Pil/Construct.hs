@@ -58,6 +58,9 @@ unOp f g x size =
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
+unit :: Expression
+unit = Pil.Expression 0 Pil.UNIT
+
 constPtr :: Word64 -> OperationSize -> Expression
 constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr)))
 

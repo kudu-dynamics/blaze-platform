@@ -58,8 +58,6 @@ data ConverterError
   | PtrsubOffsetNotConstant
     { arg2 :: VarNodeType
     }
-  -- | The result list of 'RETURN' was empty
-  | ReturningNoResults
   -- | The result list of 'RETURN' was greater than 1
   | ReturningTooManyResults
   -- | The argument to 'BRANCH' or 'CBRANCH' was a /p-code relative/ offset
@@ -427,9 +425,9 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
                  VImmediate n -> pure n
                  vnt -> throwError $ PtrsubOffsetNotConstant vnt
     mkDef out . Pil.VAR_FIELD $ Pil.VarFieldOp base' (fromIntegral offset')
-  P.RETURN _ [] -> throwError ReturningNoResults
-  P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
+  P.RETURN _ [] -> pure $ C.ret C.unit
   P.RETURN _retAddr [result] -> Pil.Ret . Pil.RetOp <$> convertVarNode result
+  P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.SEGMENTOP -> unsupported "SEGMENTOP" "undocumented op"
   P.STORE _addrSpace destOffset in1 -> do
     destOffset' <- mkExpr destOffset <$> unIntOp Pil.LOAD Pil.LoadOp in1
