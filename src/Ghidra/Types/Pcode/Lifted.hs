@@ -113,4 +113,4 @@ data PcodeOp a
   | STORE (Input AddressSpace) (Input a) (Input a)
   | SUBPIECE (Output a) (Input a) (Input Int64)
   | UNIMPLEMENTED
-  deriving (Eq, Ord, Show, Generic, Hashable)
+  deriving (Eq, Ord, Show, Generic, Hashable, Functor, Foldable, Traversable)

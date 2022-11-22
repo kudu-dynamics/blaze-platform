@@ -115,6 +115,20 @@ include-dirs:
   - "/usr/lib/jvm/java-11-openjdk-amd64/include"
   - "/usr/lib/jvm/java-11-openjdk/include"
 
+executables:
+  create-ghidra-db:
+    main: Main.hs
+    source-dirs: app/create-ghidra-db
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ghidra
+  
 tests:
   ghidra-test:
     main: Spec.hs
@@ -132,4 +146,5 @@ tests:
     - containers
     - ghidra
     - hspec
+    - temporary
     - text

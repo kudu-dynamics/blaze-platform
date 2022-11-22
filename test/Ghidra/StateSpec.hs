@@ -3,6 +3,8 @@ module Ghidra.StateSpec where
 import Ghidra.Prelude
 
 import qualified Ghidra.State as State
+import System.IO.Temp (getCanonicalTemporaryDirectory)
+import System.Directory (doesFileExist)
 import Ghidra.Core
 import Test.Hspec
 
@@ -29,6 +31,24 @@ spec = describe "Ghidra.State" $ do
     it "should analyze binary" $ do
       hasAnalyzed `shouldBe` True
 
+    (tempFilePath, dbFileExists) <- runIO $ do
+      n :: Word16 <- randomIO
+      tempDir <- getCanonicalTemporaryDirectory
+      let tempFilePath = tempDir <> "/" <> "ghidra_a1" <> show n <> ".gzf"
+      let gs = unsafeFromRight egs
+      State.saveDatabase gs tempFilePath
+      exists <- doesFileExist tempFilePath
+      return (tempFilePath, exists)
+  
+    it "should save analysis database" $ do
+      dbFileExists `shouldBe` True
+
+    egs' <- runIO . runGhidra $ State.openDatabase tempFilePath
+
+    it "should load saved analysis database" $ do
+      isRight egs' `shouldBe` True
+    
+
   context "handles errors" $ do
     egs1 <- runIO . runGhidra $ State.openDatabase "/tmp/hopefullydoesnotexist"
     it "should be unable to load binary without options" $ do
@@ -44,3 +64,4 @@ spec = describe "Ghidra.State" $ do
       State.openDatabase' opts a1Bin
     it "should be unable to load binary with options" $ do
       egs2 `shouldBe` (Left $ State.CouldNotFindLang badlang)
+

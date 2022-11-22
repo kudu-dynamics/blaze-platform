@@ -12,10 +12,10 @@ import Test.Hspec
 
 
 diveBin :: FilePath
-diveBin = "res/test_bins/Dive_Logger/Dive_Logger"
+diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
 a1Bin :: FilePath
-a1Bin = "res/test_bins/a1/a1"
+a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.PcodeBlock" $ do

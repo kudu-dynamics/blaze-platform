@@ -7,6 +7,7 @@ import Ghidra.Util (maybeNullCall, suppressOut)
 import qualified Ghidra.Types as J
 import qualified Data.BinaryAnalysis as BA
 import qualified Foreign.JNI as JNI
+import qualified Data.Text as Text
 
 
 data GhidraState = GhidraState
@@ -127,7 +128,6 @@ data AnalyzeOptions = AnalyzeOptions
 defaultAnalyzeOptions :: AnalyzeOptions
 defaultAnalyzeOptions = AnalyzeOptions False True
 
-
 analyze' :: AnalyzeOptions -> GhidraState -> IO ()
 analyze' opts gs = do
   alreadyAnalyzed <- hasBeenAnalyzed gs
@@ -165,3 +165,14 @@ mkAddress gs addr = do
   prg <- getProgram gs
   baseAddr :: J.Address <- Java.call prg "getImageBase" >>= JNI.newGlobalRef
   Java.call baseAddr "getNewAddress" (fromIntegral addr :: Int64)
+
+saveDatabase :: GhidraState -> FilePath -> IO ()
+saveDatabase gs fp = do
+  let prg = gs ^. #program
+  () <- Java.call prg "updateMetadata"
+  jstringFilePath <- Java.reflect . Text.pack $ fp
+  file :: J.File <- Java.new jstringFilePath
+  () <- Java.call (coerce prg :: J.DomainObjectAdapterDB) "saveToPackedFile" file (gs ^. #taskMonitor)
+  return ()
+
+
