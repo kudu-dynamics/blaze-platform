@@ -30,7 +30,7 @@ import Test.Hspec
 
 
 diveBin :: FilePath
-diveBin = "res/test_bins/Dive_Logger/Dive_Logger"
+diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
@@ -62,6 +62,19 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
     cfgs :: [(Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
       runIO $ traverse
         (\func -> view #result . fromJust <$> getPilCfgFromRawPcode gs func 0)
+        funcs
+    
+    let f cfg = HashSet.size . Cfg.nodes $ cfg
+        nodeCounts = f <$> cfgs
+        expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,8,9,9,9,9,10,10,10,11,11,11,14,14,15,16,16,17,21,32,34,36,37,40,41,117,117]
+
+    it "should import Cfgs for all functions without crashing" $ do
+      sort nodeCounts `shouldBe` expected
+
+  context "getPilCfgFromHighPcode" $ do
+    cfgs :: [(Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
+      runIO $ traverse
+        (\func -> view #result . fromJust <$> getPilCfgFromHighPcode gs func 0)
         funcs
     
     let f cfg = HashSet.size . Cfg.nodes $ cfg
