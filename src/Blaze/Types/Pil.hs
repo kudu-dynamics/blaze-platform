@@ -309,7 +309,10 @@ data Statement expr
   | DefPhi (DefPhiOp expr)
   | DefMemPhi (DefMemPhiOp expr)
   | BranchCond (BranchCondOp expr)
+  -- | Direct jump to 'dest', but statically we know 'dest' will be a member of
+  -- 'targets' (probably from a jump table)
   | Jump (JumpOp expr)
+  -- | Direct jump to 'dest'
   | JumpTo (JumpToOp expr)
   | Ret (RetOp expr)
   | NoRet
