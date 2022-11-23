@@ -9,7 +9,7 @@ main :: IO ()
 main = runGhidra $ getArgs >>= \case
   [] -> do
     putText "./create-ghidra-db [path/to/binary1] [path/to/binary2.bin] ..."
-    putText "-- Creates path/to/binary1.gfz path/to/binary2.bin.gfz, etc"
+    putText "-- Creates path/to/binary1.gzf path/to/binary2.bin.gzf, etc"
   args -> mapM_ openBinaryAndSave args
 
 openBinaryAndSave :: FilePath -> IO ()
