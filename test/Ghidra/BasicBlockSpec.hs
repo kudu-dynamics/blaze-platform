@@ -19,7 +19,7 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.BasicBlock" $ do
-  (gs, jfunc, _highJfunc) <- runIO . runGhidra $ do
+  (gs, jfunc, _highJfunc) <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     -- b <- isNil' $ gs ^. #unGhidraState
     -- when b $ error "Couldn't open a1"
@@ -30,14 +30,14 @@ spec = describe "Ghidra.BasicBlock" $ do
     return (gs, jfunc, highJfunc)
   
   context "getCodeBlocks" $ do
-    blocks <- runIO . runGhidra $ do
+    blocks <- runIO . runGhidraOrError $ do
       getCodeBlocks gs jfunc
       
     it "should get 4 blocks for j function" $ do
       length blocks `shouldBe` 4
 
   context "getBasicBlockGraph" $ do
-    g <- runIO . runGhidra $ do
+    g <- runIO . runGhidraOrError $ do
       g <- getBasicBlockGraph gs jfunc
       -- g' :: BasicBlockGraph Address <- traverse (view #startAddress) g
       return $ view (#startAddress . #offset) <$> g

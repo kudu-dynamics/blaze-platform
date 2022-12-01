@@ -18,16 +18,16 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.Function" $ do
-  gs <- runIO . runGhidra $ do
+  gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
   
   context "getFunctions" $ do
-    funcs <- runIO . runGhidra $ Function.getFunctions gs
+    funcs <- runIO . runGhidraOrError $ Function.getFunctions gs
     it "should get all functions for a1 binary" $ do
       length funcs `shouldBe` 37
 
-    funcs' <- runIO . runGhidra $ do
+    funcs' <- runIO . runGhidraOrError $ do
       let opts = Function.defaultGetFunctionsOptions
                  & #includeLocalFuncs .~ True
                  & #includeExternalFuncs .~ False
@@ -39,7 +39,7 @@ spec = describe "Ghidra.Function" $ do
 
   context "fromAddr" $ do
     let faddr = 0x13ad
-    mfunc <- runIO . runGhidra $ do
+    mfunc <- runIO . runGhidraOrError $ do
       faddr' <- State.mkAddressBased gs faddr
       Function.fromAddr gs faddr'
     it "should find func by address" $ do
@@ -47,7 +47,7 @@ spec = describe "Ghidra.Function" $ do
 
   context "getHighFunction" $ do
     let faddr = 0x13ad
-    (fname1, fname2) <- runIO . runGhidra $ do
+    (fname1, fname2) <- runIO . runGhidraOrError $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
@@ -60,7 +60,7 @@ spec = describe "Ghidra.Function" $ do
 
   context "getParams" $ do
     let faddr = 0x13ad
-    params <- runIO . runGhidra $ do
+    params <- runIO . runGhidraOrError $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
