@@ -42,10 +42,6 @@ data ConverterError
   | ExpectedAddressButGotConst Int64
   | AddressSpaceTypeCannotBeVar GAddr.Address
   | OutOfChoicesError -- for Alternative instance, Monoid's mempty
-  | UnsuportedPcodeOp
-    { op :: Text
-    , note :: Text
-    }
   | UnsuportedAddressSpace Text
   | ExpectedVarExpr Bytes VarType
   -- | The sizes of the operands to PIECE did not add up to the size of its output
@@ -308,7 +304,8 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   -- Branch indirect. Var contains offset from current instr.
   -- Offset is in context of current addr space
   -- TODO: maybe should use `JumpTo instrAddr [off]`
-  P.BRANCHIND in0 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in0 ^. #value)
+  -- P.BRANCHIND in0 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in0 ^. #value)
+  P.BRANCHIND in0 -> pure $ Pil.UnimplInstr "BRANCHIND"
   P.CALL dest inputs -> do
     cdest <- callDestFromDest $ dest ^. #value
     params <-  mapM convertVarNode . fmap (view #value) $ inputs
@@ -322,7 +319,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
 
   -- TODO CALLOTHER is pretty much a black-box
-  P.CALLOTHER _in0 _inputs -> unsupported "CALLOTHER" "unsupported pseudo-op"
+  P.CALLOTHER _in0 _inputs -> pure $ Pil.UnimplInstr "CALLOTHER"
   -- TODO do we want to record CASTs into PIL somehow?
   P.CAST out in0 -> mkDef out . view #op =<< convertVarNode in0
   P.CBRANCH _dest in0 -> do
@@ -332,7 +329,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.COPY out in0 -> do
     destVar <- requirePilVar out
     Pil.Def . Pil.DefOp destVar <$> convertVarNode (in0 ^. #value)
-  P.CPOOLREF _out _in0 _in1 _inputs -> unsupported "CPOOLREF" "unsupported pseudo-op"
+  P.CPOOLREF _out _in0 _in1 _inputs -> pure $ Pil.UnimplInstr "CPOOLREF"
   P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
     srcExpr <- convertVarNode in0
     offsetExpr <- requireConst in1
@@ -355,7 +352,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
-  P.INDIRECT _out _in0 _in1 -> unsupported "INDIRECT" "unsupported high op"
+  P.INDIRECT _out _in0 _in1 -> pure $ Pil.UnimplInstr "INDIRECT"
   P.INSERT out in0 in1 position size -> do
     in0' <- requirePilVar in0
     in1' <- convertVarNode in1
@@ -398,8 +395,8 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.MULTIEQUAL out in0 in1 rest -> do
     pout <- requirePilVar out
     Pil.DefPhi . Pil.DefPhiOp pout <$> traverse requirePilVar (in0:in1:rest)
-  P.NEW _out _in0 _inputs -> unsupported "NEW" "unsupported pseudo-op"
-  P.PCODE_MAX -> unsupported "PCODE_MAX" "undocumented op"
+  P.NEW _out _in0 _inputs -> pure $ Pil.UnimplInstr "NEW"
+  P.PCODE_MAX -> pure $ Pil.UnimplInstr "PCODE_MAX"
   P.PIECE out high low -> do
     -- out := (high << low.size) | low
     high' <- convertVarNode high
@@ -428,7 +425,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.RETURN _ [] -> pure $ C.ret C.unit
   P.RETURN _retAddr [result] -> Pil.Ret . Pil.RetOp <$> convertVarNode result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
-  P.SEGMENTOP -> unsupported "SEGMENTOP" "undocumented op"
+  P.SEGMENTOP -> pure $ Pil.UnimplInstr "SEGMENTOP"
   P.STORE _addrSpace destOffset in1 -> do
     destOffset' <- mkExpr destOffset <$> unIntOp Pil.LOAD Pil.LoadOp in1
     in1' <- convertVarNode in1
@@ -491,10 +488,6 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       a <- convertConstFloatOrVar in0
       return . opCons $ opArgsCons a
     
-
-    unsupported :: Text -> Text -> Converter Pil.Stmt
-    unsupported op note = throwError UnsuportedPcodeOp{op=op, note=note}
-
 getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Pil.Stmt]
 getFuncStatementsFromRawPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
