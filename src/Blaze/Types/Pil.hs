@@ -262,7 +262,7 @@ data JumpOp expr = JumpOp
 {- HLINT ignore JumpToOp "Use newtype instead of data" -}
 data JumpToOp expr = JumpToOp
   { dest :: expr
-  , targets :: [Int64]
+  , targets :: [Address]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 newtype RetOp expr = RetOp

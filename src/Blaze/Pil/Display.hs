@@ -134,6 +134,9 @@ instance Disp Binja.MLIL.SSAVariable where
       version :: Text
       version = show (ssaVar ^. Binja.MLIL.version)
 
+instance Disp Address where
+  disp = show
+
 instance Disp Int64 where
   disp = show
 
