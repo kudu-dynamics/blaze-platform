@@ -118,6 +118,20 @@ buildIntList = do
     (coerceExpressionIndex $ ctx ^. exprIndex)
     oindex
 
+buildTargetAddrsList :: StatementFunction t => OpBuilder t [Address]
+buildTargetAddrsList = do
+  ctx <- ask
+  oindex <- getAndAdvanceOpIndex
+  liftIO $
+    keys . fmap fromIntegral <$>
+      BN.mediumLevelILGetOperandList
+        (ctx ^. func . Func.handle)
+        (coerceExpressionIndex $ ctx ^. exprIndex)
+        oindex
+  where
+    keys (x:_:xs) = x : keys xs
+    keys _ = []
+
 buildVarList :: StatementFunction t => OpBuilder t [Variable]
 buildVarList = do
   xs <- buildIntList
@@ -290,7 +304,7 @@ getOperation fn eindex = do
     BN.MLIL_JUMP ->
         fmap JUMP $ JumpOp <$> buildExpr
     BN.MLIL_JUMP_TO ->
-        fmap JUMP_TO $ JumpToOp <$> buildExpr <*> buildIntList
+        fmap JUMP_TO $ JumpToOp <$> buildExpr <*> buildTargetAddrsList
     BN.MLIL_RET_HINT ->
         fmap RET_HINT $ RetHintOp <$> buildExpr
     BN.MLIL_CALL ->
