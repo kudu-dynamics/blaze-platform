@@ -20,7 +20,7 @@ import Blaze.Graph (Edge)
 import Blaze.Import.CallGraph (CallGraphImporter, getFunctions)
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Types.Cfg.Analysis
-import Control.Lens (to)
+import Control.Lens (to, _last)
 
 
 transformStmts :: ([Stmt] -> [Stmt]) -> PilCfg -> PilCfg
@@ -125,40 +125,36 @@ simplify = removeEmptyBasicBlockNodes . _simplify maxIters
 prune :: Edge PilNode -> PilCfg -> PilCfg
 prune edge cfg = simplify $ G.removeEdge edge cfg
 
-parseJumpToPred :: PilCfg -> PilNode -> Maybe PilNode
-parseJumpToPred cfg n = case predNodes of
-  [predNode] ->
-    if isJust $ parseJumpTo predNode then
-      Just predNode
-    else
-      Nothing
+-- | Returns the node's predeccessor, if it has exactly one, and otherwise
+-- 'Nothing'
+onlyPred :: PilCfg -> PilNode -> Maybe PilNode
+onlyPred cfg n = case predNodes of
+  [predNode] -> Just predNode
   _ -> Nothing
   where
     predNodes = HashSet.toList $ Cfg.preds n cfg
 
-parseJumpTo :: PilNode -> Maybe (Pil.JumpToOp Pil.Expression)
-parseJumpTo n = case n ^? #_BasicBlock . #nodeData of
-    Just [Pil.JumpTo jumpToOp] -> Just jumpToOp
-    _ -> Nothing
-
-simplifyJumpTo :: [Stmt] -> [Stmt]
-simplifyJumpTo xs = case xs of
-  [Pil.JumpTo jumpToOp] ->
-    [Pil.JumpTo (jumpToOp & #targets .~ [])]
-  _ -> xs
+-- | Fixes the predecessor of the focal node of a focus operation so that, if
+-- its last statement is a 'JumpTo', all of its 'targets' are removed, except
+-- for the focal node's address, if any
+fixupJumpToPred :: PilNode -> PilCfg -> PilCfg
+fixupJumpToPred node cfg = fromMaybe cfg $ do
+  pred_ <- onlyPred cfg node
+  addr <- node ^? (#_BasicBlock . #start <> #_Call . #start)
+  let filterAddr ns = if addr `elem` ns then [addr] else []
+  return . G.updateNode (Cfg.updateNodeData (_last . #_JumpTo . #targets %~ filterAddr)) pred_ $ cfg
 
 -- | Removes all nodes/edges that don't lead to or can't be reached by node.
 -- Returns a modified and simplified ICFG.
 focus :: PilNode -> PilCfg -> PilCfg
-focus focalNode cfg = fromMaybe cfg' $ do
-  jumpToPred <- parseJumpToPred cfg' focalNode
-  return . G.updateNode (Cfg.updateNodeData simplifyJumpTo) jumpToPred $ cfg'
+focus focalNode cfg =
+  fixupJumpToPred focalNode
+  . simplify
+  . reducePhi removedVars
+  . Cfg.removeEdges deadEdges
+  . removeNodes deadNodes
+  $ cfg
   where
-    cfg' = simplify
-           . reducePhi removedVars
-           . Cfg.removeEdges deadEdges
-           . removeNodes deadNodes
-           $ cfg
     -- Need deadNodes to compute removedVars and to actually remove the dead nodes
     cnodes :: HashSet PilNode
     cedges :: HashSet (G.LEdge BranchType PilNode)
@@ -180,14 +176,13 @@ focus focalNode cfg = fromMaybe cfg' $ do
 -- TODO: refactor with regular prune
 -- | Like `focus` but doesn't call `simplify`
 focus_ :: PilNode -> PilCfg -> PilCfg
-focus_ focalNode cfg = fromMaybe cfg' $ do
-  jumpToPred <- parseJumpToPred cfg' focalNode
-  return $ G.updateNode (Cfg.updateNodeData simplifyJumpTo) jumpToPred cfg'
+focus_ focalNode cfg =
+  fixupJumpToPred focalNode
+  . reducePhi removedVars
+  . Cfg.removeEdges deadEdges
+  . removeNodes deadNodes
+  $ cfg
   where
-    cfg' = reducePhi removedVars
-           . Cfg.removeEdges deadEdges
-           . removeNodes deadNodes
-           $ cfg
     -- Need deadNodes to compute removedVars and to actually remove the dead nodes
     cnodes :: HashSet PilNode
     cedges :: HashSet (G.LEdge BranchType PilNode)
