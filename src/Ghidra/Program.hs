@@ -14,3 +14,6 @@ getAddressFactory p = Java.call p "getAddressFactory" >>= JNI.newGlobalRef
 -- | Returns an address from the constant space of the program
 getConstantAddress :: AddressFactory -> BA.Address -> IO Address
 getConstantAddress gen off = Java.call gen "getConstantAddress" (fromIntegral off :: Int64) >>= JNI.newGlobalRef
+
+getExecutableMD5 :: ProgramDB -> IO Text
+getExecutableMD5 p = Java.call p "getExecutableMD5" >>= Java.reify
