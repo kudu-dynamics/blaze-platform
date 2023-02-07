@@ -1,11 +1,9 @@
 module Blaze.Import.Source.Ghidra.Types where
 
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Cfg (CfNode, CodeReference, NodeRefMap, NodeRefMapEntry, PilNode)
+import Blaze.Types.Cfg (CodeReference)
 import Blaze.Types.Pil (PilVar)
-import qualified Blaze.Types.Pil as Pil
 import qualified Ghidra.Types.Address as GAddr
-import Ghidra.Types.Pcode.Lifted (PcodeOp)
 
 convertAddress :: GAddr.Address -> Address
 convertAddress x = fromIntegral

@@ -23,7 +23,7 @@ import Blaze.Types.Pil
     Ctx(Ctx),
     Expression (Expression),
     OperationSize,
-    PilVar (PilVar),
+    PilVar,
   )
 
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)

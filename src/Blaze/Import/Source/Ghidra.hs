@@ -15,7 +15,6 @@ import qualified Blaze.Import.Source.Ghidra.Pil as PilImp
 -- import qualified Blaze.Import.Source.Ghidra.Pil.Path as Path
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Ghidra.Types.Variable (VarNode)
-import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (PilNode)
 import Text.Pretty.Simple (pHPrint)
