@@ -1,37 +1,48 @@
-# JAVA_INCLUDE_PATH = /usr/lib/jvm/java-11-openjdk-amd64/include
-# JAVA_LIB_PATH = /usr/lib/jvm/java-11-openjdk-amd64/lib/server
+.PHONY: build test-ghidra-haskell test copy-tests hlint docs clean
 
-# java:
-# 	gcc -O -c -g \
-# 		-I ${JAVA_INCLUDE_PATH}/ \
-# 		-I ${JAVA_INCLUDE_PATH}/linux/ \
-# 		java.c
+BUILD_TYPE ?= dev
+STACK_OPTIONS ?=
+STACK_BUILD_OPTIONS ?=
+STACK_HADDOCK_OPTIONS ?=
 
-# testjava:
-# 	gcc -o testjava \
-# 		-I ${JAVA_INCLUDE_PATH}/ \
-# 		-I ${JAVA_INCLUDE_PATH}/linux/ \
-# 		-L ${JAVA_LIB_PATH}/ \
-# 		java.c \
-# 		-ljvm
+stack_options_dev := --stack-yaml stack-dev.yaml $(STACK_OPTIONS)
+stack_options_release := $(STACK_OPTIONS)
+stack_options := $(stack_options_$(BUILD_TYPE))
+stack_options_bhc := $(patsubst %.yaml,../%.yaml,$(stack_options))
 
-# haskell:
-# 	ghc -O2 -Wall \
-# 		-L${JAVA_LIB_PATH}/ \
-# 		-ljvm \
-# 		clojure.hs \
-# 		java.o
+stackage_snapshot := $(shell grep -oE '^resolver: .*$$' stack.yaml | sed -E -e 's/resolver:\s*//' -e 's/\s*$$//')
+haddock_remote := https://www.stackage.org/haddock/${stackage_snapshot}/
 
 build:
-	stack build
+	stack $(stack_options) build --test --no-run-tests $(STACK_BUILD_OPTIONS)
 
-download-clojure-jar:
-	wget https://repo1.maven.org/maven2/org/clojure/clojure/1.11.1/clojure-1.11.1.jar -P res/clojure
+res/ghidra.jar:
+	scripts/getGhidraJar.sh
 
-download-spec-jar:
-	wget https://repo1.maven.org/maven2/org/clojure/spec.alpha/0.3.218/spec.alpha-0.3.218.jar -P res/clojure
+test-ghidra-haskell: build res/ghidra.jar
+	.ci/scripts/run_test.py $$(stack $(stack_options) path --dist-dir)/build/ghidra-test/ghidra-test
 
-download: download-clojure-jar download-spec-jar
+test: test-ghidra-haskell
+
+copy-tests: build
+	if ! [ -d "$${TEST_BIN_DEST_DIR}" ]; then echo "TEST_BIN_DEST_DIR does not exist or is not a directory" >&2; exit 2; fi
+	cp $$(stack $(stack_options) path --dist-dir)/build/ghidra-test/ghidra-test "$${TEST_BIN_DEST_DIR}"
+
+hlint:
+	hlint src test app
+
+docs:
+	stack $(stack_options) haddock $(STACK_HADDOCK_OPTIONS)
+	mkdir -p docs
+	bash -c ' \
+		shopt -s nullglob && \
+		cp -ar $$(stack $(stack_options) path --haddock $(STACK_HADDOCK_OPTIONS) --local-doc-root)/{binary-analysis-*,ghidra-*,doc-index*,index.html,*.css,*.js,*.png} docs/ \
+		'
+	find docs/ -name '*.html' -type f -print0 | xargs -0 sed -i 's|<a href="\.\./\([^/]\+\)|<a href="'"$(haddock_remote)"'\1|g'
+	find docs/ -maxdepth 1 -type d -printf '%P\n' | \
+		while read d; do \
+			find docs/ -name '*.html' -type f -exec sed -i 's|<a href="'"$(haddock_remote)$$d"'/docs|<a href="../'"$$d"'|g' {} \; ; \
+		done
 
 clean:
-	stack clean
+	stack $(stack_options) clean

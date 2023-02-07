@@ -2,10 +2,10 @@ resolver: lts-20.0
 compiler: ghc-9.2.5
 
 packages:
+  - ../binary-analysis
   - .
 
 extra-deps:
-  - ../binary-analysis
   - git: https://github.com/kudu-dynamics/inline-java.git
     commit: be76e6df0de52809e8f76e02b29e6b31dcc79c46
     subdirs:
@@ -15,3 +15,5 @@ extra-deps:
     commit: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
 
 rebuild-ghc-options: true
+ghc-options:
+  "$locals": -O0
