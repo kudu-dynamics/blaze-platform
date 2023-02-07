@@ -14,6 +14,8 @@ import qualified Ghidra.Types.Variable as GVar
 
 import qualified Blaze.Pil.Construct as C
 import Data.Binary.IEEE754 (wordToDouble)
+import qualified Numeric
+import qualified Data.Text as Text
 import Blaze.Types.Cfg (CodeReference)
 import Blaze.Types.Pil
   (
@@ -36,14 +38,14 @@ import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
 
 
-
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
   | ExpectedAddressButGotConst Int64
   | AddressSpaceTypeCannotBeVar GAddr.Address
-  | OutOfChoicesError -- for Alternative instance, Monoid's mempty
   | UnsuportedAddressSpace Text
-  | ExpectedVarExpr Bytes VarType
+  -- | Could not recognize the VarNode as a 'PilVar', probably because it
+  -- belongs to an address space other than 'unique', 'reg', or stack
+  | VarNodeInvalidAsPilVar Bytes VarType
   -- | The sizes of the operands to PIECE did not add up to the size of its output
   | PieceOperandsIncorrectSizes
     { outputSize :: OperationSize
@@ -58,10 +60,13 @@ data ConverterError
   | ReturningTooManyResults
   -- | The argument to 'BRANCH' or 'CBRANCH' was a /p-code relative/ offset
   | PcodeRelativeBranch
-  | PCodeOpToPilStmtConversionError
+  deriving (Eq, Ord, Show, Generic, Hashable)
+
+data PCodeOpToPilStmtConversionError =
+  PCodeOpToPilStmtConversionError
     { address :: Address
     , function :: Function
-    , failedOp :: P.PcodeOp ()
+    , failedOp :: P.PcodeOp Text
     , conversionError :: ConverterError
     }
   deriving (Eq, Ord, Show, Generic, Hashable)
@@ -98,15 +103,15 @@ mkConverterState gs ctx = ConverterState
   }
 
 -- TODO: Add map of PilVars to original vars to the state being tracked
-newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (StateT ConverterState IO) a}
+newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
   deriving (Functor)
-  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
+  deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO)
 
 runConverter
   :: Converter a
   -> ConverterState
-  -> IO (Either ConverterError a, ConverterState)
-runConverter m s = flip runStateT s . runExceptT $ _runConverter m
+  -> IO (a, ConverterState)
+runConverter m s = flip runStateT s $ _runConverter m
 
 class IsVariable a where
   getSize :: a -> Bytes
@@ -139,7 +144,7 @@ data VarNodeType
   | VReg Int64
   | VStack Int64
   | VRam Int64
-  | VConstAddr Int64
+  -- | VConstAddr Int64
   | VExtern Int64
   | VImmediate Int64
   | VOther Text
@@ -151,7 +156,7 @@ getVarNodeType v = case getVarType v of
   GVar.Addr x -> case x ^. #space . #name of
     GAddr.EXTERNAL -> VExtern off
     GAddr.HASH -> VOther "HASH"
-    GAddr.Const -> VConstAddr off
+    GAddr.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
     GAddr.Ram -> VRam off
     GAddr.Register -> VReg off
     GAddr.Stack -> VStack off
@@ -183,17 +188,6 @@ getExternPtrExpr v = case getVarNodeType v of
 getPtrExpr :: IsVariable a => a -> Maybe Expression
 getPtrExpr v = getExternPtrExpr v <|> getConstPtrExpr v
 
--- | Only returns variables
-getVarExpr :: IsVariable a => Ctx -> a -> Maybe Expression
-getVarExpr ctx v = case getVarNodeType v of
-  VUnique n -> pv $ "unique" <> show n
-  VReg n -> pv $ "reg" <> show n
-  VStack n -> pv $ "stack" <> show n
-  _ -> Nothing
-  where
-    pv :: Text -> Maybe Expression
-    pv name = return . mkExpr v . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx
-
 getFloatConstExpr :: IsVariable a => a -> Maybe Expression
 getFloatConstExpr v = case getVarNodeType v of
   VImmediate n ->
@@ -203,34 +197,11 @@ getFloatConstExpr v = case getVarNodeType v of
     
   _ -> Nothing
 
-convertAny :: [a -> Maybe Expression] -> a -> Converter Expression
-convertAny converters a = case asum $ fmap ($ a) converters of
-  Nothing -> throwError OutOfChoicesError
-  Just x -> return x
-
-convertConstFloatOrVar :: IsVariable a => a -> Converter Expression
+convertConstFloatOrVar :: IsVariable a => a -> ExceptT ConverterError Converter Expression
 convertConstFloatOrVar v = do
-  ctx' <- use #ctx
-  convertAny [ getFloatConstExpr
-             , getVarExpr ctx'
-             ]
-    v
-
--- | Converts a ghidra address into a PilVar.
-convertVarAddress :: GAddr.Address -> Converter PilVar
-convertVarAddress x = do
-  name <- case x ^. #space . #name of
-    GAddr.Register -> return $ "reg" <> show (x ^. #offset)
-    GAddr.Stack -> return $ "var" <> show (x ^. #offset)
-    GAddr.Unique -> return $ "unique" <> show (x ^. #offset)
-    _ -> throwError $ AddressSpaceTypeCannotBeVar x
-  PilVar name . Just <$> use #ctx
-
--- | Converts a Ghidra VarNode to be a PilVar, or throws error.
-requirePilVar :: IsVariable a => a -> Converter PilVar
-requirePilVar v = case getVarType v of
-  GVar.Const n -> throwError $ ExpectedAddressButGotConst n
-  GVar.Addr x -> convertVarAddress x
+  case getFloatConstExpr v of
+    Just x -> pure x
+    Nothing -> varNodeToValueExpr v
 
 mkExpr :: IsVariable a => a -> Pil.ExprOp Expression -> Expression
 mkExpr v = Expression (fromIntegral $ getSize v)
@@ -241,19 +212,15 @@ mkExpr' sz = Expression sz
 mkAddressExpr :: GAddr.Address -> Expression
 mkAddressExpr x = Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ x ^. #offset
 
--- | Converts a Ghidra var to be a Pil Var expression, or throws error.
-requireVarExpr :: IsVariable a => a -> Converter Expression
-requireVarExpr v = mkExpr v . Pil.VAR . Pil.VarOp <$> requirePilVar v
-
-requireConst :: IsVariable a => a -> Converter Int64
+requireConst :: IsVariable a => a -> ExceptT ConverterError Converter Int64
 requireConst v = case getVarType v of
   GVar.Const n -> return n
   GVar.Addr x -> throwError $ ExpectedConstButGotAddress x
 
-requireConstIntExpr :: IsVariable a => a -> Converter Expression
+requireConstIntExpr :: IsVariable a => a -> ExceptT ConverterError Converter Expression
 requireConstIntExpr v = mkExpr v . Pil.CONST . Pil.ConstOp <$> requireConst v
 
-convertDest :: P.Destination -> Converter Expression
+convertDest :: P.Destination -> ExceptT ConverterError Converter Expression
 convertDest (P.Absolute addr) = return $ mkAddressExpr addr
 convertDest (P.Relative _off) = throwError PcodeRelativeBranch
 
@@ -275,63 +242,109 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
     return . Pil.CallAddr $ Pil.ConstFuncPtrOp paddr Nothing
   _ -> return . Pil.CallExpr $ mkAddressExpr addr
 
--- TODO: consolodate the other funcs to use this one
-convertVarNodeType :: VarNodeType -> Converter (Pil.ExprOp Expression)
-convertVarNodeType vnt = do
+-- | Converts a Ghidra VarNode to either a 'PilVar' or 'Expression' that
+-- represents the __abstract location__ that the VarNode specifies. If a
+-- 'PilVar' is returned, then it can be used as the left-hand-side of a 'Def';
+-- if an 'Expression' is returned, then it can be used as the left-hand-side of
+-- a 'Store'. Throws 'ExpectedAddressButGotConst' if the VarNode was a constant,
+-- or 'UnsuportedAddressSpace' if it resides in some custom address space that
+-- we don't know how to deal with.
+varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Either PilVar Expression)
+varNodeToReference v = do
   ctx' <- use #ctx
-  let pv name = return . Pil.VAR . Pil.VarOp . PilVar name $ Just ctx'
-  case vnt of
-    VReg n -> pv $ "reg" <> show n -- TODO: add size
-    VStack n -> pv $ "stack" <> show n
-    VUnique n -> pv $ "unique" <> show n
-    VRam n -> return . Pil.CONST_PTR . Pil.ConstPtrOp $ n
-    VConstAddr n -> return . Pil.CONST_PTR . Pil.ConstPtrOp $ n -- TODO needs to know addr space for this to make sense. Pil's CONST_PTR just means it's a immediate that is a pointer, not necessarily that it points into the Constant binary address space.
-    VExtern n -> return . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing 
-    VImmediate n -> return . Pil.CONST . Pil.ConstOp $ n
+  let pv name = C.pilVar' name ctx'
+      size :: Bytes = getSize $ v
+      operSize :: OperationSize = Pil.widthToSize $ toBits size
+  case getVarNodeType v of
+    VReg n -> pure . Left . pv $ "reg_" <> showHex n <> "_" <> showHex size
+    VStack n -> pure . Left . pv $ stackVarName n
+    VUnique n -> pure . Left . pv $ "unique_" <> showHex n
+    -- XXX We might need to scale these by addressable unit size
+    VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
+    -- XXX We might need to scale these by addressable unit size
+    VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
+    VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t -> throwError $ UnsuportedAddressSpace t
+  where
+    stackVarName n = ((if n < 0 then "var_" else "arg_") <> showHex (abs n))
+    showHex n = Text.pack $ Numeric.showHex n ""
 
-convertVarNode :: IsVariable a => a -> Converter Expression
-convertVarNode v = Expression (fromIntegral . getSize $ v) <$> convertVarNodeType (getVarNodeType v)
- 
-convertPcodeOpToPilStmt :: forall a. IsVariable a => P.PcodeOp a -> Converter Pil.Stmt
-convertPcodeOpToPilStmt op = get >>= \st -> case op of
+-- | Like 'varNodeToReference' but throw 'VarNodeInvalidAsPilVar' if an
+-- 'Expression' was returned instead of a 'PilVar'
+varNodeToPilVar :: IsVariable a => a -> ExceptT ConverterError Converter PilVar
+varNodeToPilVar v =
+  varNodeToReference v >>= \case
+    Left pv -> pure pv
+    Right _ -> throwError $ VarNodeInvalidAsPilVar (getSize v) (getVarType v)
+
+-- | Like 'varNodeToReference', but returns either a partially applied 'Store'
+-- or a partially applied 'Def'
+varNodeToAssignment :: IsVariable a => a -> ExceptT ConverterError Converter (Expression -> Pil.Stmt)
+varNodeToAssignment v =
+  varNodeToReference v <&> \case
+    Left pv -> Pil.Def . Pil.DefOp pv
+    Right expr -> Pil.Store . Pil.StoreOp expr
+
+-- | Converts a Ghidra VarNode to an 'Expression' that represents the __value
+-- stored at__ the abstract location that the VarNode specifies. Throws
+-- 'ExpectedAddressButGotConst' if the VarNode was a constant, or
+-- 'UnsuportedAddressSpace' if it resides in some custom address space that we
+-- don't know how to deal with.
+varNodeToValueExpr :: IsVariable a => a -> ExceptT ConverterError Converter Expression
+varNodeToValueExpr v = do
+  ctx' <- use #ctx
+  let pv name = C.pilVar' name ctx'
+      size :: Bytes = getSize $ v
+      operSize :: OperationSize = Pil.widthToSize $ toBits size
+  case getVarNodeType v of
+    VReg n -> pure $ C.var' (pv $ "reg_" <> showHex n <> "_" <> showHex size) operSize
+    VStack n -> pure $ C.var' (pv $ stackVarName n) operSize
+    VUnique n -> pure $ C.var' (pv $ "unique_" <> showHex n) operSize
+    -- XXX We might need to scale these by addressable unit size
+    VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize
+    -- XXX We might need to scale these by addressable unit size
+    VExtern n -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (Pil.widthToSize (64 :: Bits))) operSize
+    VImmediate n -> pure $ C.const n operSize
+    VOther t -> throwError $ UnsuportedAddressSpace t
+  where
+    stackVarName n = ((if n < 0 then "var_" else "arg_") <> showHex (abs n))
+    showHex n = Text.pack $ Numeric.showHex n ""
+
+convertPcodeOpToPilStmt :: forall a. IsVariable a => P.PcodeOp a -> ExceptT ConverterError Converter [Pil.Stmt]
+convertPcodeOpToPilStmt = \case
   P.BOOL_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
   P.BOOL_NEGATE out in0 -> mkDef out =<< unIntOp Pil.NOT Pil.NotOp in0
   P.BOOL_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
   P.BOOL_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   -- TODO: Handle p-code relative jumps
-  P.BRANCH dest -> Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
+  P.BRANCH dest -> pure . Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
   -- Branch indirect. Var contains offset from current instr.
   -- Offset is in context of current addr space
   -- TODO: maybe should use `JumpTo instrAddr [off]`
   -- P.BRANCHIND in0 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in0 ^. #value)
-  P.BRANCHIND in0 -> pure $ Pil.UnimplInstr "BRANCHIND"
+  P.BRANCHIND _in0 -> pure [Pil.UnimplInstr "BRANCHIND"]
   P.CALL dest inputs -> do
-    cdest <- callDestFromDest $ dest ^. #value
-    params <-  mapM convertVarNode . fmap (view #value) $ inputs
-    return . Pil.Call $ Pil.CallOp cdest Nothing params
-  P.CALLIND in0 inputs -> case getVarExpr (st ^. #ctx) (in0 ^. #value) of
-    Nothing -> do
-      let v = in0 ^. #value
-      throwError $ ExpectedVarExpr (getSize v) (getVarType v)
-    Just destVarExpr -> do
-      params <- mapM convertVarNode . fmap (view #value) $ inputs
-      return . Pil.Call $ Pil.CallOp (Pil.CallExpr destVarExpr) Nothing params
+    cdest <- lift $ callDestFromDest $ dest ^. #value
+    params <-  mapM varNodeToValueExpr . fmap (view #value) $ inputs
+    pure . (: []) . Pil.Call $ Pil.CallOp cdest Nothing params
+  P.CALLIND in0 inputs -> do
+    dest <- varNodeToValueExpr in0
+    params <- mapM varNodeToValueExpr . fmap (view #value) $ inputs
+    pure . (: []) . Pil.Call $ Pil.CallOp (Pil.CallExpr dest) Nothing params
 
   -- TODO CALLOTHER is pretty much a black-box
-  P.CALLOTHER _in0 _inputs -> pure $ Pil.UnimplInstr "CALLOTHER"
+  P.CALLOTHER _in0 _inputs -> pure [Pil.UnimplInstr "CALLOTHER"]
   -- TODO do we want to record CASTs into PIL somehow?
-  P.CAST out in0 -> mkDef out . view #op =<< convertVarNode in0
+  P.CAST out in0 -> mkDef out . view #op =<< varNodeToValueExpr in0
   P.CBRANCH _dest in0 -> do
-    cond <- convertVarNode $ in0 ^. #value
+    cond <- varNodeToValueExpr $ in0 ^. #value
     -- Ignore the dest for now, as it gets encoded in the CFG edges.
-    return . Pil.BranchCond . Pil.BranchCondOp $ cond
-  P.COPY out in0 -> do
-    destVar <- requirePilVar out
-    Pil.Def . Pil.DefOp destVar <$> convertVarNode (in0 ^. #value)
-  P.CPOOLREF _out _in0 _in1 _inputs -> pure $ Pil.UnimplInstr "CPOOLREF"
+    pure . (: []) . Pil.BranchCond . Pil.BranchCondOp $ cond
+  P.COPY out in0 ->
+    (: []) <$> (varNodeToAssignment out <*> varNodeToValueExpr (in0 ^. #value))
+  P.CPOOLREF _out _in0 _in1 _inputs -> pure [Pil.UnimplInstr "CPOOLREF"]
   P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
-    srcExpr <- convertVarNode in0
+    srcExpr <- varNodeToValueExpr in0
     offsetExpr <- requireConst in1
     mkDef out . Pil.Extract $ Pil.ExtractOp srcExpr offsetExpr
   P.FLOAT_ABS out in0 -> mkDef out =<< unFloatOp Pil.FABS Pil.FabsOp in0
@@ -352,15 +365,16 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
-  P.INDIRECT _out _in0 _in1 -> pure $ Pil.UnimplInstr "INDIRECT"
-  P.INSERT out in0 in1 position size -> do
-    in0' <- requirePilVar in0
-    in1' <- convertVarNode in1
-    let size' = fromIntegral (size ^. #value)
-        position' = fromIntegral (position ^. #value)
-        truncated = Pil.Expression size' . Pil.LOW_PART $ Pil.LowPartOp in1'
-        updated = Pil.UPDATE_VAR $ Pil.UpdateVarOp in0' position' truncated
-    mkDef out updated
+  P.INDIRECT _out _in0 _in1 -> pure [Pil.UnimplInstr "INDIRECT"]
+  P.INSERT _out _in0 _in1 _position _size -> pure [Pil.UnimplInstr "INSERT"]
+  -- P.INSERT out in0 in1 position size -> do
+  --   in0' <- requirePilVar in0
+  --   in1' <- varNodeToValueExpr in1
+  --   let size' = fromIntegral (size ^. #value)
+  --       position' = fromIntegral (position ^. #value)
+  --       truncated = Pil.Expression size' . Pil.LOW_PART $ Pil.LowPartOp in1'
+  --       updated = Pil.UPDATE_VAR $ Pil.UpdateVarOp in0' position' truncated
+  --   mkDef out updated
   P.INT_2COMP out in0 -> mkDef out =<< unIntOp Pil.NEG Pil.NegOp in0
   P.INT_ADD out in0 in1 -> mkDef out =<< binIntOp Pil.ADD Pil.AddOp in0 in1
   P.INT_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
@@ -393,14 +407,17 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
     let target = Pil.LOAD $ Pil.LoadOp offset
     mkDef out target
   P.MULTIEQUAL out in0 in1 rest -> do
-    pout <- requirePilVar out
-    Pil.DefPhi . Pil.DefPhiOp pout <$> traverse requirePilVar (in0:in1:rest)
-  P.NEW _out _in0 _inputs -> pure $ Pil.UnimplInstr "NEW"
-  P.PCODE_MAX -> pure $ Pil.UnimplInstr "PCODE_MAX"
+    -- TODO: memory phi statements are just silently ignored here
+    flip catchError (\_ -> pure []) $ do
+      pout <- varNodeToPilVar out
+      pins <- traverse varNodeToPilVar (in0:in1:rest)
+      pure [Pil.DefPhi . Pil.DefPhiOp pout $ pins]
+  P.NEW _out _in0 _inputs -> pure [Pil.UnimplInstr "NEW"]
+  P.PCODE_MAX -> pure [Pil.UnimplInstr "PCODE_MAX"]
   P.PIECE out high low -> do
     -- out := (high << low.size) | low
-    high' <- convertVarNode high
-    low' <- convertVarNode low
+    high' <- varNodeToValueExpr high
+    low' <- varNodeToValueExpr low
     let outSize = fromIntegral (getSize out)
         lowSize = low' ^. #size
         highSize = high' ^. #size
@@ -417,44 +434,46 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
       mkDef out =<< binIntOp Pil.ARRAY_ADDR (\b i -> Pil.ArrayAddrOp b i stride') base idx
   P.PTRSUB out base offset -> do
     -- out := (void *)base + offset
-    base' <- requirePilVar base
+    base' <- varNodeToValueExpr base
     offset' <- case getVarNodeType offset of
                  VImmediate n -> pure n
                  vnt -> throwError $ PtrsubOffsetNotConstant vnt
-    mkDef out . Pil.VAR_FIELD $ Pil.VarFieldOp base' (fromIntegral offset')
-  P.RETURN _ [] -> pure $ C.ret C.unit
-  P.RETURN _retAddr [result] -> Pil.Ret . Pil.RetOp <$> convertVarNode result
+    mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral offset')
+  P.RETURN _ [] -> pure [C.ret C.unit]
+  P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
-  P.SEGMENTOP -> pure $ Pil.UnimplInstr "SEGMENTOP"
+  P.SEGMENTOP -> pure [Pil.UnimplInstr "SEGMENTOP"]
+  --- XXX We need to utilize the addrSpace
   P.STORE _addrSpace destOffset in1 -> do
-    destOffset' <- mkExpr destOffset <$> unIntOp Pil.LOAD Pil.LoadOp in1
-    in1' <- convertVarNode in1
-    -- TODO: we need to make use of the address space during the Store. How?
-    pure . Pil.Store $ Pil.StoreOp destOffset' in1'
+    --- XXX we have to scale this offset by the address space addressable unit size
+    destOffset' <- varNodeToValueExpr destOffset
+    in1' <- varNodeToValueExpr in1
+    -- XXX we need to make use of the address space during the Store. How?
+    pure . (: []) . Pil.Store $ Pil.StoreOp destOffset' in1'
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
-    in0' <- convertVarNode in0
+    in0' <- varNodeToValueExpr in0
     let shiftedSize = (in0' ^. #size) - fromIntegral (lowOff ^. #value)
         shifted = Expression shiftedSize . Pil.LSR $ Pil.LsrOp in0' (Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral (lowOff ^. #value))
         truncated = Pil.LOW_PART . Pil.LowPartOp $ shifted
     mkDef out truncated
   P.UNIMPLEMENTED ->
     -- TODO: grab the disassembly for the unimplemented instruction
-    pure $ Pil.UnimplInstr "unimpl"
+    pure [Pil.UnimplInstr "unimpl"]
 
   where
-    mkDef :: P.Output a -> Pil.ExprOp Expression -> Converter Pil.Stmt
+    mkDef :: P.Output a -> Pil.ExprOp Expression -> ExceptT ConverterError Converter [Pil.Stmt]
     mkDef v xop = do
-      pv <- requirePilVar v
-      return . Pil.Def . Pil.DefOp pv $ Expression (fromIntegral $ getSize v) xop
+      assignment <- varNodeToAssignment v
+      return . (: []) . assignment $ Expression (fromIntegral $ getSize v) xop
 
     unIntOp :: forall b.
                (b -> Pil.ExprOp Expression)
              -> (Expression -> b)
              -> P.Input a
-             -> Converter (Pil.ExprOp Expression)
+             -> ExceptT ConverterError Converter (Pil.ExprOp Expression)
     unIntOp opCons opArgsCons in0 = do
-      a <- convertVarNode in0
+      a <- varNodeToValueExpr in0
       return . opCons $ opArgsCons a
 
     binIntOp :: forall b.
@@ -462,10 +481,10 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
              -> (Expression -> Expression -> b)
              -> P.Input a
              -> P.Input a
-             -> Converter (Pil.ExprOp Expression)
+             -> ExceptT ConverterError Converter (Pil.ExprOp Expression)
     binIntOp opCons opArgsCons in0 in1 = do
-      a <- convertVarNode in0
-      b <- convertVarNode in1
+      a <- varNodeToValueExpr in0
+      b <- varNodeToValueExpr in1
       return . opCons $ opArgsCons a b
 
     binFloatOp :: forall b.
@@ -473,7 +492,7 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
                -> (Expression -> Expression -> b)
                -> P.Input a
                -> P.Input a
-               -> Converter (Pil.ExprOp Expression)
+               -> ExceptT ConverterError Converter (Pil.ExprOp Expression)
     binFloatOp opCons opArgsCons in0 in1 = do
       a <- convertConstFloatOrVar in0
       b <- convertConstFloatOrVar in1
@@ -483,12 +502,12 @@ convertPcodeOpToPilStmt op = get >>= \st -> case op of
                     (b -> Pil.ExprOp Expression)
                  -> (Expression -> b)
                  -> P.Input a
-                 -> Converter (Pil.ExprOp Expression)
+                 -> ExceptT ConverterError Converter (Pil.ExprOp Expression)
     unFloatOp opCons opArgsCons in0 = do
       a <- convertConstFloatOrVar in0
       return . opCons $ opArgsCons a
     
-getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Pil.Stmt]
+getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Either ConverterError Pil.Stmt]
 getFuncStatementsFromRawPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
   let ctx = Ctx func ctxId
@@ -496,7 +515,7 @@ getFuncStatementsFromRawPcode gs func ctxId = do
   pcodeOps <- fmap snd <$> P.getRawPcode gs addrSpaceMap jfunc
   convertPcodeOps gs ctx pcodeOps
 
-getFuncStatementsFromHighPcode :: GhidraState -> Function -> CtxId -> IO [Pil.Stmt]
+getFuncStatementsFromHighPcode :: GhidraState -> Function -> CtxId -> IO [Either ConverterError Pil.Stmt]
 getFuncStatementsFromHighPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
   hfunc <- GFunc.getHighFunction gs jfunc
@@ -505,19 +524,25 @@ getFuncStatementsFromHighPcode gs func ctxId = do
   pcodeOps <- fmap snd <$> P.getHighPcode gs addrSpaceMap hfunc jfunc
   convertPcodeOps gs ctx pcodeOps
 
-convertPcodeOps :: IsVariable a => GhidraState -> Ctx -> [P.PcodeOp a] -> IO [Pil.Stmt]
+convertPcodeOps :: IsVariable a => GhidraState -> Ctx -> [P.PcodeOp a] -> IO [Either ConverterError Pil.Stmt]
 convertPcodeOps gs ctx pcodeOps = do
   let cstate = mkConverterState gs ctx
-  runConverter (traverse convertPcodeOpToPilStmt pcodeOps) cstate >>= \case
-    (Left err, _st) -> error $ show err
-    (Right stmts, _st) -> return stmts
+  runConverter (traverse (swallowErrors . convertPcodeOpToPilStmt) pcodeOps) cstate >>= \case
+    (stmts, _st) -> return $ concat stmts
+  where
+    -- tryError :: ExceptT e m a -> ExceptT e m (Either e a)
+    -- tryError action = catchError (Right <$> action) (pure . Left)
+    swallowErrors :: ExceptT ConverterError Converter [a] -> Converter [Either ConverterError a]
+    swallowErrors a = runExceptT a <&> \case
+      Left err -> [Left err]
+      Right stmts -> Right <$> stmts
 
 
 getCodeRefStatementsFromRawPcode
   :: GhidraState
   -> CtxId
   -> CodeReference Address
-  -> IO [Pil.Stmt]
+  -> IO [Either ConverterError Pil.Stmt]
 getCodeRefStatementsFromRawPcode gs ctxId ref = do
   let ctx = Ctx (ref ^. #function) ctxId
   addrSpaceMap <- getAddressSpaceMap gs
@@ -531,7 +556,7 @@ getCodeRefStatementsFromHighPcode
   :: GhidraState
   -> CtxId
   -> CodeReference Address
-  -> IO [Pil.Stmt]
+  -> IO [Either ConverterError Pil.Stmt]
 getCodeRefStatementsFromHighPcode gs ctxId ref = do
   jfunc <- GCG.toGhidraFunction gs $ ref ^. #function
   hfunc <- GFunc.getHighFunction gs jfunc

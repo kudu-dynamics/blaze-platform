@@ -59,6 +59,7 @@ import Blaze.Types.Pil (Stmt, CtxId, Ctx(Ctx), PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Import.Source.Ghidra.Pil as PilConv
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
+import Control.Monad.Except (liftEither)
 import Data.DList (DList)
 import qualified Data.Map.Strict as Map
 import qualified Data.DList as DList
@@ -260,34 +261,43 @@ getHighPcodeCfg gs fn ctxId = do
 
 -- | Converts a pcode Cfg to a PIL cfg.
 convertToPilCfg
-  :: IsVariable a
+  :: (IsVariable a, Show a)
   => GhidraState
   -> Ctx
   -> Cfg (CfNode [(Address, PcodeOp a)])
-  -> IO (HashMap PilVar VarNode, Cfg (CfNode [(Address, Pil.Stmt)]))
+  -> IO (HashMap PilVar VarNode, [PilConv.PCodeOpToPilStmtConversionError], Cfg (CfNode [(Address, Pil.Stmt)]))
 convertToPilCfg gs ctx cfg = do
   let convState = PilConv.mkConverterState gs ctx
 
   (r, cstate) <- flip PilConv.runConverter convState $ do
-    traverse (traverse . traverse $ convertIndexedPcodeOpToPilStmt ctx) $ cfg
-  case r of
-    Left err -> error $ "Failed to convert Pcode to PIL:\n" <> cs (pshow err)
-    Right pcfg -> return (cstate ^. #sourceVars, pcfg)
+    traverse (traverse (fmap split . traverse (runExceptT . convertIndexedPcodeOpToPilStmt ctx))) $ cfg
+  let pcfg = fmap snd <$> r
+      errs = fold . fold $ fmap (toList . fmap fst) r
+  return (cstate ^. #sourceVars, errs, pcfg)
+
+  where
+    split :: [Either a [b]] -> ([a], [b])
+    split = second concat . partitionEithers
 
 convertIndexedPcodeOpToPilStmt
-  :: IsVariable a
+  :: (IsVariable a, Show a)
   => Ctx
   -> (Address, PcodeOp a)
-  -> PilConv.Converter (Address, Pil.Stmt)
+  -> ExceptT PilConv.PCodeOpToPilStmtConversionError PilConv.Converter [(Address, Pil.Stmt)]
 convertIndexedPcodeOpToPilStmt ctx (addr, op) = do
-  catchError ((addr,) <$> PilConv.convertPcodeOpToPilStmt op) $ \e ->
-    throwError $ PilConv.PCodeOpToPilStmtConversionError
-    { address = addr
-    , function = ctx ^. #func
-    , failedOp = const () <$> op
-    , conversionError = e
-    }
-                                                   
+  modifyError
+    (\e ->
+      PilConv.PCodeOpToPilStmtConversionError
+        { address = addr
+        , function = ctx ^. #func
+        , failedOp = show <$> op
+        , conversionError = e
+        })
+  . fmap (fmap (addr,))
+  $ PilConv.convertPcodeOpToPilStmt op
+  where
+    modifyError :: Functor m => (e -> e') -> ExceptT e m a -> ExceptT e' m a
+    modifyError f m = ExceptT . fmap (first f) $ runExceptT m
 
 splitCallsInCfg
   :: Ctx
@@ -362,7 +372,7 @@ splitNodeOnCalls ctx' cnode = do
     isCallOrNot stmt = maybe (Left stmt) Right $ Pil.mkCallStatement stmt
 
 getPilCfg
-  :: IsVariable a
+  :: (IsVariable a, Show a)
   => (GhidraState -> Function -> CtxId -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)]))))
   -> GhidraState
   -> Function
@@ -377,7 +387,10 @@ getPilCfg pcodeCfgGetter gs func ctxId = do
       putText $ "The thunk dest is: " <> show thunkedDest
       return Nothing
     Right pcodeCfg -> do
-      (varMapping, pilCfg) <- convertToPilCfg gs ctx pcodeCfg
+      (varMapping, errs, pilCfg) <- convertToPilCfg gs ctx pcodeCfg
+      unless (null errs) $ do
+        putText $ "Warning: getPilCfg encountered errors for function: " <> show func
+        traverse_ pprint errs
       splitPilCfg <- splitCallsInCfg ctx pilCfg
       return . Just $ ImportResult ctx (PilPcodeMap varMapping) splitPilCfg
 

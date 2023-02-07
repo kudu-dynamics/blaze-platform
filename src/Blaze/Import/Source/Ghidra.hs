@@ -18,6 +18,7 @@ import Ghidra.Types.Variable (VarNode)
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (PilNode)
+import Text.Pretty.Simple (pHPrint)
 
 newtype GhidraImporter = GhidraImporter
   { ghidraState :: GhidraState
@@ -45,5 +46,20 @@ instance CfgImporter GhidraImporter where
 
 instance PilImporter GhidraImporter where
   type IndexType GhidraImporter = Address
-  getFuncStatements imp = PilImp.getFuncStatementsFromHighPcode (imp ^. #ghidraState)
-  getCodeRefStatements imp = PilImp.getCodeRefStatementsFromHighPcode (imp ^. #ghidraState)
+  getFuncStatements imp = go (imp ^. #ghidraState)
+    where
+      go st f ctx = do
+        (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode st f ctx
+        unless (null errors) $ do
+          hPutStrLn @String stderr "Errors during conversion:"
+          traverse_ (pHPrint stderr) errors
+        pure stmts
+
+  getCodeRefStatements imp = go (imp ^. #ghidraState)
+    where
+      go st f ctx = do
+        (errors, stmts) <- partitionEithers <$> PilImp.getCodeRefStatementsFromHighPcode st f ctx
+        unless (null errors) $ do
+          putStrLn @String "Errors during conversion:"
+          traverse_ pprint errors
+        pure stmts

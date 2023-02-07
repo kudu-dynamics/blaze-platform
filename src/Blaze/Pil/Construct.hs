@@ -62,7 +62,10 @@ unit :: Expression
 unit = Pil.Expression 0 Pil.UNIT
 
 constPtr :: Word64 -> OperationSize -> Expression
-constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr)))
+constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr :: Int64)))
+
+externPtr :: Address -> ByteOffset -> Maybe Symbol -> OperationSize -> Expression
+externPtr addr off sym size = mkExpr size (Pil.ExternPtr (Pil.ExternPtrOp addr off sym))
 
 constStr :: Text -> OperationSize -> Expression
 constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
