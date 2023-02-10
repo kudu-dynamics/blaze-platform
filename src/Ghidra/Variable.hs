@@ -15,7 +15,7 @@ import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
 import Ghidra.Types.Variable
-import Ghidra.Address (mkAddress)
+import Ghidra.Address (Address, mkAddress)
 import Ghidra.Util (maybeNullCall, maybeNull)
 import qualified Data.Text as Text
 import qualified Foreign.JNI as JNI
@@ -74,11 +74,22 @@ mkHighVariable hv = do
     , highVariableType = hvt
     }
 
+
 mkHighVarNode :: J.VarNodeAST -> IO HighVarNode
 mkHighVarNode v = do
   -- sz :: Int32 <- Java.call (coerce v :: J.VarNode)  "getSize"
   sz :: Int32 <- Java.call v "getSize"
   mhv <- maybeNull <$> Java.call v "getHigh"
   mhv' <- maybe (return Nothing) (fmap Just . (mkHighVariable <=< JNI.newGlobalRef)) mhv
-  HighVarNode <$> mkVarType (coerce v) <*> pure (fromIntegral sz) <*> pure mhv'
+  HighVarNode <$> mkVarType (coerce v) <*> pure (fromIntegral sz) <*> getPcAddress <*> pure mhv'
 
+  where
+    -- Only works for high varnodes
+    -- "getPCAddress" causes nullPointerException if used on low varnode
+    getPcAddress :: IO (Maybe Address)
+    getPcAddress = do
+      addr :: J.Address <- Java.call v "getPCAddress"
+      noAddress :: J.Address <- Java.getStaticField "ghidra.program.model.address.Address" "NO_ADDRESS"
+      if addr == noAddress
+        then return Nothing
+        else fmap Just $ JNI.newGlobalRef addr >>= mkAddress
