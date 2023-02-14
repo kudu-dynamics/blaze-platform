@@ -14,7 +14,6 @@ data VarType
 data VarNode = VarNode
   { varType :: VarType
   , size :: Bytes
-  -- , highVariable :: Maybe HighVariable
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 type Slot = Word64
@@ -40,5 +39,9 @@ data HighVariable = HighVariable
 data HighVarNode = HighVarNode
   { varType :: VarType
   , size :: Bytes
+
+  -- Address where varnode is defined,
+  -- or Nothing if varnode is an input to func call
+  , pcAddress :: Maybe Address
   , highVariable :: Maybe HighVariable
   } deriving (Eq, Ord, Show, Generic, Hashable)
