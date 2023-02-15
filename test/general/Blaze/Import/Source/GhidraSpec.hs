@@ -34,7 +34,7 @@ findFunc :: Text -> [Function] -> Maybe Function
 findFunc funcName = find ((== funcName) . (^. #name))
 
 spec :: Spec
-spec = describe "Blaze.Import.Source.BinaryNinja" $ do
+spec = describe "Blaze.Import.Source.Ghidra" $ do
   context "Importing call graphs" $ do
     importer <- runIO $ G.getImporter diveBin
     funcs <- runIO $ getFunctions importer
