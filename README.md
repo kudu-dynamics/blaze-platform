@@ -27,4 +27,5 @@ modifications will need to be made.
 2. Run `stack build` from the blaze project.
 4. To test Blaze run `stack test` within the `blaze` directory.
 
-Approved for Public Release, Distribution Unlimited.
+
+Distribution A. (Approved for public release; distribution unlimited.)
