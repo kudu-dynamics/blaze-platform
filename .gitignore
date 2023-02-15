@@ -28,3 +28,4 @@ cabal.project.local~
 .ghcid
 *.lock
 res/extra_bins
+TAGS
