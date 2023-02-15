@@ -7,3 +7,5 @@ This library provides bindings to Ghidra in Haskell.
 Run `make ghidra-jar` to download Ghidra and create a jar.
 
 Run `stack test` to test.
+
+Distribution A. (Approved for public release; distribution unlimited.)
