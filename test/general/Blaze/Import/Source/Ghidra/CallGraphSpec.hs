@@ -11,9 +11,6 @@ import Test.Hspec
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
-findFunc :: Text -> [Function] -> Maybe Function
-findFunc funcName = find ((== funcName) . (^. #name))
-
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra.CallGraph" $ do
   context "Import Function" $ do
