@@ -13,5 +13,6 @@ type PcodeReference = CodeReference GAddr.Address
 
 newtype PilPcodeMap a = PilPcodeMap
   { sourceVars :: HashMap PilVar a
-  } deriving (Eq, Ord, Show, Generic, Hashable)
-
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype (Hashable)

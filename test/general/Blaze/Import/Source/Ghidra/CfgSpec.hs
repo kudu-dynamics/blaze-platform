@@ -4,24 +4,13 @@
 
 module Blaze.Import.Source.Ghidra.CfgSpec where
 
-import qualified Ghidra.Function as GFunc
-import Blaze.Function (
-  Access (Unknown),
-  FuncParamInfo (FuncParamInfo),
-  Function (Function),
-  ParamInfo (ParamInfo),
- )
-import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
-import Blaze.Import.Cfg (CfgImporter (getCfg))
+import Blaze.Import.CallGraph (CallGraphImporter (getFunctions))
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Cfg as Cfg
-import Blaze.Types.Cfg (CfNode, CfEdge)
+import Blaze.Types.Cfg (CfNode)
 import qualified Blaze.Import.Source.Ghidra as G
 import Blaze.Import.Source.Ghidra.Cfg (getRawPcodeCfg, getHighPcodeCfg, getPilCfgFromRawPcode, getPilCfgFromHighPcode)
-import Blaze.Types.Import (ImportResult(ImportResult))
-import Control.Arrow ((&&&))
-import Data.HashMap.Strict as HMap
 import Data.HashSet as HashSet
 import Test.Hspec
 

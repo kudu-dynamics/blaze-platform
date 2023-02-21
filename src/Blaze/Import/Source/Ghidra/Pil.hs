@@ -421,9 +421,8 @@ convertPcodeOpToPilStmt = \case
     let outSize = fromIntegral (getSize out)
         lowSize = low' ^. #size
         highSize = high' ^. #size
-    if outSize/= lowSize + highSize
-      then throwError PieceOperandsIncorrectSizes{outputSize=outSize, highArg=high', lowArg=low'}
-      else pure ()
+    when (outSize /= lowSize + highSize) $
+      throwError PieceOperandsIncorrectSizes{outputSize=outSize, highArg=high', lowArg=low'}
     let highShifted = Pil.LSL $ Pil.LslOp high' (Expression 8 . Pil.CONST . Pil.ConstOp $ fromIntegral lowSize)
         lowExtended = Pil.ZX . Pil.ZxOp $ low'
         res = Pil.OR $ Pil.OrOp (mkExpr out highShifted) (mkExpr out lowExtended)
