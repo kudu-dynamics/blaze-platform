@@ -112,8 +112,9 @@ library:
 include-dirs:
   - "src"
   - "res"
-  - "/usr/lib/jvm/java-11-openjdk-amd64/include"
   - "/usr/lib/jvm/java-11-openjdk/include"
+  - "/usr/lib/jvm/java-11-openjdk-amd64/include"
+  - "/usr/lib/jvm/java-11-openjdk-amd64/include/linux"
 
 executables:
   create-ghidra-db:
