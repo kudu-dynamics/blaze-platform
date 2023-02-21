@@ -59,27 +59,27 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
       sort nodeCounts `shouldBe` expected
 
   context "getPilCfgFromRawPcode" $ do
-    cfgs :: [(Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
+    cfgs :: [Maybe (Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
       runIO $ traverse
-        (\func -> view #result . fromJust <$> getPilCfgFromRawPcode gs func 0)
+        (\func -> view #result <<$>> getPilCfgFromRawPcode gs func 0)
         funcs
     
-    let f cfg = HashSet.size . Cfg.nodes $ cfg
+    let f = maybe 0 (HashSet.size . Cfg.nodes)
         nodeCounts = f <$> cfgs
-        expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,8,9,9,9,9,10,10,10,11,11,11,14,14,15,16,16,17,21,32,34,36,37,40,41,117,117]
+        expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,3,3,3,3,3,4,4,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,7,7,7,7,7,7,7,7,7,8,8,8,8,9,9,9,9,9,10,10,10,10,11,11,11,12,12,12,13,15,16,16,17,17,18,20,21,22,23,25,27,28,29,34,36,39,41,41,54,58,59,145,187]
 
     it "should import Cfgs for all functions without crashing" $ do
       sort nodeCounts `shouldBe` expected
 
   context "getPilCfgFromHighPcode" $ do
-    cfgs :: [(Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
+    cfgs :: [Maybe (Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
       runIO $ traverse
-        (\func -> view #result . fromJust <$> getPilCfgFromHighPcode gs func 0)
+        (\func -> view #result <<$>> getPilCfgFromHighPcode gs func 0)
         funcs
     
-    let f cfg = HashSet.size . Cfg.nodes $ cfg
+    let f = maybe 0 (HashSet.size . Cfg.nodes)
         nodeCounts = f <$> cfgs
-        expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,8,9,9,9,9,10,10,10,11,11,11,14,14,15,16,16,17,21,32,34,36,37,40,41,117,117]
+        expected = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,2,2,2,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,6,6,6,6,7,7,7,7,7,7,7,8,8,8,8,9,9,9,9,9,10,10,10,10,10,12,14,14,14,16,17,17,17,20,22,23,26,26,27,28,32,34,34,40,40,48,120,124,153]
 
     it "should import Cfgs for all functions without crashing" $ do
       sort nodeCounts `shouldBe` expected
