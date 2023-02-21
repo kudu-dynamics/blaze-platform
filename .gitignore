@@ -1,3 +1,4 @@
+.envrc
 docs/
 *.cabal
 dist
