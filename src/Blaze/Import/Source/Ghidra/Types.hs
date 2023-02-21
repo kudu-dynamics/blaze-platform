@@ -7,11 +7,11 @@ import qualified Ghidra.Types.Address as GAddr
 
 convertAddress :: GAddr.Address -> Address
 convertAddress x = fromIntegral
-  $ x ^. #offset * (fromIntegral $ x ^. #space . #addressableUnitSize)
+  $ x ^. #offset * fromIntegral (x ^. #space . #addressableUnitSize)
 
 type PcodeReference = CodeReference GAddr.Address
 
-data PilPcodeMap a = PilPcodeMap
+newtype PilPcodeMap a = PilPcodeMap
   { sourceVars :: HashMap PilVar a
   } deriving (Eq, Ord, Show, Generic, Hashable)
 

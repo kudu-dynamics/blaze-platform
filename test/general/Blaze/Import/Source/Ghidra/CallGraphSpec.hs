@@ -17,8 +17,8 @@ spec = describe "Blaze.Import.Source.Ghidra.CallGraph" $ do
     importer <- runIO $ G.getImporter diveBin
     mFunc <- runIO $ getFunction importer 0x804d670 -- cgc_SetParam function
     it "should import a function by address" $ do
-      (mFunc ^? _Just . #name) `shouldBe` (Just "cgc_SetParam")
+      mFunc ^? _Just . #name `shouldBe` Just "cgc_SetParam"
 
     let func = fromJust mFunc
     it "should get the correct number of params" $ do
-      (length $ func ^. #params) `shouldBe` 3
+      length (func ^. #params) `shouldBe` 3

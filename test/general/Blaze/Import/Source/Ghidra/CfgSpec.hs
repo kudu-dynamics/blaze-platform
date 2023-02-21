@@ -18,14 +18,11 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (CfNode, CfEdge)
 import qualified Blaze.Import.Source.Ghidra as G
-import Blaze.Import.Source.Ghidra.Cfg
-import Blaze.Import.Source.BinaryNinja.Cfg (convertNode, runNodeConverter)
-import Blaze.Import.Source.BinaryNinja.Types (MlilSsaInstructionIndex)
+import Blaze.Import.Source.Ghidra.Cfg (getRawPcodeCfg, getHighPcodeCfg, getPilCfgFromRawPcode, getPilCfgFromHighPcode)
 import Blaze.Types.Import (ImportResult(ImportResult))
 import Control.Arrow ((&&&))
 import Data.HashMap.Strict as HMap
 import Data.HashSet as HashSet
-import Blaze.Import.Source.Ghidra.Cfg (getRawPcodeCfg, getHighPcodeCfg, getPilCfgFromRawPcode, getPilCfgFromHighPcode)
 import Test.Hspec
 
 

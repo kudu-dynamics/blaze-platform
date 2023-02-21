@@ -1501,7 +1501,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       in do
         context "POPCNT" $ do
           context "one constant" $ do
-            let helper' = helper (\x -> Pil.POPCNT $ Pil.PopcntOp x)
+            let helper' = helper (Pil.POPCNT . Pil.PopcntOp)
             helper' (64, -0x5335533553355336) (8, 32)
             helper' (64, -0x0000000000000001) (8, 64)
             helper' (64, -0x8000000000000000) (8, 1)

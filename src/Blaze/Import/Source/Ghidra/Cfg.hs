@@ -5,74 +5,49 @@ import qualified Prelude as P
 import Ghidra.Address (getAddressSpaceMap)
 import qualified Ghidra.BasicBlock as BB
 import Ghidra.State (GhidraState)
-import qualified Ghidra.Core as Ghidra
 import qualified Ghidra.Function as GFunc
 import qualified Ghidra.Pcode as Pcode
 import qualified Ghidra.PcodeBlock as PB
-import qualified Ghidra.Types.Pcode as Pcode
-import qualified Ghidra.State as GState
-import Ghidra.Types.Pcode.Lifted (PcodeOp, Output(Output))
+import Ghidra.Types.Pcode.Lifted (PcodeOp)
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Address as GAddr
-import qualified Ghidra.Types.Variable as GVar
 import qualified Ghidra.Types.BasicBlock as GBB
 import qualified Ghidra.Types.PcodeBlock as PB
 
 
-import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
+import Ghidra.Types.Variable (HighVarNode, VarNode)
 import qualified Ghidra.Types as J
 
-import qualified Blaze.Graph as G
-import Blaze.Import.Pil (PilImporter (IndexType, getCodeRefStatements))
 import qualified Blaze.Import.Source.Ghidra.CallGraph as CGI
 import Blaze.Import.Source.Ghidra.Types
 import Blaze.Import.Source.Ghidra.Pil (IsVariable)
 import Blaze.Prelude hiding (Symbol, succ, pred)
 import Blaze.Types.Cfg (
-  BasicBlockNode (BasicBlockNode),
-  BranchType (
-    FalseBranch,
-    TrueBranch,
-    UnconditionalBranch
-  ),
-  CallNode (CallNode),
-  CfEdge (CfEdge),
-  CfNode (
-    BasicBlock,
-    Call, EnterFunc, LeaveFunc, Grouping
-  ),
+  BasicBlockNode (..),
+  BranchType (..),
+  CfEdge (..),
+  CfNode (..),
   Cfg,
   MkCfgRootError(ZeroRootNodes, MultipleRootNodes),
-  PilCfg,
-  PilEdge,
-  PilNode,
   getNodeData,
-  mkCfg,
   mkCfgFindRoot,
  )
 import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
-import Blaze.Types.Pil (Stmt, CtxId, Ctx(Ctx), PilVar)
+import Blaze.Types.Pil (CtxId, Ctx(Ctx), PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Import.Source.Ghidra.Pil as PilConv
-import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
-import Control.Monad.Except (liftEither)
-import Data.DList (DList)
 import qualified Data.Map.Strict as Map
-import qualified Data.DList as DList
-import qualified Data.HashMap.Strict as HMap
 import qualified Data.List.NonEmpty as NEList
-import qualified Data.HashSet as HashSet
-import qualified Data.List as List
-import Data.Tuple.Extra ((***))
 
 
-data ConverterError
+newtype ConverterError
   = ExpectedConditionalOp Text
-  deriving (Eq, Ord, Show, Generic, Hashable)
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype (Hashable)
 
 data ConverterState = ConverterState
   deriving (Show, Generic)
@@ -152,7 +127,7 @@ mkCfEdgesFromEdgeSet fn bbCfNodeMap (src, dests) = case dests of
       checkTrue bb = case lastSrcStmt of
         P.CBRANCH inputDest _ -> case inputDest ^. #value of
           P.Absolute addr -> bb ^. #startAddress == addr
-          P.Relative _ -> error $ "Unexpected relative address for CBRANCH"
+          P.Relative _ -> error "Unexpected relative address for CBRANCH"
         otherInstr -> do
           error $ "Unexpected instruction in " <> cs (fn ^. #name) <> ":\n" <> cs (pshow otherInstr)
   [] -> error "BasicBlock from EdgeSet has 0 outgoing edges" -- impossible
@@ -270,9 +245,9 @@ convertToPilCfg gs ctx cfg = do
   let convState = PilConv.mkConverterState gs ctx
 
   (r, cstate) <- flip PilConv.runConverter convState $ do
-    traverse (traverse (fmap split . traverse (runExceptT . convertIndexedPcodeOpToPilStmt ctx))) $ cfg
+    traverse (traverse (fmap split . traverse (runExceptT . convertIndexedPcodeOpToPilStmt ctx))) cfg
   let pcfg = fmap snd <$> r
-      errs = fold . fold $ fmap (toList . fmap fst) r
+      errs = fold $ foldMap (toList . fmap fst) r
   return (cstate ^. #sourceVars, errs, pcfg)
 
   where
@@ -338,8 +313,8 @@ splitNodeOnCalls ctx' cnode = do
       -> Address
       -> (Address, [(Address, Pil.Stmt)], [(Address, Either Pil.Stmt Pil.CallStatement)])
     takeWhileNotCall [] lastAddr = (lastAddr, [], [])
-    takeWhileNotCall ((x@(_, Right _)):xs) lastAddr = (lastAddr, [], x:xs)
-    takeWhileNotCall ((addr, Left stmt):xs) _ = ((takeWhileNotCall xs addr) & _2 %~ ((addr, stmt):))
+    takeWhileNotCall xs@((_, Right _):_) lastAddr = (lastAddr, [], xs)
+    takeWhileNotCall ((addr, Left stmt):xs) _ = takeWhileNotCall xs addr & _2 %~ ((addr, stmt):)
 
     groupNodes :: [(Address, Either Pil.Stmt Pil.CallStatement)] -> IO [CfNode [(Address, Pil.Stmt)]]
     groupNodes [] = return []
@@ -395,7 +370,7 @@ getPilCfg pcodeCfgGetter gs func ctxId = do
       return . Just $ ImportResult ctx (PilPcodeMap varMapping) splitPilCfg
 
 removeStmtAddrs :: Cfg (CfNode [(Address, a)]) -> Cfg (CfNode [a])
-removeStmtAddrs cfg = fmap (fmap (fmap snd)) cfg
+removeStmtAddrs = fmap (fmap (fmap snd))
 
 getPilCfgFromRawPcode
   :: GhidraState

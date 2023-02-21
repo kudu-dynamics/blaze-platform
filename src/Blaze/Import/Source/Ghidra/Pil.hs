@@ -207,7 +207,7 @@ mkExpr :: IsVariable a => a -> Pil.ExprOp Expression -> Expression
 mkExpr v = Expression (fromIntegral $ getSize v)
 
 mkExpr' :: Pil.OperationSize -> Pil.ExprOp Expression -> Expression
-mkExpr' sz = Expression sz
+mkExpr' = Expression
 
 mkAddressExpr :: GAddr.Address -> Expression
 mkAddressExpr x = Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ x ^. #offset
@@ -233,12 +233,12 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
   GAddr.EXTERNAL -> return . Pil.CallExtern $ Pil.ExternPtrOp 0 (fromIntegral $ addr ^. #offset) Nothing
   GAddr.Ram -> do
     gs <- use #ghidraState
-    paddr <- return $ convertAddress addr
+    let paddr = convertAddress addr
     liftIO (GCG.getFunction gs paddr) >>= \case
       Just func -> return . Pil.CallFunc $ func
       Nothing -> return . Pil.CallExpr $ mkAddressExpr addr
   GAddr.Const -> do
-    paddr <- return $ convertAddress addr
+    let paddr = convertAddress addr
     return . Pil.CallAddr $ Pil.ConstFuncPtrOp paddr Nothing
   _ -> return . Pil.CallExpr $ mkAddressExpr addr
 
@@ -253,7 +253,7 @@ varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Eit
 varNodeToReference v = do
   ctx' <- use #ctx
   let pv name = C.pilVar' name ctx'
-      size :: Bytes = getSize $ v
+      size :: Bytes = getSize v
       operSize :: OperationSize = Pil.widthToSize $ toBits size
   case getVarNodeType v of
     VReg n -> pure . Left . pv $ "reg_" <> showHex n <> "_" <> showHex size
@@ -266,7 +266,7 @@ varNodeToReference v = do
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t -> throwError $ UnsuportedAddressSpace t
   where
-    stackVarName n = ((if n < 0 then "var_" else "arg_") <> showHex (abs n))
+    stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
     showHex n = Text.pack $ Numeric.showHex n ""
 
 -- | Like 'varNodeToReference' but throw 'VarNodeInvalidAsPilVar' if an
@@ -294,7 +294,7 @@ varNodeToValueExpr :: IsVariable a => a -> ExceptT ConverterError Converter Expr
 varNodeToValueExpr v = do
   ctx' <- use #ctx
   let pv name = C.pilVar' name ctx'
-      size :: Bytes = getSize $ v
+      size :: Bytes = getSize v
       operSize :: OperationSize = Pil.widthToSize $ toBits size
   case getVarNodeType v of
     VReg n -> pure $ C.var' (pv $ "reg_" <> showHex n <> "_" <> showHex size) operSize
@@ -307,7 +307,7 @@ varNodeToValueExpr v = do
     VImmediate n -> pure $ C.const n operSize
     VOther t -> throwError $ UnsuportedAddressSpace t
   where
-    stackVarName n = ((if n < 0 then "var_" else "arg_") <> showHex (abs n))
+    stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
     showHex n = Text.pack $ Numeric.showHex n ""
 
 convertPcodeOpToPilStmt :: forall a. IsVariable a => P.PcodeOp a -> ExceptT ConverterError Converter [Pil.Stmt]
