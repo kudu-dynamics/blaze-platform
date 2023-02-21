@@ -85,7 +85,7 @@ class Addressable a where
 
 instance Addressable Address where
   toAddr = pure
-  toAddrSet a = Java.new a
+  toAddrSet = Java.new
 
 addressIteratorToList :: AddressIterator -> IO [Address]
 addressIteratorToList x = do
@@ -127,7 +127,7 @@ instance Addressable AddressSet where
   toAddrSet = return
 
 mkAddressSetFromRange :: Address -> Address -> IO AddressSet
-mkAddressSetFromRange startAddr endAddr = Java.new startAddr endAddr
+mkAddressSetFromRange = Java.new
 
 -- | Equality check that extends beyond pointer location of J objects
 -- This is especially necessary because we use newGlobalRef so often.

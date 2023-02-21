@@ -31,7 +31,7 @@ isJNull' :: J a -> IO Bool
 isJNull' (J fptr) = withForeignPtr fptr $ return . (== nullPtr)
 
 maybeNull' :: J a -> IO (Maybe (J a))
-maybeNull' x = isJNull' x >>= return . bool (Just x) Nothing
+maybeNull' x = bool (Just x) Nothing <$> isJNull' x
 
 -- | Catches call that failes with Java NullPointerException
 maybeNullCall :: IO a -> IO (Maybe a)

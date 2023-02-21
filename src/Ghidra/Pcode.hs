@@ -8,9 +8,8 @@ import Ghidra.State (GhidraState)
 import qualified Language.Java as Java
 import Ghidra.Instruction (getInstructions)
 import qualified Ghidra.Instruction as Instr
-import Ghidra.Util (iteratorToList, isJNull)
+import Ghidra.Util (iteratorToList, isJNull, maybeNull)
 import qualified Ghidra.Types as J
-import Ghidra.Util (maybeNull)
 import Ghidra.Types.Pcode ( BareHighPcodeInstruction
                           , BareRawPcodeInstruction
                           , PcodeInstruction(PcodeInstruction)
@@ -60,7 +59,7 @@ getBarePcodeOp x = do
   where
     x' :: J.PcodeOp
     x' = coerce x
-      
+
 mkBareRawPcodeInstruction :: J.PcodeOp -> IO BareRawPcodeInstruction
 mkBareRawPcodeInstruction x = PcodeInstruction
   <$> getBarePcodeOp x
@@ -208,11 +207,11 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
     inputList startingInput = traverse input
       . drop (fromIntegral startingInput)
       . fmap fst
-      . zip [0..] 
+      . zip [0..]
       $ x ^. #inputs
 
     getConst' = me VarNotConst . getConst
-  
+
     inputDest :: Word64 -> Either LiftPcodeError (Input Destination)
     inputDest n = fmap toDestination <$> input n
 
@@ -247,7 +246,7 @@ getRawPcode
 getRawPcode gs addressSpaceMap a = do
   jpcodes <- getRawPcodeOps gs a
   rawInstrs :: [(J.Address, RawPcodeInstruction)] <- traverse (traverse $ mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
-  let liftedInstrs = (traverse $ liftPcodeInstruction addressSpaceMap) <$> rawInstrs
+  let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> rawInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of
     [] -> return instrs

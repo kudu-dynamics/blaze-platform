@@ -26,8 +26,9 @@ data HighVariableType
   | HighOther
   deriving (Eq, Ord, Show, Generic, Hashable)
 
-data DataType = DataType { name :: Text }
-  deriving (Eq, Ord, Show, Generic, Hashable)
+newtype DataType = DataType { name :: Text }
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype (Hashable)
 
 data HighVariable = HighVariable
   { dataType :: DataType

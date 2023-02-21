@@ -6,9 +6,10 @@ import Ghidra.Prelude hiding (toList)
 import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address, AddressSpaceMap)
 import Ghidra.Types.Pcode (BarePcodeOp)
 
-data ParserCtx = ParserCtx
+newtype ParserCtx = ParserCtx
   { addressSpaces :: AddressSpaceMap
-  } deriving (Eq, Ord, Show, Generic)
+  }
+  deriving (Eq, Ord, Show, Generic)
   
 
 data LiftPcodeError
@@ -25,7 +26,8 @@ newtype Parser a = Parser { runLiftPcode :: ReaderT ParserCtx IO a }
   deriving newtype (Functor, Applicative, Monad)
 
 newtype Output a = Output { getOutput :: a }
-  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, Hashable)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  deriving newtype (Hashable)
 
 data Input a = Input
   { index :: Word64
