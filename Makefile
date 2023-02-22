@@ -15,7 +15,7 @@ haddock_remote := https://www.stackage.org/haddock/${stackage_snapshot}/
 build:
 	stack $(stack_options) build --test --no-run-tests $(STACK_BUILD_OPTIONS)
 
-test: test-general
+test: test-general test-binja test-ghidra
 
 test-general: build
 	.ci/scripts/run_test.py $$(stack $(stack_options) path --dist-dir)/build/blaze-general-test/blaze-general-test
@@ -23,10 +23,13 @@ test-general: build
 test-binja: build
 	.ci/scripts/run_test.py $$(stack $(stack_options) path --dist-dir)/build/blaze-binja-test/blaze-binja-test
 
+test-ghidra: build
+	.ci/scripts/run_test.py $$(stack $(stack_options) path --dist-dir)/build/blaze-ghidra-test/blaze-ghidra-test
+
 copy-tests: build
 	if ! [ -d "$${TEST_BIN_DEST_DIR}" ]; then echo "TEST_BIN_DEST_DIR does not exist or is not a directory" >&2; exit 2; fi
 	dist_dir=$$(stack $(stack_options) path --dist-dir); \
-	  for test_bin in blaze-general-test blaze-binja-test; do \
+	  for test_bin in blaze-general-test blaze-binja-test blaze-ghidra-test; do \
 	    cp "$${dist_dir}/build/$${test_bin}/$${test_bin}" "$${TEST_BIN_DEST_DIR}"; \
 	  done
 
