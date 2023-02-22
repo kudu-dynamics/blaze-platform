@@ -2,7 +2,6 @@ module Blaze.Import.Source.Ghidra.CallGraphSpec where
 
 import Blaze.Prelude
 
-import Blaze.Function (Function)
 import Blaze.Import.CallGraph (CallGraphImporter (getFunction))
 import qualified Blaze.Import.Source.Ghidra as G
 import Test.Hspec
