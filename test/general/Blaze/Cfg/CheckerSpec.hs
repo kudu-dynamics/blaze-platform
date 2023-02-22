@@ -86,15 +86,14 @@ spec = describe "Blaze.Cfg.Checker" $ do
         mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
         checkVars = fmap (view $ _3 . #varSymTypeMap) . checkCfg
         signed = Just True
-        unsigned = Just False
         bw = Just
     it "should check a single basic block" $ do
       let rootNode = bbp callerCtx "root"
                      [ def "x" $ zx (const 888 4) 4
                      , def "a" $ sub (var "x" 4) (const 999 4) 4]
           cfg = mkCfg 0 rootNode [] []
-          rvars = [ ("x", DSType (TInt (bw 32) unsigned))
-                  , ("a", DSType (TInt (bw 32) unsigned))
+          rvars = [ ("x", DSType (TInt (bw 32) Nothing))
+                  , ("a", DSType (TInt (bw 32) Nothing))
                   ]
 
       checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)

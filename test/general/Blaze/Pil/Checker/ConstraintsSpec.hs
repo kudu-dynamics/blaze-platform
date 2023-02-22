@@ -59,7 +59,7 @@ constrainExpr ::
 constrainExpr nextSymNum cxTuples pilvarTuples expr =
   let (_, ConstraintGenState _ _ vars _ cxs _ _) =
         runConstraintGen
-          (addAllExprTypeConstraints expr)
+          (addExprTypeConstraints expr)
           ( emptyConstraintGenCtx
           , testConstraintGenState
               (Sym nextSymNum)
@@ -195,8 +195,8 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
       constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
 
 
-  context "addAllExprTypeConstraints" $ do
-    -- addAllExprTypeConstraints gets constraints of nested types as well
+  context "addExprTypeConstraints" $ do
+    -- addExprTypeConstraints decides whether to get constraints of nested types as well
 
     it "generates constraints for a field address" $ do
       let cxs = []

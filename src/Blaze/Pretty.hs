@@ -730,6 +730,9 @@ instance Tokenizable ByteOffset where
 instance Tokenizable Bits where
   tokenize (Bits n) = pure [integerToken n]
 
+instance Tokenizable Bytes where
+  tokenize (Bytes n) = pure [integerToken n]
+
 instance Tokenizable Address where
   tokenize (Address n) = pure [integerToken n]
 

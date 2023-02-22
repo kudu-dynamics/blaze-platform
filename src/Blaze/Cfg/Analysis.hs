@@ -1,4 +1,5 @@
 {- HLINT ignore "Reduce duplication" -}
+{- HLINT ignore "Use list comprehension" -}
 
 module Blaze.Cfg.Analysis where
 
@@ -12,7 +13,6 @@ import Blaze.Prelude hiding (to, succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc, Grouping), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
 -- import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
 import Blaze.Types.Pil (Stmt, PilVar)
-import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Graph.Alga (AlgaGraph)
