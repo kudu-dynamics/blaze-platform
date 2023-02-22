@@ -48,7 +48,7 @@ data PilType t
   | TFloat {bitWidth :: Maybe Bits}
   | TBitVector {bitWidth :: Maybe Bits}
   | TPointer {bitWidth :: Maybe Bits, pointeeType :: t}
-  | TCString {len :: Maybe Word64}
+  | TCString {strLen :: Maybe Bytes}
   | TArray {len :: Maybe Word64, elemType :: t}
   -- | First record field or array index, or itself t is type of first thing
   | TRecord (HashMap BitOffset t)

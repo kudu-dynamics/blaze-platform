@@ -47,10 +47,6 @@ addVarEq a b = do
 --------------------------------------------------------------------
 ---------- unification and constraint solving ----------------------
 
--- | Swaps first key with second in map.
-updateSolKey :: Hashable k => k -> k -> v -> HashMap k v -> HashMap k v
-updateSolKey kOld kNew v m = HashMap.insert kNew v (HashMap.delete kOld m)
-
 -- | Applies originMap substitutions to solution types.
 substSolutions :: Unify ()
 substSolutions = do
@@ -128,6 +124,7 @@ isTypeDescendant (TFloat _) t = case t of
   _ -> False
 isTypeDescendant (TBitVector _) t = case t of
   TBitVector _ -> True
+  TRecord _ -> True
   TArray _ _ -> True
   TBool -> True
   TCString _ -> True
@@ -151,6 +148,8 @@ isTypeDescendant (TFunction _ _) t = case t of
   _ -> False
 isTypeDescendant (TRecord _) t = case t of
   TRecord _ -> True
+  TArray _ _ -> True
+  TCString _ -> True
   TBottom _ -> True
   _ -> False
 isTypeDescendant (TCString _) t = case t of
@@ -203,7 +202,7 @@ unifyPilTypes pt1 pt2 =
           Left _ -> err
           Right unifiedLen ->
             TArray unifiedLen <$> addVarEq et1 et2
-        TCString len2 -> case unifyVal (==) (<|>) len1 len2 of
+        TCString len2 -> case unifyVal (==) (<|>) (Bytes <$> len1) len2 of
           Left _ -> err
           Right unifiedLen -> do
             -- Ensure this is an array of characters
@@ -277,6 +276,11 @@ unifyPilTypes pt1 pt2 =
           -- Set length and element type to be same
           -- TODO: Consider support unification of element type as well
           return $ TArray len2 elem2
+        TCString len -> case unifyVal (==) (<|>) (toBytes <$> w1) len of
+          Left _ -> err
+          Right mBits -> case mBits of
+            Just unifiedLen -> return $ TCString (Just unifiedLen)
+            Nothing -> return $ TCString Nothing
         _ -> err
 
       TPointer w1 pointeeType1 -> case pt2 of
@@ -291,6 +295,8 @@ unifyPilTypes pt1 pt2 =
 
       TRecord m1 -> case pt2 of
         TRecord m2 -> TRecord <$> unifyRecords m1 m2
+        TArray len t -> return $ TArray len t
+        TCString len -> return $ TCString len
         _ -> err
 
       TCString len1 -> case pt2 of

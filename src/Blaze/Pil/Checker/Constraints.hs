@@ -2,6 +2,7 @@
 
 module Blaze.Pil.Checker.Constraints where
 
+
 import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
 import Blaze.Types.Pil (
   Expression (Expression),
@@ -54,7 +55,7 @@ constrainStandardFunc r resultSize (Pil.CallOp _ (Just name) cparams) = case nam
         [ (nptr ^. #info . #sym, ptr (CSType $ TCString Nothing))
         , (endptr ^. #info . #sym, ptr . ptr . CSType $ TChar (Just 8))
         , (base ^. #info . #sym, CSType $ TInt Nothing (Just True))
-        , (r, CSType $ TInt Nothing (Just True))
+        , (r, CSType $ TInt Nothing Nothing)
         ]
     _ -> return Nothing --TODO : add warning about malformed params
   "abs" -> case cparams of
@@ -158,26 +159,37 @@ addConstraints :: [SymConstraint] -> ConstraintGen ()
 addConstraints = mapM_ addConstraint
 
 -- | Generates constraints for all immediate syms in SymExpression.
--- does not get constraints of children exprs.
+-- Will explicitly recurse into children expressions if needed.
 addExprTypeConstraints :: SymExpression -> ConstraintGen ()
 addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.ADC x -> do
     additionConstraint <- integralBinOpFirstArgIsReturn Nothing True x
     add $ additionConstraint <> carryConstraint x
-  Pil.ADD x -> add =<< integralBinOpFirstArgIsReturn Nothing True x
+    addChildConstraints
+  Pil.ADD x -> do
+    add =<< integralBinOpFirstArgIsReturn Nothing True x
+    addChildConstraints
 
   -- should this be unsigned ret because overflow is always positive?
-  Pil.ADD_OVERFLOW x -> add =<< integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADD_OVERFLOW x -> do
+    add =<< integralBinOpFirstArgIsReturn Nothing True x
+    addChildConstraints
 
-  Pil.AND x -> add $ bitVectorBinOp x
+  Pil.AND x -> do
+    add $ bitVectorBinOp x
+    addChildConstraints
 
   -- Arithmetic shift right
-  Pil.ASR x -> add =<< integralFirstArgIsReturn x
+  Pil.ASR x -> do
+    add =<< integralFirstArgIsReturn x
+    addChildConstraints
 
-  Pil.BOOL_TO_INT x -> add
-    [ (r, CSType $ TBitVector (Just sz))
-    , (x ^. #src . #info . #sym, CSType TBool)
-    ]
+  Pil.BOOL_TO_INT x -> do
+    add
+      [ (r, CSType $ TBitVector (Just sz))
+      , (x ^. #src . #info . #sym, CSType TBool)
+      ]
+    addChildConstraints
 
   -- TODO get most general type for this and args:
   Pil.CALL x -> do
@@ -203,28 +215,60 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       Just xs -> addConstraints xs
       Nothing -> addConstraints [(r, CSType $ TBitVector (Just sz))]
 
-  Pil.CEIL x -> add $ floatUnOp x
-  Pil.CMP_E x -> add =<< integralBinOpReturnsBool x
-  Pil.CMP_NE x -> add =<< integralBinOpReturnsBool x
+    addChildConstraints
 
-  Pil.CMP_SGE x -> add =<< signedBinOpReturnsBool True x
-  Pil.CMP_SGT x -> add =<< signedBinOpReturnsBool True x
-  Pil.CMP_SLE x -> add =<< signedBinOpReturnsBool True x
-  Pil.CMP_SLT x -> add =<< signedBinOpReturnsBool True x
-  Pil.CMP_UGE x -> add =<< signedBinOpReturnsBool False x
-  Pil.CMP_UGT x -> add =<< signedBinOpReturnsBool False x
-  Pil.CMP_ULE x -> add =<< signedBinOpReturnsBool False x
-  Pil.CMP_ULT x -> add =<< signedBinOpReturnsBool False x
-  Pil.CONST _ -> add [(r, CSType $ TBitVector jSz)]
-  Pil.CONST_PTR _ -> add =<< mkPointerConstraint
+  Pil.CEIL x -> do
+    add $ floatUnOp x
+    addChildConstraints
+  Pil.CMP_E x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_NE x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+
+  ---- Signed and unsigned comparisons perform different operations,
+  ---- but the signedness of operands cannot be inferred from the
+  ---- operation performed. However, using flow typing we can use
+  ---- the result of the comparison to assign signededness or value
+  ---- constraints in the form of refinement types.
+  Pil.CMP_SGE x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_SGT x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_SLE x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_SLT x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_UGE x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_UGT x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_ULE x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CMP_ULT x -> do
+    add =<< integralBinOpReturnsBool x
+    addChildConstraints
+  Pil.CONST _ -> do
+    add [(r, CSType $ TBitVector jSz)]
+  Pil.CONST_PTR _ -> do
+    add =<< mkPointerConstraint
 
   -- TODO: Should the length be Text.length + 1, to account for \0 ?
-  Pil.ConstStr x ->
+  Pil.ConstStr x -> do
     add [(r, CSType $ TPointer jSz
            (CSType $ TCString (Just $ fromIntegral (Text.length $ x ^. #value) + 1)))]
 
   -- TODO: get param cound and make this pointer point to TFunction
-  Pil.ConstFuncPtr _ -> add =<< mkPointerConstraint
+  Pil.ConstFuncPtr _ -> do
+    add =<< mkPointerConstraint
 
   -- Don't remember if this is correct, or the above
   -- Pil.ConstStr x -> return [(r, CSType $ TArray
@@ -232,23 +276,56 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   --                                 $ x ^. Pil.value )
   --                               ( CSType TChar ))]
 
-  Pil.CONST_BOOL _ -> add [(r, CSType TBool)]
-  Pil.CONST_FLOAT _ -> add [(r, CSType $ TFloat jSz)]
-  Pil.DIVS x -> add =<< integralBinOpFirstArgIsReturn (Just True) False x
-  Pil.DIVS_DP x -> add =<< divOrModDP True x
-  Pil.DIVU x -> add =<< integralBinOpFirstArgIsReturn (Just False) False x
-  Pil.DIVU_DP x -> add =<< divOrModDP False x
-  Pil.FABS x -> add $ floatUnOp x
-  Pil.FADD x -> add $ floatBinOp x
-  Pil.FCMP_E x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_GE x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_GT x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_LE x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_LT x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_O x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_NE x -> add =<< floatBinOpReturnsBool x
-  Pil.FCMP_UO x -> add =<< floatBinOpReturnsBool x
-  Pil.FDIV x -> add $ floatBinOp x
+  Pil.CONST_BOOL _ -> do
+    add [(r, CSType TBool)]
+  Pil.CONST_FLOAT _ -> do
+    add [(r, CSType $ TFloat jSz)]
+
+  Pil.DIVS x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just True) False x
+    addChildConstraints
+  Pil.DIVS_DP x -> do
+    add =<< divOrModDP True x
+    addChildConstraints
+  Pil.DIVU x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just False) False x
+    addChildConstraints
+  Pil.DIVU_DP x -> do
+    add =<< divOrModDP False x
+    addChildConstraints
+  Pil.FABS x -> do
+    add $ floatUnOp x
+    addChildConstraints
+  Pil.FADD x -> do
+    add $ floatBinOp x
+    addChildConstraints
+  Pil.FCMP_E x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_GE x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_GT x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_LE x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_LT x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_O x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_NE x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FCMP_UO x -> do
+    add =<< floatBinOpReturnsBool x
+    addChildConstraints
+  Pil.FDIV x -> do
+    add $ floatBinOp x
+    addChildConstraints
 
   Pil.FIELD_ADDR x -> do
     fieldType <- CSVar <$> newSym
@@ -258,36 +335,58 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add [ ( r, CSType $ TPointer jSz fieldType )
         , ( x ^. #baseAddr . #info . #sym, CSType $ TPointer jSz recType )
         ]
+    addChildConstraints
 
   Pil.ExternPtr _ -> unimplError
 
-  Pil.Extract _ -> add [(r, CSType $ TBitVector jSz)]
+  Pil.Extract _ -> do
+    add [(r, CSType $ TBitVector jSz)]
+    addChildConstraints
 
 -- TODO: should there be a link between sz of bitvec and sz of float?
   Pil.FLOAT_CONV x -> do
     add [ ( x ^. #src . #info . #sym, CSType $ TBitVector Nothing )
         , ( r, CSType $ TFloat jSz )
         ]
-  Pil.FLOAT_TO_INT x -> add =<< floatToInt x
-  Pil.FLOOR x -> add $ floatUnOp x
-  Pil.FMUL x -> add $ floatBinOp x
-  Pil.FNEG x -> add $ floatUnOp x
-  Pil.FSQRT x -> add $ floatUnOp x
-  Pil.FTRUNC x -> add $ floatUnOp x
-  Pil.FSUB x -> add $ floatBinOp x
+    addChildConstraints
+  Pil.FLOAT_TO_INT x -> do
+    add =<< floatToInt x
+    addChildConstraints
+  Pil.FLOOR x -> do
+    add $ floatUnOp x
+    addChildConstraints
+  Pil.FMUL x -> do
+    add $ floatBinOp x
+    addChildConstraints
+  Pil.FNEG x -> do
+    add $ floatUnOp x
+    addChildConstraints
+  Pil.FSQRT x -> do
+    add $ floatUnOp x
+    addChildConstraints
+  Pil.FTRUNC x -> do
+    add $ floatUnOp x
+    addChildConstraints
+  Pil.FSUB x -> do
+    add $ floatBinOp x
+    addChildConstraints
 
---   what does IMPORT do?
---   assuming it just casts an Int to a pointer
-  Pil.IMPORT _ -> add =<< mkPointerConstraint
+-- TODO: What does IMPORT do? Assuming it just casts an Int to a pointer
+  Pil.IMPORT _ -> do
+    add =<< mkPointerConstraint
+    addChildConstraints
 
-  Pil.INT_TO_FLOAT x -> add =<< intToFloat x
+  Pil.INT_TO_FLOAT x -> do
+    add =<< intToFloat x
+    addChildConstraints
 
-  Pil.LOAD x -> do
-    ptrType <- CSVar <$> newSym
-    add [ ( x ^. #src . #info . #sym, CSType $ TPointer Nothing ptrType )
-        , ( r, ptrType )
+  Pil.LOAD x@(Pil.LoadOp (InfoExpression _srcInfo _srcOp)) -> do
+    pointeeType <- CSVar <$> newSym
+    add [ ( x ^. #src . #info . #sym, CSType $ TPointer Nothing pointeeType )
+        , ( r, pointeeType )
         , ( r, CSType $ TBitVector jSz )
         ]
+    addChildConstraints
 
     -- case x ^. Pil.src . op of
     --   Pil.FIELD_ADDR y -> do
@@ -310,71 +409,111 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     --            ]
 
   -- should _x have any influence on the type of r?
-  Pil.LOW_PART _x -> add [(r, CSType $ TBitVector jSz)]
+  Pil.LOW_PART _x -> do
+    add [(r, CSType $ TBitVector jSz)]
+    addChildConstraints
 
-  Pil.LSL x -> add =<< integralFirstArgIsReturn x
-  Pil.LSR x -> add =<< integralFirstArgIsReturn x
-  Pil.MODS x -> add =<< integralBinOpFirstArgIsReturn (Just True) False x
-  Pil.MODS_DP x -> add =<< divOrModDP True x
-  Pil.MODU x -> add =<< integralBinOpFirstArgIsReturn (Just False) False x
-  Pil.MODU_DP x -> add =<< divOrModDP False x
-  Pil.MUL x -> add =<< integralBinOp Nothing x
-  Pil.MULS_DP x -> add =<< mulDP True x
-  Pil.MULU_DP x -> add =<< mulDP False x
-  Pil.NEG x -> add =<< integralUnOp (Just True) x
+  Pil.LSL x -> do
+    add =<< integralFirstArgIsReturn x
+    addChildConstraints
+  Pil.LSR x -> do
+    add =<< integralFirstArgIsReturn x
+    addChildConstraints
+  Pil.MODS x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just True) False x
+    addChildConstraints
+  Pil.MODS_DP x -> do
+    add =<< divOrModDP True x
+    addChildConstraints
+  Pil.MODU x -> do
+    add =<< integralBinOpFirstArgIsReturn (Just False) False x
+    addChildConstraints
+  Pil.MODU_DP x -> do
+    add =<< divOrModDP False x
+    addChildConstraints
+  Pil.MUL x -> do
+    add =<< integralBinOp Nothing x
+    addChildConstraints
+  Pil.MULS_DP x -> do
+    add =<< mulDP True x
+    addChildConstraints
+  Pil.MULU_DP x -> do
+    add =<< mulDP False x
+    addChildConstraints
+  Pil.NEG x -> do
+    add =<< integralUnOp (Just True) x
+    addChildConstraints
 
   -- NOT is either Bool -> Bool or BitVec -> BitVec
   -- but no way to express that without typeclasses
   -- so it's just constrained as 'a -> a'
-  Pil.NOT x -> add [(r, CSVar $ x ^. #src . #info . #sym)]
+  Pil.NOT x -> do
+    add [(r, CSVar $ x ^. #src . #info . #sym)]
+    addChildConstraints
     -- bitVectorUnOp x
 
-  Pil.OR x -> add $ bitVectorBinOp x
+  Pil.OR x -> do
+    add $ bitVectorBinOp x
+    addChildConstraints
   Pil.RLC x -> do
     integralConstraint <- integralFirstArgIsReturn x
     add $ integralConstraint <> carryConstraint x
+    addChildConstraints
 
-  Pil.ROL x -> add =<< integralFirstArgIsReturn x
-  Pil.ROR x -> add =<< integralFirstArgIsReturn x
-  Pil.ROUND_TO_INT x -> add =<< floatToInt x
+  Pil.ROL x -> do
+    add =<< integralFirstArgIsReturn x
+    addChildConstraints
+  Pil.ROR x -> do
+    add =<< integralFirstArgIsReturn x
+    addChildConstraints
+  Pil.ROUND_TO_INT x -> do
+    add =<< floatToInt x
+    addChildConstraints
   Pil.RRC x -> do
     integralConstraint <- integralFirstArgIsReturn x
     add $ integralConstraint <> carryConstraint x
+    addChildConstraints
 
   Pil.SBB x -> do
     integralConstraint <- integralBinOpFirstArgIsReturn (Just True) True x
     add $ integralConstraint <> carryConstraint x
+    addChildConstraints
   -- STORAGE _ -> unknown
   Pil.StrCmp _ -> unimplError
   Pil.StrNCmp _ -> unimplError
   Pil.MemCmp _ -> unimplError
 
-  -- should this somehow be linked to the type of the stack var?
-  -- its type could change every Store.
-  Pil.STACK_LOCAL_ADDR x -> do
-    s <- getStackOffsetSym $ x ^. #stackOffset
-    add [ (r, CSType $ TPointer jSz (CSVar s)) ]
+  Pil.SUB x -> do
+    add =<< integralBinOpFirstArgIsReturn Nothing True x
+    addChildConstraints
+  Pil.SX x -> do
+    add =<< integralExtendOp (Just True) x
+    addChildConstraints
 
-  Pil.SUB x -> add =<< integralBinOpFirstArgIsReturn Nothing True x
-  Pil.SX x -> add =<< integralExtendOp (Just True) x
-
-  Pil.TEST_BIT _ -> add [(r, CSType TBool)] -- ? tests if bit in int is on or off
-  Pil.UNIMPL _ -> add [ (r, CSType $ TBitVector jSz ) ]
+  Pil.TEST_BIT _ -> do
+    add [(r, CSType TBool)] -- ? tests if bit in int is on or off
+    addChildConstraints
+  Pil.UNIMPL _ -> do
+    add [ (r, CSType $ TBitVector jSz ) ]
+    addChildConstraints
   Pil.UPDATE_VAR x -> do
     v <- lookupVarSym $ x ^. #dest
     -- How should src and dest be related?
     -- Can't express that 'offset + width(src) == width(dest)'
     --  without '+' and '==' as type level operators.
     add [ (r, CSVar v) ]
+    addChildConstraints
 
   Pil.VAR x -> do
     v <- lookupVarSym $ x ^. #src
     add [ (r, CSVar v)
         , (v, CSType $ TBitVector jSz)
         ]
-  Pil.VAR_FIELD _ ->
+    addChildConstraints
+  Pil.VAR_FIELD _ -> do
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
     add [ (r, CSType $ TBitVector jSz) ]
+    addChildConstraints
 
   Pil.VAR_PHI _ -> unimplError
 
@@ -385,14 +524,24 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , (low, CSType $ TBitVector jHalfSz)
         , (high, CSType $ TBitVector jHalfSz)
         ]
+    addChildConstraints
 
-  Pil.XOR x -> add $ bitVectorBinOp x
-  Pil.ZX x -> add =<< integralExtendOp (Just False) x
+  Pil.XOR x -> do
+    add $ bitVectorBinOp x
+    addChildConstraints
+  Pil.ZX x -> do
+    add =<< integralExtendOp Nothing x
+    addChildConstraints
 
+  Pil.STACK_LOCAL_ADDR x -> do
+    s <- getStackOffsetSym (x ^. #stackOffset)
+    add [(r, CSType $ TPointer jSz (CSVar s))]
+    addChildConstraints
   Pil.UNIT -> add [ (r, CSType TUnit) ]
 
   where
     add = addConstraints
+    addChildConstraints = traverse_ addExprTypeConstraints op'
     jSz = Just sz
     jHalfSz = Just $ sz `div` 2
     jDblSz = Just $ sz * 2
@@ -521,33 +670,14 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         ]
 
     integralBinOpReturnsBool :: ( HasField' "left" x SymExpression
-                                , HasField' "right" x SymExpression )
+                                , HasField' "right" x SymExpression)
                              => x
                              -> ConstraintGen [SymConstraint]
     integralBinOpReturnsBool x = do
-      let argWidth = Nothing
-          argSign = Nothing
-          argType = CSType $ TInt argWidth argSign
       return
-        [ (r, CSType TBool)
-        , (x ^. field' @"left" . #info . #sym, argType)
-        , (x ^. field' @"right" . #info . #sym, argType)
-        , (x ^. field' @"left" . #info . #sym, CSVar $ x ^. field' @"right" . #info . #sym)
-        ]
-
-    signedBinOpReturnsBool :: ( HasField' "left" x SymExpression
-                              , HasField' "right" x SymExpression )
-                           => Bool
-                           -> x
-                           -> ConstraintGen [SymConstraint]
-    signedBinOpReturnsBool isSignedBool x = do
-      let argWidth = Nothing
-          argType = CSType (TInt argWidth (Just isSignedBool))
-      return
-        [ (r, CSType TBool)
-        , (x ^. field' @"left" . #info . #sym, argType)
-        , (x ^. field' @"right" . #info . #sym, argType)
-        , (x ^. field' @"left" . #info . #sym, CSVar $ x ^. field' @"right" . #info . #sym)
+        [ (x ^. field' @"left" . #info . #sym, CSType $ TInt Nothing Nothing)
+        , (x ^. field' @"right" . #info . #sym, CSType $ TInt Nothing Nothing)
+        , (r, CSType TBool)
         ]
 
     intToFloat :: (HasField' "src" x SymExpression)
@@ -617,13 +747,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , (r, n)
         ]
 
--- | Recursively adds type constraints for all expr sym's in SymExpression,
--- including nested syms.
-addAllExprTypeConstraints :: SymExpression -> ConstraintGen ()
-addAllExprTypeConstraints x@(InfoExpression (SymInfo _ _) op') = do
-  addExprTypeConstraints x
-  mapM_ addAllExprTypeConstraints op'
-
 -- | converts expression to SymExpression (assigns symbols to all exprs), including itself
 --   adds each new sym/expr pair to CheckerState
 toSymExpression :: Expression -> ConstraintGen SymExpression
@@ -644,31 +767,35 @@ addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym
   pvSym <- lookupVarSym pv
-  addAllExprTypeConstraints symExpr
+  addExprTypeConstraints symExpr
   equals pvSym exprSym
   return $ Pil.Def (Pil.DefOp pv symExpr)
+
 addStmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym
-  addAllExprTypeConstraints symExpr
+  addExprTypeConstraints symExpr
   assignType exprSym TBool
   return $ Pil.Constraint (Pil.ConstraintOp symExpr)
+
 addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
   symValExpr <- toSymExpression valExpr
   let symAddr = symAddrExpr ^. #info . #sym
       symVal = symValExpr ^. #info . #sym
-  addAllExprTypeConstraints symAddrExpr
-  addAllExprTypeConstraints symValExpr
-  let ptrWidth = Nothing
+      ptrWidth = Nothing
+  addExprTypeConstraints symAddrExpr
+  addExprTypeConstraints symValExpr
   assignType symAddr $ TPointer ptrWidth symVal
   return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
+
 addStmtTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
   pvSym <- lookupVarSym pv
   mapM_ (addPhiConstraint pvSym) vs
   traverse toSymExpression stmt -- does nothing but change the type
   where
     addPhiConstraint pvSym v = lookupVarSym v >>= equals pvSym
+
 addStmtTypeConstraints (Pil.DefMemPhi x) = traverse toSymExpression $ Pil.DefMemPhi x
 -- TODO: Link up args to params
 addStmtTypeConstraints (Pil.Call x) = traverse toSymExpression $ Pil.Call x
@@ -676,9 +803,10 @@ addStmtTypeConstraints (Pil.TailCall x) = traverse toSymExpression $ Pil.TailCal
 addStmtTypeConstraints (Pil.BranchCond (Pil.BranchCondOp expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym
-  addAllExprTypeConstraints symExpr
+  addExprTypeConstraints symExpr
   assignType exprSym TBool
   return $ Pil.BranchCond (Pil.BranchCondOp symExpr)
+
 addStmtTypeConstraints (Pil.UnimplInstr x) = return $ Pil.UnimplInstr x
 addStmtTypeConstraints (Pil.UnimplMem x) = traverse toSymExpression $ Pil.UnimplMem x
 addStmtTypeConstraints Pil.Undef = return Pil.Undef

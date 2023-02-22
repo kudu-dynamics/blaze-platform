@@ -6,7 +6,7 @@
 
 module Blaze.Pil.SolverSpec where
 
-import Blaze.Prelude hiding (const)
+import Blaze.Prelude hiding (const, numerator, denominator)
 
 import Blaze.Pil.Solver hiding (pilVar)
 import Blaze.Pil.Construct
