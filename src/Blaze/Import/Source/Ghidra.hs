@@ -4,7 +4,7 @@ module Blaze.Import.Source.Ghidra (
 ) where
 
 import Ghidra.State (GhidraState)
-import Ghidra.Core (runGhidra)
+import Ghidra.Core (runGhidraOrError)
 import qualified Ghidra.State as GState
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
@@ -25,7 +25,7 @@ newtype GhidraImporter = GhidraImporter
   deriving (Eq, Ord, Show, Generic)
 
 getImporter :: FilePath -> IO GhidraImporter
-getImporter fp = runGhidra $ GState.openDatabase fp >>= \case
+getImporter fp = runGhidraOrError $ GState.openDatabase fp >>= \case
   Left err -> error $ "Could not open binary: " <> show err
   Right gs -> do
     GState.analyze gs

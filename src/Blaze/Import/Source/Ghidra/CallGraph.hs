@@ -18,7 +18,7 @@ import Blaze.Types.Function (
  )
 import qualified Blaze.Types.Function as BFunc
 
-import Ghidra.Core (runGhidra)
+import Ghidra.Core (runGhidraOrError)
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as G
@@ -39,7 +39,7 @@ toGhidraFunction gs fn = getFunction_ gs (fn ^. #address) >>= \case
     Just fn' -> return fn'
 
 toBlazeFunction :: G.Function -> IO Function
-toBlazeFunction gfunc = runGhidra $ do
+toBlazeFunction gfunc = runGhidraOrError $ do
   let fn = gfunc ^. #handle
   name <- G.getName fn
   isVariadic <- G.hasVarArgs fn
@@ -56,7 +56,7 @@ toBlazeFunction gfunc = runGhidra $ do
       }
 
 getFunction_ :: GhidraState -> Address -> IO (Maybe J.Function)
-getFunction_ gs addr = runGhidra $ do
+getFunction_ gs addr = runGhidraOrError $ do
   jaddr <- State.mkAddress gs addr
   G.fromAddr gs jaddr
 
@@ -69,7 +69,7 @@ getFunction gs addr = getFunction_ gs addr >>= \case
   Just jfunc -> Just <$> (G.mkFunction jfunc >>= toBlazeFunction)
   
 getFunctions :: GhidraState -> IO [Function]
-getFunctions gs = runGhidra $ G.getFunctions' opts gs
+getFunctions gs = runGhidraOrError $ G.getFunctions' opts gs
   >>= traverse G.mkFunction
   >>= traverse toBlazeFunction
   where
@@ -83,7 +83,7 @@ getFunctions gs = runGhidra $ G.getFunctions' opts gs
       }
 
 getCallSites :: GhidraState -> Function -> IO [CallSite]
-getCallSites gs fn = runGhidra $ do
+getCallSites gs fn = runGhidraOrError $ do
   startAddr <- State.mkAddress gs $ fn ^. #address
   G.fromAddr gs startAddr >>= \case
     Nothing -> error "Could not find callee function"
