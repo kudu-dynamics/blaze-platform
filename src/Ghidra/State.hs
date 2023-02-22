@@ -131,11 +131,8 @@ defaultAnalyzeOptions = AnalyzeOptions False True
 analyze' :: AnalyzeOptions -> GhidraState -> IO ()
 analyze' opts gs = do
   alreadyAnalyzed <- hasBeenAnalyzed gs
-  if not alreadyAnalyzed || (opts ^. #force)
-    then doAnalysis
-    else return ()
-  where
-    doAnalysis = bool identity suppressOut (opts ^. #quiet) $ do
+  when (not alreadyAnalyzed || (opts ^. #force)) $
+    bool identity suppressOut (opts ^. #quiet) $ do
       let prg = gs ^. #program
       txId :: Int32 <- Java.call prg "startTransaction" =<< Java.reflect ("Analysis" :: Text)
       _ :: () <- Java.call (gs ^. #flatProgramAPI) "analyzeAll" (coerce prg :: J.Program)

@@ -5,17 +5,11 @@ module Ghidra.PcodeBlock
 
 import Ghidra.Prelude hiding (toList)
 
-import Ghidra.State (GhidraState)
-import qualified Ghidra.State as State
-import Ghidra.Types.PcodeBlock (PcodeBlockGraph(PcodeBlockGraph), BranchType(..), PcodeBlockType(..))
+import Ghidra.Types.PcodeBlock (PcodeBlock(PcodeBlock), PcodeBlockGraph(PcodeBlockGraph), BranchType(..), PcodeBlockType(..))
 import qualified Language.Java as Java
-import qualified Ghidra.Address as Addr
 import Ghidra.Address (mkAddress)
-import qualified Foreign.JNI as JNI
 import qualified Ghidra.Types as J
 import Ghidra.Types.Address (Address)
-import Ghidra.Types.PcodeBlock (PcodeBlock(PcodeBlock))
-import qualified Data.Set as Set
 
 toBlockBasic :: J.PcodeBlock -> J.PcodeBlockBasic
 toBlockBasic = coerce

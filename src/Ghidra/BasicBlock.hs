@@ -7,13 +7,12 @@ import Ghidra.Prelude hiding (toList)
 
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
-import Ghidra.Types.BasicBlock (BasicBlockGraph(BasicBlockGraph))
+import Ghidra.Types.BasicBlock (BasicBlock(BasicBlock), BasicBlockGraph(BasicBlockGraph))
 import qualified Language.Java as Java
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
 import qualified Ghidra.Types as J
 import Ghidra.Types.Address (Address)
-import Ghidra.Types.BasicBlock (BasicBlock(BasicBlock))
 import qualified Data.Set as Set
 
 
@@ -48,13 +47,13 @@ getDestinations :: GhidraState -> J.CodeBlock -> IO [J.CodeBlock]
 getDestinations gs block = do
   tm <- State.getTaskMonitor gs
   blocks <- Java.call block "getDestinations" tm >>= codeBlockReferenceIteratorToList
-  mapM (JNI.newGlobalRef <=< (\ref -> Java.call ref "getDestinationBlock")) blocks
+  mapM (JNI.newGlobalRef <=< (`Java.call` "getDestinationBlock")) blocks
 
 getSources :: GhidraState -> J.CodeBlock -> IO [J.CodeBlock]
 getSources gs block = do
   tm <- State.getTaskMonitor gs
   blocks <- Java.call block "getSources" tm >>= codeBlockReferenceIteratorToList
-  mapM (JNI.newGlobalRef <=< (\ref -> Java.call ref "getSourceBlock")) blocks
+  mapM (JNI.newGlobalRef <=< (`Java.call` "getSourceBlock")) blocks
 
 getStartAddress :: J.CodeBlock -> IO Address
 getStartAddress block

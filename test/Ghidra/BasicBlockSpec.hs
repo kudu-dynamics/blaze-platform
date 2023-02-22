@@ -19,7 +19,7 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.BasicBlock" $ do
-  (gs, jfunc, highJfunc) <- runIO . runGhidra $ do
+  (gs, jfunc, _highJfunc) <- runIO . runGhidra $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     -- b <- isNil' $ gs ^. #unGhidraState
     -- when b $ error "Couldn't open a1"

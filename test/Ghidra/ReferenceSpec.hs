@@ -5,8 +5,6 @@ import Ghidra.Prelude
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
 import qualified Ghidra.Reference as Ref
-import qualified Ghidra.Types as J
-import qualified Ghidra.Address as Addr
 import Ghidra.Core
 import Test.Hspec
 

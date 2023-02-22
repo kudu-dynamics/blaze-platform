@@ -8,13 +8,12 @@ import Ghidra.Prelude hiding (toList)
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Language.Java as Java
-import Ghidra.Util (maybeNull)
+import Ghidra.Util (iteratorToList, maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Function (Function(Function), Parameter(Parameter))
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
 import qualified Foreign.JNI.String as JString
-import Ghidra.Util (iteratorToList)
 
 
 fromAddr :: GhidraState -> J.Address -> IO (Maybe J.Function)
@@ -87,14 +86,17 @@ getFunctions' opts gs = do
   externals <- bool (return []) (getExternalFunctions gs) $ opts ^. #includeExternalFuncs
   locals <- bool (return []) (getLocalFunctions gs) $ opts ^. #includeLocalFuncs
   let allFuncs = externals <> locals
-  allFuncs' <- case opts ^. #excludeDefaultFuncs of
-    False -> return allFuncs
-    True -> filterM (fmap not . hasDefaultName) allFuncs
-  case opts ^. #excludeThunks of
-    False -> if opts ^. #resolveThunks
-      then traverse resolveThunk allFuncs'
-      else return allFuncs'
-    True -> filterM (fmap not . isThunk) allFuncs'
+  allFuncs' <-
+    if opts ^. #excludeDefaultFuncs then
+      filterM (fmap not . hasDefaultName) allFuncs
+    else
+      return allFuncs
+  if opts ^. #excludeThunks then
+    filterM (fmap not . isThunk) allFuncs'
+  else if opts ^. #resolveThunks then
+    traverse resolveThunk allFuncs'
+  else
+    return allFuncs'
 
 getFunctions :: GhidraState -> IO [J.Function]
 getFunctions = getFunctions' defaultGetFunctionsOptions
@@ -144,8 +146,7 @@ mkParameter :: J.Parameter -> IO Parameter
 mkParameter p = do
   ordIndex :: Int32 <- Java.call p "getOrdinal"
   isAuto <- Java.call p "isAutoParameter"
-  mname :: Maybe Text <- (maybeNull <$> Java.call p "getName")
-    >>= traverse Java.reify
+  mname :: Maybe Text <- traverse Java.reify . maybeNull =<< Java.call p "getName"
   let name = fromMaybe ("arg" <> show ordIndex) mname
   return $ Parameter p (fromIntegral ordIndex) isAuto name
 

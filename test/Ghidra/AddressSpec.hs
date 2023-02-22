@@ -23,10 +23,10 @@ spec = describe "Ghidra.Address" $ do
     -- b <- isNil' $ gs ^. #unGhidraState
     -- when b $ error "Couldn't open a1"
     return gs
-  
+
   context "getAddressSpaces" $ do
     spaces <- runIO . runGhidra $ getAddressSpaceMap gs
-    let names = (view $ _2 . #name) <$> HashMap.toList spaces
+    let names = view (_2 . #name) <$> HashMap.toList spaces
         expectedNames =
           [ Addr.EXTERNAL
           , Addr.HASH

@@ -1,7 +1,6 @@
 module Ghidra.Types.PcodeBlock where
 
 import Ghidra.Prelude
-import Ghidra.Types.Address (Address)
 import qualified Ghidra.Types as J
 
 

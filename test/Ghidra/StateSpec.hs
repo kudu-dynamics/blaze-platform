@@ -27,7 +27,7 @@ spec = describe "Ghidra.State" $ do
       Right gs -> runIO . runGhidra $ do
         State.analyze gs
         State.hasBeenAnalyzed gs
-    
+
     it "should analyze binary" $ do
       hasAnalyzed `shouldBe` True
 
@@ -39,7 +39,7 @@ spec = describe "Ghidra.State" $ do
       State.saveDatabase gs tempFilePath
       exists <- doesFileExist tempFilePath
       return (tempFilePath, exists)
-  
+
     it "should save analysis database" $ do
       dbFileExists `shouldBe` True
 
@@ -47,12 +47,12 @@ spec = describe "Ghidra.State" $ do
 
     it "should load saved analysis database" $ do
       isRight egs' `shouldBe` True
-    
+
 
   context "handles errors" $ do
     egs1 <- runIO . runGhidra $ State.openDatabase "/tmp/hopefullydoesnotexist"
     it "should be unable to load binary without options" $ do
-      egs1 `shouldBe` (Left State.ImportByUsingBestGuessError)
+      egs1 `shouldBe` Left State.ImportByUsingBestGuessError
 
     let badlang = "langdoesnotexist"
     egs2 <- runIO . runGhidra $ do
@@ -63,5 +63,4 @@ spec = describe "Ghidra.State" $ do
             }
       State.openDatabase' opts a1Bin
     it "should be unable to load binary with options" $ do
-      egs2 `shouldBe` (Left $ State.CouldNotFindLang badlang)
-
+      egs2 `shouldBe` Left (State.CouldNotFindLang badlang)

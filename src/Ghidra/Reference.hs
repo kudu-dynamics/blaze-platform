@@ -49,11 +49,11 @@ data FuncRef = FuncRef
 
 toFuncReference :: GhidraState -> J.Reference -> IO (Maybe FuncRef)
 toFuncReference gs ref = do
-  callerAddr <- getFromAddress ref
+  callerAddr_ <- getFromAddress ref
   calleeAddr <- getToAddress ref
-  (,) <$> Func.fromAddr gs callerAddr <*> Func.fromAddr gs calleeAddr >>= \case
+  (,) <$> Func.fromAddr gs callerAddr_ <*> Func.fromAddr gs calleeAddr >>= \case
     (Just callerFunc, Just calleeFunc) -> fmap Just $
-      FuncRef <$> Func.mkFunction callerFunc <*> Func.mkFunction calleeFunc <*> Addr.mkAddress callerAddr
+      FuncRef <$> Func.mkFunction callerFunc <*> Func.mkFunction calleeFunc <*> Addr.mkAddress callerAddr_
     _ -> return Nothing
 
 getFunctionRefs :: GhidraState -> J.Function -> IO [FuncRef]
