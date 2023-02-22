@@ -17,13 +17,13 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.Instruction" $ do
-  gs <- runIO . runGhidra $ do
+  gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ diveBin >>! State.analyze
     return gs
   
   context "getInstructions" $ do
     let cgc_printf_addr = 0x804c6e0
-    refs <- runIO . runGhidra $ do
+    refs <- runIO . runGhidraOrError $ do
       addr <- State.mkAddress gs cgc_printf_addr
       mfunc <- Function.fromAddr gs addr
       case mfunc of

@@ -22,13 +22,13 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.Pcode" $ do
-  gs <- runIO . runGhidra $ do
+  gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
   
   context "getRawPcode" $ do
     let faddr = 0x13ad
-    (raws, liftedRaws) <- runIO . runGhidra $ do
+    (raws, liftedRaws) <- runIO . runGhidraOrError $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       raws <- getRawPcodeOps gs func
@@ -42,7 +42,7 @@ spec = describe "Ghidra.Pcode" $ do
     it "should lift raw pcode ops" $ do
       length liftedRaws `shouldBe` 104
 
-    rawInstr <- runIO . runGhidra $ do
+    rawInstr <- runIO . runGhidraOrError $ do
       x <- mkBareRawPcodeInstruction . head . fmap snd $ raws
       x' <- mkRawPcodeInstruction x
       return x'
@@ -79,7 +79,7 @@ spec = describe "Ghidra.Pcode" $ do
 
   context "getHighPcodeOps" $ do
     let faddr = 0x13ad
-    (highs, liftedHighs) <- runIO . runGhidra $ do
+    (highs, liftedHighs) <- runIO . runGhidraOrError $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
@@ -96,7 +96,7 @@ spec = describe "Ghidra.Pcode" $ do
 
 
 getHighPcodeDemo :: IO [PcodeOp HighVarNode]
-getHighPcodeDemo = runGhidra $ do
+getHighPcodeDemo = runGhidraOrError $ do
   gs <- State.openDatabase_ diveBin >>! State.analyze
   -- b <- isNil' $ gs ^. #unGhidraState
   -- when b $ error "Couldn't open a1"

@@ -18,13 +18,13 @@ a1Bin = "res/test_bins/a1/a1"
 spec :: Spec
 spec = describe "Ghidra.State" $ do
   context "loads a1 test binary" $ do
-    egs <- runIO . runGhidra $ State.openDatabase a1Bin
+    egs <- runIO . runGhidraOrError $ State.openDatabase a1Bin
     it "should load binary" $ do
       isRight egs `shouldBe` True
 
     hasAnalyzed <- case egs of
       Left err -> error $ "Failed to open a1 binary: " <> show err
-      Right gs -> runIO . runGhidra $ do
+      Right gs -> runIO . runGhidraOrError $ do
         State.analyze gs
         State.hasBeenAnalyzed gs
 
@@ -43,19 +43,19 @@ spec = describe "Ghidra.State" $ do
     it "should save analysis database" $ do
       dbFileExists `shouldBe` True
 
-    egs' <- runIO . runGhidra $ State.openDatabase tempFilePath
+    egs' <- runIO . runGhidraOrError $ State.openDatabase tempFilePath
 
     it "should load saved analysis database" $ do
       isRight egs' `shouldBe` True
 
 
   context "handles errors" $ do
-    egs1 <- runIO . runGhidra $ State.openDatabase "/tmp/hopefullydoesnotexist"
+    egs1 <- runIO . runGhidraOrError $ State.openDatabase "/tmp/hopefullydoesnotexist"
     it "should be unable to load binary without options" $ do
       egs1 `shouldBe` Left State.ImportByUsingBestGuessError
 
     let badlang = "langdoesnotexist"
-    egs2 <- runIO . runGhidra $ do
+    egs2 <- runIO . runGhidraOrError $ do
       let opts = State.OpenDatabaseOptions
             { compiler = Nothing
             , language = Just badlang
