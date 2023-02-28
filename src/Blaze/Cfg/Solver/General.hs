@@ -3,7 +3,7 @@ module Blaze.Cfg.Solver.General where
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.HashSet as HashSet
+import qualified Data.HashSet as HSet
 import Blaze.Types.Pil.Checker (DeepSymType, SymTypedStmt)
 import Blaze.Types.Cfg (Cfg, CfNode, BranchType(TrueBranch, FalseBranch), CfEdge (CfEdge), PilCfg, PilNode)
 import qualified Blaze.Cfg as Cfg
@@ -20,15 +20,23 @@ import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
 
-
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
   , condition :: Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
   , decidedBranch :: Bool
   } deriving (Eq, Ord, Show, Generic)
 
--- | If the node is a conditional if-node, and one of the branches has been removed,
--- this returns which branch remains (True or False) and the conditional expr.
+-- | Accumulation of branch conditions that should be rechecked during
+-- the next iteration ('condsToRecheck') and the edges which were found to be
+-- unsat and should be removed ('edgesToRemove').
+data BranchCheckAccum = BranchCheckAccum
+  { condsToRecheck :: [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]
+  , edgesToRemove :: [CfEdge (CfNode [(Int, SymTypedStmt)])]
+  } deriving (Eq, Show)
+
+-- | If the node contains a conditional branch, and one of the conditional edges
+-- has been removed, this returns information about which conditional edge remains
+-- and the branching condition.
 getDecidedBranchCondNode
   :: CfNode [(Int, SymTypedStmt)]
   -> Cfg (CfNode [(Int, SymTypedStmt)])
@@ -47,7 +55,7 @@ getDecidedBranchCondNode n cfg = case outBranchTypes of
 
     outBranchTypes :: [BranchType]
     outBranchTypes = fmap (view #branchType)
-      . HashSet.toList
+      . HSet.toList
       $ Cfg.succEdges n cfg
 
 
@@ -73,7 +81,7 @@ generalCfgFormula ddg cfg = do
       PilSolver.constrain r
 
     decidedBranchConditions = mapMaybe (`getDecidedBranchCondNode` cfg)
-      . HashSet.toList
+      . HSet.toList
       . G.nodes
       $ cfg
 
@@ -90,7 +98,7 @@ solveStmt ddg stmt = case stmt of
     unless (or $ isDependentOn <$> vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
-      isDependentOn = flip HashSet.member destDescendants
+      isDependentOn = flip HSet.member destDescendants
   _ -> pilSolveStmt
   where
     pilSolveStmt = PilSolver.solveStmt_ (solveExpr ddg) stmt
@@ -123,8 +131,8 @@ data UndecidedBranchCond n = UndecidedBranchCond
   , falseEdge :: CfEdge n
   } deriving (Eq, Ord, Show, Generic)
 
--- | If the node is a conditional if-node, and one of the branches has been removed,
--- this returns which branch remains (True or False) and the conditional expr.
+-- | If the node contains a conditional branch, and neither of the conditional edgesToRemove
+-- have been removed, this returns an 'UndecidedBranchCond'. Otherwise, 'Nothing' is returned.
 getUndecidedBranchCondNode
   :: CfNode [(Int, SymTypedStmt)]
   -> Cfg (CfNode [(Int, SymTypedStmt)])
@@ -143,12 +151,12 @@ getUndecidedBranchCondNode n cfg = case outBranches of
     outBranches :: [(BranchType, CfEdge (CfNode [(Int, SymTypedStmt)]))]
     outBranches =
       fmap (\e -> (e ^. #branchType, e))
-      . HashSet.toList
+      . HSet.toList
       $ Cfg.succEdges n cfg
 
 -- | Checks individual true and false branches to find impossible constraints.
--- Starts at root node and finds if nodes in breadth-first order.
--- Returns a list of inconsistant branch edges.
+-- Starts at root node and finds nodes with conditional branches in breadth-first order.
+-- Returns a list of inconsistent branch edges.
 unsatBranches
   :: DataDependenceGraph
   -> Cfg (CfNode [(Int, SymTypedStmt)])
@@ -158,15 +166,18 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
   ubranches -> do
     generalCfgFormula ddg typedCfg
     ubranchesWithSvals <- traverse getBranchCondSVal ubranches
-    er <- liftSymbolicT . Q.query $ findRemoveableUnsats ubranchesWithSvals
+    er <- liftSymbolicT . Q.query $ Q.checkSat >>= \case
+      Q.DSat _ -> Right <$> findRemoveableUnsats ubranchesWithSvals
+      Q.Sat -> Right <$> findRemoveableUnsats ubranchesWithSvals
+      r -> Left <$> toSolverResult r
     case er of
       Left sr -> do
         putText $ "General constraints are not sat: " <> show sr
         return []
       Right xs -> return xs
   where
-    getBranchCondSVal :: 
-      UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]) -> 
+    getBranchCondSVal ::
+      UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]) ->
       Solver (UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)
     getBranchCondSVal u = do
       #currentStmtIndex .= u ^. #conditionStatementIndex
@@ -180,40 +191,62 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
       Q.Sat -> return True
       _ -> return False
 
-    -- | Returns either generic non-sat result, or list of edges that can be removed
+    -- | Returns either generic non-sat result, or list of edges that can be removed.
+    --
+    -- The general algorithm for `findRemovableUnsats` can be described in imperative
+    -- terms:
+    -- findRemoveableUnsats(xs) =
+    --   for each undecided branch:
+    --     if either side is UNSAT:
+    --       collect the other side in the general constraints
+    --       remove the correct edge
+    --     else:
+    --       remember to revisit this branch on the next recursive call
+    --   if there were any edges removed:
+    --     recur into findRemoveableUnsats(branches to revisit)
+    --     append that result onto edges to be removed
+    --   return edges that should be removed
     findRemoveableUnsats
       :: [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]
-      -> Query (Either SolverResult [CfEdge (CfNode [(Int, SymTypedStmt)])])
-    findRemoveableUnsats xs = Q.checkSat >>= \case
-      Q.DSat _ -> Q.push 1 >> Right <$> f xs [] []
-      Q.Sat -> Q.push 1 >> Right <$> f xs [] []
-      r -> Left <$> toSolverResult r
-      where
-        -- | This goes through unseen. If it finds a pruneable branch,
-        -- it puts the edge in toRemove and puts prepends `seen` onto `unseen`
-        -- and adds the new constraint to the assertion stack.
-        f :: [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]  -- unseen
-          -> [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]  -- seen
-          -> [CfEdge (CfNode [(Int, SymTypedStmt)])]
-          -> Query [CfEdge (CfNode [(Int, SymTypedStmt)])]
-        f [] _ toRemove = return toRemove
-        f ((u, c):unseen) seen toRemove = do
+      -> Query [CfEdge (CfNode [(Int, SymTypedStmt)])]
+    findRemoveableUnsats xs = do
+      (BranchCheckAccum condsToRecheck edgesToRemove) <-
+        foldM checkBranchCond (BranchCheckAccum [] []) xs
+      if null edgesToRemove then
+        return []
+      else do
+        edgesToRemove' <- findRemoveableUnsats condsToRecheck
+        return $ edgesToRemove <> edgesToRemove'
+       where
+        -- | Check an individual branch condition. If a conditional edge is unsat,
+        -- that edge is added to `edgesToRemove` and the constraint implied by the
+        -- remaining edge is added to the assertion stack.
+        -- If both conditional edges for a branch condition are sat, then the branch
+        -- condition is added to the `condsToRecheck` for rechecking later.
+        checkBranchCond ::
+          BranchCheckAccum ->
+          (UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal) ->
+          Query BranchCheckAccum
+        checkBranchCond (BranchCheckAccum condsToRecheck edgesToRemove) (u, c) = do
           tryConstraint c >>= \case
-            -- True branch is UnSat
+            -- True branch is unsat
             False -> do
-              -- add false branch consraint to general formula
+              -- Add false branch consraint to general formula
               addConstraint $ PilSolver.svBoolNot c
 
-              -- recur, add true edge to be removal list
-              f (reverse seen <> unseen) [] (u ^. #trueEdge : toRemove)
+              -- Add true-branch edge to removal list
+              return $ BranchCheckAccum condsToRecheck (u ^. #trueEdge : edgesToRemove)
 
             True -> tryConstraint (PilSolver.svBoolNot c) >>= \case
               -- False branch is unsat
               False -> do
-                addConstraint c -- true branch constraint to general formula
-                f (reverse seen <> unseen) [] (u ^. #falseEdge : toRemove)
+                -- Add true-branch constraint to general formula
+                addConstraint c
+
+                -- Add false-branch edge to removal list
+                return $ BranchCheckAccum condsToRecheck (u ^. #falseEdge : edgesToRemove)
               True -> -- Both true and false branch are Sat
-                f unseen ((u, c) : seen) toRemove
+                return $ BranchCheckAccum ((u, c) : condsToRecheck) edgesToRemove
 
     addConstraint :: SVal -> Query ()
     addConstraint c = do
@@ -233,8 +266,8 @@ data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
                        | SolverError Ch.TypeReport PilSolver.SolverError
                        deriving (Eq, Ord, Show, Generic)
 
-getUnsatBranches :: 
-  PilCfg -> 
+getUnsatBranches ::
+  PilCfg ->
   IO (Either GeneralSolveError [CfEdge PilNode])
 getUnsatBranches cfg = case checkCfg cfg of
   Left err -> return . Left . TypeCheckerError $ err
@@ -250,7 +283,7 @@ getUnsatBranches cfg = case checkCfg cfg of
       Right (unsatEdges, _) -> return . Right $ fmap getOrigEdge unsatEdges
    where
      getOrigEdge :: CfEdge (CfNode [(Int, SymTypedStmt)]) -> CfEdge PilNode
-     getOrigEdge (CfEdge src dst label) = 
+     getOrigEdge (CfEdge src dst label) =
        let src' = fromJust $ Cfg.getNode cfg (G.getNodeId src)
            dst' = fromJust $ Cfg.getNode cfg (G.getNodeId dst) in
              CfEdge src' dst' label
