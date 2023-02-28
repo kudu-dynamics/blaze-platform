@@ -7,7 +7,7 @@ packages:
 
 extra-deps:
   - git: https://github.com/kudu-dynamics/inline-java.git
-    commit: be76e6df0de52809e8f76e02b29e6b31dcc79c46
+    commit: d0514b1d899f2b513e18296dd5706adcf5b6e563
     subdirs:
       - jni
       - jvm
