@@ -6,10 +6,10 @@ packages:
   - ../binaryninja-haskell
   - ../ghidra-haskell
   - .
-  
+
 extra-deps:
   - git: https://github.com/kudu-dynamics/inline-java.git
-    commit: abda1d9832deab667bcef89490e74274944514d9
+    commit: d0514b1d899f2b513e18296dd5706adcf5b6e563
     subdirs:
       - jni
       - jvm
