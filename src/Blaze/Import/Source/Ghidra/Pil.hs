@@ -54,7 +54,7 @@ data ConverterError
     }
   -- | The offset argument (input1) to 'PTRSUB' was not @.isConstant()@
   | PtrsubOffsetNotConstant
-    { arg2 :: VarNodeType
+    { offset :: VarNodeType
     }
   -- | The result list of 'RETURN' was greater than 1
   | ReturningTooManyResults
