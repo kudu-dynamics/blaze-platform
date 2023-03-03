@@ -113,11 +113,10 @@ test-general:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - cp -T "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     - cd /blaze/build/blaze
     - .ci/scripts/run_test.py ~/.local/bin/blaze-general-test
 
-.test-binja:
+test-binja:
   stage: test
   extends: .haskell-job
   needs:
@@ -130,6 +129,19 @@ test-general:
     - cp -T "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     - cd /blaze/build/blaze
     - .ci/scripts/run_test.py ~/.local/bin/blaze-binja-test
+
+test-ghidra:
+  stage: test
+  extends: .haskell-job
+  needs:
+    - build
+  variables:
+    <<: *variables
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - cd /blaze/build/blaze
+    - .ci/scripts/run_test.py ~/.local/bin/blaze-ghidra-test
 
 push:latest:
   stage: push

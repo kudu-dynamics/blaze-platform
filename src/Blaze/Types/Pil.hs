@@ -12,7 +12,8 @@ import Blaze.Types.Pil.Common as Exports
 data ExprOp expr
     = ADC (AdcOp expr)
     | ADD (AddOp expr)
-    | ADD_OVERFLOW (AddOverflowOp expr)
+    | ADD_WILL_CARRY (AddWillCarryOp expr)
+    | ADD_WILL_OVERFLOW (AddWillOverflowOp expr)
     | AND (AndOp expr)
     | ASR (AsrOp expr)
     | BOOL_TO_INT (BoolToIntOp expr)
@@ -69,6 +70,7 @@ data ExprOp expr
     | NEG (NegOp expr)
     | NOT (NotOp expr)
     | OR (OrOp expr)
+    | POPCNT (PopcntOp expr)
     | RLC (RlcOp expr)
     | ROL (RolOp expr)
     | ROR (RorOp expr)
@@ -76,6 +78,7 @@ data ExprOp expr
     | RRC (RrcOp expr)
     | SBB (SbbOp expr)
     | SUB (SubOp expr)
+    | SUB_WILL_OVERFLOW (SubWillOverflowOp expr)
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text
@@ -101,6 +104,7 @@ data ExprOp expr
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
     | CONST_BOOL (ConstBoolOp expr)
     | UNIT
+    | ARRAY_ADDR (ArrayAddrOp expr)
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data Expression = Expression
@@ -206,6 +210,12 @@ data ConstBoolOp expr = ConstBoolOp
   { constant :: Bool
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
+data ArrayAddrOp expr = ArrayAddrOp
+  { base :: expr
+  , index :: expr
+  , stride :: Word64
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+
 
 ---- Statements
 
@@ -299,7 +309,10 @@ data Statement expr
   | DefPhi (DefPhiOp expr)
   | DefMemPhi (DefMemPhiOp expr)
   | BranchCond (BranchCondOp expr)
+  -- | Direct jump to 'dest', but statically we know 'dest' will be a member of
+  -- 'targets' (probably from a jump table)
   | Jump (JumpOp expr)
+  -- | Direct jump to 'dest'
   | JumpTo (JumpToOp expr)
   | Ret (RetOp expr)
   | NoRet

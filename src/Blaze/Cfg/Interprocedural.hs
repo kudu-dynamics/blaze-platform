@@ -109,7 +109,7 @@ expandCall callerCfg callNode targetFunc = do
     callStmt <-
       liftMaybe (NotCallStatement $ callNode ^. #nodeData) $
         getCallStmt callNode
-    (ImportResult targetCtx targetCfg _) <-
+    (ImportResult targetCtx _ targetCfg) <-
       liftMaybeIO (FailedToCreateCfg targetFunc) $
         getCfg_ targetFunc (callerCfg ^. #nextCtxIndex)
     leaveFuncUUID <- liftIO randomIO

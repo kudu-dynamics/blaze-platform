@@ -181,7 +181,7 @@ data CodeReference a = CodeReference
   , startIndex :: a
   , endIndex :: a
   }
-  deriving (Eq, Ord, Functor, Show, Generic)
+  deriving (Eq, Ord, Functor, Show, Generic, Hashable)
 
 type NodeRefMap a b = HashMap a b
 
@@ -207,6 +207,32 @@ mkControlFlowGraph ::
   ControlFlowGraph a
 mkControlFlowGraph root' ns es =
   G.addNodes (root' : ns) $ G.fromEdges (fmap toLEdge es)
+
+
+data MkCfgRootError
+  = ZeroRootNodes
+  | MultipleRootNodes
+  deriving (Eq, Ord, Read, Show, Generic, Hashable)
+
+mkCfgFindRoot ::
+  (Identifiable a UUID, Hashable a) =>
+  CtxId ->
+  [a] ->
+  [CfEdge a] ->
+  Either MkCfgRootError (Cfg a)
+mkCfgFindRoot nextCtxIndex_ nodes_ edges_ = case HashSet.toList (G.sources g) of
+  [] -> Left ZeroRootNodes
+  [rootNode] -> Right $ Cfg
+    { graph =  g
+    , rootId = getNodeId rootNode
+    , nextCtxIndex = nextCtxIndex_
+    }
+  _ -> Left MultipleRootNodes
+  where
+    g = G.addNodes nodes_
+        . G.fromEdges
+        . fmap toLEdge
+        $ edges_
 
 -- TODO: Consider removing type parameter once a PIL CFG can be constructed
 --       w/o an intermediate MLIL SSA CFG.

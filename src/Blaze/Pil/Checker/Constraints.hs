@@ -170,13 +170,24 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add =<< integralBinOpFirstArgIsReturn Nothing True x
     addChildConstraints
 
-  -- should this be unsigned ret because overflow is always positive?
-  Pil.ADD_OVERFLOW x -> do
-    add =<< integralBinOpFirstArgIsReturn Nothing True x
+  Pil.ADD_WILL_CARRY x -> do
+    add =<< integralBinOpReturnsBool (Just False) x
+    addChildConstraints
+  Pil.ADD_WILL_OVERFLOW x -> do
+    add =<< integralBinOpReturnsBool (Just True) x
     addChildConstraints
 
   Pil.AND x -> do
     add $ bitVectorBinOp x
+    addChildConstraints
+
+  Pil.ARRAY_ADDR x -> do
+    pt <- newSym
+    add
+      [ (r, CSType (TPointer jSz (CSVar pt)))
+      , (r, CSVar $ x ^. #base . #info . #sym)
+      , (x ^. #index . #info . #sym, CSType (TInt Nothing (Just False)))
+      ]
     addChildConstraints
 
   -- Arithmetic shift right
@@ -221,10 +232,10 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add $ floatUnOp x
     addChildConstraints
   Pil.CMP_E x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_NE x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
 
   ---- Signed and unsigned comparisons perform different operations,
@@ -233,28 +244,28 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   ---- the result of the comparison to assign signededness or value
   ---- constraints in the form of refinement types.
   Pil.CMP_SGE x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_SGT x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_SLE x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_SLT x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_UGE x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_UGT x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_ULE x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CMP_ULT x -> do
-    add =<< integralBinOpReturnsBool x
+    add =<< integralBinOpReturnsBool Nothing x
     addChildConstraints
   Pil.CONST _ -> do
     add [(r, CSType $ TBitVector jSz)]
@@ -455,6 +466,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.OR x -> do
     add $ bitVectorBinOp x
     addChildConstraints
+  Pil.POPCNT x -> do
+    add
+      [ (r, CSType (TInt jSz Nothing))
+      , (x ^. #src . #info . #sym, CSType (TBitVector Nothing))
+      ]
+    addChildConstraints
   Pil.RLC x -> do
     integralConstraint <- integralFirstArgIsReturn x
     add $ integralConstraint <> carryConstraint x
@@ -488,6 +505,10 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     addChildConstraints
   Pil.SX x -> do
     add =<< integralExtendOp (Just True) x
+    addChildConstraints
+
+  Pil.SUB_WILL_OVERFLOW x -> do
+    add =<< integralBinOpReturnsBool (Just True) x
     addChildConstraints
 
   Pil.TEST_BIT _ -> do
@@ -670,14 +691,18 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         ]
 
     integralBinOpReturnsBool :: ( HasField' "left" x SymExpression
-                                , HasField' "right" x SymExpression)
-                             => x
+                                , HasField' "right" x SymExpression )
+                             => Maybe Bool
+                             -> x
                              -> ConstraintGen [SymConstraint]
-    integralBinOpReturnsBool x = do
+    integralBinOpReturnsBool argSignedness x = do
+      let argWidth = Nothing
+          argType = CSType $ TInt argWidth argSignedness
       return
-        [ (x ^. field' @"left" . #info . #sym, CSType $ TInt Nothing Nothing)
-        , (x ^. field' @"right" . #info . #sym, CSType $ TInt Nothing Nothing)
-        , (r, CSType TBool)
+        [ (r, CSType TBool)
+        , (x ^. field' @"left" . #info . #sym, argType)
+        , (x ^. field' @"right" . #info . #sym, argType)
+        , (x ^. field' @"left" . #info . #sym, CSVar $ x ^. field' @"right" . #info . #sym)
         ]
 
     intToFloat :: (HasField' "src" x SymExpression)

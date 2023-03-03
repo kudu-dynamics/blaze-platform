@@ -19,7 +19,7 @@ import Blaze.Types.Pil ( Expression
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Solver
 import qualified Blaze.Pil.Solver.List as BSList
-import Data.SBV.Tools.Overflow (bvAddO)
+import Data.SBV.Tools.Overflow (bvAddO, bvSubO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.Trans ( (.==)
@@ -30,6 +30,8 @@ import Data.SBV.Trans ( (.==)
                       , (.<=)
                       , (.||)
                       , (.~|)
+                      , sPopCount
+                      , SFiniteBits
                       , SInteger
                       , SInt8
                       , SInt16
@@ -41,8 +43,8 @@ import Data.SBV.Trans ( (.==)
                       , SWord32
                       , SWord64
                       , SWord
+                      , WordN
                       )
-import qualified Data.Text as Text
 import Data.SBV.Dynamic as D hiding (Solver)
 import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
@@ -536,6 +538,27 @@ warn e = #errors %= (e :)
 svAggrAnd :: [SVal] -> SVal
 svAggrAnd = foldr svAnd svTrue
 
+-- | Convert an 'SVal' to an 'SBV a', where 'a' is one of 'Word8', 'Word16',
+-- 'Word32', 'Word64', and then run a function with this wrapped SBV. If 'SVal'
+-- is not one of these supported sizes, then the result will be @Just (f ...)@,
+-- otherwise 'Nothing' is returned
+liftSFiniteBits :: (forall a. SFiniteBits a => SBV a -> b) -> SVal -> Maybe b
+liftSFiniteBits f sv =
+  -- Can easily extend this if we need to support more sizes later by adding
+  -- more @WordN@ cases
+  case intSizeOf sv of
+    1 -> Just . f $ (SBV sv :: SBV (WordN 1))
+    8 -> Just . f $ (SBV sv :: SBV Word8)
+    16 -> Just . f $ (SBV sv :: SBV Word16)
+    32 -> Just . f $ (SBV sv :: SBV Word32)
+    64 -> Just . f $ (SBV sv :: SBV Word64)
+    _ -> Nothing
+
+-- | Like 'liftSFiniteBits' but discard the phantom type information of the 'SBV _'
+-- result and return a typeless 'SVal'
+liftSFiniteBits' :: (forall a. SFiniteBits a => SBV a -> SBV b) -> SVal -> Maybe SVal
+liftSFiniteBits' sv f = (\(SBV x) -> x) <$> liftSFiniteBits sv f
+
 solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
           -> Solver ()
 solveStmt = catchIfLenientForStmt . solveStmt_ solveExpr
@@ -584,8 +607,19 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
 
   Pil.ADD x -> integralBinOpMatchSecondArgToFirst x svPlus
 
-  Pil.ADD_OVERFLOW x ->
-    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO a b
+  Pil.ADD_WILL_CARRY x ->
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO (svUnsign a) (svUnsign b)
+
+  Pil.ADD_WILL_OVERFLOW x ->
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO (svSign a) (svSign b)
+
+  Pil.ARRAY_ADDR x -> do
+    base <- solveExprRec (x ^. #base)
+    index <- solveExprRec (x ^. #index)
+    guardIntegral base
+    guardIntegral index
+    let stride = svInteger (kindOf base) . fromIntegral $ x ^. #stride
+    pure $ base `svPlus` (zeroExtend (fromIntegral $ intSizeOf base) index `svTimes` stride)
 
   Pil.AND x -> integralBinOpMatchSecondArgToFirst x svAnd
   Pil.ASR x -> integralBinOpUnrelatedArgs x sSignedShiftArithRight
@@ -642,6 +676,9 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.DIVS_DP x -> divOrModDP True x svDivide
   Pil.DIVU x -> integralBinOpMatchSecondArgToFirst x svDivide
   Pil.DIVU_DP x -> divOrModDP False x svDivide
+
+  Pil.Extract _ -> unhandled "Extract"
+  Pil.ExternPtr _ -> unhandled "ExternPtr"
 
   Pil.FABS x -> floatUnOp x SBV.fpAbs
   Pil.FADD x -> floatBinOp x $ SBV.fpAdd SBV.sRoundNearestTiesToAway
@@ -755,19 +792,30 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       _ -> throwError . ErrorMessage $ "NOT expecting Bool or Integral, got " <> show k
 
   Pil.OR x -> integralBinOpMatchSecondArgToFirst x svOr
+  Pil.POPCNT x ->
+    integralUnOpM x $ \bv -> do
+      case liftSFiniteBits' sPopCount bv of
+        Just res -> pure res
+        Nothing -> throwError . ErrorMessage $ "Unsupported POPCNT operand size: " <> show (intSizeOf bv)
+
   Pil.RLC x -> rotateBinOpWithCarry x rotateLeftWithCarry
   Pil.ROL x -> integralBinOpUnrelatedArgs x svRotateLeft
   Pil.ROR x -> integralBinOpUnrelatedArgs x svRotateRight
---   Pil.ROUND_TO_INT x -> floatToInt x
+  Pil.ROUND_TO_INT _ -> unhandled "ROUND_TO_INT"
   Pil.RRC x -> rotateBinOpWithCarry x rotateRightWithCarry
   Pil.SBB x -> integralBinOpWithCarry x $ \a b c -> (a `svMinus` b) `svMinus` c
--- --   -- STORAGE _ -> unknown
--- --   StrCmp _ -> intRet
--- --   StrNCmp _ -> intRet
--- --   MemCmp _ -> intRet
---   Pil.STACK_LOCAL_ADDR _ -> retPointer
+
+  Pil.MemCmp _ -> unhandled "MemCmp"
+  Pil.StrCmp _ -> unhandled "StrCmp"
+  Pil.StrNCmp _ -> unhandled "StrNCmp"
+
+  Pil.STACK_LOCAL_ADDR _ -> unhandled "STACK_LOCAL_ADDR"
+  Pil.FIELD_ADDR _ -> unhandled "FIELD_ADDR"
 
   Pil.SUB x -> integralBinOpMatchSecondArgToFirst x svMinus
+
+  Pil.SUB_WILL_OVERFLOW x ->
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvSubO (svSign a) (svSign b)
 
   Pil.SX x -> bitVectorUnOp x (signExtend sz)
 
@@ -780,6 +828,8 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     _ -> svFalse
 
   Pil.UNIMPL _ -> throwError . ErrorMessage $ "UNIMPL"
+
+  Pil.UNIT -> unhandled "UNIT"
 
   Pil.UPDATE_VAR x -> do
     dest <- lookupVarSym $ x ^. #dest
@@ -814,13 +864,15 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     guardIntegral high
     return $ svJoin high low
 
+  Pil.VAR_PHI _ -> unhandled "VAR_PHI"
+
   Pil.XOR x -> integralBinOpUnrelatedArgs x svXOr
   Pil.ZX x -> bitVectorUnOp x (zeroExtend sz)
--- --   Extract _ -> bitvecRet
-        -- expr offset sz --> expr 0 sz -> takes low sz of expr
-  _ -> throwError . ErrorMessage $ "unhandled PIL op: "
-       <> Text.takeWhile (/= ' ') (show op)
+
   where
+    -- | Throws an error that says exactly which 'ExprOp' constructor is unhandled
+    unhandled opName = throwError . ErrorMessage $ "unhandled PIL op: " <> opName
+
     fallbackAsFreeVar :: Solver SVal
     fallbackAsFreeVar = case mdst of
       Nothing -> throwError . ExprError xsym . ErrorMessage $ "missing DeepSymType"

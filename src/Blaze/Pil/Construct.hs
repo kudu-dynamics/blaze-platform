@@ -58,8 +58,14 @@ unOp f g x size =
 const :: Int64 -> OperationSize -> Expression
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
+unit :: Expression
+unit = Pil.Expression 0 Pil.UNIT
+
 constPtr :: Word64 -> OperationSize -> Expression
-constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr)))
+constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr :: Int64)))
+
+externPtr :: Address -> ByteOffset -> Maybe Symbol -> OperationSize -> Expression
+externPtr addr off sym size = mkExpr size (Pil.ExternPtr (Pil.ExternPtrOp addr off sym))
 
 constStr :: Text -> OperationSize -> Expression
 constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
@@ -73,8 +79,17 @@ var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
 add :: Expression -> Expression -> OperationSize -> Expression
 add = binOp Pil.ADD Pil.AddOp
 
+addWillCarry :: Expression -> Expression -> OperationSize -> Expression
+addWillCarry = binOp Pil.ADD_WILL_CARRY Pil.AddWillCarryOp
+
+addWillOverflow :: Expression -> Expression -> OperationSize -> Expression
+addWillOverflow = binOp Pil.ADD_WILL_OVERFLOW Pil.AddWillOverflowOp
+
 sub :: Expression -> Expression -> OperationSize -> Expression
 sub = binOp Pil.SUB Pil.SubOp
+
+subWillOverflow :: Expression -> Expression -> OperationSize -> Expression
+subWillOverflow = binOp Pil.SUB_WILL_OVERFLOW Pil.SubWillOverflowOp
 
 mul :: Expression -> Expression -> OperationSize -> Expression
 mul = binOp Pil.MUL Pil.MulOp
@@ -138,6 +153,10 @@ varField sym offset size =
 fieldAddr :: Pil.Expression -> ByteOffset -> OperationSize -> Expression
 fieldAddr base offset size = 
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
+
+arrayAddr :: Pil.Expression -> Pil.Expression -> Word64 -> OperationSize -> Expression
+arrayAddr base index stride size =
+  mkExpr size . Pil.ARRAY_ADDR $ Pil.ArrayAddrOp base index stride
 
 stackLocalAddr :: Expression -> ByteOffset -> OperationSize -> Expression
 stackLocalAddr base offset size = 

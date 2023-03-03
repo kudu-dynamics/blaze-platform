@@ -246,8 +246,14 @@ dispExprOp :: (Disp a, HasField' "op" a (Pil.ExprOp a))
 dispExprOp exprOp size = case exprOp of
   (Pil.ADC op) -> dispBinop "adc" op size
   (Pil.ADD op) -> dispBinop "add" op size
-  (Pil.ADD_OVERFLOW op) -> dispBinop "addOf" op size
+  (Pil.ADD_WILL_CARRY op) -> dispBinop "addWillCarry" op size
+  (Pil.ADD_WILL_OVERFLOW op) -> dispBinop "addWillOverflow" op size
   (Pil.AND op) -> dispBinop "and" op size
+  (Pil.ARRAY_ADDR op) ->
+    "arrayAddr"
+    <-> parenExpr (op ^. #base)
+    <-> parenExpr (op ^. #index)
+    <-> paren (show $ op ^. #stride)
   (Pil.ASR op) -> dispBinop "asr" op size
   (Pil.BOOL_TO_INT op) -> dispUnop "boolToInt" op size
   (Pil.CEIL op) -> dispUnop "ceil" op size
@@ -309,6 +315,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.NEG op) -> dispUnop "neg" op size
   (Pil.NOT op) -> dispUnop "not" op size
   (Pil.OR op) -> dispBinop "or" op size
+  (Pil.POPCNT op) -> dispUnop "popcnt" op size
   -- TODO: Need to add carry
   (Pil.RLC op) -> dispBinop "rlc" op size
   (Pil.ROL op) -> dispBinop "rol" op size
@@ -319,6 +326,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.SBB op) -> dispBinop "sbb" op size
   (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. #stackOffset)
   (Pil.SUB op) -> dispBinop "sub" op size
+  (Pil.SUB_WILL_OVERFLOW op) -> dispBinop "subWillOverflow" op size
   (Pil.SX op) -> dispUnop "sx" op size
   (Pil.TEST_BIT op) -> dispBinop "testBit" op size
   (Pil.UNIMPL t) -> "unimpl" <-> paren t
@@ -385,6 +393,9 @@ instance Disp Function where
 
 instance Disp ByteOffset where
   disp (ByteOffset x) = "byteOffset " <> show x
+
+instance Disp Bytes where
+  disp (Bytes x) = "bytes " <> show x
 
 instance Disp [Pil.Stmt] where
   disp = Text.intercalate "\n" . fmap disp

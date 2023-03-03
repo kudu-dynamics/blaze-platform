@@ -467,8 +467,17 @@ tokenizeExprOp ::
 tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.ADC op) -> tokenizeBinop msym "adc" op
   (Pil.ADD op) -> tokenizeBinopInfix msym "+" op
-  (Pil.ADD_OVERFLOW op) -> tokenizeBinopInfix msym "&+" op
+  (Pil.ADD_WILL_CARRY op) -> tokenizeBinop msym "addOF" op
+  (Pil.ADD_WILL_OVERFLOW op) -> tokenizeBinop msym "addCF" op
   (Pil.AND op) -> tokenizeBinopInfix msym "&&" op
+  (Pil.ARRAY_ADDR op) ->
+    (paren <$> tokenize (op ^. #base))
+      <++> tokenize (op ^. #index)
+      <++> tt "["
+      <++> tt " slots of "
+      <++> tokenize (op ^. #stride)
+      <++> tt "bytes"
+      <++> tt "]"
   (Pil.ASR op) -> tokenizeBinop msym "asr" op
   (Pil.BOOL_TO_INT op) -> tokenizeUnop msym "boolToInt" op
   (Pil.CEIL op) -> tokenizeUnop msym "ceil" op
@@ -530,6 +539,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.NEG op) -> tokenizeUnop msym "neg" op
   (Pil.NOT op) -> tokenizeUnop msym "not" op
   (Pil.OR op) -> tokenizeBinopInfix msym "|" op
+  (Pil.POPCNT op) -> tokenizeUnop msym "popcnt" op
   -- TODO: Need to add carry
   (Pil.RLC op) -> tokenizeBinop msym "rlc" op
   (Pil.ROL op) -> tokenizeBinop msym "rol" op
@@ -544,6 +554,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
       , varToken Nothing $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
       ]
   (Pil.SUB op) -> tokenizeBinopInfix msym "-" op
+  (Pil.SUB_WILL_OVERFLOW op) -> tokenizeBinop msym "subOF" op
   (Pil.SX op) -> tokenizeUnop msym "sx" op
   (Pil.TEST_BIT op) -> tokenizeBinop msym "testBit" op
   (Pil.UNIMPL t) -> keywordToken "unimpl" <++> paren [tt t]

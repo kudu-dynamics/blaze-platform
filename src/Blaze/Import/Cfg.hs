@@ -16,4 +16,4 @@ class CfgImporter a where
     :: a
     -> Function
     -> CtxId
-    -> IO (Maybe (ImportResult (Cfg (NodeDataType a)) (NodeMapType a)))
+    -> IO (Maybe (ImportResult (NodeMapType a) (Cfg (NodeDataType a))))
