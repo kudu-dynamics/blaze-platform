@@ -1,5 +1,4 @@
 {- HLINT ignore "Reduce duplication" -}
-{- HLINT ignore "Use list comprehension" -}
 
 module Blaze.Cfg.Analysis where
 

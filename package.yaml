@@ -116,6 +116,7 @@ library:
   - Blaze.Import.Source.Ghidra.Cfg
   - Blaze.Import.Source.Ghidra.Types
   - Blaze.IndirectCallResolution
+  - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
   - Blaze.Pil.Checker
@@ -142,6 +143,8 @@ library:
   - Blaze.Types.Graph.EdgeGraph
   - Blaze.Types.Import
   - Blaze.Types.IndirectCallResolution
+  - Blaze.Types.Path
+  - Blaze.Types.Path.Alga
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Pil.Checker
