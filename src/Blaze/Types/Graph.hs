@@ -5,7 +5,7 @@
 
 module Blaze.Types.Graph where
 
-import Blaze.Prelude hiding (transpose)
+import Blaze.Prelude hiding (transpose, empty)
 
 import Data.HashMap.Strict ((!))
 import qualified Data.HashMap.Strict as HMap
@@ -419,3 +419,11 @@ succEdges n g
   . mapMaybe (\succ' -> getFullEdge (Edge n succ') g)
   . HSet.toList
   $ succs n g
+
+-- | Converts a graph of one type into a graph of another.
+convertGraph :: (Hashable n, Graph l n g, Graph l n g') => g n -> g' n
+convertGraph g
+  = addEdges (edges g)
+  . addNodes (HSet.toList $ nodes g)
+  $ empty
+  
