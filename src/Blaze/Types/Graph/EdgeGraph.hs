@@ -2,7 +2,7 @@ module Blaze.Types.Graph.EdgeGraph where
 
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Graph (LEdge (LEdge), Edge (Edge), Graph, Identifiable, NodeId (NodeId))
+import Blaze.Types.Graph (LEdge (LEdge), Edge (Edge), Graph, GraphConstruct, Identifiable, NodeId (NodeId))
 import Blaze.Types.Cfg (BranchType, CfNode)
 import qualified Data.HashSet as HSet
 import Blaze.Types.Graph.Alga (AlgaGraph)
@@ -26,6 +26,7 @@ instance Functor (EdgeGraphNode e) where
 toEdgeGraph :: forall l n g g'.
   ( Graph l n g
   , Graph () (EdgeGraphNode l n) g'
+  , GraphConstruct () (EdgeGraphNode l n) g'
   , Hashable n
   ) => g n -> g' (EdgeGraphNode l n)
 toEdgeGraph g = G.addNodes nodelist $ G.fromEdges edges'

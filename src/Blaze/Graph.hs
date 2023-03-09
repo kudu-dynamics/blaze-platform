@@ -81,6 +81,7 @@ connectedNodes n g = HSet.fromList reachedNodes <> HSet.fromList reachingNodes
 connectedNodesAndEdges :: forall l n g g'.
   ( Graph l n g
   , Graph () (EdgeGraphNode l n) g'
+  , GraphConstruct () (EdgeGraphNode l n) g'
   , Hashable n
   , Hashable l
   ) => Proxy g' -> n -> g n -> (HashSet n, HashSet (LEdge l n))

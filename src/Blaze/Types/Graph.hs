@@ -43,6 +43,11 @@ fromTupleLEdge (lbl, e) = LEdge lbl (fromTupleEdge e)
 nodesFromEdges :: Hashable n => [LEdge l n] -> HashSet n
 nodesFromEdges es = HSet.fromList $ concatMap (\(LEdge _ e) -> e ^. #src : [e ^. #dst]) es
 
+class GraphConstruct l n g | g -> l where
+  empty :: g n
+  fromNode :: n -> g n
+  fromEdges :: [LEdge l n] -> g n
+
 class
   ( Functor g
   , Foldable g
@@ -50,9 +55,6 @@ class
   ) =>
   Graph l n g | g -> l where
 
-  empty :: g n
-  fromNode :: n -> g n
-  fromEdges :: [LEdge l n] -> g n
   succs :: Hashable n => n -> g n -> HashSet n
   preds :: Hashable n => n -> g n -> HashSet n
   nodes :: Hashable n => g n -> HashSet n
@@ -421,7 +423,7 @@ succEdges n g
   $ succs n g
 
 -- | Converts a graph of one type into a graph of another.
-convertGraph :: (Hashable n, Graph l n g, Graph l n g') => g n -> g' n
+convertGraph :: (Hashable n, Graph l n g, Graph l n g', GraphConstruct l n g') => g n -> g' n
 convertGraph g
   = addEdges (edges g)
   . addNodes (HSet.toList $ nodes g)
