@@ -52,6 +52,12 @@ maybeNullCall callAction = do
           False -> throwIO ex)
     ]
 
+tryJVM :: IO a -> IO (Either Text a)
+tryJVM action = do
+  try action >>= \case
+    Left (e :: JNI.JVMException) -> Left <$> JNI.showException e
+    Right a -> pure $ Right a
+
 suppressOut :: IO a -> IO a
 suppressOut action = do
   bracket quietStreams setStreams $ const action

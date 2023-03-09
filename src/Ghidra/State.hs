@@ -3,7 +3,7 @@ module Ghidra.State where
 import Ghidra.Prelude hiding (force, get)
 
 import qualified Language.Java as Java
-import Ghidra.Util (maybeNullCall, suppressOut)
+import Ghidra.Util (maybeNullCall, suppressOut, tryJVM)
 import qualified Ghidra.Types as J
 import qualified Data.BinaryAnalysis as BA
 import qualified Foreign.JNI as JNI
@@ -60,8 +60,8 @@ hasBeenAnalyzed gs = do
 data OpenDatabaseError
   = CouldNotFindFile Text
   | CouldNotFindLang Text
-  | ImportByUsingBestGuessError
-  | ImportByLookingForLcsError
+  | ImportByUsingBestGuessError Text
+  | ImportByLookingForLcsError Text
   deriving (Eq, Ord, Show, Generic)
 
 -- | Opens binary as Ghidra database.
@@ -83,7 +83,7 @@ openDatabase' opts fp = do
   runExceptT $ do
     prg :: J.Program <- case opts ^. #language of
       Nothing ->
-        liftMaybeM ImportByUsingBestGuessError . liftIO . maybeNullCall
+        liftEitherM . fmap (first ImportByUsingBestGuessError) . tryJVM
         $ Java.callStatic
           "ghidra.app.util.importer.AutoImporter"
           "importByUsingBestGuess"
@@ -96,7 +96,7 @@ openDatabase' opts fp = do
       Just lang -> do
         lang' <- liftMaybeM (CouldNotFindLang lang) $ getLang lang
         cspec <- liftIO . getCSpec lang' $ opts ^. #compiler
-        liftMaybeM ImportByLookingForLcsError . maybeNullCall
+        liftEitherM . fmap (first ImportByLookingForLcsError) . tryJVM
           $ Java.callStatic
             "ghidra.app.util.importer.AutoImporter"
             "importByLookingForLcs"

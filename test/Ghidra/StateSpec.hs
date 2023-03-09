@@ -8,6 +8,7 @@ import System.Directory (doesFileExist)
 import Ghidra.Core
 import Test.Hspec
 import qualified Data.Text as Text
+import Ghidra.State (OpenDatabaseError(ImportByUsingBestGuessError))
 
 
 diveBin :: FilePath
@@ -51,11 +52,12 @@ spec = describe "Ghidra.State" $ do
 
 
   context "handles errors" $ do
-    egs1 <- runIO $ runGhidra (State.openDatabase "/tmp/hopefullydoesnotexist")
-    it "should be unable to load binary without options" $ do
+    egs1 <- runIO . runGhidra $ State.openDatabase "/tmp/hopefullydoesnotexist"
+    it "should be unable to load file that does not exist" $ do
       egs1 `shouldSatisfy` \case
-        Left msg -> "java.io.FileNotFoundException" `Text.isPrefixOf` msg
-        Right _ -> False
+        Right (Left (ImportByUsingBestGuessError msg)) ->
+          "java.io.FileNotFoundException" `Text.isPrefixOf` msg
+        _ -> False
 
     let badlang = "langdoesnotexist"
     egs2 <- runIO . runGhidraOrError $ do
