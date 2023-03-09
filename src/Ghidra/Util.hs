@@ -1,3 +1,5 @@
+{- HLINT ignore "Redundant bracket" -}
+
 module Ghidra.Util where
 
 import Ghidra.Prelude hiding (force)
@@ -7,7 +9,7 @@ import qualified Language.Java as Java
 import qualified Ghidra.Types as J
 import Ghidra.Types (Iterator)
 import Language.Java (J(J))
-import qualified Foreign.JNI.Types as JNIT
+import qualified Foreign.JNI.Types as JNI
 import qualified Foreign.JNI as JNI
 import Foreign.Ptr (nullPtr)
 import Foreign.ForeignPtr (withForeignPtr)
@@ -22,7 +24,7 @@ iteratorToList it = do
       (coerce x:) <$> iteratorToList it
 
 isJNull :: J a -> Bool
-isJNull x = x == JNIT.jnull
+isJNull x = x == JNI.jnull
 
 maybeNull :: J a -> Maybe (J a)
 maybeNull x = bool (Just x) Nothing $ isJNull x
@@ -33,11 +35,28 @@ isJNull' (J fptr) = withForeignPtr fptr $ return . (== nullPtr)
 maybeNull' :: J a -> IO (Maybe (J a))
 maybeNull' x = bool (Just x) Nothing <$> isJNull' x
 
--- | Catches call that failes with Java NullPointerException
+-- | Catches any Java NullPointerException and returns 'Nothing' instead
 maybeNullCall :: IO a -> IO (Maybe a)
 maybeNullCall callAction = do
   jvm <- JNI.getJNIEnv
-  catch (Just <$> JNI.throwIfException jvm callAction) (\(_ :: SomeException) -> return Nothing)
+  -- Try to run action, but catch any JVM NPEs. However, some internal
+  -- inline-java code might have lifted some NPE into a Haskell-side
+  -- JNI.NullPointerException, so check for that first.
+  (Just <$> JNI.throwIfException jvm callAction)
+  `catches`
+    [ Handler (\(_ :: JNI.NullPointerException) -> pure Nothing)
+    , Handler (\ex@(JNI.JVMException jex) -> do
+        npeClass <- JNI.findClass $ JNI.referenceTypeName (JNI.SClass "java.lang.NullPointerException")
+        JNI.isInstanceOf jex npeClass >>= \case
+          True -> pure Nothing
+          False -> throwIO ex)
+    ]
+
+tryJVM :: IO a -> IO (Either Text a)
+tryJVM action = do
+  try action >>= \case
+    Left (e :: JNI.JVMException) -> Left <$> JNI.showException e
+    Right a -> pure $ Right a
 
 suppressOut :: IO a -> IO a
 suppressOut action = do
