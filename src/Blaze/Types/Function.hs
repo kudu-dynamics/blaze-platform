@@ -5,6 +5,7 @@ import Blaze.Prelude hiding (Symbol)
 import Data.BinaryAnalysis (Symbol (Symbol))
 import Blaze.Types.Graph (NodeId (NodeId), Identifiable (getNodeId))
 
+
 data Access = In | Out | InOut | Unknown
   deriving (Enum, Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, FromJSON, ToJSON)

@@ -265,3 +265,10 @@ getRootNode cfg = fromJust $ Ag.getNode (cfg ^. #graph) (cfg ^. #rootId)
 getNode :: Cfg n -> NodeId UUID -> Maybe n
 getNode cfg = Ag.getNode (cfg ^. #graph)
 
+getCfgCtx :: Cfg (CfNode a) -> Ctx
+getCfgCtx cfg_ = case getRootNode cfg_ of
+  Cfg.BasicBlock bb -> bb ^. #ctx
+  Cfg.Call n -> n ^. #ctx
+  Cfg.EnterFunc n -> n ^. #prevCtx
+  Cfg.LeaveFunc n -> n ^. #nextCtx
+  Cfg.Grouping n -> getCfgCtx $ n ^. #grouping

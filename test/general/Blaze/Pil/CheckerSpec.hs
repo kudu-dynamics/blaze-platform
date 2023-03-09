@@ -5,9 +5,14 @@ module Blaze.Pil.CheckerSpec where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint, const)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.BinaryAnalysis as BA
 import Blaze.Pil.Checker
 import Blaze.Types.Pil.Checker hiding (signed, len)
-import Blaze.Pil.Construct
+import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Pil (Ctx(Ctx))
+import Blaze.Types.Function (Function(Function))
+import qualified Blaze.Types.Function as Func
+import Blaze.Pil.Construct hiding (not)
 
 import Test.Hspec
 
@@ -171,7 +176,7 @@ spec = describe "Blaze.Pil.Checker" $ do
   context "checkStmts" $ do
     let pv = pilVar
         mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
-        checkVars = fmap (view #varSymTypeMap) . checkStmts
+        checkVars = fmap (view #varSymTypeMap) . checkStmts Nothing
         -- checkSolutions = fmap (view solutions) . checkStmts
         -- checkVarEqMap = fmap (view varEqMap) . checkStmts
         -- signed = DSType $ TVSign True
@@ -323,22 +328,130 @@ spec = describe "Blaze.Pil.Checker" $ do
 
       PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
 
---       PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
+  context "getRootFunctionParamInfo" $ do
+    let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown ]
+        ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" 0xf00 params
+        ctx = Ctx ctxFunc 0
+        paramInfo = getRootFunctionParamInfo ctx
+        callTarget = Pil.CallTarget { dest = Pil.CallFunc ctxFunc }
+        expected = RootFunctionParamInfo
+          { rootCtx = ctx
+          , rootParamMap = HashMap.fromList
+                           [ ("arg1", Pil.FuncParam callTarget $ Pil.ParamPosition 1) ]
+          }
+          
+    it "should generate the correct root param mapping" $ do
+        paramInfo `shouldBe` expected
+        
+  context "addAllConstraints" $ do
+    let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown ]
+        ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" 0xf00 params
+        ctx = Ctx ctxFunc 0
+        pvX = pilVar' "x" ctx
+        pvArg1 = pilVar' "arg1" ctx
+        rootFuncParamInfo = getRootFunctionParamInfo ctx
+        mArg1FuncVar = HashMap.lookup "arg1" $ rootFuncParamInfo ^. #rootParamMap
 
---     it "cleanDeepSymType nested ptrs" $ do
---       let dst = ptr . cf . ptr . cf $ char
+    it "Should get root function param info for single arg" $ do
+      isJust mArg1FuncVar `shouldBe` True
 
---           dst' = ptr . ptr $ char
+    let arg1FuncVar = fromJust mArg1FuncVar
+        cgCtx = emptyConstraintGenCtx
+                & #rootFunctionParamInfo ?~ rootFuncParamInfo
 
---       PShow (cleanDeepSymType dst) `shouldBe` PShow dst'
+    context "Linking root param to PilVar" $ do
+      let stmts = [ (0, def' pvX (var' pvArg1 4)) ]
+          (_stmts, csState) = unsafeFromRight $ addAllConstraints_ cgCtx stmts
+          funcSymMap = csState ^. #funcSymMap
+        
+      it "should contain single FuncVar in the funcSymMap" $ do
+        HashMap.keys funcSymMap `shouldBe` [arg1FuncVar]
 
---     it "cleanDeepSymType recursive container" $ do
---       let dst = DSRecursive (Sym 0)
---                 . TPointer (bw 64)
---                 . cf . ptr . cf . DSVar $ Sym 0
+      let arg1FuncVarSym = fromJust . HashMap.lookup arg1FuncVar $ csState ^. #funcSymMap
+          arg1PilVarSym = fromJust . HashMap.lookup pvArg1 $ csState ^. #varSymMap
+          arg1Eq (Constraint 0 s1 (SVar s2)) =
+            s1 == arg1FuncVarSym && s2 == arg1PilVarSym
+            ||
+            s2 == arg1FuncVarSym && s1 == arg1PilVarSym
+          arg1Eq _ = False
+          equalityConstraints = filter arg1Eq $ csState ^. #constraints
 
---           dst' = DSRecursive (Sym 0)
---                  . TPointer (bw 64)
---                  . ptr . DSVar $ Sym 0
+      it "should have a constraint equality between arg1 pilvar and funcvar" $ do
+        length equalityConstraints `shouldBe` 1
 
---       PShow (cleanDeepSymType dst) `shouldBe` PShow dst'
+    context "Linking root param to recursive CALL expr params" $ do
+      let pvY = pilVar' "y" ctx
+          stmts = [ (0, def' pvX (add (var' pvArg1 4) (const 1 4) 4))
+                  , (1, defCall' pvY (Pil.CallFunc ctxFunc) [var' pvX 4] 4)
+                  ]
+          (_stmts, csState) = unsafeFromRight $ addAllConstraints_ cgCtx stmts
+          funcSymMap = csState ^. #funcSymMap
+          isFuncParam (Pil.FuncParam _ _) = True
+          isFuncParam _ = False
+
+      it "should contain single FuncParam in the funcSymMap" $ do
+        filter isFuncParam (HashMap.keys funcSymMap) `shouldBe` [arg1FuncVar]
+
+      let arg1FuncVarSym = fromJust . HashMap.lookup arg1FuncVar $ csState ^. #funcSymMap
+          arg1PilVarSym = fromJust . HashMap.lookup pvArg1 $ csState ^. #varSymMap
+          xPilVarSym = fromJust . HashMap.lookup pvX $ csState ^. #varSymMap
+          onlySymToSym (Constraint _ a (SVar b)) = Just (a, b)
+          onlySymToSym _ = Nothing
+          symToSymConstraints = mapMaybe onlySymToSym $ csState ^. #constraints
+          xPilVarSymLinksToArg1FuncVarSym = not . null $ do
+            (a, b) <- symToSymConstraints
+            (c, d) <- symToSymConstraints
+            -- TODO: maybe add more permutations to make this guard more robust
+            guard $ b == c && d == xPilVarSym && a == arg1FuncVarSym
+            return (xPilVarSym, arg1FuncVarSym)
+      
+      it "should have a constraint equality between funcvar and callsite arg x" $ do
+        xPilVarSymLinksToArg1FuncVarSym `shouldBe` True
+
+      let arg1Eq (Constraint 0 s1 (SVar s2)) =
+            s1 == arg1FuncVarSym && s2 == arg1PilVarSym
+            ||
+            s2 == arg1FuncVarSym && s1 == arg1PilVarSym
+          arg1Eq _ = False
+          arg1EqualityConstraints = filter arg1Eq $ csState ^. #constraints
+
+      it "should have a constraint equality between arg1 pilvar and funcvar" $ do
+        length arg1EqualityConstraints `shouldBe` 1
+
+    context "Linking root param to recursive Call statement params" $ do
+      let stmts = [ (0, def' pvX (add (var' pvArg1 4) (const 1 4) 4))
+                  , (1, callStmt (Pil.CallFunc ctxFunc) [var' pvX 4])
+                  ]
+          (_stmts, csState) = unsafeFromRight $ addAllConstraints_ cgCtx stmts
+          funcSymMap = csState ^. #funcSymMap
+          isFuncParam (Pil.FuncParam _ _) = True
+          isFuncParam _ = False
+
+      it "should contain single FuncParam in the funcSymMap" $ do
+        filter isFuncParam (HashMap.keys funcSymMap) `shouldBe` [arg1FuncVar]
+
+      let arg1FuncVarSym = fromJust . HashMap.lookup arg1FuncVar $ csState ^. #funcSymMap
+          arg1PilVarSym = fromJust . HashMap.lookup pvArg1 $ csState ^. #varSymMap
+          xPilVarSym = fromJust . HashMap.lookup pvX $ csState ^. #varSymMap
+          onlySymToSym (Constraint _ a (SVar b)) = Just (a, b)
+          onlySymToSym _ = Nothing
+          symToSymConstraints = mapMaybe onlySymToSym $ csState ^. #constraints
+          xPilVarSymLinksToArg1FuncVarSym = not . null $ do
+            (a, b) <- symToSymConstraints
+            (c, d) <- symToSymConstraints
+            -- TODO: maybe add more permutations to make this guard more robust
+            guard $ b == c && d == xPilVarSym && a == arg1FuncVarSym
+            return (xPilVarSym, arg1FuncVarSym)
+      
+      it "should have a constraint equality between funcvar and callsite arg x" $ do
+        xPilVarSymLinksToArg1FuncVarSym `shouldBe` True
+
+      let arg1Eq (Constraint 0 s1 (SVar s2)) =
+            s1 == arg1FuncVarSym && s2 == arg1PilVarSym
+            ||
+            s2 == arg1FuncVarSym && s1 == arg1PilVarSym
+          arg1Eq _ = False
+          arg1EqualityConstraints = filter arg1Eq $ csState ^. #constraints
+
+      it "should have a constraint equality between arg1 pilvar and funcvar" $ do
+        length arg1EqualityConstraints `shouldBe` 1

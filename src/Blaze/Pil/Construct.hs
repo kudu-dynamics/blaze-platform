@@ -203,3 +203,11 @@ ret = Pil.Ret . Pil.RetOp
 
 nop :: Stmt
 nop = Pil.Nop
+
+callStmt :: Pil.CallDest Expression -> [Expression] -> Stmt
+callStmt dest args = Pil.Call $ Pil.CallOp dest mname args
+  where
+    mname :: Maybe Text
+    mname = case dest of
+      Pil.CallFunc (Function _ nm _ _) -> Just nm
+      _ -> Nothing

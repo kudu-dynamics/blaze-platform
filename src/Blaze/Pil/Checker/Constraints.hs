@@ -3,14 +3,16 @@
 module Blaze.Pil.Checker.Constraints where
 
 
-import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
+import Blaze.Prelude hiding (Constraint, Symbol, Type, bitSize, sym)
 import Blaze.Types.Pil (
+  CallDest,
   Expression (Expression),
   FuncVar (FuncParam, FuncResult),
   ParamPosition (ParamPosition),
   PilVar,
   StackOffset,
   Statement,
+  Symbol,
  )
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
@@ -21,7 +23,11 @@ import Blaze.Pil.Function (mkCallTarget)
 import Blaze.Types.Pil.Checker hiding (params, ret)
 
 
-constrainStandardFunc :: Sym -> BitWidth -> Pil.CallOp SymExpression -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
+constrainStandardFunc
+  :: Sym
+  -> BitWidth
+  -> Pil.CallOp SymExpression
+  -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
 constrainStandardFunc _r _resultSize (Pil.CallOp _ Nothing _) = return Nothing
 constrainStandardFunc r resultSize (Pil.CallOp _ (Just name) cparams) = case name of
   "fgets" -> case cparams of
@@ -108,8 +114,20 @@ lookupVarSym pv = do
     Nothing -> do
       s <- newSym
       addVarSym pv s
+      linkWhenRootFunctionParam pv s
       return s
     Just s -> return s
+
+linkWhenRootFunctionParam :: PilVar -> Sym -> ConstraintGen ()
+linkWhenRootFunctionParam pv pvSym = void . runMaybeT $ do
+  rootParamInfo <- MaybeT $ view #rootFunctionParamInfo
+  let paramMap = rootParamInfo ^. #rootParamMap
+  pvCtx <- hoistMaybe $ pv ^. #ctx
+  when (pvCtx == (rootParamInfo ^. #rootCtx)) $ do
+    funcVar <- hoistMaybe $ HashMap.lookup (pv ^. #symbol) paramMap
+    lift $ do
+      paramSym <- lookupFuncSym funcVar
+      addConstraint (paramSym, CSVar pvSym)
 
 -- | Get the type symbol associated with a 'FuncVar'.
 -- If no entry exists for the provided 'FuncVar' an entry
@@ -136,6 +154,23 @@ addSymExpression sym' x = #symMap %= HashMap.insert sym' x
 
 byteOffsetToBitOffset :: ByteOffset -> BitOffset
 byteOffsetToBitOffset (ByteOffset n) = BitOffset $ n * 8
+
+addCallOpConstraints
+  :: ( HasField' "args" a [SymExpression]
+     , HasField' "dest" a (CallDest SymExpression)
+     )
+  => a -> ConstraintGen (Pil.CallTarget SymExpression)
+addCallOpConstraints x = do
+  let callTgt = mkCallTarget x
+      -- Create the FuncVars for parameters
+      argFuncVars = FuncParam callTgt . ParamPosition <$>
+        [1..(length $ x ^. #args)]
+  argFuncSyms <- traverse lookupFuncSym argFuncVars
+  let callArgSyms = view (#info . #sym) <$> x ^. #args
+  -- Set symbols for call args and function params to be equal
+  zipWithM_ equals argFuncSyms callArgSyms
+  return callTgt
+
 
 -- | Traverse over a 'ConstraintSymType' and into any 'PilType'
 -- fields. Each 'PilType' is replaced with a 'Sym' symbol (?) and the
@@ -204,14 +239,7 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
 
   -- TODO get most general type for this and args:
   Pil.CALL x -> do
-    let callTgt = mkCallTarget x
-        -- Create the FuncVars for parameters
-        argFuncVars = FuncParam callTgt . ParamPosition <$>
-          [1..(callTgt ^. #numArgs)]
-    argFuncSyms <- traverse lookupFuncSym argFuncVars
-    let callArgSyms = view (#info . #sym) <$> x ^. #params
-    -- Set symbols for call args and function params to be equal
-    zipWithM_ equals argFuncSyms callArgSyms
+    callTgt <- addCallOpConstraints x
     -- Set constraint for return value from call target
     resultFuncSym <- lookupFuncSym $ FuncResult callTgt
     equals resultFuncSym r
@@ -823,8 +851,22 @@ addStmtTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
 
 addStmtTypeConstraints (Pil.DefMemPhi x) = traverse toSymExpression $ Pil.DefMemPhi x
 -- TODO: Link up args to params
-addStmtTypeConstraints (Pil.Call x) = traverse toSymExpression $ Pil.Call x
-addStmtTypeConstraints (Pil.TailCall x) = traverse toSymExpression $ Pil.TailCall x
+addStmtTypeConstraints (Pil.Call x) = do
+  callOp <- traverse toSymExpression x
+  void $ addCallOpConstraints callOp
+  traverse_ addExprTypeConstraints callOp
+  return $ Pil.Call callOp
+addStmtTypeConstraints (Pil.TailCall x) = do
+  tailCallOp <- traverse toSymExpression x
+  callTgt <- addCallOpConstraints tailCallOp
+  traverse_ addExprTypeConstraints tailCallOp
+  case x ^. #ret of
+    Nothing -> return ()
+    Just (retVar, _retSize) -> do
+      resultFuncSym <- lookupFuncSym $ FuncResult callTgt
+      retSym <- lookupVarSym retVar
+      equals retSym resultFuncSym
+  return $ Pil.TailCall tailCallOp
 addStmtTypeConstraints (Pil.BranchCond (Pil.BranchCondOp expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym

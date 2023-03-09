@@ -8,6 +8,7 @@ module Blaze.Prelude
   , StreamingIO
   , PShow(PShow)
   , catchEither
+  , hoistMaybe
   , liftListM
   , liftListIO
   , liftEitherIO
@@ -69,7 +70,7 @@ import Control.Lens as Exports
     _5,
   )
 import Control.Monad.Trans.Class as Exports (MonadTrans)
-import Control.Monad.Trans.Maybe as Exports (MaybeT, runMaybeT)
+import Control.Monad.Trans.Maybe as Exports (MaybeT (MaybeT), runMaybeT)
 import Data.Aeson as Exports (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
 import Data.BinaryAnalysis as Exports
   ( Address (Address),
@@ -131,6 +132,10 @@ liftListM = Streamly.Prelude.fromList <=< lift
 
 liftListIO :: (StreamingIO t m) => IO [a] -> t m a
 liftListIO = liftListM . liftIO
+
+-- | Convert a 'Maybe' computation to 'MaybeT'.
+hoistMaybe :: (Applicative m) => Maybe b -> MaybeT m b
+hoistMaybe = MaybeT . pure
 
 liftMaybe :: MonadError e m => e -> Maybe a -> m a
 liftMaybe e Nothing = throwError e
