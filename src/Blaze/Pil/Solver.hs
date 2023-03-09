@@ -636,7 +636,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     case (x ^. #name) >>= flip HashMap.lookup fcg of
       Nothing -> fallbackAsFreeVar
       Just gen -> do
-        args <- mapM solveExprRec $ x ^. #params
+        args <- mapM solveExprRec $ x ^. #args
         r <- fallbackAsFreeVar
         gen r args
         return r
@@ -1064,7 +1064,7 @@ solveStmtsWith :: SMTConfig
 solveStmtsWith solverCfg stmts = do
   -- should essential analysis steps be included here?
   -- let stmts' = Analysis.substFields stmts
-  let er = Ch.checkStmts stmts
+  let er = Ch.checkStmts Nothing stmts
   case er of
     Left e -> return $ Left (Left e)
     Right tr -> solveTypedStmtsWith solverCfg (tr ^. #varSymTypeMap) (tr ^. #symTypedStmts) >>= \case

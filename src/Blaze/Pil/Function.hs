@@ -2,8 +2,8 @@ module Blaze.Pil.Function where
 
 import Blaze.Prelude
 import Blaze.Types.Pil (
-  CallOp,
-  CallTarget (CallTarget, dest, numArgs),
+  CallDest,
+  CallTarget (CallTarget, dest),
   FuncRef (FuncRef, name, hasResult, params, start, varparam),
   FunctionInfo,
  )
@@ -18,9 +18,11 @@ funcRefFromFunc func =
     , hasResult = isJust $ func ^. #result
     }
 
-mkCallTarget :: CallOp expr -> CallTarget expr
+mkCallTarget
+  :: HasField' "dest" a (CallDest expr)
+  => a
+  -> CallTarget expr
 mkCallTarget call =
   CallTarget
     { dest = call ^. #dest
-    , numArgs = length $ call ^. #params
     }

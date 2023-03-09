@@ -1808,7 +1808,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       context "Pil.Def" $ do
         let tenv = [(pilVar "a", bitVec (bw 32))]
             stmts' = [def "a" $ const 888 4]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1831,7 +1831,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             stmts' = [ def "a" $ const 888 4
                      , def "b" $ var "a" 4
                      ]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1863,7 +1863,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                      , def "c" $ var "b" 4
                      , def "d" $ var "c" 4
                      ]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1891,7 +1891,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       context "Pil.Def" $ do
         let tenv = [(pilVar "a", tbool)]
             stmts' = [def "a" $ const 888 4]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1911,7 +1911,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       context "Pil.Constraint" $ do
         let tenv = [(pilVar "a", bitVec (bw 32))]
             stmts' = [constraint $ cmpE (var "a" 4) (const 42 4) 4]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1932,7 +1932,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             stmts' = [ store ptr $ const 42 4
                     , def "a" $ load ptr 4
                     ]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1953,7 +1953,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         let tenv = [(pilVar "a", unsigned32)]
             ptr = constPtr 0xdeadbeef 4
             stmts' = [def "a" $ load ptr 4]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -1979,7 +1979,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                      , def "b" $ load ptr 4
                      , def "c" $ cmpE (var "a" 4) (var "b" 4) 4
                      ]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do
@@ -2006,7 +2006,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         let tenv = [ (pilVar "a", unsigned64) ]
             ptr = constPtr 0xdeadbeef 4
             stmts' = [ def "a" $ zx ( sx (load ptr 1) 4) 8 ]
-            eTReport = checkStmts stmts'
+            eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
 
             cmd = do

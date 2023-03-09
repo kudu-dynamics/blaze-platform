@@ -46,7 +46,7 @@ relationships between lengths, bitwidths, signedness, and other type-level attri
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import Blaze.Types.Pil (Expression, Statement, PilVar, FuncVar)
+import Blaze.Types.Pil (Ctx, Expression, Statement, PilVar, FuncVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -113,21 +113,19 @@ unifyConstraints cxs = snd $ runUnify unify initialState
                               , currentStmt = 0
                               }
 
--- | Adds constraints for all statements.
--- This is a good place to add constraints that require
--- access to all statements.
-addAllConstraints ::
+addAllConstraints_ ::
+  ConstraintGenCtx ->
   [(Int, Statement Expression)] ->
   Either ConstraintGenError
     ( [Statement SymExpression],
       ConstraintGenState
     )
-addAllConstraints indexedStmts =
+addAllConstraints_ cgCtx indexedStmts =
   fmap (, gst) er
   where
     er :: Either ConstraintGenError [Statement SymExpression]
     gst :: ConstraintGenState
-    (er, gst) = runConstraintGen_ $ do
+    (er, gst) = flip runConstraintGen (cgCtx, emptyConstraintGenState) $ do
       mapM
         ( \(i, s) -> do
             #currentStmt .= i
@@ -135,16 +133,33 @@ addAllConstraints indexedStmts =
         )
         indexedStmts
 
+-- | Adds constraints for all statements.
+-- This is a good place to add constraints that require
+-- access to all statements.
+addAllConstraints ::
+  Maybe Ctx ->
+  [(Int, Statement Expression)] ->
+  Either ConstraintGenError
+    ( [Statement SymExpression],
+      ConstraintGenState
+    )
+addAllConstraints mRootCtx = addAllConstraints_ cgCtx
+  where
+    cgCtx :: ConstraintGenCtx
+    cgCtx = emptyConstraintGenCtx
+            & #rootFunctionParamInfo .~ (getRootFunctionParamInfo <$> mRootCtx)
+
 -- | Attempt to find a unification solution to the provided statements.
 stmtSolutions ::
+  Maybe Ctx ->
   [(Int, Statement Expression)] ->
   Either ConstraintGenError
     ( [Statement SymExpression],
       ConstraintGenState,
       UnifyState
     )
-stmtSolutions indexedStmts = do
-  (symStmts', genState) <- addAllConstraints indexedStmts
+stmtSolutions mRootCtx indexedStmts = do
+  (symStmts', genState) <- addAllConstraints mRootCtx indexedStmts
   -- TODO: Why are the constraints reversed?
   let unifyState = unifyConstraints . reverse $ genState ^. #constraints
   -- Ensure all vars are resolved to the original/canonical/origin var
@@ -153,8 +168,11 @@ stmtSolutions indexedStmts = do
           unifyState)
 
 -- | This is the main function to check / infer types for a collection of statements.
-checkIndexedStmts :: [(Int, Statement Expression)] -> Either ConstraintGenError TypeReport
-checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
+checkIndexedStmts
+  :: Maybe Ctx
+  -> [(Int, Statement Expression)]
+  -> Either ConstraintGenError TypeReport
+checkIndexedStmts mRootCtx indexedStmts = fmap toReport . stmtSolutions mRootCtx $ indexedStmts
   where
     toReport :: ( [Statement SymExpression]
                 , ConstraintGenState
@@ -218,8 +236,11 @@ checkIndexedStmts indexedStmts = fmap toReport . stmtSolutions $ indexedStmts
             f :: Sym -> DeepSymType
             f sv = maybe (DSVar sv) identity $ HashMap.lookup sv deepSols
 
-checkStmts :: [Statement Expression] -> Either ConstraintGenError TypeReport
-checkStmts = checkIndexedStmts . zip [0..]
+checkStmts
+  :: Maybe Ctx
+  -> [Statement Expression]
+  -> Either ConstraintGenError TypeReport
+checkStmts mRootCtx = checkIndexedStmts mRootCtx . zip [0..]
 
 removeUnusedPhi :: [(Int, Pil.Stmt)] -> [(Int, Pil.Stmt)]
 removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmts'

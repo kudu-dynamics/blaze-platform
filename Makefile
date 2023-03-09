@@ -49,5 +49,8 @@ docs:
 			find docs/ -name '*.html' -type f -exec sed -i 's|<a href="'"${haddock_remote}$$d"'/docs|<a href="../'"$$d"'|g' {} \; ; \
 		done
 
+tags:
+	hasktags -R -e . ../ghidra-haskell ../binaryninja-haskell ../binary-analysis
+
 clean:
 	stack $(stack_options) clean

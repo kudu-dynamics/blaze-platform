@@ -3,13 +3,20 @@
 module Blaze.Types.Pil.Checker where
 
 import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
+import Blaze.Types.Function (
+  ParamInfo,
+  FuncParamInfo(FuncParamInfo, FuncVarArgInfo),
+  )
 import Blaze.Types.Pil (
+  CallTarget(CallTarget),
+  Ctx,
   ExprOp,
   FuncVar,
   PilVar,
   StackOffset,
   Statement,
  )
+import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 
 type BitWidth = Bits
@@ -108,6 +115,11 @@ data ConstraintGenError = CannotFindPilVarInVarSymMap PilVar
                                               , expected :: Int
                                               , got :: Int
                                               }
+                        | MultipleRootFunctionArgsWithSamePrefix
+                          { ctx :: Ctx
+                          , pvName :: Text
+                          , paramNames :: [Text]
+                          }
                         deriving (Eq, Ord, Show, Generic)
 
 data InfoExpression a = InfoExpression
@@ -170,13 +182,41 @@ data TypeReport = TypeReport
 
 type CallConstraintGenerator = Sym -> [Sym] -> ConstraintGen ()
 
-newtype ConstraintGenCtx = ConstraintGenCtx
+-- | This represents the function parameters for the start/root function,
+-- from with a CFG or list of statements is created, which otherwise disappears.
+-- This can be used to link matching PilVars to function params.
+data RootFunctionParamInfo = RootFunctionParamInfo
+  { rootCtx :: Ctx
+    -- | Mapping of arg name to FuncVar
+  , rootParamMap :: HashMap Text (FuncVar SymExpression)
+  } deriving (Generic, Show, Eq)
+
+getRootFunctionParamInfo :: Ctx -> RootFunctionParamInfo
+getRootFunctionParamInfo ctx = RootFunctionParamInfo ctx paramMap
+  where
+    params = ctx ^. #func . #params
+    paramMap = HashMap.fromList . fmap splitParamInfo . zip [1..] $ params
+    callTarget :: CallTarget SymExpression
+    callTarget = CallTarget { Pil.dest = Pil.CallFunc $ ctx ^. #func }
+    splitParamInfo :: (Int, FuncParamInfo) -> (Text, FuncVar SymExpression)
+    splitParamInfo (pos, fpinfo) = case fpinfo of
+      FuncParamInfo x -> f x
+      FuncVarArgInfo x -> f x
+      where
+        f :: ParamInfo -> (Text, FuncVar SymExpression)
+        f pinfo = (pinfo ^. #name, Pil.FuncParam callTarget $ Pil.ParamPosition pos)
+
+
+
+data ConstraintGenCtx = ConstraintGenCtx
   { -- | Hashmap index is (stmt index from IndexedStmts, function name)
     callConstraintGenerators :: HashMap (Int, Text) CallConstraintGenerator
+    -- | Info needed to link function param args of CFG's root function
+  , rootFunctionParamInfo :: Maybe RootFunctionParamInfo
   } deriving (Generic)
 
 emptyConstraintGenCtx :: ConstraintGenCtx
-emptyConstraintGenCtx = ConstraintGenCtx HashMap.empty
+emptyConstraintGenCtx = ConstraintGenCtx HashMap.empty Nothing
 
 data ConstraintGenState = ConstraintGenState
   { currentSym :: Sym
@@ -187,7 +227,6 @@ data ConstraintGenState = ConstraintGenState
   , currentStmt :: Int
   , stackAddrSymMap :: HashMap StackOffset Sym
   } deriving (Eq, Ord, Show, Generic)
-
 
 emptyConstraintGenState :: ConstraintGenState
 emptyConstraintGenState = ConstraintGenState (Sym 0) HashMap.empty HashMap.empty HashMap.empty [] 0 HashMap.empty
@@ -202,7 +241,10 @@ newtype ConstraintGen a = ConstraintGen
                    , MonadReader ConstraintGenCtx
                    )
 
-runConstraintGen :: ConstraintGen a -> (ConstraintGenCtx, ConstraintGenState) -> (Either ConstraintGenError a, ConstraintGenState)
+runConstraintGen
+  :: ConstraintGen a
+  -> (ConstraintGenCtx, ConstraintGenState)
+  -> (Either ConstraintGenError a, ConstraintGenState)
 runConstraintGen m (ctx, ss) = runIdentity . flip runStateT ss . flip runReaderT ctx . runExceptT . (\(ConstraintGen x) -> x) $ m
 
 runConstraintGen_ :: ConstraintGen a -> (Either ConstraintGenError a, ConstraintGenState)

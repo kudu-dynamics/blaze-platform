@@ -212,12 +212,12 @@ instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) whe
         exitCtx = disp $ op ^. #leavingCtx
         retCtx = disp $ op ^. #returningToCtx
     (Pil.Call c) -> case c ^. #name of
-      (Just name) -> Text.pack $ printf "call (%s) %s" name params
-      Nothing -> Text.pack $ printf "call (Nothing) (%s) %s" dest params
+      (Just name) -> Text.pack $ printf "call (%s) %s" name args
+      Nothing -> Text.pack $ printf "call (Nothing) (%s) %s" dest args
       where
         dest = disp $ c ^. #dest
-        params :: Text
-        params = show $ fmap disp $ c ^. #params
+        args :: Text
+        args = show $ fmap disp $ c ^. #args
     (Pil.DefPhi op) -> Text.pack $ printf "defPhi \"%s\" %s" var val
       where
         var = disp $ op ^. #dest
@@ -348,12 +348,12 @@ dispExprOp exprOp size = case exprOp of
   (Pil.XOR op) -> dispBinop "xor" op size
   (Pil.ZX op) -> dispUnop "zx" op size
   (Pil.CALL op) -> case op ^. #name of
-    (Just name) -> Text.pack $ printf "call %s %s %s" name dest params
-    Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest params
+    (Just name) -> Text.pack $ printf "call %s %s %s" name dest args
+    Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest args
     where
       dest = disp (op ^. #dest)
-      params :: Text
-      params = show (fmap disp (op ^. #params))
+      args :: Text
+      args = show (fmap disp (op ^. #args))
   (Pil.StrCmp op) -> dispBinop "strcmp" op size
   (Pil.StrNCmp op) -> Text.pack $ printf "strncmp %d %s %s %s" (op ^. #len) (disp (op ^. #left)) (disp (op ^. #right)) (disp size)
   (Pil.MemCmp op) -> dispBinop "memcmp" op size

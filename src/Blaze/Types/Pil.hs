@@ -148,7 +148,7 @@ data VarJoinOp expr = VarJoinOp
 data CallOp expr = CallOp
   { dest :: CallDest expr
   , name :: Maybe Text
-  , params :: [expr]
+  , args :: [expr]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data ExtractOp expr = ExtractOp
@@ -333,9 +333,9 @@ data CallStatement = CallStatement
 mkCallStatement :: Stmt -> Maybe CallStatement
 mkCallStatement stmt' = case stmt' of
   Call callOp' ->
-    Just $ CallStatement stmt' callOp' (callOp' ^. #params) Nothing
+    Just $ CallStatement stmt' callOp' (callOp' ^. #args) Nothing
   Def (DefOp resultVar' (Expression _sz (CALL callOp'))) ->
-    Just $ CallStatement stmt' callOp' (callOp' ^. #params) (Just resultVar')
+    Just $ CallStatement stmt' callOp' (callOp' ^. #args) (Just resultVar')
   TailCall tc ->
     Just $ CallStatement stmt' callOp' (tc ^. #args) Nothing
     where
@@ -429,9 +429,8 @@ data FuncVar expr
  the same call destination and expectations around
  call arguments and results.
 -}
-data CallTarget expr = CallTarget
+newtype CallTarget expr = CallTarget
   { dest :: CallDest expr
-  , numArgs :: Int
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)

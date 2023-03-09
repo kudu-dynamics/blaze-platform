@@ -710,11 +710,11 @@ instance Tokenizable a => Tokenizable (Pil.CallOp a) where
     case (op ^. #name, op ^. #dest) of
       (Just name, Pil.CallAddr fptr) ->
         addressToken (Just name) (fptr ^. #address)
-          <++> tokenizeAsTuple (op ^. #params)
+          <++> tokenizeAsTuple (op ^. #args)
       _ ->
         [keywordToken "call", tt " "]
           <++> tokenize (op ^. #dest)
-          <++> tokenizeAsTuple (op ^. #params)
+          <++> tokenizeAsTuple (op ^. #args)
 
 instance Tokenizable Pil.CallSite where
   tokenize x =
