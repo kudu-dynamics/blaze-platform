@@ -10,7 +10,7 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph (Identifiable, NodeId, getNodeId, LEdge(LEdge), Edge(Edge))
 import qualified Blaze.Types.Path as P
-import Blaze.Types.Path (IsPath)
+import Blaze.Types.Path (IsPath, PathConstruct)
 import qualified Data.List.NonEmpty as NE
 
 -- | A graph implementation that is build atop the Alga graph library.
@@ -24,6 +24,40 @@ data AlgaPath l i n = AlgaPath
 
 instance (NFData l, NFData i, NFData n) => NFData (AlgaPath l i n)
 
+instance
+  (Ord i, Hashable i, Hashable n, Identifiable n i) =>
+  PathConstruct l n (AlgaPath l i)
+  where
+
+  fromPathGraph rootNode_ g_ = do
+    ensureLinearPathGraph
+    return $ AlgaPath
+      { rootNode = getNodeId rootNode_
+      , graph = g
+      }
+    where
+      g = G.convertGraph g_
+      -- | This fails if any node as multiple succs, if root has pred, or
+      -- if there is a loop.
+      ensureLinearPathGraph = do
+        ensureRootExistsAndHasNoPreds
+        ensureLinearWithoutLoops HashSet.empty rootNode_
+
+      ensureRootExistsAndHasNoPreds =
+        bool mzero (return ())
+        $ HashSet.null (G.preds rootNode_ g)
+        && G.hasNode rootNode_ g
+
+      ensureLinearWithoutLoops visited n = case HashSet.toList (G.succs n g) of
+        [] -> return () -- end of path reached
+        [m] -> case HashSet.member m visited of
+          True -> mzero
+          False -> ensureLinearWithoutLoops (HashSet.insert m visited) m 
+        _ -> mzero
+
+  fromEdges startNode [] = P.fromPathGraph startNode (G.fromNode startNode :: AlgaGraph l i n)
+  fromEdges startNode es = P.fromPathGraph startNode (G.fromEdges es :: AlgaGraph l i n)
+    
 instance
   (Ord i, Hashable i, Hashable n, Identifiable n i) =>
   IsPath l n (AlgaPath l i)
@@ -56,40 +90,11 @@ instance
     return . LEdge l $ Edge a b
 
   nodes = G.nodes . view #graph
-
-  fromPathGraph rootNode_ g_ = do
-    ensureLinearPathGraph
-    return $ AlgaPath
-      { rootNode = getNodeId rootNode_
-      , graph = g
-      }
-    where
-      g = G.convertGraph g_
-      -- | This fails if any node as multiple succs, if root has pred, or
-      -- if there is a loop.
-      ensureLinearPathGraph = do
-        ensureRootExistsAndHasNoPreds
-        ensureLinearWithoutLoops HashSet.empty rootNode_
-
-      ensureRootExistsAndHasNoPreds =
-        bool mzero (return ())
-        $ HashSet.null (G.preds rootNode_ g)
-        && G.hasNode rootNode_ g
-
-      ensureLinearWithoutLoops visited n = case HashSet.toList (G.succs n g) of
-        [] -> return () -- end of path reached
-        [m] -> case HashSet.member m visited of
-          True -> mzero
-          False -> ensureLinearWithoutLoops (HashSet.insert m visited) m 
-        _ -> mzero
                  
   toPathGraph p =
     ( fromJust . HashMap.lookup (p ^. #rootNode) $ p ^. #graph . #nodeMap
     , G.convertGraph $ p ^. #graph
     )
-
-  fromEdges startNode [] = P.fromPathGraph startNode (G.fromNode startNode :: AlgaGraph l i n)
-  fromEdges startNode es = P.fromPathGraph startNode (G.fromEdges es :: AlgaGraph l i n)
 
   toNodeList p = followNodes $ unsafeGetNode (p ^. #rootNode) p
     where
@@ -150,7 +155,6 @@ instance
       backtrackAndRemove Nothing g = g
       backtrackAndRemove (Just x) g = backtrackAndRemove (P.pred x p)
         $ G.removeNode x g -- removing nodes removes edges with nodes in AlgaGraph
-
 
 getNode :: Hashable i => NodeId i -> AlgaPath l i n -> Maybe n
 getNode n p = HashMap.lookup n $ p ^. #graph . #nodeMap

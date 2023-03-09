@@ -37,7 +37,7 @@ visitCountsFromList = VisitCounts . HashMap.fromList
 -- TODO: we could make this run in a monad and the changeOnRevisit function could run in
 -- the monad and keep track of state.
 getAllPaths
-  :: forall l n g p. (Graph l n g, IsPath l n p, Hashable n, Hashable l)
+  :: forall l n g p. (Graph l n g, PathConstruct l n p, Hashable n, Hashable l)
   => (Int -> n -> n)
   -> Int
   -> n
@@ -67,7 +67,7 @@ getAllPaths changeOnRevisit revisitLimit startNode g
             b' = bool b (changeOnRevisit visitCount b) $ visitCount > 1
 
 -- | Simple paths go from the root to a term node and don't revisit the same node twice
-getAllSimplePaths :: (Hashable n, Hashable l, Graph l n g, IsPath l n p) => n -> g n -> [p n]
+getAllSimplePaths :: (Hashable n, Hashable l, Graph l n g, PathConstruct l n p) => n -> g n -> [p n]
 getAllSimplePaths = getAllPaths (\_ _ -> error "Should not revisit") 0
 
 -- | Returns only paths that contain all the required nodes
@@ -76,7 +76,7 @@ getAllSimplePaths = getAllPaths (\_ _ -> error "Should not revisit") 0
 -- extremely large functions. Maybe it would be better to `getAllPaths` and filter the
 -- results.
 getPathsContaining_
-  :: forall l n g p. (Graph l n g, IsPath l n p, Hashable n, Hashable l)
+  :: forall l n g p. (Graph l n g, PathConstruct l n p, Hashable n, Hashable l)
   => DescendantsMap n
   -> (Int -> n -> n)
   -> Int
@@ -118,7 +118,7 @@ getPathsContaining_ (G.DescendantsMap dmap) changeOnRevisit revisitLimit startNo
 
 -- | Returns only paths that contain all the required nodes
 getPathsContaining
-  :: (Graph l n g, IsPath l n p, Hashable n, Hashable l)
+  :: (Graph l n g, PathConstruct l n p, Hashable n, Hashable l)
   => (Int -> n -> n)
   -> Int
   -> n
@@ -134,7 +134,7 @@ getPathsContaining changeOnRevisit revisitLimit startNode g
 -- remaining required nodes, but make sure you can get to the required nodes without
 -- having to go through an avoid node.
 getPathsContainingAndAvoiding_
-  :: (Graph l n g, IsPath l n p, Hashable n, Hashable l)
+  :: (Graph l n g, IsPath l n p, PathConstruct l n p, Hashable n, Hashable l)
   => DescendantsMap n
   -> (Int -> n -> n)
   -> Int  
@@ -151,7 +151,7 @@ getPathsContainingAndAvoiding_ dmap changeOnRevisit revisitLimit startNode g req
 -- | Returns only paths that contain all the required nodes
 --   but don't contain any of the avoidNodes
 getPathsContainingAndAvoiding
-  :: (Graph l n g, IsPath l n p, Hashable n, Hashable l)
+  :: (Graph l n g, IsPath l n p, PathConstruct l n p, Hashable n, Hashable l)
   => (Int -> n -> n)
   -> Int
   -> n

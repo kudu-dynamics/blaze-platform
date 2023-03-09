@@ -2,7 +2,7 @@ module Blaze.Fir where
 
 import Blaze.Prelude
 import Blaze.Types.Fir hiding (dest)
-import Blaze.Types.Graph (Edge(Edge), Graph, LEdge(LEdge))
+import Blaze.Types.Graph (Edge(Edge), Graph, GraphConstruct, LEdge(LEdge))
 import qualified Blaze.Types.Graph as G
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -90,7 +90,8 @@ getIfChains g = do
 toFirGraph :: forall l n g g'.
               ( Graph l n g
               , Hashable n
-              , Graph (FirEdgeLabel l) (FirNode n) g')
+              , GraphConstruct (FirEdgeLabel l) (FirNode n) g'
+              )
            => [IfChain n] -> g n -> g' (FirNode n)
 toFirGraph ifChains g = case HashSet.toList $ G.nodes g of
   [bb] -> G.fromNode $ FirBasicBlock bb

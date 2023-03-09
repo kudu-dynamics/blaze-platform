@@ -29,7 +29,7 @@ instance (NFData l, NFData i, NFData n) => NFData (AlgaGraph l i n)
 
 instance
   (Ord i, Hashable i, Hashable n, Identifiable n i) =>
-  Graph l n (AlgaGraph l i)
+  GraphConstruct l n (AlgaGraph l i)
   where
   empty = AlgaGraph G.empty HMap.empty HMap.empty
   fromNode node =
@@ -43,6 +43,11 @@ instance
       , edgeMap = HMap.fromList $ (\e -> (getNodeId <$> e ^. #edge, e ^. #label)) <$> ledges
       , nodeMap = HMap.fromList $ (\n -> (getNodeId n, n)) <$> HSet.toList (nodesFromEdges ledges)
       }
+    
+instance
+  (Ord i, Hashable i, Hashable n, Identifiable n i) =>
+  Graph l n (AlgaGraph l i)
+  where
   succs n g =
     HSet.fromList . mapMaybe (getNode g) . Set.toList . G.postSet (getNodeId n) $ adjacencyMap g
   preds n g =

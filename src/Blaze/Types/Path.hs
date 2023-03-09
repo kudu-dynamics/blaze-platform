@@ -2,11 +2,9 @@
 module Blaze.Types.Path where
 
 import Blaze.Prelude
-import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge), Graph)
-
+import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge), Graph, GraphConstruct)
 
 class IsPath l n p | p -> l where
-
   root :: p n -> n
   end :: p n -> n
   succ :: n -> p n -> Maybe n
@@ -19,17 +17,8 @@ class IsPath l n p | p -> l where
 
   nodes :: p n -> HashSet n
 
-  -- | From a graph with a single path. Fails if g is empty or has multiple paths
-  -- First arg is starting node.
-  -- Starting node is passed in to possibly reduce redundant computation.
-  -- Fails if starting node has preds
-  fromPathGraph :: Graph l n g => n -> g n -> Maybe (p n)
   -- | Converts path to (starting node, graph), where graph contains a linear path
-  toPathGraph :: Graph l n g => p n -> (n, g n)
-  -- | Creates a path from a list of edges. n is start node.
-  -- If the list of edges is empty, a singleton path is created.
-  -- Returns Nothing if the edge list forms a graph with multiple paths.
-  fromEdges :: n -> [LEdge l n] -> Maybe (p n)
+  toPathGraph :: (Graph l n g, GraphConstruct l n g) => p n -> (n, g n)
 
   -- | Converts to list of nodes, ordered according to position in the path
   toNodeList :: p n -> NonEmpty n
@@ -50,6 +39,18 @@ class IsPath l n p | p -> l where
   removeAfterNode :: n -> p n -> p n
   -- | Removes path before n, but keeps n
   removeBeforeNode :: n -> p n -> p n
+
+class PathConstruct l n p | p -> l where
+  -- | From a graph with a single path. Fails if g is empty or has multiple paths
+  -- First arg is starting node.
+  -- Starting node is passed in to possibly reduce redundant computation.
+  -- Fails if starting node has preds
+  fromPathGraph :: Graph l n g => n -> g n -> Maybe (p n)
+
+  -- | Creates a path from a list of edges. n is start node.
+  -- If the list of edges is empty, a singleton path is created.
+  -- Returns Nothing if the edge list forms a graph with multiple paths.
+  fromEdges :: n -> [LEdge l n] -> Maybe (p n)
 
   build :: PathBuilder l n -> p n
 
