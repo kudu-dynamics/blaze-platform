@@ -515,8 +515,8 @@ lookupVarSym pv = do
     err = throwError . ErrorMessage
           $ "lookupVarSym failed for var '" <> pilVarName pv <> "'"
 
-bitsToOperationSize :: Bits -> Pil.OperationSize
-bitsToOperationSize = Pil.OperationSize . (`div` 8) . fromIntegral
+bitsToOperationSize :: forall a. Bits -> Pil.Size a
+bitsToOperationSize = Pil.Size . (`div` 8) . fromIntegral
 
 dstToExpr :: DSTExpression -> Expression
 dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. #size) $ dstToExpr <$> op

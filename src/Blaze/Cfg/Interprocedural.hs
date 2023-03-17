@@ -37,24 +37,25 @@ getCallStmt node = do
   stmt <- lastMay (node ^. #nodeData)
   mkCallStatement stmt
 
-mkParamVar :: Ctx -> FuncParamInfo -> PilVar
-mkParamVar ctx funcParam =
-  PilVar sym (Just ctx)
- where
-  sym :: Symbol
-  sym = case funcParam of
-    FuncParamInfo paramInfo -> coerce $ paramInfo ^. #name
-    FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name
+getParamSym :: FuncParamInfo -> Symbol
+getParamSym = \case
+  FuncParamInfo paramInfo -> coerce $ paramInfo ^. #name
+  FuncVarArgInfo paramInfo -> coerce $ paramInfo ^. #name
 
 -- | Create a node that indicates a context switch between two function contexts.
 mkEnterFuncNode :: UUID -> Ctx -> Ctx -> CallStatement -> EnterFuncNode [Stmt]
 mkEnterFuncNode uuid' outerCtx calleeCtx callStmt =
   EnterFuncNode outerCtx calleeCtx uuid' stmts
   where
-    paramVars :: [PilVar]
-    paramVars = mkParamVar calleeCtx <$> calleeCtx ^. #func . #params
+    mkParamVar :: (FuncParamInfo, Expression) -> (PilVar, Expression)
+    mkParamVar (pinfo, x) =
+      ( PilVar (fromByteBased $ x ^. #size) (Just calleeCtx) (getParamSym pinfo)
+      , x )
+    paramVarsWithExpressions :: [(PilVar, Expression)]
+    paramVarsWithExpressions = mkParamVar
+      <$> zip (calleeCtx ^. #func . #params) (callStmt ^. #args)
     stmts :: [Stmt]
-    stmts = Def . uncurry DefOp <$> zip paramVars (callStmt ^. #args)
+    stmts = Def . uncurry DefOp <$> paramVarsWithExpressions
 
 {- |Generate a defintion for the result variable in the outer (caller) context
 where the a phi function containing variables that reference all the possible
@@ -81,8 +82,9 @@ mkLeaveFuncNode uuid' outerCtx calleeCtx callStmt retExprs =
       Nothing -> []
 
 generateVars :: Ctx -> Text -> Int -> [Expression] -> [(PilVar, Expression)]
-generateVars ctx baseName id (expr : rest) =
-  (PilVar (baseName <> show id) (Just ctx), expr) : generateVars ctx baseName (id + 1) rest
+generateVars ctx baseName id (expr : rest)
+  = (PilVar (fromByteBased $ expr ^. #size) (Just ctx) $ baseName <> show id, expr)
+  : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 
 data ExpandCallError = NotCallStatement [Stmt]

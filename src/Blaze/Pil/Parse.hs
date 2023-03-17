@@ -19,7 +19,7 @@ import Prelude (foldr1)
 
 import qualified Blaze.Pil.Construct as C
 import Blaze.Prelude hiding (Prefix, first, many, some, takeWhile, try)
-import Blaze.Types.Pil (Ctx, Expression, OperationSize, PilVar)
+import Blaze.Types.Pil (Ctx, Expression, Size, PilVar)
 
 import Blaze.Cfg (getCtxIndices)
 import Blaze.Types.Cfg (PilCfg)
@@ -32,6 +32,17 @@ import Text.Megaparsec hiding (runParser, runParser')
 import Text.Megaparsec.Char (alphaNumChar, char, letterChar, space, string')
 import qualified Text.Megaparsec.Char.Lexer as L
 
+
+-- TODO: pass this in to blankParserCtx and mkParserCtx
+defaultSize :: forall a. Size a
+defaultSize = 4
+
+-- TOOD: include these in ParserCtx
+defaultExpressionSize :: Size Expression
+defaultExpressionSize = fromByteBased defaultSize
+
+defaultPilVarSize :: Size PilVar
+defaultPilVarSize = fromByteBased defaultSize
 
 newtype ParserCtx = ParserCtx
   { ctxIndices :: Bimap.Bimap Int Ctx
@@ -68,14 +79,14 @@ runParserEof ctx p = runParser ctx (p <* eof)
 lex :: MonadParsec e Text m => m a -> m a
 lex = L.lexeme space
 
-binl :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
-binl p f = InfixL (lex p $> (\x y -> f x y 4))
+binl :: Parser a -> (b -> b -> Size c -> b) -> Operator Parser b
+binl p f = InfixL (lex p $> (\x y -> f x y defaultSize))
 
-binr :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
-binr p f = InfixR (lex p $> (\x y -> f x y 4))
+binr :: Parser a -> (b -> b -> Size c -> b) -> Operator Parser b
+binr p f = InfixR (lex p $> (\x y -> f x y defaultSize))
 
-binn :: Parser a -> (b -> b -> OperationSize -> b) -> Operator Parser b
-binn p f = InfixN (lex p $> (\x y -> f x y 4))
+binn :: Parser a -> (b -> b -> Size c -> b) -> Operator Parser b
+binn p f = InfixN (lex p $> (\x y -> f x y defaultSize))
 
 -- NOTE if any of these characters get introduced elsewhere in the grammar,
 -- they _might_ need to be removed as valid identifier characters. Prefix
@@ -104,10 +115,10 @@ parseVar = lex scan <?> "variable identifier"
               expected = "maximum variable context index: " <> (show . maximum . Bimap.keys $ ctxIndices')
               expectedEmpty = "no contexts in scope"
       case (ctxIndex', Bimap.null ctxIndices') of
-        (Nothing, True) -> pure $ C.pilVar (T.cons firstChar rest)
+        (Nothing, True) -> pure . C.pilVar_ defaultPilVarSize Nothing $ T.cons firstChar rest
         (Just ctxIndex, False) ->
           case Bimap.lookup ctxIndex ctxIndices' of
-            Just ctx -> pure $ C.pilVar' (T.cons firstChar rest) ctx
+            Just ctx -> pure . C.pilVar_ defaultPilVarSize (Just ctx) $ T.cons firstChar rest
             Nothing -> fail
         (_, _) -> fail
 
@@ -125,9 +136,9 @@ parseTerm :: Parser Expression
 parseTerm =
   choice
     [ between (lex "(") (lex ")") parseExpr
-    , (\x -> C.load x 4) <$> between (lex "[") (lex "]") parseExpr
-    , (\v -> C.var' v 4) <$> parseVar
-    , (\n -> C.const (fromIntegral n) 4) <$> parseInt
+    , (\x -> C.load x defaultExpressionSize) <$> between (lex "[") (lex "]") parseExpr
+    , (\v -> C.var' v . fromByteBased $ v ^. #size) <$> parseVar
+    , (\n -> C.const (fromIntegral n) defaultExpressionSize) <$> parseInt
     ]
 
 parseExpr :: Parser Expression
@@ -154,7 +165,7 @@ parseExpr =
       , binn "s<" C.cmpSlt
       ]
     ,
-      [ Prefix (foldr1 (.) <$> some (lex "!" $> (\x -> C.not x 4)))
+      [ Prefix (foldr1 (.) <$> some (lex "!" $> (\x -> C.not x defaultExpressionSize)))
       ]
     ,
       [ binr "&&" C.and

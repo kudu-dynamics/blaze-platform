@@ -13,7 +13,7 @@ import Blaze.Types.Pil
   ( AddOp,
     Expression (Expression),
     ExprOp,
-    OperationSize,
+    Size,
     PilVar,
     Statement (Def),
     Stmt,
@@ -383,8 +383,7 @@ reducePhi undefVars stmt = case stmt of
         Pil.Def $
           Pil.DefOp
             dstVar
-            -- TODO: Don't hardcode expression size
-            (Pil.Expression (Pil.OperationSize $ Bytes 8) (Pil.VAR (Pil.VarOp x)))
+            (Pil.Expression (fromByteBased $ x ^. #size) (Pil.VAR (Pil.VarOp x)))
       xs -> Just $ Pil.DefPhi $ Pil.DefPhiOp dstVar xs
    where
     vars' = filter (not . (`HSet.member` undefVars)) vars
@@ -653,7 +652,7 @@ replaceStore store symbol = update storeIdx varDef
     varDef =
       Pil.Def
         (Pil.DefOp
-           { var = Pil.PilVar symbol ctx
+           { var = Pil.PilVar (fromByteBased $ storedVal ^. #size) ctx symbol
            , value = storedVal
            })
 
@@ -798,7 +797,7 @@ parseFieldAddr expr =
     baseOp addOp getExpr =
       Pil.VAR <$> getExpr addOp ^? #op . #_VAR
         <|> Pil.CONST_PTR <$> getExpr addOp ^? #op . #_CONST_PTR
-    baseSize :: AddOp Expression -> (AddOp Expression -> Expression) -> OperationSize
+    baseSize :: AddOp Expression -> (AddOp Expression -> Expression) -> Size Expression
     baseSize addOp getExpr = getExpr addOp ^. #size
     base :: AddOp Expression -> (AddOp Expression -> Expression) -> Maybe Expression
     base addOp getExpr = Pil.Expression (baseSize addOp getExpr) <$> baseOp addOp getExpr

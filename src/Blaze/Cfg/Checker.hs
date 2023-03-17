@@ -5,9 +5,8 @@ import Blaze.Pil.Checker as Checker
 import Blaze.Types.Pil (Ctx, Stmt)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker (TypeReport, ConstraintGenError, SymTypedStmt)
-import Blaze.Cfg (getRootNode, gatherCfgData, getCfgCtx)
+import Blaze.Cfg (gatherCfgData, getCfgCtx)
 import Blaze.Types.Cfg (Cfg, CfNode)
-import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Pil.Analysis as Analysis
 
 

@@ -106,9 +106,9 @@ runConverter m = runStateT $ _runConverter m
 convert :: ConverterState -> Converter a -> IO a
 convert s m = fst <$> runConverter m s
 
-addessWidthToOperationSize :: AddressWidth -> Pil.OperationSize
+addessWidthToOperationSize :: AddressWidth -> Pil.Size Expression
 addessWidthToOperationSize (AddressWidth bits) =
-  Pil.OperationSize . BA.toBytes $ bits
+  Pil.Size . BA.toBytes $ bits
 
 -- TODO: Should we throw an error if (v ^. BNVar.sourceType /= StackVariableSourceType)?
 varToStackLocalAddr :: Variable -> Converter Expression
@@ -122,11 +122,11 @@ varToStackLocalAddr v = do
     . fromIntegral
     $ v ^. BNVar.storage
 
-toPilOpSize :: MLIL.OperationSize -> Pil.OperationSize
+toPilOpSize :: MLIL.OperationSize -> Pil.Size Expression
 toPilOpSize = coerce
 
-typeWidthToOperationSize :: BNVar.TypeWidth -> Pil.OperationSize
-typeWidthToOperationSize (BNVar.TypeWidth n) = Pil.OperationSize n
+typeWidthToSize :: BNVar.TypeWidth -> Pil.Size a
+typeWidthToSize (BNVar.TypeWidth n) = Pil.Size n
 
 convertExpr :: MLIL.Expression t -> Converter Expression
 convertExpr expr = do
@@ -316,8 +316,11 @@ convertToPilVar :: MLIL.SSAVariable -> Converter PilVar
 convertToPilVar v = do
   ctx' <- use #ctx
   bnfunc <- unsafeConvertToBinjaFunction $ ctx' ^. #func
+  varSize <- case v ^. MLIL.var . BNVar.varType of
+    Nothing -> fromByteBased . toBytes <$> use #defaultVarSize
+    Just vt -> return . typeWidthToSize $ vt ^. BNVar.width
   let sourceVar = SSAVariableRef v bnfunc (ctx' ^. #ctxId)
-      pilVar = PilVar (getSymbol (v ^. MLIL.version) (v ^. MLIL.var)) (Just ctx')
+      pilVar = PilVar varSize (Just ctx') $ getSymbol (v ^. MLIL.version) (v ^. MLIL.var)
   #sourceVars %= HMap.insert pilVar sourceVar
   return pilVar
 
@@ -355,7 +358,7 @@ convertInstrOp op' = do
         off = fromIntegral $ x ^. MLIL.offset
         getVarWidth v = v ^? MLIL.var . BNVar.varType . _Just . BNVar.width
         varSize =
-          maybe (Pil.OperationSize . toBytes $ defVarSize) fromIntegral $
+          maybe (Pil.Size . toBytes $ defVarSize) fromIntegral $
             getVarWidth destVar <|> getVarWidth srcVar
     MLIL.SET_VAR_SPLIT_SSA x -> do
       pvarHigh <- convertToPilVarAndLog $ x ^. MLIL.high
@@ -412,7 +415,7 @@ convertInstrOp op' = do
           return
             [ Def . DefOp pvar $
                 Expression
-                  (typeWidthToOperationSize $ vt ^. BNVar.width)
+                  (typeWidthToSize $ vt ^. BNVar.width)
                   (Pil.VAR $ Pil.VarOp lVar)
             ]
     MLIL.UNIMPL -> return [UnimplInstr "UNIMPL"]
@@ -529,7 +532,7 @@ convertCallInstruction ci = do
         -- TODO: Make this safe. We currently bail if there's no type provided.
         --       Change MediumLevelILInsutrction._size to be Maybe OperationSize
       let resultSize = dest' ^?! MLIL.var . BNVar.varType . _Just . BNVar.width
-          opSize = typeWidthToOperationSize resultSize
+          opSize = typeWidthToSize resultSize
           callExpr = Expression opSize
                      . Pil.CALL
                      $ Pil.CallOp target mname params'

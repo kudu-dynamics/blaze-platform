@@ -7,7 +7,7 @@ import qualified Data.HashMap.Strict as HMap
 import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
 import Blaze.Types.Function (Function)
-import Blaze.Types.Pil (OperationSize)
+import Blaze.Types.Pil (Size)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
 import Text.Printf
@@ -22,7 +22,7 @@ dispBinop
      )
   => Symbol
   -> a
-  -> OperationSize
+  -> Size c
   -> Text
 dispBinop sym op sz = Text.pack $ printf "%s (%s) (%s) %s" sym left right $ disp sz
   where
@@ -35,7 +35,7 @@ dispUnop
      )
   => Symbol
   -> a
-  -> OperationSize
+  -> Size c
   -> Text
 dispUnop sym op sz = Text.pack $ printf "%s (%s) %s" sym src $ disp sz
   where
@@ -47,7 +47,7 @@ dispConst
      )
   => Symbol
   -> a
-  -> OperationSize
+  -> Size c
   -> Text
 dispConst sym op sz = Text.pack $ printf "%s %s %s" sym const (disp sz)
   where
@@ -61,7 +61,7 @@ dispField
      )
   => Symbol
   -> a
-  -> OperationSize
+  -> Size c
   -> Text
 dispField sym op sz = Text.pack $ printf "%s %s[%s] %s" sym src offset $ disp sz
   where
@@ -69,7 +69,7 @@ dispField sym op sz = Text.pack $ printf "%s %s[%s] %s" sym src offset $ disp sz
     offset :: Text
     offset = show (op ^. #offset)
 
-dispVar :: (HasField' "src" a Pil.PilVar) => Symbol -> a -> OperationSize -> Text
+dispVar :: (HasField' "src" a Pil.PilVar) => Symbol -> a -> Size b -> Text
 dispVar sym op sz = Text.pack $ printf "%s \"%s\" %s" sym src $ disp sz
   where
     src = disp (op ^. #src)
@@ -143,8 +143,8 @@ instance Disp Int64 where
 instance Disp Pil.PilVar where
   disp v = v ^. #symbol
 
-instance Disp Pil.OperationSize where
-  disp (Pil.OperationSize (Bytes sz)) = show sz
+instance Disp (Pil.Size a) where
+  disp (Pil.Size (Bytes sz)) = show sz
 
 instance Disp a => Disp (Pil.CallDest a) where
   disp dest = case dest of
@@ -241,7 +241,7 @@ instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) whe
 
 dispExprOp :: (Disp a, HasField' "op" a (Pil.ExprOp a))
            => Pil.ExprOp a
-           -> Pil.OperationSize
+           -> Pil.Size a
            -> Text
 dispExprOp exprOp size = case exprOp of
   (Pil.ADC op) -> dispBinop "adc" op size

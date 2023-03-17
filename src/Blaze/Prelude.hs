@@ -1,3 +1,4 @@
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -28,6 +29,8 @@ module Blaze.Prelude
   , twaddleUUID
   , unfoldWhileJustM
   , unsafeFromRight
+  , ByteBased(toBytes_, fromBytes_)
+  , fromByteBased
   ) where
 
 import qualified Prelude as P
@@ -243,3 +246,24 @@ truncateMiddle n t
 toSnd :: (a -> b) -> a -> (a, b)
 toSnd f a = (a, f a)
 {-# INLINE toSnd #-}
+
+-- | Class for converting between types that are based on Bytes
+-- This is safer than using `fromIntegral`, which doesn't care if types
+-- use Bytes or Bits
+-- TODO: Think of a better name, one that's just as catchy as "Integral".
+class ByteBased a where
+  fromBytes_ :: Bytes -> a
+  toBytes_ :: a -> Bytes
+
+  default fromBytes_ :: Integral a => Bytes -> a
+  fromBytes_ = fromIntegral
+
+  default toBytes_ :: Integral a => a -> Bytes
+  toBytes_ = fromIntegral
+
+fromByteBased :: (ByteBased a, ByteBased b) => a -> b
+fromByteBased = fromBytes_ . toBytes_
+
+instance ByteBased Bytes
+instance ByteBased ByteOffset  
+instance ByteBased Address

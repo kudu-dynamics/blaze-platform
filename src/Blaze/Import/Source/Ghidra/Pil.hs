@@ -22,7 +22,7 @@ import Blaze.Types.Pil
     CtxId,
     Ctx(Ctx),
     Expression (Expression),
-    OperationSize,
+    Size,
     PilVar,
   )
 
@@ -48,7 +48,7 @@ data ConverterError
   | VarNodeInvalidAsPilVar Bytes VarType
   -- | The sizes of the operands to PIECE did not add up to the size of its output
   | PieceOperandsIncorrectSizes
-    { outputSize :: OperationSize
+    { outputSize :: Size Expression
     , highArg :: Expression
     , lowArg :: Expression
     }
@@ -206,7 +206,7 @@ convertConstFloatOrVar v = do
 mkExpr :: IsVariable a => a -> Pil.ExprOp Expression -> Expression
 mkExpr v = Expression (fromIntegral $ getSize v)
 
-mkExpr' :: Pil.OperationSize -> Pil.ExprOp Expression -> Expression
+mkExpr' :: Pil.Size Expression -> Pil.ExprOp Expression -> Expression
 mkExpr' = Expression
 
 mkAddressExpr :: GAddr.Address -> Expression
@@ -252,9 +252,9 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
 varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Either PilVar Expression)
 varNodeToReference v = do
   ctx' <- use #ctx
-  let pv name = C.pilVar' name ctx'
+  let pv = C.pilVar_ (fromByteBased size) $ Just ctx'
       size :: Bytes = getSize v
-      operSize :: OperationSize = Pil.widthToSize $ toBits size
+      operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
     VReg n -> pure . Left . pv $ "reg_" <> showHex n <> "_" <> showHex size
     VStack n -> pure . Left . pv $ stackVarName n
@@ -293,9 +293,9 @@ varNodeToAssignment v =
 varNodeToValueExpr :: IsVariable a => a -> ExceptT ConverterError Converter Expression
 varNodeToValueExpr v = do
   ctx' <- use #ctx
-  let pv name = C.pilVar' name ctx'
+  let pv = C.pilVar_ (fromByteBased size) $ Just ctx'
       size :: Bytes = getSize v
-      operSize :: OperationSize = Pil.widthToSize $ toBits size
+      operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
     VReg n -> pure $ C.var' (pv $ "reg_" <> showHex n <> "_" <> showHex size) operSize
     VStack n -> pure $ C.var' (pv $ stackVarName n) operSize

@@ -12,7 +12,6 @@ import Blaze.Types.Pil (
   PilVar,
   StackOffset,
   Statement,
-  Symbol,
  )
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
