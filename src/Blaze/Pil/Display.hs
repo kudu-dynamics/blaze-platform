@@ -335,10 +335,6 @@ dispExprOp exprOp size = case exprOp of
     <-> disp (op ^. #dest)
     <-> disp (op ^. #offset)
     <-> parenExpr (op ^. #src)
-  (Pil.VAR_PHI op) -> Text.pack $ printf "%s <- %s" (disp (op ^. #dest)) srcs
-    where
-      srcs :: Text
-      srcs = show (fmap disp (op ^. #src))
   (Pil.VAR_JOIN op) -> Text.pack $ printf "varJoin %s %s %s" (disp (op ^. #high)) (disp (op ^. #low)) (disp size)
   -- (Pil.VAR op) -> Text.pack $ printf "var \"%s\" %s" (disp $ op ^. Pil.src) (disp size)
   -- TODO: Need size added

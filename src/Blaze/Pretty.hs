@@ -567,10 +567,6 @@ tokenizeExprOp msym exprOp _size = case exprOp of
         arg "var" [varToken vsym $ op ^. #dest . #symbol] True
           <++> arg "offset" (tokenize $ op ^. #offset) True
           <++> arg "val" (tokenize $ op ^. #src) False
-  (Pil.VAR_PHI op) -> [tt (op ^. #dest . #symbol), tt " <- "] <++> srcs
-    where
-      srcs :: [Token]
-      srcs = tt . view #symbol <$> (op ^. #src)
   (Pil.VAR_JOIN op) ->
     tt "varJoin "
       <++> tokenize (op ^. #high)
