@@ -108,17 +108,17 @@ data ExprOp expr
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data Expression = Expression
-  { size :: OperationSize
+  { size :: Size Expression
   , op :: ExprOp Expression
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
-widthToSize :: Bits -> OperationSize
-widthToSize x = OperationSize $ toBytes x
+widthToSize :: Bits -> Size a
+widthToSize x = Size $ toBytes x
 
-sizeToWidth :: OperationSize -> Bits
-sizeToWidth (OperationSize x) = toBits x
+sizeToWidth :: Size a -> Bits
+sizeToWidth (Size x) = toBits x
 
 -- TODO: Move these into the PIL op generator
 -------- Ops that use MLIL SSA Vars must be changed to use PilVars
@@ -286,7 +286,7 @@ data TailCallOp expr = TailCallOp
   { dest :: CallDest expr
   , name :: Maybe Text
   , args :: [expr]
-  , ret :: Maybe (PilVar, OperationSize)
+  , ret :: Maybe (PilVar, Size Expression)
   }
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
@@ -452,7 +452,7 @@ data CallStmt = CallStmt
   { stmt :: Stmt
   , address :: Address
   , index :: StmtIndex
-  , size :: OperationSize
+  , size :: Size Expression
   , args :: [Expression]
   , dest :: CallDest Expression
   , outputDest :: [PilVar]

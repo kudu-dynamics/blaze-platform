@@ -216,5 +216,6 @@ spec = do
 
     it "unambiguously parses expressions involving symbols with weird characters" $ do
       let weirdSym1 = "a_1#b'2$c:d.4!e~5"
-          weirdVar1 = C.var weirdSym1 4
-      testpPretty bc parseExpr ("!" <> weirdSym1 <> "||!a") $ C.or (C.not weirdVar1 4) (C.not (C.var "a" 4) 4) 4
+          weirdVar1 = C.var' (pv weirdSym1) 4
+          pv = C.pilVar_  4 Nothing
+      testpPretty bc parseExpr ("!" <> weirdSym1 <> "||!a") $ C.or (C.not weirdVar1 4) (C.not (C.var' (pv "a") 4) 4) 4

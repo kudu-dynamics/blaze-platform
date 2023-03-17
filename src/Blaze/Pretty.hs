@@ -462,7 +462,7 @@ tokenizeExprOp ::
   (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) =>
   Maybe Sym ->
   Pil.ExprOp a ->
-  Pil.OperationSize ->
+  Pil.Size a ->
   Tokenizer [Token]
 tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.ADC op) -> tokenizeBinop msym "adc" op

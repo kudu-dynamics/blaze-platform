@@ -16,6 +16,7 @@ import Blaze.Pil.Construct hiding (not)
 
 import Test.Hspec
 
+
 emptyTypeReport :: TypeReport
 emptyTypeReport =
   TypeReport mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
@@ -347,8 +348,8 @@ spec = describe "Blaze.Pil.Checker" $ do
     let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown ]
         ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" 0xf00 params
         ctx = Ctx ctxFunc 0
-        pvX = pilVar' "x" ctx
-        pvArg1 = pilVar' "arg1" ctx
+        pvX = pilVar' ctx "x"
+        pvArg1 = pilVar' ctx "arg1"
         rootFuncParamInfo = getRootFunctionParamInfo ctx
         mArg1FuncVar = HashMap.lookup "arg1" $ rootFuncParamInfo ^. #rootParamMap
 
@@ -380,7 +381,7 @@ spec = describe "Blaze.Pil.Checker" $ do
         length equalityConstraints `shouldBe` 1
 
     context "Linking root param to recursive CALL expr params" $ do
-      let pvY = pilVar' "y" ctx
+      let pvY = pilVar' ctx "y"
           stmts = [ (0, def' pvX (add (var' pvArg1 4) (const 1 4) 4))
                   , (1, defCall' pvY (Pil.CallFunc ctxFunc) [var' pvX 4] 4)
                   ]

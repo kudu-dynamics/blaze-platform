@@ -13,9 +13,10 @@ newtype StmtIndex = StmtIndex { val :: Int }
 type Symbol = Text
 
 -- TODO: should this be in Bits?
-newtype OperationSize = OperationSize Bytes
+-- Consider renaming so this make sense to use for PilVar size.
+newtype Size a = Size Bytes
   deriving (Eq, Ord, Show, Generic)
-  deriving newtype (Num, Real, Enum, Integral)
+  deriving newtype (Num, Real, Enum, Integral, ByteBased)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
 newtype CtxId = CtxId Word64
@@ -35,7 +36,7 @@ data Ctx = Ctx
 -- when introducing "synthetic" variables. (I.e., variables
 -- which do not correspond to variables in the source program.)
 data PilVar = PilVar
-  { symbol :: Symbol
+  { size :: Size PilVar
     -- TODO: Reassess use of Maybe for ctx.
     --       Currently needed when introducing synthesized PilVars
     --       when replacing store statements. May also be useful for
@@ -44,6 +45,7 @@ data PilVar = PilVar
     --       Related to this is having Blaze.Pil.Construct functions
     --       play nice with context management.
   , ctx :: Maybe Ctx
+  , symbol :: Symbol
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)

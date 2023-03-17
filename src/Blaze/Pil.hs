@@ -44,7 +44,7 @@ getLastDefined orderedVars candidateVars =
 -- for output for a called function.
 genCallOutputStores :: [FuncParamInfo] -> [Expression] -> [Stmt]
 genCallOutputStores paramInfos params =
-  uncurry mkStore <$> zip outArgs exprVars
+  uncurry mkStore <$> zip outArgs exprSyms
   where
     maybeOutParam :: FuncParamInfo -> Expression -> Maybe Expression
     maybeOutParam pInfo expr = do
@@ -54,15 +54,17 @@ genCallOutputStores paramInfos params =
         else Nothing
     outArgs :: [Expression]
     outArgs = mapMaybe (uncurry maybeOutParam) . zip paramInfos $ params
-    mkStore :: Expression -> PilVar -> Stmt
-    mkStore argExpr freeVar =
+    mkStore :: Expression -> Pil.Symbol -> Stmt
+    mkStore argExpr freeVarSym =
       Pil.Store $
         Pil.StoreOp
           argExpr
-          (Expression (argExpr ^. #size) (Pil.VAR (Pil.VarOp freeVar)))
+          (Expression (argExpr ^. #size) (Pil.VAR (Pil.VarOp pv)))
+      where
+        pv = PilVar (fromByteBased $ argExpr ^. #size) Nothing freeVarSym
     -- TODO: Need to actually find the used defined vars and exclude them
-    exprVars :: [PilVar]
-    exprVars = (`PilVar` Nothing) <$> symbolGenerator (getAllSyms [])
+    exprSyms :: [Pil.Symbol]
+    exprSyms = symbolGenerator (getAllSyms [])
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. #dest of

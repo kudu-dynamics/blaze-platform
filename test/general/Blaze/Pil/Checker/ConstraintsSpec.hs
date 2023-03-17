@@ -6,7 +6,7 @@ import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Pil.Checker.Constraints
 import Blaze.Types.Pil.Checker
-import Blaze.Pil.Construct (defCall, var)
+import Blaze.Pil.Construct (defCall, var, defaultSize)
 import Blaze.Types.Pil (PilVar)
 import qualified Blaze.Types.Pil as Pil
 
@@ -71,7 +71,7 @@ constrainExpr nextSymNum cxTuples pilvarTuples expr =
       )
 
 pv :: Text -> PilVar
-pv name = Pil.PilVar name Nothing
+pv = Pil.PilVar defaultSize Nothing
 
 spec :: Spec
 spec = describe "Blaze.Pil.Checker.Constraints" $ do
