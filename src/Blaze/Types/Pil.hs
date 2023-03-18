@@ -82,7 +82,6 @@ data ExprOp expr
     | SX (SxOp expr)
     | TEST_BIT (TestBitOp expr)
     | UNIMPL Text
-    | VAR_PHI (VarPhiOp expr)
     | VAR_JOIN (VarJoinOp expr)
     | VAR (VarOp expr)
     | VAR_FIELD (VarFieldOp expr)
@@ -130,11 +129,6 @@ data VarOp expr = VarOp
 data VarFieldOp expr = VarFieldOp
   { src :: PilVar
   , offset :: ByteOffset
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
-
-data VarPhiOp expr = VarPhiOp
-  { dest :: PilVar
-  , src :: [PilVar]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data VarJoinOp expr = VarJoinOp

@@ -864,8 +864,6 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     guardIntegral high
     return $ svJoin high low
 
-  Pil.VAR_PHI _ -> unhandled "VAR_PHI"
-
   Pil.XOR x -> integralBinOpUnrelatedArgs x svXOr
   Pil.ZX x -> bitVectorUnOp x (zeroExtend sz)
 

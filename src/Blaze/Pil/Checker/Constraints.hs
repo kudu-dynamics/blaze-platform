@@ -563,8 +563,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add [ (r, CSType $ TBitVector jSz) ]
     addChildConstraints
 
-  Pil.VAR_PHI _ -> unimplError
-
   Pil.VAR_JOIN x -> do
     low <- lookupVarSym $ x ^. #low
     high <- lookupVarSym $ x ^. #high
