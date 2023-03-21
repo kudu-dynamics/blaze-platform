@@ -41,7 +41,6 @@ import qualified Data.List.NonEmpty as NE
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
   | ExpectedAddressButGotConst Int64
-  | AddressSpaceTypeCannotBeVar GAddr.Address
   | UnsuportedAddressSpace Text
   -- | Could not recognize the VarNode as a 'PilVar', probably because it
   -- belongs to an address space other than 'unique', 'reg', or stack
@@ -147,7 +146,7 @@ data VarNodeType
   -- | VConstAddr Int64
   | VExtern Int64
   | VImmediate Int64
-  | VOther Text
+  | VOther Text Int64
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
@@ -155,13 +154,13 @@ getVarNodeType v = case getVarType v of
   GVar.Const n -> VImmediate n
   GVar.Addr x -> case x ^. #space . #name of
     GAddr.EXTERNAL -> VExtern off
-    GAddr.HASH -> VOther "HASH"
+    GAddr.HASH -> VOther "HASH" off
     GAddr.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
     GAddr.Ram -> VRam off
     GAddr.Register -> VReg off
     GAddr.Stack -> VStack off
     GAddr.Unique -> VUnique off
-    GAddr.Other t -> VOther t
+    GAddr.Other t -> VOther t off
     where
       off = x ^. #offset
 
@@ -264,7 +263,9 @@ varNodeToReference v = do
     -- XXX We might need to scale these by addressable unit size
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
-    VOther t -> throwError $ UnsuportedAddressSpace t
+    VOther t off
+      | t == "VARIABLE" -> pure . Left . pv $ "ghidravar_" <> showHex off
+      | otherwise -> throwError $ UnsuportedAddressSpace t
   where
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
     showHex n = Text.pack $ Numeric.showHex n ""
@@ -305,7 +306,9 @@ varNodeToValueExpr v = do
     -- XXX We might need to scale these by addressable unit size
     VExtern n -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (Pil.widthToSize (64 :: Bits))) operSize
     VImmediate n -> pure $ C.const n operSize
-    VOther t -> throwError $ UnsuportedAddressSpace t
+    VOther t off
+      | t == "VARIABLE" -> pure $ C.var' (pv $ "ghidravar_" <> showHex off) operSize
+      | otherwise -> throwError $ UnsuportedAddressSpace t
   where
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
     showHex n = Text.pack $ Numeric.showHex n ""
