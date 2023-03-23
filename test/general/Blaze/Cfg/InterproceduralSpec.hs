@@ -3,6 +3,8 @@
 
 module Blaze.Cfg.InterproceduralSpec where
 
+import Blaze.Prelude hiding (Symbol)
+
 import Blaze.Cfg hiding
   ( BasicBlockNode (ctx)
   , CallNode (ctx)
@@ -13,10 +15,9 @@ import Blaze.Function (Function (Function))
 import qualified Blaze.Function as Func
 import Blaze.Pil.Construct (defaultSize)
 import qualified Blaze.Pil.Construct as C
-import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId), Symbol)
+import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Util.Spec (mkUuid1)
+import Blaze.Util.Spec (mkUuid1, mkCallNode)
 import qualified Blaze.Cfg.Interprocedural as ICfg
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Test.Hspec
@@ -31,25 +32,6 @@ bbp ctx name stmts = BasicBlock $ BasicBlockNode
   , nodeData = stmts
   }
   where
-    uuid' = mkUuid1 . hash $ name
-
-pilCall :: Symbol -> Function -> [Pil.Expression] -> Pil.Stmt
-pilCall varSym func args =
-  C.defCall varSym (Pil.CallFunc func) args 8
-
-mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Pil.Expression] -> (Cfg.CallNode [Pil.Stmt], Pil.Stmt)
-mkCallNode ctx name retVarSym targetFunc' args =
-  ( CallNode
-    { ctx = ctx
-    , start = 0
-    , callDest = Pil.CallFunc targetFunc'
-    , uuid = uuid'
-    , nodeData = [callStmt']
-    }
-  , callStmt'
-  )
-  where
-    callStmt' = pilCall retVarSym targetFunc' args
     uuid' = mkUuid1 . hash $ name
 
 callerFunc :: Function

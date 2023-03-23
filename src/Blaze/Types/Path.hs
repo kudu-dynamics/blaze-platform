@@ -4,6 +4,7 @@ module Blaze.Types.Path where
 import Blaze.Prelude
 import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge), Graph, GraphConstruct)
 
+
 class IsPath l n p | p -> l where
   root :: p n -> n
   end :: p n -> n
@@ -16,6 +17,8 @@ class IsPath l n p | p -> l where
   predEdge :: n -> p n -> Maybe (LEdge l n)
 
   nodes :: p n -> HashSet n
+
+  hasNode :: n -> p n -> Bool
 
   -- | Converts path to (starting node, graph), where graph contains a linear path
   toPathGraph :: (Graph l n g, GraphConstruct l n g) => p n -> (n, g n)

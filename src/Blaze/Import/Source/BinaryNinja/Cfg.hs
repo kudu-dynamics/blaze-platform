@@ -30,7 +30,6 @@ import Blaze.Types.Cfg (
   mkCfg,
  )
 import qualified Blaze.Types.Cfg as Cfg
-import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Function (Function)
 import Blaze.Types.Import (ImportResult (ImportResult))
 import Blaze.Types.Pil (Stmt, CtxId, Ctx)

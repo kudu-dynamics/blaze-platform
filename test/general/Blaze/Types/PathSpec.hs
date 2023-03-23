@@ -316,6 +316,14 @@ spec = describe "Blaze.Types.Path" $ do
               $ start "a" -| 1 |- "b" -| 2 |- "x" -| 8 |- "y" -| 9 |- "z" -| 3 |- "d"
         result `shouldBe` expected
 
+    it "should expand a middle node of a path with many nodes, where the inner path has only one node" $ do
+        let outerPath = pathManyNodes
+            innerPath' = P.build $ start "x"
+            result = P.expandNode "c" outerPath innerPath'
+            expected = mkTextPath
+              $ start "a" -| 1 |- "b" -| 2 |- "x" -| 3 |- "d"
+        result `shouldBe` expected
+
     it "should expand an end node of a path with many nodes" $ do
         let outerPath = pathManyNodes
             result = P.expandNode "d" outerPath innerPath

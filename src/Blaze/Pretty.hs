@@ -4,6 +4,7 @@
 
 module Blaze.Pretty
   ( (<++>),
+    FullCfNode(FullCfNode),
     PrettyShow(..),
     PrettyShow'(..),
     PStmts(..),
@@ -61,6 +62,8 @@ import qualified Prelude (show)
 
 import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Graph as G
+import Blaze.Types.Path.Alga (AlgaPath)
+import qualified Blaze.Types.Path as Path
 import qualified Blaze.Types.Pil.Checker as PI
 import Blaze.Types.Pil.Checker (Sym)
 import qualified Data.HashSet as HashSet
@@ -81,6 +84,7 @@ import Blaze.Cfg
     )
 import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Types.Cfg.Grouping as GCfg
+import qualified Blaze.Types.Cfg.Path as CfgPath
 import Blaze.Pil.Display (needsParens)
 
 import qualified Data.HashMap.Strict as HashMap
@@ -304,6 +308,9 @@ delimitedList start sep end = between start end . intercalate sep
 
 tokenizeAsList :: Tokenizable a => [a] -> Tokenizer [Token]
 tokenizeAsList x = delimitedList [tt "["] [tt ", "] [tt "]"] <$> traverse tokenize x
+
+tokenizeAsNewlinedList :: Tokenizable a => [a] -> Tokenizer [Token]
+tokenizeAsNewlinedList x = delimitedList [tt "[ "] [tt "\n, "] [tt "\n]"] <$> traverse tokenize x
 
 tokenizeAsTuple :: Tokenizable a => [a] -> Tokenizer [Token]
 tokenizeAsTuple x = delimitedList [tt "("] [tt ", "] [tt ")"] <$> traverse tokenize x
@@ -936,6 +943,47 @@ instance (Hashable a, Tokenizable a) => Tokenizable (Cfg (CfNode a)) where
       showAttr :: forall t. (Show t) => (CfNode a, t) -> Maybe (Tokenizer [Token])
       showAttr (node, nid) = do
         return $ [tt (show nid), tt " : "] <++> tokenizeAsList (toList node)
+
+newtype FullCfNode a = FullCfNode (CfNode a)
+  deriving newtype (Eq, Ord, Show, Generic, Hashable)
+
+instance G.Identifiable (FullCfNode a) UUID where
+  getNodeId (FullCfNode x) = G.getNodeId x
+
+-- | Displays node and attrs
+instance Tokenizable a => Tokenizable (FullCfNode [a]) where
+  tokenize (FullCfNode cfn) = tokenize cfn <++> tt "\n" <++> tokenizeAsNewlinedList (Cfg.getNodeData cfn)
+
+instance
+  ( Hashable a
+  , Tokenizable a
+  , Ord i
+  , Hashable i
+  , Tokenizable l
+  , G.Identifiable a i) => Tokenizable (AlgaPath l i a) where
+  tokenize p = tt "--- Path ---\n"
+               <++> tokenize rootNode
+               <++> showEdges edges
+    where
+      (rootNode, edges) = Path.toEdgeList p
+      showEdges :: [G.LEdge l a] -> Tokenizer [Token]
+      showEdges [] = return []
+      showEdges ((G.LEdge lbl (G.Edge _ b)):es) =
+        [ tt "\n>----| " ]
+        <++> tokenize lbl
+        <++> tt " |---->\n"
+        <++> tokenize b
+        <++> showEdges es
+
+instance
+  ( Hashable a
+  , Tokenizable a
+  , G.Identifiable a UUID) => Tokenizable (CfgPath.Path a) where
+  tokenize p = tt "--- CtxPath ---"
+               <++> tt "\nouterCtx: " <++> tokenize (p ^. #outerCtx)
+               <++> tt "\nnextCtxIndex: " <++> tokenize (fromIntegral $ p ^. #nextCtxIndex :: Int)
+               <++> tt "\n" <++> tokenize (p ^. #path)
+
 
 -- | Tokenizable print to IO.
 prettyPrint :: (MonadIO m, Tokenizable a) => TokenizerCtx -> a -> m ()
