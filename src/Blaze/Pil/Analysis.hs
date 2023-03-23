@@ -45,6 +45,7 @@ import Blaze.Types.Pil.Analysis
     runAnalysis,
     symbolGenerator,
   )
+import Blaze.Types.Pil.Analysis.Subst (recurSubst)
 import qualified Blaze.Types.Pil.Analysis as A
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
@@ -103,19 +104,10 @@ getAllVars xs = HSet.unions $ fmap ($ xs) [getRefVars, getDefinedVars]
 
 getAllSyms :: [Stmt] -> HashSet Symbol
 getAllSyms = HSet.map (^. #symbol) . getAllVars
-
+  
 ---- Var -> Var substitution
 substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
-substVarsInExpr f e = case e ^. #op of
-  (Pil.VAR x) -> e & #op .~ Pil.VAR (x & #src %~ f)
-  (Pil.VAR_FIELD x) -> e & #op .~ Pil.VAR_FIELD (x & #src %~ f)
-  (Pil.VAR_JOIN x) ->
-    e & #op
-      .~ Pil.VAR_JOIN
-        ( x & #high %~ f
-            & #low %~ f
-        )
-  _ -> e & #op %~ fmap (substVarsInExpr f)
+substVarsInExpr = recurSubst
 
 -- | ignores left side of Def, Store, and DefPhi
 substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
@@ -750,9 +742,6 @@ simplify = copyProp . constantProp
 
 simplifyMem :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 simplifyMem valMap = memoryTransform . memSubst valMap
-
-subst :: (a -> Maybe a) -> a -> a
-subst f x = maybe x identity $ f x
 
 data ParsedAddr = ParsedAddr
   { baseAddrExpr :: Expression

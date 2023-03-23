@@ -89,6 +89,8 @@ instance
     l <- HashMap.lookup (G.Edge (getNodeId a) (getNodeId b)) $ p ^. #graph . #edgeMap
     return . LEdge l $ Edge a b
 
+  hasNode n = G.hasNode n . view #graph
+
   nodes = G.nodes . view #graph
                  
   toPathGraph p =
@@ -111,14 +113,15 @@ instance
         Nothing -> []
         Just e@(LEdge _ (Edge _ b)) -> e : followEdges b
 
-  expandNode n pOuter pInner =
-    AlgaPath
-    { rootNode = case pedge of
-        -- replaced node is root, so replace with inner root node
-        Nothing -> pInner ^. #rootNode
-        Just _ -> pOuter ^. #rootNode
-    , graph = g
-    }
+  expandNode n pOuter pInner
+    | not (P.hasNode n pOuter) = error "Node not found"
+    | otherwise = AlgaPath
+      { rootNode = case pedge of
+          -- replaced node is root, so replace with inner root node
+          Nothing -> pInner ^. #rootNode
+          Just _ -> pOuter ^. #rootNode
+      , graph = g
+      }
     where
       pedge = P.predEdge n pOuter
       sedge = P.succEdge n pOuter
@@ -128,10 +131,10 @@ instance
       linkEnd (LEdge l (Edge a b))
         = G.addEdge (LEdge l (Edge (P.end pInner) b))
         . G.removeEdge (Edge a b)
-      g = G.removeNode n
-          . maybe identity linkStart pedge
+      g = maybe identity linkStart pedge
           . maybe identity linkEnd sedge
           . G.addEdges (G.edges $ pInner ^. #graph)
+          . G.removeNode n
           $ pOuter ^. #graph
 
   append p1 lbl p2 = AlgaPath

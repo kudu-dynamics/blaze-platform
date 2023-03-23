@@ -19,6 +19,7 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (Graph, Identifiable (getNodeId), NodeId (NodeId), Edge (Edge), LEdge (LEdge))
 import Blaze.Types.Graph qualified as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
+import qualified Blaze.Types.Graph.Alga as Ag
 import Blaze.Types.Pil (BranchCondOp, CallDest, Ctx, CtxId, Expression, RetOp, Stmt)
 import Blaze.Types.Pil qualified as Pil
 import Control.Arrow ((&&&))
@@ -426,6 +427,25 @@ instance (Hashable a, Identifiable a UUID) => Graph BranchType a Cfg where
   subgraph pred cfg = cfg & #graph %~ G.subgraph pred
 
   reachable n cfg = G.reachable n $ cfg ^. #graph
+
+-- | A convenience function that uses 'fromJust' to extract the root
+-- node from a 'Maybe n'.
+getRootNode :: Cfg n -> n
+getRootNode cfg = fromJust $ Ag.getNode (cfg ^. #graph) (cfg ^. #rootId)
+
+class HasCtx a where
+  getCtx :: a -> Ctx
+
+instance HasCtx a => HasCtx (Cfg a) where
+  getCtx = getCtx . getRootNode
+
+instance HasCtx (CfNode a) where
+  getCtx = \case
+    BasicBlock bb -> bb ^. #ctx
+    Call n -> n ^. #ctx
+    EnterFunc n -> n ^. #prevCtx
+    LeaveFunc n -> n ^. #nextCtx
+    Grouping n -> getCtx $ n ^. #grouping
 
 data FuncContext = FuncContext
   { func :: Function

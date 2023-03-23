@@ -5,8 +5,7 @@ import Blaze.Pil.Checker as Checker
 import Blaze.Types.Pil (Ctx, Stmt)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker (TypeReport, ConstraintGenError, SymTypedStmt)
-import Blaze.Cfg (gatherCfgData, getCfgCtx)
-import Blaze.Types.Cfg (Cfg, CfNode)
+import Blaze.Cfg (Cfg, CfNode, gatherCfgData, getCtx)
 import qualified Blaze.Pil.Analysis as Analysis
 
 
@@ -25,7 +24,7 @@ checkCfg :: Cfg (CfNode [Stmt])
             , Cfg (CfNode [(Int, SymTypedStmt)])
             , TypeReport
             )
-checkCfg cfg = case checkFromCfg (Just $ getCfgCtx cfg) indexedStmts' of
+checkCfg cfg = case checkFromCfg (Just $ getCtx cfg) indexedStmts' of
   Left err -> Left err
   Right tr -> Right (cfg', typedCfg, tr)
     where

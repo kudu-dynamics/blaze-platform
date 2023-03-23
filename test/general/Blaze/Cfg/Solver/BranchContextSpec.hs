@@ -17,15 +17,15 @@ import Blaze.Function (Function (Function))
 import Blaze.Function qualified as Func
 import Blaze.Graph qualified as G
 import Blaze.Pil.Construct
-import Blaze.Pil.Construct qualified as C
 import Blaze.Pretty (PrettyShow' (PrettyShow'))
 import Blaze.Types.Graph.EdgeGraph (EdgeGraph, EdgeGraphNode (NodeNode))
 import Blaze.Types.Graph.EdgeGraph qualified as Eg
-import Blaze.Types.Pil (CallDest (CallFunc), Ctx (Ctx), Expression, Stmt, Symbol)
+import Blaze.Types.Pil (Ctx (Ctx), Stmt)
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode, mkUuid1)
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
 import Test.Hspec
+
 
 bbp :: Ctx -> Text -> [Stmt] -> CfNode [Stmt]
 bbp ctx name stmts = BasicBlock $ BasicBlockNode
@@ -47,25 +47,6 @@ bbpn n ctx name stmts = BasicBlock $ BasicBlockNode
   , nodeData = stmts
   }
   where
-    uuid' = mkUuid1 . hash $ name
-
-pilCall :: Symbol -> Function -> [Expression] -> Stmt
-pilCall varSym func args =
-  C.defCall varSym (CallFunc func) args 8
-
-mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Expression] -> (Cfg.CallNode [Stmt], Stmt)
-mkCallNode ctx name retVarSym targetFunc' args =
-  ( CallNode
-    { ctx = ctx
-    , start = 0
-    , callDest = CallFunc targetFunc'
-    , uuid = uuid'
-    , nodeData = [callStmt']
-    }
-  , callStmt'
-  )
-  where
-    callStmt' = pilCall retVarSym targetFunc' args
     uuid' = mkUuid1 . hash $ name
 
 callerFunc :: Function

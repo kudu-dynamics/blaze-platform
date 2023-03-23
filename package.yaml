@@ -97,8 +97,10 @@ library:
   - Blaze.Cfg.Checker
   - Blaze.Cfg.Interprocedural
   - Blaze.Cfg.Loop
+  - Blaze.Cfg.Path
   - Blaze.Cfg.Solver.BranchContext
   - Blaze.Cfg.Solver.General
+  - Blaze.Types.Cfg.Path
   - Blaze.Fir
   - Blaze.Function
   - Blaze.Graph
