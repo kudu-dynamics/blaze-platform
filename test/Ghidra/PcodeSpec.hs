@@ -25,7 +25,7 @@ spec = describe "Ghidra.Pcode" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
-  
+
   context "getRawPcode" $ do
     let faddr = 0x13ad
     (raws, liftedRaws) <- runIO . runGhidraOrError $ do
@@ -35,7 +35,7 @@ spec = describe "Ghidra.Pcode" $ do
       addrSpaceMap <- getAddressSpaceMap gs
       liftedRaws <- getRawPcode gs addrSpaceMap func
       return (raws, liftedRaws)
-      
+
     it "should get raw pcode" $ do
       length raws `shouldBe` 104
 
@@ -56,7 +56,7 @@ spec = describe "Ghidra.Pcode" $ do
                           , addressableUnitSize = 1
                           , name = Unique
                           }
-                        , offset = 59904
+                        , offset = 60672
                         }
             , size = Bytes 8
             }
@@ -87,7 +87,7 @@ spec = describe "Ghidra.Pcode" $ do
       addrSpaceMap <- getAddressSpaceMap gs
       liftedHighs <- getHighPcode gs addrSpaceMap hfunc func
       return (highs, liftedHighs)
-      
+
     it "should get high pcode ops" $ do
       length highs `shouldBe` 15
 
@@ -107,4 +107,3 @@ getHighPcodeDemo = runGhidraOrError $ do
   -- highs <- getHighPcodeOps gs hfunc func
   addrSpaceMap <- getAddressSpaceMap gs
   fmap snd <$> getHighPcode gs addrSpaceMap hfunc func
-  
