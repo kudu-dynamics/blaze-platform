@@ -34,12 +34,12 @@ RUN --mount=type=cache,id=blaze-apt,target=/var/cache/apt,sharing=private \
     --mount=type=cache,id=blaze-apt-lists,target=/var/apt/lists,sharing=private \
 <<EOF
     apt update -yq
-    apt install -yq --no-install-recommends openjdk-11-jdk
+    apt install -yq --no-install-recommends openjdk-17-jdk
 EOF
 
-ENV LIBRARY_PATH="${LIBRARY_PATH:+"$LIBRARY_PATH:"}/usr/lib/jvm/java-11-openjdk-amd64/lib/server"
-ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+"$LD_LIBRARY_PATH:"}/usr/lib/jvm/java-11-openjdk-amd64/lib/server"
-ENV C_INCLUDE_PATH="${LIBRARY_PATH:+"$LIBRARY_PATH:"}/usr/lib/jvm/java-11-openjdk-amd64/include:/usr/lib/jvm/java-11-openjdk-amd64/include/linux"
+ENV LIBRARY_PATH="${LIBRARY_PATH:+"$LIBRARY_PATH:"}/usr/lib/jvm/java-17-openjdk-amd64/lib/server"
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+"$LD_LIBRARY_PATH:"}/usr/lib/jvm/java-17-openjdk-amd64/lib/server"
+ENV C_INCLUDE_PATH="${LIBRARY_PATH:+"$LIBRARY_PATH:"}/usr/lib/jvm/java-17-openjdk-amd64/include:/usr/lib/jvm/java-17-openjdk-amd64/include/linux"
 
 COPY --from=ghidra-haskell /blaze/build/ghidra-haskell/ /blaze/build/ghidra-haskell/
 
