@@ -51,10 +51,6 @@ data ConverterError
     , highArg :: Expression
     , lowArg :: Expression
     }
-  -- | The offset argument (input1) to 'PTRSUB' was not @.isConstant()@
-  | PtrsubOffsetNotConstant
-    { offset :: VarNodeType
-    }
   -- | The result list of 'RETURN' was greater than 1
   | ReturningTooManyResults
   -- | The argument to 'BRANCH' or 'CBRANCH' was a /p-code relative/ offset
@@ -437,10 +433,12 @@ convertPcodeOpToPilStmt = \case
   P.PTRSUB out base offset -> do
     -- out := (void *)base + offset
     base' <- varNodeToValueExpr base
-    offset' <- case getVarNodeType offset of
-                 VImmediate n -> pure n
-                 vnt -> throwError $ PtrsubOffsetNotConstant vnt
-    mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral offset')
+    case getVarNodeType offset of
+      VImmediate n ->
+        mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)
+      _ -> do
+        offset' <- varNodeToValueExpr offset
+        mkDef out . Pil.ADD $ Pil.AddOp base' offset'
   P.RETURN _ [] -> pure [C.ret C.unit]
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
