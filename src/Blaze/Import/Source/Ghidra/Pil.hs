@@ -317,11 +317,9 @@ convertPcodeOpToPilStmt = \case
   P.BOOL_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   -- TODO: Handle p-code relative jumps
   P.BRANCH dest -> pure . Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
-  -- Branch indirect. Var contains offset from current instr.
-  -- Offset is in context of current addr space
-  -- TODO: maybe should use `JumpTo instrAddr [off]`
-  -- P.BRANCHIND in0 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in0 ^. #value)
-  P.BRANCHIND _in0 -> pure [Pil.UnimplInstr "BRANCHIND"]
+  P.BRANCHIND in0 -> do
+    target <- varNodeToValueExpr in0
+    pure [Pil.Jump . Pil.JumpOp $ target]
   P.CALL dest inputs -> do
     cdest <- lift $ callDestFromDest $ dest ^. #value
     params <-  mapM varNodeToValueExpr . fmap (view #value) $ inputs
