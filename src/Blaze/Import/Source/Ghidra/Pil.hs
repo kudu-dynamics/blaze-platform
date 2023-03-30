@@ -254,9 +254,7 @@ varNodeToReference v = do
     VReg n -> pure . Left . pv $ "reg_" <> showHex n <> "_" <> showHex size
     VStack n -> pure . Left . pv $ stackVarName n
     VUnique n -> pure . Left . pv $ "unique_" <> showHex n
-    -- XXX We might need to scale these by addressable unit size
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
-    -- XXX We might need to scale these by addressable unit size
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
@@ -297,9 +295,7 @@ varNodeToValueExpr v = do
     VReg n -> pure $ C.var' (pv $ "reg_" <> showHex n <> "_" <> showHex size) operSize
     VStack n -> pure $ C.var' (pv $ stackVarName n) operSize
     VUnique n -> pure $ C.var' (pv $ "unique_" <> showHex n) operSize
-    -- XXX We might need to scale these by addressable unit size
     VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize
-    -- XXX We might need to scale these by addressable unit size
     VExtern n -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (Pil.widthToSize (64 :: Bits))) operSize
     VImmediate n -> pure $ C.const n operSize
     VOther t off
@@ -398,11 +394,17 @@ convertPcodeOpToPilStmt = \case
   P.INT_SUB out in0 in1 -> mkDef out =<< binIntOp Pil.SUB Pil.SubOp in0 in1
   P.INT_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   P.INT_ZEXT out in0 -> mkDef out =<< unIntOp Pil.ZX Pil.ZxOp in0
-  P.LOAD out _addrSpace in1 -> do
-    offset <- mkExpr in1 <$> unIntOp Pil.LOAD Pil.LoadOp in1
-    -- TODO: we need to make use of the address space during the second LOAD. How?
-    let target = Pil.LOAD $ Pil.LoadOp offset
-    mkDef out target
+  P.LOAD out addrSpace in1 -> do
+    offset <- varNodeToValueExpr in1
+    -- TODO: we need to make use of the address space during the LOAD. How?
+    if addrSpace ^. #value . #ptrSize == 1 then do
+      let target = Pil.LOAD . Pil.LoadOp $ offset
+      mkDef out target
+    else do
+      let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
+          scale = C.const (fromIntegral (addrSpace ^. #value . #addressableUnitSize :: Bytes)) ptrSize
+          target = Pil.LOAD . Pil.LoadOp $ C.mul scale offset ptrSize
+      mkDef out target
   P.MULTIEQUAL out in0 in1 rest -> do
     -- TODO: memory phi statements are just silently ignored here
     flip catchError (\_ -> pure []) $ do
@@ -441,13 +443,19 @@ convertPcodeOpToPilStmt = \case
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.SEGMENTOP -> pure [Pil.UnimplInstr "SEGMENTOP"]
-  --- XXX We need to utilize the addrSpace
-  P.STORE _addrSpace destOffset in1 -> do
-    --- XXX we have to scale this offset by the address space addressable unit size
-    destOffset' <- varNodeToValueExpr destOffset
-    in1' <- varNodeToValueExpr in1
-    -- XXX we need to make use of the address space during the Store. How?
-    pure . (: []) . Pil.Store $ Pil.StoreOp destOffset' in1'
+  P.STORE addrSpace destOffset in1 -> do
+    if addrSpace ^. #value . #ptrSize == 1 then do
+      destOffset' <- varNodeToValueExpr destOffset
+      in1' <- varNodeToValueExpr in1
+      -- TODO we need to make use of the address space during the Store. How?
+      pure [Pil.Store $ Pil.StoreOp destOffset' in1']
+    else do
+      destOffset' <- varNodeToValueExpr destOffset
+      in1' <- varNodeToValueExpr in1
+      let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
+          scale = C.const (fromIntegral (addrSpace ^. #value . #addressableUnitSize :: Bytes)) ptrSize
+      -- TODO we need to make use of the address space during the Store. How?
+      pure [Pil.Store $ Pil.StoreOp (C.mul scale destOffset' ptrSize) in1']
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
     in0' <- varNodeToValueExpr in0
