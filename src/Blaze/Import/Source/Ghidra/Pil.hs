@@ -41,7 +41,6 @@ import qualified Data.List.NonEmpty as NE
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
   | ExpectedAddressButGotConst Int64
-  | AddressSpaceTypeCannotBeVar GAddr.Address
   | UnsuportedAddressSpace Text
   -- | Could not recognize the VarNode as a 'PilVar', probably because it
   -- belongs to an address space other than 'unique', 'reg', or stack
@@ -51,10 +50,6 @@ data ConverterError
     { outputSize :: Size Expression
     , highArg :: Expression
     , lowArg :: Expression
-    }
-  -- | The offset argument (input1) to 'PTRSUB' was not @.isConstant()@
-  | PtrsubOffsetNotConstant
-    { offset :: VarNodeType
     }
   -- | The result list of 'RETURN' was greater than 1
   | ReturningTooManyResults
@@ -147,7 +142,7 @@ data VarNodeType
   -- | VConstAddr Int64
   | VExtern Int64
   | VImmediate Int64
-  | VOther Text
+  | VOther Text Int64
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
@@ -155,13 +150,13 @@ getVarNodeType v = case getVarType v of
   GVar.Const n -> VImmediate n
   GVar.Addr x -> case x ^. #space . #name of
     GAddr.EXTERNAL -> VExtern off
-    GAddr.HASH -> VOther "HASH"
+    GAddr.HASH -> VOther "HASH" off
     GAddr.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
     GAddr.Ram -> VRam off
     GAddr.Register -> VReg off
     GAddr.Stack -> VStack off
     GAddr.Unique -> VUnique off
-    GAddr.Other t -> VOther t
+    GAddr.Other t -> VOther t off
     where
       off = x ^. #offset
 
@@ -259,12 +254,12 @@ varNodeToReference v = do
     VReg n -> pure . Left . pv $ "reg_" <> showHex n <> "_" <> showHex size
     VStack n -> pure . Left . pv $ stackVarName n
     VUnique n -> pure . Left . pv $ "unique_" <> showHex n
-    -- XXX We might need to scale these by addressable unit size
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
-    -- XXX We might need to scale these by addressable unit size
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
-    VOther t -> throwError $ UnsuportedAddressSpace t
+    VOther t off
+      | t == "VARIABLE" -> pure . Left . pv $ "ghidravar_" <> showHex off
+      | otherwise -> throwError $ UnsuportedAddressSpace t
   where
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
     showHex n = Text.pack $ Numeric.showHex n ""
@@ -300,12 +295,12 @@ varNodeToValueExpr v = do
     VReg n -> pure $ C.var' (pv $ "reg_" <> showHex n <> "_" <> showHex size) operSize
     VStack n -> pure $ C.var' (pv $ stackVarName n) operSize
     VUnique n -> pure $ C.var' (pv $ "unique_" <> showHex n) operSize
-    -- XXX We might need to scale these by addressable unit size
     VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize
-    -- XXX We might need to scale these by addressable unit size
     VExtern n -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (Pil.widthToSize (64 :: Bits))) operSize
     VImmediate n -> pure $ C.const n operSize
-    VOther t -> throwError $ UnsuportedAddressSpace t
+    VOther t off
+      | t == "VARIABLE" -> pure $ C.var' (pv $ "ghidravar_" <> showHex off) operSize
+      | otherwise -> throwError $ UnsuportedAddressSpace t
   where
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
     showHex n = Text.pack $ Numeric.showHex n ""
@@ -318,11 +313,9 @@ convertPcodeOpToPilStmt = \case
   P.BOOL_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   -- TODO: Handle p-code relative jumps
   P.BRANCH dest -> pure . Pil.Jump . Pil.JumpOp <$> convertDest (dest ^. #value)
-  -- Branch indirect. Var contains offset from current instr.
-  -- Offset is in context of current addr space
-  -- TODO: maybe should use `JumpTo instrAddr [off]`
-  -- P.BRANCHIND in0 -> Pil.Jump . Pil.JumpOp <$> requireVarExpr (in0 ^. #value)
-  P.BRANCHIND _in0 -> pure [Pil.UnimplInstr "BRANCHIND"]
+  P.BRANCHIND in0 -> do
+    target <- varNodeToValueExpr in0
+    pure [Pil.Jump . Pil.JumpOp $ target]
   P.CALL dest inputs -> do
     cdest <- lift $ callDestFromDest $ dest ^. #value
     params <-  mapM varNodeToValueExpr . fmap (view #value) $ inputs
@@ -401,11 +394,17 @@ convertPcodeOpToPilStmt = \case
   P.INT_SUB out in0 in1 -> mkDef out =<< binIntOp Pil.SUB Pil.SubOp in0 in1
   P.INT_XOR out in0 in1 -> mkDef out =<< binIntOp Pil.XOR Pil.XorOp in0 in1
   P.INT_ZEXT out in0 -> mkDef out =<< unIntOp Pil.ZX Pil.ZxOp in0
-  P.LOAD out _addrSpace in1 -> do
-    offset <- mkExpr in1 <$> unIntOp Pil.LOAD Pil.LoadOp in1
-    -- TODO: we need to make use of the address space during the second LOAD. How?
-    let target = Pil.LOAD $ Pil.LoadOp offset
-    mkDef out target
+  P.LOAD out addrSpace in1 -> do
+    offset <- varNodeToValueExpr in1
+    -- TODO: we need to make use of the address space during the LOAD. How?
+    if addrSpace ^. #value . #ptrSize == 1 then do
+      let target = Pil.LOAD . Pil.LoadOp $ offset
+      mkDef out target
+    else do
+      let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
+          scale = C.const (fromIntegral (addrSpace ^. #value . #addressableUnitSize :: Bytes)) ptrSize
+          target = Pil.LOAD . Pil.LoadOp $ C.mul scale offset ptrSize
+      mkDef out target
   P.MULTIEQUAL out in0 in1 rest -> do
     -- TODO: memory phi statements are just silently ignored here
     flip catchError (\_ -> pure []) $ do
@@ -434,21 +433,29 @@ convertPcodeOpToPilStmt = \case
   P.PTRSUB out base offset -> do
     -- out := (void *)base + offset
     base' <- varNodeToValueExpr base
-    offset' <- case getVarNodeType offset of
-                 VImmediate n -> pure n
-                 vnt -> throwError $ PtrsubOffsetNotConstant vnt
-    mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral offset')
+    case getVarNodeType offset of
+      VImmediate n ->
+        mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)
+      _ -> do
+        offset' <- varNodeToValueExpr offset
+        mkDef out . Pil.ADD $ Pil.AddOp base' offset'
   P.RETURN _ [] -> pure [C.ret C.unit]
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.SEGMENTOP -> pure [Pil.UnimplInstr "SEGMENTOP"]
-  --- XXX We need to utilize the addrSpace
-  P.STORE _addrSpace destOffset in1 -> do
-    --- XXX we have to scale this offset by the address space addressable unit size
-    destOffset' <- varNodeToValueExpr destOffset
-    in1' <- varNodeToValueExpr in1
-    -- XXX we need to make use of the address space during the Store. How?
-    pure . (: []) . Pil.Store $ Pil.StoreOp destOffset' in1'
+  P.STORE addrSpace destOffset in1 -> do
+    if addrSpace ^. #value . #ptrSize == 1 then do
+      destOffset' <- varNodeToValueExpr destOffset
+      in1' <- varNodeToValueExpr in1
+      -- TODO we need to make use of the address space during the Store. How?
+      pure [Pil.Store $ Pil.StoreOp destOffset' in1']
+    else do
+      destOffset' <- varNodeToValueExpr destOffset
+      in1' <- varNodeToValueExpr in1
+      let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
+          scale = C.const (fromIntegral (addrSpace ^. #value . #addressableUnitSize :: Bytes)) ptrSize
+      -- TODO we need to make use of the address space during the Store. How?
+      pure [Pil.Store $ Pil.StoreOp (C.mul scale destOffset' ptrSize) in1']
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
     in0' <- varNodeToValueExpr in0
