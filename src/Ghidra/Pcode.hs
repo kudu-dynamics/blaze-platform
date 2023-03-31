@@ -255,6 +255,11 @@ getRawPcode gs addressSpaceMap a = do
     separateError (Right x) (errs, instrs) = (errs, x:instrs)
     separateError (Left err) (errs, instrs) = (err:errs, instrs)
 
+-- | Get the high P-Code instructions that are covered by the address range of
+-- 'a'. This is known to return results in a possibly incorrect order if a
+-- 'PcodeBlockBasic' is passed as 'a'. To get the high P-Code for a
+-- 'PcodeBlockBasic', use 'getBlockHighPcode'. Other types might have similar
+-- issues.
 getHighPcode
   :: J.Addressable a
   => GhidraState
@@ -265,6 +270,27 @@ getHighPcode
 getHighPcode gs addressSpaceMap hfn a = do
   jpcodes <- getHighPcodeOps gs hfn a
   highInstrs :: [(J.Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
+  let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
+      (errs, instrs) = foldr separateError ([],[]) liftedInstrs
+  case errs of
+    [] -> return instrs
+    _ -> error $ "Encountered Pcode decoding errors:\n" <> cs (pshow errs)
+  where
+    separateError (Right x) (errs, instrs) = (errs, x:instrs)
+    separateError (Left err) (errs, instrs) = (err:errs, instrs)
+
+getBlockHighPcode
+  :: AddressSpaceMap
+  -> J.PcodeBlockBasic
+  -> IO [(J.Address, PcodeOp HighVarNode)]
+getBlockHighPcode addressSpaceMap block = do
+  ops :: [J.PcodeOpAST] <- iteratorToList =<< Java.call block "getIterator"
+  opsWithAddr :: [(J.Address, J.PcodeOpAST)] <-
+    forM ops $ \op -> do
+      seqnum :: J.SequenceNumber <- Java.call op "getSeqnum"
+      addr <- Java.call seqnum "getTarget"
+      pure (addr, op)
+  highInstrs :: [(J.Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) opsWithAddr
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of
