@@ -87,6 +87,7 @@ import Blaze.Cfg
 import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Types.Cfg.Grouping as GCfg
 import qualified Blaze.Types.Cfg.Path as CfgPath
+import qualified Blaze.Types.Pil.Summary as Summary
 import Blaze.Pil.Display (needsParens)
 
 import qualified Data.HashMap.Strict as HashMap
@@ -427,6 +428,21 @@ instance Tokenizable Pil.PilVar where
           Just ctx -> "@"
             <> show (fromIntegral $ ctx ^. #ctxId :: Int)
     pure [varToken vsym $ (var ^. #symbol) <> ctxIdSuff]
+
+instance Tokenizable Summary.InputLocation where
+  tokenize (Summary.ConcreteInputLocation a) = kt "ConcreteInputLocation " <++> tokenize a
+  tokenize (Summary.SymbolicInputLocation v) = kt "SymbolicInputLocation " <++> tokenize v
+  tokenize (Summary.PureExpression e) = kt "PureExpression " <++> parenExpr e
+
+instance Tokenizable Summary.OutputLocation where
+  tokenize (Summary.ConcreteOutputLocation a) = kt "ConcreteOutputLocation " <++> tokenize a
+  tokenize (Summary.SymbolicOutputLocation v) = kt "SymbolicOutputLocation " <++> tokenize v
+  tokenize Summary.Returned = pure [kt "Returned"]
+
+instance Tokenizable Summary.Capability where
+  tokenize (Summary.CopyCapability to_ from_) =
+    kt "Copy " <++> (paren <$> tokenize to_) <++> tt " " <++> (paren <$> tokenize from_)
+  tokenize Summary.AddressLeak = pure [kt "AddressLeak"]
 
 tokenizeBinop ::
   ( Tokenizable b
