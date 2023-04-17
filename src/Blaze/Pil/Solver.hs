@@ -1078,3 +1078,8 @@ solveStmtsWith_ :: SMTConfig
 solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. #result
+
+solveStmtsWithZ3 :: [Statement Expression] -> IO SolverResult
+solveStmtsWithZ3 stmts = solveStmtsWith SBV.z3 stmts >>= \case
+  Left _ -> return Unk
+  Right (r, _) -> return $ r ^. #result

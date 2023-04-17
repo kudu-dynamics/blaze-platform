@@ -1,4 +1,6 @@
-module Blaze.Pil where
+module Blaze.Pil
+  ( module Blaze.Pil
+  ) where
 
 import Blaze.Pil.Analysis (getAllSyms)
 import Blaze.Types.Pil.Analysis (symbolGenerator)
@@ -40,7 +42,7 @@ getLastDefined :: [PilVar] -> HashSet PilVar -> Maybe PilVar
 getLastDefined orderedVars candidateVars =
   headMay [v | v <- orderedVars, HSet.member v candidateVars]
 
--- |Generate store statements that correspond to any arguments used 
+-- |Generate store statements that correspond to any arguments used
 -- for output for a called function.
 genCallOutputStores :: [FuncParamInfo] -> [Expression] -> [Stmt]
 genCallOutputStores paramInfos params =

@@ -358,7 +358,10 @@ convertPcodeOpToPilStmt = \case
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
-  P.INDIRECT _out _in0 _in1 -> pure [Pil.UnimplInstr "INDIRECT"]
+  P.INDIRECT out in0 _possibleInterruptionLoc -> do
+    assignment <- varNodeToAssignment out
+    v <- varNodeToValueExpr in0
+    return [assignment v]
   P.INSERT _out _in0 _in1 _position _size -> pure [Pil.UnimplInstr "INSERT"]
   -- P.INSERT out in0 in1 position size -> do
   --   in0' <- requirePilVar in0

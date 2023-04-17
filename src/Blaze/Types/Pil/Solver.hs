@@ -28,6 +28,7 @@ import Control.Monad.Fail (MonadFail(fail))
 import Blaze.Types.Pil.Checker (DeepSymType, Sym, SymInfo)
 import qualified Blaze.Types.Pil.Checker as Ch
 
+
 type StmtIndex = Int
 
 type DSTExpression = Ch.InfoExpression (SymInfo, Maybe DeepSymType)
@@ -72,7 +73,6 @@ data SolverState = SolverState
   , errors :: [SolverError]
   , stores :: HashMap Expression [SVal]
   } deriving (Generic)
-
 
 emptyState :: SolverState
 emptyState = SolverState mempty mempty 0 [] mempty

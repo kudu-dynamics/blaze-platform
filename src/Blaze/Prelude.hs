@@ -61,6 +61,7 @@ import Control.Lens as Exports
     over,
     use,
     preview,
+    traverseOf,
     view,
     at,
     _Just,
@@ -125,6 +126,7 @@ import Prelude as Exports
     error,
   )
 import qualified Data.Text as Text
+
 
 type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
 

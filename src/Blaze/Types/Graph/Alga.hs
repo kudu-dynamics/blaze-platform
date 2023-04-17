@@ -15,6 +15,8 @@ import qualified Algebra.Graph.Export.Dot as Dot
 -- | A graph implementation that is build atop the Alga graph library.
 -- The 'l' type specifies the edge label, the 'i' type specifies the 
 -- node idenitifier, and the 'n' type specifies the node.
+-- WARNING: The Functor and Traversable instances are not safe if
+-- the NodeId is changed.
 data AlgaGraph l i n = AlgaGraph
   -- TODO: We can move to AdjacencyIntMap if we assert NodeId is an Int
   { adjacencyMap :: G.AdjacencyMap (NodeId i)
@@ -24,6 +26,47 @@ data AlgaGraph l i n = AlgaGraph
 
 -- TODO: see if G.AdjacencyMap's Eq is good enough
 -- I think that two graphs with identitcal nodes and edges will not be equal
+
+-- | Call this if you want to map over the nodes and change the node ids.
+safeMap
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     )
+  => (a -> b)
+  -> AlgaGraph l i a
+  -> AlgaGraph l j b
+safeMap f g
+  = addNodes (fmap f . HSet.toList $ nodes g)
+  . fromEdges
+  . fmap (fmap f)
+  . edges
+  $ g
+
+-- | Call this if you want to traverse over the nodes and change the node ids.
+safeTraverse
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Applicative f
+     )
+  => (a -> f b)
+  -> AlgaGraph l i a
+  -> f (AlgaGraph l j b)
+safeTraverse f g
+  = addNodes
+  <$> (traverse f . HSet.toList $ nodes g)
+  <*> (fmap fromEdges . traverse (traverse f) . edges $ g)
 
 instance (NFData l, NFData i, NFData n) => NFData (AlgaGraph l i n)
 

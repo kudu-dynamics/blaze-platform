@@ -5,7 +5,7 @@ module Blaze.Cfg.Path
 
 import Blaze.Prelude
 
-import Blaze.Types.Cfg (Cfg, CfNode, CallNode, HasCtx(getCtx), BranchType(UnconditionalBranch))
+import Blaze.Types.Cfg (Cfg, CfNode, CallNode, HasCtx(getCtx), BranchType(UnconditionalBranch), setNodeUUID)
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg.Grouping (unfoldGroups)
 import Blaze.Types.Cfg.Path as Exports
@@ -48,9 +48,15 @@ getSimplePathsContaining reqNodes cfg = mkCfPath <$> P.getPathsContaining (\_ _ 
 
     (cfg', _) = unfoldGroups cfg
 
--- | Expands a call node with another path.
+-- | Expands a call node with another path. Updates ctxIds of inner path,
+-- as well as node UUIDs.
 -- Returns Nothing if call node not found.
-expandCall :: UUID -> PilPath -> CallNode [Stmt] -> PilPath -> Maybe PilPath
+expandCall
+  :: UUID
+  -> PilPath
+  -> CallNode [Stmt]
+  -> PilPath
+  -> Maybe PilPath
 expandCall leaveFuncUuid outerPath callNode innerPath
   | not (P.hasNode (Cfg.Call callNode) outerPath) = Nothing
   | otherwise = do
@@ -91,3 +97,13 @@ expandCall leaveFuncUuid outerPath callNode innerPath
       , uuid = leaveFuncUuid
       , nodeData = maybeToList $ C.def' <$> cstmt ^. #resultVar <*> retExpr
       }
+
+expandCallWithNewInnerPathIds :: UUID -> PilPath -> CallNode [Stmt] -> PilPath -> IO (Maybe PilPath)
+expandCallWithNewInnerPathIds leaveFuncUuid outerPath callNode innerPath = do
+  innerPath' <- safeTraverse giveNewUUID innerPath
+  return $ expandCall leaveFuncUuid outerPath callNode innerPath'
+  where
+    giveNewUUID :: CfNode [Stmt] -> IO (CfNode [Stmt])
+    giveNewUUID n = do
+      uuid <- randomIO
+      return $ setNodeUUID uuid n
