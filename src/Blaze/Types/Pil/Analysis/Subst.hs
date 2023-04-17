@@ -112,3 +112,21 @@ instance FlatSubst CtxId [a] where
   flatSubst _ = identity
 
 instance RecurSubst CtxId a => RecurSubst CtxId [a]
+
+--------- Expression
+
+instance FlatSubst Expression (ExprOp a) where
+  flatSubst _ op = op
+
+instance RecurSubst Expression a => RecurSubst Expression (ExprOp a)
+
+instance FlatSubst Expression Expression where
+  flatSubst f = f
+
+instance RecurSubst Expression Expression where
+  recurSubst f = over #op $ recurSubst f
+
+instance FlatSubst Expression (Statement a) where
+  flatSubst _ stmt = stmt
+
+instance RecurSubst Expression a => RecurSubst Expression (Statement a)

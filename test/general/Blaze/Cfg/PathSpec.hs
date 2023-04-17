@@ -25,6 +25,8 @@ import Blaze.Types.Graph (Identifiable)
 import Blaze.Types.Path ((-|), (|-), start)
 import Blaze.Pretty (PrettyShow'(PrettyShow'), FullCfNode(FullCfNode))
 
+import qualified Data.UUID as UUID
+
 
 ctx :: Ctx
 ctx = Ctx func 0
@@ -125,6 +127,14 @@ mkLeaveFunc name prevCtx_ nextCtx_ stmts = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
   , nodeData = stmts
   }
 
+func0 :: Function
+func0 = Function
+  { symbol = Nothing
+  , name = "func0"
+  , address = 0
+  , params = []
+  }
+
 func1 :: Function
 func1 = Function
   { symbol = Nothing
@@ -150,6 +160,42 @@ func3 = Function
   , address = 200
   , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In ]
   }
+
+func0Path :: Path (CfNode [Stmt])
+func0bb0 :: (CtxId -> CfNode [Stmt])
+func0call0 :: (CtxId -> Cfg.CallNode [Stmt])
+func0call1 :: (CtxId -> Cfg.CallNode [Stmt])
+func0bb1 :: (CtxId -> CfNode [Stmt])
+func0ctx :: (CtxId -> Ctx)
+(func0Path, func0bb0, func0call0, func0call1, func0bb1, func0ctx) =
+  ( CfgP.build 1
+    $ start (bb0 0)
+    -| UnconditionalBranch |- Cfg.Call (call0 0)
+    -| UnconditionalBranch |- Cfg.Call (call1 0)
+    -| UnconditionalBranch |- bb1 0
+  , bb0
+  , call0
+  , call1
+  , bb1
+  , mkCtx
+  )
+  where
+    mkCtx :: CtxId -> Ctx
+    mkCtx = Ctx func0
+    [x, y, r1, r2] = (\t ctxId -> C.pilVar' (mkCtx ctxId) t) <$> ["x", "y", "r1", "r2"]
+    bb0 i = bbp (mkCtx i) "bb0"
+      [ C.def' (x i) $ C.const 54 0x8
+      , C.def' (y i) $ C.const 88 0x8
+      ]
+    call0 i = fst $ mkCallNode' (mkCtx i) "callFunc3.0" (r1 i) func3
+      [ C.var' (x i) 8
+      ]
+    call1 i = fst $ mkCallNode' (mkCtx i) "callFunc3.1" (r2 i) func3
+      [ C.var' (y i) 8
+      ]
+    bb1 i = bbp (mkCtx i) "bb2"
+      [ C.ret $ C.add (C.var' (r1 i) 8) (C.var' (r2 i) 8) 8
+      ]
 
 func1Path :: Path (CfNode [Stmt])
 func1bb0 :: (CtxId -> CfNode [Stmt])
@@ -230,6 +276,13 @@ func3ctx :: (CtxId -> Ctx)
       [ C.def' (x i) $ C.add (C.var' (arg1 i) 8) (C.var' (arg1 i) 8)  8
       , C.ret (C.var' (x i) 8)
       ]
+
+getUpdatedNodeId :: CfNode [Stmt] -> UUID
+getUpdatedNodeId n = UUID.fromWords64 h h where h = fromIntegral $ hash (Cfg.getNodeUUID n)
+
+-- | Changes UUID based on hash of old UUID. Used to prevent nodes with duplicate ids.
+updateNodeId :: CfNode [Stmt] -> CfNode [Stmt]
+updateNodeId n = Cfg.setNodeUUID (getUpdatedNodeId n) n
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Path" $ do
@@ -360,7 +413,7 @@ spec = describe "Blaze.Cfg.Path" $ do
               -| UnconditionalBranch |- func2bb0 1
               -| TrueBranch |- func2bb1 1
               -| UnconditionalBranch |- Cfg.Call (func2call0 1)
-              -| UnconditionalBranch |- func2bb2 1            
+              -| UnconditionalBranch |- func2bb2 1
               -| UnconditionalBranch |- leaveFuncNode
               -| UnconditionalBranch |- func1bb1 0
       PrettyShow' (fmap FullCfNode <$> result) `shouldBe` PrettyShow' (Just $ FullCfNode <$> expected)
@@ -420,4 +473,61 @@ spec = describe "Blaze.Cfg.Path" $ do
               -| UnconditionalBranch |- func2bb2 1            
               -| UnconditionalBranch |- leaveFuncNode
               -| UnconditionalBranch |- func1bb1 0
+      PrettyShow' (fmap FullCfNode <$> result) `shouldBe` PrettyShow' (Just $ FullCfNode <$> expected)
+
+    it "should expand two calls to the same function sequentially" $ do
+      let outerPath = func0Path
+          innerPath1 = func3Path
+          innerPath2 = updateNodeId <$> func3Path
+          callNode1 = func0call0 0
+          callNode2 = func0call1 0
+          leaveFuncUuid1 = mkUuid1 (1234 :: Int)
+          leaveFuncUuid2 = mkUuid1 (2345 :: Int)
+          p1 = fromJust $ CfgP.expandCall leaveFuncUuid1 outerPath callNode1 innerPath1
+          result = CfgP.expandCall leaveFuncUuid2 p1 callNode2 innerPath2
+
+          enterFuncNode1 = Cfg.EnterFunc $ Cfg.EnterFuncNode
+            { prevCtx = func0ctx 0
+            , nextCtx = func3ctx 1
+            , uuid = callNode1 ^. #uuid
+            , nodeData =
+              [ C.def' (C.pilVar' (func3ctx 1) "arg1")
+                $ C.var' (C.pilVar' (func0ctx 0) "x") 8
+              ]
+            }
+          leaveFuncNode1 = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
+            { prevCtx = func3ctx 1
+            , nextCtx = func0ctx 0
+            , uuid = leaveFuncUuid1
+            , nodeData = [ C.def' (C.pilVar' (func0ctx 0) "r1")
+                                  (C.var' (C.pilVar' (func3ctx 1) "x") 8)
+                         ]
+            }
+          enterFuncNode2 = Cfg.EnterFunc $ Cfg.EnterFuncNode
+            { prevCtx = func0ctx 0
+            , nextCtx = func3ctx 2
+            , uuid = callNode2 ^. #uuid
+            , nodeData =
+              [ C.def' (C.pilVar' (func3ctx 2) "arg1")
+                $ C.var' (C.pilVar' (func0ctx 0) "y") 8
+              ]
+            }
+          leaveFuncNode2 = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
+            { prevCtx = func3ctx 2
+            , nextCtx = func0ctx 0
+            , uuid = leaveFuncUuid2
+            , nodeData = [ C.def' (C.pilVar' (func0ctx 0) "r2")
+                                  (C.var' (C.pilVar' (func3ctx 2) "x") 8)
+                         ]
+            }
+
+          expected = CfgP.build 3 $ start (func0bb0 0)
+              -| UnconditionalBranch |- enterFuncNode1
+              -| UnconditionalBranch |- func3bb0 1
+              -| UnconditionalBranch |- leaveFuncNode1
+              -| UnconditionalBranch |- enterFuncNode2
+              -| UnconditionalBranch |- updateNodeId (func3bb0 2)
+              -| UnconditionalBranch |- leaveFuncNode2
+              -| UnconditionalBranch |- func0bb1 0
+
       PrettyShow' (fmap FullCfNode <$> result) `shouldBe` PrettyShow' (Just $ FullCfNode <$> expected)

@@ -957,6 +957,7 @@ instance Tokenizable a => Tokenizable (FullCfNode [a]) where
 instance
   ( Hashable a
   , Tokenizable a
+  , Show a
   , Ord i
   , Hashable i
   , Tokenizable l
@@ -977,6 +978,7 @@ instance
 
 instance
   ( Hashable a
+  , Show a
   , Tokenizable a
   , G.Identifiable a UUID) => Tokenizable (CfgPath.Path a) where
   tokenize p = tt "--- CtxPath ---"

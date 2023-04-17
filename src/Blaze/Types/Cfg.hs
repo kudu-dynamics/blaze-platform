@@ -314,6 +314,18 @@ getNodeUUID = \case
   LeaveFunc x -> x ^. #uuid
   Grouping x -> x ^. #uuid
 
+-- | Sets a node's UUID.
+-- WARNING: If you change the UUID of a node in a Cfg, you must also update
+-- all the places in the underlying AlgaGraph that use the old UUID.
+-- This can be used safely with `safeMap` and `safeTraverse`.
+setNodeUUID :: UUID -> CfNode a -> CfNode a
+setNodeUUID newUuid = \case
+  BasicBlock x -> BasicBlock $ x & #uuid .~ newUuid
+  Call x -> Call $ x & #uuid .~ newUuid
+  EnterFunc x -> EnterFunc $ x & #uuid .~ newUuid
+  LeaveFunc x -> LeaveFunc $ x & #uuid .~ newUuid
+  Grouping x -> Grouping $ x & #uuid .~ newUuid
+
 setNodeData :: a -> CfNode a -> CfNode a
 setNodeData d = \case
   BasicBlock n -> BasicBlock $ n & #nodeData .~ d

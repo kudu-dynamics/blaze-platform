@@ -259,3 +259,20 @@ gatherCfgData cfg = concatMap getNodeData (HashSet.toList . G.nodes $ cfg)
 -- | A convenience function that looks up a node by an ID.
 getNode :: Cfg n -> NodeId UUID -> Maybe n
 getNode cfg = Ag.getNode (cfg ^. #graph)
+
+cfgContainsAddress :: Hashable a => Address -> Cfg (CfNode a) -> Bool
+cfgContainsAddress addr = or . fmap (nodeContainsAddress addr) . HashSet.toList . nodes
+
+nodeContainsAddress :: Hashable a => Address -> CfNode a -> Bool
+nodeContainsAddress addr = \case
+  -- TODO: is #end inclusive?
+  BasicBlock x -> x ^. #start <= addr && addr <= x ^. #end
+  Call x -> addr == x ^. #start
+  Grouping x -> cfgContainsAddress addr $ x ^. #grouping
+  _ -> False
+
+getNodesContainingAddress :: Hashable a => Address -> Cfg (CfNode a) -> [CfNode a]
+getNodesContainingAddress addr
+  = filter (nodeContainsAddress addr)
+  . HashSet.toList
+  . G.nodes

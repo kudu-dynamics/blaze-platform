@@ -1,6 +1,9 @@
 {-# LANGUAGE RankNTypes #-}
 
-module Blaze.Pil.Analysis where
+module Blaze.Pil.Analysis
+  ( module Blaze.Pil.Analysis
+  , module A
+  ) where
 
 import qualified Blaze.Pil.Construct as C
 import Blaze.Prelude hiding
@@ -104,7 +107,7 @@ getAllVars xs = HSet.unions $ fmap ($ xs) [getRefVars, getDefinedVars]
 
 getAllSyms :: [Stmt] -> HashSet Symbol
 getAllSyms = HSet.map (^. #symbol) . getAllVars
-  
+
 ---- Var -> Var substitution
 substVarsInExpr :: (PilVar -> PilVar) -> Expression -> Expression
 substVarsInExpr = recurSubst
@@ -336,6 +339,24 @@ _copyProp copyPropState xs =
 --      as a PilVar rather than an expression wrapping a PilVar.
 copyProp :: [Stmt] -> [Stmt]
 copyProp xs = _copyProp (buildCopyPropState xs) xs
+
+isUnusedDef :: HashSet PilVar -> Stmt -> Bool
+isUnusedDef refs (Pil.Def (Pil.DefOp v _)) = not $ HSet.member v refs
+isUnusedDef _ _ = False
+
+removeUnusedDef :: HashSet PilVar -> [Stmt] -> [Stmt]
+removeUnusedDef usedVars = filter (not . isUnusedDef usedVars)
+
+fixedRemoveUnusedDef_ :: Int -> [Stmt] -> [Stmt]
+fixedRemoveUnusedDef_ itersLeft stmts
+  | itersLeft <= 0 = P.error "fixedRemoveUnusedDef_: did not reach fixed point"
+  | stmts == stmts' = stmts
+  | otherwise = fixedRemoveUnusedDef_ (itersLeft - 1) stmts'
+  where
+    stmts' = removeUnusedDef (getRefVars stmts) stmts
+
+fixedRemoveUnusedDef :: [Stmt] -> [Stmt]
+fixedRemoveUnusedDef = fixedRemoveUnusedDef_ 100
 
 isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
 isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs

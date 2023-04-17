@@ -7,6 +7,7 @@ import Blaze.Prelude hiding (pred)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Blaze.Types.Graph.Alga (AlgaGraph)
+import qualified Blaze.Types.Graph.Alga as AlgaGraph
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph (Identifiable, NodeId, getNodeId, LEdge(LEdge), Edge(Edge))
 import qualified Blaze.Types.Path as P
@@ -21,6 +22,44 @@ data AlgaPath l i n = AlgaPath
   { rootNode :: NodeId i
   , graph :: AlgaGraph l i n    
   } deriving (Generic, Show, Ord, Eq, Functor, Foldable, Traversable)
+
+-- | Call this if you want to map over the nodes and change the node ids.
+safeMap
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Show a
+     )
+  => (a -> b)
+  -> AlgaPath l i a
+  -> AlgaPath l j b
+safeMap f p = AlgaPath newRootNodeId . AlgaGraph.safeMap f $ p ^. #graph
+  where
+    newRootNodeId = getNodeId . f . P.root $ p
+
+safeTraverse
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Applicative f
+     , Show a
+     )
+  => (a -> f b)
+  -> AlgaPath l i a
+  -> f (AlgaPath l j b)
+safeTraverse f p = AlgaPath <$> newRootNodeId <*> AlgaGraph.safeTraverse f (p ^. #graph)
+  where
+    newRootNodeId = getNodeId <$> f (P.root p)
 
 instance (NFData l, NFData i, NFData n) => NFData (AlgaPath l i n)
 
@@ -59,7 +98,7 @@ instance
   fromEdges startNode es = P.fromPathGraph startNode (G.fromEdges es :: AlgaGraph l i n)
     
 instance
-  (Ord i, Hashable i, Hashable n, Identifiable n i) =>
+  (Show n, Ord i, Hashable i, Hashable n, Identifiable n i) =>
   IsPath l n (AlgaPath l i)
   where
 
@@ -72,7 +111,7 @@ instance
   succ a p = case HashSet.toList . G.succs a $ p ^. #graph of
     [] -> Nothing
     [b] -> Just b
-    _ -> error "Internal path graph has node with multiple succs"
+    xs -> error $ "Internal path graph has node with multiple succs:\n " <> cs (pshow a) <> "\n\n has these succs:\n" <> cs (pshow xs)
     
   pred b p = case HashSet.toList . G.preds b $ p ^. #graph of
     [] -> Nothing

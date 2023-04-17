@@ -121,6 +121,8 @@ library:
   - Blaze.Path
   - Blaze.Pil
   - Blaze.Pil.Analysis
+  - Blaze.Pil.Analysis.Path
+  - Blaze.Pil.Analysis.Rewrite
   - Blaze.Pil.Checker
   - Blaze.Pil.Checker.Constraints
   - Blaze.Pil.Checker.Unification

@@ -24,6 +24,13 @@ newtype BNImporter = BNImporter
   }
   deriving (Eq, Ord, Show, Generic)
 
+getImporter :: FilePath -> IO BNImporter
+getImporter fp = Bn.getBinaryView fp >>= \case
+  Left err -> error $ "Could not open binary: " <> cs err
+  Right bv -> do
+    Bn.updateAnalysisAndWait bv
+    return $ BNImporter bv
+
 {- |This type is used to provide an alternative instance of the
  'CfgImporter'.
 -}
