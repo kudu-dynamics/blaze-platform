@@ -221,19 +221,14 @@ getHighPcodeCfg gs fn ctxId = do
           nodes' = snd <$> nodePcodeTuples
       case mkCfgFindRoot ctxId nodes' edges' of
         Left err -> case err of
-          ZeroRootNodes -> do
-            print $ length nodePcodeTuples
-            print bbGraph
-            error "Cfg has no root node"
+          ZeroRootNodes -> error "Cfg has no root node"
           MultipleRootNodes -> error "Cfg has more than one root node"
         Right cfg -> return cfg
 
 
--------------- Convert Pcode CFG to PIL Cfg --------------
+-------------- Convert Pcode CFG to PIL CFG --------------
 
-
-
--- | Converts a pcode Cfg to a PIL cfg.
+-- | Converts a Pcode CFG to a PIL CFG.
 convertToPilCfg
   :: (IsVariable a, Show a)
   => GhidraState

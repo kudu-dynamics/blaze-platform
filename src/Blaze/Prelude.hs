@@ -1,6 +1,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Blaze.Prelude
@@ -267,5 +268,5 @@ fromByteBased :: (ByteBased a, ByteBased b) => a -> b
 fromByteBased = fromBytes_ . toBytes_
 
 instance ByteBased Bytes
-instance ByteBased ByteOffset  
+instance ByteBased ByteOffset
 instance ByteBased Address
