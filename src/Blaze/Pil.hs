@@ -1,5 +1,6 @@
 module Blaze.Pil
   ( module Blaze.Pil
+  , module Blaze.Types.Pil
   ) where
 
 import Blaze.Pil.Analysis (getAllSyms)
@@ -16,23 +17,19 @@ import Blaze.Types.Function
     ResultInfo (ResultInfo),
     mkFuncInfo,
   )
-import qualified Blaze.Types.Function as Func
-import Blaze.Types.Pil
-  ( CallOp,
-    Expression (Expression),
-    PilVar (PilVar),
-    Stmt
+import Blaze.Types.Pil hiding
+  ( In,
+    Out,
+    ResultInfo
   )
-
-import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 
 addConstToExpr :: Expression -> Int64 -> Expression
 addConstToExpr expr@(Expression size _) n = Expression size addOp
   where
-    addOp = Pil.ADD $ Pil.AddOp expr const'
-    const' = Expression size . Pil.CONST $ Pil.ConstOp n
+    addOp = ADD $ AddOp expr const'
+    const' = Expression size . CONST $ ConstOp n
 
 -- |Find the first candidate var in the list.
 -- The list contains vars cons'd on as they are encountered in processing a path.
@@ -51,26 +48,26 @@ genCallOutputStores paramInfos params =
     maybeOutParam :: FuncParamInfo -> Expression -> Maybe Expression
     maybeOutParam pInfo expr = do
       access <- pInfo ^? #_FuncParamInfo . #access
-      if access == Func.Out
+      if access == Out
         then return expr
         else Nothing
     outArgs :: [Expression]
     outArgs = mapMaybe (uncurry maybeOutParam) . zip paramInfos $ params
-    mkStore :: Expression -> Pil.Symbol -> Stmt
+    mkStore :: Expression -> Symbol -> Stmt
     mkStore argExpr freeVarSym =
-      Pil.Store $
-        Pil.StoreOp
+      Store $
+        StoreOp
           argExpr
-          (Expression (argExpr ^. #size) (Pil.VAR (Pil.VarOp pv)))
+          (Expression (argExpr ^. #size) (VAR (VarOp pv)))
       where
         pv = PilVar (fromByteBased $ argExpr ^. #size) Nothing freeVarSym
     -- TODO: Need to actually find the used defined vars and exclude them
-    exprSyms :: [Pil.Symbol]
+    exprSyms :: [Symbol]
     exprSyms = symbolGenerator (getAllSyms [])
 
 isDirectCall :: CallOp Expression -> Bool
 isDirectCall c = case c ^. #dest of
-  (Pil.CallAddr _) -> True
+  (CallAddr _) -> True
   _ -> False
 
 -- TODO: Move to external file/module of definitions

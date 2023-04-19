@@ -14,6 +14,7 @@ import Blaze.Types.Pil (Stmt, CtxId, Ctx)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst), FlatSubst(flatSubst))
 
+
 data Path a = Path
   { nextCtxIndex :: CtxId
   , outerCtx :: Ctx
@@ -78,7 +79,7 @@ instance (Show a, RecurSubst CtxId a, Identifiable a UUID, Hashable a) => IsPath
              $ recurSubst (+ (p1 ^. #nextCtxIndex)) <$> (p2 ^. #path)
     }
 
-  -- Use responsibly. The can make invalid paths with overlappings ctxIds.  
+  -- Use responsibly. The can make invalid paths with overlappings ctxIds.
   append p1 l p2 = p1 & #path %~ (\p1' -> P.append p1' l (p2 ^. #path))
 
   removeAfterNode n = over #path $ P.removeAfterNode n
@@ -117,7 +118,7 @@ toCfg p = Cfg
 build :: (Show a, Hashable a) => CtxId -> PathBuilder BranchType (CfNode a) -> Path (CfNode a)
 build nextCtxIndex_ pb = Path
   { nextCtxIndex = nextCtxIndex_
-  , outerCtx = getCtx $ P.root p 
+  , outerCtx = getCtx $ P.root p
   , path = p
   }
   where
@@ -144,4 +145,3 @@ toStmts p = concatMap getStmtsFromEdge (snd $ P.toEdgeList p) <> Cfg.getNodeData
                    $ bool (C.not cond $ cond ^. #size) cond isTrueBranch
                  ]
             _ -> ndata
-              

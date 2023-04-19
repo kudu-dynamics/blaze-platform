@@ -433,6 +433,18 @@ getStorage = \case
   MemDefLoadStmt x -> x ^. #loadStmt . #storage
   MemLoadStmt x -> x ^. #storage
 
+-- | A store of the form `[addr] = [addr]` where the value at
+-- the address is loaded and then stored.
+isNopStore :: Stmt -> Bool
+isNopStore (Pil.Store
+             (Pil.StoreOp
+               storeAddr
+               (Expression _
+                 (Pil.LOAD
+                   (Pil.LoadOp loadAddr))))) =
+  storeAddr == loadAddr
+isNopStore _ = False
+
 -- | Helper function for recursively finding loads.
 --  NB: this implementation does not recurse on load expressions.
 _findLoads :: Expression -> [LoadExpr]

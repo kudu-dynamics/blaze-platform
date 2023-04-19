@@ -38,7 +38,6 @@ import qualified Binja.Variable as BNVar
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
 import Blaze.Import.Source.BinaryNinja.Types
 import qualified Blaze.Types.Function as Func
-import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.GenericConv (GConv, gconv)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet

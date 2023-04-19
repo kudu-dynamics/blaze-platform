@@ -27,7 +27,8 @@ simplifyVars_ itersLeft stmts
 
 -- | Copy propagation, constant propagation, and DefPhi reduction
 simplifyVars :: [Stmt] -> [Stmt]
-simplifyVars = simplifyVars_ 10
+-- TODO: Move the `not . isNopStore` filtering to a more appropriate location
+simplifyVars = simplifyVars_ 10 . filter (not . PA.isNopStore)
 
 substVarExprsInStmt :: HashMap PilVar Expression -> Stmt -> Stmt
 substVarExprsInStmt m = PA.substVarExpr_ $ flip HashMap.lookup m

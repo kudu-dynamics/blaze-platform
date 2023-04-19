@@ -189,7 +189,7 @@ getFloatConstExpr v = case getVarNodeType v of
     -- TODO: make sure this is the proper way to convert const from ghidra to floats
     -- TODO: see if Ghidra will do this for us, since it's arch dependent.
     return . mkExpr v . Pil.CONST_FLOAT . Pil.ConstFloatOp . wordToDouble . unsafeCoerce $ n
-    
+
   _ -> Nothing
 
 convertConstFloatOrVar :: IsVariable a => a -> ExceptT ConverterError Converter Expression
@@ -358,10 +358,7 @@ convertPcodeOpToPilStmt = \case
   P.FLOAT_SQRT out in0 -> mkDef out =<< unFloatOp Pil.FSQRT Pil.FsqrtOp in0
   P.FLOAT_SUB out in0 in1 -> mkDef out =<< binFloatOp Pil.FSUB Pil.FsubOp in0 in1
   P.TRUNC out in0 -> mkDef out =<< unFloatOp Pil.FTRUNC Pil.FtruncOp in0
-  P.INDIRECT out in0 _possibleInterruptionLoc -> do
-    assignment <- varNodeToAssignment out
-    v <- varNodeToValueExpr in0
-    return [assignment v]
+  P.INDIRECT _out _in0 _possibleInterruptionLoc -> return [Pil.Nop]
   P.INSERT _out _in0 _in1 _position _size -> pure [Pil.UnimplInstr "INSERT"]
   -- P.INSERT out in0 in1 position size -> do
   --   in0' <- requirePilVar in0
@@ -515,7 +512,7 @@ convertPcodeOpToPilStmt = \case
     unFloatOp opCons opArgsCons in0 = do
       a <- convertConstFloatOrVar in0
       return . opCons $ opArgsCons a
-    
+
 getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Either ConverterError Pil.Stmt]
 getFuncStatementsFromRawPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
@@ -576,6 +573,3 @@ getCodeRefStatementsFromHighPcode gs ctxId ref = do
   addrSet <- J.mkAddressSetFromRange start end
   pcodeOps <- fmap snd <$> P.getHighPcode gs addrSpaceMap hfunc addrSet
   convertPcodeOps gs ctx pcodeOps
-
-  
-

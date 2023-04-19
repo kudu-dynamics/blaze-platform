@@ -1,4 +1,5 @@
 {- HLINT ignore "Evaluate" -}
+
 module Blaze.Pil.Analysis.PathSpec where
 
 import Blaze.Prelude hiding (const, sym)
@@ -59,7 +60,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
     it "should trickle down substitutions" $ do
       let stmts =
             [ def "x" (add (var "y" 8) (const 1 8) 8)
-            , def "z" (sub (var "x" 8) (const 1 88) 8) 
+            , def "z" (sub (var "x" 8) (const 1 88) 8)
             , constraint $ cmpE (const 777 8) (var "z" 8) 8
             ]
           result = expandVars stmts
@@ -86,4 +87,4 @@ spec = describe "Blaze.Pil.Analysis" $ do
             ]
           result = expandVars stmts
           expected = stmts
-      result `shouldBe` expected    
+      result `shouldBe` expected
