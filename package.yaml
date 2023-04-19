@@ -5,7 +5,7 @@ author:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
-maintainer:          
+maintainer:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
@@ -47,29 +47,17 @@ dependencies:
   - unordered-containers
   - vector
 
+language: GHC2021
+
 default-extensions:
-  - BangPatterns
   - DeriveAnyClass
-  - DeriveDataTypeable
-  - DeriveFoldable
-  - DeriveFunctor
-  - DeriveGeneric
-  - DeriveTraversable
   - DerivingStrategies
   - DuplicateRecordFields
-  - FlexibleContexts
-  - FlexibleInstances
   - FunctionalDependencies
-  - GeneralizedNewtypeDeriving
   - LambdaCase
-  - MultiParamTypeClasses
   - NoImplicitPrelude
   - OverloadedLabels
   - OverloadedStrings
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TupleSections
-
 
 library:
   ghc-options:
@@ -129,7 +117,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - ghidra
-  
+
 tests:
   ghidra-test:
     main: Spec.hs
