@@ -5,7 +5,7 @@ author:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
-maintainer:          
+maintainer:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
@@ -44,8 +44,9 @@ dependencies:
   - transformers
   - unordered-containers
 
+language: GHC2021
+
 default-extensions:
-  - GHC2021
   - AllowAmbiguousTypes
   - DataKinds
   - DeriveAnyClass
@@ -54,7 +55,6 @@ default-extensions:
   - FunctionalDependencies
   - GADTs
   - LambdaCase
-  - MultiParamTypeClasses
   - NoImplicitPrelude
   - NoMonomorphismRestriction
   - OverloadedLabels

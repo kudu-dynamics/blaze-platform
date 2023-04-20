@@ -25,10 +25,10 @@ data LLILFunction = LLILFunction
   } deriving (Ord, Show)
 
 instance Eq LLILFunction where
-  (==) a b = _func (a :: LLILFunction) == _func (b :: LLILFunction)
+  (==) (LLILFunction _ funcA) (LLILFunction _ funcB) = funcA == funcB
 
 instance Hashable LLILFunction where
-  hashWithSalt s x = hashWithSalt s $ _func (x :: LLILFunction)
+  hashWithSalt s (LLILFunction _ func) = hashWithSalt s func
 
 data LLILSSAFunction = LLILSSAFunction
   { _handle :: BNLowLevelILFunction
@@ -36,10 +36,10 @@ data LLILSSAFunction = LLILSSAFunction
   } deriving (Ord, Show)
 
 instance Eq LLILSSAFunction where
-  (==) a b = _func (a :: LLILSSAFunction) == _func (b :: LLILSSAFunction)
+  (==) (LLILSSAFunction _ funcA) (LLILSSAFunction _ funcB) = funcA == funcB
 
 instance Hashable LLILSSAFunction where
-  hashWithSalt s x = hashWithSalt s $ _func (x :: LLILSSAFunction)
+  hashWithSalt s (LLILSSAFunction _ func) = hashWithSalt s func
 
 data MLILFunction = MLILFunction
   { _handle :: BNMediumLevelILFunction
@@ -47,10 +47,10 @@ data MLILFunction = MLILFunction
   } deriving (Ord, Show)
 
 instance Eq MLILFunction where
-  (==) a b = _func (a :: MLILFunction) == _func (b :: MLILFunction)
+  (==) (MLILFunction _ funcA) (MLILFunction _ funcB) = funcA == funcB
 
 instance Hashable MLILFunction where
-  hashWithSalt s x = hashWithSalt s $ _func (x :: MLILFunction)
+  hashWithSalt s (MLILFunction _ func) = hashWithSalt s func
 
 data MLILSSAFunction = MLILSSAFunction
   { _handle :: BNMediumLevelILFunction
@@ -58,10 +58,10 @@ data MLILSSAFunction = MLILSSAFunction
   } deriving (Ord, Show)
 
 instance Eq MLILSSAFunction where
-  (==) a b = _func (a :: MLILSSAFunction) == _func (b :: MLILSSAFunction)
+  (==) (MLILSSAFunction _ funcA) (MLILSSAFunction _ funcB) = funcA == funcB
 
 instance Hashable MLILSSAFunction where
-  hashWithSalt s x = hashWithSalt s $ _func (x :: MLILSSAFunction)
+  hashWithSalt s (MLILSSAFunction _ func) = hashWithSalt s func
 
 
 $(makeFieldsNoPrefix ''Function)
