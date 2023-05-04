@@ -7,7 +7,6 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (CtxId)
 
 
-
 -- | Use associated types to specify the import results.
 class CfgImporter a where
   type NodeDataType a

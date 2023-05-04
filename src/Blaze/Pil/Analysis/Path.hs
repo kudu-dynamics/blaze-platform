@@ -9,21 +9,22 @@ import Blaze.Prelude
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Types.Pil (Stmt, Expression, PilVar)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Util.Analysis (untilFixedPoint)
 import qualified Data.HashMap.Strict as HashMap
 
 
 -- | Helper for simplifyVars
 simplifyVars_ :: Int -> [Stmt] -> [Stmt]
-simplifyVars_ itersLeft stmts
-  -- | itersLeft <= 0 = error "No fixed point reached in simplifyVars_"
-  | itersLeft <= 0 = stmts
-  | stmts == stmts'' = stmts
-  | otherwise = simplifyVars_ (itersLeft - 1) stmts''
-  where stmts' :: [Stmt]
-        stmts' = PA.fixedRemoveUnusedDef . PA.fixedRemoveUnusedPhi .
-          PA.copyProp . PA.constantProp . PA.copyPropMem $ stmts
-        stmts'' :: [Stmt]
-        stmts'' = PA.reducePhis (PA.getFreeVars stmts') stmts'
+simplifyVars_ = untilFixedPoint Nothing $ \stmts ->
+  let stmts' = PA.fixedRemoveUnusedDef
+               . PA.fixedRemoveUnusedPhi
+               . PA.copyProp
+               . PA.constantProp
+               . PA.copyPropMem
+               $ stmts
+  in
+    PA.reducePhis (PA.getFreeVars stmts') stmts'
+
 
 -- | Copy propagation, constant propagation, and DefPhi reduction
 simplifyVars :: [Stmt] -> [Stmt]

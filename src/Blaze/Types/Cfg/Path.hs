@@ -1,4 +1,7 @@
-module Blaze.Types.Cfg.Path where
+module Blaze.Types.Cfg.Path
+  ( module Blaze.Types.Cfg.Path
+  , module Exports
+  ) where
 
 import Blaze.Prelude hiding (succ, pred)
 import Blaze.Types.Cfg (Cfg(Cfg), CfNode, BranchType, HasCtx(getCtx))
@@ -7,6 +10,7 @@ import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Graph (Identifiable, LEdge(LEdge), Edge(Edge))
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Path (IsPath, PathBuilder)
+import Blaze.Types.Path as Exports (start)
 import qualified Blaze.Types.Path as P
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Types.Path.Alga as AlgaPath

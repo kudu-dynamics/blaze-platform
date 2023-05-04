@@ -88,7 +88,7 @@ import qualified Blaze.Types.Cfg.Path as CfgPath
 import Blaze.Pil.Display (needsParens)
 
 import qualified Data.HashMap.Strict as HashMap
-import Data.SBV.Dynamic (SVal)
+import Data.SBV.Dynamic (SVal, CV)
 
 
 data TokenType
@@ -698,7 +698,7 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
     Pil.Jump x -> [keywordToken "jump", tt " "] <++> parenExpr (x ^. #dest)
     Pil.JumpTo x ->
       parenExpr (x ^. #dest)
-        <++> [keywordToken "jumpTo", tt " "]
+        <++> [keywordToken " jumpTo", tt " "]
         <++> tokenizeAsList (x ^. #targets)
     Pil.Ret x -> [keywordToken "return", tt " "] <++> tokenize (x ^. #value)
     Pil.NoRet -> pure [keywordToken "NoRet"]
@@ -1011,6 +1011,9 @@ prettyIndexedStmts ctx = prettyPrint ctx . PIndexedStmts
 
 prettyIndexedStmts' :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => [(Int, Pil.Statement a)] -> m ()
 prettyIndexedStmts' = prettyPrint' . PIndexedStmts
+
+instance Tokenizable CV where
+  tokenize cv = pure [tt $ show cv]
 
 instance Tokenizable SVal where
   tokenize x = pure [tt $ show x]
