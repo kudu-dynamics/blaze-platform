@@ -9,6 +9,7 @@ import Blaze.Types.Cfg (Cfg, CfNode, CallNode, HasCtx(getCtx), BranchType(Uncond
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg.Grouping (unfoldGroups)
 import Blaze.Types.Cfg.Path as Exports
+import qualified Blaze.Types.Graph as G
 import Blaze.Cfg.Interprocedural ()
 import qualified Blaze.Cfg.Interprocedural as CfgI
 import qualified Blaze.Path as P
@@ -47,6 +48,14 @@ getSimplePathsContaining reqNodes cfg = mkCfPath <$> P.getPathsContaining (\_ _ 
     mkCfPath = Path nextCtxIndex_ outerCtx_
 
     (cfg', _) = unfoldGroups cfg
+
+-- | Gets all non-looping paths that reach a return node.
+getSimpleReturnPaths
+  :: (Ord a, Hashable a)
+  => Cfg (CfNode a)
+  -> [Path (CfNode a)]
+getSimpleReturnPaths cfg = getSimplePathsContaining (G.getTermNodes cfg) cfg
+
 
 -- | Expands a call node with another path. Updates ctxIds of inner path,
 -- as well as node UUIDs.

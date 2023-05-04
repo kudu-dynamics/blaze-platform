@@ -10,8 +10,9 @@ import Blaze.Prelude hiding
   ( Symbol,
     group,
     pi,
-    trace
+    trace,
   )
+import Debug.Trace (trace)
 import Blaze.Types.Pil
   ( AddOp,
     Expression (Expression),
@@ -27,7 +28,7 @@ import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Graph as G
 import qualified Data.List as List
-import Debug.Trace (trace)
+import Blaze.Util.Analysis (untilFixedPoint)
 import Blaze.Types.Pil.Analysis
   ( Analysis,
     DataDependenceGraph,
@@ -285,7 +286,9 @@ reduceMap = \m -> foldl' (reduceKey HSet.empty) m (HMap.keysSet m)
   where
     reduceKey :: HashSet a -> HashMap a a -> a -> HashMap a a
     reduceKey visited m k
-      | k `HSet.member` visited = error $ "reduceMap: detected cycle in map for: " <> show k
+      | k `HSet.member` visited = trace ("reduceMap: detected cycle in map for: " <> show k)
+        $ foldMap (`HMap.singleton` k) visited `HMap.union` m
+        -- error $ "reduceMap: detected cycle in map for: " <> show k
       | otherwise =
         case HMap.lookup k m of
           Just k' -> reduceKey (HSet.insert k visited) m k'
@@ -305,13 +308,15 @@ _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
       case stmt of
         (Pil.Def (Pil.DefOp lhVar (Pil.Expression _ (Pil.VAR (Pil.VarOp rhVar)))))
           | lhVar == rhVar ->
-              let msg = cs $ "Warning in _foldCopyPropState: self-assignemnt ("
-                        <> lhVar ^. #symbol <> " = " <> rhVar ^. #symbol
-                        <> "). Discarding statement."
-              in
-                trace msg $ copyPropState & #copyStmts %~ Set.insert stmt
+              -- let msg = cs $ "Warning in _foldCopyPropState: self-assignemnt ("
+              --           <> lhVar ^. #symbol <> " = " <> rhVar ^. #symbol
+              --           <> "). Discarding statement."
+              -- in
+              -- TODO: I think this is caused when a path includes a phi node
+              --       that is parth of a loop. Fix this upstream?
+                copyPropState & #copyStmts %~ Set.insert stmt
+                -- trace msg $ copyPropState & #copyStmts %~ Set.insert stmt
           | otherwise -> addCopy copyPropState stmt lhVar rhVar
-        -- (Pil.DefPhi (Pil.DefPhiOp lhVar
         _ -> copyPropState
     addCopy :: CopyPropState -> Stmt -> PilVar -> PilVar -> CopyPropState
     addCopy s stmt copy orig =
@@ -348,12 +353,10 @@ removeUnusedDef :: HashSet PilVar -> [Stmt] -> [Stmt]
 removeUnusedDef usedVars = filter (not . isUnusedDef usedVars)
 
 fixedRemoveUnusedDef_ :: Int -> [Stmt] -> [Stmt]
-fixedRemoveUnusedDef_ itersLeft stmts
-  | itersLeft <= 0 = P.error "fixedRemoveUnusedDef_: did not reach fixed point"
-  | stmts == stmts' = stmts
-  | otherwise = fixedRemoveUnusedDef_ (itersLeft - 1) stmts'
+fixedRemoveUnusedDef_ = untilFixedPoint (Just errMsg) $ \stmts ->
+  removeUnusedDef (getRefVars stmts) stmts
   where
-    stmts' = removeUnusedDef (getRefVars stmts) stmts
+    errMsg = "fixedRemoveUnusedDef_: did not reach fixed point"
 
 fixedRemoveUnusedDef :: [Stmt] -> [Stmt]
 fixedRemoveUnusedDef = fixedRemoveUnusedDef_ 100
@@ -370,12 +373,10 @@ removeUnusedPhi usedVars = filter (not . isUnusedPhi usedVars)
 
 -- | Removes phi defs where the dest var is only referenced in other unused phi defs
 fixedRemoveUnusedPhi_ :: Int -> [Stmt] -> [Stmt]
-fixedRemoveUnusedPhi_ itersLeft stmts
-  | itersLeft <= 0 = P.error "fixedRemoveUnusedPhi_: possible infinite loop"
-  | stmts == stmts' = stmts
-  | otherwise = fixedRemoveUnusedPhi_ (itersLeft - 1) stmts'
+fixedRemoveUnusedPhi_ = untilFixedPoint (Just errMsg) $ \stmts ->
+  removeUnusedPhi (getRefVars stmts) stmts
   where
-    stmts' = removeUnusedPhi (getRefVars stmts) stmts
+    errMsg = "fixedRemoveUnusedPhi_: possible infinite loop"
 
 fixedRemoveUnusedPhi :: [Stmt] -> [Stmt]
 fixedRemoveUnusedPhi = fixedRemoveUnusedPhi_ 100

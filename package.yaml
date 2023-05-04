@@ -98,6 +98,7 @@ library:
   - Blaze.Cfg.Interprocedural
   - Blaze.Cfg.Loop
   - Blaze.Cfg.Path
+  - Blaze.Cfg.Path.Solver
   - Blaze.Cfg.Solver.BranchContext
   - Blaze.Cfg.Solver.General
   - Blaze.Types.Cfg.Path

@@ -10,7 +10,8 @@ module Blaze.Types.Pil.Solver
 import Blaze.Prelude hiding (Symbol)
 
 import Data.SBV.Internals (SolverContext (..), modelAssocs)
-import Data.SBV.Dynamic (SVal, CV)
+import Data.SBV.Dynamic (SVal)
+import Data.SBV.Dynamic as Exports (CV)
 import qualified Data.SBV.Trans as SBV
 import Data.SBV.Trans as Exports ( SymbolicT
                                  , MonadSymbolic
@@ -143,8 +144,9 @@ runSolverWith_ solverCfg useUnsatCore' solverLeniency =
 
 
 data SolverResult = Unsat (Maybe [String])
-                  | Unk
                   | Sat (HashMap Text CV)
+                  | Unk
+                  | Err (Either Ch.ConstraintGenError (SolverError, Ch.TypeReport))
                   deriving (Eq, Ord, Show, Generic)
 
 type Query a = QueryT (ExceptT SolverError IO) a

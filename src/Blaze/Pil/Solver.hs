@@ -1037,7 +1037,8 @@ solveTypedStmtsWith :: SMTConfig
                     -> IO (Either SolverError SolverReport)
 solveTypedStmtsWith solverCfg vartypes stmts = do
   er <- runSolverWith solverCfg run ( emptyState
-                                    , SolverCtx vartypes stubbedFunctionConstraintGen True AbortOnError
+                                    -- TODO: pass in AbortOnError/SkipStatementsWithError with config.
+                                    , SolverCtx vartypes stubbedFunctionConstraintGen True AbortOnError -- SkipStatementsWithErrors
                                     )
   return $ toSolverReport <$> er
   where
@@ -1076,7 +1077,7 @@ solveStmtsWith_ :: SMTConfig
                 -> [Statement Expression]
                 -> IO SolverResult
 solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
-  Left _ -> return Unk
+  Left err -> return $ Err err
   Right (r, _) -> return $ r ^. #result
 
 solveStmtsWithZ3 :: [Statement Expression] -> IO SolverResult

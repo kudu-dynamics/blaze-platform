@@ -613,5 +613,5 @@ getIndirectCallSites fns = do
   where
     getTupleList :: [(BNFunc.Function, [CallInstruction])] -> [(BNFunc.Function, CallInstruction)]
     getTupleList = concat <$> map (uncurry createTuple)
-    createTuple fn (i:is) = [(fn, i)] <> createTuple fn is
+    createTuple fn (i:xs) = [(fn, i)] <> createTuple fn xs
     createTuple _ [] = []

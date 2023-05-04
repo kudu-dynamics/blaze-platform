@@ -13,7 +13,7 @@ import qualified Blaze.Cfg as Cfg
 import Test.Hspec
 import Blaze.Types.Pil (Ctx(Ctx), CtxId, Stmt)
 import qualified Blaze.Types.Graph as G
-import Blaze.Cfg.Path (getAllSimplePaths, getSimplePathsContaining)
+import Blaze.Cfg.Path (getAllSimplePaths, getSimplePathsContaining, getSimpleReturnPaths)
 import qualified Blaze.Pil.Construct as C
 import qualified Blaze.Types.Cfg.Path as CfgP
 import qualified Blaze.Cfg.Path as CfgP
@@ -80,6 +80,15 @@ cfgTwoPaths = mkTextCfg 0 "a"
   , (UnconditionalBranch, ("b", "fin"))
   , (UnconditionalBranch, ("c", "fin"))
   ]
+
+cfgTwoPathsButOneLoops :: Cfg (CfNode Text)
+cfgTwoPathsButOneLoops = mkTextCfg 0 "a"
+  [ (FalseBranch, ("a", "b"))
+  , (TrueBranch, ("a", "c"))
+  , (UnconditionalBranch, ("b", "a"))
+  , (UnconditionalBranch, ("c", "fin"))
+  ]
+
 
 cfgWithGroupingNode :: Cfg (CfNode Text)
 cfgWithGroupingNode = mkTextCfg 0 "aa"
@@ -350,6 +359,48 @@ spec = describe "Blaze.Cfg.Path" $ do
               -| UnconditionalBranch |- "ffin"
             ]
       PrettyShow' result `shouldBe` PrettyShow' expected    
+
+  context "getSimpleReturnPaths" $ do
+    it "should find singleton path for Cfg with single root node" $ do
+      let cfg = cfgSingleNode
+          result = getSimpleReturnPaths cfg
+          expected = [ CfgP.build 0 $ start "a" ]
+      result `shouldBe` expected
+
+    it "should find single path for Cfg with single path" $ do
+      let cfg = cfgSinglePath
+          result = getSimpleReturnPaths cfg
+          expected =
+            [ CfgP.build 0 $ start "a"
+              -| UnconditionalBranch |- "b"
+              -| UnconditionalBranch |- "c"
+              -| UnconditionalBranch |- "d"
+            ]
+      result `shouldBe` expected
+
+    it "should find two paths" $ do
+      let cfg = cfgTwoPaths
+          result = sort $ getSimpleReturnPaths cfg
+          expected = sort
+            [ CfgP.build 0 $ start "a"
+              -| FalseBranch |- "b"
+              -| UnconditionalBranch |- "fin"
+            , CfgP.build 0 $ start "a"
+              -| TrueBranch |- "c"
+              -| UnconditionalBranch |- "fin"
+            ]
+      PrettyShow' result `shouldBe` PrettyShow' expected
+
+    it "should ignore looping path" $ do
+      let cfg = cfgTwoPathsButOneLoops
+          result = sort $ getSimpleReturnPaths cfg
+          expected = sort
+            [ CfgP.build 0 $ start "a"
+              -| TrueBranch |- "c"
+              -| UnconditionalBranch |- "fin"
+            ]
+      PrettyShow' result `shouldBe` PrettyShow' expected
+
 
   context "expandCall" $ do
     it "should expand call where target is single node path" $ do
