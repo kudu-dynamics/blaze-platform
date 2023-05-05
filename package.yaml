@@ -131,6 +131,7 @@ library:
   - Blaze.Pil.Display
   - Blaze.Pil.Function
   - Blaze.Pil.Parse
+  - Blaze.Pil.Summary
   - Blaze.Prelude
   - Blaze.Pretty
   - Blaze.Search
@@ -155,6 +156,7 @@ library:
   - Blaze.Types.Pil.Checker
   - Blaze.Types.Pil.Function
   - Blaze.Types.Pil.Solver
+  - Blaze.Types.Pil.Summary
   - Blaze.Types.VTable
   - Blaze.Util.MLIL
   - Blaze.Util.Spec
