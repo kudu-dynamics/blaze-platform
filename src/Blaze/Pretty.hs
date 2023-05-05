@@ -64,6 +64,7 @@ import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Graph as G
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Types.Path as Path
+import Blaze.Types.Pil.Analysis (LoadExpr(LoadExpr))
 import qualified Blaze.Types.Pil.Checker as PI
 import Blaze.Types.Pil.Checker (Sym)
 import qualified Data.HashSet as HashSet
@@ -1095,3 +1096,6 @@ instance Tokenizable a => Tokenizable (PI.UnifyConstraintsError a) where
 
 instance Tokenizable UUID where
   tokenize x = return [tt $ show x]
+
+instance Tokenizable LoadExpr where
+  tokenize (LoadExpr x) = tokenize x
