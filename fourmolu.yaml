@@ -2,10 +2,10 @@
 indentation: 2
 
 # Max line length for automatic line breaking
-column-limit: none
+column-limit: 100
 
 # Styling of arrows in type signatures (choices: trailing, leading, or leading-args)
-function-arrows: trailing
+function-arrows: leading-args
 
 # How to place commas in multi-line lists, records, etc. (choices: leading or trailing)
 comma-style: leading
@@ -14,7 +14,7 @@ comma-style: leading
 import-export-style: diff-friendly
 
 # Whether to full-indent or half-indent 'where' bindings past the preceding body
-indent-wheres: false
+indent-wheres: true
 
 # Whether to leave a space before an opening record brace
 record-brace-space: false
@@ -26,7 +26,7 @@ newlines-between-decls: 1
 haddock-style: multi-line
 
 # How to print module docstring
-haddock-style-module: null
+haddock-style-module: multi-line
 
 # Styling of let blocks (choices: auto, inline, newline, or mixed)
 let-style: auto
@@ -45,4 +45,3 @@ respectful: true
 
 # Fixity information for operators
 fixities: []
-
