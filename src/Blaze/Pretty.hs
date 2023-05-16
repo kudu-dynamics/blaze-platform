@@ -5,6 +5,7 @@
 module Blaze.Pretty
   ( (<++>),
     FullCfNode(FullCfNode),
+    NewlinedList(NewlinedList),
     PrettyShow(..),
     PrettyShow'(..),
     PStmts(..),
@@ -51,14 +52,13 @@ module Blaze.Pretty
 where
 
 import Prelude (id)
-
+import qualified Prelude (show)
 import qualified Binja.Function
 import qualified Binja.MLIL as MLIL
 import Blaze.Prelude hiding (Symbol, bracket, const, sym)
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (PilVar)
-import qualified Prelude (show)
 
 import qualified Blaze.CallGraph as Cg
 import qualified Blaze.Graph as G
@@ -67,6 +67,7 @@ import qualified Blaze.Types.Path as Path
 import Blaze.Types.Pil.Analysis (LoadExpr(LoadExpr))
 import qualified Blaze.Types.Pil.Checker as PI
 import Blaze.Types.Pil.Checker (Sym)
+import Blaze.Types.Pil.Summary (Effect (EffectWrite, EffectAlloc, EffectDealloc, EffectCall))
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -311,6 +312,7 @@ tokenizeAsList :: Tokenizable a => [a] -> Tokenizer [Token]
 tokenizeAsList x = delimitedList [tt "["] [tt ", "] [tt "]"] <$> traverse tokenize x
 
 tokenizeAsNewlinedList :: Tokenizable a => [a] -> Tokenizer [Token]
+tokenizeAsNewlinedList [] = return [tt "[]"]
 tokenizeAsNewlinedList x = delimitedList [tt "[ "] [tt "\n, "] [tt "\n]"] <$> traverse tokenize x
 
 tokenizeAsTuple :: Tokenizable a => [a] -> Tokenizer [Token]
@@ -325,10 +327,10 @@ pretty ctx = foldMap (view #text) . runTokenize ctx
 pretty' :: Tokenizable a => a -> Text
 pretty' = pretty blankTokenizerCtx
 
-showHex :: (Integral a, Show a) => a -> Text
-showHex x
-  | x < 0 = Text.pack $ "-0x" <> Numeric.showHex (abs x) ""
-  | otherwise = Text.pack $ "0x" <> Numeric.showHex x ""
+showHex :: (Integral a) => a -> Text
+showHex x = Text.pack $ "0x" <> Numeric.showHex (fromIntegral x :: Word64) ""
+  -- | x < 0 = Text.pack $ "-0x" <> Numeric.showHex (abs x) ""
+  -- | otherwise = Text.pack $ "0x" <> Numeric.showHex x ""
 
 showStackLocalByteOffset :: ByteOffset -> Text
 showStackLocalByteOffset x =
@@ -343,6 +345,11 @@ parenExpr x =
 
 instance Tokenizable a => Tokenizable [a] where
   tokenize = tokenizeAsList
+
+newtype NewlinedList a = NewlinedList [a]
+
+instance Tokenizable a => Tokenizable (NewlinedList a) where
+  tokenize (NewlinedList xs) = tokenizeAsNewlinedList xs
 
 instance Tokenizable () where
   tokenize () = pure [tt "()"]
@@ -566,13 +573,12 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.SX op) -> tokenizeUnop msym "sx" op
   (Pil.TEST_BIT op) -> tokenizeBinop msym "testBit" op
   (Pil.UNIMPL t) -> keywordToken "unimpl" <++> paren [tt t]
-  (Pil.UPDATE_VAR op) ->
-    keywordToken "updateVar" <++> (paren <$> parts)
+  (Pil.UPDATE_VAR op) -> 
+    keywordToken "updateExpr" <++> (paren <$> parts)
     where
       arg name val more = [plainToken ArgumentNameToken name, tt ": "] <++> val <++> [tt ", " | more]
       parts = do
-        vsym <- getVarSym (op ^. #dest)
-        arg "var" [varToken vsym $ op ^. #dest . #symbol] True
+        arg "expr" (tokenize $ op ^. #src) True
           <++> arg "offset" (tokenize $ op ^. #offset) True
           <++> arg "val" (tokenize $ op ^. #src) False
   (Pil.VAR_JOIN op) ->
@@ -714,6 +720,9 @@ instance Tokenizable a => Tokenizable (Pil.CallOp a) where
     case (op ^. #name, op ^. #dest) of
       (Just name, Pil.CallAddr fptr) ->
         addressToken (Just name) (fptr ^. #address)
+          <++> tokenizeAsTuple (op ^. #args)
+      (Just name, Pil.CallExpr ce) ->
+        tokenize name <++> tt "{" <++> tokenize ce <++> tt "}"
           <++> tokenizeAsTuple (op ^. #args)
       _ ->
         [keywordToken "call", tt " "]
@@ -1099,3 +1108,13 @@ instance Tokenizable UUID where
 
 instance Tokenizable LoadExpr where
   tokenize (LoadExpr x) = tokenize x
+
+instance Tokenizable Effect where
+  tokenize eff =
+    let (name, stmt) = case eff of
+          (EffectWrite s) -> ("Write", s)
+          (EffectAlloc s) -> ("Alloc", s)
+          (EffectDealloc s) -> ("Dealloc", s)
+          (EffectCall s) -> ("Call", s)
+    in
+        [tt "<", tt name, tt ">"] <++> tokenize stmt

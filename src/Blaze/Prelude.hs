@@ -94,6 +94,7 @@ import Data.Coerce as Exports (coerce)
 import Data.Data as Exports
 import Data.Generics.Labels as Exports ()
 import Data.Generics.Product.Fields as Exports (HasField(field), HasField'(field'))
+import Data.Generics.Sum as Exports (_Ctor)
 import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
 

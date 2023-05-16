@@ -7,7 +7,7 @@ module Blaze.Pil.Analysis.Path
 import Blaze.Prelude
 
 import qualified Blaze.Pil.Analysis as PA
-import Blaze.Types.Pil (Stmt, Expression, PilVar)
+import Blaze.Pil (Stmt, Expression, PilVar)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Analysis (untilFixedPoint)
 import qualified Data.HashMap.Strict as HashMap
@@ -24,7 +24,6 @@ simplifyVars_ = untilFixedPoint Nothing $ \stmts ->
                $ stmts
   in
     PA.reducePhis (PA.getFreeVars stmts') stmts'
-
 
 -- | Copy propagation, constant propagation, and DefPhi reduction
 simplifyVars :: [Stmt] -> [Stmt]
@@ -115,3 +114,133 @@ expandVars_ varSubstMap (stmt:stmts) = case Pil.mkCallStatement stmt of
 
 expandVars :: [Stmt] -> [Stmt]
 expandVars = expandVars_ HashMap.empty
+
+
+-- | This fully subst variables with their equivalent expressions.
+-- It also substitutes mem loads where possible, and eliminates unused
+-- var def statements.
+-- The goal is eliminate non-arg vars and non-global mem accesses.
+-- Don't use this on partial paths through a funcion and expect to
+-- later append other paths to it, because var def elimination might ruin linking.
+-- TODO: once we know which mem addresses are global, we can eliminate the internal
+--       store stmts.
+aggressiveExpand :: [Stmt] -> [Stmt]
+aggressiveExpand = aggressiveExpand_ HashMap.empty HashMap.empty . zip [0..]
+
+type Addr = Expression
+
+type StmtIndex = Int
+type VarSubstMap = HashMap PilVar (StmtIndex, Expression)
+
+aggressiveExpand_
+  :: HashMap PilVar (StmtIndex, Expression)
+  -> HashMap Addr Expression
+  -> [(StmtIndex, Stmt)]
+  -> [Stmt]
+aggressiveExpand_ _ _ [] = []
+aggressiveExpand_ varSubstMap memSubstMap ((stmtIndex, stmt):stmts) = case Pil.mkCallStatement stmt of
+  -- | If it's a call statement, remove args from mem subst map because the call
+  -- could affect them.
+  -- Also, don't add anything to varSubstMap because function calls aren't necessarily pure
+  -- so we can't subst the calls in multiple places.
+  Just call ->
+    stmt' : aggressiveExpand_ varSubstMap (removeFromMemSubstMap args) stmts
+      where
+        args = substAll <$> call ^. #args
+        stmt' = substAll <$> stmt
+
+  -- | Handle the non-call statements.
+  Nothing ->  case stmt of
+    Pil.Def (Pil.DefOp pv expr) -> aggressiveExpand_ varSubstMap' memSubstMap stmts
+      where
+        expr' = substAll expr
+        varSubstMap' = HashMap.insert pv (stmtIndex, expr') varSubstMap
+
+    Pil.Constraint _ -> defaultProp
+
+    Pil.Store (Pil.StoreOp addr expr) -> stmt' : aggressiveExpand_ varSubstMap memSubstMap' stmts
+      where
+        stmt' = Pil.Store (Pil.StoreOp addr' expr')
+        addr' = substAll addr
+        expr' = substAll expr
+        memSubstMap' = HashMap.insert addr' expr' memSubstMap
+
+    Pil.UnimplInstr _ -> defaultProp
+
+    -- Removes mem from subst map because we don't know what the unimpl instr did to it
+    Pil.UnimplMem (Pil.UnimplMemOp addr) -> stmt' : aggressiveExpand_ varSubstMap (removeFromMemSubstMap [addr']) stmts
+      where
+        stmt' = Pil.UnimplMem (Pil.UnimplMemOp addr')
+        addr' = substAll addr
+
+    Pil.Undef -> defaultProp
+    Pil.Nop -> defaultProp
+    Pil.Annotation _ -> defaultProp
+    Pil.EnterContext _ -> defaultProp
+    Pil.ExitContext _ -> defaultProp
+
+    Pil.Call _ -> error "This stmt should have been caught by mkCallStatement"
+
+    Pil.DefPhi (Pil.DefPhiOp dest src) -> case mapMaybe (\v -> (v,) <$> isPreviouslyDefined v) src of
+      [] -> aggressiveExpand_ varSubstMap memSubstMap stmts
+      [(_v, (_si, expr))] -> aggressiveExpand_
+                        (HashMap.insert dest (stmtIndex, expr) varSubstMap)
+                        memSubstMap
+                        stmts
+      varExprs -> aggressiveExpand_ varSubstMap' memSubstMap stmts
+        where
+          (_latestVar, (_si, expr)) = maximumBy (\a b-> compare (fst a) (fst b)) varExprs
+          varSubstMap' = HashMap.insert dest (stmtIndex, expr) varSubstMap
+      where
+        isPreviouslyDefined :: PilVar -> Maybe (StmtIndex, Expression)
+        isPreviouslyDefined pv
+          | pv == dest = Nothing
+          | otherwise = HashMap.lookup pv varSubstMap
+
+    Pil.DefMemPhi _ -> defaultProp
+    Pil.BranchCond _ -> defaultProp
+    Pil.Jump _  -> defaultProp
+    Pil.JumpTo _  -> defaultProp
+    Pil.Ret _ -> defaultProp
+    Pil.NoRet -> defaultProp
+    Pil.Exit -> defaultProp
+    Pil.TailCall _ -> error "This stmt should have been caught by mkCallStatement"
+  where
+    defaultProp :: [Stmt]
+    defaultProp = (substAll <$> stmt) : aggressiveExpand_ varSubstMap memSubstMap stmts
+
+    substAll :: Expression -> Expression
+    substAll = substMem . substVars
+
+    -- | Substitutes any pre-defined vars with their exprs.
+    substVars :: Expression -> Expression
+    substVars = substVars' -- PA.substVarExprInExpr (`HashMap.lookup` varSubstMap)
+
+    -- | Substitutes any pre-defined vars with their exprs.
+    substVars' :: Expression -> Expression
+    substVars' = PA.substExprInExpr f
+      where
+        f :: Expression -> Maybe Expression
+        f (Pil.Expression sz expr) = case expr of
+          Pil.VAR (Pil.VarOp v) -> snd <$> HashMap.lookup v varSubstMap
+          Pil.VAR_FIELD (Pil.VarFieldOp v off) -> Just
+            . Pil.Expression sz
+            . Pil.Extract
+            $ Pil.ExtractOp x off
+            where
+              x = maybe (Pil.Expression (coerce $ v ^. #size) (Pil.VAR (Pil.VarOp v))) snd
+                  $ HashMap.lookup v varSubstMap
+          _ -> Nothing
+
+
+    -- | Substitutes any loads with previous stores to that location.
+    -- Be sure to call this after running `substVars` on the expr.
+    substMem :: Expression -> Expression
+    substMem = PA.substExprInExpr substLoad
+      where
+        substLoad :: Expression -> Maybe Expression
+        substLoad (Pil.Expression _ (Pil.LOAD (Pil.LoadOp x))) = HashMap.lookup x memSubstMap
+        substLoad _ = Nothing
+
+    removeFromMemSubstMap :: [Expression] -> HashMap Addr Expression
+    removeFromMemSubstMap = foldl' (flip HashMap.delete) memSubstMap

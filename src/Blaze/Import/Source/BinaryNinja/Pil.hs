@@ -348,7 +348,10 @@ convertInstrOp op' = do
       chunkExpr <- convertExpr (x ^. MLIL.src)
       let updateVarExpr =
             Expression varSize . Pil.UPDATE_VAR $
-              Pil.UpdateVarOp pvarSrc off chunkExpr
+              Pil.UpdateVarOp
+              (Pil.Expression (coerce $ pvarSrc ^. #size) (Pil.VAR $ Pil.VarOp pvarSrc))
+              off
+              chunkExpr
       #definedVars %= (pvarDest :)
       return [Def $ DefOp pvarDest updateVarExpr]
       where

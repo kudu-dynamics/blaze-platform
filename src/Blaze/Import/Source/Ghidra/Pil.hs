@@ -339,7 +339,7 @@ convertPcodeOpToPilStmt = \case
   P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
     srcExpr <- varNodeToValueExpr in0
     offsetExpr <- requireConst in1
-    mkDef out . Pil.Extract $ Pil.ExtractOp srcExpr offsetExpr
+    mkDef out . Pil.Extract . Pil.ExtractOp srcExpr $ fromIntegral offsetExpr
   P.FLOAT_ABS out in0 -> mkDef out =<< unFloatOp Pil.FABS Pil.FabsOp in0
   P.FLOAT_ADD out in0 in1 -> mkDef out =<< binFloatOp Pil.FADD Pil.FaddOp in0 in1
   P.FLOAT_CEIL out in0 -> mkDef out =<< unFloatOp Pil.CEIL Pil.CeilOp in0

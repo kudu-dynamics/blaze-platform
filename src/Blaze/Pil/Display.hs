@@ -359,7 +359,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.ConstFuncPtr op) -> Text.pack $ printf "constFuncPtr %s %s"
                            (maybe "Nothing" (("Just" <>) . cs) $ op ^. #symbol :: Text)
                            (show $ op ^. #address :: Text)
-  (Pil.Extract op) -> Text.pack $ printf "extract %s %d" (disp (op ^. #src)) (op ^. #offset)
+  (Pil.Extract op) -> "extract " <> disp (op ^. #src) <> disp (op ^. #offset)
   Pil.UNIT -> "UNIT"
 
 instance Disp Pil.Expression where

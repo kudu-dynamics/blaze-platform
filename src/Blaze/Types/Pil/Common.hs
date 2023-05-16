@@ -13,7 +13,6 @@ newtype StmtIndex = StmtIndex { val :: Int }
 type Symbol = Text
 
 -- TODO: should this be in Bits?
--- Consider renaming so this make sense to use for PilVar size.
 newtype Size a = Size Bytes
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Num, Real, Enum, Integral, ByteBased)
