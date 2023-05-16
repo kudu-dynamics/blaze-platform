@@ -147,7 +147,7 @@ data CallOp expr = CallOp
 
 data ExtractOp expr = ExtractOp
   { src :: expr
-  , offset :: Int64
+  , offset :: ByteOffset
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data StrCmpOp expr = StrCmpOp
@@ -189,7 +189,7 @@ data StackLocalAddrOp expr = StackLocalAddrOp
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data UpdateVarOp expr = UpdateVarOp
-  { dest :: PilVar
+  { dest :: expr
   , offset :: ByteOffset
   , src :: expr
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)

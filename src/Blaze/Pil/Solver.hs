@@ -677,7 +677,13 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.DIVU x -> integralBinOpMatchSecondArgToFirst x svDivide
   Pil.DIVU_DP x -> divOrModDP False x svDivide
 
-  Pil.Extract _ -> unhandled "Extract"
+  Pil.Extract x -> do
+    y <- solveExprRec $ x ^. #src
+    safeExtract (off + w - 1) off y
+    where
+      off = fromIntegral . toBitOffset $ x ^. #offset
+      w = fromIntegral sz
+
   Pil.ExternPtr _ -> unhandled "ExternPtr"
 
   Pil.FABS x -> floatUnOp x SBV.fpAbs
@@ -832,7 +838,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.UNIT -> unhandled "UNIT"
 
   Pil.UPDATE_VAR x -> do
-    dest <- lookupVarSym $ x ^. #dest
+    dest <- solveExprRec $ x ^. #dest
     src <- solveExprRec $ x ^. #src
     guardIntegral dest
     guardIntegral src

@@ -75,7 +75,6 @@ getVarsFromExpr_ e = case e ^. #op of
   (Pil.VAR vop) -> [vop ^. #src]
   (Pil.VAR_FIELD x) -> [x ^. #src]
   (Pil.VAR_JOIN x) -> [x ^. #high, x ^. #low]
-  (Pil.UPDATE_VAR x) -> [x ^. #dest]
   x -> concatMap getVarsFromExpr_ x
 
 getVarsFromExpr :: Expression -> HashSet PilVar

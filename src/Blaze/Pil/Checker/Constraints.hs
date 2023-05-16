@@ -375,7 +375,11 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         ]
     addChildConstraints
 
-  Pil.ExternPtr _ -> unimplError
+  Pil.ExternPtr _ -> do
+    -- TODO: is this correct?
+    pointeeType <- CSVar <$> newSym
+    add [ ( r, CSType $ TPointer Nothing pointeeType ) ]
+
 
   Pil.Extract _ -> do
     add [(r, CSType $ TBitVector jSz)]
@@ -545,11 +549,10 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add [ (r, CSType $ TBitVector jSz ) ]
     addChildConstraints
   Pil.UPDATE_VAR x -> do
-    v <- lookupVarSym $ x ^. #dest
     -- How should src and dest be related?
     -- Can't express that 'offset + width(src) == width(dest)'
     --  without '+' and '==' as type level operators.
-    add [ (r, CSVar v) ]
+    add [ (r, CSVar $ x ^. #dest . #info . #sym) ]
     addChildConstraints
 
   Pil.VAR x -> do

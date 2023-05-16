@@ -31,7 +31,6 @@ instance FlatSubst PilVar (ExprOp a) where
     (Pil.VAR_FIELD x) -> Pil.VAR_FIELD $ x & #src %~ f
     (Pil.VAR_JOIN x) -> Pil.VAR_JOIN $ x & #high %~ f
                                          & #low %~ f
-    (Pil.UPDATE_VAR x) -> Pil.UPDATE_VAR $ x & #dest %~ f
     -- TODO: instead of this catchall, write out each case so that
     -- any new ExprOps we add later get a warning. 
     x -> x

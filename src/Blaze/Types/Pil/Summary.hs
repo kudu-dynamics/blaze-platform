@@ -11,5 +11,12 @@ data CodeSummary = CodeSummary
     { inputVars :: [PilVar]
     , inputLoads :: [LoadExpr]
     , results :: [Expression]
-    , effects :: [Stmt]
+    , effects :: [Effect]
     } deriving (Eq, Ord, Show, Generic)
+
+data Effect
+  = EffectWrite Stmt
+  | EffectAlloc Stmt
+  | EffectDealloc Stmt
+  | EffectCall Stmt
+  deriving (Eq, Ord, Show, Generic)
