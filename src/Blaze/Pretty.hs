@@ -242,6 +242,21 @@ integerToken n =
   where
     n' = toInteger n
 
+decimalToken :: Integral n => n -> Token
+decimalToken n =
+  Token
+    { tokenType = IntegerToken
+    , text = show n'
+    , value = n'
+    , size = 0
+    , operand = 0xffffffff
+    , context = NoTokenContext
+    , address = 0
+    , typeSym = Nothing
+    }
+  where
+    n' = toInteger n
+
 instance Tokenizable Int where
   tokenize = pure . (: []) . integerToken
 
@@ -329,8 +344,6 @@ pretty' = pretty blankTokenizerCtx
 
 showHex :: (Integral a) => a -> Text
 showHex x = Text.pack $ "0x" <> Numeric.showHex (fromIntegral x :: Word64) ""
-  -- | x < 0 = Text.pack $ "-0x" <> Numeric.showHex (abs x) ""
-  -- | otherwise = Text.pack $ "0x" <> Numeric.showHex x ""
 
 showStackLocalByteOffset :: ByteOffset -> Text
 showStackLocalByteOffset x =
@@ -573,7 +586,7 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.SX op) -> tokenizeUnop msym "sx" op
   (Pil.TEST_BIT op) -> tokenizeBinop msym "testBit" op
   (Pil.UNIMPL t) -> keywordToken "unimpl" <++> paren [tt t]
-  (Pil.UPDATE_VAR op) -> 
+  (Pil.UPDATE_VAR op) ->
     keywordToken "updateExpr" <++> (paren <$> parts)
     where
       arg name val more = [plainToken ArgumentNameToken name, tt ": "] <++> val <++> [tt ", " | more]
@@ -667,7 +680,13 @@ instance (Tokenizable a, Tokenizable b) => Tokenizable (HashMap a b) where
     where
       f pair = tt "  " <++> tokenize pair
 
-instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.Statement a) where
+instance
+  ( Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  Tokenizable (Pil.Statement a)
+  where
   tokenize stmt = case stmt of
     Pil.Def x ->
       tokenize (x ^. #var)
@@ -676,6 +695,8 @@ instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (Pil.St
     Pil.Constraint x -> tt "?: " <++> tokenize (x ^. #condition)
     Pil.Store x ->
       (bracket <$> tokenize (x ^. #addr))
+        <++> tt "."
+        <++> decimalToken (Pil.sizeToWidth $ x ^. #value . #size)
         <++> tt " = "
         <++> tokenize (x ^. #value)
     Pil.UnimplInstr t ->
@@ -739,14 +760,26 @@ newtype PStmts a = PStmts [Pil.Statement a]
 
 newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
 
-instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PStmts a) where
+instance
+  ( Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  Tokenizable (PStmts a)
+  where
   tokenize (PStmts stmts) = intercalate [tt "\n"] <$> traverse tokenize stmts
 
-instance (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => Tokenizable (PIndexedStmts a) where
+instance
+  ( Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  Tokenizable (PIndexedStmts a)
+  where
   tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] <$> traverse f (sortOn fst stmts)
-    where
-      f :: (Int, Pil.Statement a) -> Tokenizer [Token]
-      f (i, stmt) = [tt (show i), tt ": "] <++> tokenize stmt
+   where
+    f :: (Int, Pil.Statement a) -> Tokenizer [Token]
+    f (i, stmt) = [tt (show i), tt ": "] <++> tokenize stmt
 
 instance Tokenizable ByteOffset where
   tokenize (ByteOffset n) = pure [integerToken n]
@@ -1010,16 +1043,46 @@ pp = prettyPrint
 pp' :: (MonadIO m, Tokenizable a) => a -> m ()
 pp' = prettyPrint'
 
-prettyStmts :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => TokenizerCtx -> [Pil.Statement a] -> m ()
+prettyStmts ::
+  ( MonadIO m
+  , Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  TokenizerCtx ->
+  [Pil.Statement a] ->
+  m ()
 prettyStmts ctx = prettyPrint ctx . PStmts
 
-prettyStmts' :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => [Pil.Statement a] -> m ()
+prettyStmts' ::
+  ( MonadIO m
+  , Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  [Pil.Statement a] ->
+  m ()
 prettyStmts' = prettyPrint' . PStmts
 
-prettyIndexedStmts :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => TokenizerCtx -> [(Int, Pil.Statement a)] -> m ()
+prettyIndexedStmts ::
+  ( MonadIO m
+  , Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  TokenizerCtx ->
+  [(Int, Pil.Statement a)] ->
+  m ()
 prettyIndexedStmts ctx = prettyPrint ctx . PIndexedStmts
 
-prettyIndexedStmts' :: (MonadIO m, Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => [(Int, Pil.Statement a)] -> m ()
+prettyIndexedStmts' ::
+  ( MonadIO m
+  , Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , HasField' "op" a (Pil.ExprOp a)
+  ) =>
+  [(Int, Pil.Statement a)] ->
+  m ()
 prettyIndexedStmts' = prettyPrint' . PIndexedStmts
 
 instance Tokenizable CV where
