@@ -7,7 +7,7 @@ import Blaze.Cfg.Analysis qualified as CfgA
 import Blaze.Cfg.Checker (checkCfg)
 import Blaze.Graph qualified as G
 import Blaze.Pil.Analysis qualified as PA
-import Blaze.Pil.Solver (catchIfLenient, catchIfLenientForStmt, makeSymVarOfType, warn)
+import Blaze.Pil.Solver (catchIfLenient, catchIfLenientForStmt, makeSymVarOfType, logError)
 import Blaze.Pil.Solver qualified as PilSolver
 import Blaze.Types.Cfg (
   BranchCond,
@@ -120,7 +120,7 @@ solveExpr ddg expr@(Ch.InfoExpression (Ch.SymInfo _sz xsym, mdst) op) = catchFal
     catchFallbackAndWarn :: Solver SVal -> Solver SVal
     catchFallbackAndWarn m = catchError m $ \e -> do
       si <- use #currentStmtIndex
-      warn $ StmtError si e
+      logError $ StmtError si e
       fallbackAsFreeVar
 
 ----------------------------
@@ -336,7 +336,7 @@ getUnsatBranches cfg = case checkCfg cfg of
     let ddg = CfgA.getDataDependenceGraph cfg
     er <- flip (PilSolver.runSolverWith SBV.z3)
           ( PilSolver.emptyState
-          , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False SkipStatementsWithErrors
+          , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False IgnoreErrors
           )
           $ PilSolver.declarePilVars >> unsatBranches ddg cfg'
     case er of

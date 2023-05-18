@@ -11,7 +11,7 @@ import qualified Blaze.Cfg.Path as Path
 
 import Blaze.Types.Import (ImportResult(ImportResult))
 import qualified Blaze.Import.Source.BinaryNinja as Bni
-import Blaze.Cfg.Path.Solver (solvePaths)
+import qualified Blaze.Cfg.Path.Solver as Solver
 
 import Test.Hspec
 
@@ -24,6 +24,7 @@ dungeonBin = "res/test_bins/Dungeon_Master/Dungeon_Master.bndb"
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Path.SolverSpec" $ do
+  let solvePaths = Solver.solvePaths Solver.z3 Solver.AbortOnError
   context "solvePath" $ do
     context "Dive_Logger" $ do
       bv <- unsafeFromRight <$> runIO (BN.getBinaryView diveBin)

@@ -11,7 +11,7 @@ import Blaze.Types.Pil (Stmt)
 import qualified Blaze.Pil.Analysis.Path as PathA
 import Blaze.Pil.Solver (solveStmtsWith_, solveStmtsWith)
 import Blaze.Types.Pil.Checker (ConstraintGenError, TypeReport)
-import Blaze.Pil.Solver as Exports (z3, cvc4, SMTConfig, SolverResult(..), SolverError(..), SolverReport(..), CV)
+import Blaze.Pil.Solver as Exports (z3, cvc4, SMTConfig, SolverResult(..), SolverError(..), SolverReport(..), CV, SolverLeniency(..))
 import Blaze.Pil.Analysis.Rewrite (rewriteStmts)
 import Blaze.Pretty (prettyPrint', prettyIndexedStmts')
 import qualified Blaze.Types.Pil.Checker as Ch
@@ -32,16 +32,17 @@ prepPath = simplifyForSolving . Path.toStmts
 
 solvePathWith
   :: SMTConfig
+  -> SolverLeniency
   -> PilPath
   -> IO (Either
           (Either
             ConstraintGenError
             (SolverError, TypeReport))
           (SolverReport, TypeReport))
-solvePathWith solverCfg = solveStmtsWith solverCfg . prepPath
+solvePathWith solverCfg leniency = solveStmtsWith solverCfg leniency . prepPath
 
-solvePathWith_ :: SMTConfig -> PilPath -> IO SolverResult
-solvePathWith_ solverCfg = solveStmtsWith_ solverCfg . prepPath
+solvePathWith_ :: SMTConfig -> SolverLeniency -> PilPath -> IO SolverResult
+solvePathWith_ solverCfg leniency = solveStmtsWith_ solverCfg leniency . prepPath
 
 data SolvePathsResult a = SolvePathsResult
   { satPaths :: [(HashMap Text CV, a)]
@@ -51,9 +52,9 @@ data SolvePathsResult a = SolvePathsResult
   , solverErrorPaths :: [((SolverError, Ch.TypeReport), a)]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   
-solvePaths :: [PilPath] -> IO (SolvePathsResult PilPath)
-solvePaths paths = do
-  solved <- traverse (\p -> (,p) <$> solvePathWith_ z3 p) paths
+solvePaths :: SMTConfig -> SolverLeniency -> [PilPath] -> IO (SolvePathsResult PilPath)
+solvePaths solverCfg leniency paths = do
+  solved <- traverse (\p -> (,p) <$> solvePathWith_ solverCfg leniency p) paths
   return $ foldr divideSolved (SolvePathsResult [] [] [] [] []) solved
   where
     divideSolved :: (SolverResult, PilPath) -> SolvePathsResult PilPath -> SolvePathsResult PilPath

@@ -151,7 +151,7 @@ catchIfLenient wrapErr m handleError = do
   catchError m $ \e ->
     case solverLeniency of
       AbortOnError -> throwError e
-      SkipStatementsWithErrors -> warn (wrapErr e) >> handleError e
+      IgnoreErrors -> logError (wrapErr e) >> handleError e
 
 catchIfLenientForPilVar :: PilVar -> Solver () -> Solver ()
 catchIfLenientForPilVar pv m = catchIfLenient (PilVarConversionError $ pv ^. #symbol) m (const $ return ())
@@ -524,16 +524,16 @@ dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize
 catchAndWarnStmtDef :: a -> Solver a -> Solver a
 catchAndWarnStmtDef def m = catchError m $ \e -> do
   si <- use #currentStmtIndex
-  warn $ StmtError si e
+  logError $ StmtError si e
   return def
 
 catchAndWarnStmt :: Solver () -> Solver ()
 catchAndWarnStmt m = catchError m $ \e -> do
   si <- use #currentStmtIndex
-  warn $ StmtError si e
+  logError $ StmtError si e
 
-warn :: SolverError -> Solver ()
-warn e = #errors %= (e :)
+logError :: SolverError -> Solver ()
+logError e = #errors %= (e :)
 
 svAggrAnd :: [SVal] -> SVal
 svAggrAnd = foldr svAnd svTrue
@@ -892,7 +892,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     catchFallbackAndWarn :: Solver SVal -> Solver SVal
     catchFallbackAndWarn m = catchError m $ \e -> do
       si <- use #currentStmtIndex
-      warn $ StmtError si e
+      logError $ StmtError si e
       fallbackAsFreeVar
 
     binOpEqArgsReturnsBool :: ( HasField' "left" x DSTExpression
@@ -1037,15 +1037,13 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
       cAsInt <- boolToInt (KBounded False 1) c
       return $ runAsUnsigned (\y -> f y b cAsInt) a
 
-solveTypedStmtsWith :: SMTConfig
-                    -> HashMap PilVar DeepSymType
-                    -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
-                    -> IO (Either SolverError SolverReport)
-solveTypedStmtsWith solverCfg vartypes stmts = do
-  er <- runSolverWith solverCfg run ( emptyState
-                                    -- TODO: pass in AbortOnError/SkipStatementsWithError with config.
-                                    , SolverCtx vartypes stubbedFunctionConstraintGen True AbortOnError -- SkipStatementsWithErrors
-                                    )
+solveTypedStmtsWith_
+  :: SMTConfig
+  -> SolverCtx
+  -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> IO (Either SolverError SolverReport)
+solveTypedStmtsWith_ solverCfg solverCtx stmts = do
+  er <- runSolverWith solverCfg run (emptyState, solverCtx)
   return $ toSolverReport <$> er
   where
     toSolverReport :: (SolverResult, SolverState) -> SolverReport
@@ -1058,35 +1056,44 @@ solveTypedStmtsWith solverCfg vartypes stmts = do
       #currentStmtIndex .= ix
       solveStmt stmt
 
+solveTypedStmtsWith
+  :: SMTConfig
+  -> SolverLeniency
+  -> HashMap PilVar DeepSymType
+  -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> IO (Either SolverError SolverReport)
+solveTypedStmtsWith solverCfg leniency vartypes =
+  solveTypedStmtsWith_ solverCfg (SolverCtx vartypes stubbedFunctionConstraintGen True leniency)
+
 -- | runs type checker first, then solver
 solveStmtsWith :: SMTConfig
+               -> SolverLeniency
                -> [Statement Expression]
                -> IO (Either
                       (Either
                        Ch.ConstraintGenError
                        (SolverError, Ch.TypeReport))
                       (SolverReport, Ch.TypeReport))
-solveStmtsWith solverCfg stmts = do
+solveStmtsWith solverCfg leniency stmts = do
   -- should essential analysis steps be included here?
   -- let stmts' = Analysis.substFields stmts
   let er = Ch.checkStmts Nothing stmts
   case er of
     Left e -> return $ Left (Left e)
-    Right tr -> solveTypedStmtsWith solverCfg (tr ^. #varSymTypeMap) (tr ^. #symTypedStmts) >>= \case
+    Right tr -> solveTypedStmtsWith solverCfg leniency (tr ^. #varSymTypeMap) (tr ^. #symTypedStmts) >>= \case
       Left e -> return $ Left (Right (e, tr))
       Right sr -> return $ Right (sr, tr)
 
--- | convenience function for checking statements.
--- any errors in Type Checker or Solver result in Unk
--- warnings are ignored
+-- | Convenience function for checking statements that package results nicely.
 solveStmtsWith_ :: SMTConfig
+                -> SolverLeniency
                 -> [Statement Expression]
                 -> IO SolverResult
-solveStmtsWith_ solverCfg stmts = solveStmtsWith solverCfg stmts >>= \case
+solveStmtsWith_ solverCfg leniency stmts = solveStmtsWith solverCfg leniency stmts >>= \case
   Left err -> return $ Err err
   Right (r, _) -> return $ r ^. #result
 
-solveStmtsWithZ3 :: [Statement Expression] -> IO SolverResult
-solveStmtsWithZ3 stmts = solveStmtsWith SBV.z3 stmts >>= \case
+solveStmtsWithZ3 :: SolverLeniency -> [Statement Expression] -> IO SolverResult
+solveStmtsWithZ3 leniency stmts = solveStmtsWith SBV.z3 leniency stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. #result
