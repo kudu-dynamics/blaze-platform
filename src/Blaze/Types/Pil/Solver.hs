@@ -53,8 +53,12 @@ data SolverError = DeepSymTypeConversionError { deepSymType :: DeepSymType, msg 
 
 type StubConstraintGen = SVal -> [SVal] -> Solver ()
 
+-- | Specifies how lenient the solver is to errors.
+-- AbortOnError means the solver will halt when a single error is encountered.
+-- IgnoreErrors means the solver will try to solve as much as it can around the error,
+-- which typically means ignoring a whole statement if any inner expression causes an error.
 data SolverLeniency = AbortOnError
-                    | SkipStatementsWithErrors
+                    | IgnoreErrors
   deriving (Eq, Ord, Show, Generic)
 
 data SolverCtx = SolverCtx

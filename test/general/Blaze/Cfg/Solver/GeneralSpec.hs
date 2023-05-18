@@ -22,7 +22,7 @@ import Blaze.Pil.Construct
 import Blaze.Pil.Solver qualified as PilSolver
 import Blaze.Pretty (PrettyShow' (PrettyShow'))
 import Blaze.Types.Pil (Ctx (Ctx), Stmt)
-import Blaze.Types.Pil.Solver (SolverCtx (SolverCtx), SolverLeniency (SkipStatementsWithErrors), checkSatWith)
+import Blaze.Types.Pil.Solver (SolverCtx (SolverCtx), SolverLeniency (IgnoreErrors), checkSatWith)
 import Blaze.Util.Spec (mkUuid1)
 import Data.HashMap.Strict qualified as HashMap
 import Data.SBV.Dynamic as D hiding (Solver, name)
@@ -75,7 +75,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
             let ddg = CfgA.getDataDependenceGraph cfg
             er <- flip (checkSatWith SBV.z3)
                   ( PilSolver.emptyState
-                  , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False SkipStatementsWithErrors
+                  , SolverCtx (tr ^. #varSymTypeMap) HashMap.empty False IgnoreErrors
                   )
                   $ PilSolver.declarePilVars >> generalCfgFormula ddg cfg'
             either (P.error . show) (return . view _1) er
