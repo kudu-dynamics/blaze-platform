@@ -1,0 +1,30 @@
+packages:
+   ./*.cabal
+   ../ghidra-haskell/
+   ../blaze/
+   ../binaryninja-haskell/
+   ../binary-analysis/
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/inline-java.git
+  tag: d0514b1d899f2b513e18296dd5706adcf5b6e563
+  subdir: jni
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/inline-java.git
+  tag: d0514b1d899f2b513e18296dd5706adcf5b6e563
+  subdir: jvm
+
+source-repository-package
+  type: git
+  location: https://github.com/tweag/distributed-closure
+  tag: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
+
+-- TODO: figure out how to use cabal flags and conditionals
+package blaze
+  ghc-options: -O0
+
+package flint
+  ghc-options: -O0
