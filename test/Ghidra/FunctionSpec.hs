@@ -21,7 +21,7 @@ spec = describe "Ghidra.Function" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
-  
+
   context "getFunctions" $ do
     funcs <- runIO . runGhidraOrError $ Function.getFunctions gs
     it "should get all functions for a1 binary" $ do
@@ -54,7 +54,7 @@ spec = describe "Ghidra.Function" $ do
       -- Don't really know how else to easily check that HighFunc is valid
       func' :: Function <- Java.call hfunc "getFunction"
       (,) <$> Function.getName func <*> Function.getName func'
-      
+
     it "should get high function" $ do
       fname1 `shouldBe` fname2
 
@@ -68,4 +68,3 @@ spec = describe "Ghidra.Function" $ do
       Function.getParams func'
     it "should find params for high func" $ do
       params `shouldBe` []
-

@@ -20,7 +20,7 @@ spec = describe "Ghidra.Reference" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ diveBin >>! State.analyze
     return gs
-  
+
   context "getReferencesTo" $ do
     let cgc_printf_addr = 0x804c6e0
     refs <- runIO . runGhidraOrError $ do
@@ -48,5 +48,3 @@ spec = describe "Ghidra.Reference" $ do
         expected = [(134533568,134531024),(134533648,134531024)]
     it "should get func references" $ do
       refs' `shouldBe` expected
-
-    

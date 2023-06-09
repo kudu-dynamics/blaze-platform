@@ -3,7 +3,7 @@ module Ghidra.State where
 import Ghidra.Prelude hiding (force, get)
 
 import qualified Language.Java as Java
-import Ghidra.Util (maybeNullCall, suppressOut, tryJVM)
+import Ghidra.Util (iteratorToList, maybeNullCall, suppressOut, tryJVM, getDomainObject)
 import qualified Ghidra.Types as J
 import qualified Data.BinaryAnalysis as BA
 import qualified Foreign.JNI as JNI
@@ -52,7 +52,7 @@ getCSpec lang (Just compilerName) = do
 hasBeenAnalyzed :: GhidraState -> IO Bool
 hasBeenAnalyzed gs = do
   programInfoField :: J.String <- Java.getStaticField "ghidra.program.model.listing.Program" "PROGRAM_INFO" >>= JNI.newGlobalRef
-  analyzedField :: J.String <- Java.getStaticField "ghidra.program.model.listing.Program" "ANALYZED" >>= Java.reify >>= JNI.newGlobalRef
+  analyzedField :: J.String <- Java.getStaticField "ghidra.program.model.listing.Program" "ANALYZED_OPTION_NAME" >>= Java.reify >>= JNI.newGlobalRef
   prgOptions :: J.Options <- Java.call (gs ^. #program) "getOptions" programInfoField >>= JNI.newGlobalRef
   Java.call prgOptions "getBoolean" analyzedField False
 
@@ -81,14 +81,15 @@ openDatabase' opts fp = do
   tm :: J.TaskMonitor <- Java.getStaticField "ghidra.util.task.TaskMonitor" "DUMMY" >>= JNI.newGlobalRef
   file :: J.File <- Java.reflect (cs fp :: Text) >>= Java.new >>= JNI.newGlobalRef
   runExceptT $ do
-    prg :: J.Program <- case opts ^. #language of
+    results :: J.LoadResults J.Program <- case opts ^. #language of
       Nothing ->
         liftEitherM . fmap (first ImportByUsingBestGuessError) . tryJVM
         $ Java.callStatic
           "ghidra.app.util.importer.AutoImporter"
           "importByUsingBestGuess"
           file
-          (Java.jnull :: J.DomainFolder)
+          (Java.jnull :: J.Project)
+          (Java.jnull :: J.String)
           consumer
           messageLog
           tm
@@ -101,7 +102,8 @@ openDatabase' opts fp = do
             "ghidra.app.util.importer.AutoImporter"
             "importByLookingForLcs"
             file
-            (Java.jnull :: J.DomainFolder)
+            (Java.jnull :: J.Project)
+            (Java.jnull :: J.String)
             lang'
             cspec
             consumer
@@ -109,6 +111,12 @@ openDatabase' opts fp = do
             tm
             >>= JNI.newGlobalRef
     liftIO $ do
+      resultsIter :: J.Iterator (J.Loaded J.Program) <- Java.call results "iterator" >>= JNI.newGlobalRef
+      loadedProgs :: [J.Loaded J.Program] <- iteratorToList resultsIter
+      -- Presently, this object implementing the `Program` interface is always
+      -- a `ProgramDB` class instance.
+      prgs :: [J.Program] <- traverse getDomainObject loadedProgs
+      let prg = head prgs
       flatApi :: J.FlatProgramAPI <- Java.new prg >>= JNI.newGlobalRef
       flatDecApi :: J.FlatDecompilerAPI <- Java.new flatApi >>= JNI.newGlobalRef
       return $ GhidraState tm (coerce prg :: J.ProgramDB) flatApi flatDecApi
@@ -136,7 +144,7 @@ analyze' opts gs = do
       let prg = gs ^. #program
       txId :: Int32 <- Java.call prg "startTransaction" =<< Java.reflect ("Analysis" :: Text)
       _ :: () <- Java.call (gs ^. #flatProgramAPI) "analyzeAll" (coerce prg :: J.Program)
-      _ :: () <- Java.callStatic "ghidra.program.util.GhidraProgramUtilities" "setAnalyzedFlag" (coerce prg :: J.Program) True
+      _ :: () <- Java.callStatic "ghidra.program.util.GhidraProgramUtilities" "markProgramAnalyzed" (coerce prg :: J.Program)
       _ :: () <- Java.call prg "endTransaction" txId True
       return ()
 
@@ -171,5 +179,3 @@ saveDatabase gs fp = do
   file :: J.File <- Java.new jstringFilePath
   () <- Java.call (coerce prg :: J.DomainObjectAdapterDB) "saveToPackedFile" file (gs ^. #taskMonitor)
   return ()
-
-

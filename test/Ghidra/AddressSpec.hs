@@ -2,11 +2,13 @@ module Ghidra.AddressSpec where
 
 import Ghidra.Prelude
 
-import qualified Ghidra.State as State
-import Ghidra.Address
-import qualified Ghidra.Types.Address as Addr
-import Ghidra.Core
 import Test.Hspec
+
+import Ghidra.Core
+import Ghidra.Program
+import qualified Ghidra.State as State
+import qualified Ghidra.Types.Address as Addr
+
 import qualified Data.HashMap.Strict as HashMap
 
 
@@ -24,8 +26,10 @@ spec = describe "Ghidra.Address" $ do
     -- when b $ error "Couldn't open a1"
     return gs
 
+  let db = gs ^. #program
+
   context "getAddressSpaces" $ do
-    spaces <- runIO . runGhidraOrError $ getAddressSpaceMap gs
+    spaces <- runIO . runGhidraOrError $ getAddressSpaceMap db
     let names = view (_2 . #name) <$> HashMap.toList spaces
         expectedNames =
           [ Addr.EXTERNAL

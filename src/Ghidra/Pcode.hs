@@ -1,5 +1,9 @@
 {-# LANGUAGE DataKinds #-}
-module Ghidra.Pcode where
+module Ghidra.Pcode (
+  module Ghidra.Pcode,
+  module Ghidra.Types.Pcode,
+)
+where
 
 import Ghidra.Prelude hiding (toList, getConst)
 
@@ -10,14 +14,7 @@ import Ghidra.Instruction (getInstructions)
 import qualified Ghidra.Instruction as Instr
 import Ghidra.Util (iteratorToList, isJNull, maybeNull)
 import qualified Ghidra.Types as J
-import Ghidra.Types.Pcode ( BareHighPcodeInstruction
-                          , BareRawPcodeInstruction
-                          , PcodeInstruction(PcodeInstruction)
-                          , BarePcodeOp
-                          , RawPcodeInstruction
-                          , HighPcodeInstruction
-                          , BarePcodeOp(..)
-                          )
+import Ghidra.Types.Pcode
 import qualified Ghidra.Variable as Var
 import Ghidra.Variable (VarNode, HighVarNode)
 import qualified Ghidra.Types.Pcode.Lifted as L

@@ -20,7 +20,7 @@ spec = describe "Ghidra.Instruction" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ diveBin >>! State.analyze
     return gs
-  
+
   context "getInstructions" $ do
     let cgc_printf_addr = 0x804c6e0
     refs <- runIO . runGhidraOrError $ do

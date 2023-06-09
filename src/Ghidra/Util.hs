@@ -1,6 +1,8 @@
 {- HLINT ignore "Redundant bracket" -}
 
-module Ghidra.Util where
+module Ghidra.Util (
+  module Ghidra.Util,
+) where
 
 import Ghidra.Prelude hiding (force)
 
@@ -22,6 +24,11 @@ iteratorToList it = do
     True -> do
       x :: JObject <- Java.call it "next"
       (coerce x:) <$> iteratorToList it
+
+getDomainObject :: forall a. (Coercible JObject a) => J.Loaded a -> IO a
+getDomainObject l = do
+  x :: J.DomainObject <- Java.call l "getDomainObject"
+  return $ coerce x
 
 isJNull :: J a -> Bool
 isJNull x = x == JNI.jnull
@@ -75,4 +82,3 @@ suppressOut action = do
       _ :: () <- Java.callStatic "java.lang.System" "setOut" out
       _ :: () <- Java.callStatic "java.lang.System" "setErr" err
       return ()
-
