@@ -2,15 +2,14 @@ module Ghidra.PcodeSpec where
 
 import Ghidra.Prelude
 
-import qualified Ghidra.State as State
-import qualified Ghidra.Function as Function
-import Ghidra.Pcode (getRawPcodeOps, getHighPcodeOps, mkRawPcodeInstruction, mkBareRawPcodeInstruction, getHighPcode, getRawPcode)
-import Ghidra.Types.Pcode
-import Ghidra.Types.Pcode.Lifted (PcodeOp)
-import Ghidra.Types.Variable
-import Ghidra.Types.Address
-import Ghidra.Address (getAddressSpaceMap)
 import Ghidra.Core
+import qualified Ghidra.Function as Function
+import Ghidra.Pcode
+import Ghidra.Program (getAddressSpaceMap)
+import qualified Ghidra.State as State
+import Ghidra.Types.Address
+import Ghidra.Types.Variable
+
 import Test.Hspec
 
 
@@ -25,6 +24,7 @@ spec = describe "Ghidra.Pcode" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
+  let db = gs ^. #program
 
   context "getRawPcode" $ do
     let faddr = 0x13ad
@@ -32,7 +32,7 @@ spec = describe "Ghidra.Pcode" $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       raws <- getRawPcodeOps gs func
-      addrSpaceMap <- getAddressSpaceMap gs
+      addrSpaceMap <- getAddressSpaceMap db
       liftedRaws <- getRawPcode gs addrSpaceMap func
       return (raws, liftedRaws)
 
@@ -52,11 +52,12 @@ spec = describe "Ghidra.Pcode" $ do
           , output = Just VarNode
             { varType = Addr Address
                         { space = AddressSpace
-                          { ptrSize = 4
+                          { id = AddressSpaceId 291
+                          , ptrSize = 4
                           , addressableUnitSize = 1
                           , name = Unique
                           }
-                        , offset = 60672
+                        , offset = 61312
                         }
             , size = Bytes 8
             }
@@ -65,7 +66,8 @@ spec = describe "Ghidra.Pcode" $ do
                 { varType =
                     Addr (Address
                            { space = AddressSpace
-                                     { ptrSize = 4
+                                     { id = AddressSpaceId 548
+                                     , ptrSize = 4
                                      , addressableUnitSize = 1
                                      , name = Register
                                      }
@@ -84,7 +86,7 @@ spec = describe "Ghidra.Pcode" $ do
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
       highs <- getHighPcodeOps gs hfunc func
-      addrSpaceMap <- getAddressSpaceMap gs
+      addrSpaceMap <- getAddressSpaceMap db
       liftedHighs <- getHighPcode gs addrSpaceMap hfunc func
       return (highs, liftedHighs)
 
@@ -93,17 +95,3 @@ spec = describe "Ghidra.Pcode" $ do
 
     it "should lift high pcode ops" $ do
       length liftedHighs `shouldBe` 15
-
-
-getHighPcodeDemo :: IO [PcodeOp HighVarNode]
-getHighPcodeDemo = runGhidraOrError $ do
-  gs <- State.openDatabase_ diveBin >>! State.analyze
-  -- b <- isNil' $ gs ^. #unGhidraState
-  -- when b $ error "Couldn't open a1"
-  let cgc_printf_addr = 0x804c6e0
-  addr <- State.mkAddress gs cgc_printf_addr
-  (Just func) <- Function.fromAddr gs addr
-  hfunc <- Function.getHighFunction gs func
-  -- highs <- getHighPcodeOps gs hfunc func
-  addrSpaceMap <- getAddressSpaceMap gs
-  fmap snd <$> getHighPcode gs addrSpaceMap hfunc func

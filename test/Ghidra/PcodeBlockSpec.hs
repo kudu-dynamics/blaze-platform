@@ -28,11 +28,11 @@ spec = describe "Ghidra.PcodeBlock" $ do
     (Just jfunc) <- Function.fromAddr gs jaddr'
     highJfunc <- Function.getHighFunction gs jfunc
     return (gs, jfunc, highJfunc)
-  
+
   context "getCodeBlocks" $ do
     blocks <- runIO . runGhidraOrError $ do
       getBlocksFromHighFunction hfunc
-      
+
     it "should get 4 blocks for j function" $ do
       length blocks `shouldBe` 4
 

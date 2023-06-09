@@ -3,7 +3,7 @@ module Ghidra.Reference
   ( module Ghidra.Reference
   ) where
 
-import Ghidra.Prelude hiding (toList)
+import Ghidra.Prelude
 
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State

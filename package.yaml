@@ -87,6 +87,7 @@ library:
     - Ghidra.Prelude
     - Ghidra.Program
     - Ghidra.Reference
+    - Ghidra.Register
     - Ghidra.State
     - Ghidra.Types
     - Ghidra.Types.Address
@@ -95,6 +96,7 @@ library:
     - Ghidra.Types.Pcode
     - Ghidra.Types.PcodeBlock
     - Ghidra.Types.Pcode.Lifted
+    - Ghidra.Types.Register
     - Ghidra.Types.Variable
 
 include-dirs:
