@@ -5,7 +5,6 @@ module Ghidra.Program (
 
 import Ghidra.Prelude hiding (force)
 
-import Control.Lens (_Wrapped')
 import Data.BinaryAnalysis qualified as BA
 import Data.HashMap.Strict qualified as HashMap
 import Foreign.JNI qualified as JNI
@@ -49,14 +48,17 @@ getExecutableMD5 p = Java.call p "getExecutableMD5"
                      >>= Java.reify
 
 -- | Given a program DB, address, and size, provide the associated register.
-getRegister :: J.ProgramDB -> Address -> Int -> IO (Maybe Register)
-getRegister p addr size = do
+getRegister :: J.ProgramDB -> Int64 -> Int -> IO (Maybe Register)
+getRegister p offset size = do
   jAddrFactory <- getAddressFactory p
+  jSpace :: J.AddressSpace <-
+    Java.call jAddrFactory "getRegisterSpace" >>= JNI.newGlobalRef
+  spaceId :: Int32 <- Java.call jSpace "getSpaceID"
   jAddr <-
     getAddress
       jAddrFactory
-      (addr ^. #space . #id . _Wrapped')
-      (addr ^. #offset)
+      spaceId
+      offset
   let size' :: Int32 = fromIntegral size
   reg :: J.Register <-
     Java.call p "getRegister" jAddr size'
