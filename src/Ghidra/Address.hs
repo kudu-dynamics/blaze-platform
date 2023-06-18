@@ -47,3 +47,10 @@ getAddress af space offset =
   Java.call af "getAddress" space offset
   >>= JNI.newGlobalRef
   >>= Java.reify
+
+-- | Returns the register `AddressSpace`.
+getRegisterSpace :: J.AddressFactory -> IO AddressSpace
+getRegisterSpace af = do
+  space :: J.AddressSpace <- Java.call af "getRegisterSpace"
+                             >>= JNI.newGlobalRef
+  mkAddressSpace space
