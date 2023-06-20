@@ -30,7 +30,7 @@ spec = describe "Blaze.Cfg.Path.SolverSpec" $ do
       bv <- unsafeFromRight <$> runIO (BN.getBinaryView diveBin)
       runIO $ BN.updateAnalysisAndWait bv
       let importer = Bni.BNImporter bv
-    
+
       context "selectDive" $ do
         selectDiveFunc <- fmap fromJust . runIO $ Cgi.getFunction importer 0x804e080
         (ImportResult _ctx _mapping selectDiveCfg) <- runIO $ fromJust <$> Cfgi.getCfg importer selectDiveFunc 0
@@ -51,7 +51,7 @@ spec = describe "Blaze.Cfg.Path.SolverSpec" $ do
         let paths = Path.getAllSimplePaths mainMenuCfg
         it "should get the correct number of simple paths" $ do
           length paths `shouldBe` 11
-      
+
         r <- runIO $ solvePaths paths
 
         -- -- Uncomment to print out paths.
@@ -69,7 +69,7 @@ spec = describe "Blaze.Cfg.Path.SolverSpec" $ do
       bv <- unsafeFromRight <$> runIO (BN.getBinaryView dungeonBin)
       runIO $ BN.updateAnalysisAndWait bv
       let importer = Bni.BNImporter bv
-    
+
       context "cgc_sendCurrentDungeonView" $ do
         sendCurrentDungeonViewFunc <- fmap fromJust . runIO $ Cgi.getFunction importer 0x804d150
         (ImportResult _ctx _mapping sendCurrentDungeonViewCfg) <- runIO $ fromJust <$> Cfgi.getCfg importer sendCurrentDungeonViewFunc 0
