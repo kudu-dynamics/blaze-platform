@@ -113,10 +113,21 @@ buildIntList :: StatementFunction t => OpBuilder t [Int64]
 buildIntList = do
   ctx <- ask
   oindex <- getAndAdvanceOpIndex
-  liftIO $ BN.mediumLevelILGetOperandList
+  l :: [Word64] <- liftIO $ BN.mediumLevelILGetOperandList
     (ctx ^. func . Func.handle)
     (coerceExpressionIndex $ ctx ^. exprIndex)
     oindex
+  pure $ (fromIntegral :: Word64 -> Int64) <$> l
+
+buildAddressList :: StatementFunction t => OpBuilder t [Address]
+buildAddressList = do
+  ctx <- ask
+  oindex <- getAndAdvanceOpIndex
+  l :: [Word64] <- liftIO $ BN.mediumLevelILGetOperandList
+    (ctx ^. func . Func.handle)
+    (coerceExpressionIndex $ ctx ^. exprIndex)
+    oindex
+  pure $ Address . Bytes <$> l
 
 buildTargetAddrsList :: StatementFunction t => OpBuilder t [Address]
 buildTargetAddrsList = do
@@ -233,6 +244,8 @@ getOperation fn eindex = do
         fmap ADDRESS_OF_FIELD $ AddressOfFieldOp <$> buildVariable <*> buildInt
     BN.MLIL_CONST ->
         fmap CONST $ ConstOp <$> buildInt
+    BN.MLIL_CONST_DATA ->
+        fmap CONST_DATA $ ConstDataOp <$> buildInt
     BN.MLIL_CONST_PTR ->
         fmap CONST_PTR $ ConstPtrOp <$> buildInt
     BN.MLIL_EXTERN_PTR ->
