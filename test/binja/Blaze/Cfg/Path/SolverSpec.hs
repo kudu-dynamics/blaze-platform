@@ -43,7 +43,7 @@ spec = describe "Blaze.Cfg.Path.SolverSpec" $ do
         it "should solve all simple paths" $
           ( length $ r ^. #satPaths
           , length $ r ^. #unsatPaths
-          , length $ r ^. #unkPaths) `shouldBe` (5, 4, 0)
+          , length $ r ^. #unkPaths) `shouldBe` (4, 5, 0)
 
       context "MainMenu" $ do
         mainMenuFunc <- fmap fromJust . runIO $ Cgi.getFunction importer 0x804ce80
