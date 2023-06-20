@@ -2,13 +2,13 @@ module Blaze.Import.Source.Ghidra.Cfg where
 
 import qualified Prelude as P
 
-import Ghidra.Address (getAddressSpaceMap)
 import qualified Ghidra.BasicBlock as BB
 import Ghidra.State (GhidraState)
 import qualified Ghidra.Function as GFunc
 import qualified Ghidra.Pcode as Pcode
 import qualified Ghidra.PcodeBlock as PB
 import Ghidra.Types.Pcode.Lifted (PcodeOp)
+import Ghidra.Program (getAddressSpaceMap)
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Address as GAddr
@@ -58,7 +58,7 @@ newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (State
 
 getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
 getRawPcodeForBasicBlock gs bb = do
-  addrSpaceMap <- getAddressSpaceMap gs
+  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
   xs <- Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
   traverse (\(addr, op) -> (,op) . convertAddress <$> GAddr.mkAddress addr) xs
 
@@ -181,7 +181,7 @@ getHighPcodeForPcodeBlock
   -> PB.PcodeBlock
   -> IO [(Address, PcodeOp HighVarNode)]
 getHighPcodeForPcodeBlock gs pb = do
-  addrSpaceMap <- getAddressSpaceMap gs
+  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
   xs <- Pcode.getBlockHighPcode addrSpaceMap $ pb ^. #handle
   traverse (\(addr, op) -> (,op) . convertAddress <$> GAddr.mkAddress addr) xs
 
@@ -350,10 +350,9 @@ getPilCfg
 getPilCfg pcodeCfgGetter gs func ctxId = do
   let ctx = Ctx func ctxId
   pcodeCfgGetter gs func ctxId >>= \case
-    Left thunkedDest -> do
+    Left _thunkedDest -> do
       -- TODO: maybe try to recur?
-      putText $ "Warning: getPilCfg returned ThunkedDestFunc for function: " <> show func
-      putText $ "The thunk dest is: " <> show thunkedDest
+      -- When a ThunkedDestFunc is found, return Nothing
       return Nothing
     Right pcodeCfg -> do
       (varMapping, errs, pilCfg) <- convertToPilCfg gs ctx pcodeCfg

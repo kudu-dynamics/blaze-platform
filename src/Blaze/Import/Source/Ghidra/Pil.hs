@@ -1,30 +1,31 @@
 module Blaze.Import.Source.Ghidra.Pil where
 
-import Blaze.Prelude hiding (Symbol)
+import Blaze.Prelude hiding (Const, Symbol)
 
-import Ghidra.Address (getAddressSpaceMap)
+import Ghidra.Function qualified as GFunc
+import Ghidra.Pcode (getHighPcode, getRawPcode)
+import Ghidra.Program (getAddressSpaceMap, getRegister)
+import Ghidra.Register (Register (Register))
 import Ghidra.State (GhidraState)
-import qualified Ghidra.State as GState
-import qualified Ghidra.Function as GFunc
-import qualified Ghidra.Pcode as P
-import qualified Ghidra.Types as J
-import qualified Ghidra.Types.Pcode.Lifted as P
-import qualified Ghidra.Types.Address as GAddr
-import qualified Ghidra.Types.Variable as GVar
+import Ghidra.State qualified as GState
+import Ghidra.Types qualified as J
+import Ghidra.Types.Address qualified as GAddr
+import Ghidra.Types.Pcode.Lifted qualified as P
+import Ghidra.Types.Variable qualified as GVar
 
 import qualified Blaze.Pil.Construct as C
-import Data.Binary.IEEE754 (wordToDouble)
-import qualified Numeric
-import qualified Data.Text as Text
 import Blaze.Types.Cfg (CodeReference)
-import Blaze.Types.Pil
-  (
-    CtxId,
-    Ctx(Ctx),
-    Expression (Expression),
-    Size,
-    PilVar,
-  )
+import Blaze.Types.Pil (
+  Ctx (Ctx),
+  CtxId,
+  Expression (Expression),
+  PilVar,
+  Size,
+  Symbol,
+ )
+import Data.Binary.IEEE754 (wordToDouble)
+import qualified Data.Text as Text
+import qualified Numeric
 
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
@@ -41,7 +42,7 @@ import qualified Data.List.NonEmpty as NE
 data ConverterError
   = ExpectedConstButGotAddress GAddr.Address
   | ExpectedAddressButGotConst Int64
-  | UnsuportedAddressSpace Text
+  | UnsupportedAddressSpace Text
   -- | Could not recognize the VarNode as a 'PilVar', probably because it
   -- belongs to an address space other than 'unique', 'reg', or stack
   | VarNodeInvalidAsPilVar Bytes VarType
@@ -97,6 +98,7 @@ mkConverterState gs ctx = ConverterState
   , ghidraState = gs
   }
 
+-- TODO: Why doesn't this Converter stack include ExceptT?
 -- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
   deriving (Functor)
@@ -128,12 +130,6 @@ instance IsVariable a => IsVariable (P.Input a) where
   getSize = getSize . view #value
   getVarType = getVarType . view #value
 
-
--- -- TODO: Rename IsVariable
--- instance IsVariable Address where
---   getSize = fromIntegral . view $ #space . #ptrSize
---   getVarType = GVar.Addr
-
 data VarNodeType
   = VUnique Int64
   | VReg Int64
@@ -144,6 +140,9 @@ data VarNodeType
   | VImmediate Int64
   | VOther Text Int64
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
+
+showHex :: (Integral a, Show a) => a -> Text
+showHex n = Text.pack $ Numeric.showHex n ""
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
 getVarNodeType v = case getVarType v of
@@ -160,6 +159,17 @@ getVarNodeType v = case getVarType v of
     where
       off = x ^. #offset
 
+-- | Get a register name given a Ghidra address and possible `Register` instance.
+-- Ghidra provides a `Nothing` value when requesting a `Register` with an offset
+-- and size the corresponds to a reference of an uncommon piece of a register.
+getRegisterName :: Int64 -> Bytes -> Maybe Register -> Symbol
+getRegisterName offset size reg =
+  case reg of
+    Just (Register name _length) ->
+      Text.toLower $ name <> "_" <> showHex size
+    Nothing ->
+      -- Provide a default name based on address information
+      "reg" <> "-" <> showHex offset <> "_" <> showHex size
 
 -- The point of these individual funcs instead of a single `VarNode -> Expression`
 -- func is so you can choose only the correct possibility and `<|>` them together
@@ -242,7 +252,7 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
 -- 'PilVar' is returned, then it can be used as the left-hand-side of a 'Def';
 -- if an 'Expression' is returned, then it can be used as the left-hand-side of
 -- a 'Store'. Throws 'ExpectedAddressButGotConst' if the VarNode was a constant,
--- or 'UnsuportedAddressSpace' if it resides in some custom address space that
+-- or 'UnsupportedAddressSpace' if it resides in some custom address space that
 -- we don't know how to deal with.
 varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Either PilVar Expression)
 varNodeToReference v = do
@@ -251,7 +261,11 @@ varNodeToReference v = do
       size :: Bytes = getSize v
       operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
-    VReg n -> pure . Left . pv $ "reg_" <> showHex n <> "_" <> showHex size
+    VReg offset -> do
+      prg <- use $ #ghidraState . #program
+      reg <- liftIO $ getRegister prg offset (fromIntegral size)
+      let name = getRegisterName offset size reg
+      pure . Left . pv $ name
     VStack n -> pure . Left . pv $ stackVarName n
     VUnique n -> pure . Left . pv $ "unique_" <> showHex n
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
@@ -259,10 +273,9 @@ varNodeToReference v = do
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
       | t == "VARIABLE" -> pure . Left . pv $ "ghidravar_" <> showHex off
-      | otherwise -> throwError $ UnsuportedAddressSpace t
+      | otherwise -> throwError $ UnsupportedAddressSpace t
   where
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
-    showHex n = Text.pack $ Numeric.showHex n ""
 
 -- | Like 'varNodeToReference' but throw 'VarNodeInvalidAsPilVar' if an
 -- 'Expression' was returned instead of a 'PilVar'
@@ -283,27 +296,28 @@ varNodeToAssignment v =
 -- | Converts a Ghidra VarNode to an 'Expression' that represents the __value
 -- stored at__ the abstract location that the VarNode specifies. Throws
 -- 'ExpectedAddressButGotConst' if the VarNode was a constant, or
--- 'UnsuportedAddressSpace' if it resides in some custom address space that we
+-- 'UnsupportedAddressSpace' if it resides in some custom address space that we
 -- don't know how to deal with.
 varNodeToValueExpr :: IsVariable a => a -> ExceptT ConverterError Converter Expression
 varNodeToValueExpr v = do
-  ctx' <- use #ctx
-  let pv = C.pilVar_ (fromByteBased size) $ Just ctx'
-      size :: Bytes = getSize v
+  let size :: Bytes = getSize v
       operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
-    VReg n -> pure $ C.var' (pv $ "reg_" <> showHex n <> "_" <> showHex size) operSize
-    VStack n -> pure $ C.var' (pv $ stackVarName n) operSize
-    VUnique n -> pure $ C.var' (pv $ "unique_" <> showHex n) operSize
+    VReg _ -> do
+      pv <- varNodeToPilVar v
+      pure $ C.var' pv operSize
+    VStack _ -> do
+      pv <- varNodeToPilVar v
+      pure $ C.var' pv operSize
+    VUnique _ -> do
+      pv <- varNodeToPilVar v
+      pure $ C.var' pv operSize
     VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize
     VExtern n -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (Pil.widthToSize (64 :: Bits))) operSize
     VImmediate n -> pure $ C.const n operSize
-    VOther t off
-      | t == "VARIABLE" -> pure $ C.var' (pv $ "ghidravar_" <> showHex off) operSize
-      | otherwise -> throwError $ UnsuportedAddressSpace t
-  where
-    stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
-    showHex n = Text.pack $ Numeric.showHex n ""
+    VOther _ _ -> do
+      pv <- varNodeToPilVar v
+      pure $ C.var' pv operSize
 
 convertPcodeOpToPilStmt :: forall a. IsVariable a => P.PcodeOp a -> ExceptT ConverterError Converter [Pil.Stmt]
 convertPcodeOpToPilStmt = \case
@@ -524,8 +538,8 @@ getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Either 
 getFuncStatementsFromRawPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
   let ctx = Ctx func ctxId
-  addrSpaceMap <- getAddressSpaceMap gs
-  pcodeOps <- fmap snd <$> P.getRawPcode gs addrSpaceMap jfunc
+  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
+  pcodeOps <- fmap snd <$> getRawPcode gs addrSpaceMap jfunc
   convertPcodeOps gs ctx pcodeOps
 
 getFuncStatementsFromHighPcode :: GhidraState -> Function -> CtxId -> IO [Either ConverterError Pil.Stmt]
@@ -533,8 +547,8 @@ getFuncStatementsFromHighPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
   hfunc <- GFunc.getHighFunction gs jfunc
   let ctx = Ctx func ctxId
-  addrSpaceMap <- getAddressSpaceMap gs
-  pcodeOps <- fmap snd <$> P.getHighPcode gs addrSpaceMap hfunc jfunc
+  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
+  pcodeOps <- fmap snd <$> getHighPcode gs addrSpaceMap hfunc jfunc
   convertPcodeOps gs ctx pcodeOps
 
 convertPcodeOps :: IsVariable a => GhidraState -> Ctx -> [P.PcodeOp a] -> IO [Either ConverterError Pil.Stmt]
@@ -558,11 +572,11 @@ getCodeRefStatementsFromRawPcode
   -> IO [Either ConverterError Pil.Stmt]
 getCodeRefStatementsFromRawPcode gs ctxId ref = do
   let ctx = Ctx (ref ^. #function) ctxId
-  addrSpaceMap <- getAddressSpaceMap gs
+  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
   start <- GState.mkAddress gs $ ref ^. #startIndex
   end <- GState.mkAddress gs $ ref ^. #endIndex
   addrSet <- J.mkAddressSetFromRange start end
-  pcodeOps <- fmap snd <$> P.getRawPcode gs addrSpaceMap addrSet
+  pcodeOps <- fmap snd <$> getRawPcode gs addrSpaceMap addrSet
   convertPcodeOps gs ctx pcodeOps
 
 getCodeRefStatementsFromHighPcode
@@ -574,9 +588,9 @@ getCodeRefStatementsFromHighPcode gs ctxId ref = do
   jfunc <- GCG.toGhidraFunction gs $ ref ^. #function
   hfunc <- GFunc.getHighFunction gs jfunc
   let ctx = Ctx (ref ^. #function) ctxId
-  addrSpaceMap <- getAddressSpaceMap gs
+  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
   start <- GState.mkAddress gs $ ref ^. #startIndex
   end <- GState.mkAddress gs $ ref ^. #endIndex
   addrSet <- J.mkAddressSetFromRange start end
-  pcodeOps <- fmap snd <$> P.getHighPcode gs addrSpaceMap hfunc addrSet
+  pcodeOps <- fmap snd <$> getHighPcode gs addrSpaceMap hfunc addrSet
   convertPcodeOps gs ctx pcodeOps
