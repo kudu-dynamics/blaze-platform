@@ -158,6 +158,10 @@ convertExpr expr = do
       where
         addr = fromIntegral $ x ^. MLIL.constant
         def = mkExpr . Pil.CONST <$> f x
+    (MLIL.CONST_DATA x) -> mkConstStrOrFuncPtr addr def
+      where
+        addr = fromIntegral $ x ^. MLIL.constant
+        def = mkExpr . Pil.CONST <$> f x
     (MLIL.CONST_PTR x) -> mkConstStrOrFuncPtr addr def
       where
         addr = fromIntegral $ x ^. MLIL.constant
