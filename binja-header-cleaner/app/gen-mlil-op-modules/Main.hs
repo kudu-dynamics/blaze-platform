@@ -34,6 +34,7 @@ opTypeType ot = case ot of
   "var_ssa" -> "SSAVariable"
   "var_ssa_dest_and_src" -> "SSAVariableDestAndSrc"
   "int_list" -> "[Int64]"
+  "address_list" -> "[Address]"
   "var_list" -> "[Variable]"
   "var_ssa_list" -> "[SSAVariable]"
   "expr_list" -> "[expr]"
@@ -49,6 +50,7 @@ opTypeBuilder ot = case ot of
   "var_ssa" -> "buildSSAVariable"
   "var_ssa_dest_and_src" -> "buildSSAVariableDestAndSrc"
   "int_list" -> "buildIntList"
+  "address_list" -> "buildAddressList"
   "var_list" -> "buildVarList"
   "var_ssa_list" -> "buildSSAVarList"
   "expr_list" -> "buildExprList"
@@ -188,6 +190,7 @@ statementsData =
   , ("MLIL_ADDRESS_OF", [("src", "var")])
   , ("MLIL_ADDRESS_OF_FIELD", [("src", "var"), ("offset", "int")])
   , ("MLIL_CONST", [("constant", "int")])
+  , ("MLIL_CONST_DATA", [("constant", "int")])
   , ("MLIL_CONST_PTR", [("constant", "int")])
   , ("MLIL_EXTERN_PTR", [("constant", "int"), ("offset", "int")])
   , ("MLIL_FLOAT_CONST", [("constant", "float")])
@@ -223,7 +226,7 @@ statementsData =
   , ("MLIL_ZX", [("src", "expr")])
   , ("MLIL_LOW_PART", [("src", "expr")])
   , ("MLIL_JUMP", [("dest", "expr")])
-  , ("MLIL_JUMP_TO", [("dest", "expr"), ("targets", "int_list")])
+  , ("MLIL_JUMP_TO", [("dest", "expr"), ("targets", "address_list")])
   , ("MLIL_RET_HINT", [("dest", "expr")])
   , ("MLIL_CALL", [("output", "var_list"), ("dest", "expr"), ("params", "expr_list")])
   , ("MLIL_CALL_UNTYPED", [("output", "expr"), ("dest", "expr"), ("params", "expr"), ("stack", "expr")])

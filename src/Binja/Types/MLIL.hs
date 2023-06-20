@@ -101,6 +101,7 @@ data Operation expr
     | ADDRESS_OF (AddressOfOp expr)
     | ADDRESS_OF_FIELD (AddressOfFieldOp expr)
     | CONST (ConstOp expr)
+    | CONST_DATA (ConstDataOp expr)
     | CONST_PTR (ConstPtrOp expr)
     | EXTERN_PTR (ExternPtrOp expr)
     | FLOAT_CONST (FloatConstOp expr)
