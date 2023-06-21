@@ -101,6 +101,7 @@ library:
   - Binja.Types.MLIL.Op.AddressOfOp
   - Binja.Types.MLIL.Op.AddressOfFieldOp
   - Binja.Types.MLIL.Op.ConstOp
+  - Binja.Types.MLIL.Op.ConstDataOp
   - Binja.Types.MLIL.Op.ConstPtrOp
   - Binja.Types.MLIL.Op.ExternPtrOp
   - Binja.Types.MLIL.Op.FloatConstOp
