@@ -119,16 +119,6 @@ buildIntList = do
     oindex
   pure $ (fromIntegral :: Word64 -> Int64) <$> l
 
-buildAddressList :: StatementFunction t => OpBuilder t [Address]
-buildAddressList = do
-  ctx <- ask
-  oindex <- getAndAdvanceOpIndex
-  l :: [Word64] <- liftIO $ BN.mediumLevelILGetOperandList
-    (ctx ^. func . Func.handle)
-    (coerceExpressionIndex $ ctx ^. exprIndex)
-    oindex
-  pure $ Address . Bytes <$> l
-
 buildTargetAddrsList :: StatementFunction t => OpBuilder t [Address]
 buildTargetAddrsList = do
   ctx <- ask
