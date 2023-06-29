@@ -19,8 +19,11 @@ import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst))
 import qualified Blaze.Pil.Construct as C
 
 
--- | Generates all non-looping paths from a Cfg.
+-- | Generates all paths from a Cfg that do not visit the same node twice.
+-- This may include paths that end in the body of a loop and thus
+-- do not have a return node.
 -- Calls unfoldGroups on Cfg to ensure there are no groups.
+-- Note: Loop summary nodes might one day enable us to return only returning paths.
 getAllSimplePaths :: (Ord a, Hashable a) => Cfg (CfNode a) -> [Path (CfNode a)]
 getAllSimplePaths cfg = mkCfPath <$> P.getAllPaths (\_ _ -> error "should not revisit") 0
   (Cfg.getRootNode cfg')
@@ -31,7 +34,11 @@ getAllSimplePaths cfg = mkCfPath <$> P.getAllPaths (\_ _ -> error "should not re
     mkCfPath = Path nextCtxIndex_ outerCtx_
     (cfg', _) = unfoldGroups cfg
 
--- | Generates all non-looping paths from a Cfg.
+
+-- | Generates all paths from a Cfg that do not visit the same node twice.
+-- This may include paths that end in the body of a loop and thus
+-- do not have a return node.
+-- Returns only paths containing all the nodes specified in `reqNodes`
 -- Calls unfoldGroups on Cfg to ensure there are no groups.
 getSimplePathsContaining
   :: (Ord a, Hashable a)
@@ -116,3 +123,4 @@ expandCallWithNewInnerPathIds leaveFuncUuid outerPath callNode innerPath = do
     giveNewUUID n = do
       uuid <- randomIO
       return $ setNodeUUID uuid n
+
