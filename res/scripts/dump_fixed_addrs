@@ -1,0 +1,4 @@
+#! /bin/sh
+
+echo $1
+objdump -M intel -d $1 | grep 'PTR ds:0x'
