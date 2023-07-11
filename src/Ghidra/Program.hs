@@ -11,7 +11,6 @@ import Foreign.JNI qualified as JNI
 import Language.Java qualified as Java
 
 import Ghidra.Address (
-  Address,
   AddressSpace,
   AddressSpaceId (AddressSpaceId),
   AddressSpaceMap,
