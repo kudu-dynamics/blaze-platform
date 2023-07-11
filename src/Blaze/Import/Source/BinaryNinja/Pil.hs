@@ -20,6 +20,8 @@ import Blaze.Types.Pil
       DefOp(DefOp),
       DefPhiOp(DefPhiOp),
       Expression(Expression),
+      MappedStmt,
+      MappedStatement(MappedStatement),
       PilVar(PilVar),
       RetOp(RetOp),
       Statement(BranchCond, Call, Def, DefPhi, Nop, Ret, Store, Undef,
@@ -556,17 +558,17 @@ convertCallInstruction ci = do
 
 -- | Gets all PIL statements contained in a function.
 -- the "Int" is the original MLIL_SSA InstructionIndex
-convertFunction :: Function -> Converter [(Int, Stmt)]
+convertFunction :: Function -> Converter [MappedStmt (Int, Address)]
 convertFunction func' = do
   mlilFunc <- liftIO $ BNFunc.getMLILSSAFunction func'
   mlilInstrs <- liftIO $ MLIL.fromFunction mlilFunc
   concatMapM f $ zip [0..] mlilInstrs
   where
     f (mlilIndex, mlilInstr) =
-      fmap (mlilIndex,) <$> convertInstrSplitPhi mlilInstr
+      fmap (MappedStatement (mlilIndex, mlilInstr ^. MLIL.address)) <$> convertInstrSplitPhi mlilInstr
 
-getFuncStatementsIndexed :: BNBinaryView -> Func.Function -> CtxId -> IO [(Int, Stmt)]
-getFuncStatementsIndexed bv func' ctxId' = do
+getFuncStatementsMapped :: BNBinaryView -> Func.Function -> CtxId -> IO [MappedStmt (Int, Address)]
+getFuncStatementsMapped bv func' ctxId' = do
   mBnFunc <- BNCG.toBinjaFunction bv func'
   case mBnFunc of
     Nothing -> P.error $ "No function found at " <> show (func' ^. #address)
@@ -576,7 +578,7 @@ getFuncStatementsIndexed bv func' ctxId' = do
       fst <$> runConverter (convertFunction bnFunc) st
 
 getFuncStatements :: BNBinaryView -> Func.Function -> CtxId -> IO [Stmt]
-getFuncStatements bv func' ctxId' = fmap snd <$> getFuncStatementsIndexed bv func' ctxId'
+getFuncStatements bv func' ctxId' = fmap (view #stmt) <$> getFuncStatementsMapped bv func' ctxId'
 
 getDestOp :: CallInstruction -> Maybe (MLIL.Operation (MLIL.Expression F))
 getDestOp CallInstruction{dest=Just MLIL.Expression{MLIL._op=op'}} = Just op'

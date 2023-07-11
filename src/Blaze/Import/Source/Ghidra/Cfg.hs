@@ -11,7 +11,6 @@ import Ghidra.Types.Pcode.Lifted (PcodeOp)
 import Ghidra.Program (getAddressSpaceMap)
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
-import qualified Ghidra.Address as GAddr
 import qualified Ghidra.Types.BasicBlock as GBB
 import qualified Ghidra.Types.PcodeBlock as PB
 
@@ -60,7 +59,8 @@ getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [(Address, Pcode
 getRawPcodeForBasicBlock gs bb = do
   addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
   xs <- Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
-  traverse (\(addr, op) -> (,op) . convertAddress <$> GAddr.mkAddress addr) xs
+  return $ first convertAddress <$> xs
+  -- traverse (\(addr, op) -> (,op) . convertAddress <$> addr) xs
 
 -- | Returns 'True' if the branch jumps to destBlockStart iff the branch cond is true.
 -- Returns Nothing if the pcode op isn't a conditional branch.
@@ -183,7 +183,7 @@ getHighPcodeForPcodeBlock
 getHighPcodeForPcodeBlock gs pb = do
   addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
   xs <- Pcode.getBlockHighPcode addrSpaceMap $ pb ^. #handle
-  traverse (\(addr, op) -> (,op) . convertAddress <$> GAddr.mkAddress addr) xs
+  return $ first convertAddress <$> xs
 
 mkCfNodePcodeBlock :: (PB.PcodeBlock -> IO [(Address, PcodeOp HighVarNode)]) -> Ctx -> PB.PcodeBlock -> IO (CfNode [(Address, PcodeOp HighVarNode)])
 mkCfNodePcodeBlock getPcode ctx pb = do

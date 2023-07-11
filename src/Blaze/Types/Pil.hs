@@ -315,6 +315,16 @@ data Statement expr
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
+data MappedStatement a expr = MappedStatement
+  { ref :: a
+  , stmt :: Statement expr
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+instance Bifunctor MappedStatement where
+  bimap f g (MappedStatement a b) = MappedStatement (f a) (g <$> b)
+  
+type MappedStmt a = MappedStatement a Expression
+
 data CallStatement = CallStatement
   { stmt :: Statement Expression
   , callOp :: CallOp Expression

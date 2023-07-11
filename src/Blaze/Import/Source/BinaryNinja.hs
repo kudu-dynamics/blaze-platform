@@ -61,6 +61,9 @@ instance PilImporter BNImporter where
   getFuncStatements imp =
     PilImp.getFuncStatements (imp ^. #binaryView)
 
+  getMappedStatements imp func ctxId =
+    fmap (first snd) <$> PilImp.getFuncStatementsMapped (imp ^. #binaryView) func ctxId
+
   getCodeRefStatements imp ctxIndex' codeRef = do
     let fn = codeRef ^. #function
         funcAddr = fn ^. #address
