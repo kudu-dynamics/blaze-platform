@@ -45,20 +45,29 @@ instance CfgImporter GhidraImporter where
 
 instance PilImporter GhidraImporter where
   type IndexType GhidraImporter = Address
-  getFuncStatements imp = go (imp ^. #ghidraState)
+  getFuncStatements imp f ctx = do
+    (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode st f ctx
+    unless (null errors) $ do
+      hPutStrLn @String stderr "Errors during conversion:"
+      traverse_ (pHPrint stderr) errors
+    pure . fmap (view #stmt) $ stmts
     where
-      go st f ctx = do
-        (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode st f ctx
-        unless (null errors) $ do
-          hPutStrLn @String stderr "Errors during conversion:"
-          traverse_ (pHPrint stderr) errors
-        pure stmts
+      st = imp ^. #ghidraState
 
-  getCodeRefStatements imp = go (imp ^. #ghidraState)
+  getMappedStatements imp f ctx = do
+    (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode st f ctx
+    unless (null errors) $ do
+      hPutStrLn @String stderr "Errors during conversion:"
+      traverse_ (pHPrint stderr) errors
+    pure stmts
     where
-      go st f ctx = do
-        (errors, stmts) <- partitionEithers <$> PilImp.getCodeRefStatementsFromHighPcode st f ctx
-        unless (null errors) $ do
-          putStrLn @String "Errors during conversion:"
-          traverse_ pprint errors
-        pure stmts
+      st = imp ^. #ghidraState
+
+  getCodeRefStatements imp ctx ref = do
+    (errors, stmts) <- partitionEithers <$> PilImp.getCodeRefStatementsFromHighPcode st ctx ref
+    unless (null errors) $ do
+      putStrLn @String "Errors during conversion:"
+      traverse_ pprint errors
+    pure . fmap (view #stmt) $ stmts
+    where
+      st = imp ^. #ghidraState
