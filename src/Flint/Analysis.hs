@@ -55,9 +55,8 @@ getFuncPathsContainingAddrs importer func addrs = do
   (Just r) <- ImpCfg.getCfg importer func 0
   let cfg = r ^. #result
       ns = concatMap (`Cfg.getNodesContainingAddress` cfg) addrs
-      paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
-      -- stmtPaths = Path.toStmts <$> paths
-  -- return stmtPaths
+      -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
+  paths <- Path.sampleRandomPathsContaining (HashSet.fromList ns) 20 cfg
   return paths
 
 getFunctionPaths
@@ -84,7 +83,7 @@ getOkPathsFromResults r = sats <> unks -- <> cerrs <> serrs
 filterOkPaths :: [Path (CfNode [Stmt])] -> IO [Path (CfNode [Stmt])]
 filterOkPaths paths = do
   putText $ "Got " <> show (length paths) <> " paths"
-  r <- solvePaths z3 IgnoreErrors (take 10 . reverse $ paths)
+  r <- solvePaths z3 IgnoreErrors (take 20 $ paths)
   let ok = getOkPathsFromResults r
   putText $ "Got " <> show (length ok) <> " OK paths"
   return ok
