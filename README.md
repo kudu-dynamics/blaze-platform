@@ -4,8 +4,15 @@ This library provides bindings to Ghidra in Haskell.
 
 # Install
 
-Run `make ghidra-jar` to download Ghidra and create a jar.
+Clone `ghidra-haskell` and `binary-analysis` (https://github.com/kudu-dynamics/binary-analysis) into the same parent folder.
 
-Run `stack test` to test.
+```
+cd ghidra-haskell
+make res/ghidra.jar
+stack build
+stack test
+```
+
+`make res/ghidra.jar` downloads Ghidra and create a jar.
 
 Distribution A. (Approved for public release; distribution unlimited.)
