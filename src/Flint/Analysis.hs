@@ -1,4 +1,6 @@
-module Flint.Analysis where
+module Flint.Analysis
+  ( module Flint.Analysis
+  ) where
 
 import Flint.Prelude
 
@@ -6,8 +8,6 @@ import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis
 
 import Blaze.Types.Function (Function)
-import Blaze.Import.Pil (PilImporter(getMappedStatements))
-import Blaze.Types.Pil (Expression)
 
 import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Import.Cfg as ImpCfg
@@ -17,16 +17,14 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Cfg (CfNode)
 import qualified Blaze.Cfg.Path as Path
 import Blaze.Cfg.Path (Path, PilPath)
-import Blaze.Function (Function)
 import qualified Blaze.Import.Source.BinaryNinja as Binja
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Pil.Analysis.Rewrite (rewriteStmts)
 import qualified Blaze.Pil.Summary as Summary
 
 import Blaze.Pretty (NewlinedList(NewlinedList), pp', prettyStmts', pretty')
 
 import Blaze.Types.Pil (Stmt)
-import Blaze.Types.Pil.Summary (CodeSummary(CodeSummary))
+import Blaze.Types.Pil.Summary (CodeSummary)
 import qualified Blaze.Pil.Analysis.Path as PA
 import Blaze.Cfg.Path.Solver as PathSolver
     ( solvePaths, z3, SolverLeniency(IgnoreErrors), SolvePathsResult )
@@ -56,7 +54,7 @@ getFuncPathsContainingAddrs importer func addrs = do
   let cfg = r ^. #result
       ns = concatMap (`Cfg.getNodesContainingAddress` cfg) addrs
       -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
-  paths <- Path.sampleRandomPathsContaining (HashSet.fromList ns) 20 cfg
+  paths <- Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
   return paths
 
 getFunctionPaths
@@ -83,7 +81,7 @@ getOkPathsFromResults r = sats <> unks -- <> cerrs <> serrs
 filterOkPaths :: [Path (CfNode [Stmt])] -> IO [Path (CfNode [Stmt])]
 filterOkPaths paths = do
   putText $ "Got " <> show (length paths) <> " paths"
-  r <- solvePaths z3 IgnoreErrors (take 20 $ paths)
+  r <- solvePaths z3 IgnoreErrors paths
   let ok = getOkPathsFromResults r
   putText $ "Got " <> show (length ok) <> " OK paths"
   return ok
@@ -163,3 +161,19 @@ showPathsOfInterest = traverse_ handleBin
           putText $ "Function: " <> func ^. #name
           paths <- getOkFunctionPathsContaining imp func requiredAddrs
           showPaths "OK Paths" paths
+
+
+sampleForAllFunctions :: HashSet Text -> BndbFilePath -> IO ()
+sampleForAllFunctions blacklist binPath = do
+  putText "\n==================================================="
+  putText $ show binPath
+  imp <- getImporter' binPath
+  funcs <- Cg.getFunctions imp
+  forM_ funcs $ \func -> do
+    putText "\n||||||||||||||||||||||||||||||||||||||||||||||||||||"
+    putText $ "Function: " <> func ^. #name
+    if HashSet.member (func ^. #name) blacklist
+      then putText "Blacklisted function. Causes Flint analysis to fail."
+      else do
+        paths <- getOkFunctionPathsContaining imp func []
+        showPaths "OK Paths" paths

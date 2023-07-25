@@ -1,8 +1,8 @@
-module Flint.Types.Analysis where
+module Flint.Types.Analysis
+  ( module Flint.Types.Analysis
+  ) where
 
 import Flint.Prelude
-import Blaze.Types.Function (Function)
-import Blaze.Types.Cfg (PilCfg)
 
 
 type AnalysisCtx = ()
