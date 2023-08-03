@@ -13,6 +13,12 @@ cabal_options := $(cabal_options_$(BUILD_TYPE))
 build:
 	cabal $(cabal_options) build $(CABAL_BUILD_OPTIONS)
 
+stack-build-dev:
+	stack --stack-yaml stack-dev.yaml build --test --no-run-tests
+
+stack-build-release:
+	stack --stack-yaml stack-dev.yaml build --test --no-run-tests
+
 dev:
 	cabal $(cabal_options_dev) build $(CABAL_BUILD_OPTIONS)
 

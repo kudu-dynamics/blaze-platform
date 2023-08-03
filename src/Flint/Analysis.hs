@@ -5,16 +5,21 @@ module Flint.Analysis
 import Flint.Prelude
 
 import Flint.Analysis.Uefi ( resolveCalls )
+import Flint.Cfg ( expandCfgToDepth )
 import Flint.Types.Analysis
+import qualified Flint.Cfg.Store as CfgStore
+import Flint.Types.Cfg.Store (CfgStore)
 
 import Blaze.Types.Function (Function)
 
+import Blaze.Import.Binary (BinaryImporter, openBinary)
+import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Import.Cfg as ImpCfg
-import Blaze.Import.Cfg (CfgImporter)
+import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
 import qualified Blaze.Cfg as Cfg
-import Blaze.Cfg (CfNode)
+import Blaze.Types.Cfg (CfNode, PilNode)
 import qualified Blaze.Cfg.Path as Path
 import Blaze.Cfg.Path (Path, PilPath)
 import qualified Blaze.Import.Source.BinaryNinja as Binja
@@ -161,6 +166,129 @@ showPathsOfInterest = traverse_ handleBin
           putText $ "Function: " <> func ^. #name
           paths <- getOkFunctionPathsContaining imp func requiredAddrs
           showPaths "OK Paths" paths
+
+addCfgStoreForBinary
+  :: ( CfgImporter imp
+     , NodeDataType imp ~ PilNode
+     )
+  => imp
+  -> [Function]
+  -> CfgStore
+  -> IO CfgStore
+addCfgStoreForBinary imp funcs store =
+  foldM (\store func -> CfgStore.addFunc imp func store) store funcs
+
+type FlintSearchConfig bin func = [BinarySearchConfig bin func]
+
+data BinarySearchConfig bin func = BinarySearchConfig
+  { excludeFuncsFromStore :: HashSet Address
+  , searchFuncs :: [FuncSearchConfig func]
+  , binary :: bin
+  } deriving (Eq, Ord, Show, Generic)
+
+-- TODO: make functions specifiable by address OR symbol name
+data QueryDest func bb
+  = QueryDestBasicBlock func bb
+  | QueryDestFunction func
+  deriving (Eq, Ord, Show, Generic)
+  
+data FuncSearchConfig func = FuncSearchConfig
+  { func :: func
+  -- , mustReachAll :: [QueryDest func bb]
+  -- , mustReachOneOf :: [QueryDest func bb]
+  , callExpandDepth :: Word64
+  , numSamples :: Word64
+  } deriving (Eq, Ord, Show, Generic)
+
+reifyFuncSearchConfig
+  :: CallGraphImporter imp
+  => imp
+  -> FuncSearchConfig Address
+  -> IO (FuncSearchConfig Function)
+reifyFuncSearchConfig imp fconfig = Cg.getFunction imp (fconfig ^. #func) >>= \case
+  Nothing -> error $ "Could not load function at " <> show (fconfig ^. #func)
+  Just func -> return $ fconfig & #func .~ func
+  
+-- | Opens binary specified by FilePath and gets Functions from Addresses
+reifyBinarySearchConfig
+  :: (BinaryImporter imp, CallGraphImporter imp)
+  => BinarySearchConfig FilePath Address
+  -> IO (BinarySearchConfig imp Function)
+reifyBinarySearchConfig bconfig = (openBinary $ bconfig ^. #binary) >>= \case
+  Left err -> error $ cs err
+  Right imp -> do
+    fconfigs <- traverse (reifyFuncSearchConfig imp) $ bconfig ^. #searchFuncs
+    return $ bconfig & #binary .~ imp
+                     & #searchFuncs .~ fconfigs
+
+getFuncsForBinarySearchConfig
+  :: CallGraphImporter imp
+  => BinarySearchConfig imp Function
+  -> IO [Function]
+getFuncsForBinarySearchConfig bconfig = do
+  let imp = bconfig ^. #binary
+      excludes = bconfig ^. #excludeFuncsFromStore
+  funcs <- Cg.getFunctions imp
+  return $ filter (\func -> not $ HashSet.member (func ^. #address) excludes) funcs
+
+storeFromBinarySearchConfig
+  :: ( CfgImporter imp
+     , CallGraphImporter imp
+     , NodeDataType imp ~ PilNode
+     )
+  => BinarySearchConfig imp Function
+  -> CfgStore
+  -> IO CfgStore
+storeFromBinarySearchConfig bconfig store = do
+  let imp = bconfig ^. #binary
+      excludes = bconfig ^. #excludeFuncsFromStore
+  allFuncs <- Cg.getFunctions imp
+  let funcs = filter (\func -> not $ HashSet.member (func ^. #address) excludes) allFuncs
+  addCfgStoreForBinary imp funcs store
+
+getPathsForFuncSearchConfig
+  :: CfgStore
+  -> FuncSearchConfig Function
+  -> IO [PilPath]
+getPathsForFuncSearchConfig store fconfig = case CfgStore.cfgFromFunc store startFunc of
+  Nothing -> error $ "Could not find function in CfgStore:" <> show (startFunc ^. #name)
+  Just cfg -> do
+    fullCfg <- expandCfgToDepth store (fconfig ^. #callExpandDepth) cfg
+    Path.sampleRandomPathsContaining HashSet.empty (fromIntegral $ fconfig ^. #numSamples) fullCfg
+  where
+    startFunc = fconfig ^. #func
+-- summariesOfInterest
+--   :: forall imp.
+--      ( BinaryImporter imp
+--      , CallGraphImporter imp
+--      , CfgImporter imp
+--      , NodeDataType imp ~ PilNode
+--      )
+--   => Proxy imp
+--   -> [BinarySearchConfig FilePath Address]
+--   -> IO ()
+-- summariesOfInterest _ bconfigs = do
+--   bconfigs' <- traverse reifyBinarySearchConfig bconfigs :: IO [BinarySearchConfig imp Function]
+--   cfgStore <- foldM (flip storeFromBinarySearchConfig) CfgStore.init bconfigs'
+--   traverse (showSummariesForBinarySearchConfig cfgStore) bconfigs'
+
+  -- where
+  --   handleBin :: (BndbFilePath, [(Address, [Address])]) -> IO ()
+  --   handleBin (binPath, addrs) = do
+  --     putText "\n==================================================="
+  --     putText $ show binPath
+  --     imp <- getImporter' binPath
+  --     handleFuncAddrs imp addrs
+
+  --   handleFuncAddrs :: BNImporter -> [(Address, [Address])] -> IO ()
+  --   handleFuncAddrs imp addrs = forM_ addrs $ \(funcAddr, requiredAddrs) -> do
+  --     Cg.getFunction imp funcAddr >>= \case
+  --       Nothing -> putText $ "Couldn't find function at " <> show funcAddr
+  --       Just func -> do
+  --         putText "\n||||||||||||||||||||||||||||||||||||||||||||||||||||"
+  --         putText $ "Function: " <> func ^. #name
+  --         paths <- getOkFunctionPathsContaining imp func requiredAddrs
+  --         showPaths "OK Paths" paths
 
 
 sampleForAllFunctions :: HashSet Text -> BndbFilePath -> IO ()

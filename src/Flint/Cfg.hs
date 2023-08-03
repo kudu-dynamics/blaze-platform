@@ -62,6 +62,12 @@ expandCfgToDepth_ genUuid store depth cfg = case callNodes of
               innerCfg'
               (getCtx innerCfg')
               uuid
-            
-        
 
+-- | Expands all the call nodes in a Cfg, `depth` times.
+-- A `depth` of 0 means it will not expand any calls.
+expandCfgToDepth
+  :: CfgStore
+  -> Word64
+  -> PilCfg
+  -> IO PilCfg
+expandCfgToDepth = expandCfgToDepth_ randomIO

@@ -35,8 +35,8 @@ addFunc imp func store = ImpCfg.getCfg imp func 0 >>= \case
     where cfg = r ^. #result
 
 -- | TODO: use sqlite or something beside hashmap so we can use Function as key
-cfgFromFunc :: Function -> CfgStore -> Maybe PilCfg
-cfgFromFunc func store = do
+cfgFromFunc :: CfgStore -> Function -> Maybe PilCfg
+cfgFromFunc store func = do
   vs <- HashMap.lookup (func ^. #name) store
   r <- headMay . filter ((== func) . fst) $ vs
   return $ snd r
