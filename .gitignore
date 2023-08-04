@@ -1,6 +1,5 @@
 .envrc
 docs/
-*.cabal
 dist
 dist-*
 cabal-dev
