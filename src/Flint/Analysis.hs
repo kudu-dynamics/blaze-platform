@@ -182,44 +182,72 @@ type FlintSearchConfig bin func = [BinarySearchConfig bin func]
 
 data BinarySearchConfig bin func = BinarySearchConfig
   { excludeFuncsFromStore :: HashSet Address
-  , searchFuncs :: [FuncSearchConfig func]
+  , queries :: [Query func]
   , binary :: bin
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- TODO: make functions specifiable by address OR symbol name
-data QueryDest func bb
-  = QueryDestBasicBlock func bb
-  | QueryDestFunction func
-  deriving (Eq, Ord, Show, Generic)
+data Dest func
+  = DestBasicBlock func Address  -- addr just needs to be in bb
+  | DestFunction func
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   
-data FuncSearchConfig func = FuncSearchConfig
-  { func :: func
-  -- , mustReachAll :: [QueryDest func bb]
+data Query func = Query
+  { start :: func
+  , mustReachAll :: [Dest func]
   -- , mustReachOneOf :: [QueryDest func bb]
   , callExpandDepth :: Word64
   , numSamples :: Word64
-  } deriving (Eq, Ord, Show, Generic)
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
-reifyFuncSearchConfig
-  :: CallGraphImporter imp
+-- | Used in the config to identify a function by name or addr
+data FuncConfig
+  = FuncSym Text
+  | FuncAddr Address
+  deriving (Eq, Ord, Show, Generic)
+
+-- | Gets a function for the config.
+--   If it can't find it, it should immediately report an error.
+class GetFunction x where
+  getFunction :: CallGraphImporter imp => imp -> x -> IO Function
+
+instance GetFunction Function where
+  getFunction _ = return
+
+instance GetFunction Address where
+  getFunction imp addr = Cg.getFunction imp addr >>= \case
+    Nothing -> error $ "Could not find function at " <> show addr
+    Just func -> return func
+
+instance GetFunction Text where
+  getFunction imp name = do
+    funcs <- Cg.getFunctions imp
+    case filter (\fn -> fn ^. #name == name) $ funcs of
+      [] -> error $ "Could not find a function named " <> show name
+      [x] -> return x
+      _ -> error $ "Found more than one function named " <> show name
+
+instance GetFunction FuncConfig where
+  getFunction imp (FuncSym t) = getFunction imp t
+  getFunction imp (FuncAddr x) = getFunction imp x
+
+reifyQuery
+  :: (GetFunction a, CallGraphImporter imp)
   => imp
-  -> FuncSearchConfig Address
-  -> IO (FuncSearchConfig Function)
-reifyFuncSearchConfig imp fconfig = Cg.getFunction imp (fconfig ^. #func) >>= \case
-  Nothing -> error $ "Could not load function at " <> show (fconfig ^. #func)
-  Just func -> return $ fconfig & #func .~ func
+  -> Query a
+  -> IO (Query Function)
+reifyQuery imp = traverse (getFunction imp)
   
 -- | Opens binary specified by FilePath and gets Functions from Addresses
 reifyBinarySearchConfig
-  :: (BinaryImporter imp, CallGraphImporter imp)
-  => BinarySearchConfig FilePath Address
+  :: (GetFunction a, BinaryImporter imp, CallGraphImporter imp)
+  => BinarySearchConfig FilePath a
   -> IO (BinarySearchConfig imp Function)
 reifyBinarySearchConfig bconfig = (openBinary $ bconfig ^. #binary) >>= \case
   Left err -> error $ cs err
   Right imp -> do
-    fconfigs <- traverse (reifyFuncSearchConfig imp) $ bconfig ^. #searchFuncs
-    return $ bconfig & #binary .~ imp
-                     & #searchFuncs .~ fconfigs
+    bconfig' <- traverse (getFunction imp) bconfig
+    return $ bconfig' & #binary .~ imp
 
 getFuncsForBinarySearchConfig
   :: CallGraphImporter imp
@@ -246,17 +274,20 @@ storeFromBinarySearchConfig bconfig store = do
   let funcs = filter (\func -> not $ HashSet.member (func ^. #address) excludes) allFuncs
   addCfgStoreForBinary imp funcs store
 
-getPathsForFuncSearchConfig
-  :: CfgStore
-  -> FuncSearchConfig Function
-  -> IO [PilPath]
-getPathsForFuncSearchConfig store fconfig = case CfgStore.cfgFromFunc store startFunc of
-  Nothing -> error $ "Could not find function in CfgStore:" <> show (startFunc ^. #name)
-  Just cfg -> do
-    fullCfg <- expandCfgToDepth store (fconfig ^. #callExpandDepth) cfg
-    Path.sampleRandomPathsContaining HashSet.empty (fromIntegral $ fconfig ^. #numSamples) fullCfg
-  where
-    startFunc = fconfig ^. #func
+-- getPathsForFuncSearchConfig
+--   :: CfgStore
+--   -> FuncSearchConfig Function
+--   -> IO [PilPath]
+-- getPathsForFuncSearchConfig store fconfig = case CfgStore.cfgFromFunc store startFunc of
+--   Nothing -> error $ "Could not find function in CfgStore:" <> show (startFunc ^. #name)
+--   Just cfg -> do
+--     fullCfg <- expandCfgToDepth store (fconfig ^. #callExpandDepth) cfg
+--     Path.sampleRandomPathsContaining HashSet.empty (fromIntegral $ fconfig ^. #numSamples) fullCfg
+--   where
+--     startFunc = fconfig ^. #func
+
+
+
 -- summariesOfInterest
 --   :: forall imp.
 --      ( BinaryImporter imp

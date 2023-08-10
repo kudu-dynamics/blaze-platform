@@ -1,8 +1,8 @@
-module Flint.Cfg.Store ( module Flint.Cfg.Store ) where
+module Flint.Cfg.InterBinaryStore ( module Flint.Cfg.InterBinaryStore ) where
 
 import Flint.Prelude
 
-import Flint.Types.Cfg.Store (CfgStore)
+import Flint.Types.Cfg.InterBinaryStore (CfgStore)
 
 import Blaze.Types.Function (Function)
 
@@ -14,22 +14,17 @@ import Blaze.Types.Cfg (PilCfg, PilNode)
 import qualified Data.HashMap.Strict as HashMap
 
 
--- This is a cache of Cfgs for functions.
--- This version only supports functions from a single binary.
-
--- If you have a bunch of object files, you can collect them like so:
--- gcc -no-pie -Wl,--unresolved-symbols=ignore-all -o full_collection_binary *.o
-
-
 init :: CfgStore
 init = HashMap.empty
 
-addFuncCfg_ :: Function -> PilCfg -> CfgStore -> CfgStore
-addFuncCfg_ = HashMap.insert
-
 -- | Adds a func/cfg to the store.
--- Overwrites existing function Cfg.
 -- Any Cfgs in the store should have a CtxId of 0
+addFuncCfg_ :: Function -> PilCfg -> CfgStore -> CfgStore
+addFuncCfg_ func cfg store = HashMap.alter (Just . maybe [v] (v:)) k store
+  where
+    k = func ^. #name
+    v = (func, cfg)
+
 addFunc
   :: ( CfgImporter a
      , NodeDataType a ~ PilNode)
@@ -41,13 +36,14 @@ addFunc imp func store = ImpCfg.getCfg imp func 0 >>= \case
 
 -- | TODO: use sqlite or something beside hashmap so we can use Function as key
 cfgFromFunc :: CfgStore -> Function -> Maybe PilCfg
-cfgFromFunc store func = HashMap.lookup func store
+cfgFromFunc store func = do
+  vs <- HashMap.lookup (func ^. #name) store
+  r <- headMay . filter ((== func) . fst) $ vs
+  return $ snd r
 
 getFromFuncName :: Text -> CfgStore -> [(Function, PilCfg)]
-getFromFuncName fname store = filter nameMatches $ HashMap.toList store
-  where
-    nameMatches (func, _cfg) = func ^. #name == fname
+getFromFuncName fname = fromMaybe [] . HashMap.lookup fname
 
 -- | Convenience function to get the first Cfg in store with that name
 getFromFuncName_ :: Text -> CfgStore -> Maybe PilCfg
-getFromFuncName_ fname store = fmap snd . headMay $ getFromFuncName fname store
+getFromFuncName_ fname store = fmap snd $ HashMap.lookup fname store >>= headMay
