@@ -8,6 +8,8 @@ import System.Directory (listDirectory)
 import qualified Binja.Core as BN
 import qualified Data.HashSet as HashSet
 
+import Blaze.Import.Source.BinaryNinja (BNImporter)
+
 -- A demo that looks ipv4 files from the linux kernel
 
 -- | Directory that contains ipv4 files
@@ -134,10 +136,32 @@ blacklist = HashSet.fromList
   , "devinet_conf_proc" -- svExp: exponentiation only works with unsigned bounded symbolic exponents, kind: SInt64
   ]
 
+megaConfig :: BinarySearchConfig BNImporter FuncConfig
+megaConfig = BinarySearchConfig
+  { excludeFuncsFromStore =
+    [ FuncSym "inet_send_prepare"
+    , FuncSym "inet_get_local_port_range"
+    , FuncSym "tcp_twsk_destructor"
+    ]
+  , binaryPath = "/tmp/ipv4/libipv4.so.bndb"
+  , queries =
+    [ Query
+      { start = FuncSym "inet_recvmsg"
+      , mustReachSome = []
+      , callExpandDepth = 4
+      , numSamples = 20
+      }
+    ]
+  }
+
+runMega :: IO ()
+runMega = summariesOfInterest megaConfig
+
 main :: IO ()
 main = do
   putText "starting"
-  convertDirToBndbs ipv4Dir
+  runMega
+  -- convertDirToBndbs ipv4Dir
   -- showPathsOfInterest tcpInput
   -- showPathsOfInterest icmp
   -- sampleAllBndbsInDir blacklist ipv4Dir

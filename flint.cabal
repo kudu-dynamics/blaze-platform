@@ -49,6 +49,7 @@ library
       , Flint.Cfg
       , Flint.Cfg.Store
       , Flint.Types.Cfg.Store
+      , Flint.Types.CachedCalc
     hs-source-dirs:
         src
     default-extensions:
