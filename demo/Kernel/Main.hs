@@ -146,7 +146,7 @@ megaConfig = BinarySearchConfig
   , binaryPath = "/tmp/ipv4/libipv4.so.bndb"
   , queries =
     [ Query
-      { start = FuncSym "inet_recvmsg"
+      { start = FuncSym "tcp_recvmsg"
       , mustReachSome = []
       , callExpandDepth = 4
       , numSamples = 20
@@ -157,10 +157,28 @@ megaConfig = BinarySearchConfig
 runMega :: IO ()
 runMega = summariesOfInterest megaConfig
 
+diveLoggerConfig :: BinarySearchConfig BNImporter FuncConfig
+diveLoggerConfig = BinarySearchConfig
+  { excludeFuncsFromStore = []
+  , binaryPath = "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+  , queries =
+    [ Query
+      { start = FuncSym "cgc_SelectDive"
+      , mustReachSome = []
+      , callExpandDepth = 4
+      , numSamples = 20
+      }
+    ]
+  }
+
+
 main :: IO ()
 main = do
   putText "starting"
-  runMega
+  summariesOfInterest diveLoggerConfig
+  -- runMega
+
+
   -- convertDirToBndbs ipv4Dir
   -- showPathsOfInterest tcpInput
   -- showPathsOfInterest icmp

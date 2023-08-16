@@ -2,9 +2,13 @@ module Flint.Cfg.Store ( module Flint.Cfg.Store ) where
 
 import Flint.Prelude
 
-import Flint.Types.Cfg.Store (CfgStore(CfgStore))
+import Flint.Types.Cfg.Store
+import qualified Flint.Types.CachedCalc as CC
 
+import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Types.Function (Function)
+import Blaze.Types.Graph (calcDescendantsMap)
+import qualified Blaze.Types.Graph as G
 
 import qualified Blaze.Import.Cfg as ImpCfg
 import Blaze.Import.Cfg (CfgImporter, NodeDataType) 
@@ -14,8 +18,8 @@ import Blaze.Types.Cfg (PilCfg, PilNode)
 import Control.Concurrent.STM.TVar (newTVarIO, readTVar)
 import Control.Concurrent.STM.TMVar (newEmptyTMVar)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
-import qualified Flint.Types.CachedCalc as CC
 
 -- This is a cache of Cfgs for functions.
 -- This version only supports functions from a single binary.
@@ -27,8 +31,8 @@ init :: IO CfgStore
 init = CfgStore <$> atomically CC.create
 
 -- | Gets the stored Cfg for a function, if it exists in the store.
-getFuncCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
-getFuncCfg store func = join <$> CC.get func (store ^. #cache)
+getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
+getFuncCfgInfo store func = join <$> CC.get func (store ^. #cache)
 
 -- | Adds a func/cfg to the store.
 -- Overwrites existing function Cfg.
@@ -38,7 +42,18 @@ addFunc
      , NodeDataType a ~ PilNode)
   => a -> CfgStore -> Function -> IO ()
 addFunc imp store func = CC.setCalc func (store ^. #cache) $ do
-  ImpCfg.getCfg imp func 0 >>= return . fmap (view #result)
+  (fmap (view #result) <$> ImpCfg.getCfg imp func 0) >>= \case
+    Nothing -> return Nothing
+    Just cfg -> do
+      let cfgWithoutBackedges = makeCfgAcyclic cfg
+          dmap = calcDescendantsMap cfgWithoutBackedges
+          calls = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfgWithoutBackedges
+      return . Just $ CfgInfo
+        { cfg = cfg
+        , acyclicCfg = cfgWithoutBackedges
+        , descendantsMap = dmap
+        , calls = calls
+        }
 
 -- -- | TODO: use sqlite or something beside hashmap so we can use Function as key
 -- cfgFromFunc :: CfgStore -> Function -> IO (Maybe PilCfg)

@@ -18,6 +18,7 @@ import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Import.Cfg as ImpCfg
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
+import qualified Blaze.Types.Graph as G
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (CfNode, PilNode)
 import qualified Blaze.Cfg.Path as Path
@@ -281,13 +282,21 @@ getPathsForQuery
 getPathsForQuery store q = CfgStore.getFuncCfg store startFunc >>= \case
   Nothing -> error $ "Could not find start function in CfgStore: " <> show (startFunc ^. #name)
   Just cfg -> do
+    putText "Creating expanded cfg"
     fullCfg <- expandCfgToDepth store (q ^. #callExpandDepth) cfg
+    putText "Finished expanded cfg"
+    -- pp' cfg
     let reachNodes = case q ^. #mustReachSome of
           [] -> []
           addrs -> case concatMap (`Cfg.getNodesContainingAddress` cfg) addrs of
             [] -> error $ "Could not find any mustReachSome nodes on path for query: " <> show q
             ns -> ns
-    Path.sampleRandomPathsContaining (HashSet.fromList reachNodes) (fromIntegral $ q ^. #numSamples) fullCfg
+    putText $ "FullCfg has " <> show (HashSet.size $ G.nodes fullCfg) <> " nodes"
+    putText "Sampling 20 paths"
+    ps <- Path.sampleRandomPathsContaining (HashSet.fromList reachNodes) (fromIntegral $ q ^. #numSamples) fullCfg
+    -- let ps = Path.getAllSimplePaths fullCfg
+    putText $ "PATHS: " <> show (length ps)
+    return ps
   where
     startFunc = q ^. #start
 
