@@ -7,6 +7,8 @@ import Binja.Core (BNBinaryView)
 import qualified Binja.Core as Bn
 import qualified Binja.Function as BnFunc
 import qualified Binja.MLIL as Mlil
+import Binja.View as BnView
+import Blaze.Import.Binary (BinaryImporter (..))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
 import Blaze.Import.Pil (PilImporter (..))
@@ -38,6 +40,32 @@ newtype BNImporterAlt = BNImporterAlt
   { bnImporter :: BNImporter
   }
   deriving (Eq, Ord, Show, Generic)
+
+instance BinaryImporter BNImporter where
+  openBinary fp = Bn.getBinaryView fp >>= \case
+    Left err -> return $ Left err
+    Right bv -> do
+      Bn.updateAnalysisAndWait bv
+      return . Right $ BNImporter bv
+
+  saveToDb fp (BNImporter bv) = do
+    let fp' = fp <> if ".bndb" `isSuffixOf` fp then "" else ".bndb"
+    Bn.saveBndb bv fp' >>= \case
+      False -> return . Left $ "Failed to save bndb to " <> show fp'
+      True -> return $ Right fp'
+
+  rebaseBinary (BNImporter bv) off = do
+    BnView.rebase bv (fromIntegral off) >>= \case
+      Left t -> error . cs $ "Rebase failed: " <> t
+      Right bv' -> do
+        Bn.updateAnalysisAndWait bv'
+        return $ BNImporter bv'
+
+  getStart (BNImporter bv) = Bn.getStartOffset bv
+
+  getEnd (BNImporter bv) = Bn.getEndOffset bv
+
+  getOriginalBinaryPath (BNImporter bv) = BnView.getOriginalFileName bv
 
 instance CallGraphImporter BNImporter where
   getFunction imp = CallGraph.getFunction (imp ^. #binaryView)
