@@ -15,6 +15,7 @@ import Blaze.Function (
   ParamInfo (ParamInfo),
  )
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
+import Blaze.Import.Binary (BinaryImporter (openBinary, rebaseBinary, getStart, getEnd))
 import Blaze.Import.Cfg (CfgImporter (getCfg))
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.Pil as Pil
@@ -42,6 +43,23 @@ findFunc funcName = find ((== funcName) . (^. #name))
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.BinaryNinja" $ do
+  context "binary" $ do
+    (importer :: BNImporter) <- unsafeFromRight <$> runIO (openBinary diveBin)
+    start <- runIO $ getStart importer
+    end <- runIO $ getEnd importer
+    
+    it "should get start offset" $ do
+      start `shouldBe` 0x8048000
+
+    it "should get end offset" $ do
+      end `shouldBe` 0x804fad0
+
+    rebasedImporter <- runIO $ rebaseBinary importer 0x10000000
+    rebasedStart <- runIO $ getStart rebasedImporter
+
+    it "should rebase binary" $ do
+      rebasedStart `shouldBe` 0x10000000
+
   context "Importing call graphs" $ do
     bv <- unsafeFromRight <$> runIO (BN.getBinaryView diveBin)
     runIO $ BN.updateAnalysisAndWait bv
