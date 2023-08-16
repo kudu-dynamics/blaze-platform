@@ -81,3 +81,31 @@ getSymbolAtAddress bv addr =
 -- | Updates the analysis for the binary view. Blocks until finished
 updateAnalysisAndWait :: BNBinaryView -> IO ()
 updateAnalysisAndWait bv = BN.reanalyzeAllFunctions bv >> BN.updateAnalysisAndWait bv
+
+
+getOriginalFileName :: BNBinaryView -> IO FilePath
+getOriginalFileName = BN.getOriginalFilename' <=< BN.getFileForView
+
+-- Copied from filemetadata.py get_view_of_type
+getViewOfType :: BN.BNFileMetadata -> String -> IO (Either Text BNBinaryView)
+getViewOfType md viewType = runExceptT $ getView <|> backupGetView
+  where
+    getView = liftMaybeIO ("getFileViewOfType(" <> show viewType <> ") failed.")
+      $ BN.getFileViewOfType md viewType
+    backupGetView = do
+      vt <- liftMaybeIO ("getBinaryViewTypeByName(" <> show viewType <> ") failed.")
+        $ BN.getBinaryViewTypeByName viewType
+      rawBv <- liftMaybeIO "BNGetFileViewOfType(_, \"Raw\") returned null"
+        $ BN.getFileViewOfType md "Raw"
+      lift $ BN.createBinaryViewOfType vt rawBv
+
+
+-- | Rebases binary view to supplied address.
+-- TODO: find out if the old BNBinaryView is still valid at the old base addr?
+rebase :: BNBinaryView -> Address -> IO (Either Text BNBinaryView)
+rebase bv addr = BN.rebase' bv addr >>= \case
+  False -> return $ Left "Rebase returned False"
+  True -> do
+    vt <- BN.getViewType bv
+    md <- BN.getFileForView bv
+    getViewOfType md vt
