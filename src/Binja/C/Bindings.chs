@@ -30,6 +30,8 @@ import Binja.Types.Variable
 
 {#context lib="binaryninjacore" #}
 
+{#fun BNGetViewType as getViewType {withPtr* `BNBinaryView'} -> `String' #}
+
 {#fun BNGetBinaryViewTypeName as getBinaryViewTypeName {withPtr* `BNBinaryViewType'} -> `String' #}
 
 {#fun BNIsFunctionTooLarge as isFunctionTooLarge_ {withPtr* `BNFunction'} -> `Bool' toBool #}
@@ -76,6 +78,12 @@ void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap
 
 {#fun BNCreateDatabase as createDatabase' {withPtr* `BNBinaryView', `String', withPtr* `BNSaveSettings'} -> `Bool' toBool #}
 
+{#fun BNRebase as rebase' {withPtr* `BNBinaryView', fromIntegral `Address'} -> `Bool' toBool #}
+
+{#fun BNGetStartOffset as getStartOffset {withPtr* `BNBinaryView'} -> `Address' fromIntegral #}
+
+{#fun BNGetEndOffset as getEndOffset {withPtr* `BNBinaryView'} -> `Address' fromIntegral #}
+
 {#fun BNGetAnalysisFunctionList as getAnalysisFunctionList' {withPtr* `BNBinaryView', alloca- `CSize' peekIntConv*} -> `List (Ptr BNFunction)' ptrListOut #}
 
 {#fun BNFreeFunctionList as freeFunctionList {ptrListIn `List (Ptr BNFunction)', `Word64'} -> `()' #}
@@ -84,9 +92,13 @@ void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap
 
 {#fun BNGetFileForView as getFileForView {withPtr* `BNBinaryView'} -> `BNFileMetadata' safePtr* #}
 
+{#fun BNGetOriginalFilename as getOriginalFilename' {withPtr* `BNFileMetadata'} -> `String' #}
+
 {#fun BNCreateFileMetadata as createFileMetadata {} -> `BNFileMetadata' safePtr* #}
 
 {#fun BNGetFileViewOfType as getFileViewOfType {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
+
+{#fun BNGetBinaryViewTypeByName as getBinaryViewTypeByName {`String'} -> `Maybe BNBinaryViewType' nilable* #}
 
 {#fun BNCreateBinaryViewOfType as createBinaryViewOfType {withPtr* `BNBinaryViewType', withPtr* `BNBinaryView'} -> `BNBinaryView' safePtr* #}
 
@@ -107,8 +119,6 @@ void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap
 {#fun BNSetFilename as setFilename {withPtr* `BNFileMetadata', `String'} -> `()' #}
 
 {#fun BNCreateBinaryDataViewFromFilename as createBinaryDataViewFromFilename {withPtr* `BNFileMetadata', `String'} -> `Maybe BNBinaryView' nilable* #}
-
-{#fun BNGetStartOffset as getStartOffset {withPtr* `BNBinaryView'} -> `Address' fromIntegral #}
 
 {#fun BNSetBundledPluginDirectory as setBundledPluginDirectory {`String'} -> `()' #}
 

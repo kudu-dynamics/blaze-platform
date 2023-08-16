@@ -5,6 +5,7 @@ module Binja.Core
   , getFunctionsContaining
   , getLLILInstructionIndexAtAddress
   , getOriginalBinary
+  , rebase
   , saveBndb
   ) where
 
@@ -112,3 +113,26 @@ getFunctionsContaining bv addr = do
 getLLILInstructionIndexAtAddress :: Function -> Architecture -> Address -> IO (InstructionIndex LLILFunction)
 getLLILInstructionIndexAtAddress func arch =
   getLowLevelILForInstruction (func ^. Func.handle) (arch ^. Arch.handle)
+
+-- Copied from filemetadata.py get_view_of_type
+getViewOfType :: BNFileMetadata -> String -> IO (Either Text BNBinaryView)
+getViewOfType md viewType = runExceptT $ getView <|> backupGetView
+  where
+    getView = liftMaybeIO ("getFileViewOfType(" <> show viewType <> ") failed.")
+      $ getFileViewOfType md viewType
+    backupGetView = do
+      vt <- liftMaybeIO ("getBinaryViewTypeByName(" <> show viewType <> ") failed.")
+        $ getBinaryViewTypeByName viewType
+      rawBv <- liftMaybeIO "BNGetFileViewOfType(_, \"Raw\") returned null"
+        $ getFileViewOfType md "Raw"
+      lift $ createBinaryViewOfType vt rawBv
+
+-- | Rebases binary view to supplied address.
+-- TODO: find out if the old BNBinaryView is still valid at the old base addr?
+rebase :: BNBinaryView -> Address -> IO (Either Text BNBinaryView)
+rebase bv addr = BN.rebase' bv addr >>= \case
+  False -> return $ Left "Rebase returned False"
+  True -> do
+    vt <- BN.getViewType bv
+    md <- BN.getFileForView bv
+    getViewOfType md vt
