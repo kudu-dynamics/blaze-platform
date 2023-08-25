@@ -15,9 +15,6 @@ import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
 import Blaze.Types.Cfg (PilCfg, PilNode)
 
-import Control.Concurrent.STM.TVar (newTVarIO, readTVar)
-import Control.Concurrent.STM.TMVar (newEmptyTMVar)
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
 
@@ -33,6 +30,9 @@ init = CfgStore <$> atomically CC.create
 -- | Gets the stored Cfg for a function, if it exists in the store.
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
 getFuncCfgInfo store func = join <$> CC.get func (store ^. #cache)
+
+getFuncCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
+getFuncCfg store func = fmap (view #cfg) <$> getFuncCfgInfo store func
 
 -- | Adds a func/cfg to the store.
 -- Overwrites existing function Cfg.

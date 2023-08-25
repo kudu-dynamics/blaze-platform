@@ -4,11 +4,14 @@ import Flint.Prelude
 
 import Flint.Types.Analysis
 import Flint.Analysis
-import System.Directory (listDirectory)
+import Flint.Types.Query
+
 import qualified Binja.Core as BN
+import Blaze.Import.Source.BinaryNinja (BNImporter)
+
+import System.Directory (listDirectory)
 import qualified Data.HashSet as HashSet
 
-import Blaze.Import.Source.BinaryNinja (BNImporter)
 
 -- A demo that looks ipv4 files from the linux kernel
 
@@ -148,7 +151,7 @@ megaConfig = BinarySearchConfig
     [ Query
       { start = FuncSym "tcp_recvmsg"
       , mustReachSome = []
-      , callExpandDepth = 4
+      , callExpandDepthLimit = 4
       , numSamples = 20
       }
     ]
@@ -165,7 +168,7 @@ diveLoggerConfig = BinarySearchConfig
     [ Query
       { start = FuncSym "cgc_SelectDive"
       , mustReachSome = []
-      , callExpandDepth = 4
+      , callExpandDepthLimit = 4
       , numSamples = 20
       }
     ]

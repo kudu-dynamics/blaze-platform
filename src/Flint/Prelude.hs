@@ -3,3 +3,5 @@ module Flint.Prelude
   ) where
 
 import Blaze.Prelude as Exports
+
+import Control.Monad.Extra as Exports (mapMaybeM)

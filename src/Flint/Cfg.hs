@@ -30,6 +30,8 @@ getCfgForCallNode store = getCfgForCallDest store . view #callDest
 
 -- | Expands all the call nodes in a Cfg, `depth` times.
 -- A `depth` of 0 means it will not expand any calls.
+-- TOOD: this doesn't seem to work very well. I see a bunch of "return ..."
+--       statements in the code, which indicates improper linking.
 expandCfgToDepth_
   :: IO UUID
   -> CfgStore
