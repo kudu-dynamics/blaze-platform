@@ -7,11 +7,12 @@ module Flint.Cfg.PathSpec where
 import Flint.Prelude
 
 import Flint.Analysis (addCfgStoreForBinary)
-import Flint.Cfg.Path (expandAllToDepth, samplesFromQuery_, exploreFromStartingFunc_, CallDepth)
+import Flint.Cfg.Path
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Types.Query (Query(..), getFunction, FuncConfig(FuncSym, FuncAddr))
 
+import Blaze.Path (SampleRandomPathError', SampleRandomPathError)
 import Blaze.Cfg (nodeContainsAddress)
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import qualified Blaze.Import.CallGraph as Cg
@@ -114,23 +115,23 @@ spec = describe "Flint.Cfg.Path" $ do
           expected = 2
       (modifyResult <$> action) `shouldReturn` expected
 
-    it "should expand only calls specified by expansion chooser" $ do
-      let startFunc = mainFunc
-          -- chooses to expand "outer_a" and "inner"
-          expansionChooser :: CallDepth -> [CallNode [Stmt]] -> IO [CallNode [Stmt]]
-          expansionChooser _ = return
-            . filter (\n -> hasCallDestTo "outer_a" n || hasCallDestTo "inner" n)
+    -- it "should expand only calls specified by expansion chooser" $ do
+    --   let startFunc = mainFunc
+    --       -- chooses to expand "outer_a" and "inner"
+    --       expansionChooser :: CallDepth -> [CallNode [Stmt]] -> IO [CallNode [Stmt]]
+    --       expansionChooser _ = return
+    --         . filter (\n -> hasCallDestTo "outer_a" n || hasCallDestTo "inner" n)
 
-          action :: IO (Maybe PilPath)
-          action = exploreFromStartingFunc_ alwaysLowestOfRange expansionChooser 0 store startFunc
-          modifyResult :: Maybe PilPath -> [Text]
-          modifyResult
-            = sort
-            . mapMaybe getCalleeFuncName
-            . getPathNodes
-            . fromJust
-          expected = ["outer_b", "puts"]
-      (modifyResult <$> action) `shouldReturn` expected
+    --       action :: IO (Maybe PilPath)
+    --       action = exploreFromStartingFunc_ alwaysLowestOfRange expansionChooser 0 store startFunc
+    --       modifyResult :: Maybe PilPath -> [Text]
+    --       modifyResult
+    --         = sort
+    --         . mapMaybe getCalleeFuncName
+    --         . getPathNodes
+    --         . fromJust
+    --       expected = ["outer_b", "puts"]
+    --   (modifyResult <$> action) `shouldReturn` expected
 
 
 
@@ -194,3 +195,65 @@ spec = describe "Flint.Cfg.Path" $ do
     --         . getSinglePath
     --       expected = True
     --   (modifyResult <$> action) `shouldReturn` expected
+
+
+  context "exploreForward_ expandAllStrategy" $ do    
+    it "should get path from func with single basic block" $ do
+      let startFunc = singlePathFunc
+          strat = expandAllStrategy alwaysLowestOfRange 0 store
+
+          action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+          action = runExceptT $ exploreForward_
+            randomIO
+            strat
+            0
+            startFunc
+          modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+                       -> Int
+          modifyResult = getPathNodeCount
+              . fromJust . unsafeFromRight
+          expected = 1
+      (modifyResult <$> action) `shouldReturn` expected
+
+    it "should not expand call nodes if expand limit is 0" $ do
+      let startFunc = outerAFunc
+          strat = expandAllStrategy alwaysLowestOfRange 0 store
+
+          action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+          action = runExceptT $ exploreForward_
+            randomIO
+            strat
+            0
+            startFunc
+          modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+                       -> Bool
+          modifyResult
+            = not
+            . null
+            . filter (isCallTo "inner")
+            . getPathNodes
+            . fromJust
+            . unsafeFromRight
+          expected = True
+      (modifyResult <$> action) `shouldReturn` expected
+
+    it "should expand all call nodes once when ExpandAllCallsAtEachLevel strategy and expand limit is 1" $ do
+      let startFunc = mainFunc
+          strat = expandAllStrategy alwaysLowestOfRange 1 store
+
+          action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+          action = runExceptT $ exploreForward_
+            randomIO
+            strat
+            0
+            startFunc
+          modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+                       -> Int
+          modifyResult
+            = length
+            . filter (isCallTo "inner")
+            . getPathNodes
+            . fromJust
+            . unsafeFromRight
+          expected = 2
+      (modifyResult <$> action) `shouldReturn` expected
