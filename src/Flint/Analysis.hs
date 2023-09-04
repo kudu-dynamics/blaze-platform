@@ -270,7 +270,7 @@ summariesOfInterest
 summariesOfInterest bconfig = do
   imp <- (openBinary $ bconfig ^. #binaryPath) >>= either (error . cs) return
   bconfig' <- traverse (getFunction imp) bconfig
-  cfgStore <- CfgStore.init
+  cfgStore <- CfgStore.init imp
   storeFromBinarySearchConfig imp bconfig' cfgStore
   mapM_ (showQuerySummaries cfgStore) $ bconfig' ^. #queries
 

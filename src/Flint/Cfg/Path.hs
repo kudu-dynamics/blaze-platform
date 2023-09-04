@@ -117,10 +117,11 @@ expandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> HashSet Function
   -> [Address]
   -> ExplorationStrategy (SampleRandomPathError' PilNode) IO
-expandToTargetsStrategy _ _ _ [] = \_ _ -> return Nothing
-expandToTargetsStrategy pickFromRange expandDepthLimit store targets = \func currentDepth ->
+expandToTargetsStrategy _ _ _ _ [] _ _ = return Nothing
+expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets targets func currentDepth =
   if currentDepth > expandDepthLimit then
     return Nothing
   else lift (CfgStore.getFuncCfgInfo store func) >>= \case
@@ -148,9 +149,25 @@ expandToTargetsStrategy pickFromRange expandDepthLimit store targets = \func cur
             (Path.InitReqNodes $ HashSet.singleton targetNode)
             (cfgInfo ^. #acyclicCfg)
           return $ Just (path, expandLater)              
+
+mkExpandToTargetsStrategy
+  :: ((Int, Int) -> IO Int)
+  -> CallDepth
+  -> CfgStore
+  -> [(Function, Address)]
+  -> IO (ExplorationStrategy (SampleRandomPathError' PilNode) IO)
+mkExpandToTargetsStrategy pickFromRange expandDepthLimit store targets = do
+  funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
+  return $ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets (snd <$> targets)
   where
-    funcsThatLeadToTargets :: HashSet Function
-    funcsThatLeadToTargets = undefined
+    addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
+    addAncestors s func = do
+      ancestors <- CfgStore.getAncestors store func >>= \case
+        Nothing -> error $ "Could not find func ancestors for " <> show func
+        Just ancestors -> return ancestors
+      return . HashSet.insert func $ HashSet.union ancestors s
+      
+
 
 getCallsFromPath :: PilPath -> [CallNode [Stmt]]
 getCallsFromPath = mapMaybe (^? #_Call) . HashSet.toList . Path.nodes

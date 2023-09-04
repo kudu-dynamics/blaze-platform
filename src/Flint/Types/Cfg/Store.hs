@@ -4,6 +4,7 @@ import Flint.Prelude
 
 import Blaze.Types.Function (Function)
 
+import Blaze.Types.CallGraph (CallGraph)
 import Blaze.Types.Cfg (PilCfg, PilNode, CallNode)
 import Blaze.Types.Graph (DescendantsMap)
 import Blaze.Types.Pil (Stmt)
@@ -19,6 +20,12 @@ data CfgInfo = CfgInfo
 
 -- | Mapping of function name to its cfg.
 -- TODO: make this into sqlite db
-newtype CfgStore = CfgStore
-  { cache :: CachedCalc Function (Maybe CfgInfo)
+data CfgStore = CfgStore
+  { cfgCache :: CachedCalc Function (Maybe CfgInfo)
+  , ancestorsCache :: CachedCalc Function (HashSet Function)
+  , funcs :: [Function] -- result of `getFunctions` from CallGraph importer
+  -- a dirty trick to use the CC machinery to get CG on demand
+  , callGraphCache :: CachedCalc () CallGraph
+  -- CallGraph, but all the edges are reversed. Useful for getting ancestors
+  , transposedCallGraphCache :: CachedCalc () CallGraph
   } deriving (Generic)

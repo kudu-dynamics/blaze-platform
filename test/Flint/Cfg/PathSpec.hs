@@ -38,13 +38,14 @@ spec = describe "Flint.Cfg.Path" $ do
   (bv :: BNImporter) <- unsafeFromRight <$> runIO (openBinary interCfgBndb)
   store <- runIO $ do
     allFuncs <- Cg.getFunctions bv
-    cfgStore <- CfgStore.init
+    cfgStore <- CfgStore.init bv
     addCfgStoreForBinary bv allFuncs cfgStore
     return cfgStore
 
   singlePathFunc <- runIO . getFunction bv $ FuncSym "single_path_no_calls"
   doublePathFunc <- runIO . getFunction bv $ FuncSym "double_path_no_calls"
   outerAFunc <- runIO . getFunction bv $ FuncSym "outer_a"
+  innerFunc <- runIO . getFunction bv $ FuncSym "inner"
   mainFunc <- runIO . getFunction bv $ FuncSym "main"
     
   let alwaysLowestOfRange (a, _) = return a
@@ -256,4 +257,46 @@ spec = describe "Flint.Cfg.Path" $ do
             . fromJust
             . unsafeFromRight
           expected = 2
+      (modifyResult <$> action) `shouldReturn` expected
+
+  context "exploreForward_ expandToTargetsStrategy" $ do
+    targetInSinglePathFunc <- runIO $ mkExpandToTargetsStrategy alwaysLowestOfRange 10 store [(singlePathFunc, 0x1199)]
+    it "should get path from func with single block, where target is in that block" $ do
+      let startFunc = singlePathFunc
+          strat = targetInSinglePathFunc
+
+          action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+          action = runExceptT $ exploreForward_
+            randomIO
+            strat
+            0
+            startFunc
+          modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+                       -> Int
+          modifyResult = getPathNodeCount
+              . fromJust . unsafeFromRight
+          expected = 1
+      (modifyResult <$> action) `shouldReturn` expected
+
+    targetInInner <- runIO $ mkExpandToTargetsStrategy alwaysLowestOfRange 10 store [(innerFunc, 0x1154)]
+    it "should find target a couple calls away" $ do
+      let startFunc = mainFunc
+          strat = targetInInner
+
+          action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+          action = runExceptT $ exploreForward_
+            randomIO
+            strat
+            0
+            startFunc
+          modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+                       -> Bool
+          modifyResult
+            = not
+            . null
+            . filter (isCallTo "puts")
+            . getPathNodes
+            . fromJust
+            . unsafeFromRight
+          expected = True
       (modifyResult <$> action) `shouldReturn` expected
