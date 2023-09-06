@@ -17,13 +17,23 @@ data BinarySearchConfig imp func = BinarySearchConfig
   , queries :: [Query func]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   
-data Query func = Query
+data QueryTargetOpts func = QueryTargetOpts
   { start :: func
-  -- , mustReachAll :: [Address]
-  , mustReachSome :: [Address] -- addr inside any basic block
+  , mustReachSome :: NonEmpty (func, Address) -- addr inside any basic block
   , callExpandDepthLimit :: Word64
   , numSamples :: Word64
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+data QueryExpandAllOpts func = QueryExpandAllOpts
+  { start :: func
+  , callExpandDepthLimit :: Word64
+  , numSamples :: Word64
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+data Query func
+  = QueryTarget (QueryTargetOpts func)
+  | QueryExpandAll (QueryExpandAllOpts func)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Used in the query config to identify a function by name or addr
 data FuncConfig

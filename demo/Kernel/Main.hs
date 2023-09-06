@@ -148,9 +148,8 @@ megaConfig = BinarySearchConfig
     ]
   , binaryPath = "/tmp/ipv4/libipv4.so.bndb"
   , queries =
-    [ Query
+    [ QueryExpandAll $ QueryExpandAllOpts
       { start = FuncSym "tcp_recvmsg"
-      , mustReachSome = []
       , callExpandDepthLimit = 4
       , numSamples = 20
       }
@@ -165,12 +164,26 @@ diveLoggerConfig = BinarySearchConfig
   { excludeFuncsFromStore = []
   , binaryPath = "res/test_bins/Dive_Logger/Dive_Logger.bndb"
   , queries =
-    [ Query
+    [
+      -- QueryTarget $ QueryTargetOpts
+      -- { start = FuncSym "cgc_SelectDive"
+      -- , callExpandDepthLimit = 20
+      -- , numSamples = 40
+      -- , mustReachSome = (FuncSym "cgc_atoi", 0x804a367) :| []
+      -- }
+      QueryTarget $ QueryTargetOpts
       { start = FuncSym "cgc_SelectDive"
-      , mustReachSome = []
-      , callExpandDepthLimit = 4
-      , numSamples = 20
+      , callExpandDepthLimit = 20
+      , numSamples = 40
+      , mustReachSome = (FuncSym "cgc_isdigit", 0x8049f6c) :| []
       }
+      
+
+    -- , QueryExpandAll $ QueryExpandAllOpts
+    --   { start = FuncSym "cgc_SelectDive"
+    --   , callExpandDepthLimit = 3
+    --   , numSamples = 1
+    --   }
     ]
   }
 

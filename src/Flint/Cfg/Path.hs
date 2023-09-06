@@ -2,12 +2,13 @@ module Flint.Cfg.Path where
 
 import Flint.Prelude
 
-import Flint.Types.Query (Query, GetFunction)
+import Flint.Types.Query (Query(QueryTarget, QueryExpandAll), GetFunction(getFunction))
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as CfgPath
+import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Path as Path
 import Blaze.Path (SampleRandomPathError', SampleRandomPathError)
 import Blaze.Types.Graph (DescendantsMap)
@@ -118,16 +119,15 @@ expandToTargetsStrategy
   -> CallDepth
   -> CfgStore
   -> HashSet Function
-  -> [Address]
+  -> NonEmpty Address
   -> ExplorationStrategy (SampleRandomPathError' PilNode) IO
-expandToTargetsStrategy _ _ _ _ [] _ _ = return Nothing
 expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets targets func currentDepth =
   if currentDepth > expandDepthLimit then
     return Nothing
   else lift (CfgStore.getFuncCfgInfo store func) >>= \case
     Nothing -> return Nothing
     Just cfgInfo -> do
-      let nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` (cfgInfo ^. #acyclicCfg)) targets
+      let nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` (cfgInfo ^. #acyclicCfg)) . NE.toList $ targets
           callNodesThatLeadToTargets :: [CallNode [Stmt]]
           callNodesThatLeadToTargets
             = filter (maybe False (`HashSet.member` funcsThatLeadToTargets) . getCallNodeFunc)
@@ -154,7 +154,7 @@ mkExpandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
-  -> [(Function, Address)]
+  -> NonEmpty (Function, Address)
   -> IO (ExplorationStrategy (SampleRandomPathError' PilNode) IO)
 mkExpandToTargetsStrategy pickFromRange expandDepthLimit store targets = do
   funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
@@ -204,23 +204,38 @@ exploreForward_ genUuid exploreStrat currentDepth startingFunc = do
             mainPath
             innerPaths
 
--- | Gets a random path from the starting function to the target basic block.
-sampleToTarget_
-  :: (Int -> IO Int) -- If multiple calls reach target, pick from them.
-  -> ((Int, Int) -> IO Int) -- Pick random branch amonst those that reach target
-  -> DescendantsMap Function
-  -> CfgStore
-  -> Function
-  -> Address
-  -> IO (Maybe PilPath)
-sampleToTarget_ pickCallToTarget pickBranch dmap store startingFunc targetAddr = return Nothing
+-- -- | Gets a random path from the starting function to the target basic block.
+-- sampleToTarget_
+--   :: (Int -> IO Int) -- If multiple calls reach target, pick from them.
+--   -> ((Int, Int) -> IO Int) -- Pick random branch amonst those that reach target
+--   -> DescendantsMap Function
+--   -> CfgStore
+--   -> Function
+--   -> Address
+--   -> IO (Maybe PilPath)
+-- sampleToTarget_ pickCallToTarget pickBranch dmap store startingFunc targetAddr = return Nothing
 
-samplesFromQuery_
-  :: GetFunction a
-  => (Int -> IO Int) -- Pick random target node
-  -> ((Int, Int) -> IO Int) -- Pick random branch
-  -> CfgStore
-  -> Query a
+-- | Gets samples for a Query.
+samplesFromQuery
+  :: CfgStore
+  -> Query Function
   -> IO [PilPath]
-samplesFromQuery_ pickRandomTargetNode pickRandomBranch store q = do
-  return []
+samplesFromQuery store = \case
+  QueryTarget opts -> do
+    strat <- mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) store (opts ^. #mustReachSome)
+    let action = exploreForward_ randomIO strat 0 (opts ^. #start)
+    collectSamples (opts ^. #numSamples) action
+
+  QueryExpandAll opts -> do
+    let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) store
+        action = exploreForward_ randomIO strat 0 (opts ^. #start)
+    collectSamples (opts ^. #numSamples) action
+  where
+    collectSamples :: forall e. Show e => Word64 -> ExceptT e IO (Maybe PilPath) -> IO [PilPath]
+    collectSamples n action =
+      fmap catMaybes . replicateConcurrently (fromIntegral n) $ runExceptT action >>= \case
+        Left err -> do
+          putText $ "ERROR getting sample: " <> show err
+          return Nothing
+        Right mpath -> return mpath
+        

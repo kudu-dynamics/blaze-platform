@@ -260,7 +260,9 @@ spec = describe "Flint.Cfg.Path" $ do
       (modifyResult <$> action) `shouldReturn` expected
 
   context "exploreForward_ expandToTargetsStrategy" $ do
-    targetInSinglePathFunc <- runIO $ mkExpandToTargetsStrategy alwaysLowestOfRange 10 store [(singlePathFunc, 0x1199)]
+    targetInSinglePathFunc <- runIO
+      . mkExpandToTargetsStrategy alwaysLowestOfRange 10 store
+      $ (singlePathFunc, 0x1199) :| []
     it "should get path from func with single block, where target is in that block" $ do
       let startFunc = singlePathFunc
           strat = targetInSinglePathFunc
@@ -278,7 +280,9 @@ spec = describe "Flint.Cfg.Path" $ do
           expected = 1
       (modifyResult <$> action) `shouldReturn` expected
 
-    targetInInner <- runIO $ mkExpandToTargetsStrategy alwaysLowestOfRange 10 store [(innerFunc, 0x1154)]
+    targetInInner <- runIO
+      . mkExpandToTargetsStrategy alwaysLowestOfRange 10 store
+      $ (innerFunc, 0x1154) :| []
     it "should find target a couple calls away" $ do
       let startFunc = mainFunc
           strat = targetInInner

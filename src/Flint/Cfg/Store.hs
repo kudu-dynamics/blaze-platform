@@ -36,13 +36,18 @@ init imp = do
     <*> CG.getFunctions imp
     <*> atomically CC.create
     <*> atomically CC.create
-  CC.setCalc () (store ^. #callGraphCache) . CG.getCallGraph imp $ store ^. #funcs
+  CC.setCalc () (store ^. #callGraphCache) $ do
+    putText "\nGetting CallGraph...\n"
+    cg <- CG.getCallGraph imp $ store ^. #funcs
+    putText "\nGot CallGraph.\n"
+    return cg
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg
   -- Set up calcs for ancestors
   forM_ (store ^. #funcs) $ \func -> do
     CC.setCalc func (store ^. #ancestorsCache) $ do
+      putText $ "\nCalculating ancestors for func: " <> show func
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
       return $ G.getDescendants func cg
   return store

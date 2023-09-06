@@ -9,7 +9,9 @@ import Flint.Cfg ( expandCfgToDepth )
 import Flint.Types.Analysis
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
+import Flint.Cfg.Path (samplesFromQuery)
 
+import Blaze.Pretty (pretty')
 import Blaze.Types.Function (Function)
 
 import Blaze.Import.Binary (BinaryImporter, openBinary)
@@ -226,36 +228,21 @@ storeFromBinarySearchConfig imp bconfig store = do
   let funcs = filter (\func -> not $ HashSet.member func excludes) allFuncs
   addCfgStoreForBinary imp funcs store
 
-getPathsForQuery
-  :: CfgStore
-  -> Query Function
-  -> IO [PilPath]
-getPathsForQuery store q = CfgStore.getFuncCfg store startFunc >>= \case
-  Nothing -> error $ "Could not find start function in CfgStore: " <> show (startFunc ^. #name)
-  Just cfg -> do
-    putText "Creating expanded cfg"
-    fullCfg <- expandCfgToDepth store (q ^. #callExpandDepthLimit) cfg
-    putText "Finished expanded cfg"
-    -- pp' cfg
-    let reachNodes = case q ^. #mustReachSome of
-          [] -> []
-          addrs -> case concatMap (`Cfg.getNodesContainingAddress` cfg) addrs of
-            [] -> error $ "Could not find any mustReachSome nodes on path for query: " <> show q
-            ns -> ns
-    putText $ "FullCfg has " <> show (HashSet.size $ G.nodes fullCfg) <> " nodes"
-    putText "Sampling 20 paths"
-    ps <- Path.sampleRandomPathsContaining (HashSet.fromList reachNodes) (fromIntegral $ q ^. #numSamples) fullCfg
-    -- let ps = Path.getAllSimplePaths fullCfg
-    putText $ "PATHS: " <> show (length ps)
-    return ps
+showQueryHeader :: Query Function -> Text
+showQueryHeader = \case
+  QueryTarget x -> (x ^. #start . #name) <> " ==> " <> showTargets (x ^. #mustReachSome)
+  QueryExpandAll x -> (x ^. #start . #name) <> " ========== Expand all "
   where
-    startFunc = q ^. #start
+    showTargets :: NonEmpty (Function, Address) -> Text
+    showTargets (x :| xs) = Text.intercalate ", " . fmap showTarget $ x:xs
+    showTarget :: (Function, Address) -> Text
+    showTarget (func, addr) = pretty' addr <> func ^. #name
 
 showQuerySummaries :: CfgStore -> Query Function -> IO ()
 showQuerySummaries store q = do
-  paths <- getPathsForQuery store q
+  paths <- samplesFromQuery store q
   okPaths <- filterOkPaths paths
-  showPaths (q ^. #start . #name <> " => " <> show (q ^. #mustReachSome)) okPaths
+  showPaths (showQueryHeader q) okPaths
   
 summariesOfInterest
   :: forall imp func.
