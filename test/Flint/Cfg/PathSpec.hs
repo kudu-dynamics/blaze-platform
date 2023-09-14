@@ -24,6 +24,8 @@ import Blaze.Types.Pil (Stmt)
 import Blaze.Types.Cfg (PilNode, CallNode)
 import qualified Blaze.Types.Cfg as Cfg
 
+import Blaze.Pretty (prettyPrint')
+
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HashSet
 import System.Random (randomRIO)
@@ -32,6 +34,9 @@ import Test.Hspec
 
 interCfgBndb :: FilePath
 interCfgBndb = "res/test_bins/intercfg/intercfg.bndb"
+
+diveLoggerBndb :: FilePath
+diveLoggerBndb = "res/test_bins/Dive_Logger/Dive_Logger.bndb"
 
 spec :: Spec
 spec = describe "Flint.Cfg.Path" $ do
@@ -197,15 +202,42 @@ spec = describe "Flint.Cfg.Path" $ do
     --       expected = True
     --   (modifyResult <$> action) `shouldReturn` expected
 
+  context "exploreForward_ expandAllStrategy" $ do
 
-  context "exploreForward_ expandAllStrategy" $ do    
+    -- let startFunc' = mainFunc
+    --     strat' = expandAllStrategy alwaysLowestOfRange 1 store
+
+    --     action' :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+    --     action' = runExceptT $ exploreForward_
+    --       (const randomIO)
+    --       strat'
+    --       0
+    --       startFunc'
+    -- runIO $ do
+    --   er <- action'
+    --   prettyPrint' $ unsafeFromRight er
+
+    -- This badboy causes the path builder to crash:
+    let startFunc = mainFunc
+        strat = expandAllStrategy alwaysLowestOfRange 2 store
+
+        action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+        action = runExceptT $ exploreForward_
+          (const randomIO)
+          strat
+          0
+          startFunc
+    runIO $ do
+      er <- action
+      prettyPrint' $ unsafeFromRight er
+
     it "should get path from func with single basic block" $ do
       let startFunc = singlePathFunc
           strat = expandAllStrategy alwaysLowestOfRange 0 store
 
           action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
           action = runExceptT $ exploreForward_
-            randomIO
+            (const randomIO)
             strat
             0
             startFunc
@@ -222,7 +254,7 @@ spec = describe "Flint.Cfg.Path" $ do
 
           action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
           action = runExceptT $ exploreForward_
-            randomIO
+            (const randomIO)
             strat
             0
             startFunc
@@ -238,13 +270,13 @@ spec = describe "Flint.Cfg.Path" $ do
           expected = True
       (modifyResult <$> action) `shouldReturn` expected
 
-    it "should expand all call nodes once when ExpandAllCallsAtEachLevel strategy and expand limit is 1" $ do
+    it "should expand all call nodes once when expand limit is 1" $ do
       let startFunc = mainFunc
           strat = expandAllStrategy alwaysLowestOfRange 1 store
 
           action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
           action = runExceptT $ exploreForward_
-            randomIO
+            (const randomIO)
             strat
             0
             startFunc
@@ -259,17 +291,41 @@ spec = describe "Flint.Cfg.Path" $ do
           expected = 2
       (modifyResult <$> action) `shouldReturn` expected
 
+    -- it "should expand every call two times when expand limit is 2" $ do
+    --   let startFunc = mainFunc
+    --       strat = expandAllStrategy alwaysLowestOfRange 10 store
+
+    --       action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+    --       action = runExceptT $ exploreForward_
+    --         randomIO
+    --         strat
+    --         0
+    --         startFunc
+    --       modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+    --                    -> Int
+    --       modifyResult
+    --         = length
+    --         . filter (isCallTo "puts")
+    --         . getPathNodes
+    --         . fromJust
+    --         . unsafeFromRight
+    --       expected = 2
+    -- (modifyResult <$> action) `shouldReturn` expected
+
+
   context "exploreForward_ expandToTargetsStrategy" $ do
+
     targetInSinglePathFunc <- runIO
       . mkExpandToTargetsStrategy alwaysLowestOfRange 10 store
       $ (singlePathFunc, 0x1199) :| []
+
     it "should get path from func with single block, where target is in that block" $ do
       let startFunc = singlePathFunc
           strat = targetInSinglePathFunc
 
           action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
           action = runExceptT $ exploreForward_
-            randomIO
+            (const randomIO)
             strat
             0
             startFunc
@@ -283,13 +339,14 @@ spec = describe "Flint.Cfg.Path" $ do
     targetInInner <- runIO
       . mkExpandToTargetsStrategy alwaysLowestOfRange 10 store
       $ (innerFunc, 0x1154) :| []
+
     it "should find target a couple calls away" $ do
       let startFunc = mainFunc
           strat = targetInInner
 
           action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
           action = runExceptT $ exploreForward_
-            randomIO
+            (const randomIO)
             strat
             0
             startFunc

@@ -24,15 +24,28 @@ data QueryTargetOpts func = QueryTargetOpts
   , numSamples :: Word64
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
+-- | This just picks one callsite to expand until it reaches a dead-end or its limit.
+data QueryExploreDeepOpts func = QueryExploreDeepOpts
+  { start :: func
+  , callExpandDepthLimit :: Word64
+  , numSamples :: Word64
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
 data QueryExpandAllOpts func = QueryExpandAllOpts
   { start :: func
   , callExpandDepthLimit :: Word64
   , numSamples :: Word64
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
+data QueryAllPathsOpts func = QueryAllPathsOpts
+  { start :: func
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
 data Query func
   = QueryTarget (QueryTargetOpts func)
   | QueryExpandAll (QueryExpandAllOpts func)
+  | QueryExploreDeep (QueryExploreDeepOpts func)
+  | QueryAllPaths (QueryAllPathsOpts func)
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Used in the query config to identify a function by name or addr

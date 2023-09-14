@@ -232,6 +232,8 @@ showQueryHeader :: Query Function -> Text
 showQueryHeader = \case
   QueryTarget x -> (x ^. #start . #name) <> " ==> " <> showTargets (x ^. #mustReachSome)
   QueryExpandAll x -> (x ^. #start . #name) <> " ========== Expand all "
+  QueryExploreDeep x -> (x ^. #start . #name) <> " ========== Explore deep "
+  QueryAllPaths x -> (x ^. #start . #name) <> " ========== All Paths "
   where
     showTargets :: NonEmpty (Function, Address) -> Text
     showTargets (x :| xs) = Text.intercalate ", " . fmap showTarget $ x:xs

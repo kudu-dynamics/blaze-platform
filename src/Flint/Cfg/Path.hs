@@ -1,10 +1,12 @@
 module Flint.Cfg.Path where
 
+
 import Flint.Prelude
 
-import Flint.Types.Query (Query(QueryTarget, QueryExpandAll), GetFunction(getFunction))
+import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths), GetFunction(getFunction))
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
+import Flint.Util (incUUID)
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as CfgPath
@@ -19,6 +21,7 @@ import Blaze.Types.Pil (Stmt)
 import qualified Data.List.NonEmpty as NE
 
 import qualified Data.HashSet as HashSet
+import Data.List (nub)
 
 type CallDepth = Word64
 type CallExpansionChooser = Function -> CallDepth -> [CallNode [Stmt]] -> IO [CallNode [Stmt]]
@@ -105,6 +108,26 @@ expandAllStrategy pickFromRange expandDepthLimit store func currentDepth
           (cfgInfo ^. #acyclicCfg)
         return $ Just (path, HashSet.fromList $ cfgInfo ^. #calls)
 
+exploreDeepStrategy
+  :: ((Int, Int) -> IO Int)
+  -> CallDepth
+  -> CfgStore
+  -> ExplorationStrategy (SampleRandomPathError' PilNode) IO
+exploreDeepStrategy pickFromRange expandDepthLimit store func currentDepth
+  | currentDepth > expandDepthLimit = return Nothing
+  | otherwise = lift (CfgStore.getFuncCfgInfo store func) >>= \case
+      Nothing -> return Nothing
+      Just cfgInfo -> do
+        path <- CfgPath.sampleRandomPath_'
+          (Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #descendantsMap)
+          ()
+          (cfgInfo ^. #acyclicCfg)
+        case getCallsFromPath path of
+          [] -> return $ Just (path, HashSet.empty)
+          x:xs -> do
+            luckyCall <- liftIO . pickFromList pickFromRange $ x :| xs
+            return $ Just (path, HashSet.singleton luckyCall)
+
 pickFromList :: Monad m => ((Int, Int) -> m Int) -> NonEmpty a -> m a
 pickFromList picker (x :| xs) = do
   n <- picker (0, length xs)
@@ -177,7 +200,7 @@ getCallsFromPath = mapMaybe (^? #_Call) . HashSet.toList . Path.nodes
 --   It returns Nothing if the starting func Cfg is not in the store.
 exploreForward_
   :: Monad m
-  => m UUID
+  => (UUID -> m UUID) -- generate a new UUID, possibly based on Call node uuid.
   -> ExplorationStrategy e m
   -> CallDepth
   -> Function
@@ -195,7 +218,7 @@ exploreForward_ genUuid exploreStrat currentDepth startingFunc = do
           exploreStrat
           (currentDepth + 1)
           destFunc
-        leaveFuncUuid <- lift $ lift genUuid
+        leaveFuncUuid <- lift . lift . genUuid . Cfg.getNodeUUID . Cfg.Call $ callNode
         return (callNode, innerPath, leaveFuncUuid)
       return
           . Just
@@ -223,17 +246,28 @@ samplesFromQuery
 samplesFromQuery store = \case
   QueryTarget opts -> do
     strat <- mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) store (opts ^. #mustReachSome)
-    let action = exploreForward_ randomIO strat 0 (opts ^. #start)
+    let action = exploreForward_ incUUID' strat 0 (opts ^. #start)
     collectSamples (opts ^. #numSamples) action
 
   QueryExpandAll opts -> do
     let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) store
-        action = exploreForward_ randomIO strat 0 (opts ^. #start)
+        action = exploreForward_ incUUID' strat 0 (opts ^. #start)
     collectSamples (opts ^. #numSamples) action
+
+  QueryExploreDeep opts -> do
+    let strat = exploreDeepStrategy randomRIO (opts ^. #callExpandDepthLimit) store
+        action = exploreForward_ incUUID' strat 0 (opts ^. #start)
+    collectSamples (opts ^. #numSamples) action
+
+  QueryAllPaths opts -> CfgStore.getFuncCfgInfo store (opts ^. #start) >>= \case
+    Nothing -> error $ "Could not get cfg for function " <> show (opts ^. #start)
+    Just cfgInfo -> return . CfgPath.getAllSimplePaths $ cfgInfo ^. #acyclicCfg
+
   where
+    incUUID' = return . incUUID
     collectSamples :: forall e. Show e => Word64 -> ExceptT e IO (Maybe PilPath) -> IO [PilPath]
     collectSamples n action =
-      fmap catMaybes . replicateConcurrently (fromIntegral n) $ runExceptT action >>= \case
+      fmap (nub . catMaybes) . replicateConcurrently (fromIntegral n) $ runExceptT action >>= \case
         Left err -> do
           putText $ "ERROR getting sample: " <> show err
           return Nothing
