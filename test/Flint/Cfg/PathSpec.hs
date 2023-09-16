@@ -11,18 +11,22 @@ import Flint.Cfg.Path
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Types.Query (Query(..), getFunction, FuncConfig(FuncSym, FuncAddr))
+import Flint.Util (incUUID)
 
 import Blaze.Path (SampleRandomPathError', SampleRandomPathError)
 import Blaze.Cfg (nodeContainsAddress)
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import qualified Blaze.Import.CallGraph as Cg
 import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Types.Path as P
 import Blaze.Cfg.Path (PilPath)
+import qualified Blaze.Cfg.Path as CfgPath
 import Blaze.Types.Pil (Stmt)
 import Blaze.Types.Cfg (PilNode, CallNode)
 import qualified Blaze.Types.Cfg as Cfg
+import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst))
 
 import Blaze.Pretty (prettyPrint')
 
@@ -52,6 +56,7 @@ spec = describe "Flint.Cfg.Path" $ do
   outerAFunc <- runIO . getFunction bv $ FuncSym "outer_a"
   innerFunc <- runIO . getFunction bv $ FuncSym "inner"
   mainFunc <- runIO . getFunction bv $ FuncSym "main"
+  callsSameFuncTwice <- runIO . getFunction bv $ FuncSym "calls_same_function_twice"
     
   let alwaysLowestOfRange (a, _) = return a
       alwaysHighestOfRange (_, b) = return b
@@ -217,19 +222,54 @@ spec = describe "Flint.Cfg.Path" $ do
     --   er <- action'
     --   prettyPrint' $ unsafeFromRight er
 
-    -- This badboy causes the path builder to crash:
-    let startFunc = mainFunc
-        strat = expandAllStrategy alwaysLowestOfRange 2 store
+    --  -- This badboy causes the path builder to crash:
+    -- let startFunc = mainFunc
+    --     strat = expandAllStrategy alwaysLowestOfRange 2 store
 
-        action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
-        action = runExceptT $ exploreForward_
-          (const randomIO)
-          strat
-          0
-          startFunc
-    runIO $ do
-      er <- action
-      prettyPrint' $ unsafeFromRight er
+    --     action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+    --     action = runExceptT $ exploreForward_
+    --       (const randomIO)
+    --       strat
+    --       0
+    --       startFunc
+    -- runIO $ do
+    --   er <- action
+    --   prettyPrint' $ unsafeFromRight er
+
+    -- let startFunc = callsSameFuncTwice
+    --     strat x = expandAllStrategy alwaysLowestOfRange x store
+
+    --     action :: Function -> Word64 -> IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+    --     action func n = runExceptT $ exploreForward_
+    --       (const randomIO)
+    --       (strat n)
+    --       0
+    --       func
+    -- runIO $ do
+    --   (Right (Just innerPath)) <- action innerFunc 0
+    --   putText "\n--------- innerPath\n"
+    --   prettyPrint' innerPath
+
+    --   (Right (Just outerPath0)) <- action callsSameFuncTwice 0
+    --   putText "\n--------- outerPath0\n"
+    --   prettyPrint' outerPath0
+
+    --   let innerPath' = recurSubst (+ (outerPath0 ^. #nextCtxIndex)) innerPath
+    --   putText "\n--------- innerPath'\n"
+    --   prettyPrint' innerPath'
+
+    --   let [callInner1, callInner2] = getCallsFromPath outerPath0
+    --       (Just outerPath0') = CfgPath.expandCall (incUUID . Cfg.getNodeUUID $ Cfg.Call callInner1) outerPath0 callInner1 innerPath
+    --   putText "\n--------- outerPath0 expanded once\n"
+    --   prettyPrint' outerPath0'
+
+    --   let (Just outerPath0'') = CfgPath.expandCall (incUUID . Cfg.getNodeUUID $ Cfg.Call callInner2) outerPath0' callInner2 innerPath
+    --   putText "\n--------- outerPath0 expanded twice\n"
+    --   prettyPrint' outerPath0''
+      
+    --   er <- action callsSameFuncTwice 1
+    --   prettyPrint' $ unsafeFromRight er
+
 
     it "should get path from func with single basic block" $ do
       let startFunc = singlePathFunc

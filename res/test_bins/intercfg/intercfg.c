@@ -34,6 +34,13 @@ int double_path_no_calls(int n) {
   } 
 }
 
+int calls_same_function_twice(int n) {
+  int x = 0;
+  inner(n);
+  x = n + 5;
+  inner(x);
+  return x;
+}
 
 int main(int argc, char *argv[])
 {

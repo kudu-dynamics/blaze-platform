@@ -1,6 +1,5 @@
 module Flint.Cfg.Path where
 
-
 import Flint.Prelude
 
 import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths), GetFunction(getFunction))
@@ -189,7 +188,6 @@ mkExpandToTargetsStrategy pickFromRange expandDepthLimit store targets = do
         Nothing -> error $ "Could not find func ancestors for " <> show func
         Just ancestors -> return ancestors
       return . HashSet.insert func $ HashSet.union ancestors s
-      
 
 
 getCallsFromPath :: PilPath -> [CallNode [Stmt]]
@@ -218,8 +216,20 @@ exploreForward_ genUuid exploreStrat currentDepth startingFunc = do
           exploreStrat
           (currentDepth + 1)
           destFunc
+
+        let changeNodeId n = do
+              let uuid = Cfg.getNodeUUID n
+              uuid' <- genUuid uuid
+              return $ Cfg.setNodeUUID uuid' n
+        -- This is really dirty, but because we are pulling from a cache instead of
+        -- generating Cfgs every time, we can run into node id conflicts when a path
+        -- contains two paths from the same expanded function.
+        -- TODO: do this at the frontier when getting CfgInfo so it's more efficient
+        --       (here the ids will be updated multiple times for an inner path)
+        innerPath' <- lift . lift $ CfgPath.safeTraverse changeNodeId innerPath
+        
         leaveFuncUuid <- lift . lift . genUuid . Cfg.getNodeUUID . Cfg.Call $ callNode
-        return (callNode, innerPath, leaveFuncUuid)
+        return (callNode, innerPath', leaveFuncUuid)
       return
           . Just
           $ foldl (\p (callNode, innerPath, leaveFuncUuid) -> fromJust $

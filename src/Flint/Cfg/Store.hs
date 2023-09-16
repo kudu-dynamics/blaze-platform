@@ -8,7 +8,7 @@ import qualified Flint.Types.CachedCalc as CC
 import qualified Blaze.CallGraph as CG
 import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Types.Function (Function)
-import Blaze.Types.Graph (calcDescendantsMap)
+import Blaze.Types.Graph (calcDescendantsMap, DescendantsMap(DescendantsMap))
 import qualified Blaze.Types.Graph as G
 
 import qualified Blaze.Import.CallGraph as CG
@@ -18,8 +18,11 @@ import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
 import Blaze.Types.CallGraph (CallGraph)
 import Blaze.Types.Cfg (PilCfg, PilNode)
+import qualified Blaze.Types.Cfg as Cfg
+import Blaze.Util (getMemoized)
 
 import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 
 
 -- This is a cache of Cfgs for functions.
@@ -52,8 +55,60 @@ init imp = do
       return $ G.getDescendants func cg
   return store
 
-  
+getNewUuid :: UUID -> StateT (HashMap UUID UUID) IO UUID
+getNewUuid old = do
+  m <- get
+  case HashMap.lookup old m of
+    Just new -> return new
+    Nothing -> do
+      new <- lift randomIO
+      modify $ HashMap.insert old new
+      return new
 
+traverseDescendantsMap
+  :: forall m a b.
+     ( Monad m
+     , Hashable a
+     , Hashable b
+     )
+  => (a -> m b)
+  -> DescendantsMap a
+  -> StateT (HashMap a b) m (DescendantsMap b)
+traverseDescendantsMap f (DescendantsMap dmap) =
+  DescendantsMap . HashMap.fromList <$> traverse g (HashMap.toList dmap)
+  where
+    g :: (a, HashSet a) -> StateT (HashMap a b) m (b, HashSet b)
+    g (x, s) = do
+      x' <- getMemoized f x
+      s' <- fmap HashSet.fromList . traverse (getMemoized f) . HashSet.toList $ s
+      return (x', s')
+
+-- | Gets the CfgInfo, but all the UUIDs are fresh and new
+getFreshFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
+getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
+  Nothing -> return Nothing
+  Just cfgInfo -> flip evalStateT HashMap.empty $ do
+    cfg' <- Cfg.safeTraverse_ updateNodeId $ cfgInfo ^. #cfg
+    acyclicCfg' <- Cfg.safeTraverse_ updateNodeId $ cfgInfo ^. #acyclicCfg
+    dmap' <- traverseDescendantsMap updateNodeId $ cfgInfo ^. #descendantsMap
+    calls' <- fmap (mapMaybe (^? #_Call))
+              . traverse (getMemoized updateNodeId)
+              . fmap Cfg.Call
+              $ cfgInfo ^. #calls
+    return . Just $ CfgInfo
+      { cfg = cfg'
+      , acyclicCfg = acyclicCfg'
+      , descendantsMap = dmap'
+      , calls = calls'
+      }
+      where
+        updateNodeId :: PilNode -> IO PilNode
+        updateNodeId n = do
+          new <- randomIO
+          return $ Cfg.setNodeUUID new n
+
+        
+          
 -- | Gets the stored Cfg for a function, if it exists in the store.
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
 getFuncCfgInfo store func = join <$> CC.get func (store ^. #cfgCache)
