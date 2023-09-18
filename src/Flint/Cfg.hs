@@ -17,16 +17,16 @@ import qualified Data.HashSet as HashSet
 --   {  
 -- type Builder = State 
 
-getCfgForCallDest :: CfgStore -> CallDest expr -> IO (Maybe PilCfg)
-getCfgForCallDest store = \case
+getAcyclicCfgForCallDest :: CfgStore -> CallDest expr -> IO (Maybe PilCfg)
+getAcyclicCfgForCallDest store = \case
   -- Pil.CallAddr ptr -> do
   --   sym <- ptr ^. #symbol
   --   CfgStore.getFromFuncName_ sym store
-  Pil.CallFunc func -> CfgStore.getFuncCfg store func
+  Pil.CallFunc func -> (fmap $ view #acyclicCfg) <$> CfgStore.getFreshFuncCfgInfo store func
   _ -> return Nothing
 
-getCfgForCallNode :: CfgStore -> PilCallNode -> IO (Maybe PilCfg)
-getCfgForCallNode store = getCfgForCallDest store . view #callDest
+getAcyclicCfgForCallNode :: CfgStore -> PilCallNode -> IO (Maybe PilCfg)
+getAcyclicCfgForCallNode store = getAcyclicCfgForCallDest store . view #callDest
 
 -- | Expands all the call nodes in a Cfg, `depth` times.
 -- A `depth` of 0 means it will not expand any calls.
@@ -49,7 +49,7 @@ expandCfgToDepth_ genUuid store depth cfg = case callNodes of
     callNodes = mapMaybe (^? #_Call) . HashSet.toList $ Cfg.nodes cfg
 
     expandCall :: PilCfg -> PilCallNode -> IO PilCfg
-    expandCall cfg' cnode = getCfgForCallNode store cnode >>= \case
+    expandCall cfg' cnode = getAcyclicCfgForCallNode store cnode >>= \case
       Nothing -> return cfg
       Just innerCfg -> do
         let innerCfg' = recurSubst (\_ -> cfg' ^. #nextCtxIndex) innerCfg

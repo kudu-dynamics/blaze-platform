@@ -208,69 +208,6 @@ spec = describe "Flint.Cfg.Path" $ do
     --   (modifyResult <$> action) `shouldReturn` expected
 
   context "exploreForward_ expandAllStrategy" $ do
-
-    -- let startFunc' = mainFunc
-    --     strat' = expandAllStrategy alwaysLowestOfRange 1 store
-
-    --     action' :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
-    --     action' = runExceptT $ exploreForward_
-    --       (const randomIO)
-    --       strat'
-    --       0
-    --       startFunc'
-    -- runIO $ do
-    --   er <- action'
-    --   prettyPrint' $ unsafeFromRight er
-
-    --  -- This badboy causes the path builder to crash:
-    -- let startFunc = mainFunc
-    --     strat = expandAllStrategy alwaysLowestOfRange 2 store
-
-    --     action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
-    --     action = runExceptT $ exploreForward_
-    --       (const randomIO)
-    --       strat
-    --       0
-    --       startFunc
-    -- runIO $ do
-    --   er <- action
-    --   prettyPrint' $ unsafeFromRight er
-
-    -- let startFunc = callsSameFuncTwice
-    --     strat x = expandAllStrategy alwaysLowestOfRange x store
-
-    --     action :: Function -> Word64 -> IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
-    --     action func n = runExceptT $ exploreForward_
-    --       (const randomIO)
-    --       (strat n)
-    --       0
-    --       func
-    -- runIO $ do
-    --   (Right (Just innerPath)) <- action innerFunc 0
-    --   putText "\n--------- innerPath\n"
-    --   prettyPrint' innerPath
-
-    --   (Right (Just outerPath0)) <- action callsSameFuncTwice 0
-    --   putText "\n--------- outerPath0\n"
-    --   prettyPrint' outerPath0
-
-    --   let innerPath' = recurSubst (+ (outerPath0 ^. #nextCtxIndex)) innerPath
-    --   putText "\n--------- innerPath'\n"
-    --   prettyPrint' innerPath'
-
-    --   let [callInner1, callInner2] = getCallsFromPath outerPath0
-    --       (Just outerPath0') = CfgPath.expandCall (incUUID . Cfg.getNodeUUID $ Cfg.Call callInner1) outerPath0 callInner1 innerPath
-    --   putText "\n--------- outerPath0 expanded once\n"
-    --   prettyPrint' outerPath0'
-
-    --   let (Just outerPath0'') = CfgPath.expandCall (incUUID . Cfg.getNodeUUID $ Cfg.Call callInner2) outerPath0' callInner2 innerPath
-    --   putText "\n--------- outerPath0 expanded twice\n"
-    --   prettyPrint' outerPath0''
-      
-    --   er <- action callsSameFuncTwice 1
-    --   prettyPrint' $ unsafeFromRight er
-
-
     it "should get path from func with single basic block" $ do
       let startFunc = singlePathFunc
           strat = expandAllStrategy alwaysLowestOfRange 0 store
@@ -331,33 +268,33 @@ spec = describe "Flint.Cfg.Path" $ do
           expected = 2
       (modifyResult <$> action) `shouldReturn` expected
 
-    -- it "should expand every call two times when expand limit is 2" $ do
-    --   let startFunc = mainFunc
-    --       strat = expandAllStrategy alwaysLowestOfRange 10 store
+    it "should expand every call two times when expand limit is 2" $ do
+      let startFunc = mainFunc
+          strat = expandAllStrategy alwaysLowestOfRange 2 store
 
-    --       action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
-    --       action = runExceptT $ exploreForward_
-    --         randomIO
-    --         strat
-    --         0
-    --         startFunc
-    --       modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
-    --                    -> Int
-    --       modifyResult
-    --         = length
-    --         . filter (isCallTo "puts")
-    --         . getPathNodes
-    --         . fromJust
-    --         . unsafeFromRight
-    --       expected = 2
-    -- (modifyResult <$> action) `shouldReturn` expected
+          action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
+          action = runExceptT $ exploreForward_
+            (const randomIO)
+            strat
+            0
+            startFunc
+          modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
+                       -> Int
+          modifyResult
+            = length
+            . filter (isCallTo "puts")
+            . getPathNodes
+            . fromJust
+            . unsafeFromRight
+          expected = 2
+      (modifyResult <$> action) `shouldReturn` expected
 
 
   context "exploreForward_ expandToTargetsStrategy" $ do
 
     targetInSinglePathFunc <- runIO
       . mkExpandToTargetsStrategy alwaysLowestOfRange 10 store
-      $ (singlePathFunc, 0x1199) :| []
+      $ (singlePathFunc, 0x11a6) :| []
 
     it "should get path from func with single block, where target is in that block" $ do
       let startFunc = singlePathFunc

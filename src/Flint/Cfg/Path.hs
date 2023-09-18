@@ -62,7 +62,7 @@ exploreFromStartingFunc_
   -> CfgStore
   -> Function
   -> IO (Maybe PilPath)
-exploreFromStartingFunc_ pickFromRange expansionChooser currentDepth store startingFunc = CfgStore.getFuncCfgInfo store startingFunc >>= \case
+exploreFromStartingFunc_ pickFromRange expansionChooser currentDepth store startingFunc = CfgStore.getFreshFuncCfgInfo store startingFunc >>= \case
   Nothing -> return Nothing
   Just cfgInfo -> do
     er <- CfgPath.sampleRandomPath_
@@ -98,7 +98,7 @@ expandAllStrategy
   -> ExplorationStrategy (SampleRandomPathError' PilNode) IO
 expandAllStrategy pickFromRange expandDepthLimit store func currentDepth
   | currentDepth > expandDepthLimit = return Nothing
-  | otherwise = lift (CfgStore.getFuncCfgInfo store func) >>= \case
+  | otherwise = lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
       Nothing -> return Nothing
       Just cfgInfo -> do
         path <- CfgPath.sampleRandomPath_'
@@ -114,7 +114,7 @@ exploreDeepStrategy
   -> ExplorationStrategy (SampleRandomPathError' PilNode) IO
 exploreDeepStrategy pickFromRange expandDepthLimit store func currentDepth
   | currentDepth > expandDepthLimit = return Nothing
-  | otherwise = lift (CfgStore.getFuncCfgInfo store func) >>= \case
+  | otherwise = lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
       Nothing -> return Nothing
       Just cfgInfo -> do
         path <- CfgPath.sampleRandomPath_'
@@ -146,7 +146,7 @@ expandToTargetsStrategy
 expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets targets func currentDepth =
   if currentDepth > expandDepthLimit then
     return Nothing
-  else lift (CfgStore.getFuncCfgInfo store func) >>= \case
+  else lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
     Nothing -> return Nothing
     Just cfgInfo -> do
       let nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` (cfgInfo ^. #acyclicCfg)) . NE.toList $ targets

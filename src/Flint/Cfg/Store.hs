@@ -107,8 +107,6 @@ getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
           new <- randomIO
           return $ Cfg.setNodeUUID new n
 
-        
-          
 -- | Gets the stored Cfg for a function, if it exists in the store.
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
 getFuncCfgInfo store func = join <$> CC.get func (store ^. #cfgCache)
