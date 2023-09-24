@@ -93,12 +93,31 @@ lockboxSmmConfig = BinarySearchConfig
     ]    
   }
 
+rwVariableConfig :: BinarySearchConfig BNImporter FuncConfig
+rwVariableConfig = BinarySearchConfig
+  { binaryPath = "/tmp/e1smm/RWVariable.debug.bndb"
+  , excludeFuncsFromStore = []
+  , queries =
+    [
+      QueryAllPaths $ QueryAllPathsOpts
+      { start = FuncSym "RWVariableHandler"
+      }
+    -- ,
+      -- QueryTarget $ QueryTargetOpts
+      -- { start = FuncSym "SmmLockBoxHandler"
+      -- , mustReachSome = (FuncSym "CopyMem", 0x166b) :| []
+      -- , callExpandDepthLimit = 20
+      -- , numSamples = 300
+      -- }
+    ]    
+  }
 
 main :: IO ()
 main = do
   putText "starting"
   -- summariesOfInterest variableSmmConfig
   -- summariesOfInterest lockboxSmmConfig
-  summariesOfInterest blSupportSmmConfig
+  -- summariesOfInterest blSupportSmmConfig
   -- summariesOfInterest variableSmmRuntimeDxeConfig
+  summariesOfInterest rwVariableConfig
   putText "finished"

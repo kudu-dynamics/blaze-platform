@@ -243,7 +243,7 @@ showQueryHeader = \case
 showQuerySummaries :: CfgStore -> Query Function -> IO ()
 showQuerySummaries store q = do
   paths <- samplesFromQuery store q
-  okPaths <- filterOkPaths paths
+  okPaths <- return paths -- filterOkPaths paths
   showPaths (showQueryHeader q) okPaths
   
 summariesOfInterest
