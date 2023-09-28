@@ -1,6 +1,7 @@
 module Flint.Prelude
   ( module Exports
   , hoistMaybeM
+  , removeNth
   , tryError
   ) where
 
@@ -14,9 +15,16 @@ import Control.Concurrent.Async as Exports (replicateConcurrently)
 hoistMaybeM :: Monad m => m (Maybe a) -> MaybeT m a
 hoistMaybeM m = lift m >>= maybe mzero return
 
+removeNth :: Int -> [a] -> [a]
+removeNth 0 [] = []
+removeNth 0 (_:xs) = xs
+removeNth _ [] = []
+removeNth n (x:xs) = x : removeNth (n - 1) xs
+
 -- | 'MonadError' analogue to the 'Control.Exception.try' function.
 tryError :: MonadError e m => m a -> m (Either e a)
 tryError action = (Right <$> action) `catchError` (pure . Left)
+
 
 -- newtype MatcherMonad a = MatcherMonad {
 --   _runMatcher :: StateT Int (ExceptT () Identity) a
