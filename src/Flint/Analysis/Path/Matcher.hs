@@ -351,8 +351,64 @@ matchNextStmt pat = checkAvoids >> peekNextStmt >>= \case
       Left _ -> retireStmt >> matchNextStmt pat
     Assert bexpr -> addBoundExpr bexpr
 
+
+newtype ResolveBoundExprError = CannotFindBoundVarIntState Symbol
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype (Hashable)
+
+resolveBoundExprSize
+  :: HashMap Symbol Pil.Expression
+  -> BoundExprSize
+  -> Either ResolveBoundExprError (Size Pil.Expression)
+resolveBoundExprSize _ (ConstSize sz) = Right sz
+resolveBoundExprSize m (SizeOf sym) = case HashMap.lookup sym m of
+  Nothing -> Left $ CannotFindBoundVarIntState sym
+  Just expr -> Right $ expr ^. #size
+
+resolveBoundExpr
+  :: HashMap Symbol Pil.Expression
+  -> BoundExpr
+  -> Either ResolveBoundExprError Pil.Expression
+resolveBoundExpr m (Bound sym) =
+  maybe (Left $ CannotFindBoundVarIntState sym) Right $ HashMap.lookup sym m
+resolveBoundExpr m (BoundExpr bsize op) =
+  Pil.Expression <$> resolveBoundExprSize m bsize <*> traverse (resolveBoundExpr m) op
+
+-- | Returns resolved statements as well as the count of assertions.
+getStmtsWithResolvedBounds :: MatcherState -> Either ResolveBoundExprError (Int, [Pil.Stmt])
+getStmtsWithResolvedBounds s = foldM f (0, []) . reverse $ s ^. #parsedStmtsWithAssertions
+  where
+    f :: (Int, [Pil.Stmt])
+      -> Either BoundExpr Pil.Stmt
+      -> Either ResolveBoundExprError (Int, [Pil.Stmt])
+    f (assertionCount, xs) (Right stmt) = return (assertionCount, stmt:xs)
+    f (assertionCount, xs) (Left bexpr) = do
+      expr <- resolveBoundExpr (s ^. #boundSyms) bexpr
+      let stmt = Pil.Constraint (Pil.ConstraintOp expr)
+      return (assertionCount + 1, stmt:xs)
+
 -- | Tries to match a series of statements with a list of patterns.
 -- If successful, return the MatcherState, which should be used later
 -- with the Solver to check the Asserts.
-matchStmts :: [StmtPattern] -> [Pil.Stmt] -> Maybe MatcherState
-matchStmts pats stmts = snd <$> runMatcher stmts (traverse_ matchNextStmt pats)
+matchStmts_ :: [StmtPattern] -> [Pil.Stmt] -> Maybe MatcherState
+matchStmts_ pats stmts = snd <$> runMatcher stmts (traverse_ matchNextStmt pats)
+
+data MatcherResult
+  = MatchNoAssertions [Pil.Stmt]
+  | MatchWithAssertions [Pil.Stmt] -- need to run solver on them
+  | NoMatch
+  | UnboundVariableError Symbol
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+-- | Matches list of statements with pattern. Returns new list of statements
+-- that may include added assertions.
+-- If Nothing, the patterns did not match.
+-- If (Just (Left err)), a var in a bound expr was not bound properly.
+-- If (Just (Right stmts)), the 
+matchStmts :: [StmtPattern] -> [Pil.Stmt] -> MatcherResult
+matchStmts pats stmts = case matchStmts_ pats stmts of
+  Nothing -> NoMatch
+  Just ms -> case getStmtsWithResolvedBounds ms of
+    Left (CannotFindBoundVarIntState sym) -> UnboundVariableError sym
+    Right (0, stmts') -> MatchNoAssertions stmts'
+    Right (_, stmts') -> MatchWithAssertions stmts'
