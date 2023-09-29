@@ -1,24 +1,28 @@
-module Flint.Analysis.Path.Matcher where
+module Flint.Analysis.Path.Matcher
+ ( module Flint.Analysis.Path.Matcher
+ ) where
 
-import Flint.Prelude hiding (Symbol)
+import Flint.Prelude hiding (Symbol, sym)
 
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
-import Blaze.Types.Pil (Expression, Stmt, PilVar, Size)
+import Blaze.Types.Pil (Size)
 
+import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 
 type Symbol = Text
 
 data Func
   = FuncName Text
   | FuncAddr Address
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
 data CallDest expr
   = CallFunc Func
   | CallIndirect expr
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
 data Statement expr
   = Def expr expr -- Def dst src; dst is always (Var PilVar) expr
@@ -32,38 +36,39 @@ data Statement expr
   | NoRet
   -- These are sort of supported by Call, since it matches against any CallStatement
   -- | TailCall (CallDest expr) [expr]
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
 data StmtPattern
   = Stmt (Statement ExprPattern)
   -- | Eventually StmtPattern
   -- | Avoid StmtPattern
-  -- | AvoidUntil Avoid
+  | AvoidUntil AvoidSpec
   | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
   | Unordered [StmtPattern] -- matches all, but in no particular order.
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
   | Assert BoundExpr -- Add a boolean expr constraint, using bound variables.
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize
   = ConstSize (Size Pil.Expression)
   | SizeOf Symbol  -- looks up symbol to get size of expr
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
   
 data BoundExpr
   = Bound Symbol -- gets expression that has been bound with Bind
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
 data ExprPattern
   = Expr (Pil.ExprOp ExprPattern)
-  -- binds expr to Sym if pattern matches, or if Sym already exists, sees if equal to old sym val
+  -- binds expr to Sym if pattern matches, or if Sym already exists.
+  -- sees if equal to old sym val
   -- This allows you to nest more binds within ExprPattern
   | Bind Symbol ExprPattern 
   | Var Symbol -- matches prefix of var name, like "arg4" will match "arg4-7#1"
   | Contains ExprPattern -- matches if ExprPattern matches somewhere inside expr
   | Wild
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- This example shows a failed check where they check the commbuffer size (arg4)
 -- but later access outside its range. Pseudo-pattern:
@@ -91,70 +96,15 @@ exampleCommBufferOobUsage =
   ]
                             
 
-
--- type Expr = Expression
-
--- -- data PilParserError = PilParserError
-
--- data MatcherState input = MatcherState
---   { input :: input
---   , boundSyms :: HashMap Symbol Pil.Expression
---   , extraConstraints :: [Pil.Stmt]
---   } deriving Generic
-
--- newtype MatcherMonad input a = MatcherMonad {
---   _runMatcher :: ExceptT () (StateT (MatcherState input) Identity) a
---   }
---   deriving newtype
---     ( Functor
---     , Applicative
---     , Monad
---     , MonadError ()
---     , MonadState (MatcherState input)
---     , Alternative
---     )
-
--- getInput :: Matcher a a
--- getInput 
-
--- matchDef :: Stmt -> (PilVer -> Matcher ()) -> (Expr -> Matcher ()) -> Matcher ()
--- matchDef (Pil.Def (Pil.DefOp destVar srcExpr)) = 
-  
--- def :: Matcher PilVar () -> Matcher Expr () -> Matcher Stmt ()
--- def a b = view #input >>= \case
---   Pil.Def (Pil.DefOp destVar srcExpr) -> 
-
--- load :: Matcher Expr () -> Matcher Expr ()
--- load = undefined
-
--- var :: Text -> Matcher Expr
--- var = undefined
-
--- bind :: Text -> Matcher Expr
--- bind = undefined
-
--- stmt :: Matcher Stmt -> Matcher [Stmt]
--- stmt = undefined
-
--- never :: Matcher Stmt -> Matcher [Stmt]
--- never = undefined
-
--- q :: [Matcher Stmt]
-
--- jackson = do
---   stmt $ def (bind "y") (load (var "arg4"))
-
--- data AvoidSpec = AvoidSpec
---   { avoid :: StmtPattern
---   , until :: StmtPattern
---   } deriving (Eq, Ord, Show, Generic)
+data AvoidSpec = AvoidSpec
+  { avoid :: StmtPattern
+  , until :: Maybe StmtPattern
+  } deriving (Eq, Ord, Show, Hashable, Generic)
 
 data MatcherState = MatcherState
   { remainingStmts :: [Pil.Stmt]
   , boundSyms :: HashMap Symbol Pil.Expression
-  -- , avoids :: [StmtPattern]
-  -- , avoids :: [AvoidSpec]
-
+  , avoids :: HashSet AvoidSpec
   -- The successfully parsed stmts, stored in reverse order
   -- possibly interleaved with Assertions
   , parsedStmtsWithAssertions :: [Either BoundExpr Pil.Stmt]
@@ -181,26 +131,12 @@ runMatcher_ action s
   $ action
 
 mkMatcherState :: [Pil.Stmt] -> MatcherState
-mkMatcherState stmts = MatcherState stmts HashMap.empty []
+mkMatcherState stmts = MatcherState stmts HashMap.empty HashSet.empty []
 
-runMatcher :: [Stmt] -> Matcher a -> Maybe (a, MatcherState)
+runMatcher :: [Pil.Stmt] -> Matcher a -> Maybe (a, MatcherState)
 runMatcher stmts action = case runMatcher_ action (mkMatcherState stmts) of
   (Left _, _) -> Nothing
   (Right x, s) -> Just (x, s)
-
--- matchStmt :: Statement ExprPattern -> Matcher ()
--- matchStmt stmt = do
-  
---   \case
---   Def a b -> 
-
--- matchStmtPattern :: StmtPattern -> Matcher ()
--- matchStmtPattern = \case
---   Stmt s -> matchStmt
---   _ -> undefined
-
--- addBoundExpr :: BoundExpr -> Matcher ()
--- addBoundExpr x = modify (\s -> s & #extraConstraints %~ (x:))
 
 -- | Gets and removes the next statement from remainingStatements
 takeNextStmt :: Matcher (Maybe Pil.Stmt)
@@ -220,7 +156,6 @@ peekNextStmt :: Matcher (Maybe Pil.Stmt)
 peekNextStmt = use #remainingStmts >>= \case
   [] -> return Nothing
   (x:_) -> return $ Just x
-
 
 -- | Restores a statement to the beginning of remainingStatements
 restoreStmt :: Pil.Stmt -> Matcher ()
@@ -258,8 +193,34 @@ bad = throwError ()
 insist :: Bool -> Matcher ()
 insist = bool bad good
 
+-- | This either adds a new sym/expr combo to the var bindings,
+-- or if the sym already exists, it checks to see if it matches.
+bind :: Symbol -> Pil.Expression -> Matcher ()
+bind sym expr = do
+  bsyms <- use #boundSyms
+  case HashMap.lookup sym bsyms of
+    Just expr' -> insist $ expr == expr'
+    Nothing -> #boundSyms %= HashMap.insert sym expr
+
+matchExprOp :: Pil.ExprOp ExprPattern -> Pil.ExprOp Pil.Expression -> Matcher ()
+matchExprOp opPat op = do
+  insist $ (const () <$> opPat) == (const () <$> op)
+  traverse_ (uncurry matchExpr) $ zip (toList opPat) (toList op)  
+
 matchExpr :: ExprPattern -> Pil.Expression -> Matcher ()
-matchExpr = undefined
+matchExpr pat expr = case pat of
+  Bind sym xpat -> do
+    matchExpr xpat expr
+    -- success
+    bind sym expr
+  Var prefixOfName -> case expr ^. #op of
+    Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf prefixOfName $ pv ^. #symbol
+    _ -> bad
+  Contains xpat -> do
+    backtrackOnError (matchExpr xpat expr)
+      <|> asum (backtrackOnError . matchExpr xpat <$> toList (expr ^. #op))
+  Wild -> return ()
+  Expr xop -> matchExprOp xop $ expr ^. #op    
 
 matchFuncPatWithFunc :: Func -> BFunc.Function -> Matcher ()
 matchFuncPatWithFunc (FuncName name) func = insist
@@ -303,12 +264,6 @@ matchStmt sPat stmt = case (sPat, stmt) of
   (NoRet, Pil.NoRet) -> good
     
   _ -> bad
- 
-
--- matchAvoid :: StmtPattern -> StmtPattern -> Matcher ()
--- matchAvoid avoid term = takeStmt >>= \case
---   Nothing -> return ()
---   Just stmt -> matchStmtPattern avoid
 
 backtrackOnError :: Matcher a -> Matcher a
 backtrackOnError action = do
@@ -329,19 +284,30 @@ addBoundExpr x = #parsedStmtsWithAssertions %= (Left x :)
 storeAsParsed :: Pil.Stmt -> Matcher ()
 storeAsParsed x = #parsedStmtsWithAssertions %= (Right x :)
 
--- checkAvoid :: AvoidSpec -> Matcher ()
--- checkAvoid (AvoidSpec avoid' until') = do
---   tryError (backTrackOnError matchNextStmt) >>= \case
---     Left _ -> always
 
--- tryUntilFirstSuccess
+checkAvoid :: AvoidSpec -> Matcher ()
+checkAvoid fullAvoid@(AvoidSpec avoid' mUntil) = case mUntil of
+  Nothing -> tryAvoid
+  Just until' -> tryError (backtrack $ matchNextStmt until') >>= \case
+    Left _ -> tryAvoid
+    -- Matched an "until", so remove the Avoid from the avoid state.
+    Right _ -> #avoids %= HashSet.delete fullAvoid
+  where
+    tryAvoid = tryError (backtrack $ matchNextStmt avoid') >>= \case
+      Left _ -> good -- Avoid has been avoided 
+      Right _ -> bad
+
+-- | This checks all the avoids and fails if any occur.
+-- The only state this changes is the avoid list
+checkAvoids :: Matcher ()
+checkAvoids = use #avoids >>= traverse_ checkAvoid
 
 -- | Matches the next statement with the next stmt pattern.
 matchNextStmt :: StmtPattern -> Matcher ()
-matchNextStmt pat = peekNextStmt >>= \case
+matchNextStmt pat = checkAvoids >> peekNextStmt >>= \case
   Nothing -> case pat of
     Stmt _ -> bad
-    -- Avoid _ -> good
+    AvoidUntil _ -> good
     AnyOne [] -> good
     AnyOne _ -> bad
     Unordered [] -> good
@@ -354,17 +320,11 @@ matchNextStmt pat = peekNextStmt >>= \case
       -- Matched Statement
       Right _ -> do
         retireStmt
-        -- clearAvoids
       -- Stmt failed to match. Try next stmt with same pattern.
       Left _ -> do
-        -- checkAvoids
         retireStmt
         matchNextStmt pat
-    -- Avoid avoid -> do
-    --   -- An Avoid pattern doesn't consume a statement
-    --   restoreStmt stmt
-    --   #avoids %= (avoid:)
-    --   return ()
+    AvoidUntil avoidSpec -> #avoids %= HashSet.insert avoidSpec
     AnyOne [] -> return ()
     AnyOne pats -> do
       tryError (asum $ backtrackOnError . matchNextStmt <$> pats) >>= \case
@@ -372,7 +332,6 @@ matchNextStmt pat = peekNextStmt >>= \case
         Right _ -> return ()
         -- Nothing matched. Try next stmt with same pattern.
         Left _ -> do
-          -- checkAvoids
           retireStmt
           matchNextStmt pat
     Unordered [] -> return ()
@@ -391,14 +350,9 @@ matchNextStmt pat = peekNextStmt >>= \case
       Right _ -> matchNextStmt $ Ordered pats
       Left _ -> retireStmt >> matchNextStmt pat
     Assert bexpr -> addBoundExpr bexpr
-    -- where
-      -- -- | Throws error if an avoid has been found.
-      -- checkAvoids = do
-      --   restoreStmt stmt
-      --   avds <- use #avoids
-      --   tryError (asum $ backtrackOnError . matchNextStmt <$> avds) >>= \case
-      --     -- Found an avoid
-      --     Right _ -> throwError ()
-      --     -- No avoid found. Remove restored stmt
-      --     Left _ -> takeNextStmt >> return ()
-  
+
+-- | Tries to match a series of statements with a list of patterns.
+-- If successful, return the MatcherState, which should be used later
+-- with the Solver to check the Asserts.
+matchStmts :: [StmtPattern] -> [Pil.Stmt] -> Maybe MatcherState
+matchStmts pats stmts = snd <$> runMatcher stmts (traverse_ matchNextStmt pats)

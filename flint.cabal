@@ -88,6 +88,7 @@ library
       , envy
       , extra
       , generic-lens
+      , generics-sop
       , ghidra
       , hashable
       , lens
