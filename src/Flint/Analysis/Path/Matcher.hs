@@ -410,5 +410,5 @@ matchStmts pats stmts = case matchStmts_ pats stmts of
   Nothing -> NoMatch
   Just ms -> case getStmtsWithResolvedBounds ms of
     Left (CannotFindBoundVarIntState sym) -> UnboundVariableError sym
-    Right (0, stmts') -> MatchNoAssertions stmts'
-    Right (_, stmts') -> MatchWithAssertions stmts'
+    Right (0, stmts') -> MatchNoAssertions $ stmts' <> ms ^. #remainingStmts
+    Right (_, stmts') -> MatchWithAssertions $ stmts' <> ms ^. #remainingStmts

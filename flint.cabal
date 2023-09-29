@@ -45,6 +45,7 @@ library
         Flint.Prelude
       , Flint.Analysis.Uefi
       , Flint.Analysis
+      , Flint.Analysis.Path.Matcher
       , Flint.Types.Analysis
       , Flint.Util
       , Flint.Cfg
