@@ -56,7 +56,8 @@ data BoundExprSize
   = ConstSize (Size Pil.Expression)
   | SizeOf Symbol  -- looks up symbol to get size of expr
   deriving (Eq, Ord, Show, Hashable, Generic)
-  
+
+
 data BoundExpr
   = Bound Symbol -- gets expression that has been bound with Bind
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)

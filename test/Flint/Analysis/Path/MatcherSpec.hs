@@ -210,4 +210,31 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = MatchNoAssertions stmts
       matchStmts pats stmts `shouldBe` expected
 
+    it "should make concrete assertion with empty stmt list" $ do
+      let stmts = []
+          mkConst = BoundExpr (ConstSize 4) . Pil.CONST . Pil.ConstOp
+          pats = [ Assert
+                   . BoundExpr (ConstSize 4)
+                   . Pil.CMP_E
+                   $ Pil.CmpEOp (mkConst 0) (mkConst 0)
+                 ]
+          stmts' = [constraint (cmpE (const 0 4) (const 0 4) 4)]
+          expected = MatchWithAssertions stmts'
+      matchStmts pats stmts `shouldBe` expected
+
+    it "should make assertion using bound vars" $ do
+      let stmts = [ def "a" (const 0 4)
+                  , def "b" (const 777 4)
+                  ]
+          pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                 , Stmt $ Def (Var "b") (Bind "y" Wild)
+                 , Assert
+                   . BoundExpr (ConstSize 4)
+                   . Pil.CMP_E
+                   $ Pil.CmpEOp (Bound "x") (Bound "y")
+                 ]
+          stmts' = stmts <> [constraint (cmpE (const 0 4) (const 777 4) 4)]
+          expected = MatchWithAssertions stmts'
+      matchStmts pats stmts `shouldBe` expected
+
       
