@@ -19,12 +19,10 @@ data Func
   | FuncAddr Address
   deriving (Eq, Ord, Show, Hashable, Generic)
 
-
 data CallDest expr
   = CallFunc Func
   | CallIndirect expr
   deriving (Eq, Ord, Show, Hashable, Generic)
-
 
 data Statement expr
   = Def expr expr -- Def dst src; dst is always (Var PilVar) expr
@@ -51,12 +49,10 @@ data StmtPattern
   | Assert BoundExpr -- Add a boolean expr constraint, using bound variables.
   deriving (Eq, Ord, Show, Hashable, Generic)
 
-
 data BoundExprSize
   = ConstSize (Size Pil.Expression)
   | SizeOf Symbol  -- looks up symbol to get size of expr
   deriving (Eq, Ord, Show, Hashable, Generic)
-
 
 data BoundExpr
   = Bound Symbol -- gets expression that has been bound with Bind
@@ -98,7 +94,6 @@ exampleCommBufferOobUsage =
   , Stmt $ Store (Expr . Pil.ADD $ Pil.AddOp (Var "arg3") (Bind "n" Wild)) (Bind "stored_val" Wild)
   , Assert . BoundExpr (ConstSize 8) . Pil.CMP_UGT $ Pil.CmpUgtOp (Bound "n") (Bound "max_length")
   ]
-                            
 
 data AvoidSpec = AvoidSpec
   { avoid :: StmtPattern
@@ -182,7 +177,6 @@ matchCallDest pat cdest = case pat of
       insist $ addr == addr'
     (FuncAddr addr, Pil.CallExtern (Pil.ExternPtrOp addr' _off _mSym)) ->
       insist $ addr == addr'
-
     _ -> bad
   CallIndirect destPat -> case cdest of
     Pil.CallExpr destExpr -> matchExpr destPat destExpr
@@ -266,7 +260,6 @@ matchStmt sPat stmt = case (sPat, stmt) of
   (Ret valPat, Pil.Ret (Pil.RetOp valExpr)) ->
     matchExpr valPat valExpr
   (NoRet, Pil.NoRet) -> good
-    
   _ -> bad
 
 backtrackOnError :: Matcher a -> Matcher a
@@ -287,7 +280,6 @@ addBoundExpr x = #parsedStmtsWithAssertions %= (Left x :)
 
 storeAsParsed :: Pil.Stmt -> Matcher ()
 storeAsParsed x = #parsedStmtsWithAssertions %= (Right x :)
-
 
 checkAvoid :: AvoidSpec -> Matcher ()
 checkAvoid fullAvoid@(AvoidSpec avoid' mUntil) = case mUntil of
@@ -358,7 +350,6 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         matchNextStmt pat
       else throwError ()
 
-
 newtype ResolveBoundExprError = CannotFindBoundVarIntState Symbol
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable)
@@ -400,7 +391,6 @@ getStmtsWithResolvedBounds s = foldM f (0, []) $ s ^. #parsedStmtsWithAssertions
 matchStmts_ :: [StmtPattern] -> [Pil.Stmt] -> Maybe MatcherState
 matchStmts_ pats stmts = fmap snd . runMatcher stmts $ do
   traverse_ matchNextStmt pats
-  -- matchNextStmt Bottom -- drain the remaining statements, checking for avoids
   drainRemainingStmts
   where
     drainRemainingStmts :: Matcher ()

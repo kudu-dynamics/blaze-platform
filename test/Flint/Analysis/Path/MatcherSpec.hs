@@ -7,7 +7,6 @@ import Flint.Prelude hiding (Symbol, sym, const)
 import Flint.Analysis.Path.Matcher
 
 import Blaze.Pil.Construct
-import Blaze.Pretty (prettyPrint')
 import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
