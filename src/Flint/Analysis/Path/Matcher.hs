@@ -19,10 +19,12 @@ data Func
   | FuncAddr Address
   deriving (Eq, Ord, Show, Hashable, Generic)
 
+
 data CallDest expr
   = CallFunc Func
   | CallIndirect expr
   deriving (Eq, Ord, Show, Hashable, Generic)
+
 
 data Statement expr
   = Def expr expr -- Def dst src; dst is always (Var PilVar) expr
@@ -48,6 +50,7 @@ data StmtPattern
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
   | Assert BoundExpr -- Add a boolean expr constraint, using bound variables.
   deriving (Eq, Ord, Show, Hashable, Generic)
+
 
 data BoundExprSize
   = ConstSize (Size Pil.Expression)
@@ -288,12 +291,12 @@ storeAsParsed x = #parsedStmtsWithAssertions %= (Right x :)
 checkAvoid :: AvoidSpec -> Matcher ()
 checkAvoid fullAvoid@(AvoidSpec avoid' mUntil) = case mUntil of
   Nothing -> tryAvoid
-  Just until' -> tryError (backtrack $ matchNextStmt until') >>= \case
+  Just until' -> tryError (backtrack $ matchNextStmt_ False False until') >>= \case
     Left _ -> tryAvoid
     -- Matched an "until", so remove the Avoid from the avoid state.
     Right _ -> #avoids %= HashSet.delete fullAvoid
   where
-    tryAvoid = tryError (backtrack $ matchNextStmt avoid') >>= \case
+    tryAvoid = tryError (backtrack $ matchNextStmt_ False False avoid') >>= \case
       Left _ -> good -- Avoid has been avoided 
       Right _ -> bad
 
@@ -302,9 +305,12 @@ checkAvoid fullAvoid@(AvoidSpec avoid' mUntil) = case mUntil of
 checkAvoids :: Matcher ()
 checkAvoids = use #avoids >>= traverse_ checkAvoid
 
--- | Matches the next statement with the next stmt pattern.
 matchNextStmt :: StmtPattern -> Matcher ()
-matchNextStmt pat = checkAvoids >> peekNextStmt >>= \case
+matchNextStmt = matchNextStmt_ True True
+
+-- | Matches the next statement with the next stmt pattern.
+matchNextStmt_ :: Bool -> Bool -> StmtPattern -> Matcher ()
+matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids checkAvoids >> peekNextStmt >>= \case
   Nothing -> case pat of
     Stmt _ -> bad
     AvoidUntil _ -> good
@@ -318,12 +324,9 @@ matchNextStmt pat = checkAvoids >> peekNextStmt >>= \case
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
       -- Matched Statement
-      Right _ -> do
-        retireStmt
+      Right _ -> retireStmt
       -- Stmt failed to match. Try next stmt with same pattern.
-      Left _ -> do
-        retireStmt
-        matchNextStmt pat
+      Left _ -> perhapsRecur
     AvoidUntil avoidSpec -> #avoids %= HashSet.insert avoidSpec
     AnyOne [] -> return ()
     AnyOne pats -> do
@@ -331,25 +334,28 @@ matchNextStmt pat = checkAvoids >> peekNextStmt >>= \case
         -- One of them matched.
         Right _ -> return ()
         -- Nothing matched. Try next stmt with same pattern.
-        Left _ -> do
-          retireStmt
-          matchNextStmt pat
+        Left _ -> perhapsRecur
     Unordered [] -> return ()
     Unordered pats -> do
       tryError (asum
-                 $ backtrackOnError
-                 . traverse matchNextStmt
-                 <$> zip [0..] pats
+                 $ backtrackOnError . traverse (matchNextStmt_ True False) <$> zip [0..] pats
                ) >>= \case
         -- One matched, now remove successful pattern from pats and continue
-        Right (i, _) -> matchNextStmt . Unordered $ removeNth i pats
+        Right (i, _) -> do
+          matchNextStmt . Unordered $ removeNth i pats
         -- No matches. Continue to next statement with same pattern.
-        Left _ -> retireStmt >> matchNextStmt pat
+        Left _ -> perhapsRecur
     Ordered [] -> return ()
     Ordered (p:pats) -> tryError (backtrackOnError $ matchNextStmt p) >>= \case
       Right _ -> matchNextStmt $ Ordered pats
-      Left _ -> retireStmt >> matchNextStmt pat
+      Left _ -> perhapsRecur
     Assert bexpr -> addBoundExpr bexpr
+  where
+    perhapsRecur = if tryNextStmtOnFailure
+      then do
+        retireStmt
+        matchNextStmt pat
+      else throwError ()
 
 
 newtype ResolveBoundExprError = CannotFindBoundVarIntState Symbol
@@ -376,7 +382,7 @@ resolveBoundExpr m (BoundExpr bsize op) =
 
 -- | Returns resolved statements as well as the count of assertions.
 getStmtsWithResolvedBounds :: MatcherState -> Either ResolveBoundExprError (Int, [Pil.Stmt])
-getStmtsWithResolvedBounds s = foldM f (0, []) . reverse $ s ^. #parsedStmtsWithAssertions
+getStmtsWithResolvedBounds s = foldM f (0, []) $ s ^. #parsedStmtsWithAssertions
   where
     f :: (Int, [Pil.Stmt])
       -> Either BoundExpr Pil.Stmt
@@ -391,7 +397,18 @@ getStmtsWithResolvedBounds s = foldM f (0, []) . reverse $ s ^. #parsedStmtsWith
 -- If successful, return the MatcherState, which should be used later
 -- with the Solver to check the Asserts.
 matchStmts_ :: [StmtPattern] -> [Pil.Stmt] -> Maybe MatcherState
-matchStmts_ pats stmts = snd <$> runMatcher stmts (traverse_ matchNextStmt pats)
+matchStmts_ pats stmts = fmap snd . runMatcher stmts $ do
+  traverse_ matchNextStmt pats
+  -- matchNextStmt Bottom -- drain the remaining statements, checking for avoids
+  drainRemainingStmts
+  where
+    drainRemainingStmts :: Matcher ()
+    drainRemainingStmts = use #remainingStmts >>= \case
+      [] -> return ()
+      _ -> do
+        checkAvoids
+        retireStmt
+        drainRemainingStmts
 
 data MatcherResult
   = MatchNoAssertions [Pil.Stmt]
