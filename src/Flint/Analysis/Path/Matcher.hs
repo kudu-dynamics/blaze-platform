@@ -3,7 +3,11 @@ module Flint.Analysis.Path.Matcher
  ) where
 
 import Flint.Prelude hiding (Symbol, sym)
+import Flint.Analysis.Uefi ( resolveCalls )
 
+import Blaze.Cfg.Path (PilPath)
+import qualified Blaze.Cfg.Path as Path
+import qualified Blaze.Pil.Analysis.Path as PA
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size)
@@ -11,6 +15,7 @@ import Blaze.Types.Pil (Size)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
+
 
 type Symbol = Text
 
@@ -61,12 +66,18 @@ data BoundExpr
 
 data ExprPattern
   = Expr (Pil.ExprOp ExprPattern)
-  -- binds expr to Sym if pattern matches, or if Sym already exists.
-  -- sees if equal to old sym val
-  -- This allows you to nest more binds within ExprPattern
-  | Bind Symbol ExprPattern 
-  | Var Symbol -- matches prefix of var name, like "arg4" will match "arg4-7#1"
-  | Contains ExprPattern -- matches if ExprPattern matches somewhere inside expr
+
+  -- | Binds expr to Sym if pattern matches, or if Sym already exists,
+  -- sees if equal to old sym val.
+  -- You can nest more binds within the ExprPattern.
+  | Bind Symbol ExprPattern
+
+  -- | Matches prefix of var name, like "arg4" will match "arg4-7#1".
+  -- Also matches against ConstFuncPtrs that a name.
+  | Var Symbol
+
+  -- | Matches if ExprPattern matches somewhere inside expr
+  | Contains ExprPattern
   | Wild
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -213,10 +224,12 @@ matchExpr pat expr = case pat of
     bind sym expr
   Var prefixOfName -> case expr ^. #op of
     Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf prefixOfName $ pv ^. #symbol
+    Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
+      insist $ Text.isPrefixOf prefixOfName symb
     _ -> bad
   Contains xpat -> do
     backtrackOnError (matchExpr xpat expr)
-      <|> asum (backtrackOnError . matchExpr xpat <$> toList (expr ^. #op))
+      <|> asum (backtrackOnError . matchExpr (Contains xpat) <$> toList (expr ^. #op))
   Wild -> return ()
   Expr xop -> matchExprOp xop $ expr ^. #op    
 
@@ -225,6 +238,7 @@ matchFuncPatWithFunc (FuncName name) func = insist
   $ func ^. #name == name
   || func ^? #symbol . #_Just . #_symbolName == Just name
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
+
 
 matchStmt :: Statement ExprPattern -> Pil.Stmt -> Matcher ()
 matchStmt sPat stmt = case (sPat, stmt) of
@@ -244,7 +258,7 @@ matchStmt sPat stmt = case (sPat, stmt) of
     Just (Pil.CallStatement _ callOp argExprs mResultVar) -> do
       matchCallDest callDestPat $ callOp ^. #dest
       case (mResultPat, mResultVar) of
-        (Nothing, Nothing) -> good
+        (Nothing, _) -> good
         (Just resultPat, Just resultVar) -> do
           let pvExpr = Pil.Expression (coerce $ resultVar ^. #size) . Pil.VAR $ Pil.VarOp resultVar
           matchExpr resultPat pvExpr
@@ -420,3 +434,12 @@ matchStmts pats stmts = case matchStmts_ pats stmts of
     Left (CannotFindBoundVarIntState sym) -> UnboundVariableError sym
     Right (0, stmts') -> MatchNoAssertions $ stmts' <> ms ^. #remainingStmts
     Right (_, stmts') -> MatchWithAssertions $ stmts' <> ms ^. #remainingStmts
+
+matchPath :: [StmtPattern] -> PilPath -> MatcherResult
+matchPath pat = matchStmts pat
+  . resolveCalls
+  . PA.aggressiveExpand
+  . Path.toStmts
+  
+
+  

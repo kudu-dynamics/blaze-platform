@@ -61,6 +61,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = MatchNoAssertions stmts
       matchStmts pats stmts `shouldBe` expected
 
+    it "should match on a ConstFuncPtr with Var" $ do
+      let funcPtr = Pil.Expression 4
+            . Pil.ConstFuncPtr
+            . Pil.ConstFuncPtrOp 0x888
+            $ Just "funcTable"
+          stmts = [def "b" funcPtr]
+          pats = [Stmt $ Def (Var "b") (Var "funcTable")]
+          expected = MatchNoAssertions stmts
+      matchStmts pats stmts `shouldBe` expected
+
     it "should fail to match match a var if prefix of name is different" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "a") Wild]
@@ -69,6 +79,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match an expression that Contains a variable" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
+          pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
+          expected = MatchNoAssertions stmts
+      matchStmts pats stmts `shouldBe` expected
+
+    it "should match a more complex expression that Contains a variable" $ do
+      let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
           expected = MatchNoAssertions stmts
       matchStmts pats stmts `shouldBe` expected
@@ -143,6 +159,47 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    [Var "nope", Wild]
                  ]
           expected = NoMatch
+      matchStmts pats stmts `shouldBe` expected
+
+    it "should match on a call to a named function with a return variable even if the pattern for the return variable is Nothing" $ do
+      let cdest = Pil.CallFunc func0
+          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+                  ]
+          pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
+                 ]
+          expected = MatchNoAssertions stmts
+      matchStmts pats stmts `shouldBe` expected
+
+
+    it "should match on an indirect call" $ do
+      let cdest = Pil.CallExpr $ var "x" 4
+          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+                  ]
+          pats = [ Stmt $ Call Nothing (CallIndirect $ Var "x") [Wild, Wild]
+                 ]
+          expected = MatchNoAssertions stmts
+      matchStmts pats stmts `shouldBe` expected
+
+    it "should match on an indirect call using Contains" $ do
+      let cdest = Pil.CallExpr $ load (add (var "x" 4) (const 1 4) 4) 4
+          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+                  ]
+          pats = [ Stmt $ Call Nothing (CallIndirect . Contains $ Var "x") [Wild, Wild]
+                 ]
+          expected = MatchNoAssertions stmts
+      matchStmts pats stmts `shouldBe` expected
+
+    it "should match on an expr in an indirect call to a const func ptr" $ do
+      let funcPtr = Pil.Expression 4
+            . Pil.ConstFuncPtr
+            . Pil.ConstFuncPtrOp 0x888
+            $ Just "funcTable"
+          cdest = Pil.CallExpr $ load (add funcPtr (const 0x4e 4) 4) 4
+          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+                  ]
+          pats = [ Stmt (Call Nothing (CallIndirect . Contains $ Var "funcTable") [Wild, Wild])
+                 ]
+          expected = MatchNoAssertions stmts
       matchStmts pats stmts `shouldBe` expected
 
     it "should match on AnyOne" $ do

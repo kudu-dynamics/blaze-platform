@@ -4,6 +4,8 @@ module Flint.Analysis
 
 import Flint.Prelude
 
+import Flint.Analysis.Path.Matcher ( matchPath, MatcherResult )
+import qualified Flint.Analysis.Path.Matcher as Matcher
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Cfg ( expandCfgToDepth )
 import Flint.Types.Analysis
@@ -138,7 +140,7 @@ showCodeSummary s = do
   pp' . NewlinedList . sort $ s ^. #effects
   return ()
 
-showPaths :: Text -> [Path (CfNode [Stmt])] -> IO ()
+showPaths :: Text -> [PilPath] -> IO ()
 showPaths title paths = do
   putText $ "\n\n=========================\n" <> title <> "\n===============================\n"
   forM_ paths $ \p -> do
@@ -151,6 +153,39 @@ showPaths title paths = do
     let summary = Summary.removeKilledWrites . Summary.fromStmts . resolveCalls $ ps'
     showCodeSummary summary
     putText "--------------------\n"
+
+showPathsWithMatches :: Text -> [(PilPath, [(MatcherResult, BugMatch)])] -> IO ()
+showPathsWithMatches title paths = do
+  putText $ "\n\n=========================\n" <> title <> "\n===============================\n"
+  forM_ paths $ \(p, matches) -> do
+    let ps = Path.toStmts p
+        ps' = simplify ps
+    putText "---------------------"
+    prettyStmts' ps'
+    putText "\n"
+    putText "Summary:"
+    let summary = Summary.removeKilledWrites . Summary.fromStmts . resolveCalls $ ps'
+    showCodeSummary summary
+    putText "--------------------\n"
+    putText "Bug Matches:"
+    traverse showBugMatch matches
+
+showBugMatch :: (MatcherResult, BugMatch) -> IO ()
+showBugMatch (r, bm) = do
+  putText $ bm ^. #bugName <> ":"
+  case r of
+    Matcher.NoMatch -> putText "No match."
+    Matcher.MatchNoAssertions _ -> foundBug False
+    Matcher.MatchWithAssertions _ -> foundBug True
+    Matcher.UnboundVariableError s -> putText $ "Unbound variable in bug pattern: " <> s
+  putText "\n"
+  where
+    foundBug hasAssertions = do
+      putText $ "Found Primitive:"
+      putText $ bm ^. #bugDescription
+      putText $ "Suggested Mitigation:"
+      putText $ bm ^. #mitigationAdvice
+      when hasAssertions $ putText "Under Construction Warning: this bug was found with assertions added during pattern matching, which have not yet been checked by a solver."
 
 showPathsOfInterest :: [(BndbFilePath, [(Address, [Address])])] -> IO ()
 showPathsOfInterest = traverse_ handleBin
@@ -240,12 +275,20 @@ showQueryHeader = \case
     showTarget :: (Function, Address) -> Text
     showTarget (func, addr) = pretty' addr <> func ^. #name
 
-showQuerySummaries :: CfgStore -> Query Function -> IO ()
-showQuerySummaries store q = do
+showQuerySummaries :: CfgStore -> (Query Function, [BugMatch]) -> IO ()
+showQuerySummaries store (q, bugMatchers) = do
   paths <- samplesFromQuery store q
   okPaths <- return paths -- filterOkPaths paths
-  showPaths (showQueryHeader q) okPaths
-  
+  let withMatches = flip fmap okPaths
+        $ \p -> ( p
+                , flip fmap bugMatchers $ \bm ->
+                    ( matchPath (bm ^. #pathPattern) p
+                    , bm
+                    )
+                )
+  showPathsWithMatches (showQueryHeader q) withMatches
+  -- showPaths (showQueryHeader q) okPaths
+
 summariesOfInterest
   :: forall imp func.
      ( BinaryImporter imp

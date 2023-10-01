@@ -4,6 +4,7 @@ module Flint.Types.Query
 
 import Flint.Prelude
 
+import Flint.Analysis.Path.Matcher (StmtPattern)
 import Blaze.Types.Function (Function)
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.CallGraph as Cg
@@ -11,10 +12,18 @@ import qualified Blaze.Import.CallGraph as Cg
 
 -- | Types used for query/search
 
+data BugMatch = BugMatch
+  { pathPattern :: [StmtPattern]
+  , bugName :: Text
+  , bugDescription :: Text
+  , mitigationAdvice :: Text
+  } deriving (Eq, Ord, Show, Generic)
+
 data BinarySearchConfig imp func = BinarySearchConfig
   { excludeFuncsFromStore :: [func]
   , binaryPath :: FilePath
-  , queries :: [Query func]
+  -- | runs the query to get paths, then the PathMatch to look for bugs in paths
+  , queries :: [(Query func, [BugMatch])]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   
 data QueryTargetOpts func = QueryTargetOpts
