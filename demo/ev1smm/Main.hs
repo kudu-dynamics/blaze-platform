@@ -113,6 +113,25 @@ import qualified Data.HashSet as HashSet
 --     ]    
 --   }
 
+failedToCheckCommBufferIsOutsideSmramPattern :: [StmtPattern]
+failedToCheckCommBufferIsOutsideSmramPattern =
+  [ AvoidUntil $ AvoidSpec
+    (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
+    Nothing
+  , AnyOne [ Stmt $ Store (Contains (Var "arg3")) Wild
+           , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Contains (Var "arg3"), Wild, Wild]
+           ]
+  ]
+
+failedToCheckCommBufferIsOutsideSmramBug :: BugMatch
+failedToCheckCommBufferIsOutsideSmramBug = BugMatch
+  { pathPattern = failedToCheckCommBufferIsOutsideSmramPattern
+  , bugName = "Arbitrary Write to SMRAM"
+  , bugDescription = "This path writes a value to an address in the user-controlled CommBuffer (arg3) without first checking to make sure arg3 is pointing outside of SMRAM, allowing a user to overwrite SMRAM."
+  , mitigationAdvice = "Before writing to the CommBuffer in any way, SmmIsBufferOutsideSmmValid should be called on the user-supplied pointer to the CommBuffer to ensure it is not pointing inside SMRAM."
+  }
+
+
 smmCalloutPattern :: [StmtPattern]
 smmCalloutPattern =
   [ AnyOne
@@ -129,8 +148,8 @@ smmCalloutBug = BugMatch
   , mitigationAdvice = "Instead of calling gRT or gBS, use EFI_SYSTEM_TABLE *gSmst from SmmServicesTableLib (for traditional MM modules) or EFI_MM_SYSTEM_TABLE *gMmst from MmServicesTableLib (for standalone MM modules)."
   }
 
-queryVariableInfo :: BinarySearchConfig BNImporter FuncConfig
-queryVariableInfo = BinarySearchConfig
+queryVariableInfoConfig :: BinarySearchConfig BNImporter FuncConfig
+queryVariableInfoConfig = BinarySearchConfig
   { binaryPath = "/tmp/e1smm/QueryVariableInfo.debug.bndb"
   , excludeFuncsFromStore = []
   , queries =
@@ -144,14 +163,25 @@ queryVariableInfo = BinarySearchConfig
     ]    
   }
 
+rwVariableConfig :: BinarySearchConfig BNImporter FuncConfig
+rwVariableConfig = BinarySearchConfig
+  { binaryPath = "/tmp/e1smm/RWVariable.debug.bndb"
+  , excludeFuncsFromStore = []
+  , queries =
+    [
+      ( QueryAllPaths $ QueryAllPathsOpts
+        { start = FuncSym "RWVariableHandler"
+        }
+      , [ smmCalloutBug
+        , failedToCheckCommBufferIsOutsideSmramBug
+        ]
+      )
+    ]    
+  }
 
 main :: IO ()
 main = do
   putText "starting"
-  -- summariesOfInterest variableSmmConfig
-  -- summariesOfInterest lockboxSmmConfig
-  -- summariesOfInterest blSupportSmmConfig
-  -- summariesOfInterest variableSmmRuntimeDxeConfig
-  -- summariesOfInterest rwVariableConfig
-  summariesOfInterest queryVariableInfo
+  -- summariesOfInterest queryVariableInfoConfig
+  summariesOfInterest rwVariableConfig
   putText "finished"
