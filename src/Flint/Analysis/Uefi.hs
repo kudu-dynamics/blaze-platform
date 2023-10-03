@@ -102,6 +102,7 @@ stNames :: HashMap Int Symbol
 stNames =
     HMap.fromList
         [ (0x58, "RuntimeServices")
+        , (0x60, "BootServices")
         ]
 
 isCall :: Stmt -> Bool
