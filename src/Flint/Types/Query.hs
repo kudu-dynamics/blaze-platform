@@ -4,7 +4,7 @@ module Flint.Types.Query
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher (StmtPattern)
+import Flint.Analysis.Path.Matcher (StmtPattern, BoundText)
 import Blaze.Types.Function (Function)
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.CallGraph as Cg
@@ -15,8 +15,8 @@ import qualified Blaze.Import.CallGraph as Cg
 data BugMatch = BugMatch
   { pathPattern :: [StmtPattern]
   , bugName :: Text
-  , bugDescription :: Text
-  , mitigationAdvice :: Text
+  , bugDescription :: BoundText
+  , mitigationAdvice :: BoundText
   } deriving (Eq, Ord, Show, Generic)
 
 data BinarySearchConfig imp func = BinarySearchConfig

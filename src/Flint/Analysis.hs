@@ -4,7 +4,7 @@ module Flint.Analysis
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher ( matchPath, MatcherResult )
+import Flint.Analysis.Path.Matcher ( matchPath, MatcherResult, MatcherState )
 import qualified Flint.Analysis.Path.Matcher as Matcher
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Cfg ( expandCfgToDepth )
@@ -154,7 +154,7 @@ showPaths title paths = do
     showCodeSummary summary
     putText "--------------------\n"
 
-showPathsWithMatches :: Text -> [(PilPath, [(MatcherResult, BugMatch)])] -> IO ()
+showPathsWithMatches :: Text -> [(PilPath, [((MatcherState, MatcherResult), BugMatch)])] -> IO ()
 showPathsWithMatches title paths = do
   putText $ "\n\n=========================\n" <> title <> "\n===============================\n"
   forM_ paths $ \(p, matches) -> do
@@ -170,8 +170,8 @@ showPathsWithMatches title paths = do
     putText "Bug Matches:"
     traverse showBugMatch matches
 
-showBugMatch :: (MatcherResult, BugMatch) -> IO ()
-showBugMatch (r, bm) = do
+showBugMatch :: ((MatcherState, MatcherResult), BugMatch) -> IO ()
+showBugMatch ((ms, r), bm) = do
   putText $ bm ^. #bugName <> ":"
   case r of
     Matcher.NoMatch -> putText "No match."
@@ -180,11 +180,12 @@ showBugMatch (r, bm) = do
     Matcher.UnboundVariableError s -> putText $ "Unbound variable in bug pattern: " <> s
   putText "\n"
   where
+    resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
     foundBug hasAssertions = do
       putText $ "Found Primitive:"
-      putText $ bm ^. #bugDescription
+      putText $ resolveText $ bm ^. #bugDescription
       putText $ "Suggested Mitigation:"
-      putText $ bm ^. #mitigationAdvice
+      putText $ resolveText $ bm ^. #mitigationAdvice
       when hasAssertions $ putText "Under Construction Warning: this bug was found with assertions added during pattern matching, which have not yet been checked by a solver."
 
 showPathsOfInterest :: [(BndbFilePath, [(Address, [Address])])] -> IO ()

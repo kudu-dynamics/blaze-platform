@@ -8,12 +8,14 @@ import Flint.Analysis.Uefi ( resolveCalls )
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
+import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import Data.String (IsString(fromString))
 import qualified Data.Text as Text
 
 
@@ -63,6 +65,20 @@ data BoundExpr
   = Bound Symbol -- gets expression that has been bound with Bind
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+-- | Text that can refer to variables bound during pattern matching
+data BoundText
+  = TextExpr Symbol
+  | PureText Text
+  | CombineText BoundText BoundText
+  | CaseContains BoundText [(Text, BoundText)]
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+instance Semigroup BoundText where
+  a <> b = CombineText a b
+
+instance IsString BoundText where
+  fromString = PureText . cs
 
 data ExprPattern
   = Expr (Pil.ExprOp ExprPattern)
@@ -143,10 +159,10 @@ runMatcher_ action s
 mkMatcherState :: [Pil.Stmt] -> MatcherState
 mkMatcherState stmts = MatcherState stmts HashMap.empty HashSet.empty []
 
-runMatcher :: [Pil.Stmt] -> Matcher a -> Maybe (a, MatcherState)
+runMatcher :: [Pil.Stmt] -> Matcher a -> (MatcherState, Maybe a)
 runMatcher stmts action = case runMatcher_ action (mkMatcherState stmts) of
-  (Left _, _) -> Nothing
-  (Right x, s) -> Just (x, s)
+  (Left _, s) -> (s, Nothing)
+  (Right x, s) -> (s, Just x)
 
 -- | Gets and removes the next statement from remainingStatements
 takeNextStmt :: Matcher (Maybe Pil.Stmt)
@@ -364,7 +380,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         matchNextStmt pat
       else throwError ()
 
-newtype ResolveBoundExprError = CannotFindBoundVarIntState Symbol
+newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable)
 
@@ -374,7 +390,7 @@ resolveBoundExprSize
   -> Either ResolveBoundExprError (Size Pil.Expression)
 resolveBoundExprSize _ (ConstSize sz) = Right sz
 resolveBoundExprSize m (SizeOf sym) = case HashMap.lookup sym m of
-  Nothing -> Left $ CannotFindBoundVarIntState sym
+  Nothing -> Left $ CannotFindBoundVarInState sym
   Just expr -> Right $ expr ^. #size
 
 resolveBoundExpr
@@ -382,9 +398,24 @@ resolveBoundExpr
   -> BoundExpr
   -> Either ResolveBoundExprError Pil.Expression
 resolveBoundExpr m (Bound sym) =
-  maybe (Left $ CannotFindBoundVarIntState sym) Right $ HashMap.lookup sym m
+  maybe (Left $ CannotFindBoundVarInState sym) Right $ HashMap.lookup sym m
 resolveBoundExpr m (BoundExpr bsize op) =
   Pil.Expression <$> resolveBoundExprSize m bsize <*> traverse (resolveBoundExpr m) op
+
+resolveBoundText
+  :: HashMap Symbol Pil.Expression
+  -> BoundText
+  -> Text
+resolveBoundText m (TextExpr sym) = maybe ("<cannot find expr sym: " <> sym <> ">") pretty'
+  $ HashMap.lookup sym m
+resolveBoundText _ (PureText t) = t
+resolveBoundText m (CombineText a b) = resolveBoundText m a <> resolveBoundText m b
+resolveBoundText m (CaseContains bt cases) = let t = resolveBoundText m bt in
+  maybe ("<" <> t <> " matches no cases: " <> show (fst <$> cases) <> ">")
+  (resolveBoundText m)
+  . headMay
+  . mapMaybe (\(c, r) -> if Text.isInfixOf c t then Just r else Nothing)
+  $ cases
 
 -- | Returns resolved statements as well as the count of assertions.
 getStmtsWithResolvedBounds :: MatcherState -> Either ResolveBoundExprError (Int, [Pil.Stmt])
@@ -400,10 +431,11 @@ getStmtsWithResolvedBounds s = foldM f (0, []) $ s ^. #parsedStmtsWithAssertions
       return (assertionCount + 1, stmt:xs)
 
 -- | Tries to match a series of statements with a list of patterns.
--- If successful, return the MatcherState, which should be used later
--- with the Solver to check the Asserts.
-matchStmts_ :: [StmtPattern] -> [Pil.Stmt] -> Maybe MatcherState
-matchStmts_ pats stmts = fmap snd . runMatcher stmts $ do
+-- Returns MatcherState and bool indicating initial success.
+-- Any Asserts that were generating during the match will need to be
+-- sent to the solver later.
+runMatchStmts :: [StmtPattern] -> [Pil.Stmt] -> (MatcherState, Bool)
+runMatchStmts pats stmts = over _2 (maybe False (const True)) . runMatcher stmts $ do
   traverse_ matchNextStmt pats
   drainRemainingStmts
   where
@@ -424,22 +456,19 @@ data MatcherResult
 
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.
--- If Nothing, the patterns did not match.
--- If (Just (Left err)), a var in a bound expr was not bound properly.
--- If (Just (Right stmts)), the 
-matchStmts :: [StmtPattern] -> [Pil.Stmt] -> MatcherResult
-matchStmts pats stmts = case matchStmts_ pats stmts of
-  Nothing -> NoMatch
-  Just ms -> case getStmtsWithResolvedBounds ms of
-    Left (CannotFindBoundVarIntState sym) -> UnboundVariableError sym
+matchStmts :: [StmtPattern] -> [Pil.Stmt] -> (MatcherState, MatcherResult)
+matchStmts pats stmts = case runMatchStmts pats stmts of
+  (ms, False) -> (ms, NoMatch)
+  (ms, True) -> (ms,) $ case getStmtsWithResolvedBounds ms of
+    Left (CannotFindBoundVarInState sym) -> UnboundVariableError sym
     Right (0, stmts') -> MatchNoAssertions $ stmts' <> ms ^. #remainingStmts
     Right (_, stmts') -> MatchWithAssertions $ stmts' <> ms ^. #remainingStmts
 
-matchPath :: [StmtPattern] -> PilPath -> MatcherResult
+matchStmts' :: [StmtPattern] -> [Pil.Stmt] -> MatcherResult
+matchStmts' pats = snd . matchStmts pats
+
+matchPath :: [StmtPattern] -> PilPath -> (MatcherState, MatcherResult)
 matchPath pat = matchStmts pat
   . resolveCalls
   . PA.aggressiveExpand
-  . Path.toStmts
-  
-
-  
+  . Path.toStmts  

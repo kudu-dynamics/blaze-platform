@@ -142,11 +142,22 @@ smmCalloutPattern =
 
 smmCalloutBug :: BugMatch
 smmCalloutBug = BugMatch
-  { pathPattern = smmCalloutPattern
+  { pathPattern =
+    [ AnyOne
+      [ nonSmmTableCall "gRT"
+      , nonSmmTableCall "gBS"
+      ]
+    ]
   , bugName = "SMM Callout"
-  , bugDescription = "This path makes a call to gRT or gBS from within an SMI handler. Because gRT and gBS are stored in OS memory, ring 0 is able to modify pointers in the function tables to gain arbitrary code execution."
-  , mitigationAdvice = "Instead of calling gRT or gBS, use EFI_SYSTEM_TABLE *gSmst from SmmServicesTableLib (for traditional MM modules) or EFI_MM_SYSTEM_TABLE *gMmst from MmServicesTableLib (for standalone MM modules)."
+  , bugDescription =
+    "This path makes an indirect call to `" <> TextExpr "fullAddr" <> "` from within an SMI handler. Because `" <> TextExpr "globalTable" <> "` is stored in OS memory, ring 0 is able to modify pointers in the function tables to gain arbitrary code execution."
+  , mitigationAdvice = "Instead of calling `" <> TextExpr "globalTable" <> "`, use EFI_SYSTEM_TABLE *gSmst from SmmServicesTableLib (for traditional MM modules) or EFI_MM_SYSTEM_TABLE *gMmst from MmServicesTableLib (for standalone MM modules)."
   }
+  where
+    nonSmmTableCall tableName =
+      Stmt $ Call Nothing
+      (CallIndirect . Bind "fullAddr" . Contains . Bind "globalTable" $ Var tableName)
+      []
 
 queryVariableInfoConfig :: BinarySearchConfig BNImporter FuncConfig
 queryVariableInfoConfig = BinarySearchConfig
@@ -182,6 +193,6 @@ rwVariableConfig = BinarySearchConfig
 main :: IO ()
 main = do
   putText "starting"
-  -- summariesOfInterest queryVariableInfoConfig
-  summariesOfInterest rwVariableConfig
+  summariesOfInterest queryVariableInfoConfig
+  -- summariesOfInterest rwVariableConfig
   putText "finished"
