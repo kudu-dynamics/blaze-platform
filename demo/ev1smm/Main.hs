@@ -9,6 +9,7 @@ import Flint.Types.Query
 
 import qualified Binja.Core as BN
 import Blaze.Import.Source.BinaryNinja (BNImporter)
+import qualified Blaze.Types.Pil as Pil
 
 import System.Directory (listDirectory)
 import qualified Data.HashSet as HashSet
@@ -112,6 +113,38 @@ import qualified Data.HashSet as HashSet
 --       -- }
 --     ]    
 --   }
+
+-- This example shows a failed check where they check the commbuffer size (arg4)
+-- but later access outside its range. Pseudo-pattern:
+--
+-- bind 'y' = [arg4]
+-- if (bind 'y' < bind 'length')
+-- call SmmIsBufferOutsideSmmValid(arg3, bind 'y')
+-- [arg3 + (bind 'n')] = (bind "store_val") _ where (bind 'n' > bind 'length')
+
+
+commBufferOobWriteBug :: BugMatch
+commBufferOobWriteBug = BugMatch
+  { pathPattern =
+      [ Stmt $ Def (Bind "y" Wild) (Expr . Pil.LOAD . Pil.LoadOp $ Var "arg4")
+      , Unordered
+        [ AnyOne
+          [ Stmt $ BranchCond . Expr . Pil.CMP_ULT $ Pil.CmpUltOp (Bind "y" Wild) (Bind "max_length" Wild)
+          , Stmt $ BranchCond . Expr . Pil.CMP_UGE $ Pil.CmpUgeOp (Bind "max_length" Wild) (Bind "y" Wild)
+          ]
+        , Stmt $ Call (Just Wild) (CallFunc (FuncName "SmmIsBufferOutsideSmmValid"))
+          [ Var "arg3"
+          , Bind "y" Wild
+          ]
+        ]
+      , Stmt $ Store (Expr . Pil.ADD $ Pil.AddOp (Var "arg3") (Bind "n" Wild)) (Bind "stored_val" Wild)
+      , Assert . BoundExpr (ConstSize 8) . Pil.CMP_UGT $ Pil.CmpUgtOp (Bound "n") (Bound "max_length")
+      ]
+  , bugName = "CommBuffer Out of Bounds Write"
+  , bugDescription =
+    "In this path, the CommBuffer size (arg4) is properly copied to a local variable, then checked to be less than `" <> TextExpr "max_length" <> "` and checked to reside outside SMRAM by calling `SmmIsBufferOutsideSmmValid`, but the CommBuffer (arg3) is later written to at offset `" <> TextExpr "n" <> "`, which could be greater than `" <> TextExpr "max_length" <> "`. This allows an attacker to possibly overwrite the beginning of SMRAM."
+  , mitigationAdvice = "Ensure that the value of `arg4` is checked to be smaller than the maximum size of the `CommBuffer`."
+  }
 
 failedToCheckCommBufferIsOutsideSmramPattern :: [StmtPattern]
 failedToCheckCommBufferIsOutsideSmramPattern =

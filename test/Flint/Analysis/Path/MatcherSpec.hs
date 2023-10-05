@@ -31,35 +31,43 @@ path2 =
 func0 :: Function
 func0 = Function Nothing "func0" 0x888 []
 
+
+
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher" $ do
   context "matchStmts" $ do
     it "should match empty list of stmts when provided no patterns" $ do
-      matchStmts [] [] `shouldBe` MatchNoAssertions []
+      matchStmts' [] [] `shouldBe` MatchNoAssertions []
 
     it "should match full list of stmts when provided no patterns" $ do
       let stmts = path1
           pats = []
           expected = MatchNoAssertions path1
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should fail to match stmt pattern when there are no statements" $ do
       let stmts = []
           pats = [Stmt $ Def Wild Wild]
           expected = NoMatch
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on a def statement" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def Wild Wild]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
+
+    it "should match on an immediate" $ do
+      let stmts = [def "b" (const 33 4)]
+          pats = [Stmt $ Def Wild Immediate]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on a var" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "b") Wild]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on a ConstFuncPtr with Var" $ do
       let funcPtr = Pil.Expression 4
@@ -69,25 +77,25 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [def "b" funcPtr]
           pats = [Stmt $ Def (Var "b") (Var "funcTable")]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should fail to match match a var if prefix of name is different" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "a") Wild]
           expected = NoMatch
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match an expression that Contains a variable" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match a more complex expression that Contains a variable" $ do
       let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on two statements in a row" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -97,7 +105,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  , Stmt $ Def (Var "c") Wild
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on two statements, skipping non-matching ones in the middle" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -109,7 +117,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  , Stmt $ Def (Var "c") Wild
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match an expression has been bound to sym" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -119,7 +127,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  , Stmt $ Def (Var "c") (Bind "x" Wild)
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should fail to match an expression that has been bound to a different sym" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -129,7 +137,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  , Stmt $ Def (Var "c") (Bind "x" Wild)
                  ]
           expected = NoMatch
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should skip over statement with expression that has been bound to different sym, but then match a later statement" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -140,7 +148,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  , Stmt $ Def Wild (Bind "x" Wild)
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on a call to a named function" $ do
       let cdest = Pil.CallFunc func0
@@ -149,7 +157,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should not match on a call to a named function if args do not parse" $ do
       let cdest = Pil.CallFunc func0
@@ -159,7 +167,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    [Var "nope", Wild]
                  ]
           expected = NoMatch
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on a call to a named function with a return variable even if the pattern for the return variable is Nothing" $ do
       let cdest = Pil.CallFunc func0
@@ -168,7 +176,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
 
     it "should match on an indirect call" $ do
@@ -178,7 +186,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Call Nothing (CallIndirect $ Var "x") [Wild, Wild]
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on an indirect call using Contains" $ do
       let cdest = Pil.CallExpr $ load (add (var "x" 4) (const 1 4) 4) 4
@@ -187,7 +195,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Call Nothing (CallIndirect . Contains $ Var "x") [Wild, Wild]
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on an expr in an indirect call to a const func ptr" $ do
       let funcPtr = Pil.Expression 4
@@ -200,7 +208,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt (Call Nothing (CallIndirect . Contains $ Var "funcTable") [Wild, Wild])
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on AnyOne" $ do
       let stmts = [ def "b" (const 0 4)
@@ -210,7 +218,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                           ]
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match Ordered statements" $ do
       let stmts = [ def "b" (const 0 4)
@@ -224,7 +232,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  , Stmt $ Def (Var "d") Wild
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should match on unordered statements" $ do
       let stmts = [ def "b" (const 0 4)
@@ -235,7 +243,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                              ]
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should avoid single statement" $ do
       let stmts = [ def "b" (const 0 4)
@@ -243,7 +251,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ AvoidUntil $ AvoidSpec (Stmt $ Def (Var "b") Wild) Nothing
                  ]
           expected = NoMatch
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should avoid later statement" $ do
       let stmts = [ def "a" (const 0 4)
@@ -252,7 +260,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ AvoidUntil $ AvoidSpec (Stmt $ Def (Var "b") Wild) Nothing
                  ]
           expected = NoMatch
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should avoid until" $ do
       let stmts = [ def "a" (const 0 4)
@@ -264,7 +272,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    (Just . Stmt $ Def (Var "wiff") Wild)
                  ]
           expected = MatchNoAssertions stmts
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should make concrete assertion with empty stmt list" $ do
       let stmts = []
@@ -276,7 +284,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  ]
           stmts' = [constraint (cmpE (const 0 4) (const 0 4) 4)]
           expected = MatchWithAssertions stmts'
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
     it "should make assertion using bound vars" $ do
       let stmts = [ def "a" (const 0 4)
@@ -291,6 +299,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  ]
           stmts' = stmts <> [constraint (cmpE (const 0 4) (const 777 4) 4)]
           expected = MatchWithAssertions stmts'
-      matchStmts pats stmts `shouldBe` expected
+      matchStmts' pats stmts `shouldBe` expected
 
       

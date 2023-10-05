@@ -92,6 +92,9 @@ data ExprPattern
   -- Also matches against ConstFuncPtrs that a name.
   | Var Symbol
 
+  -- | Matches if its an immediate, like a const int, ptr, float, etc.
+  | Immediate
+  
   -- | Matches if ExprPattern matches somewhere inside expr
   | Contains ExprPattern
   | Wild
@@ -242,6 +245,13 @@ matchExpr pat expr = case pat of
     Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf prefixOfName $ pv ^. #symbol
     Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
       insist $ Text.isPrefixOf prefixOfName symb
+    _ -> bad
+  Immediate -> case expr ^. #op of
+    Pil.CONST _ -> good
+    Pil.CONST_PTR _ -> good
+    Pil.CONST_FLOAT _ -> good
+    Pil.ConstStr _ -> good
+    Pil.ConstFuncPtr _ -> good
     _ -> bad
   Contains xpat -> do
     backtrackOnError (matchExpr xpat expr)
