@@ -176,7 +176,11 @@ showBugMatch ((ms, r), bm) = do
   case r of
     Matcher.NoMatch -> putText "No match."
     Matcher.MatchNoAssertions _ -> foundBug False
-    Matcher.MatchWithAssertions _ -> foundBug True
+    Matcher.MatchWithAssertions stmts -> do
+      foundBug True
+      putText "Here are the new statements:\n"
+      prettyStmts' stmts
+      putText "\n"
     Matcher.UnboundVariableError s -> putText $ "Unbound variable in bug pattern: " <> s
   putText "\n"
   where
@@ -184,7 +188,7 @@ showBugMatch ((ms, r), bm) = do
     foundBug hasAssertions = do
       putText $ "Found Primitive:"
       putText $ resolveText $ bm ^. #bugDescription
-      putText $ "Suggested Mitigation:"
+      putText $ "\nSuggested Mitigation:"
       putText $ resolveText $ bm ^. #mitigationAdvice
       when hasAssertions $ putText "Under Construction Warning: this bug was found with assertions added during pattern matching, which have not yet been checked by a solver."
 
