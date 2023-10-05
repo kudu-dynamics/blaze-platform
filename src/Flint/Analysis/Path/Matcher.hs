@@ -53,6 +53,8 @@ data StmtPattern
   | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
   | Unordered [StmtPattern] -- matches all, but in no particular order.
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
+  -- | Add a constraint that 'src' is involved in the definition of 'dst'
+  | Taints {src :: BoundExpr, dst :: BoundExpr}
   | Assert BoundExpr -- Add a boolean expr constraint, using bound variables.
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -353,6 +355,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Unordered _ -> bad
     Ordered [] -> good
     Ordered _ -> bad
+    Taints _ _ -> good  -- FIXME
     Assert boundExpr -> addBoundExpr boundExpr >> good
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -382,6 +385,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Ordered (p:pats) -> tryError (backtrackOnError $ matchNextStmt p) >>= \case
       Right _ -> matchNextStmt $ Ordered pats
       Left _ -> perhapsRecur
+    Taints _ _ -> pure ()  -- FIXME
     Assert bexpr -> addBoundExpr bexpr
   where
     perhapsRecur = if tryNextStmtOnFailure
