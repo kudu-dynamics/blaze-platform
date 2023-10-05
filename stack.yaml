@@ -16,5 +16,6 @@ extra-deps:
       - jvm
   - git: https://github.com/tweag/distributed-closure
     commit: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
+  - language-c-0.9.2
 
 rebuild-ghc-options: true
