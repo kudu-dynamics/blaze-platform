@@ -15,104 +15,6 @@ import System.Directory (listDirectory)
 import qualified Data.HashSet as HashSet
 
 
--- variableSmmRuntimeDxeConfig :: BinarySearchConfig BNImporter FuncConfig
--- variableSmmRuntimeDxeConfig = BinarySearchConfig
---   { binaryPath = "/tmp/e1smm/VariableSmmRuntimeDxe.bndb"
---   , excludeFuncsFromStore = []
---   , queries =
---     [
---       QueryAllPaths $ QueryAllPathsOpts
---       { start = FuncSym "RuntimeServiceQueryVariableInfo"
---       }
---     ,
---       QueryAllPaths $ QueryAllPathsOpts
---       { start = FuncSym "RuntimeServiceGetVariable"
---       }
---     ]    
---   }
-
--- blSupportSmmConfig :: BinarySearchConfig BNImporter FuncConfig
--- blSupportSmmConfig = BinarySearchConfig
---   { binaryPath = "/tmp/e1smm/BlSupportSmm.bndb"
---   , excludeFuncsFromStore = []
---   , queries =
---     [
---       QueryAllPaths $ QueryAllPathsOpts
---       { start = FuncSym "BlSwSmiHandler"
---       }    
---     ]    
---   }
-
-
--- variableSmmConfig :: BinarySearchConfig BNImporter FuncConfig
--- variableSmmConfig = BinarySearchConfig
---   { binaryPath = "/tmp/e1smm/VariableSmm.bndb"
---   , excludeFuncsFromStore = []
---   , queries =
---     [
---       -- QueryExploreDeep $ QueryExploreDeepOpts
---       -- { start = FuncSym "VariableServiceQueryVariableInfoInternal"
---       -- , callExpandDepthLimit = 10
---       -- , numSamples = 500
---       -- },
---       -- QueryExploreDeep $ QueryExploreDeepOpts
---       -- { start = FuncSym "VariableServiceQueryVariableInfo"
---       -- , callExpandDepthLimit = 1
---       -- , numSamples = 50
---       -- },
-
---       -- QueryAllPaths $ QueryAllPathsOpts
---       -- { start = FuncSym "VariableServiceQueryVariableInfoInternal"
---       -- },
-
---       QueryAllPaths $ QueryAllPathsOpts
---       { start = FuncSym "VariableServiceSetVariable"
---       }
-
-    
---     ]    
---   }
-
--- lockboxSmmConfig :: BinarySearchConfig BNImporter FuncConfig
--- lockboxSmmConfig = BinarySearchConfig
---   { binaryPath = "/tmp/e1smm/SmmLockBox.bndb"
---   , excludeFuncsFromStore = []
---   , queries =
---     [
---       QueryTarget $ QueryTargetOpts
---       { start = FuncSym "SmmLockBoxHandler"
---       , mustReachSome = (FuncSym "RestoreLockBox", 0x175c) :| []
---       , callExpandDepthLimit = 20
---       , numSamples = 200
---       }
---     -- ,
---       -- QueryTarget $ QueryTargetOpts
---       -- { start = FuncSym "SmmLockBoxHandler"
---       -- , mustReachSome = (FuncSym "CopyMem", 0x166b) :| []
---       -- , callExpandDepthLimit = 20
---       -- , numSamples = 300
---       -- }
---     ]    
---   }
-
--- rwVariableConfig :: BinarySearchConfig BNImporter FuncConfig
--- rwVariableConfig = BinarySearchConfig
---   { binaryPath = "/tmp/e1smm/RWVariable.debug.bndb"
---   , excludeFuncsFromStore = []
---   , queries =
---     [
---       QueryAllPaths $ QueryAllPathsOpts
---       { start = FuncSym "RWVariableHandler"
---       }
---     -- ,
---       -- QueryTarget $ QueryTargetOpts
---       -- { start = FuncSym "SmmLockBoxHandler"
---       -- , mustReachSome = (FuncSym "CopyMem", 0x166b) :| []
---       -- , callExpandDepthLimit = 20
---       -- , numSamples = 300
---       -- }
---     ]    
---   }
 
 -- This example shows a failed check where they check the commbuffer size (arg4)
 -- but later access outside its range. Pseudo-pattern:
@@ -158,9 +60,16 @@ failedToCheckCommBufferIsOutsideSmramPattern =
 
 failedToCheckCommBufferIsOutsideSmramBug :: BugMatch
 failedToCheckCommBufferIsOutsideSmramBug = BugMatch
-  { pathPattern = failedToCheckCommBufferIsOutsideSmramPattern
+  { pathPattern =
+    [ AvoidUntil $ AvoidSpec
+      (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
+      Nothing
+    , AnyOne [ Stmt $ Store (Bind "fullAddr" (Contains (Var "arg3"))) (Bind "value" Wild)
+             , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), (Bind "value" Wild), Wild]
+             ]
+    ]
   , bugName = "Arbitrary Write to SMRAM"
-  , bugDescription = "This path writes a value to an address in the user-controlled CommBuffer (arg3) without first checking to make sure arg3 is pointing outside of SMRAM, allowing a user to overwrite SMRAM."
+  , bugDescription = "This path writes a value `" <> TextExpr "value" <> "' to the address `" <> TextExpr "fullAddr" <> "`, which contains the user-controlled CommBuffer (arg3), without first checking to make sure arg3 is pointing outside of SMRAM, allowing a user to overwrite SMRAM."
   , mitigationAdvice = "Before writing to the CommBuffer in any way, SmmIsBufferOutsideSmmValid should be called on the user-supplied pointer to the CommBuffer to ensure it is not pointing inside SMRAM."
   }
 
@@ -226,6 +135,6 @@ rwVariableConfig = BinarySearchConfig
 main :: IO ()
 main = do
   putText "starting"
-  summariesOfInterest queryVariableInfoConfig
-  -- summariesOfInterest rwVariableConfig
+  -- summariesOfInterest queryVariableInfoConfig
+  summariesOfInterest rwVariableConfig
   putText "finished"

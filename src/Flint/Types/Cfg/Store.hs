@@ -4,7 +4,7 @@ import Flint.Prelude
 
 import Blaze.Types.Function (Function)
 
-import Blaze.Types.CallGraph (CallGraph)
+import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (PilCfg, PilNode, CallNode)
 import Blaze.Types.Graph (DescendantsMap)
 import Blaze.Types.Pil (Stmt)
@@ -28,4 +28,5 @@ data CfgStore = CfgStore
   , callGraphCache :: CachedCalc () CallGraph
   -- CallGraph, but all the edges are reversed. Useful for getting ancestors
   , transposedCallGraphCache :: CachedCalc () CallGraph
+  , callSitesCache :: CachedCalc Function [CallSite]
   } deriving (Generic)
