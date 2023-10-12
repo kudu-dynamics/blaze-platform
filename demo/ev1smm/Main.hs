@@ -73,6 +73,27 @@ failedToCheckCommBufferIsOutsideSmramBug = BugMatch
   , mitigationAdvice = "Before writing to the CommBuffer in any way, SmmIsBufferOutsideSmmValid should be called on the user-supplied pointer to the CommBuffer to ensure it is not pointing inside SMRAM."
   }
 
+failedToCheckCommBufferIsOutsideSmramArbitraryReadBug :: BugMatch
+failedToCheckCommBufferIsOutsideSmramArbitraryReadBug =
+  let getVariable = Expr . Pil.LOAD . Pil.LoadOp
+                    . Expr . Pil.LOAD . Pil.LoadOp $ Var "mSmmVariable"
+      setVariable = Expr . Pil.LOAD . Pil.LoadOp
+                    . Expr . Pil.ADD $ Pil.AddOp
+                             (Expr . Pil.LOAD . Pil.LoadOp $ Var "mSmmVariable")
+                             (Expr . Pil.CONST . Pil.ConstOp $ 0x10)
+  in
+    BugMatch
+    { pathPattern =
+      [ AvoidUntil $ AvoidSpec
+        (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
+        Nothing
+      , Stmt $ Call Nothing (CallIndirect setVariable) [Wild, Wild, Wild, Wild, Bind "srcBuffer" $ Contains (Var "arg3")]
+      ]
+    , bugName = "Arbitrary Read from SMRAM through NV Variable"
+    , bugDescription = "In this path, the call to `setVariable` fills the contents of a NV variable with the contents of a buffer at location `" <> TextExpr "srcBuffer" <> "', which is at least partially controlled by the user-supplied CommBuffer (arg3), possibly allowing a user to read memory from SMRAM."
+    , mitigationAdvice = "Before writing to the CommBuffer in any way, SmmIsBufferOutsideSmmValid should be called on the user-supplied pointer to the CommBuffer to ensure it is not pointing inside SMRAM."
+  }
+
 
 smmCalloutPattern :: [StmtPattern]
 smmCalloutPattern =
@@ -116,6 +137,24 @@ queryVariableInfoConfig = BinarySearchConfig
     ]    
   }
 
+smmLightConfig :: BinarySearchConfig BNImporter FuncConfig
+smmLightConfig = BinarySearchConfig
+  { binaryPath = "/tmp/e1smm/HwSmmLight.debug.bndb"
+  , excludeFuncsFromStore = []
+  , queries =
+    [
+      ( QueryAllPaths $ QueryAllPathsOpts
+        { start = FuncSym "UnregisterCBFunctionLight"
+        }
+      , [ smmCalloutBug
+        , failedToCheckCommBufferIsOutsideSmramArbitraryReadBug
+        , failedToCheckCommBufferIsOutsideSmramBug
+        , commBufferOobWriteBug
+        ]
+      )
+    ]    
+  }
+
 rwVariableConfig :: BinarySearchConfig BNImporter FuncConfig
 rwVariableConfig = BinarySearchConfig
   { binaryPath = "/tmp/e1smm/RWVariable.debug.bndb"
@@ -127,14 +166,16 @@ rwVariableConfig = BinarySearchConfig
         }
       , [ smmCalloutBug
         , failedToCheckCommBufferIsOutsideSmramBug
+        , failedToCheckCommBufferIsOutsideSmramArbitraryReadBug
         ]
       )
-    ]    
+    ]
   }
 
 main :: IO ()
 main = do
   putText "starting"
   -- summariesOfInterest queryVariableInfoConfig
-  summariesOfInterest rwVariableConfig
+  -- summariesOfInterest rwVariableConfig
+  summariesOfInterest smmLightConfig
   putText "finished"
