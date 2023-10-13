@@ -63,6 +63,42 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = MatchNoAssertions stmts
       matchStmts' pats stmts `shouldBe` expected
 
+    it "should match .== for integral CmpE" $ do
+      let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
+          pats = [Stmt . BranchCond $ Wild .== Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
+
+    it "should match .== for float FcmpE" $ do
+      let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
+          pats = [Stmt . BranchCond $ Wild .== Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
+
+    it "should match .== for integral (Not (Not (CmpE ...)))" $ do
+      let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
+          pats = [Stmt . BranchCond $ Wild .== Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
+
+    it "should match .== for integral (Not (CmpNe ...))" $ do
+      let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
+          pats = [Stmt . BranchCond $ Wild .== Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
+
+    it "should match .== for float (Not (Not (fcmpE ...)))" $ do
+      let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
+          pats = [Stmt . BranchCond $ Wild .== Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
+
+    it "should match .== for float (Not (fcmpNe ...))" $ do
+      let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
+          pats = [Stmt . BranchCond $ Wild .== Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' pats stmts `shouldBe` expected
+
     it "should match on a var" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "b") Wild]

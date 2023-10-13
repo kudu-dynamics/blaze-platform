@@ -100,32 +100,48 @@ data ExprPattern
   -- | Matches if ExprPattern matches somewhere inside expr
   | Contains ExprPattern
   | Wild
+
+  -- | Inequalities. These match on converse inequalities that mean the same thing,
+  -- like `not (x != y)` would match `x .== y`, and `x < y` would match `y .> x`
+  -- It also will work for signed or unsigned ints and floats.
+  -- TODO: add explicit signed/unsigned variants if deemed important
+  -- TODO: do we need NOT? and if so, do we want a thing that just says
+  --       the expr needs to be true?
+  | Cmp CmpType ExprPattern ExprPattern
   deriving (Eq, Ord, Show, Hashable, Generic)
 
--- This example shows a failed check where they check the commbuffer size (arg4)
--- but later access outside its range. Pseudo-pattern:
---
--- bind 'y' = [arg4]
--- if (bind 'y' < bind 'length')
--- call SmmIsBufferOutsideSmmValid(arg3, bind 'y')
--- [arg3 + (bind 'n')] = (bind "store_val") _ where (bind 'n' > bind 'length')
+data CmpType
+  = CmpE
+  | CmpNE
+  | CmpGT
+  | CmpGE
+  | CmpLT
+  | CmpLE
+  deriving (Eq, Ord, Show, Hashable, Generic)
 
-exampleCommBufferOobUsage :: [StmtPattern]
-exampleCommBufferOobUsage =
-  [ Stmt $ Def (Bind "y" Wild) (Expr . Pil.LOAD . Pil.LoadOp $ Var "arg4")
-  , Unordered
-    [ AnyOne
-      [ Stmt $ BranchCond . Expr . Pil.CMP_ULT $ Pil.CmpUltOp (Bind "y" Wild) (Bind "max_length" Wild)
-      , Stmt $ BranchCond . Expr . Pil.CMP_UGE $ Pil.CmpUgeOp (Bind "max_length" Wild) (Bind "y" Wild)
-      ]
-    , Stmt $ Call (Just Wild) (CallFunc (FuncName "SmmIsBufferOutsideSmmValid"))
-      [ Var "arg3"
-      , Bind "y" Wild
-      ]
-    ]
-  , Stmt $ Store (Expr . Pil.ADD $ Pil.AddOp (Var "arg3") (Bind "n" Wild)) (Bind "stored_val" Wild)
-  , Assert . BoundExpr (ConstSize 8) . Pil.CMP_UGT $ Pil.CmpUgtOp (Bound "n") (Bound "max_length")
-  ]
+(.==) :: ExprPattern -> ExprPattern -> ExprPattern
+(.==) a b = Cmp CmpE a b
+infix 4 .==
+
+(./=) :: ExprPattern -> ExprPattern -> ExprPattern
+(./=) a b = Cmp CmpNE a b
+infix 4 ./=
+
+(.<) :: ExprPattern -> ExprPattern -> ExprPattern
+(.<) a b = Cmp CmpLT a b
+infix 4 .<
+
+(.<=) :: ExprPattern -> ExprPattern -> ExprPattern
+(.<=) a b = Cmp CmpLE a b
+infix 4 .<=
+
+(.>) :: ExprPattern -> ExprPattern -> ExprPattern
+(.>) a b = Cmp CmpGT a b
+infix 4 .>
+
+(.>=) :: ExprPattern -> ExprPattern -> ExprPattern
+(.>=) a b = Cmp CmpGE a b
+infix 4 .>=
 
 data AvoidSpec = AvoidSpec
   { avoid :: StmtPattern
@@ -232,6 +248,111 @@ bind sym expr = do
     Just expr' -> insist $ expr == expr'
     Nothing -> #boundSyms %= HashMap.insert sym expr
 
+
+-- | Tries to absorb a "not" into a bool expression.
+-- For instance, `(not (x == y))` will become `(x != y)`,
+-- `(not (x < y))` will become `(x >= y)`, and `(not (not x))`
+-- will become `x`, and `(not x)` will just remain `(not x)`
+-- if Bool is true, then try to negate the expr
+absorbNots_ :: Bool -> Pil.Expression -> Pil.Expression
+-- The True case means an outer "Not" has already been foudn
+absorbNots_ True expr = case expr ^. #op of
+  -- (not (not x)) = x
+  Pil.NOT (Pil.NotOp x) -> absorbNots_ False x
+
+  Pil.CMP_E (Pil.CmpEOp a b) -> mkExpr . Pil.CMP_NE $ Pil.CmpNeOp a b
+  Pil.CMP_NE (Pil.CmpNeOp a b) -> mkExpr . Pil.CMP_E $ Pil.CmpEOp a b
+
+  Pil.CMP_SGE (Pil.CmpSgeOp a b) -> mkExpr . Pil.CMP_SLT $ Pil.CmpSltOp a b
+  Pil.CMP_SGT (Pil.CmpSgtOp a b) -> mkExpr . Pil.CMP_SLE $ Pil.CmpSleOp a b
+  Pil.CMP_SLE (Pil.CmpSleOp a b) -> mkExpr . Pil.CMP_SGT $ Pil.CmpSgtOp a b
+  Pil.CMP_SLT (Pil.CmpSltOp a b) -> mkExpr . Pil.CMP_SGE $ Pil.CmpSgeOp a b
+
+  Pil.CMP_UGE (Pil.CmpUgeOp a b) -> mkExpr . Pil.CMP_ULT $ Pil.CmpUltOp a b
+  Pil.CMP_UGT (Pil.CmpUgtOp a b) -> mkExpr . Pil.CMP_ULE $ Pil.CmpUleOp a b
+  Pil.CMP_ULE (Pil.CmpUleOp a b) -> mkExpr . Pil.CMP_UGT $ Pil.CmpUgtOp a b
+  Pil.CMP_ULT (Pil.CmpUltOp a b) -> mkExpr . Pil.CMP_UGE $ Pil.CmpUgeOp a b
+
+  Pil.FCMP_E (Pil.FcmpEOp a b) -> mkExpr . Pil.FCMP_NE $ Pil.FcmpNeOp a b
+  Pil.FCMP_NE (Pil.FcmpNeOp a b) -> mkExpr . Pil.FCMP_E $ Pil.FcmpEOp a b
+
+  Pil.FCMP_GE (Pil.FcmpGeOp a b) -> mkExpr . Pil.FCMP_LT $ Pil.FcmpLtOp a b
+  Pil.FCMP_GT (Pil.FcmpGtOp a b) -> mkExpr . Pil.FCMP_LE $ Pil.FcmpLeOp a b
+  Pil.FCMP_LE (Pil.FcmpLeOp a b) -> mkExpr . Pil.FCMP_GT $ Pil.FcmpGtOp a b
+  Pil.FCMP_LT (Pil.FcmpLtOp a b) -> mkExpr . Pil.FCMP_GE $ Pil.FcmpGeOp a b
+
+  -- Put the NOT back on because it can't be absorbed
+  _ -> mkExpr . Pil.NOT $ Pil.NotOp expr
+
+  where mkExpr = Pil.Expression $ expr ^. #size
+absorbNots_ False expr = case expr ^. #op of
+  Pil.NOT (Pil.NotOp x) -> absorbNots_ True x
+  _ -> expr
+
+absorbNots :: Pil.Expression -> Pil.Expression
+absorbNots = absorbNots_ False
+
+matchCmp
+  :: CmpType
+  -> ExprPattern
+  -> ExprPattern
+  -> Pil.Expression
+  -> Matcher ()
+matchCmp cmpType patA patB expr = case cmpType of
+  CmpE -> case op of
+    Pil.CMP_E (Pil.CmpEOp a b) -> bimatch a b <|> bimatch b a
+    Pil.FCMP_E (Pil.FcmpEOp a b) -> bimatch a b <|> bimatch b a
+    _ -> bad
+  CmpNE -> case op of
+    Pil.CMP_NE (Pil.CmpNeOp a b) -> bimatch a b <|> bimatch b a
+    Pil.FCMP_NE (Pil.FcmpNeOp a b) -> bimatch a b <|> bimatch b a
+    _ -> bad
+
+  CmpGT -> case op of
+    Pil.CMP_SGT (Pil.CmpSgtOp a b) -> bimatch a b
+    Pil.CMP_UGT (Pil.CmpUgtOp a b) -> bimatch a b
+    Pil.CMP_SLT (Pil.CmpSltOp a b) -> bimatch b a
+    Pil.CMP_ULT (Pil.CmpUltOp a b) -> bimatch b a
+
+    Pil.FCMP_GT (Pil.FcmpGtOp a b) -> bimatch a b
+    Pil.FCMP_LT (Pil.FcmpLtOp a b) -> bimatch b a
+    _ -> bad
+
+  CmpGE -> case op of
+    Pil.CMP_SGE (Pil.CmpSgeOp a b) -> bimatch a b
+    Pil.CMP_UGE (Pil.CmpUgeOp a b) -> bimatch a b
+    Pil.CMP_SLE (Pil.CmpSleOp a b) -> bimatch b a
+    Pil.CMP_ULE (Pil.CmpUleOp a b) -> bimatch b a
+
+    Pil.FCMP_GE (Pil.FcmpGeOp a b) -> bimatch a b
+    Pil.FCMP_LE (Pil.FcmpLeOp a b) -> bimatch b a
+    _ -> bad
+
+  CmpLT -> case op of
+    Pil.CMP_SLT (Pil.CmpSltOp a b) -> bimatch a b
+    Pil.CMP_ULT (Pil.CmpUltOp a b) -> bimatch a b
+    Pil.CMP_SGT (Pil.CmpSgtOp a b) -> bimatch b a
+    Pil.CMP_UGT (Pil.CmpUgtOp a b) -> bimatch b a
+
+    Pil.FCMP_LT (Pil.FcmpLtOp a b) -> bimatch a b
+    Pil.FCMP_GT (Pil.FcmpGtOp a b) -> bimatch b a
+    _ -> bad
+
+  CmpLE -> case op of
+    Pil.CMP_SLE (Pil.CmpSleOp a b) -> bimatch a b
+    Pil.CMP_ULE (Pil.CmpUleOp a b) -> bimatch a b
+    Pil.CMP_SGE (Pil.CmpSgeOp a b) -> bimatch b a
+    Pil.CMP_UGE (Pil.CmpUgeOp a b) -> bimatch b a
+
+    Pil.FCMP_LE (Pil.FcmpLeOp a b) -> bimatch a b
+    Pil.FCMP_GE (Pil.FcmpGeOp a b) -> bimatch b a
+    _ -> bad
+
+  where
+    bimatch a b = backtrackOnError $ matchExpr patA a >> matchExpr patB b
+    exprWithAbsorbedNots = absorbNots expr
+    op = exprWithAbsorbedNots ^. #op
+
 matchExprOp :: Pil.ExprOp ExprPattern -> Pil.ExprOp Pil.Expression -> Matcher ()
 matchExprOp opPat op = do
   insist $ (const () <$> opPat) == (const () <$> op)
@@ -259,7 +380,8 @@ matchExpr pat expr = case pat of
     backtrackOnError (matchExpr xpat expr)
       <|> asum (backtrackOnError . matchExpr (Contains xpat) <$> toList (expr ^. #op))
   Wild -> return ()
-  Expr xop -> matchExprOp xop $ expr ^. #op    
+  Expr xop -> matchExprOp xop $ expr ^. #op
+  Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
 
 matchFuncPatWithFunc :: Func -> BFunc.Function -> Matcher ()
 matchFuncPatWithFunc (FuncName name) func = insist
