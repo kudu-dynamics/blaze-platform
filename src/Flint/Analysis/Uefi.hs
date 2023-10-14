@@ -21,6 +21,8 @@ import Blaze.Pil qualified as Pil
 import Control.Lens (findOf)
 import qualified Data.HashMap.Strict as HMap
 
+import Flint.Types.Analysis (Parameter (..), TaintPropagator (..))
+
 {- | Lookup table for boot services functions.
 Maps offsets to names.
 -}
@@ -104,6 +106,23 @@ stNames =
         [ (0x58, "RuntimeServices")
         , (0x60, "BootServices")
         ]
+
+-- | Known taint propagators in UEFI.
+--
+-- TODO: control of NVRAM variables is not fully modeled. Instead, it is assumed
+-- that an OS-level user controls both the entire NVRAM storage and the name and
+-- GUID of the variable being referenced by the call to (SMM)(Get/Set)Variable
+--
+-- FIXME: recognition of (SMM)(Get/Set)Variable is not working because they are
+-- not direct calls with symbol information but rather indirect calls into the
+-- @gRT@ or @gSMST@ tables
+taintPropagators :: [TaintPropagator]
+taintPropagators =
+  [ FunctionCallPropagator "GetVariable"    (Other "nvram") (Parameter 4)
+  , FunctionCallPropagator "SetVariable"    (Parameter 4)   (Other "nvram")
+  , FunctionCallPropagator "SmmGetVariable" (Other "nvram") (Parameter 4)
+  , FunctionCallPropagator "SmmSetVariable" (Parameter 4)   (Other "nvram")
+  ]
 
 isCall :: Stmt -> Bool
 isCall (Def (DefOp _var (Expression _sz (CALL _callOp)))) = True

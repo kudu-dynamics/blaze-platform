@@ -155,6 +155,7 @@ data MatcherState = MatcherState
   -- The successfully parsed stmts, stored in reverse order
   -- possibly interleaved with Assertions
   , parsedStmtsWithAssertions :: [Either BoundExpr Pil.Stmt]
+  , taintSet :: HashSet Taint
   } deriving Generic
 
 newtype Matcher a = Matcher {
@@ -177,8 +178,33 @@ runMatcher_ action s
   . _runMatcher
   $ action
 
+mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
+mkTaintSet tps = HashSet.unions . fmap mkStmtTaintSet
+  where
+    mkStmtTaintSet (Pil.Def (Pil.DefOp dst src)) =
+      HashSet.fromList $
+        interestingSubexpressions src <&>
+          (\case
+              Pil.Expression _ (Pil.VAR (Pil.VarOp src')) -> Taint (Left src') (Left dst))
+              src' -> Taint (Right src') (Left dst))
+    mkStmtTaintSet (Pil.Store (Pil.StoreOp dst src)) =
+      HashSet.fromList $
+        interestingSubexpressions src <&>
+          (\case
+              Pil.Expression _ (Pil.VAR (Pil.VarOp src')) -> Taint (Left src') (Left dst))
+              src' -> Taint (Right src') (Left dst))
+    interestingSubexpressions :: Pil.Expression -> [Pil.Expression]
+    interestingSubexpressions e =
+      case e ^. #op of
+        Pil.CONST _ -> []
+        Pil.CONST_PTR _ -> []
+        Pil.CONST_FLOAT _ -> []
+        Pil.ConstStr _ -> []
+        Pil.ConstFuncPtr _ -> []
+        op -> e : foldMap interestingSubexpressions (toList op)
+
 mkMatcherState :: [Pil.Stmt] -> MatcherState
-mkMatcherState stmts = MatcherState stmts HashMap.empty HashSet.empty []
+mkMatcherState stmts = MatcherState stmts HashMap.empty HashSet.empty [] HashSet.empty
 
 runMatcher :: [Pil.Stmt] -> Matcher a -> (MatcherState, Maybe a)
 runMatcher stmts action = case runMatcher_ action (mkMatcherState stmts) of
@@ -477,7 +503,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Unordered _ -> bad
     Ordered [] -> good
     Ordered _ -> bad
-    Taints _ _ -> good  -- FIXME
+    Taints src dst -> doesTaint src dst
     Assert boundExpr -> addBoundExpr boundExpr >> good
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -507,7 +533,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Ordered (p:pats) -> tryError (backtrackOnError $ matchNextStmt p) >>= \case
       Right _ -> matchNextStmt $ Ordered pats
       Left _ -> perhapsRecur
-    Taints _ _ -> pure ()  -- FIXME
+    Taints src dst -> doesTaint src dst
     Assert bexpr -> addBoundExpr bexpr
   where
     perhapsRecur = if tryNextStmtOnFailure
@@ -515,6 +541,16 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         retireStmt
         matchNextStmt pat
       else throwError ()
+    doesTaint :: BoundExpr -> BoundExpr -> Matcher ()
+    doesTaint src dst = do
+      boundSyms <- use #boundSyms
+      taintSet <- use #taintSet
+      case (resolveBoundExpr boundSyms src, resolveBoundExpr boundSyms dst) of
+        (Right src', Right dst') -> insist $ doesTaint' taintSet src' dst'
+        _ -> bad
+    doesTaint' :: HashSet (Pil.Expression, Pil.Expression) -> Pil.Expression -> Pil.Expression -> Bool
+    doesTaint' taintSet src dst =
+      ((src, dst) `HashSet.member` taintSet) || (or $ doesTaint' taintSet src <$> toList (dst ^. #op))
 
 newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
   deriving (Eq, Ord, Show, Generic)
