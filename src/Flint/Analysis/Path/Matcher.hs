@@ -203,11 +203,11 @@ mkTaintSet tps = HashSet.unions . fmap mkStmtTaintSet
         Pil.ConstFuncPtr _ -> []
         op -> e : foldMap interestingSubexpressions (toList op)
 
-mkMatcherState :: [Pil.Stmt] -> MatcherState
-mkMatcherState stmts = MatcherState stmts HashMap.empty HashSet.empty [] HashSet.empty
+mkMatcherState :: [TaintPropagator] -> [Pil.Stmt] -> MatcherState
+mkMatcherState tps stmts = MatcherState stmts HashMap.empty HashSet.empty [] (mkTaintSet tps stmts)
 
-runMatcher :: [Pil.Stmt] -> Matcher a -> (MatcherState, Maybe a)
-runMatcher stmts action = case runMatcher_ action (mkMatcherState stmts) of
+runMatcher :: [TaintPropagator] -> [Pil.Stmt] -> Matcher a -> (MatcherState, Maybe a)
+runMatcher tps stmts action = case runMatcher_ action (mkMatcherState tps stmts) of
   (Left _, s) -> (s, Nothing)
   (Right x, s) -> (s, Just x)
 
@@ -606,8 +606,8 @@ getStmtsWithResolvedBounds s = foldM f (0, []) $ s ^. #parsedStmtsWithAssertions
 -- Returns MatcherState and bool indicating initial success.
 -- Any Asserts that were generating during the match will need to be
 -- sent to the solver later.
-runMatchStmts :: [StmtPattern] -> [Pil.Stmt] -> (MatcherState, Bool)
-runMatchStmts pats stmts = over _2 (maybe False (const True)) . runMatcher stmts $ do
+runMatchStmts :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> (MatcherState, Bool)
+runMatchStmts tps pats stmts = over _2 (maybe False (const True)) . runMatcher tps stmts $ do
   traverse_ matchNextStmt pats
   drainRemainingStmts
   where
@@ -628,19 +628,19 @@ data MatcherResult
 
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.
-matchStmts :: [StmtPattern] -> [Pil.Stmt] -> (MatcherState, MatcherResult)
-matchStmts pats stmts = case runMatchStmts pats stmts of
+matchStmts :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> (MatcherState, MatcherResult)
+matchStmts tps pats stmts = case runMatchStmts tps pats stmts of
   (ms, False) -> (ms, NoMatch)
   (ms, True) -> (ms,) $ case getStmtsWithResolvedBounds ms of
     Left (CannotFindBoundVarInState sym) -> UnboundVariableError sym
     Right (0, stmts') -> MatchNoAssertions $ stmts' <> ms ^. #remainingStmts
     Right (_, stmts') -> MatchWithAssertions $ stmts' <> ms ^. #remainingStmts
 
-matchStmts' :: [StmtPattern] -> [Pil.Stmt] -> MatcherResult
-matchStmts' pats = snd . matchStmts pats
+matchStmts' :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> MatcherResult
+matchStmts' tps pats = snd . matchStmts tps pats
 
-matchPath :: [StmtPattern] -> PilPath -> (MatcherState, MatcherResult)
-matchPath pat = matchStmts pat
+matchPath :: [TaintPropagator] -> [StmtPattern] -> PilPath -> (MatcherState, MatcherResult)
+matchPath tps pat = matchStmts tps pat
   . resolveCalls
   . PA.aggressiveExpand
   . Path.toStmts  
