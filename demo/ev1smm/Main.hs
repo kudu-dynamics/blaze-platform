@@ -176,6 +176,6 @@ main :: IO ()
 main = do
   putText "starting"
   -- summariesOfInterest queryVariableInfoConfig
-  -- summariesOfInterest rwVariableConfig
-  summariesOfInterest smmLightConfig
+  summariesOfInterest rwVariableConfig
+  -- summariesOfInterest smmLightConfig
   putText "finished"
