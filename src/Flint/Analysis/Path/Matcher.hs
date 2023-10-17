@@ -2,8 +2,9 @@ module Flint.Analysis.Path.Matcher
  ( module Flint.Analysis.Path.Matcher
  ) where
 
-import Flint.Prelude hiding (Symbol, sym)
+import Flint.Prelude hiding (sym)
 import Flint.Analysis.Uefi ( resolveCalls )
+import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
@@ -178,21 +179,45 @@ runMatcher_ action s
   . _runMatcher
   $ action
 
-mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
-mkTaintSet tps = HashSet.unions . fmap mkStmtTaintSet
+-- | Collect any taints from the expression if it matches one or more
+-- 'TaintPropagator's.
+mkTaintPropagatorTaintSet ::
+  [TaintPropagator] ->
+  Maybe Pil.PilVar ->
+  Pil.ExprOp Pil.Expression ->
+  HashSet Taint
+mkTaintPropagatorTaintSet tps mRetVar =
+  \case
+    Pil.CALL (Pil.CallOp (Pil.CallFunc f) _ args) -> go (f ^. #name) args
+    Pil.CALL (Pil.CallOp _ (Just name) args) -> go name args
+    _ -> HashSet.empty
   where
-    mkStmtTaintSet (Pil.Def (Pil.DefOp dst src)) =
-      HashSet.fromList $
-        interestingSubexpressions src <&>
-          (\case
-              Pil.Expression _ (Pil.VAR (Pil.VarOp src')) -> Taint (Left src') (Left dst))
-              src' -> Taint (Right src') (Left dst))
-    mkStmtTaintSet (Pil.Store (Pil.StoreOp dst src)) =
-      HashSet.fromList $
-        interestingSubexpressions src <&>
-          (\case
-              Pil.Expression _ (Pil.VAR (Pil.VarOp src')) -> Taint (Left src') (Left dst))
-              src' -> Taint (Right src') (Left dst))
+    go name args =
+      HashSet.fromList $ do
+        tps >>= \case
+          FunctionCallPropagator propName (Parameter (atMay args -> Just fromExpr)) toParam
+            | name == propName ->
+            case toParam of
+              Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
+              ReturnParameter ->
+                case mRetVar of
+                  Just retVar -> [Tainted fromExpr (Left retVar)]
+                  _ -> []
+              _ -> []
+          FunctionCallPropagator _ _ _ -> []
+
+mkStmtTaintSet :: [TaintPropagator] -> Pil.Stmt -> HashSet Taint
+mkStmtTaintSet tps =
+  \case
+    Pil.Def (Pil.DefOp dst src) ->
+      (HashSet.fromList $ interestingSubexpressions src <&> (`Tainted` (Left dst)))
+        <> mkTaintPropagatorTaintSet tps (Just dst) (src ^. #op)
+    Pil.Store (Pil.StoreOp dst src) ->
+      (HashSet.fromList $ interestingSubexpressions src <&> (`Tainted` (Right dst)))
+        <> mkTaintPropagatorTaintSet tps Nothing (src ^. #op)
+    Pil.Call callOp -> mkTaintPropagatorTaintSet tps Nothing (Pil.CALL callOp)
+    _ -> HashSet.empty
+  where
     interestingSubexpressions :: Pil.Expression -> [Pil.Expression]
     interestingSubexpressions e =
       case e ^. #op of
@@ -202,6 +227,9 @@ mkTaintSet tps = HashSet.unions . fmap mkStmtTaintSet
         Pil.ConstStr _ -> []
         Pil.ConstFuncPtr _ -> []
         op -> e : foldMap interestingSubexpressions (toList op)
+
+mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
+mkTaintSet tps = HashSet.unions . fmap (mkStmtTaintSet tps)
 
 mkMatcherState :: [TaintPropagator] -> [Pil.Stmt] -> MatcherState
 mkMatcherState tps stmts = MatcherState stmts HashMap.empty HashSet.empty [] (mkTaintSet tps stmts)
@@ -548,9 +576,11 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
       case (resolveBoundExpr boundSyms src, resolveBoundExpr boundSyms dst) of
         (Right src', Right dst') -> insist $ doesTaint' taintSet src' dst'
         _ -> bad
-    doesTaint' :: HashSet (Pil.Expression, Pil.Expression) -> Pil.Expression -> Pil.Expression -> Bool
+    doesTaint' :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
     doesTaint' taintSet src dst =
-      ((src, dst) `HashSet.member` taintSet) || (or $ doesTaint' taintSet src <$> toList (dst ^. #op))
+      (maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) $ dst ^? #op . #_VAR . #_VarOp)
+        || (Tainted src (Right dst) `HashSet.member` taintSet)
+        || or (doesTaint' taintSet src <$> toList (dst ^. #op))
 
 newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
   deriving (Eq, Ord, Show, Generic)

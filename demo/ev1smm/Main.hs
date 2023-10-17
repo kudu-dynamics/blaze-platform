@@ -6,6 +6,7 @@ import Flint.Types.Analysis
 import Flint.Analysis
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Query
+import qualified Flint.Analysis.Uefi as Uefi
 
 import qualified Binja.Core as BN
 import Blaze.Import.Source.BinaryNinja (BNImporter)
@@ -177,5 +178,5 @@ main = do
   putText "starting"
   -- summariesOfInterest queryVariableInfoConfig
   -- summariesOfInterest rwVariableConfig
-  summariesOfInterest smmLightConfig
+  summariesOfInterest Uefi.taintPropagators smmLightConfig
   putText "finished"

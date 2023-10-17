@@ -17,7 +17,7 @@ data Parameter
   -- | The index of a function parameter (starting at 0)
   = Parameter Int
   -- | The function return parameter
-  | Ret
+  | ReturnParameter
   -- | Some other (abstract) location. E.g. this is used to model NVRAM storage
   | Other Text
   deriving stock (Eq, Ord, Show, Generic)
@@ -41,10 +41,12 @@ data TaintPropagator
   deriving anyclass (Hashable)
 
 data Taint
-  = Taint
-    { src :: Either PilVar Expression
+  = Tainted
+    { src :: Expression
     , dst :: Either PilVar Expression
     }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 -- -- | An analysis cache for a single db.
 -- -- Eventually this should handle multiple dbs.
