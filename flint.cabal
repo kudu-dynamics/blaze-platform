@@ -70,6 +70,7 @@ library
       OverloadedLabels
       OverloadedStrings
       TypeFamilies
+      ViewPatterns
     ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -j4 -O2 -threaded
     build-depends:
         aeson
@@ -141,6 +142,7 @@ executable flint
       OverloadedLabels
       OverloadedStrings
       TypeFamilies
+      ViewPatterns
     ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wredundant-constraints -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
     build-depends:
             aeson
@@ -216,6 +218,7 @@ executable ev1smm
       OverloadedLabels
       OverloadedStrings
       TypeFamilies
+      ViewPatterns
     ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wredundant-constraints -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
     build-depends:
             aeson
@@ -290,6 +293,7 @@ executable kernel-demo
       OverloadedLabels
       OverloadedStrings
       TypeFamilies
+      ViewPatterns
     ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wredundant-constraints -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
     build-depends:
             aeson
@@ -365,6 +369,7 @@ executable demo1-demo
       OverloadedLabels
       OverloadedStrings
       TypeFamilies
+      ViewPatterns
     ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wredundant-constraints -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
     build-depends:
             aeson
@@ -437,6 +442,7 @@ test-suite flint-tests
     OverloadedStrings
     ScopedTypeVariables
     TypeFamilies
+    ViewPatterns
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wredundant-constraints -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
   Build-depends:
       base

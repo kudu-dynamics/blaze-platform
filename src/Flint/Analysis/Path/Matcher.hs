@@ -2,8 +2,9 @@ module Flint.Analysis.Path.Matcher
  ( module Flint.Analysis.Path.Matcher
  ) where
 
-import Flint.Prelude hiding (Symbol, sym)
+import Flint.Prelude hiding (sym)
 import Flint.Analysis.Uefi ( resolveCalls )
+import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
@@ -155,6 +156,7 @@ data MatcherState = MatcherState
   -- The successfully parsed stmts, stored in reverse order
   -- possibly interleaved with Assertions
   , parsedStmtsWithAssertions :: [Either BoundExpr Pil.Stmt]
+  , taintSet :: HashSet Taint
   } deriving Generic
 
 newtype Matcher a = Matcher {
@@ -177,11 +179,63 @@ runMatcher_ action s
   . _runMatcher
   $ action
 
-mkMatcherState :: [Pil.Stmt] -> MatcherState
-mkMatcherState stmts = MatcherState stmts HashMap.empty HashSet.empty []
+-- | Collect any taints from the expression if it matches one or more
+-- 'TaintPropagator's.
+mkTaintPropagatorTaintSet ::
+  [TaintPropagator] ->
+  Maybe Pil.PilVar ->
+  Pil.ExprOp Pil.Expression ->
+  HashSet Taint
+mkTaintPropagatorTaintSet tps mRetVar =
+  \case
+    Pil.CALL (Pil.CallOp (Pil.CallFunc f) _ args) -> go (f ^. #name) args
+    Pil.CALL (Pil.CallOp _ (Just name) args) -> go name args
+    _ -> HashSet.empty
+  where
+    go name args =
+      HashSet.fromList $ do
+        tps >>= \case
+          FunctionCallPropagator propName (Parameter (atMay args -> Just fromExpr)) toParam
+            | name == propName ->
+            case toParam of
+              Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
+              ReturnParameter ->
+                case mRetVar of
+                  Just retVar -> [Tainted fromExpr (Left retVar)]
+                  _ -> []
+              _ -> []
+          FunctionCallPropagator _ _ _ -> []
 
-runMatcher :: [Pil.Stmt] -> Matcher a -> (MatcherState, Maybe a)
-runMatcher stmts action = case runMatcher_ action (mkMatcherState stmts) of
+mkStmtTaintSet :: [TaintPropagator] -> Pil.Stmt -> HashSet Taint
+mkStmtTaintSet tps =
+  \case
+    Pil.Def (Pil.DefOp dst src) ->
+      (HashSet.fromList $ interestingSubexpressions src <&> (`Tainted` (Left dst)))
+        <> mkTaintPropagatorTaintSet tps (Just dst) (src ^. #op)
+    Pil.Store (Pil.StoreOp dst src) ->
+      (HashSet.fromList $ interestingSubexpressions src <&> (`Tainted` (Right dst)))
+        <> mkTaintPropagatorTaintSet tps Nothing (src ^. #op)
+    Pil.Call callOp -> mkTaintPropagatorTaintSet tps Nothing (Pil.CALL callOp)
+    _ -> HashSet.empty
+  where
+    interestingSubexpressions :: Pil.Expression -> [Pil.Expression]
+    interestingSubexpressions e =
+      case e ^. #op of
+        Pil.CONST _ -> []
+        Pil.CONST_PTR _ -> []
+        Pil.CONST_FLOAT _ -> []
+        Pil.ConstStr _ -> []
+        Pil.ConstFuncPtr _ -> []
+        op -> e : foldMap interestingSubexpressions (toList op)
+
+mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
+mkTaintSet tps = HashSet.unions . fmap (mkStmtTaintSet tps)
+
+mkMatcherState :: [TaintPropagator] -> [Pil.Stmt] -> MatcherState
+mkMatcherState tps stmts = MatcherState stmts HashMap.empty HashSet.empty [] (mkTaintSet tps stmts)
+
+runMatcher :: [TaintPropagator] -> [Pil.Stmt] -> Matcher a -> (MatcherState, Maybe a)
+runMatcher tps stmts action = case runMatcher_ action (mkMatcherState tps stmts) of
   (Left _, s) -> (s, Nothing)
   (Right x, s) -> (s, Just x)
 
@@ -477,7 +531,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Unordered _ -> bad
     Ordered [] -> good
     Ordered _ -> bad
-    Taints _ _ -> good  -- FIXME
+    Taints src dst -> doesTaint src dst
     Assert boundExpr -> addBoundExpr boundExpr >> good
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -507,7 +561,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Ordered (p:pats) -> tryError (backtrackOnError $ matchNextStmt p) >>= \case
       Right _ -> matchNextStmt $ Ordered pats
       Left _ -> perhapsRecur
-    Taints _ _ -> pure ()  -- FIXME
+    Taints src dst -> doesTaint src dst
     Assert bexpr -> addBoundExpr bexpr
   where
     perhapsRecur = if tryNextStmtOnFailure
@@ -515,6 +569,18 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         retireStmt
         matchNextStmt pat
       else throwError ()
+    doesTaint :: BoundExpr -> BoundExpr -> Matcher ()
+    doesTaint src dst = do
+      boundSyms <- use #boundSyms
+      taintSet <- use #taintSet
+      case (resolveBoundExpr boundSyms src, resolveBoundExpr boundSyms dst) of
+        (Right src', Right dst') -> insist $ doesTaint' taintSet src' dst'
+        _ -> bad
+    doesTaint' :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
+    doesTaint' taintSet src dst =
+      (maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) $ dst ^? #op . #_VAR . #_VarOp)
+        || (Tainted src (Right dst) `HashSet.member` taintSet)
+        || or (doesTaint' taintSet src <$> toList (dst ^. #op))
 
 newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
   deriving (Eq, Ord, Show, Generic)
@@ -570,8 +636,8 @@ getStmtsWithResolvedBounds s = foldM f (0, []) $ s ^. #parsedStmtsWithAssertions
 -- Returns MatcherState and bool indicating initial success.
 -- Any Asserts that were generating during the match will need to be
 -- sent to the solver later.
-runMatchStmts :: [StmtPattern] -> [Pil.Stmt] -> (MatcherState, Bool)
-runMatchStmts pats stmts = over _2 (maybe False (const True)) . runMatcher stmts $ do
+runMatchStmts :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> (MatcherState, Bool)
+runMatchStmts tps pats stmts = over _2 (maybe False (const True)) . runMatcher tps stmts $ do
   traverse_ matchNextStmt pats
   drainRemainingStmts
   where
@@ -592,19 +658,19 @@ data MatcherResult
 
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.
-matchStmts :: [StmtPattern] -> [Pil.Stmt] -> (MatcherState, MatcherResult)
-matchStmts pats stmts = case runMatchStmts pats stmts of
+matchStmts :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> (MatcherState, MatcherResult)
+matchStmts tps pats stmts = case runMatchStmts tps pats stmts of
   (ms, False) -> (ms, NoMatch)
   (ms, True) -> (ms,) $ case getStmtsWithResolvedBounds ms of
     Left (CannotFindBoundVarInState sym) -> UnboundVariableError sym
     Right (0, stmts') -> MatchNoAssertions $ stmts' <> ms ^. #remainingStmts
     Right (_, stmts') -> MatchWithAssertions $ stmts' <> ms ^. #remainingStmts
 
-matchStmts' :: [StmtPattern] -> [Pil.Stmt] -> MatcherResult
-matchStmts' pats = snd . matchStmts pats
+matchStmts' :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> MatcherResult
+matchStmts' tps pats = snd . matchStmts tps pats
 
-matchPath :: [StmtPattern] -> PilPath -> (MatcherState, MatcherResult)
-matchPath pat = matchStmts pat
+matchPath :: [TaintPropagator] -> [StmtPattern] -> PilPath -> (MatcherState, MatcherResult)
+matchPath tps pat = matchStmts tps pat
   . resolveCalls
   . PA.aggressiveExpand
   . Path.toStmts  

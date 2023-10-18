@@ -280,14 +280,14 @@ showQueryHeader = \case
     showTarget :: (Function, Address) -> Text
     showTarget (func, addr) = pretty' addr <> func ^. #name
 
-showQuerySummaries :: CfgStore -> (Query Function, [BugMatch]) -> IO ()
-showQuerySummaries store (q, bugMatchers) = do
+showQuerySummaries :: [TaintPropagator] -> CfgStore -> (Query Function, [BugMatch]) -> IO ()
+showQuerySummaries tps store (q, bugMatchers) = do
   paths <- samplesFromQuery store q
   okPaths <- return paths -- filterOkPaths paths
   let withMatches = flip fmap okPaths
         $ \p -> ( p
                 , flip fmap bugMatchers $ \bm ->
-                    ( matchPath (bm ^. #pathPattern) p
+                    ( matchPath tps (bm ^. #pathPattern) p
                     , bm
                     )
                 )
@@ -302,14 +302,15 @@ summariesOfInterest
      , NodeDataType imp ~ PilNode
      , GetFunction func
      )
-  => BinarySearchConfig imp func
+  => [TaintPropagator]
+  -> BinarySearchConfig imp func
   -> IO ()
-summariesOfInterest bconfig = do
+summariesOfInterest tps bconfig = do
   imp <- (openBinary $ bconfig ^. #binaryPath) >>= either (error . cs) return
   bconfig' <- traverse (getFunction imp) bconfig
   cfgStore <- CfgStore.init imp
   storeFromBinarySearchConfig imp bconfig' cfgStore
-  mapM_ (showQuerySummaries cfgStore) $ bconfig' ^. #queries
+  mapM_ (showQuerySummaries tps cfgStore) $ bconfig' ^. #queries
 
 sampleForAllFunctions :: HashSet Text -> BndbFilePath -> IO ()
 sampleForAllFunctions blacklist binPath = do

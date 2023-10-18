@@ -6,7 +6,7 @@ module Flint.Prelude
   , tryError
   ) where
 
-import Blaze.Prelude as Exports
+import Blaze.Prelude as Exports hiding (Symbol)
 
 import Control.Monad.Extra as Exports (mapMaybeM)
 import System.Random as Exports (randomRIO)
