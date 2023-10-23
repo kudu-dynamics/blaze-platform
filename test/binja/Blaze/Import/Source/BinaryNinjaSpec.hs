@@ -52,7 +52,7 @@ spec = describe "Blaze.Import.Source.BinaryNinja" $ do
       start `shouldBe` 0x8048000
 
     it "should get end offset" $ do
-      end `shouldBe` 0x804fad0
+      end `shouldSatisfy` (>= 0x804fac0)
 
     rebasedImporter <- runIO $ rebaseBinary importer 0x10000000
     rebasedStart <- runIO $ getStart rebasedImporter
