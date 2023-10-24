@@ -466,7 +466,7 @@ convertPcodeOpToPilStmt = \case
       _ -> do
         offset' <- varNodeToValueExpr offset
         mkDef out . Pil.ADD $ Pil.AddOp base' offset'
-  P.RETURN _ [] -> pure [C.ret C.unit]
+  P.RETURN _ [] -> pure [C.ret $ C.unit 0]
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.SEGMENTOP -> pure [Pil.UnimplInstr "SEGMENTOP"]
