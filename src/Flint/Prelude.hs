@@ -41,7 +41,7 @@ instance (HasConstructor x, HasConstructor y) => HasConstructor (x :+: y) where
   genericConstrName (R1 r) = genericConstrName r
 
 instance Constructor c => HasConstructor (C1 c f) where
-  genericConstrName x = conName x
+  genericConstrName = conName
 
 
 -- newtype MatcherMonad a = MatcherMonad {

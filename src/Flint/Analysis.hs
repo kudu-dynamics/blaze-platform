@@ -13,7 +13,6 @@ import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Cfg.Path (samplesFromQuery)
 
-import Blaze.Pretty (pretty')
 import Blaze.Types.Function (Function)
 
 import Blaze.Import.Binary (BinaryImporter, openBinary)
@@ -66,8 +65,7 @@ getFuncPathsContainingAddrs importer func addrs = do
   let cfg = r ^. #result
       ns = concatMap (`Cfg.getNodesContainingAddress` cfg) addrs
       -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
-  paths <- Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
-  return paths
+  Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
 
 getFunctionPaths
   :: (CfgImporter a, ImpCfg.NodeDataType a ~ Cfg.CfNode [Stmt])
@@ -186,9 +184,9 @@ showBugMatch ((ms, r), bm) = do
   where
     resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
     foundBug hasAssertions = do
-      putText $ "Found Primitive:"
+      putText "Found Primitive:"
       putText $ resolveText $ bm ^. #bugDescription
-      putText $ "\nSuggested Mitigation:"
+      putText "\nSuggested Mitigation:"
       putText $ resolveText $ bm ^. #mitigationAdvice
       when hasAssertions $ putText "Under Construction Warning: this bug was found with assertions added during pattern matching, which have not yet been checked by a solver."
 
@@ -283,8 +281,8 @@ showQueryHeader = \case
 showQuerySummaries :: [TaintPropagator] -> CfgStore -> (Query Function, [BugMatch]) -> IO ()
 showQuerySummaries tps store (q, bugMatchers) = do
   paths <- samplesFromQuery store q
-  okPaths <- return paths -- filterOkPaths paths
-  let withMatches = flip fmap okPaths
+  let okPaths = paths -- filterOkPaths paths
+      withMatches = flip fmap okPaths
         $ \p -> ( p
                 , flip fmap bugMatchers $ \bm ->
                     ( matchPath tps (bm ^. #pathPattern) p
@@ -306,7 +304,7 @@ summariesOfInterest
   -> BinarySearchConfig imp func
   -> IO ()
 summariesOfInterest tps bconfig = do
-  imp <- (openBinary $ bconfig ^. #binaryPath) >>= either (error . cs) return
+  imp <- openBinary (bconfig ^. #binaryPath) >>= either (error . cs) return
   bconfig' <- traverse (getFunction imp) bconfig
   cfgStore <- CfgStore.init imp
   storeFromBinarySearchConfig imp bconfig' cfgStore

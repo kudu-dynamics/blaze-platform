@@ -121,27 +121,27 @@ data CmpType
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 (.==) :: ExprPattern -> ExprPattern -> ExprPattern
-(.==) a b = Cmp CmpE a b
+(.==) = Cmp CmpE
 infix 4 .==
 
 (./=) :: ExprPattern -> ExprPattern -> ExprPattern
-(./=) a b = Cmp CmpNE a b
+(./=) = Cmp CmpNE
 infix 4 ./=
 
 (.<) :: ExprPattern -> ExprPattern -> ExprPattern
-(.<) a b = Cmp CmpLT a b
+(.<) = Cmp CmpLT
 infix 4 .<
 
 (.<=) :: ExprPattern -> ExprPattern -> ExprPattern
-(.<=) a b = Cmp CmpLE a b
+(.<=) = Cmp CmpLE
 infix 4 .<=
 
 (.>) :: ExprPattern -> ExprPattern -> ExprPattern
-(.>) a b = Cmp CmpGT a b
+(.>) = Cmp CmpGT
 infix 4 .>
 
 (.>=) :: ExprPattern -> ExprPattern -> ExprPattern
-(.>=) a b = Cmp CmpGE a b
+(.>=) = Cmp CmpGE
 infix 4 .>=
 
 data AvoidSpec = AvoidSpec
@@ -204,16 +204,16 @@ mkTaintPropagatorTaintSet tps mRetVar =
                   Just retVar -> [Tainted fromExpr (Left retVar)]
                   _ -> []
               _ -> []
-          FunctionCallPropagator _ _ _ -> []
+          FunctionCallPropagator{} -> []
 
 mkStmtTaintSet :: [TaintPropagator] -> Pil.Stmt -> HashSet Taint
 mkStmtTaintSet tps =
   \case
     Pil.Def (Pil.DefOp dst src) ->
-      (HashSet.fromList $ interestingSubexpressions src <&> (`Tainted` (Left dst)))
+      HashSet.fromList (interestingSubexpressions src <&> (`Tainted` Left dst))
         <> mkTaintPropagatorTaintSet tps (Just dst) (src ^. #op)
     Pil.Store (Pil.StoreOp dst src) ->
-      (HashSet.fromList $ interestingSubexpressions src <&> (`Tainted` (Right dst)))
+      HashSet.fromList (interestingSubexpressions src <&> (`Tainted` Right dst))
         <> mkTaintPropagatorTaintSet tps Nothing (src ^. #op)
     Pil.Call callOp -> mkTaintPropagatorTaintSet tps Nothing (Pil.CALL callOp)
     _ -> HashSet.empty
@@ -409,7 +409,7 @@ matchCmp cmpType patA patB expr = case cmpType of
 
 matchExprOp :: Pil.ExprOp ExprPattern -> Pil.ExprOp Pil.Expression -> Matcher ()
 matchExprOp opPat op = do
-  insist $ (const () <$> opPat) == (const () <$> op)
+  insist $ void opPat == void op
   traverse_ (uncurry matchExpr) $ zip (toList opPat) (toList op)  
 
 matchExpr :: ExprPattern -> Pil.Expression -> Matcher ()
@@ -578,7 +578,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         _ -> bad
     doesTaint' :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
     doesTaint' taintSet src dst =
-      (maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) $ dst ^? #op . #_VAR . #_VarOp)
+      maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) (dst ^? #op . #_VAR . #_VarOp)
         || (Tainted src (Right dst) `HashSet.member` taintSet)
         || or (doesTaint' taintSet src <$> toList (dst ^. #op))
 
@@ -637,7 +637,7 @@ getStmtsWithResolvedBounds s = foldM f (0, []) $ s ^. #parsedStmtsWithAssertions
 -- Any Asserts that were generating during the match will need to be
 -- sent to the solver later.
 runMatchStmts :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> (MatcherState, Bool)
-runMatchStmts tps pats stmts = over _2 (maybe False (const True)) . runMatcher tps stmts $ do
+runMatchStmts tps pats stmts = second isJust . runMatcher tps stmts $ do
   traverse_ matchNextStmt pats
   drainRemainingStmts
   where

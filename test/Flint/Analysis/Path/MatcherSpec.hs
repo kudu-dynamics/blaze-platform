@@ -1,3 +1,5 @@
+{- HLINT ignore "Evaluate" -}
+
 module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
   ) where
@@ -188,7 +190,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match on a call to a named function" $ do
       let cdest = Pil.CallFunc func0
-          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
@@ -197,7 +199,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should not match on a call to a named function if args do not parse" $ do
       let cdest = Pil.CallFunc func0
-          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0"))
                    [Var "nope", Wild]
@@ -207,7 +209,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match on a call to a named function with a return variable even if the pattern for the return variable is Nothing" $ do
       let cdest = Pil.CallFunc func0
-          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
@@ -217,7 +219,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match on an indirect call" $ do
       let cdest = Pil.CallExpr $ var "x" 4
-          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call Nothing (CallIndirect $ Var "x") [Wild, Wild]
                  ]
@@ -226,7 +228,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match on an indirect call using Contains" $ do
       let cdest = Pil.CallExpr $ load (add (var "x" 4) (const 1 4) 4) 4
-          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call Nothing (CallIndirect . Contains $ Var "x") [Wild, Wild]
                  ]
@@ -239,7 +241,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             . Pil.ConstFuncPtrOp 0x888
             $ Just "funcTable"
           cdest = Pil.CallExpr $ load (add funcPtr (const 0x4e 4) 4) 4
-          stmts = [ defCall "r" cdest [(var "a" 4), (load (var "arg4" 4) 4)] 8
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt (Call Nothing (CallIndirect . Contains $ Var "funcTable") [Wild, Wild])
                  ]
