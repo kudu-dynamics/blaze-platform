@@ -372,7 +372,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
             (var "var_28#1" 8, var "rdi_6#7" 8),
             (var "rdi_7#8" 8, var "arg1#0" 8),
             (var "rdi_8#9" 8, var "arg1#0" 8),
-            (var "var_30#1" 8, var "rdi_9#10" 8)
+            (var "var_30#1" 8, var "rdi_9#10" 8 :: TPil.Expression)
           ])
 
   describe "copyProp" $ do

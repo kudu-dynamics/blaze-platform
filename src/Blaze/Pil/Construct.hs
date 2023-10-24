@@ -8,10 +8,15 @@ import Blaze.Types.Pil
     Expression (Expression),
     Size,
     PilVar (PilVar),
-    Stmt,
+    Statement,
     Symbol,
   )
 
+class ExprConstructor attrs expr | expr -> attrs where
+  mkExpr :: attrs -> Pil.ExprOp expr -> expr
+
+instance ExprConstructor (Size Expression) Expression where
+  mkExpr = Expression
 
 defaultSize :: forall a. Size a
 defaultSize = 8
@@ -25,189 +30,210 @@ pilVar' ctx = pilVar_ defaultSize (Just ctx)
 pilVar :: Symbol -> PilVar
 pilVar = pilVar_ defaultSize Nothing
 
-mkExpr :: Size Expression -> ExprOp Expression -> Expression
-mkExpr size op =
-  Expression
-    { size = size
-    , op = op
-    }
-
 binOp
-  :: (a -> ExprOp Expression)
-  -> (Expression -> Expression -> a)
-  -> Expression
-  -> Expression
-  -> Size Expression
-  -> Expression
-binOp f g x y size =
-  Expression
-    { size = size
-    , op = f (g x y)
-    }
+  :: ExprConstructor attrs expr
+  => (a -> ExprOp expr)
+  -> (expr -> expr -> a)
+  -> expr
+  -> expr
+  -> attrs
+  -> expr
+binOp f g x y size = mkExpr size $ f (g x y)
 
 unOp
-  :: (a -> ExprOp Expression)
-  -> (Expression -> a)
-  -> Expression
-  -> Size Expression
-  -> Expression
-unOp f g x size =
-  Expression
-    { size = size
-    , op = f (g x)
-    }
+  :: ExprConstructor attrs expr
+  => (a -> ExprOp expr)
+  -> (expr -> a)
+  -> expr
+  -> attrs
+  -> expr
+unOp f g x size = mkExpr size $ f (g x)
 
 ---- Expressions
-const :: Int64 -> Size Expression -> Expression
+const :: ExprConstructor attrs expr => Int64 -> attrs -> expr
 const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
 
-unit :: Expression
-unit = Pil.Expression 0 Pil.UNIT
+fconst :: ExprConstructor attrs expr => Double -> attrs -> expr
+fconst x size = mkExpr size (Pil.CONST_FLOAT (Pil.ConstFloatOp x))
 
-constPtr :: Word64 -> Size Expression -> Expression
+unit :: ExprConstructor attrs expr => attrs -> expr
+unit attrs = mkExpr attrs Pil.UNIT
+
+constPtr :: ExprConstructor attrs expr => Word64 -> attrs -> expr
 constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr :: Int64)))
 
-externPtr :: Address -> ByteOffset -> Maybe Symbol -> Size Expression -> Expression
+externPtr :: ExprConstructor attrs expr => Address -> ByteOffset -> Maybe Symbol -> attrs -> expr
 externPtr addr off sym size = mkExpr size (Pil.ExternPtr (Pil.ExternPtrOp addr off sym))
 
-constStr :: Text -> Size Expression -> Expression
+constStr :: ExprConstructor attrs expr => Text -> attrs -> expr
 constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
 
-var' :: PilVar -> Size Expression -> Expression
+var' :: ExprConstructor attrs expr => PilVar -> attrs -> expr
 var' pv size = mkExpr size (Pil.VAR $ Pil.VarOp pv)
 
-var :: Symbol -> Size Expression -> Expression
+var :: ExprConstructor attrs expr => Symbol -> attrs -> expr
 var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
 
-add :: Expression -> Expression -> Size Expression -> Expression
+add :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 add = binOp Pil.ADD Pil.AddOp
 
-addWillCarry :: Expression -> Expression -> Size Expression -> Expression
+addWillCarry :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 addWillCarry = binOp Pil.ADD_WILL_CARRY Pil.AddWillCarryOp
 
-addWillOverflow :: Expression -> Expression -> Size Expression -> Expression
+addWillOverflow :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 addWillOverflow = binOp Pil.ADD_WILL_OVERFLOW Pil.AddWillOverflowOp
 
-sub :: Expression -> Expression -> Size Expression -> Expression
+sub :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 sub = binOp Pil.SUB Pil.SubOp
 
-subWillOverflow :: Expression -> Expression -> Size Expression -> Expression
+subWillOverflow :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 subWillOverflow = binOp Pil.SUB_WILL_OVERFLOW Pil.SubWillOverflowOp
 
-mul :: Expression -> Expression -> Size Expression -> Expression
+mul :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 mul = binOp Pil.MUL Pil.MulOp
 
-cmpE :: Expression -> Expression -> Size Expression -> Expression
+cmpE :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpE = binOp Pil.CMP_E Pil.CmpEOp
 
-cmpNE :: Expression -> Expression -> Size Expression -> Expression
+cmpNE :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpNE = binOp Pil.CMP_NE Pil.CmpNeOp
 
-cmpSge :: Expression -> Expression -> Size Expression -> Expression
+cmpSge :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpSge = binOp Pil.CMP_SGE Pil.CmpSgeOp
 
-cmpSgt :: Expression -> Expression -> Size Expression -> Expression
+cmpSgt :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpSgt = binOp Pil.CMP_SGT Pil.CmpSgtOp
 
-cmpSle :: Expression -> Expression -> Size Expression -> Expression
+cmpSle :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpSle = binOp Pil.CMP_SLE Pil.CmpSleOp
 
-cmpSlt :: Expression -> Expression -> Size Expression -> Expression
+cmpSlt :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpSlt = binOp Pil.CMP_SLT Pil.CmpSltOp
 
-cmpUge :: Expression -> Expression -> Size Expression -> Expression
+cmpUge :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpUge = binOp Pil.CMP_UGE Pil.CmpUgeOp
 
-cmpUgt :: Expression -> Expression -> Size Expression -> Expression
+cmpUgt :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpUgt = binOp Pil.CMP_UGT Pil.CmpUgtOp
 
-cmpUle :: Expression -> Expression -> Size Expression -> Expression
+cmpUle :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpUle = binOp Pil.CMP_ULE Pil.CmpUleOp
 
-cmpUlt :: Expression -> Expression -> Size Expression -> Expression
+cmpUlt :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 cmpUlt = binOp Pil.CMP_ULT Pil.CmpUltOp
 
-sx :: Expression -> Size Expression -> Expression
+-- float cmp
+fcmpE :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
+fcmpE = binOp Pil.FCMP_E Pil.FcmpEOp
+
+fcmpNE :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
+fcmpNE = binOp Pil.FCMP_NE Pil.FcmpNeOp
+
+fcmpGe :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
+fcmpGe = binOp Pil.FCMP_GE Pil.FcmpGeOp
+
+fcmpGt :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
+fcmpGt = binOp Pil.FCMP_GT Pil.FcmpGtOp
+
+fcmpLe :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
+fcmpLe = binOp Pil.FCMP_LE Pil.FcmpLeOp
+
+fcmpLt :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
+fcmpLt = binOp Pil.FCMP_LT Pil.FcmpLtOp
+
+sx :: ExprConstructor attrs expr => expr -> attrs -> expr
 sx = unOp Pil.SX Pil.SxOp
 
-zx :: Expression -> Size Expression -> Expression
+zx :: ExprConstructor attrs expr => expr -> attrs -> expr
 zx = unOp Pil.ZX Pil.ZxOp
 
-strcmp :: Expression -> Expression -> Size Expression -> Expression
+strcmp :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 strcmp = binOp Pil.StrCmp Pil.StrCmpOp
 
-or :: Expression -> Expression -> Size Expression -> Expression
+or :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 or = binOp Pil.OR Pil.OrOp
 
-and :: Expression -> Expression -> Size Expression -> Expression
+and :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 and = binOp Pil.AND Pil.AndOp
 
-not :: Expression -> Size Expression -> Expression
+not :: ExprConstructor attrs expr => expr -> attrs -> expr
 not = unOp Pil.NOT Pil.NotOp
 
 -- TODO: Change to just Load. PIL is being updated to drop versioned memory.
-load :: Expression -> Size Expression -> Expression
+load :: ExprConstructor attrs expr => expr -> attrs -> expr
 load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
 
-varField :: Pil.Symbol -> ByteOffset -> Size Expression -> Expression
+varField :: ExprConstructor attrs expr => Pil.Symbol -> ByteOffset -> attrs -> expr
 varField sym offset size =
   mkExpr size (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset)
 
-fieldAddr :: Pil.Expression -> ByteOffset -> Size Expression -> Expression
+fieldAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
 fieldAddr base offset size = 
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
-arrayAddr :: Pil.Expression -> Pil.Expression -> Word64 -> Size Expression -> Expression
+arrayAddr :: ExprConstructor attrs expr => expr -> expr -> Word64 -> attrs -> expr
 arrayAddr base index stride size =
   mkExpr size . Pil.ARRAY_ADDR $ Pil.ArrayAddrOp base index stride
 
-stackLocalAddr :: Expression -> ByteOffset -> Size Expression -> Expression
+stackLocalAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
 stackLocalAddr base offset size = 
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 ---- Statements
-def :: Symbol -> Expression -> Stmt
+def :: Symbol -> expr -> Statement expr
 def sym = def' $ pilVar sym
 
-def' :: PilVar -> Expression -> Stmt
+def' :: PilVar -> expr -> Statement expr
 def' pv val = Pil.Def (Pil.DefOp pv val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
-defCall' :: PilVar -> Pil.CallDest Expression -> [Expression] -> Size Expression -> Stmt
+defCall'
+  :: forall attrs expr. ExprConstructor attrs expr
+  => PilVar
+  -> Pil.CallDest expr
+  -> [expr]
+  -> attrs
+  -> Statement expr
 defCall' pv dest args size = def' pv callExpr
   where
     mname :: Maybe Text
     mname = case dest of
       Pil.CallFunc (Function _ nm _ _) -> Just nm
       _ -> Nothing
-    callExpr :: Expression
+    callExpr :: expr
     callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest mname args
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
-defCall :: Symbol -> Pil.CallDest Expression -> [Expression] -> Size Expression -> Stmt
+defCall
+  :: forall attrs expr. ExprConstructor attrs expr
+  => Symbol
+  -> Pil.CallDest expr
+  -> [expr]
+  -> attrs
+  -> Statement expr
 defCall sym = defCall' $ pilVar sym
 
-defPhi :: Symbol -> [Symbol] -> Stmt
+defPhi :: Symbol -> [Symbol] -> Statement expr
 defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
 
-store :: Expression -> Expression -> Stmt
+store :: expr -> expr -> Statement expr
 store addr val = Pil.Store (Pil.StoreOp addr val)
 
-constraint :: Expression -> Stmt
+constraint :: expr -> Statement expr
 constraint e = Pil.Constraint (Pil.ConstraintOp e)
 
-branchCond :: Expression -> Stmt
+branchCond :: expr -> Statement expr
 branchCond e = Pil.BranchCond (Pil.BranchCondOp e)
 
-ret :: Expression -> Stmt
+ret :: expr -> Statement expr
 ret = Pil.Ret . Pil.RetOp
 
-nop :: Stmt
+nop :: Statement expr
 nop = Pil.Nop
 
-callStmt :: Pil.CallDest Expression -> [Expression] -> Stmt
+callStmt :: Pil.CallDest expr -> [expr] -> Statement expr
 callStmt dest args = Pil.Call $ Pil.CallOp dest mname args
   where
     mname :: Maybe Text
