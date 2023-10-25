@@ -1,23 +1,20 @@
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
+{-# OPTIONS_GHC -fno-warn-unused-local-binds #-}
+
 module Main (main) where
 
 import Flint.Prelude
 
-import Flint.Types.Analysis
-import Flint.Analysis
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Query
 
-import qualified Binja.Core as BN
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Blaze.Import.Binary (openBinary)
 import qualified Blaze.Types.Graph as G
-import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Import.CallGraph as CG
 
 import Data.Time.Clock (getCurrentTime, diffUTCTime)
-import System.Directory (listDirectory)
-import qualified Data.HashSet as HashSet
 
 
 doubleFreeBug :: BugMatch
@@ -71,7 +68,7 @@ testGettingCallGraph :: FilePath -> IO ()
 testGettingCallGraph fp = do
   t00 <- getCurrentTime
   (Right bv) <- openBinary fp :: IO (Either Text BNImporter)
-  putText $ "Got bndb."
+  putText "Got bndb."
   t0 <- getCurrentTime
   putText $ "Time spent: " <> show (diffUTCTime t0 t00)  
   funcs <- CG.getFunctions bv

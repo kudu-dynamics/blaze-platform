@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-partial-fields #-}
+
 module Flint.Analysis.Path.Matcher
  ( module Flint.Analysis.Path.Matcher
  ) where

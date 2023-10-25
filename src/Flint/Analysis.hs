@@ -7,7 +7,6 @@ import Flint.Prelude
 import Flint.Analysis.Path.Matcher ( matchPath, MatcherResult, MatcherState )
 import qualified Flint.Analysis.Path.Matcher as Matcher
 import Flint.Analysis.Uefi ( resolveCalls )
-import Flint.Cfg ( expandCfgToDepth )
 import Flint.Types.Analysis
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
@@ -21,14 +20,12 @@ import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Import.Cfg as ImpCfg
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
-import qualified Blaze.Types.Graph as G
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (CfNode, PilNode)
 import qualified Blaze.Cfg.Path as Path
 import Blaze.Cfg.Path (Path, PilPath)
 import qualified Blaze.Import.Source.BinaryNinja as Binja
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Import.Source.Ghidra (GhidraImporter)
 import qualified Blaze.Pil.Summary as Summary
 
 import Blaze.Pretty (NewlinedList(NewlinedList), pp', prettyStmts', pretty')

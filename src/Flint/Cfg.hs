@@ -1,4 +1,4 @@
-module Flint.Cfg ( module Flint.Cfg ) where
+module Flint.Cfg (module Flint.Cfg) where
 
 import Flint.Prelude hiding (sym)
 
@@ -6,7 +6,7 @@ import qualified Blaze.Cfg.Interprocedural as InterCfg
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 
-import Blaze.Types.Cfg (CfNode, CallNode, PilCallNode, PilCfg, HasCtx(getCtx))
+import Blaze.Types.Cfg (PilCallNode, PilCfg, HasCtx(getCtx))
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (CallDest)
 import qualified Blaze.Types.Pil as Pil
@@ -22,7 +22,7 @@ getAcyclicCfgForCallDest store = \case
   -- Pil.CallAddr ptr -> do
   --   sym <- ptr ^. #symbol
   --   CfgStore.getFromFuncName_ sym store
-  Pil.CallFunc func -> (fmap $ view #acyclicCfg) <$> CfgStore.getFreshFuncCfgInfo store func
+  Pil.CallFunc func -> fmap (view #acyclicCfg) <$> CfgStore.getFreshFuncCfgInfo store func
   _ -> return Nothing
 
 getAcyclicCfgForCallNode :: CfgStore -> PilCallNode -> IO (Maybe PilCfg)

@@ -103,9 +103,7 @@ spec = describe "Flint.Cfg.Path" $ do
           action = exploreFromStartingFunc_ alwaysLowestOfRange expansionChooser 0 store startFunc
           modifyResult :: Maybe PilPath -> Bool
           modifyResult
-            = not
-            . null
-            . filter (isCallTo "inner")
+            = any (isCallTo "inner")
             . getPathNodes
             . fromJust
           expected = True
@@ -238,9 +236,7 @@ spec = describe "Flint.Cfg.Path" $ do
           modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
                        -> Bool
           modifyResult
-            = not
-            . null
-            . filter (isCallTo "inner")
+            = any (isCallTo "inner")
             . getPathNodes
             . fromJust
             . unsafeFromRight
@@ -330,9 +326,7 @@ spec = describe "Flint.Cfg.Path" $ do
           modifyResult :: Either (SampleRandomPathError' PilNode) (Maybe PilPath)
                        -> Bool
           modifyResult
-            = not
-            . null
-            . filter (isCallTo "puts")
+            = any (isCallTo "puts")
             . getPathNodes
             . fromJust
             . unsafeFromRight

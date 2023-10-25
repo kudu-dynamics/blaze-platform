@@ -1,3 +1,4 @@
+{- HLINT ignore "Use newtype instead of data" -}
 module Flint.Types.Query
   ( module Flint.Types.Query
   ) where
@@ -11,7 +12,6 @@ import qualified Blaze.Import.CallGraph as Cg
 
 
 -- | Types used for query/search
-
 data BugMatch = BugMatch
   { pathPattern :: [StmtPattern]
   , bugName :: Text
@@ -46,6 +46,7 @@ data QueryExpandAllOpts func = QueryExpandAllOpts
   , numSamples :: Word64
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
+-- leaving this `data` for now bc we'll probably expand opts
 data QueryAllPathsOpts func = QueryAllPathsOpts
   { start :: func
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
@@ -79,7 +80,7 @@ instance GetFunction Address where
 instance GetFunction Text where
   getFunction imp name = do
     funcs <- Cg.getFunctions imp
-    case filter (\fn -> fn ^. #name == name) $ funcs of
+    case filter (\fn -> fn ^. #name == name) funcs of
       [] -> error $ "Could not find a function named " <> show name
       [x] -> return x
       _ -> error $ "Found more than one function named " <> show name

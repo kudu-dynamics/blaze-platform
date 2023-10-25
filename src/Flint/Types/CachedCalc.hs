@@ -1,9 +1,9 @@
-module Flint.Types.CachedCalc where
+module Flint.Types.CachedCalc ( module Flint.Types.CachedCalc ) where
 
 import Flint.Prelude
 import qualified Data.HashMap.Strict as HashMap
-import Control.Concurrent.STM.TVar (TVar, readTVarIO, writeTVar, readTVar, newTVar)
-import Control.Concurrent.STM.TMVar (TMVar, readTMVar, tryPutTMVar, newEmptyTMVar, putTMVar)
+import Control.Concurrent.STM.TVar (TVar, writeTVar, readTVar, newTVar)
+import Control.Concurrent.STM.TMVar (TMVar, readTMVar, newEmptyTMVar, putTMVar)
 
 -- | This module was taken from Blaze-UI
 

@@ -1,3 +1,5 @@
+{- HLINT ignore "Redundant <$>" -}
+
 module Flint.Cfg.Store ( module Flint.Cfg.Store ) where
 
 import Flint.Prelude
@@ -44,10 +46,7 @@ init imp = do
     <*> atomically CC.create
     <*> atomically CC.create
   CC.setCalc () (store ^. #callGraphCache) $ do
-    -- putText "\nGetting CallGraph...\n"
-    cg <- CG.getCallGraph imp $ store ^. #funcs
-    -- putText "\nGot CallGraph.\n"
-    return cg
+    CG.getCallGraph imp $ store ^. #funcs
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg

@@ -20,7 +20,7 @@ init = HashMap.empty
 -- | Adds a func/cfg to the store.
 -- Any Cfgs in the store should have a CtxId of 0
 addFuncCfg_ :: Function -> PilCfg -> CfgStore -> CfgStore
-addFuncCfg_ func cfg store = HashMap.alter (Just . maybe [v] (v:)) k store
+addFuncCfg_ func cfg = HashMap.alter (Just . maybe [v] (v:)) k
   where
     k = func ^. #name
     v = (func, cfg)

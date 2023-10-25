@@ -1,20 +1,16 @@
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
+{-# OPTIONS_GHC -fno-warn-unused-local-binds #-}
+
 module Main (main) where
 
 import Flint.Prelude
 
-import Flint.Types.Analysis
 import Flint.Analysis
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Query
-import qualified Flint.Analysis.Uefi as Uefi
 
-import qualified Binja.Core as BN
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import qualified Blaze.Types.Pil as Pil
-
-import System.Directory (listDirectory)
-import qualified Data.HashSet as HashSet
-
 
 
 -- This example shows a failed check where they check the commbuffer size (arg4)
@@ -66,7 +62,7 @@ failedToCheckCommBufferIsOutsideSmramBug = BugMatch
       (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
       Nothing
     , AnyOne [ Stmt $ Store (Bind "fullAddr" (Contains (Var "arg3"))) (Bind "value" Wild)
-             , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), (Bind "value" Wild), Wild]
+             , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), Bind "value" Wild, Wild]
              ]
     ]
   , bugName = "Arbitrary Write to SMRAM"

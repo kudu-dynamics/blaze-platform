@@ -1,18 +1,16 @@
-module Flint.Cfg.Path where
+module Flint.Cfg.Path (module Flint.Cfg.Path) where
 
 import Flint.Prelude
 
-import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths), GetFunction(getFunction))
+import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths))
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Util (incUUID)
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as CfgPath
-import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Path as Path
-import Blaze.Path (SampleRandomPathError', SampleRandomPathError)
-import Blaze.Types.Graph (DescendantsMap)
+import Blaze.Path (SampleRandomPathError')
 import Blaze.Types.Function (Function)
 import Blaze.Types.Cfg (CallNode, PilNode)
 import qualified Blaze.Cfg as Cfg
