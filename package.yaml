@@ -154,11 +154,13 @@ library:
   - Blaze.Types.Path.Alga
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
+  - Blaze.Types.Pil.Analysis.Subst
   - Blaze.Types.Pil.Checker
   - Blaze.Types.Pil.Function
   - Blaze.Types.Pil.Solver
   - Blaze.Types.Pil.Summary
   - Blaze.Types.VTable
+  - Blaze.Util
   - Blaze.Util.MLIL
   - Blaze.Util.Spec
   - Blaze.VTable

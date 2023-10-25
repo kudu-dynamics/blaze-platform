@@ -7,8 +7,7 @@ import Blaze.Prelude
 import qualified Blaze.Graph as G
 import Blaze.Types.Graph (NodeId(NodeId), DescendantsMap)
 import Blaze.Types.Graph.Alga (AlgaGraph)
-import Blaze.Path (getAllPaths, getPathsContaining_, getPathsContainingAndAvoiding_)
-import Blaze.Types.Path (start, (-|), (|-), PathBuilder)
+import Blaze.Path
 import Blaze.Types.Path.Alga (AlgaPath(AlgaPath, rootNode, graph))
 
 import qualified Data.HashSet as HashSet
@@ -150,6 +149,10 @@ spec = describe "Blaze.Path" $ do
 
   let noRevisit _ _ = error "Should not revisit"
       replicateOnRevisit = Text.replicate
+      returnLowest :: (a, a) -> IO a
+      returnLowest (a, _) = return a
+      returnHighest :: (a, a) -> IO a
+      returnHighest (_, b) = return b 
 
   context "getAllPaths" $ do
     
@@ -340,4 +343,120 @@ spec = describe "Blaze.Path" $ do
           result = getPathsContainingAndAvoiding_ dmap noRevisit 0 "a" graph requiredNodes avoidNodes
           expected = [ mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c" -| 7 |- "fin" ]
       result `shouldBe` (expected :: [TextPath])
+
+  context "roulette" $ do
+    it "should always return first item in single item list" $ do
+      let xs = (0, "a") :| [] :: NonEmpty (Int, Text)
+          pick = 0
+          expected = "a"
+      roulette xs pick `shouldBe` expected
+
+    it "should return first item when pick is less than first item's val" $ do
+      let xs = (1, "a") :| [(1, "b"),(4, "c"), (2, "d")] :: NonEmpty (Int, Text)
+          pick = 0
+          expected = "a"
+      roulette xs pick `shouldBe` expected
+
+    it "should return second item when pick is >= first item and < second" $ do
+      let xs = (1, "a") :| [(1, "b"),(4, "c"), (2, "d")] :: NonEmpty (Int, Text)
+          pick = 1
+          expected = "b"
+      roulette xs pick `shouldBe` expected
+
+    it "should return nth item" $ do
+      let xs = (1, "a") :| [(1, "b"),(4, "c"), (2, "d")] :: NonEmpty (Int, Text)
+          pick = 5
+          expected = "c"
+      roulette xs pick `shouldBe` expected
+
+    it "should return last item if pick is out of bounds" $ do
+      let xs = (1, "a") :| [(1, "b"),(4, "c"), (2, "d")] :: NonEmpty (Int, Text)
+          pick = 88888
+          expected = "d"
+      roulette xs pick `shouldBe` expected
+
+  context "stochasticChoice" $ do
+    let pickN :: Int -> ((Int, Int) -> Identity Int)
+        pickN n _ = return n
+
+    it "should always return first item in single item list" $ do
+      let xs = (0, "a") :| [] :: NonEmpty (Int, Text)
+          picker = pickN 999
+          expected = "a"
+      runIdentity (stochasticChoice picker xs) `shouldBe` expected
+
+    it "should return nth item" $ do
+      let xs = (1, "a") :| [(1, "b"),(4, "c"), (2, "d")] :: NonEmpty (Int, Text)
+          picker = pickN 5
+          expected = "c"
+      runIdentity (stochasticChoice picker xs) `shouldBe` expected
+
+  context "chooseChildByDescendantCount" $ do
+    it "should return error if child node not found in descendants map" $ do
+      let dmap = graphEmptyDmap
+          parentNode = "a" :: Text
+          childNodes = ((), "b") :| []
+          expected = Left $ ChildNodeNotFoundInDescendantMap "b"
+          action = runExceptT $ chooseChildByDescendantCount returnLowest dmap () parentNode childNodes
+      action `shouldReturn` expected
+
+
+  context "sampleRandomPath_" $ do
+    it "should return Left error if graph is empty" $ do
+      let graph = G.empty :: TextGraph
+          requiredNodes = HashSet.empty
+          dmap = graphEmptyDmap
+          expected = Left StartNodeNotInGraph
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should return Left error req node is not in graph" $ do
+      let graph = graphSinglePath :: TextGraph
+          requiredNodes = HashSet.fromList ["z"]
+          dmap = graphSinglePathDmap
+          expected = Left . BranchChooserError $ NoReqNodesCanBeReached
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should return single path for graph with single path" $ do
+      let graph = graphSinglePath :: TextGraph
+          requiredNodes = HashSet.empty
+          dmap = graphSinglePathDmap
+          expected = Right . mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d"
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should continue to get path when req node is found, until term node" $ do
+      let graph = graphSinglePath :: TextGraph
+          requiredNodes = HashSet.fromList ["b"]
+          dmap = graphSinglePathDmap
+          expected = Right . mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d"
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should get full path after finding one req node, even when remaining req nodecan't be reached" $ do
+      let graph = graphSinglePath :: TextGraph
+          requiredNodes = HashSet.fromList ["z", "c"]
+          dmap = graphSinglePathDmap
+          expected = Right . mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d"
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should get path using rigged lowest-of-range random generator" $ do
+      let graph = graphMultiPath :: TextGraph
+          requiredNodes = HashSet.empty
+          dmap = graphMultiPathDmap
+          expected = Right . mkTextPath
+            $ start "a" -| 1 |- "b" -| 2 |- "c" -| 7 |- "fin"
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should get path using rigged highest-of-range random generator" $ do
+      let graph = graphMultiPath :: TextGraph
+          requiredNodes = HashSet.empty
+          dmap = graphMultiPathDmap
+          expected = Right . mkTextPath
+            $ start "a" -| 1 |- "b" -| 5 |- "e" -| 6 |- "fin"
+          action = sampleRandomPath_ returnHighest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
 

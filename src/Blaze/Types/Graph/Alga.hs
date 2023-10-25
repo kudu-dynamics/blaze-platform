@@ -2,14 +2,16 @@ module Blaze.Types.Graph.Alga where
 
 import Blaze.Prelude hiding (pred)
 
+import Blaze.Types.Graph hiding (edge, label, src, dst)
+import Blaze.Util (getMemoized)
+
 import qualified Algebra.Graph.AdjacencyMap as G
 import qualified Algebra.Graph.AdjacencyMap.Algorithm as GA
+import qualified Algebra.Graph.Export.Dot as Dot
 import Control.Arrow ((&&&))
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
-import Blaze.Types.Graph hiding (edge, label, src, dst)
-import qualified Algebra.Graph.Export.Dot as Dot
 
 
 -- | A graph implementation that is build atop the Alga graph library.
@@ -49,7 +51,45 @@ safeMap f g
   $ g
 
 -- | Call this if you want to traverse over the nodes and change the node ids.
+-- It memoizes every `(a -> f b)` along the way to ensure consistent transformation.
+safeTraverse_
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Monad m
+     )
+  => (a -> m b)
+  -> AlgaGraph l i a
+  -> StateT (HashMap a b) m (AlgaGraph l j b)
+safeTraverse_ f g = do
+  nodes' <- traverse (getMemoized f) . HSet.toList $ nodes g
+  g' <- fmap fromEdges . traverse (traverse (getMemoized f)) . edges $ g
+  return $ addNodes nodes' g'
+
 safeTraverse
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Monad m
+     )
+  => (a -> m b)
+  -> AlgaGraph l i a
+  -> m (AlgaGraph l j b)
+safeTraverse f g = evalStateT (safeTraverse_ f g) HMap.empty
+
+-- | Call this if you want to traverse over the nodes and change the node ids.
+-- It's not safe unless the return value of (a -> f b) is memoized
+unsafeTraverse
   :: ( Hashable a
      , Hashable b
      , Hashable i
@@ -63,7 +103,7 @@ safeTraverse
   => (a -> f b)
   -> AlgaGraph l i a
   -> f (AlgaGraph l j b)
-safeTraverse f g
+unsafeTraverse f g
   = addNodes
   <$> (traverse f . HSet.toList $ nodes g)
   <*> (fmap fromEdges . traverse (traverse f) . edges $ g)

@@ -18,6 +18,7 @@ import Blaze.Types.Pil (Stmt, CtxId, Ctx)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst), FlatSubst(flatSubst))
 
+import qualified Data.HashMap.Strict as HashMap
 
 data Path a = Path
   { nextCtxIndex :: CtxId
@@ -49,18 +50,34 @@ safeMap
   -> Path b
 safeMap f = over #path $ AlgaPath.safeMap f
 
+-- | Traverses all the nodes, memoizing results to ensure consistency.
+-- This doesn't touch the outerCtx or nextCtxIndex fields, so if the traverse
+-- function changes the Ctx of all the nodes, the outerCtx might no longer match.
+safeTraverse_
+  :: ( Hashable a
+     , Hashable b
+     , Identifiable a UUID
+     , Identifiable b UUID
+     , Monad m
+     , Show a
+     )
+  => (a -> m b)
+  -> Path a
+  -> StateT (HashMap a b) m (Path b)
+safeTraverse_ f = traverseOf #path $ AlgaPath.safeTraverse_ f
+
 safeTraverse
   :: ( Hashable a
      , Hashable b
      , Identifiable a UUID
      , Identifiable b UUID
-     , Applicative f
+     , Monad m
      , Show a
      )
-  => (a -> f b)
+  => (a -> m b)
   -> Path a
-  -> f (Path b)
-safeTraverse f = traverseOf #path $ AlgaPath.safeTraverse f
+  -> m (Path b)
+safeTraverse f p = evalStateT (safeTraverse_ f p) HashMap.empty 
 
 instance (Show a, RecurSubst CtxId a, Identifiable a UUID, Hashable a) => IsPath BranchType a Path where
   root = P.root . view #path

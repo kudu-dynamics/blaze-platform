@@ -54,7 +54,7 @@ data SolvePathsResult a = SolvePathsResult
   
 solvePaths :: SMTConfig -> SolverLeniency -> [PilPath] -> IO (SolvePathsResult PilPath)
 solvePaths solverCfg leniency paths = do
-  solved <- traverse (\p -> (,p) <$> solvePathWith_ solverCfg leniency p) paths
+  solved <- mapConcurrently (\p -> (,p) <$> solvePathWith_ solverCfg leniency p) paths
   return $ foldr divideSolved (SolvePathsResult [] [] [] [] []) solved
   where
     divideSolved :: (SolverResult, PilPath) -> SolvePathsResult PilPath -> SolvePathsResult PilPath
