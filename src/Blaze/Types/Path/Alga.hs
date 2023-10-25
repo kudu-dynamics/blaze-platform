@@ -12,6 +12,8 @@ import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph (Identifiable, NodeId, getNodeId, LEdge(LEdge), Edge(Edge))
 import qualified Blaze.Types.Path as P
 import Blaze.Types.Path (IsPath, PathConstruct)
+import Blaze.Util (getMemoized)
+
 import qualified Data.List.NonEmpty as NE
 
 -- | A graph implementation that is build atop the Alga graph library.
@@ -42,7 +44,45 @@ safeMap f p = AlgaPath newRootNodeId . AlgaGraph.safeMap f $ p ^. #graph
   where
     newRootNodeId = getNodeId . f . P.root $ p
 
+safeTraverse_
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Monad m
+     , Show a
+     )
+  => (a -> m b)
+  -> AlgaPath l i a
+  -> StateT (HashMap a b) m (AlgaPath l j b)
+safeTraverse_ f p = do
+  let oldRoot = P.root p
+  newRoot <- getMemoized f oldRoot
+  newGraph <- AlgaGraph.safeTraverse_ f $ p ^. #graph
+  return $ AlgaPath (getNodeId newRoot) newGraph
+
 safeTraverse
+  :: ( Hashable a
+     , Hashable b
+     , Hashable i
+     , Hashable j
+     , Ord i
+     , Ord j
+     , Identifiable a i
+     , Identifiable b j
+     , Monad m
+     , Show a
+     )
+  => (a -> m b)
+  -> AlgaPath l i a
+  -> m (AlgaPath l j b)
+safeTraverse f p = evalStateT (safeTraverse_ f p) HashMap.empty
+
+unsafeTraverse
   :: ( Hashable a
      , Hashable b
      , Hashable i
@@ -57,7 +97,7 @@ safeTraverse
   => (a -> f b)
   -> AlgaPath l i a
   -> f (AlgaPath l j b)
-safeTraverse f p = AlgaPath <$> newRootNodeId <*> AlgaGraph.safeTraverse f (p ^. #graph)
+unsafeTraverse f p = AlgaPath <$> newRootNodeId <*> AlgaGraph.unsafeTraverse f (p ^. #graph)
   where
     newRootNodeId = getNodeId <$> f (P.root p)
 

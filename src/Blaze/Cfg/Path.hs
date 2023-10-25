@@ -1,3 +1,4 @@
+{- HLINT ignore "Use <$>" -}
 module Blaze.Cfg.Path
  ( module Blaze.Cfg.Path
  , module Exports
@@ -10,13 +11,19 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg.Grouping (unfoldGroups)
 import Blaze.Types.Cfg.Path as Exports
 import qualified Blaze.Types.Graph as G
+import Blaze.Types.Graph (DescendantsMap)
 import Blaze.Cfg.Interprocedural ()
 import qualified Blaze.Cfg.Interprocedural as CfgI
 import qualified Blaze.Path as P
+import Blaze.Path (SampleRandomPathError, SampleRandomPathError', ChildChooser)
 import Blaze.Types.Pil (Stmt, CallStatement, Expression)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst))
 import qualified Blaze.Pil.Construct as C
+import qualified Blaze.Cfg.Loop as Loop
+
+import qualified Data.HashSet as HashSet
+import Data.List (nub)
 
 
 -- | Generates all paths from a Cfg that do not visit the same node twice.
@@ -67,6 +74,8 @@ getSimpleReturnPaths cfg = getSimplePathsContaining (G.getTermNodes cfg) cfg
 -- | Expands a call node with another path. Updates ctxIds of inner path,
 -- as well as node UUIDs.
 -- Returns Nothing if call node not found.
+-- WARNING: innerPath must contain nodes with unique node ids!
+--          
 expandCall
   :: UUID
   -> PilPath
@@ -124,3 +133,97 @@ expandCallWithNewInnerPathIds leaveFuncUuid outerPath callNode innerPath = do
       uuid <- randomIO
       return $ setNodeUUID uuid n
 
+makeCfgAcyclic ::
+  forall a.
+  Hashable a =>
+  Cfg (CfNode a) ->
+  Cfg (CfNode a)
+makeCfgAcyclic cfg = Cfg.removeEdges bedges cfg
+  where
+    bedges = view #edge <$> Loop.getBackEdges cfg
+
+-- | Samples numSamples random paths from a Cfg.
+-- This sampler expects an acyclic Cfg. Otherwise, it might pursue branches
+-- that only reach a required node through a loop, which it, at the moment,
+-- cannot follow, so the path will lack the required node.
+-- It also expects that the Cfg has no groups.
+sampleRandomPathsContaining_
+  :: (Ord a, Hashable a)
+  => DescendantsMap (CfNode a)
+  -> HashSet (CfNode a)
+  -> Int
+  -> Cfg (CfNode a)
+  -> IO [Path (CfNode a)]
+sampleRandomPathsContaining_ dmap reqSomeNodes numSamples cfg = do
+  paths <- replicateM numSamples
+    (P.sampleRandomPath
+      dmap
+      (\ _ _ -> error "should not revisit")
+      0
+      (Cfg.getRootNode cfg)
+      (cfg ^. #graph)
+      reqSomeNodes
+    )
+  return . fmap mkCfPath . nub . mapMaybe hush $ paths
+  where
+    nextCtxIndex_ = cfg ^. #nextCtxIndex
+    outerCtx_ = getCtx cfg
+    mkCfPath = Path nextCtxIndex_ outerCtx_
+
+-- | Gets a single random path from a CFG.
+sampleRandomPath_
+  :: Hashable a
+  => ((Int, Int) -> IO Int)
+  -> DescendantsMap (CfNode a)
+  -> Cfg (CfNode a)
+  -> IO (Either (SampleRandomPathError' (CfNode a)) (Path (CfNode a)))
+sampleRandomPath_ pickBranch dmap cfg
+  = fmap (fmap mkCfPath)
+  $ P.sampleRandomPath_
+    pickBranch
+    dmap
+    (\ _ _ -> error "should not revisit")
+    0
+    (Cfg.getRootNode cfg)
+    (cfg ^. #graph)
+    HashSet.empty
+  where
+    nextCtxIndex_ = cfg ^. #nextCtxIndex
+    outerCtx_ = getCtx cfg
+    mkCfPath = Path nextCtxIndex_ outerCtx_
+
+-- | Gets numSamples random paths from Cfg.
+-- This version preps the Cfg by unfolding groups and making it acyclic.
+sampleRandomPathsContaining
+  :: (Ord a, Hashable a)
+  => HashSet (CfNode a)
+  -> Int
+  -> Cfg (CfNode a)
+  -> IO [Path (CfNode a)]
+sampleRandomPathsContaining reqSomeNodes numSamples cfg = do
+  let dmap = G.calcDescendantsMap cfg''
+  sampleRandomPathsContaining_ dmap reqSomeNodes numSamples cfg''
+  where
+    (cfg', _) = unfoldGroups cfg
+    cfg'' = makeCfgAcyclic cfg'
+
+-- | Gets a single random path from a CFG.
+sampleRandomPath_'
+  :: forall a s e m. (Monad m, Hashable a)
+  => ChildChooser s e m BranchType (CfNode a) -- Choose between children
+  -> s -- initial chooser state
+  -> Cfg (CfNode a)
+  -> ExceptT (SampleRandomPathError e) m (Path (CfNode a))
+sampleRandomPath_' chooser initState cfg
+  = fmap mkCfPath
+  $ P.sampleRandomPath_'
+    chooser
+    initState
+    (\ _ _ -> error "should not revisit")
+    0
+    (Cfg.getRootNode cfg)
+    (cfg ^. #graph)
+  where
+    nextCtxIndex_ = cfg ^. #nextCtxIndex
+    outerCtx_ = getCtx cfg
+    mkCfPath = Path nextCtxIndex_ outerCtx_

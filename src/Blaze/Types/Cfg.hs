@@ -22,9 +22,12 @@ import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph.Alga as Ag
 import Blaze.Types.Pil (BranchCondOp, CallDest, Ctx, CtxId, Expression, RetOp, Stmt)
 import Blaze.Types.Pil qualified as Pil
+import Blaze.Util (getMemoized)
+
 import Control.Arrow ((&&&))
 import Control.Lens (ix)
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
 import Prelude qualified as P
 
@@ -209,7 +212,6 @@ mkControlFlowGraph ::
 mkControlFlowGraph root' ns es =
   G.addNodes (root' : ns) $ G.fromEdges (fmap toLEdge es)
 
-
 data MkCfgRootError
   = ZeroRootNodes
   | MultipleRootNodes
@@ -246,6 +248,65 @@ data Cfg n = Cfg
   , nextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
+safeMap
+  :: ( Identifiable a UUID
+     , Identifiable b UUID
+     , Hashable a
+     , Hashable b
+     )
+  => (a -> b)
+  -> Cfg a
+  -> Cfg b
+safeMap f cfg = Cfg
+  { graph = Ag.safeMap f $ cfg ^. #graph
+  , rootId = getNodeId . f . getRootNode $ cfg
+  , nextCtxIndex = cfg ^. #nextCtxIndex
+  }
+
+-- | This is only safe if for f(A), ∀ x ∈ A, ∀ y ∈ A, x = y => f(x) = f(y)
+unsafeTraverse
+  :: ( Identifiable a UUID
+     , Identifiable b UUID
+     , Hashable a
+     , Hashable b
+     , Applicative f
+     )
+  => (a -> f b)
+  -> Cfg a
+  -> f (Cfg b)
+unsafeTraverse f cfg = Cfg
+  <$> Ag.unsafeTraverse f (cfg ^. #graph)
+  <*> (getNodeId <$> f (getRootNode cfg))
+  <*> pure (cfg ^. #nextCtxIndex)
+
+safeTraverse_
+  :: ( Identifiable a UUID
+     , Identifiable b UUID
+     , Hashable a
+     , Hashable b
+     , Monad m
+     )
+  => (a -> m b)
+  -> Cfg a
+  -> StateT (HashMap a b) m (Cfg b)
+safeTraverse_ f cfg = do
+  let oldRoot = getRootNode cfg
+  newRoot <- getMemoized f oldRoot
+  newGraph <- Ag.safeTraverse_ f (cfg ^. #graph)
+  return $ Cfg newGraph (getNodeId newRoot) (cfg ^. #nextCtxIndex)
+
+safeTraverse
+  :: ( Identifiable a UUID
+     , Identifiable b UUID
+     , Hashable a
+     , Hashable b
+     , Monad m
+     )
+  => (a -> m b)
+  -> Cfg a
+  -> m (Cfg b)
+safeTraverse f cfg = evalStateT (safeTraverse_ f cfg) HashMap.empty
 
 incNextCtxIndex :: Cfg n -> Cfg n
 incNextCtxIndex = over #nextCtxIndex (+1)

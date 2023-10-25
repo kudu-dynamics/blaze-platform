@@ -73,7 +73,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Numeric
 
-import Blaze.Cfg
+import Blaze.Types.Cfg
     ( CfNode(BasicBlock, Call, EnterFunc, LeaveFunc, Grouping),
       BasicBlockNode,
       CallNode,
@@ -84,7 +84,7 @@ import Blaze.Cfg
       CfEdge,
       Cfg,
     )
-import qualified Blaze.Cfg as Cfg
+import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Types.Cfg.Grouping as GCfg
 import qualified Blaze.Types.Cfg.Path as CfgPath
 import qualified Blaze.Types.Pil.Summary as Summary
