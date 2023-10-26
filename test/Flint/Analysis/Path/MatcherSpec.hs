@@ -4,7 +4,7 @@ module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
   ) where
 
-import Flint.Prelude hiding (Symbol, sym, const)
+import Flint.Prelude hiding (sym, const)
 
 import Flint.Analysis.Path.Matcher
 
@@ -13,6 +13,7 @@ import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
 import Test.Hspec
+
 
 path0 :: [Pil.Stmt]
 path0 = []
@@ -32,8 +33,6 @@ path2 =
 
 func0 :: Function
 func0 = Function Nothing "func0" 0x888 []
-
-
 
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher" $ do

@@ -42,14 +42,6 @@ import Data.List (nub)
 
 import Flint.Types.Query
 
--- getAddrFromNonRelativeConstLoad :: 
-
--- findNonRelativeConstLoadsInStmt :: Foldable t => t Expression -> [Expression]
-
--- -- | Get any instructions that have reads from non-relative addresses
--- -- These can be used like function inputs if you can write arbitrarily to
--- -- physical memory.
--- findReadsToNonRelativeConstAddresses :: 
 
 getFuncPathsContainingAddrs
   :: (CfgImporter a, ImpCfg.NodeDataType a ~ Cfg.CfNode [Stmt])
@@ -287,7 +279,6 @@ showQuerySummaries tps store (q, bugMatchers) = do
                     )
                 )
   showPathsWithMatches (showQueryHeader q) withMatches
-  -- showPaths (showQueryHeader q) okPaths
 
 summariesOfInterest
   :: forall imp func.

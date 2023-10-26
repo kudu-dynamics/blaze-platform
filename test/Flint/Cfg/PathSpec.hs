@@ -9,30 +9,19 @@ import Flint.Prelude
 import Flint.Analysis (addCfgStoreForBinary)
 import Flint.Cfg.Path
 import qualified Flint.Cfg.Store as CfgStore
-import Flint.Types.Cfg.Store (CfgStore)
-import Flint.Types.Query (Query(..), getFunction, FuncConfig(FuncSym, FuncAddr))
-import Flint.Util (incUUID)
+import Flint.Types.Query (getFunction, FuncConfig(FuncSym))
 
-import Blaze.Path (SampleRandomPathError', SampleRandomPathError)
-import Blaze.Cfg (nodeContainsAddress)
+import Blaze.Path (SampleRandomPathError')
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import qualified Blaze.Import.CallGraph as Cg
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Types.Function (Function)
-import qualified Blaze.Types.Graph as G
 import qualified Blaze.Types.Path as P
 import Blaze.Cfg.Path (PilPath)
-import qualified Blaze.Cfg.Path as CfgPath
 import Blaze.Types.Pil (Stmt)
 import Blaze.Types.Cfg (PilNode, CallNode)
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst))
 
-import Blaze.Pretty (prettyPrint')
-
-import qualified Data.List.NonEmpty as NE
 import qualified Data.HashSet as HashSet
-import System.Random (randomRIO)
 import Test.Hspec
 
 
@@ -52,21 +41,19 @@ spec = describe "Flint.Cfg.Path" $ do
     return cfgStore
 
   singlePathFunc <- runIO . getFunction bv $ FuncSym "single_path_no_calls"
-  doublePathFunc <- runIO . getFunction bv $ FuncSym "double_path_no_calls"
   outerAFunc <- runIO . getFunction bv $ FuncSym "outer_a"
   innerFunc <- runIO . getFunction bv $ FuncSym "inner"
   mainFunc <- runIO . getFunction bv $ FuncSym "main"
-  callsSameFuncTwice <- runIO . getFunction bv $ FuncSym "calls_same_function_twice"
     
   let alwaysLowestOfRange (a, _) = return a
-      alwaysHighestOfRange (_, b) = return b
-      alwaysZero :: Int -> IO Int
-      alwaysZero _ = return 0
+      _alwaysHighestOfRange (_, b) = return b
+      _alwaysZero :: Int -> IO Int
+      _alwaysZero _ = return 0
         
       getPathNodeCount :: PilPath -> Int
       getPathNodeCount = length . HashSet.toList . P.nodes
-      getSinglePath :: [PilPath] -> PilPath
-      getSinglePath = \case
+      _getSinglePath :: [PilPath] -> PilPath
+      _getSinglePath = \case
         [] -> error "Should contain one path. Got zero."
         [x] -> x
         xs -> error $ "Should contain one path, got " <> show xs <> "."
@@ -74,8 +61,8 @@ spec = describe "Flint.Cfg.Path" $ do
       getPathNodes = HashSet.toList . P.nodes
       getCallDestName :: CallNode [Stmt] -> Maybe Text
       getCallDestName n = n ^? #callDest . #_CallFunc . #name
-      hasCallDestTo :: Text -> CallNode [Stmt] -> Bool
-      hasCallDestTo calleeName n = Just calleeName == getCallDestName n
+      _hasCallDestTo :: Text -> CallNode [Stmt] -> Bool
+      _hasCallDestTo calleeName n = Just calleeName == getCallDestName n
       getCalleeFuncName :: PilNode -> Maybe Text
       getCalleeFuncName = \case
         Cfg.Call n -> getCallDestName n
@@ -123,87 +110,6 @@ spec = describe "Flint.Cfg.Path" $ do
             . fromJust
           expected = 2
       (modifyResult <$> action) `shouldReturn` expected
-
-    -- it "should expand only calls specified by expansion chooser" $ do
-    --   let startFunc = mainFunc
-    --       -- chooses to expand "outer_a" and "inner"
-    --       expansionChooser :: CallDepth -> [CallNode [Stmt]] -> IO [CallNode [Stmt]]
-    --       expansionChooser _ = return
-    --         . filter (\n -> hasCallDestTo "outer_a" n || hasCallDestTo "inner" n)
-
-    --       action :: IO (Maybe PilPath)
-    --       action = exploreFromStartingFunc_ alwaysLowestOfRange expansionChooser 0 store startFunc
-    --       modifyResult :: Maybe PilPath -> [Text]
-    --       modifyResult
-    --         = sort
-    --         . mapMaybe getCalleeFuncName
-    --         . getPathNodes
-    --         . fromJust
-    --       expected = ["outer_b", "puts"]
-    --   (modifyResult <$> action) `shouldReturn` expected
-
-
-
-
-
-
-    -- it "should get path that goes through req node" $ do
-    --   let targetNode = 0x11ab
-    --       q = Query
-    --           { start = singlePathFunc
-    --           , mustReachSome = [targetNode]
-    --           , callExpandDepthLimit = 10
-    --           , numSamples = 1
-    --           }
-    --       action :: IO [PilPath]
-    --       action = samplesFromQuery_ alwaysZero alwaysLowestOfRange store q
-    --       modifyResult :: [PilPath] -> Bool
-    --       modifyResult
-    --         = not
-    --         . null
-    --         . filter (nodeContainsAddress targetNode)
-    --         . getPathNodes
-    --         . getSinglePath
-    --       expected = True
-    --   (modifyResult <$> action) `shouldReturn` expected
-
-    -- it "should not expand call sites when expand depth is 0" $ do
-    --   let q = Query
-    --           { start = outerAFunc
-    --           , mustReachSome = []
-    --           , callExpandDepthLimit = 0
-    --           , numSamples = 1
-    --           }
-    --       action :: IO [PilPath]
-    --       action = samplesFromQuery_ alwaysZero alwaysLowestOfRange store q
-    --       modifyResult :: [PilPath] -> Bool
-    --       modifyResult
-    --         = not
-    --         . null
-    --         . filter (isCallTo "inner")
-    --         . getPathNodes
-    --         . getSinglePath
-    --       expected = True
-    --   (modifyResult <$> action) `shouldReturn` expected
-
-    -- it "should expand call site when expand depth is greater than zero" $ do
-    --   let q = Query
-    --           { start = outerAFunc
-    --           , mustReachSome = []
-    --           , callExpandDepthLimit = 0
-    --           , numSamples = 1
-    --           }
-    --       action :: IO [PilPath]
-    --       action = samplesFromQuery_ alwaysZero alwaysLowestOfRange store q
-    --       modifyResult :: [PilPath] -> Bool
-    --       modifyResult
-    --         = not
-    --         . null
-    --         . filter (isCallTo "inner")
-    --         . getPathNodes
-    --         . getSinglePath
-    --       expected = True
-    --   (modifyResult <$> action) `shouldReturn` expected
 
   context "exploreForward_ expandAllStrategy" $ do
     it "should get path from func with single basic block" $ do

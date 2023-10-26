@@ -13,9 +13,6 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis.Subst ( RecurSubst(recurSubst) )
 import qualified Data.HashSet as HashSet
 
--- data BuilderState = BuilderState
---   {  
--- type Builder = State 
 
 getAcyclicCfgForCallDest :: CfgStore -> CallDest expr -> IO (Maybe PilCfg)
 getAcyclicCfgForCallDest store = \case

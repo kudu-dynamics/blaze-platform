@@ -150,16 +150,3 @@ addFunc imp store func = CC.setCalc func (store ^. #cfgCache) $ do
         , descendantsMap = dmap
         , calls = calls
         }
-
--- -- | TODO: use sqlite or something beside hashmap so we can use Function as key
--- cfgFromFunc :: CfgStore -> Function -> IO (Maybe PilCfg)
--- cfgFromFunc store func = return $ HashMap.lookup func store
-
--- getFromFuncName :: Text -> CfgStore -> IO [(Function, PilCfg)]
--- getFromFuncName fname store = return . filter nameMatches $ HashMap.toList store
---   where
---     nameMatches (func, _cfg) = func ^. #name == fname
-
--- -- | Convenience function to get the first Cfg in store with that name
--- getFromFuncName_ :: Text -> CfgStore -> IO (Maybe PilCfg)
--- getFromFuncName_ fname store = fmap snd . headMay $ getFromFuncName fname store

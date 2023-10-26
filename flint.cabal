@@ -38,9 +38,7 @@ library
       Flint.Types.CachedCalc
       Flint.Types.Query
   other-modules:
-      Flint.Cfg.InterBinaryStore
       Flint.Types.Cfg
-      Flint.Types.Cfg.InterBinaryStore
       Paths_flint
   autogen-modules:
       Paths_flint

@@ -5,7 +5,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Control.Concurrent.STM.TVar (TVar, writeTVar, readTVar, newTVar)
 import Control.Concurrent.STM.TMVar (TMVar, readTMVar, newEmptyTMVar, putTMVar)
 
--- | This module was taken from Blaze-UI
+-- | This module was taken from Blaze-UI and slightly modified
 
 asyncAndLink_ :: IO a -> IO ()
 asyncAndLink_ = link <=< async
@@ -21,27 +21,6 @@ newtype CachedCalc k v = CachedCalc
 
 create :: STM (CachedCalc k v)
 create = CachedCalc <$> newTVar HashMap.empty
-
--- -- | Creates empty TMVar for k, calculates action in thread,
--- -- then inserts new v into TMVar.
--- -- The calcuation is stored as a `Left (IO v)` until something actually needs it,
--- -- then it is calculated.
--- setCalc :: Hashable k => k -> CachedCalc k v -> IO v -> IO (TVar v)
--- setCalc k (CachedCalc cc) action = do
---   tmvar <- atomically $ do
---     m <- readTVar cc
---     case HashMap.lookup k m of
---       Just v -> return v
---       Nothing -> do
---         emptyV <- newEmptyTMVar
---         writeTVar cc $ HashMap.insert k emptyV m
---         return emptyV
---   -- Currently this is called through a warp webserver thread or through an
---   -- event handler thread in Blaze.UI.Server, which both can handle it.
---   asyncAndLink_ $ do
---     v <- action
---     void . atomically $ tryPutTMVar tmvar v
---   return tmvar
 
 -- | Creates a key in the cache and a calc `IO v`, which will be
 -- computed lazily upon the first call to `getCalc` for that key
@@ -76,10 +55,3 @@ get k (CachedCalc cc) = do
       v <- calc
       atomically $ putTMVar tmv v
       return $ Just v
-
--- -- | Retrieves the cached calc or computes it and caches it.
--- -- Blocks thread until return.
--- calc :: Hashable k => k -> CachedCalc k v -> IO v -> IO v
--- calc k cc action = getCalc k cc >>= \case
---   Just v -> return v
---   Nothing -> setCalc k cc action >>= atomically . readTMVar

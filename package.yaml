@@ -179,4 +179,3 @@ tests:
     dependencies:
     - flint
     - hspec
-    # - hspec-megaparsec

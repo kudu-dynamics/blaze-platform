@@ -29,10 +29,6 @@ type CallExpansionChooser = Function -> CallDepth -> [CallNode [Stmt]] -> IO [Ca
 -- 
 type ExplorationStrategy e m = Function -> CallDepth -> ExceptT e m (Maybe (PilPath, HashSet (CallNode [Stmt])))
 
-
--- type ChildChooser s e m l n = s -> n -> NonEmpty (l, n) -> ExceptT e m (Maybe (s, (l, n)))
-
-
 getCallNodeFunc :: CallNode a -> Maybe Function
 getCallNodeFunc n = n ^? #callDest . #_CallFunc
 
@@ -40,15 +36,6 @@ expandAllToDepth :: CallDepth -> CallExpansionChooser
 expandAllToDepth expandDepthLimit _func currentDepth nodes
   | currentDepth < expandDepthLimit = return nodes
   | otherwise = return []
-
--- expandToTargets
---   :: CallDepth
---   -> HashSet Function
---   -> HashSet Function
---   -> CallExpansionChooser
--- expandToTargets expandDepthLimit funcsThatContainTarget funcsThatLeadToTarget currentFunc currentDepth nodes
---   | currentDepth < expandDepthLimit = return []
---   | otherwise = case (HashSet.member
 
 -- | This function explores from the start of a function, expanding calls
 --   on a path until it reaches the depth limit.
@@ -235,17 +222,6 @@ exploreForward_ genUuid exploreStrat currentDepth startingFunc = do
             mainPath
             innerPaths
 
--- -- | Gets a random path from the starting function to the target basic block.
--- sampleToTarget_
---   :: (Int -> IO Int) -- If multiple calls reach target, pick from them.
---   -> ((Int, Int) -> IO Int) -- Pick random branch amonst those that reach target
---   -> DescendantsMap Function
---   -> CfgStore
---   -> Function
---   -> Address
---   -> IO (Maybe PilPath)
--- sampleToTarget_ pickCallToTarget pickBranch dmap store startingFunc targetAddr = return Nothing
-
 -- | Gets samples for a Query.
 samplesFromQuery
   :: CfgStore
@@ -280,4 +256,3 @@ samplesFromQuery store = \case
           putText $ "ERROR getting sample: " <> show err
           return Nothing
         Right mpath -> return mpath
-        
