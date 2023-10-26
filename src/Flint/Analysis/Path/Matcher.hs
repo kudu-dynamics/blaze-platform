@@ -14,7 +14,8 @@ import qualified Blaze.Pil.Analysis.Path as PA
 import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
-import Blaze.Types.Pil (Size)
+import Blaze.Types.Pil (Size(Size))
+import Blaze.Pil.Construct (ExprConstructor(..), var')
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -70,6 +71,9 @@ data BoundExpr
   = Bound Symbol -- gets expression that has been bound with Bind
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+instance ExprConstructor BoundExprSize BoundExpr where
+  mkExpr = BoundExpr
 
 -- | Text that can refer to variables bound during pattern matching
 data BoundText
@@ -181,6 +185,24 @@ runMatcher_ action s
   . _runMatcher
   $ action
 
+-- | Transitive closure of a 'HashSet Taint'
+taintTransClos :: HashSet Taint -> HashSet Taint
+taintTransClos ts =
+  HashSet.fromList $ do
+    t1 <- HashSet.toList ts
+    t2 <- HashSet.toList ts
+    if t1 == t2 then
+      [t1]
+    else
+      case (t1, t2) of
+        (Tainted src1 (Left dst1), Tainted src2 dst2)
+          | Just dst1 == src2 ^? #op . #_VAR . #_VarOp -> [t1, Tainted src1 dst2]
+        (Tainted src1 (Right dst1), Tainted src2 (Left dst2))
+          | dst1 == src2 -> [t1, Tainted src1 (Right $ var' dst2 (coerce $ dst2 ^. #size :: Size Pil.Expression))]
+        (Tainted src1 (Right dst1), Tainted src2 (Right dst2))
+          | dst1 == src2  -> [t1, Tainted src1 (Right dst2)]
+        _ -> [t1]
+
 -- | Collect any taints from the expression if it matches one or more
 -- 'TaintPropagator's.
 mkTaintPropagatorTaintSet ::
@@ -228,10 +250,14 @@ mkStmtTaintSet tps =
         Pil.CONST_FLOAT _ -> []
         Pil.ConstStr _ -> []
         Pil.ConstFuncPtr _ -> []
+        Pil.CALL _ ->
+          -- Do not recurse into 'CALL' subexpressions, since 'tps' are supposed
+          -- to handle these
+          []
         op -> e : foldMap interestingSubexpressions (toList op)
 
 mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
-mkTaintSet tps = HashSet.unions . fmap (mkStmtTaintSet tps)
+mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
 mkMatcherState :: [TaintPropagator] -> [Pil.Stmt] -> MatcherState
 mkMatcherState tps stmts = MatcherState stmts HashMap.empty HashSet.empty [] (mkTaintSet tps stmts)
