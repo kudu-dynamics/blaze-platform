@@ -1,4 +1,4 @@
-module Flint.Types.Cfg.Store ( module Flint.Types.Cfg.Store ) where
+module Flint.Types.Cfg.InterBinaryStore where
 
 import Flint.Prelude
 
