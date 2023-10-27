@@ -586,8 +586,12 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         -- No matches. Continue to next statement with same pattern.
         Left _ -> perhapsRecur
     Ordered [] -> return ()
-    Ordered (p:pats) -> tryError (backtrackOnError $ matchNextStmt p) >>= \case
-      Right _ -> matchNextStmt $ Ordered pats
+    Ordered (p:pats) ->
+      ( tryError . backtrackOnError $ do
+          matchNextStmt p
+          matchNextStmt $ Ordered pats
+      ) >>= \case
+      Right _ -> return ()
       Left _ -> perhapsRecur
     Taints src dst -> doesTaint src dst
     Assert bexpr -> addBoundExpr bexpr

@@ -276,6 +276,23 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = MatchNoAssertions stmts
       matchStmts' [] pats stmts `shouldBe` expected
 
+    it "should backtrack on Ordered statements until it finds a match" $ do
+      let stmts = [ def "a" (const 1 8)
+                  , def "b" (const 2 8)
+                  , def "c" (const 3 8)
+                  , def "d" (const 2 8)
+                  ]
+          pats = [ Ordered [ Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                           , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
+                           ]
+                 ]
+          expected = MatchNoAssertions stmts
+          (ms, mr) = matchStmts [] pats stmts
+      mr `shouldBe` expected
+      HashMap.lookup "x" (ms ^. #boundSyms) `shouldBe` Just (const 2 8)
+      HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
+      HashMap.lookup "dest2" (ms ^. #boundSyms) `shouldBe` Just (var "d" 8)
+
     it "should match on unordered statements" $ do
       let stmts = [ def "b" (const 0 4)
                   , def "c" (const 1 4)
@@ -368,11 +385,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "d")
 
       it "should propagate taint through custom taint propagators" $ do
-        let pats = [ Stmt $ Def Wild Wild
+        let pats' = [ Stmt $ Def Wild Wild
                    , Stmt $ Def Wild Wild
                    , Stmt $ Def Wild Wild
                    , Stmt $ Def (Bind "out" Wild) (Bind "in" Wild)
                    , Taints (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d") (Bound "in")
+                   ]
+            pats = [ Ordered
+                     [ Stmt $ Def (Bind "out" Wild) (Bind "in" Wild)
+                     , Taints (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d") (Bound "in")
+                     ]
                    ]
             (ms, mr) = matchStmts tps pats stmts
         mr `shouldBe` MatchNoAssertions stmts
