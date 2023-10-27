@@ -180,9 +180,13 @@ stackLocalAddr base offset size =
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 ---- Statements
+
+-- | Constructs a 'Pil.Def' that assigns the 'expr' to a 'PilVar' with symbol
+-- 'sym' and size 'defaultSize'
 def :: Symbol -> expr -> Statement expr
 def sym = def' $ pilVar sym
 
+-- | Constructs a 'Pil.Def' that assigns 'val' to 'pv'
 def' :: PilVar -> expr -> Statement expr
 def' pv val = Pil.Def (Pil.DefOp pv val)
 
