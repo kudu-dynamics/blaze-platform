@@ -11,7 +11,9 @@ import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
+import qualified Blaze.Pil.Display as Disp
 import Blaze.Pretty (pretty')
+import qualified Blaze.Pretty as Pretty
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size(Size))
@@ -57,8 +59,6 @@ data StmtPattern
   | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
   | Unordered [StmtPattern] -- matches all, but in no particular order.
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
-  -- | Add a constraint that 'src' is involved in the definition of 'dst'
-  | Taints {src :: BoundExpr, dst :: BoundExpr}
   | Assert BoundExpr -- Add a boolean expr constraint, using bound variables.
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -74,6 +74,15 @@ data BoundExpr
 
 instance ExprConstructor BoundExprSize BoundExpr where
   mkExpr = BoundExpr
+
+instance Disp.NeedsParens BoundExpr where
+  needsParens (Bound _) = False
+  needsParens (BoundExpr _ op) = Disp.needsParens op
+
+instance Pretty.Tokenizable BoundExpr where
+  tokenize (Bound sym) = pure [Pretty.varToken Nothing ("?" <> sym)]
+  tokenize (BoundExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
+  tokenize (BoundExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
 
 -- | Text that can refer to variables bound during pattern matching
 data BoundText
@@ -106,6 +115,8 @@ data ExprPattern
   
   -- | Matches if ExprPattern matches somewhere inside expr
   | Contains ExprPattern
+  -- | Matches if 'src' is involved in the definition of 'dst'
+  | TaintedBy ExprPattern BoundExpr
   | Wild
 
   -- | Inequalities. These match on converse inequalities that mean the same thing,
@@ -461,9 +472,22 @@ matchExpr pat expr = case pat of
   Contains xpat -> do
     backtrackOnError (matchExpr xpat expr)
       <|> asum (backtrackOnError . matchExpr (Contains xpat) <$> toList (expr ^. #op))
+  TaintedBy dstPat src -> do
+    backtrackOnError (matchExpr dstPat expr)
+    boundSyms <- use #boundSyms
+    taintSet <- use #taintSet
+    case resolveBoundExpr boundSyms src of
+      Right src' -> insist $ doesTaint taintSet src' expr
+      _ -> bad
   Wild -> return ()
   Expr xop -> matchExprOp xop $ expr ^. #op
   Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
+  where
+    doesTaint :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
+    doesTaint taintSet src dst =
+      maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) (dst ^? #op . #_VAR . #_VarOp)
+        || Tainted src (Right dst) `HashSet.member` taintSet
+        || or (doesTaint taintSet src <$> toList (dst ^. #op))
 
 matchFuncPatWithFunc :: Func -> BFunc.Function -> Matcher ()
 matchFuncPatWithFunc (FuncName name) func = insist
@@ -559,7 +583,6 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Unordered _ -> bad
     Ordered [] -> good
     Ordered _ -> bad
-    Taints src dst -> doesTaint src dst
     Assert boundExpr -> addBoundExpr boundExpr >> good
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -593,7 +616,6 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
       ) >>= \case
       Right _ -> return ()
       Left _ -> perhapsRecur
-    Taints src dst -> doesTaint src dst
     Assert bexpr -> addBoundExpr bexpr
   where
     perhapsRecur = if tryNextStmtOnFailure
@@ -601,18 +623,6 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         retireStmt
         matchNextStmt pat
       else throwError ()
-    doesTaint :: BoundExpr -> BoundExpr -> Matcher ()
-    doesTaint src dst = do
-      boundSyms <- use #boundSyms
-      taintSet <- use #taintSet
-      case (resolveBoundExpr boundSyms src, resolveBoundExpr boundSyms dst) of
-        (Right src', Right dst') -> insist $ doesTaint' taintSet src' dst'
-        _ -> bad
-    doesTaint' :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
-    doesTaint' taintSet src dst =
-      maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) (dst ^? #op . #_VAR . #_VarOp)
-        || (Tainted src (Right dst) `HashSet.member` taintSet)
-        || or (doesTaint' taintSet src <$> toList (dst ^. #op))
 
 newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
   deriving (Eq, Ord, Show, Generic)

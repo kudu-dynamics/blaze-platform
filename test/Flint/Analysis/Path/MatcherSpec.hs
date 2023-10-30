@@ -376,8 +376,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
 
       it "should propagate taint through pure expressions" $ do
-        let pats = [ Stmt $ Store (Bind "out" Wild) (Bind "in" Wild)
-                   , Taints (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "a") (Bound "in")
+        let pats = [ Stmt $
+                     Store (Bind "out" Wild)
+                     (Bind "in" Wild
+                       `TaintedBy`
+                       (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "a"))
                    ]
             (ms, mr) = matchStmts tps pats stmts
         mr `shouldBe` MatchNoAssertions stmts
@@ -385,15 +388,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "d")
 
       it "should propagate taint through custom taint propagators" $ do
-        let pats' = [ Stmt $ Def Wild Wild
-                   , Stmt $ Def Wild Wild
-                   , Stmt $ Def Wild Wild
-                   , Stmt $ Def (Bind "out" Wild) (Bind "in" Wild)
-                   , Taints (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d") (Bound "in")
-                   ]
-            pats = [ Ordered
-                     [ Stmt $ Def (Bind "out" Wild) (Bind "in" Wild)
-                     , Taints (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d") (Bound "in")
+        let pats = [ Ordered
+                     [ Stmt $
+                       Def (Bind "out" Wild)
+                       (Bind "in" Wild
+                         `TaintedBy`
+                         (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d"))
                      ]
                    ]
             (ms, mr) = matchStmts tps pats stmts
@@ -402,11 +402,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
 
       it "should propagate taint through custom taint propagators" $ do
-        let pats = [ Stmt $ Def (Bind "out" Wild) (Bind "in" Wild)
-                   , Taints (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "e") (Bound "in")
+        let pats = [ Stmt $
+                     Def (Bind "out" Wild)
+                     (Bind "in" Wild
+                       `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d"))
                    ]
             (_ms, mr) = matchStmts tps pats stmts
         mr `shouldBe` NoMatch
-
-main :: IO ()
-main = hspec spec
