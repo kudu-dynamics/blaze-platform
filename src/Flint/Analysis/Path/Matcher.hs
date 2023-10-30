@@ -202,16 +202,15 @@ taintTransClos ts =
   HashSet.fromList $ do
     t1 <- HashSet.toList ts
     t2 <- HashSet.toList ts
-    if t1 == t2 then
-      [t1]
-    else
-      case (t1, t2) of
+    if t1 == t2
+      then [t1]
+      else case (t1, t2) of
         (Tainted src1 (Left dst1), Tainted src2 dst2)
           | Just dst1 == src2 ^? #op . #_VAR . #_VarOp -> [t1, Tainted src1 dst2]
         (Tainted src1 (Right dst1), Tainted src2 (Left dst2))
           | dst1 == src2 -> [t1, Tainted src1 (Right $ var' dst2 (coerce $ dst2 ^. #size :: Size Pil.Expression))]
         (Tainted src1 (Right dst1), Tainted src2 (Right dst2))
-          | dst1 == src2  -> [t1, Tainted src1 (Right dst2)]
+          | dst1 == src2 -> [t1, Tainted src1 (Right dst2)]
         _ -> [t1]
 
 -- | Collect any taints from the expression if it matches one or more
@@ -232,14 +231,14 @@ mkTaintPropagatorTaintSet tps mRetVar =
         tps >>= \case
           FunctionCallPropagator propName (Parameter (atMay args -> Just fromExpr)) toParam
             | name == propName ->
-            case toParam of
-              Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
-              ReturnParameter ->
-                case mRetVar of
-                  Just retVar -> [Tainted fromExpr (Left retVar)]
+                case toParam of
+                  Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
+                  ReturnParameter ->
+                    case mRetVar of
+                      Just retVar -> [Tainted fromExpr (Left retVar)]
+                      _ -> []
                   _ -> []
-              _ -> []
-          FunctionCallPropagator{} -> []
+          FunctionCallPropagator {} -> []
 
 mkStmtTaintSet :: [TaintPropagator] -> Pil.Stmt -> HashSet Taint
 mkStmtTaintSet tps =
@@ -484,10 +483,15 @@ matchExpr pat expr = case pat of
   Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
   where
     doesTaint :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
-    doesTaint taintSet src dst =
-      maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) (dst ^? #op . #_VAR . #_VarOp)
-        || Tainted src (Right dst) `HashSet.member` taintSet
-        || or (doesTaint taintSet src <$> toList (dst ^. #op))
+    doesTaint taintSet src dst = isPureTaint || isMemoryTaint || isSubexprTaint
+      where
+        mDstVar = dst ^? #op . #_VAR . #_VarOp
+        isPureTaint = maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) mDstVar
+        isMemoryTaint = Tainted src (Right dst) `HashSet.member` taintSet
+        isSubexprTaint =
+          case dst ^. #op of
+            Pil.CALL _ -> False
+            op -> or (doesTaint taintSet src <$> toList op)
 
 matchFuncPatWithFunc :: Func -> BFunc.Function -> Matcher ()
 matchFuncPatWithFunc (FuncName name) func = insist
