@@ -126,6 +126,10 @@ data ExprPattern
   -- TODO: do we need NOT? and if so, do we want a thing that just says
   --       the expr needs to be true?
   | Cmp CmpType ExprPattern ExprPattern
+
+  -- | This Or's together two expr patterns, so if the first fails, it checks snd.
+  -- Not to be confused with the bitwise PIL.OR operator
+  | OrPattern ExprPattern ExprPattern
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data CmpType
@@ -352,31 +356,31 @@ absorbNots_ True expr = case expr ^. #op of
   -- (not (not x)) = x
   Pil.NOT (Pil.NotOp x) -> absorbNots_ False x
 
-  Pil.CMP_E (Pil.CmpEOp a b) -> mkExpr . Pil.CMP_NE $ Pil.CmpNeOp a b
-  Pil.CMP_NE (Pil.CmpNeOp a b) -> mkExpr . Pil.CMP_E $ Pil.CmpEOp a b
+  Pil.CMP_E (Pil.CmpEOp a b) -> mkCmp . Pil.CMP_NE $ Pil.CmpNeOp a b
+  Pil.CMP_NE (Pil.CmpNeOp a b) -> mkCmp . Pil.CMP_E $ Pil.CmpEOp a b
 
-  Pil.CMP_SGE (Pil.CmpSgeOp a b) -> mkExpr . Pil.CMP_SLT $ Pil.CmpSltOp a b
-  Pil.CMP_SGT (Pil.CmpSgtOp a b) -> mkExpr . Pil.CMP_SLE $ Pil.CmpSleOp a b
-  Pil.CMP_SLE (Pil.CmpSleOp a b) -> mkExpr . Pil.CMP_SGT $ Pil.CmpSgtOp a b
-  Pil.CMP_SLT (Pil.CmpSltOp a b) -> mkExpr . Pil.CMP_SGE $ Pil.CmpSgeOp a b
+  Pil.CMP_SGE (Pil.CmpSgeOp a b) -> mkCmp . Pil.CMP_SLT $ Pil.CmpSltOp a b
+  Pil.CMP_SGT (Pil.CmpSgtOp a b) -> mkCmp . Pil.CMP_SLE $ Pil.CmpSleOp a b
+  Pil.CMP_SLE (Pil.CmpSleOp a b) -> mkCmp . Pil.CMP_SGT $ Pil.CmpSgtOp a b
+  Pil.CMP_SLT (Pil.CmpSltOp a b) -> mkCmp . Pil.CMP_SGE $ Pil.CmpSgeOp a b
 
-  Pil.CMP_UGE (Pil.CmpUgeOp a b) -> mkExpr . Pil.CMP_ULT $ Pil.CmpUltOp a b
-  Pil.CMP_UGT (Pil.CmpUgtOp a b) -> mkExpr . Pil.CMP_ULE $ Pil.CmpUleOp a b
-  Pil.CMP_ULE (Pil.CmpUleOp a b) -> mkExpr . Pil.CMP_UGT $ Pil.CmpUgtOp a b
-  Pil.CMP_ULT (Pil.CmpUltOp a b) -> mkExpr . Pil.CMP_UGE $ Pil.CmpUgeOp a b
+  Pil.CMP_UGE (Pil.CmpUgeOp a b) -> mkCmp . Pil.CMP_ULT $ Pil.CmpUltOp a b
+  Pil.CMP_UGT (Pil.CmpUgtOp a b) -> mkCmp . Pil.CMP_ULE $ Pil.CmpUleOp a b
+  Pil.CMP_ULE (Pil.CmpUleOp a b) -> mkCmp . Pil.CMP_UGT $ Pil.CmpUgtOp a b
+  Pil.CMP_ULT (Pil.CmpUltOp a b) -> mkCmp . Pil.CMP_UGE $ Pil.CmpUgeOp a b
 
-  Pil.FCMP_E (Pil.FcmpEOp a b) -> mkExpr . Pil.FCMP_NE $ Pil.FcmpNeOp a b
-  Pil.FCMP_NE (Pil.FcmpNeOp a b) -> mkExpr . Pil.FCMP_E $ Pil.FcmpEOp a b
+  Pil.FCMP_E (Pil.FcmpEOp a b) -> mkCmp . Pil.FCMP_NE $ Pil.FcmpNeOp a b
+  Pil.FCMP_NE (Pil.FcmpNeOp a b) -> mkCmp . Pil.FCMP_E $ Pil.FcmpEOp a b
 
-  Pil.FCMP_GE (Pil.FcmpGeOp a b) -> mkExpr . Pil.FCMP_LT $ Pil.FcmpLtOp a b
-  Pil.FCMP_GT (Pil.FcmpGtOp a b) -> mkExpr . Pil.FCMP_LE $ Pil.FcmpLeOp a b
-  Pil.FCMP_LE (Pil.FcmpLeOp a b) -> mkExpr . Pil.FCMP_GT $ Pil.FcmpGtOp a b
-  Pil.FCMP_LT (Pil.FcmpLtOp a b) -> mkExpr . Pil.FCMP_GE $ Pil.FcmpGeOp a b
+  Pil.FCMP_GE (Pil.FcmpGeOp a b) -> mkCmp . Pil.FCMP_LT $ Pil.FcmpLtOp a b
+  Pil.FCMP_GT (Pil.FcmpGtOp a b) -> mkCmp . Pil.FCMP_LE $ Pil.FcmpLeOp a b
+  Pil.FCMP_LE (Pil.FcmpLeOp a b) -> mkCmp . Pil.FCMP_GT $ Pil.FcmpGtOp a b
+  Pil.FCMP_LT (Pil.FcmpLtOp a b) -> mkCmp . Pil.FCMP_GE $ Pil.FcmpGeOp a b
 
   -- Put the NOT back on because it can't be absorbed
-  _ -> mkExpr . Pil.NOT $ Pil.NotOp expr
+  _ -> mkCmp . Pil.NOT $ Pil.NotOp expr
 
-  where mkExpr = Pil.Expression $ expr ^. #size
+  where mkCmp = Pil.Expression $ expr ^. #size
 absorbNots_ False expr = case expr ^. #op of
   Pil.NOT (Pil.NotOp x) -> absorbNots_ True x
   _ -> expr
@@ -481,6 +485,7 @@ matchExpr pat expr = case pat of
   Wild -> return ()
   Expr xop -> matchExprOp xop $ expr ^. #op
   Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
+  OrPattern patA patB -> backtrackOnError (matchExpr patA expr) <|> matchExpr patB expr
   where
     doesTaint :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
     doesTaint taintSet src dst = isPureTaint || isMemoryTaint || isSubexprTaint
@@ -493,6 +498,15 @@ matchExpr pat expr = case pat of
             Pil.CALL _ -> False
             op -> or (doesTaint taintSet src <$> toList op)
 
+(.||) :: ExprPattern -> ExprPattern -> ExprPattern
+(.||) = OrPattern
+infix 3 .||
+
+-- | Succeeds if any one of the patterns succeeds. Tries them left to right.
+anyExpr :: NonEmpty ExprPattern -> ExprPattern
+anyExpr (pat :| []) = pat
+anyExpr (pat :| (p:ps)) = pat .|| anyExpr (p :| ps) 
+        
 matchFuncPatWithFunc :: Func -> BFunc.Function -> Matcher ()
 matchFuncPatWithFunc (FuncName name) func = insist
   $ func ^. #name == name

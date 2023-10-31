@@ -131,6 +131,18 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = MatchNoAssertions stmts
       matchStmts' [] pats stmts `shouldBe` expected
 
+    it "should match first match in OrPattern" $ do
+      let stmts = [def "b" (load (var "arg4" 4) 4)]
+          pats = [Stmt $ Def (Var "b" .|| Var "a") Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match second match in OrPattern" $ do
+      let stmts = [def "b" (load (var "arg4" 4) 4)]
+          pats = [Stmt $ Def (Var "a" .|| Var "b") Wild]
+          expected = MatchNoAssertions stmts
+      matchStmts' [] pats stmts `shouldBe` expected
+
     it "should match a more complex expression that Contains a variable" $ do
       let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
