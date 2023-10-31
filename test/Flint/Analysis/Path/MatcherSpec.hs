@@ -6,11 +6,14 @@ module Flint.Analysis.Path.MatcherSpec
 
 import Flint.Prelude hiding (sym, const)
 
+import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Analysis.Path.Matcher
 
 import Blaze.Pil.Construct
 import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
+
+import qualified Data.HashMap.Strict as HashMap
 
 import Test.Hspec
 
@@ -271,6 +274,23 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = MatchNoAssertions stmts
       matchStmts' [] pats stmts `shouldBe` expected
 
+    it "should backtrack on Ordered statements until it finds a match" $ do
+      let stmts = [ def "a" (const 1 8)
+                  , def "b" (const 2 8)
+                  , def "c" (const 3 8)
+                  , def "d" (const 2 8)
+                  ]
+          pats = [ Ordered [ Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                           , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
+                           ]
+                 ]
+          expected = MatchNoAssertions stmts
+          (ms, mr) = matchStmts [] pats stmts
+      mr `shouldBe` expected
+      HashMap.lookup "x" (ms ^. #boundSyms) `shouldBe` Just (const 2 8)
+      HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
+      HashMap.lookup "dest2" (ms ^. #boundSyms) `shouldBe` Just (var "d" 8)
+
     it "should match on unordered statements" $ do
       let stmts = [ def "b" (const 0 4)
                   , def "c" (const 1 4)
@@ -337,3 +357,62 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts' = stmts <> [constraint (cmpE (const 0 4) (const 777 4) 4)]
           expected = MatchWithAssertions stmts'
       matchStmts' [] pats stmts `shouldBe` expected
+
+    context "taint propagators" $ do
+      let f = Function Nothing "myfunc" 0x888 []
+          tps =
+            [ FunctionCallPropagator "myfunc" (Parameter 0) ReturnParameter
+            ]
+          cdest = Pil.CallFunc f
+          v = pilVar_ 4 Nothing
+          -- TODO we should use Construct.var here once it's fixed
+          vexp sym = var' (v sym) 4
+          stmts =
+            [ def' (v "b") (vexp "a"),
+              def' (v "c") (add (load (vexp "b") 4) (const 0 4) 4),
+              store (vexp "d") (vexp "c"),
+              defCall' (v "r") cdest [vexp "d", vexp "e"] 8,
+              def' (v "x") (vexp "r")
+            ]
+
+      it "should propagate taint through pure expressions" $ do
+        let pats =
+              [ Stmt $
+                  Store
+                    (Bind "out" Wild)
+                    ( Bind "in" Wild
+                        `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "a")
+                    )
+              ]
+            (ms, mr) = matchStmts tps pats stmts
+        mr `shouldBe` MatchNoAssertions stmts
+        HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "c")
+        HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "d")
+
+      it "should propagate taint through custom taint propagators" $ do
+        let pats =
+              [ Ordered
+                  [ Stmt $
+                      Def
+                        (Bind "out" Wild)
+                        ( Bind "in" Wild
+                            `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d")
+                        )
+                  ]
+              ]
+            (ms, mr) = matchStmts tps pats stmts
+        mr `shouldBe` MatchNoAssertions stmts
+        HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "r")
+        HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
+
+      it "should propagate taint through custom taint propagators" $ do
+        let pats =
+              [ Stmt $
+                  Def
+                    (Bind "out" Wild)
+                    ( Bind "in" Wild
+                        `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d")
+                    )
+              ]
+            (_ms, mr) = matchStmts tps pats stmts
+        mr `shouldBe` NoMatch

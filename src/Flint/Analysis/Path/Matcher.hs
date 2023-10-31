@@ -11,10 +11,13 @@ import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
+import qualified Blaze.Pil.Display as Disp
 import Blaze.Pretty (pretty')
+import qualified Blaze.Pretty as Pretty
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
-import Blaze.Types.Pil (Size)
+import Blaze.Types.Pil (Size(Size))
+import Blaze.Pil.Construct (ExprConstructor(..), var')
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -56,8 +59,6 @@ data StmtPattern
   | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
   | Unordered [StmtPattern] -- matches all, but in no particular order.
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
-  -- | Add a constraint that 'src' is involved in the definition of 'dst'
-  | Taints {src :: BoundExpr, dst :: BoundExpr}
   | Assert BoundExpr -- Add a boolean expr constraint, using bound variables.
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -70,6 +71,18 @@ data BoundExpr
   = Bound Symbol -- gets expression that has been bound with Bind
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+instance ExprConstructor BoundExprSize BoundExpr where
+  mkExpr = BoundExpr
+
+instance Disp.NeedsParens BoundExpr where
+  needsParens (Bound _) = False
+  needsParens (BoundExpr _ op) = Disp.needsParens op
+
+instance Pretty.Tokenizable BoundExpr where
+  tokenize (Bound sym) = pure [Pretty.varToken Nothing ("?" <> sym)]
+  tokenize (BoundExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
+  tokenize (BoundExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
 
 -- | Text that can refer to variables bound during pattern matching
 data BoundText
@@ -102,6 +115,8 @@ data ExprPattern
   
   -- | Matches if ExprPattern matches somewhere inside expr
   | Contains ExprPattern
+  -- | Matches if 'src' is involved in the definition of 'dst'
+  | TaintedBy ExprPattern BoundExpr
   | Wild
 
   -- | Inequalities. These match on converse inequalities that mean the same thing,
@@ -181,6 +196,23 @@ runMatcher_ action s
   . _runMatcher
   $ action
 
+-- | Transitive closure of a 'HashSet Taint'
+taintTransClos :: HashSet Taint -> HashSet Taint
+taintTransClos ts =
+  HashSet.fromList $ do
+    t1 <- HashSet.toList ts
+    t2 <- HashSet.toList ts
+    if t1 == t2
+      then [t1]
+      else case (t1, t2) of
+        (Tainted src1 (Left dst1), Tainted src2 dst2)
+          | Just dst1 == src2 ^? #op . #_VAR . #_VarOp -> [t1, Tainted src1 dst2]
+        (Tainted src1 (Right dst1), Tainted src2 (Left dst2))
+          | dst1 == src2 -> [t1, Tainted src1 (Right $ var' dst2 (coerce $ dst2 ^. #size :: Size Pil.Expression))]
+        (Tainted src1 (Right dst1), Tainted src2 (Right dst2))
+          | dst1 == src2 -> [t1, Tainted src1 (Right dst2)]
+        _ -> [t1]
+
 -- | Collect any taints from the expression if it matches one or more
 -- 'TaintPropagator's.
 mkTaintPropagatorTaintSet ::
@@ -199,14 +231,14 @@ mkTaintPropagatorTaintSet tps mRetVar =
         tps >>= \case
           FunctionCallPropagator propName (Parameter (atMay args -> Just fromExpr)) toParam
             | name == propName ->
-            case toParam of
-              Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
-              ReturnParameter ->
-                case mRetVar of
-                  Just retVar -> [Tainted fromExpr (Left retVar)]
+                case toParam of
+                  Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
+                  ReturnParameter ->
+                    case mRetVar of
+                      Just retVar -> [Tainted fromExpr (Left retVar)]
+                      _ -> []
                   _ -> []
-              _ -> []
-          FunctionCallPropagator{} -> []
+          FunctionCallPropagator {} -> []
 
 mkStmtTaintSet :: [TaintPropagator] -> Pil.Stmt -> HashSet Taint
 mkStmtTaintSet tps =
@@ -228,10 +260,14 @@ mkStmtTaintSet tps =
         Pil.CONST_FLOAT _ -> []
         Pil.ConstStr _ -> []
         Pil.ConstFuncPtr _ -> []
+        Pil.CALL _ ->
+          -- Do not recurse into 'CALL' subexpressions, since 'tps' are supposed
+          -- to handle these
+          []
         op -> e : foldMap interestingSubexpressions (toList op)
 
 mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
-mkTaintSet tps = HashSet.unions . fmap (mkStmtTaintSet tps)
+mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
 mkMatcherState :: [TaintPropagator] -> [Pil.Stmt] -> MatcherState
 mkMatcherState tps stmts = MatcherState stmts HashMap.empty HashSet.empty [] (mkTaintSet tps stmts)
@@ -435,9 +471,27 @@ matchExpr pat expr = case pat of
   Contains xpat -> do
     backtrackOnError (matchExpr xpat expr)
       <|> asum (backtrackOnError . matchExpr (Contains xpat) <$> toList (expr ^. #op))
+  TaintedBy dstPat src -> do
+    backtrackOnError (matchExpr dstPat expr)
+    boundSyms <- use #boundSyms
+    taintSet <- use #taintSet
+    case resolveBoundExpr boundSyms src of
+      Right src' -> insist $ doesTaint taintSet src' expr
+      _ -> bad
   Wild -> return ()
   Expr xop -> matchExprOp xop $ expr ^. #op
   Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
+  where
+    doesTaint :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
+    doesTaint taintSet src dst = isPureTaint || isMemoryTaint || isSubexprTaint
+      where
+        mDstVar = dst ^? #op . #_VAR . #_VarOp
+        isPureTaint = maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) mDstVar
+        isMemoryTaint = Tainted src (Right dst) `HashSet.member` taintSet
+        isSubexprTaint =
+          case dst ^. #op of
+            Pil.CALL _ -> False
+            op -> or (doesTaint taintSet src <$> toList op)
 
 matchFuncPatWithFunc :: Func -> BFunc.Function -> Matcher ()
 matchFuncPatWithFunc (FuncName name) func = insist
@@ -533,7 +587,6 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Unordered _ -> bad
     Ordered [] -> good
     Ordered _ -> bad
-    Taints src dst -> doesTaint src dst
     Assert boundExpr -> addBoundExpr boundExpr >> good
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -560,10 +613,13 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         -- No matches. Continue to next statement with same pattern.
         Left _ -> perhapsRecur
     Ordered [] -> return ()
-    Ordered (p:pats) -> tryError (backtrackOnError $ matchNextStmt p) >>= \case
-      Right _ -> matchNextStmt $ Ordered pats
+    Ordered (p:pats) ->
+      ( tryError . backtrackOnError $ do
+          matchNextStmt p
+          matchNextStmt $ Ordered pats
+      ) >>= \case
+      Right _ -> return ()
       Left _ -> perhapsRecur
-    Taints src dst -> doesTaint src dst
     Assert bexpr -> addBoundExpr bexpr
   where
     perhapsRecur = if tryNextStmtOnFailure
@@ -571,18 +627,6 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
         retireStmt
         matchNextStmt pat
       else throwError ()
-    doesTaint :: BoundExpr -> BoundExpr -> Matcher ()
-    doesTaint src dst = do
-      boundSyms <- use #boundSyms
-      taintSet <- use #taintSet
-      case (resolveBoundExpr boundSyms src, resolveBoundExpr boundSyms dst) of
-        (Right src', Right dst') -> insist $ doesTaint' taintSet src' dst'
-        _ -> bad
-    doesTaint' :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
-    doesTaint' taintSet src dst =
-      maybe False (\dst' -> Tainted src (Left dst') `HashSet.member` taintSet) (dst ^? #op . #_VAR . #_VarOp)
-        || (Tainted src (Right dst) `HashSet.member` taintSet)
-        || or (doesTaint' taintSet src <$> toList (dst ^. #op))
 
 newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
   deriving (Eq, Ord, Show, Generic)
