@@ -11,8 +11,36 @@ import Blaze.Types.Pil (Size)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
 import Text.Printf
+import Blaze.Types.Pil.Checker (InfoExpression)
 
 type Symbol = Text
+
+class NeedsParens a where
+  -- | True if subterm is complex enough to need parentheses when part of a
+  -- larger term
+  needsParens :: a -> Bool
+
+instance NeedsParens (Pil.ExprOp a) where
+  needsParens :: Pil.ExprOp a -> Bool
+  needsParens = \case
+    Pil.CONST _ -> False
+    Pil.CONST_PTR _ -> False
+    Pil.CONST_FLOAT _ -> False
+    Pil.LOAD _ -> False
+    Pil.STACK_LOCAL_ADDR _ -> False
+    Pil.VAR _ -> False
+    Pil.VAR_FIELD _ -> False
+    Pil.ConstStr _ -> False
+    Pil.ConstFuncPtr _ -> False
+    _ -> True
+
+instance NeedsParens Pil.Expression where
+  needsParens :: Pil.Expression -> Bool
+  needsParens = needsParens . view #op
+
+instance NeedsParens (InfoExpression a) where
+  needsParens :: InfoExpression a -> Bool
+  needsParens = needsParens . view #op
 
 ---- Helpers for displaying common patterns of expressions
 dispBinop
@@ -74,22 +102,8 @@ dispVar sym op sz = Text.pack $ printf "%s \"%s\" %s" sym src $ disp sz
   where
     src = disp (op ^. #src)
 
--- | True if expr is complex enough to need parens
-needsParens :: Pil.ExprOp a -> Bool
-needsParens = \case
-  Pil.CONST _ -> False
-  Pil.CONST_PTR _ -> False
-  Pil.CONST_FLOAT _ -> False
-  Pil.LOAD _ -> False
-  Pil.STACK_LOCAL_ADDR _ -> False
-  Pil.VAR _ -> False
-  Pil.VAR_FIELD _ -> False
-  Pil.ConstStr _ -> False
-  Pil.ConstFuncPtr _ -> False
-  _ -> True
-
-parenExpr :: (Disp a, HasField' "op" a (Pil.ExprOp a)) => a -> Text
-parenExpr x = if needsParens $ x ^. #op
+parenExpr :: (Disp a, NeedsParens a) => a -> Text
+parenExpr x = if needsParens x
   then paren (disp x)
   else disp x
 
@@ -176,7 +190,7 @@ instance Disp Pil.Ctx where
       idx :: Text
       idx = show $ ctx ^. #ctxId
 
-instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) where
+instance (Disp a, NeedsParens a) => Disp (Pil.Statement a) where
   disp stmt = case stmt of
     Pil.BranchCond op -> Text.pack $ printf "branch (%s)" cond
       where
@@ -239,7 +253,7 @@ instance (Disp a, HasField' "op" a (Pil.ExprOp a)) => Disp (Pil.Statement a) whe
         args :: Text
         args = show $ fmap disp $ op ^. #args
 
-dispExprOp :: (Disp a, HasField' "op" a (Pil.ExprOp a))
+dispExprOp :: (Disp a, NeedsParens a)
            => Pil.ExprOp a
            -> Pil.Size a
            -> Text

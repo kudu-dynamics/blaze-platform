@@ -88,7 +88,7 @@ import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Types.Cfg.Grouping as GCfg
 import qualified Blaze.Types.Cfg.Path as CfgPath
 import qualified Blaze.Types.Pil.Summary as Summary
-import Blaze.Pil.Display (needsParens)
+import Blaze.Pil.Display (needsParens, NeedsParens)
 
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic (SVal, CV)
@@ -351,9 +351,9 @@ showStackLocalByteOffset x =
   bool "arg_" "var_" (x < 0)
     <> (Text.pack . flip Numeric.showHex "" . abs $ x)
 
-parenExpr :: (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) => a -> Tokenizer [Token]
+parenExpr :: (Tokenizable a, NeedsParens a) => a -> Tokenizer [Token]
 parenExpr x =
-  if needsParens $ x ^. #op
+  if needsParens x
     then paren <$> tokenize x
     else tokenize x
 
@@ -448,7 +448,7 @@ tokenizeBinop ::
   ( Tokenizable b
   , HasField' "left" a b
   , HasField' "right" a b
-  , HasField' "op" b (Pil.ExprOp b)
+  , NeedsParens b
   ) =>
   Maybe Sym ->
   Text ->
@@ -465,7 +465,7 @@ tokenizeBinopInfix ::
   ( Tokenizable b
   , HasField' "left" a b
   , HasField' "right" a b
-  , HasField' "op" b (Pil.ExprOp b)
+  , NeedsParens b
   ) =>
   Maybe Sym ->
   Text ->
@@ -481,7 +481,7 @@ tokenizeBinopInfix tsym opSym op =
 tokenizeUnop ::
   ( HasField' "src" a b
   , Tokenizable b
-  , HasField' "op" b (Pil.ExprOp b)
+  , NeedsParens b
   ) =>
   Maybe Sym ->
   Text ->
@@ -503,7 +503,7 @@ tokenizeField op =
     <++> (bracket <$> tokenize (op ^. #offset))
 
 tokenizeExprOp ::
-  (Tokenizable a, HasField' "op" a (Pil.ExprOp a)) =>
+  (Tokenizable a, NeedsParens a) =>
   Maybe Sym ->
   Pil.ExprOp a ->
   Pil.Size a ->
@@ -699,7 +699,7 @@ instance (Tokenizable a, Tokenizable b) => Tokenizable (HashMap a b) where
 instance
   ( Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   Tokenizable (Pil.Statement a)
   where
@@ -779,7 +779,7 @@ newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
 instance
   ( Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   Tokenizable (PStmts a)
   where
@@ -788,7 +788,7 @@ instance
 instance
   ( Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   Tokenizable (PIndexedStmts a)
   where
@@ -1063,7 +1063,7 @@ prettyStmts ::
   ( MonadIO m
   , Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   TokenizerCtx ->
   [Pil.Statement a] ->
@@ -1074,7 +1074,7 @@ prettyStmts' ::
   ( MonadIO m
   , Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   [Pil.Statement a] ->
   m ()
@@ -1084,7 +1084,7 @@ prettyIndexedStmts ::
   ( MonadIO m
   , Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   TokenizerCtx ->
   [(Int, Pil.Statement a)] ->
@@ -1095,7 +1095,7 @@ prettyIndexedStmts' ::
   ( MonadIO m
   , Tokenizable a
   , HasField' "size" a (Pil.Size a)
-  , HasField' "op" a (Pil.ExprOp a)
+  , NeedsParens a
   ) =>
   [(Int, Pil.Statement a)] ->
   m ()
