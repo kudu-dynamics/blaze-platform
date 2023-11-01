@@ -176,7 +176,7 @@ spec = describe "Blaze.Pil.Checker" $ do
 
   context "checkStmts" $ do
     let pv = pilVar
-        mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
+        mkVarSymTypeMap = HashMap.fromList
         checkVars = fmap (view #varSymTypeMap) . checkStmts Nothing
         -- checkSolutions = fmap (view solutions) . checkStmts
         -- checkVarEqMap = fmap (view varEqMap) . checkStmts
@@ -195,14 +195,14 @@ spec = describe "Blaze.Pil.Checker" $ do
     it "simple def const statement" $ do
       let stmts = [def "a" $ const 888 4]
 
-          rvars = [("a", DSType $ TBitVector (bw 32))]
+          rvars = [(pv 4 "a", DSType $ TBitVector (bw 32))]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
 
     it "def sub statement" $ do
       let stmts = [def "a" $ sub (const 888 4) (const 999 4) 4]
 
-          rvars = [("a", DSType (TInt (bw 32) Nothing))]
+          rvars = [(pv 4 "a", DSType (TInt (bw 32) Nothing))]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
 
@@ -212,8 +212,8 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
           btype = DSType $ TBitVector (bw 32)
-          rvars = [ ("a", DSType (TPointer (bw 64) btype))
-                  , ("b", btype)
+          rvars = [ (pv 8 "a", DSType (TPointer (bw 64) btype))
+                  , (pv 4 "b", btype)
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
@@ -225,9 +225,9 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
           btype = DSType $ TInt (bw 32) Nothing
-          rvars = [ ("a", DSType (TPointer (bw 64) btype))
-                  , ("pointee", btype)
-                  , ("b", btype)
+          rvars = [ (pv 8 "a", DSType (TPointer (bw 64) btype))
+                  , (pv 4 "pointee", btype)
+                  , (pv 4 "b", btype)
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
@@ -242,9 +242,9 @@ spec = describe "Blaze.Pil.Checker" $ do
           rectype = DSType . TRecord
                     . HashMap.fromList
                     $ [( BitOffset 0, btype )]
-          rvars = [ ("a", DSType (TPointer (bw 64) rectype))
-                  , ("pointee", btype)
-                  , ("b", btype)
+          rvars = [ (pv 8 "a", DSType (TPointer (bw 64) rectype))
+                  , (pv 4 "pointee", btype)
+                  , (pv 4 "b", btype)
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
@@ -259,9 +259,9 @@ spec = describe "Blaze.Pil.Checker" $ do
           rectype = DSType . TRecord
                     . HashMap.fromList
                     $ [( BitOffset 0, btype )]
-          rvars = [ ("a", DSType (TPointer (bw 64) rectype))
-                  , ("pointee", btype)
-                  , ("b", btype)
+          rvars = [ (pv 8 "a", DSType (TPointer (bw 64) rectype))
+                  , (pv 4 "pointee", btype)
+                  , (pv 4 "b", btype)
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
@@ -273,9 +273,9 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
           btype = DSType $ TBitVector (bw 32)
-          rvars = [ ("a", DSType (TPointer (bw 64)
+          rvars = [ (pv 8 "a", DSType (TPointer (bw 64)
                                   (DSType $ record [(24 * 8, btype)])))
-                  , ("b", btype)
+                  , (pv 4 "b", btype)
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
@@ -287,11 +287,11 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
           btype = DSType $ TInt (bw 32) Nothing
-          rvars = [ ("rec_ptr", DSType (TPointer (bw 64)
+          rvars = [ (pv 8 "rec_ptr", DSType (TPointer (bw 64)
                                         (DSType $ record [(24 * 8, btype)])))
-                  , ("b", btype)
-                  , ("c", btype)
-                  , ("d", btype)
+                  , (pv 4 "b", btype)
+                  , (pv 4 "c", btype)
+                  , (pv 4 "d", btype)
                   ]
 
       PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
@@ -303,11 +303,11 @@ spec = describe "Blaze.Pil.Checker" $ do
 
           f1 = DSType $ TBitVector (bw 32)
           f2 = DSType $ TBitVector (bw 64)
-          rvars = [ ("rec_ptr", DSType (TPointer (bw 64)
+          rvars = [ (pv 8 "rec_ptr", DSType (TPointer (bw 64)
                                         (DSType $ record [ (0 * 8, f1)
                                                          , (8 * 8, f2)])))
-                  , ("f1", f1)
-                  , ("f2", f2)
+                  , (pv 4 "f1", f1)
+                  , (pv 8 "f2", f2)
                   ]
 
       checkVars stmts `shouldBe` Right (mkVarSymTypeMap rvars)
@@ -319,8 +319,8 @@ spec = describe "Blaze.Pil.Checker" $ do
                   ]
 
           elemType' = DSType $ TBitVector (bw 32)
-          rvars = [ ( "elem", elemType' )
-                  , ( "rec_ptr"
+          rvars = [ ( pv 4 "elem", elemType' )
+                  , ( pv 8 "rec_ptr"
                     , DSRecursive (Sym 11)
                       (TPointer (bw 64)
                        (DSType $ record [ (0 * 8, elemType')
@@ -348,8 +348,8 @@ spec = describe "Blaze.Pil.Checker" $ do
     let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown ]
         ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" 0xf00 params
         ctx = Ctx ctxFunc 0
-        pvX = pilVar' ctx "x"
-        pvArg1 = pilVar' ctx "arg1"
+        pvX = pilVar' 8 ctx "x"
+        pvArg1 = pilVar' 8 ctx "arg1"
         rootFuncParamInfo = getRootFunctionParamInfo ctx
         mArg1FuncVar = HashMap.lookup "arg1" $ rootFuncParamInfo ^. #rootParamMap
 
@@ -381,7 +381,7 @@ spec = describe "Blaze.Pil.Checker" $ do
         length equalityConstraints `shouldBe` 1
 
     context "Linking root param to recursive CALL expr params" $ do
-      let pvY = pilVar' ctx "y"
+      let pvY = pilVar' 4 ctx "y"
           stmts = [ (0, def' pvX (add (var' pvArg1 4) (const 1 4) 4))
                   , (1, defCall' pvY (Pil.CallFunc ctxFunc) [var' pvX 4] 4)
                   ]

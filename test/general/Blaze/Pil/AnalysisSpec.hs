@@ -32,7 +32,8 @@ import Blaze.Pil.Analysis
   )
 import qualified Blaze.Pil.Analysis as A
 import qualified Blaze.Graph as G
-import Blaze.Pil.Construct
+import Blaze.Pil.Construct hiding (pilVar, defPhi)
+import qualified Blaze.Pil.Construct as C
 import Blaze.Prelude hiding
   ( const,
     group,
@@ -48,6 +49,10 @@ import qualified Data.Set as DSet
 import Test.Hspec
 import Blaze.Pretty (PrettyShow'(PrettyShow'), Tokenizable)
 import Blaze.Types.Pil (Stmt)
+
+
+pilVar :: Text -> TPil.PilVar
+pilVar = C.pilVar 8
 
 mixedStmts :: [TPil.Stmt]
 mixedStmts =
@@ -187,6 +192,7 @@ hs = HSet.fromList . sort
 
 spec :: Spec
 spec = describe "Blaze.Pil.Analysis" $ do
+  let defPhi = C.defPhi 8
   describe "getVarEqMap" $ do
     it "should build map of equivalent vars" $ do
       let m = fmap getSym . Map.mapKeys getSym $ Map.fromList . HMap.toList $ getVarEqMap mixedStmts
@@ -917,7 +923,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
                     ]
 
   context "getDataDependenceGraph" $ do
-    let pv = pilVar
+    let pv = C.pilVar
     it "should handle cfg with no vars" $ do
       let input = []
           r = G.empty
@@ -925,7 +931,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
 
     it "should handle single var" $ do
       let input = [ def "x" $ const 43 4 ]
-          r = G.fromNode (pv "x")
+          r = G.fromNode (pv 4 "x")
       A.getDataDependenceGraph input `shouldBe` r
 
     it "should handle two unrelated vars" $ do
@@ -933,8 +939,8 @@ spec = describe "Blaze.Pil.Analysis" $ do
                   , def "y" $ const 34 4
                   ]
           r = flip G.addNodes G.empty
-              [ pv "x"
-              , pv "y"
+              [ pv 4 "x"
+              , pv 4 "y"
               ]
       A.getDataDependenceGraph input `shouldBe` r
 
@@ -943,8 +949,8 @@ spec = describe "Blaze.Pil.Analysis" $ do
                   , def "y" $ const 34 4
                   ]
           r = flip G.addNodes G.empty
-              [ pv "x"
-              , pv "y"
+              [ pv 4 "x"
+              , pv 4 "y"
               ]
       A.getDataDependenceGraph input `shouldBe` r
 
@@ -953,7 +959,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
                   , def "y" $ var "x" 4
                   ]
           r = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
-              [ (pv "x", pv "y")
+              [ (pv 4 "x", pv 4 "y")
               ]
       A.getDataDependenceGraph input `shouldBe` r
 
@@ -963,8 +969,8 @@ spec = describe "Blaze.Pil.Analysis" $ do
                   , def "z" $ add (var "y" 4) (const 33 4) 4
                   ]
           r = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
-              [ (pv "x", pv "y")
-              , (pv "y", pv "z")
+              [ (pv 4 "x", pv 4 "y")
+              , (pv 4 "y", pv 4 "z")
               ]
       A.getDataDependenceGraph input `shouldBe` r
 
@@ -974,8 +980,8 @@ spec = describe "Blaze.Pil.Analysis" $ do
                   , def "z" $ add (var "x" 4) (const 33 4) 4
                   ]
           r = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
-              [ (pv "x", pv "y")
-              , (pv "x", pv "z")
+              [ (pv 4 "x", pv 4"y")
+              , (pv 4 "x", pv 4 "z")
               ]
       A.getDataDependenceGraph input `shouldBe` r
 

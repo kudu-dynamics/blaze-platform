@@ -150,7 +150,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               1
               2
               [ def "y" (add (var "x" 4) (const 10 4) 4)
-              , defPhi "unusedVar" ["a", "b", "c"]
+              , defPhi 4 "unusedVar" ["a", "b", "c"]
               ]
           end =
             bb
@@ -205,7 +205,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               fooCtx
               5
               6
-              [ defPhi "r" ["y#1", "y#2"]
+              [ defPhi 4 "r" ["y#1", "y#2"]
               , ret $ var "r" 4
               ]
           root' =
@@ -315,7 +315,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               fooCtx
               5
               6
-              [ defPhi "r" ["y#1", "y#2"]
+              [ defPhi 4 "r" ["y#1", "y#2"]
               , ret $ var "r" 4
               ]
           root' =
@@ -344,7 +344,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               fooCtx
               5
               6
-              [ defPhi "r" ["y#1", "y#2"]
+              [ defPhi 4 "r" ["y#1", "y#2"]
               , ret $ var "r" 4
               ]
           input =
@@ -494,7 +494,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
               fooCtx
               6
               7
-              [ defPhi "y" ["y#1", "y#2"]
+              [ defPhi 4 "y" ["y#1", "y#2"]
               , ret (var "y" 4)
               ]
 

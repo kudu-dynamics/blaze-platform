@@ -64,7 +64,7 @@ spec :: Spec
 spec = describe "Blaze.Cfg.Solver" $ do
   context "solveCfg" $ do
     let pv = C.pilVar
-        mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
+        mkVarSymTypeMap = HashMap.fromList
         checkVars = fmap (view $ _3 . #varSymTypeMap) . checkCfg
         signed = Just True
         bw = Just
@@ -73,8 +73,8 @@ spec = describe "Blaze.Cfg.Solver" $ do
                      [ def "x" $ sx (const 888 4) 4
                      , def "a" $ sub (var "x" 4) (const 999 4) 4]
           cfg = mkCfg 0 rootNode [] []
-          rvars = [ ("x", DSType (TInt (bw 32) signed))
-                  , ("a", DSType (TInt (bw 32) signed))]
+          rvars = [ (pv 4 "x", DSType (TInt (bw 32) signed))
+                  , (pv 4 "a", DSType (TInt (bw 32) signed))]
 
       checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)
 
@@ -92,9 +92,9 @@ spec = describe "Blaze.Cfg.Solver" $ do
                 [ CfEdge rootNode middleNode Cfg.UnconditionalBranch
                 , CfEdge middleNode returnNode Cfg.UnconditionalBranch
                 ]
-          rvars = [ ("a", DSType (TInt (bw 32) Nothing))
-                  , ("b", DSType (TInt (bw 32) Nothing))
-                  , ("c", DSType (TInt (bw 32) Nothing))
+          rvars = [ (pv 4 "a", DSType (TInt (bw 32) Nothing))
+                  , (pv 4 "b", DSType (TInt (bw 32) Nothing))
+                  , (pv 4 "c", DSType (TInt (bw 32) Nothing))
                   ]
 
       PShow (checkVars cfg) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))

@@ -13,11 +13,10 @@ import Blaze.Cfg hiding
 import qualified Blaze.Cfg as Cfg
 import Blaze.Function (Function (Function))
 import qualified Blaze.Function as Func
-import Blaze.Pil.Construct (defaultSize)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (Ctx (Ctx), CtxId (CtxId))
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Util.Spec (mkUuid1, mkCallNode)
+import Blaze.Util.Spec (mkUuid1, mkCallNode, defaultSize)
 import qualified Blaze.Cfg.Interprocedural as ICfg
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Test.Hspec
@@ -77,7 +76,7 @@ leaveFuncUUID :: UUID
       [ C.def "a1" (C.const 52 8)
       , C.def "b1" (C.const 84 8)
       ]
-    (callNodeInner1, rawCallStmt1) = mkCallNode callerCtx "call1" "funcRet1" targetFunc [C.var "a1" 8, C.var "b1" 8]
+    (callNodeInner1, rawCallStmt1) = mkCallNode callerCtx "call1" (C.pilVar 8 "funcRet1") targetFunc [C.var "a1" 8, C.var "b1" 8]
     termNode1 = bbp callerCtx "term1"
       [ C.def "r1" $ C.var "funcRet1" 8
       , C.ret $ C.var "r1" 8
@@ -127,7 +126,7 @@ leaveFuncUUID :: UUID
     leaveFuncNode3 = Cfg.LeaveFunc
       $ Cfg.LeaveFuncNode targetCtx callerCtx leaveFuncUUID'
         [ Pil.Def $ Pil.DefOp retVar0 (C.var "r2" 8)
-        , Pil.DefPhi $ Pil.DefPhiOp (C.pilVar "funcRet1") [retVar0]
+        , Pil.DefPhi $ Pil.DefPhiOp (C.pilVar 8 "funcRet1") [retVar0]
         ]
       where
         retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0"
@@ -150,13 +149,14 @@ leaveFuncUUID :: UUID
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Interprocedural" $ do
+  let pilVar' ctx = C.pilVar_ defaultSize (Just ctx)
   context "mkEnterFuncNode" $ do
     let uuid' = mkUuid1 (1 :: Int)
         rawCallStmt :: Pil.Stmt
-        rawCallStmt = C.defCall' (C.pilVar' callerCtx "outerRet")
+        rawCallStmt = C.defCall' (pilVar' callerCtx "outerRet")
                       (Pil.CallFunc targetFunc)
-                      [ C.var' (C.pilVar' callerCtx "x") 8
-                      , C.var' (C.pilVar' callerCtx "y") 8
+                      [ C.var' (pilVar' callerCtx "x") 8
+                      , C.var' (pilVar' callerCtx "y") 8
                       ]
                       8
         callStmt' :: Pil.CallStatement
@@ -168,8 +168,8 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
           , nextCtx = targetCtx
           , uuid = uuid'
           , nodeData =
-            [ C.def' (C.pilVar' targetCtx "arg1") (C.var' (C.pilVar' callerCtx "x") 8)
-            , C.def' (C.pilVar' targetCtx "arg2") (C.var' (C.pilVar' callerCtx "y") 8)
+            [ C.def' (pilVar' targetCtx "arg1") (C.var' (pilVar' callerCtx "x") 8)
+            , C.def' (pilVar' targetCtx "arg2") (C.var' (pilVar' callerCtx "y") 8)
             ]
           }
     it "should make enter func node" $ do
@@ -179,16 +179,16 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
   context "mkLeaveFuncNode" $ do
     let uuid' = mkUuid1 (1 :: Int)
         rawCallStmt :: Pil.Stmt
-        rawCallStmt = C.defCall' (C.pilVar' callerCtx "outerRet")
+        rawCallStmt = C.defCall' (pilVar' callerCtx "outerRet")
                       (Pil.CallFunc targetFunc)
-                      [ C.var' (C.pilVar' callerCtx "x") 8
-                      , C.var' (C.pilVar' callerCtx "y") 8
+                      [ C.var' (pilVar' callerCtx "x") 8
+                      , C.var' (pilVar' callerCtx "y") 8
                       ]
                       8
         callStmt' :: Pil.CallStatement
         callStmt' = fromJust $ Pil.mkCallStatement rawCallStmt
-        retExprs = [ C.var' (C.pilVar' targetCtx "innerRet1") 8
-                   , C.var' (C.pilVar' targetCtx "innerRet2") 8
+        retExprs = [ C.var' (pilVar' targetCtx "innerRet1") 8
+                   , C.var' (pilVar' targetCtx "innerRet2") 8
                    ]
         result = ICfg.mkLeaveFuncNode uuid' callerCtx targetCtx callStmt' retExprs
         retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0"
@@ -199,9 +199,9 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
           , nextCtx = callerCtx
           , uuid = uuid'
           , nodeData =
-            [ C.def' retVar0 (C.var' (C.pilVar' targetCtx "innerRet1") 8)
-            , C.def' retVar1 (C.var' (C.pilVar' targetCtx "innerRet2") 8)
-            , Pil.DefPhi $ Pil.DefPhiOp (C.pilVar' callerCtx "outerRet") [retVar0, retVar1]
+            [ C.def' retVar0 (C.var' (pilVar' targetCtx "innerRet1") 8)
+            , C.def' retVar1 (C.var' (pilVar' targetCtx "innerRet2") 8)
+            , Pil.DefPhi $ Pil.DefPhiOp (pilVar' callerCtx "outerRet") [retVar0, retVar1]
             ]
           }
     it "should make enter func node" $ do
