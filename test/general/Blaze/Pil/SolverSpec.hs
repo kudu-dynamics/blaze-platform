@@ -9,7 +9,9 @@ module Blaze.Pil.SolverSpec where
 import Blaze.Prelude hiding (const, numerator, denominator)
 
 import Blaze.Pil.Solver hiding (pilVar)
-import Blaze.Pil.Construct
+import Blaze.Pil.Construct hiding (pilVar)
+import qualified Blaze.Pil.Construct as C
+import Blaze.Types.Pil (PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
@@ -25,6 +27,9 @@ import Test.Hspec
 import Numeric (showHex)
 
 type SolverOutput = Either SolverError (SolverResult, [SolverError])
+
+pilVar :: Text -> PilVar
+pilVar = C.pilVar 8
 
 -- | Get a concrete variable from solver output.
 getVar :: Text -> SolverOutput -> Maybe CV
@@ -56,6 +61,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
       bitVec = Ch.DSType . Ch.TBitVector
       floatEqual x y = unSBV $ (toSFloat' x .>= toSFloat' y)
         .&& (toSFloat' x .< SBV.fpAdd SBV.sRoundNearestTiesToAway (toSFloat' y) (toSFloat' . constFloat $ 0.0000001))
+      pv = C.pilVar
       -- x >= y && x < y + 0.0000.....
 
   context "aux ops" $ do
@@ -1806,7 +1812,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
     context "solveStmt:" $ do
 
       context "Pil.Def" $ do
-        let tenv = [(pilVar "a", bitVec (bw 32))]
+        let tenv = [(pv 4 "a", bitVec (bw 32))]
             stmts' = [def "a" $ const 888 4]
             eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
@@ -1814,7 +1820,6 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             cmd = do
               let (_, stmtInfoExpr) = (tReport ^. #symTypedStmts) !! 0
               solveStmt stmtInfoExpr
-
 
             rvars = [("a", CV (KBounded False 32) (CInteger 888))]
             errs = []
@@ -1825,8 +1830,8 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                               , errs )
 
       context "Pil.Def" $ do
-        let tenv = [ (pilVar "a", bitVec (bw 32))
-                   , (pilVar "b", bitVec (bw 32))
+        let tenv = [ (pv 4 "a", bitVec (bw 32))
+                   , (pv 4 "b", bitVec (bw 32))
                    ]
             stmts' = [ def "a" $ const 888 4
                      , def "b" $ var "a" 4
@@ -1853,10 +1858,10 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
        -- eTReport `shouldBe` (Left $ Ch.UnhandledExpr)
 
       context "Pil.Def" $ do
-        let tenv = [ (pilVar "a", bitVec (bw 32))
-                   , (pilVar "b", bitVec (bw 32))
-                   , (pilVar "c", bitVec (bw 32))
-                   , (pilVar "d", bitVec (bw 32))
+        let tenv = [ (pv 4 "a", bitVec (bw 32))
+                   , (pv 4 "b", bitVec (bw 32))
+                   , (pv 4 "c", bitVec (bw 32))
+                   , (pv 4 "d", bitVec (bw 32))
                    ]
             stmts' = [ def "a" $ const 888 4
                      , def "b" $ var "a" 4
@@ -1889,7 +1894,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                               , errs )
 
       context "Pil.Def" $ do
-        let tenv = [(pilVar "a", tbool)]
+        let tenv = [(pv 4 "a", tbool)]
             stmts' = [def "a" $ const 888 4]
             eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
@@ -1909,7 +1914,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
           fmap snd r `shouldBe` Right errs
 
       context "Pil.Constraint" $ do
-        let tenv = [(pilVar "a", bitVec (bw 32))]
+        let tenv = [(pv 4 "a", bitVec (bw 32))]
             stmts' = [constraint $ cmpE (var "a" 4) (const 42 4) 4]
             eTReport = checkStmts Nothing stmts'
             (Right tReport) = eTReport
@@ -1927,7 +1932,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                               , errs )
 
       context "Pil.Store/Load" $ do
-        let tenv = [(pilVar "a", unsigned32)]
+        let tenv = [(pv 4 "a", unsigned32)]
             ptr = constPtr 0xdeadbeef 4
             stmts' = [ store ptr $ const 42 4
                     , def "a" $ load ptr 4
@@ -1950,7 +1955,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                               , errs )
 
       context "Pil.Load" $ do
-        let tenv = [(pilVar "a", unsigned32)]
+        let tenv = [(pv 4 "a", unsigned32)]
             ptr = constPtr 0xdeadbeef 4
             stmts' = [def "a" $ load ptr 4]
             eTReport = checkStmts Nothing stmts'
@@ -1970,9 +1975,9 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                              , errs )
 
       context "Pil.Load" $ do
-        let tenv = [ (pilVar "a", unsigned32)
-                   , (pilVar "b", unsigned32)
-                   , (pilVar "c", tbool)
+        let tenv = [ (pv 4 "a", unsigned32)
+                   , (pv 4 "b", unsigned32)
+                   , (pv 4 "c", tbool)
                    ]
             ptr = constPtr 0xdeadbeef 4
             stmts' = [ def "a" $ load ptr 4
@@ -2003,7 +2008,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
                              , errs)
 
       context "Pil.Load" $ do
-        let tenv = [ (pilVar "a", unsigned64) ]
+        let tenv = [ (pv 8 "a", unsigned64) ]
             ptr = constPtr 0xdeadbeef 4
             stmts' = [ def "a" $ zx ( sx (load ptr 1) 4) 8 ]
             eTReport = checkStmts Nothing stmts'

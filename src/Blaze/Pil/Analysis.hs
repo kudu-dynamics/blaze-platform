@@ -689,11 +689,11 @@ data PropInfo = PropInfo
 propInfoForMemGroup :: MemEquivGroup -> Analysis PropInfo
 propInfoForMemGroup mg = do
   s <- A.newSym
-  let pv = C.pilVar s
+  let pv sz = C.pilVar_ sz Nothing s
       storageExpr = mg ^. #storage . #start
       storageWidth = fromIntegral . (`div` 8) $ mg ^. #storage . #width
       loadExpr = C.load storageExpr storageWidth
-      defStmt' = Pil.Def (Pil.DefOp pv loadExpr)
+      defStmt' = Pil.Def (Pil.DefOp (pv $ fromByteBased storageWidth) loadExpr)
       pvExpr = C.var s $ storageExpr ^. #size
   return $
     PropInfo

@@ -6,21 +6,22 @@ import Blaze.Types.Pil.Summary
 import Blaze.Pil.Summary (extractCapabilities)
 import Test.Hspec
 
+
 spec :: Spec
 spec = do
   describe "mkEffect" $ do
     pure ()
 
   describe "extractCapabilities" $ do
-    let inPtrVar = C.pilVar "inptr"
+    let inPtrVar = C.pilVar 8 "inptr"
         inPtr = C.var' inPtrVar 8
-        outPtrVar = C.pilVar "outptr"
+        outPtrVar = C.pilVar 8 "outptr"
         outPtr = C.var' outPtrVar 8
 
         inputVars = [inPtrVar, outPtrVar]
         garbageRet = C.const 1492 8
 
-        tmpVar = C.pilVar "tmp"
+        tmpVar = C.pilVar 8 "tmp"
         tmp = C.var' tmpVar 8
 
         inGlobal = 0xcafebabedeadbeef

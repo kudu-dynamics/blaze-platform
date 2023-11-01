@@ -107,7 +107,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                       [ def "c3" $ const 3 4 ]
 
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "c" ["c1", "c2", "c3"]
+                    [ defPhi 4 "c" ["c1", "c2", "c3"]
                     ]
 
           cfg = mkCfg 0 rootNode [ falseNode1
@@ -147,7 +147,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                       [ def "c3" $ const 3 4 ]
 
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "c" ["c1", "c2", "c3"]
+                    [ defPhi 4 "c" ["c1", "c2", "c3"]
                     ]
 
           cfg = mkCfg 0 rootNode [ falseNode1
@@ -208,7 +208,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                       [ def "c3" $ const 3 4 ]
 
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "c" ["c1", "c2", "c3"]
+                    [ defPhi 4 "c" ["c1", "c2", "c3"]
                     ]
 
           cfg = mkCfg 0 rootNode [ falseNode1
@@ -253,10 +253,10 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                       [ def "c3" $ const 3 4 ]
 
           joinNode2 = bbpn 6 callerCtx "joinNode2"
-                      [ defPhi "c4" ["c2", "c3"] ]
+                      [ defPhi 4 "c4" ["c2", "c3"] ]
 
           endNode = bbpn 7 callerCtx "endNode"
-                    [ defPhi "c" ["c1", "c4"]
+                    [ defPhi 4 "c" ["c1", "c4"]
                     ]
 
           cfg = mkCfg 0 rootNode [ falseNode1

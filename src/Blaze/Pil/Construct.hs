@@ -6,7 +6,7 @@ import Blaze.Types.Function (Function(Function))
 import Blaze.Types.Pil
   ( ExprOp,
     Expression (Expression),
-    Size,
+    Size(Size),
     PilVar (PilVar),
     Statement,
     Symbol,
@@ -18,17 +18,26 @@ class ExprConstructor attrs expr | expr -> attrs where
 instance ExprConstructor (Size Expression) Expression where
   mkExpr = Expression
 
-defaultSize :: forall a. Size a
-defaultSize = 8
+class GetExprSize a where
+  getExprSize :: a -> Size Expression
+
+instance GetExprSize Expression where
+  getExprSize = view #size
+
+instance GetExprSize (Size Expression) where
+  getExprSize = identity
+
+getPilVarSize :: GetExprSize a => a -> Size PilVar
+getPilVarSize = fromByteBased . getExprSize
 
 pilVar_ :: Size PilVar -> Maybe Pil.Ctx -> Symbol -> PilVar
 pilVar_ = PilVar
 
-pilVar' :: Pil.Ctx -> Symbol -> PilVar
-pilVar' ctx = pilVar_ defaultSize (Just ctx)
+pilVar' :: Size PilVar -> Pil.Ctx -> Symbol -> PilVar
+pilVar' sz = pilVar_ sz . Just
 
-pilVar :: Symbol -> PilVar
-pilVar = pilVar_ defaultSize Nothing
+pilVar :: Size PilVar -> Symbol -> PilVar
+pilVar sz = pilVar_ sz Nothing
 
 binOp
   :: ExprConstructor attrs expr
@@ -71,8 +80,8 @@ constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
 var' :: ExprConstructor attrs expr => PilVar -> attrs -> expr
 var' pv size = mkExpr size (Pil.VAR $ Pil.VarOp pv)
 
-var :: ExprConstructor attrs expr => Symbol -> attrs -> expr
-var sym size = mkExpr size (Pil.VAR $ Pil.VarOp $ pilVar sym)
+var :: (GetExprSize attrs, ExprConstructor attrs expr) => Symbol -> attrs -> expr
+var sym attrs = mkExpr attrs (Pil.VAR $ Pil.VarOp $ pilVar_ (getPilVarSize attrs) Nothing sym)
 
 add :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 add = binOp Pil.ADD Pil.AddOp
@@ -163,9 +172,14 @@ not = unOp Pil.NOT Pil.NotOp
 load :: ExprConstructor attrs expr => expr -> attrs -> expr
 load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
 
-varField :: ExprConstructor attrs expr => Pil.Symbol -> ByteOffset -> attrs -> expr
-varField sym offset size =
-  mkExpr size (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar sym) offset)
+varField
+  :: (ExprConstructor attrs expr, GetExprSize attrs)
+  => Pil.Symbol
+  -> ByteOffset
+  -> attrs
+  -> expr
+varField sym offset attrs =
+  mkExpr attrs (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar (getPilVarSize attrs) sym) offset)
 
 fieldAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
 fieldAddr base offset size = 
@@ -180,11 +194,8 @@ stackLocalAddr base offset size =
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 ---- Statements
-
--- | Constructs a 'Pil.Def' that assigns the 'expr' to a 'PilVar' with symbol
--- 'sym' and size 'defaultSize'
-def :: Symbol -> expr -> Statement expr
-def sym = def' $ pilVar sym
+def :: GetExprSize expr => Symbol -> expr -> Statement expr
+def sym expr = def' (pilVar_ (getPilVarSize expr) Nothing sym) expr
 
 -- | Constructs a 'Pil.Def' that assigns 'val' to 'pv'
 def' :: PilVar -> expr -> Statement expr
@@ -211,16 +222,16 @@ defCall' pv dest args size = def' pv callExpr
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
 defCall
-  :: forall attrs expr. ExprConstructor attrs expr
+  :: forall attrs expr. (GetExprSize attrs, ExprConstructor attrs expr)
   => Symbol
   -> Pil.CallDest expr
   -> [expr]
   -> attrs
   -> Statement expr
-defCall sym = defCall' $ pilVar sym
+defCall sym cdest args attrs = defCall' (pilVar (getPilVarSize attrs) sym) cdest args attrs
 
-defPhi :: Symbol -> [Symbol] -> Statement expr
-defPhi sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sym) . fmap pilVar
+defPhi :: Size PilVar -> Symbol -> [Symbol] -> Statement expr
+defPhi sz sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sz sym) . fmap (pilVar sz)
 
 store :: expr -> expr -> Statement expr
 store addr val = Pil.Store (Pil.StoreOp addr val)

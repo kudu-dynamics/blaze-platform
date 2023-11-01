@@ -5,10 +5,13 @@ import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Function (Function (Function))
 import Blaze.Pil.Construct qualified as C
-import Blaze.Types.Pil (Ctx (Ctx), Expression, Stmt, Symbol, PilVar)
+import Blaze.Types.Pil (Ctx (Ctx), Expression, Stmt, PilVar, Size)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.UUID as UUID
 
+
+defaultSize :: Size a
+defaultSize = 8
 
 ---------- CFG ------------
 
@@ -39,11 +42,10 @@ mkDummyTermNode ctx nodeData
     }
 
 pilCall :: PilVar -> Function -> [Expression] -> Stmt
-pilCall retVar func args =
-  C.defCall' retVar (Pil.CallFunc func) args C.defaultSize
+pilCall retVar func args = C.defCall' retVar (Pil.CallFunc func) args . coerce $ retVar ^. #size
 
-mkCallNode' :: Ctx -> Text -> PilVar -> Function -> [Expression] -> (Cfg.CallNode [Stmt], Stmt)
-mkCallNode' ctx name retVar targetFunc' args =
+mkCallNode :: Ctx -> Text -> PilVar -> Function -> [Expression] -> (Cfg.CallNode [Stmt], Stmt)
+mkCallNode ctx name retVar targetFunc' args =
   ( Cfg.CallNode
     { ctx = ctx
     , start = 0
@@ -56,6 +58,3 @@ mkCallNode' ctx name retVar targetFunc' args =
   where
     callStmt' = pilCall retVar targetFunc' args
     uuid' = mkUuid1 . hash $ (ctx ^. #func, name)
-
-mkCallNode :: Ctx -> Text -> Symbol -> Function -> [Expression] -> (Cfg.CallNode [Stmt], Stmt)
-mkCallNode ctx_ name retVarSym = mkCallNode' ctx_ name $ C.pilVar retVarSym

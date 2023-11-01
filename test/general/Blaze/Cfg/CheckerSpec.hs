@@ -63,8 +63,8 @@ targetCtx = Ctx targetFunc 1
 spec :: Spec
 spec = describe "Blaze.Cfg.Checker" $ do
   context "checkCfg" $ do
-    let pv = C.pilVar
-        mkVarSymTypeMap = HashMap.fromList . fmap (over _1 pv)
+    let pv sz = C.pilVar_ sz Nothing
+        mkVarSymTypeMap sz = HashMap.fromList . fmap (over _1 $ pv sz)
         checkVars = fmap (view $ _3 . #varSymTypeMap) . checkCfg
         signed = Just True
         bw = Just
@@ -77,7 +77,7 @@ spec = describe "Blaze.Cfg.Checker" $ do
                   , ("a", DSType (TInt (bw 32) Nothing))
                   ]
 
-      checkVars cfg `shouldBe` Right (mkVarSymTypeMap rvars)
+      checkVars cfg `shouldBe` Right (mkVarSymTypeMap 4 rvars)
 
     it "should check multiple basic blocks" $ do
       let rootNode = bbp callerCtx "root"
@@ -100,4 +100,4 @@ spec = describe "Blaze.Cfg.Checker" $ do
                   , ("x", DSType (TInt (bw 32) signed))
                   ]
 
-      PShow (checkVars cfg) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
+      PShow (checkVars cfg) `shouldBe` PShow (Right (mkVarSymTypeMap 4 rvars))

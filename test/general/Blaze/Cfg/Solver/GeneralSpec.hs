@@ -161,7 +161,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           trueNode = bbp callerCtx "trueNode"
                      [ def "b2" $ const 400 4 ]
           endNode c = bbp callerCtx "endNode"
-                      [ defPhi "b" ["b1", "b2"]
+                      [ defPhi 4 "b" ["b1", "b2"]
                       , constraint c
                       ]
 
@@ -190,7 +190,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
       let rootNode = bbp callerCtx "root"
                      [ def "b0" $ const 0 4 ]
           loopStart = bbp callerCtx "loopStart"
-                      [ defPhi "b" ["b0", "b1"]
+                      [ defPhi 4 "b" ["b0", "b1"]
                       , branchCond $ cmpUle (var "b" 4) (const 800 4) 4
                       ]
           falseNode = bbp callerCtx "falseNode"
@@ -229,7 +229,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           trueNode = bbp callerCtx "trueNode"
                      [ def "b2" $ const 400 4 ]
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "b" ["b1", "b2"]
+                    [ defPhi 4 "b" ["b1", "b2"]
                     , constraint $ cmpE (var "a" 4) (const 900 4) 4
                     ]
 
@@ -355,7 +355,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           trueNode = bbp callerCtx "trueNode"
                      [ def "b2" $ const 400 4 ]
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "b" ["b1", "b2"]
+                    [ defPhi 4 "b" ["b1", "b2"]
                     , constraint $ cmpE (var "a" 4) (const 900 4) 4
                     ]
 
@@ -385,7 +385,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           trueNode = bbp callerCtx "trueNode"
                      [ def "b2" $ const 400 4 ]
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "b" ["b1", "b2"]
+                    [ defPhi 4 "b" ["b1", "b2"]
                     , constraint $ cmpE (var "a" 4) (const 900 4) 4
                     ]
 
@@ -416,7 +416,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
           trueNode1 = bbp callerCtx "trueNode1"
                      [ def "b2" $ const 400 4 ]
           joinNode1 = bbp callerCtx "joinNode1"
-                      [ defPhi "b" ["b1", "b2"]
+                      [ defPhi 4 "b" ["b1", "b2"]
                       , branchCond $ cmpNE (var "b" 4) (const 200 4) 4
                       ]
           falseNode2 = bbp callerCtx "falseNode2"
@@ -425,7 +425,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
                      [ def "c2" $ const 66 4 ]
 
           endNode = bbp callerCtx "endNode"
-                    [ defPhi "c" ["c1", "c2"]
+                    [ defPhi 4 "c" ["c1", "c2"]
                     , constraint $ cmpE (var "a" 4) (const 500 4) 4
                     ]
 
@@ -484,7 +484,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
     --       -- trueNode1 = bbp callerCtx "trueNode1"
     --       --            [ def "b2" $ const 400 4 ]
     --       joinNode1 = bbp callerCtx "joinNode1"
-    --                   [ defPhi "b" ["b1", "b2"]
+    --                   [ defPhi 4 "b" ["b1", "b2"]
     --                   , branchCond $ cmpNE (var "a" 4) (const 0 4) 4
     --                   ]
     --       falseNode2 = bbp callerCtx "falseNode2"
@@ -493,7 +493,7 @@ spec = describe "Blaze.Cfg.Solver.General" $ do
     --                  [ def "c2" $ const 66 4 ]
 
     --       endNode = bbp callerCtx "endNode"
-    --                 [ defPhi "c" ["c1", "c2"]
+    --                 [ defPhi 4 "c" ["c1", "c2"]
     --                 ]
 
     --       cfg = mkCfg 0 rootNode [ -- trueNode1
