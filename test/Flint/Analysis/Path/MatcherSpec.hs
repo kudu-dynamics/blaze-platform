@@ -304,6 +304,22 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
       HashMap.lookup "dest2" (ms ^. #boundSyms) `shouldBe` Just (var "d" 8)
 
+    it "should backtrack on top-level patterns until it finds a match" $ do
+      let stmts = [ def "a" (const 1 8)
+                  , def "b" (const 2 8)
+                  , def "c" (const 3 8)
+                  , def "d" (const 2 8)
+                  ]
+          pats = [ Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                 , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)      
+                 ]
+          expected = Match stmts
+          (ms, mr) = pureMatchStmts [] pats stmts
+      mr `shouldBe` expected
+      HashMap.lookup "x" (ms ^. #boundSyms) `shouldBe` Just (const 2 8)
+      HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
+      HashMap.lookup "dest2" (ms ^. #boundSyms) `shouldBe` Just (var "d" 8)
+
     it "should match on unordered statements" $ do
       let stmts = [ def "b" (const 0 4)
                   , def "c" (const 1 4)
@@ -377,12 +393,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "b" (const 777 4)
                     , def "c" (const 0 4)
                     ]
-            pats = [ Ordered
-                     [ Stmt $ Def (Bind "x" Wild) Immediate
-                     , Stmt (Def (Bind "y" Wild) Immediate)
-                       `Where`
-                       [ cmpUgt (Bound "x") (Bound "y") (ConstSize 4) ]
-                     ]
+            pats = [ Stmt $ Def (Bind "x" Wild) Immediate
+                   , Stmt (Def (Bind "y" Wild) Immediate)
+                     `Where`
+                     [ cmpUgt (Bound "x") (Bound "y") (ConstSize 4) ]
                    ]
             stmts' = stmts <> [constraint (cmpUgt (var "a" 4) (var "c" 4) 4)]
             expected = Match stmts'
@@ -422,28 +436,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
       it "should propagate taint through custom taint propagators" $ do
         let pats =
-              [ Ordered
-                  [ Stmt $
-                      Def
-                        (Bind "out" Wild)
-                        ( Bind "in" Wild
-                            `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d")
-                        )
-                  ]
+              [ Stmt $
+                  Def
+                    (Bind "out" Wild)
+                    ( Bind "in" Wild
+                      `TaintedBy` (var' (pilVar 4 "d") (ConstSize 4))
+                    )
               ]
             (ms, mr) = pureMatchStmts tps pats stmts
         mr `shouldBe` Match stmts
         HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "r")
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
-
-      it "should propagate taint through custom taint propagators" $ do
-        let pats =
-              [ Stmt $
-                  Def
-                    (Bind "out" Wild)
-                    ( Bind "in" Wild
-                        `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "d")
-                    )
-              ]
-            (_ms, mr) = pureMatchStmts tps pats stmts
-        mr `shouldBe` NoMatch
