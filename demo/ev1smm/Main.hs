@@ -10,6 +10,7 @@ import Flint.Analysis.Path.Matcher
 import Flint.Types.Query
 
 import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Pil.Construct
 import qualified Blaze.Types.Pil as Pil
 
 
@@ -25,19 +26,17 @@ import qualified Blaze.Types.Pil as Pil
 commBufferOobWriteBug :: BugMatch
 commBufferOobWriteBug = BugMatch
   { pathPattern =
-      [ Stmt $ Def (Bind "y" Wild) (Expr . Pil.LOAD . Pil.LoadOp $ Var "arg4")
+      [ Stmt $ Def (Bind "y" Wild) (load (Var "arg4") ())
       , Unordered
-        [ AnyOne
-          [ Stmt $ BranchCond . Expr . Pil.CMP_ULT $ Pil.CmpUltOp (Bind "y" Wild) (Bind "max_length" Wild)
-          , Stmt $ BranchCond . Expr . Pil.CMP_UGE $ Pil.CmpUgeOp (Bind "max_length" Wild) (Bind "y" Wild)
-          ]
+        [ Stmt . BranchCond $ Bind "y" Wild .< Bind "max_length" Wild
         , Stmt $ Call (Just Wild) (CallFunc (FuncName "SmmIsBufferOutsideSmmValid"))
           [ Var "arg3"
           , Bind "y" Wild
           ]
         ]
-      , Stmt $ Store (Expr . Pil.ADD $ Pil.AddOp (Var "arg3") (Bind "n" Wild)) (Bind "stored_val" Wild)
-      , Assert . BoundExpr (ConstSize 8) . Pil.CMP_UGT $ Pil.CmpUgtOp (Bound "n") (Bound "max_length")
+      , Stmt (Store (add (Var "arg3") (Bind "n" Wild) ()) (Bind "stored_val" Wild))
+        `Where`
+        [ cmpUgt (Bound "n") (Bound "max_length") (ConstSize 8)]
       ]
   , bugName = "CommBuffer Out of Bounds Write"
   , bugDescription =
