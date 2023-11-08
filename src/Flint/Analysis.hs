@@ -4,7 +4,7 @@ module Flint.Analysis
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher ( matchPath, MatcherResult, MatcherState )
+import Flint.Analysis.Path.Matcher ( pureMatchPath, MatcherResult, MatcherState )
 import qualified Flint.Analysis.Path.Matcher as Matcher
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis
@@ -141,7 +141,7 @@ showPaths title paths = do
     showCodeSummary summary
     putText "--------------------\n"
 
-showPathsWithMatches :: Text -> [(PilPath, [((MatcherState, MatcherResult), BugMatch)])] -> IO ()
+showPathsWithMatches :: Text -> [(PilPath, [((MatcherState a, MatcherResult), BugMatch)])] -> IO ()
 showPathsWithMatches title paths = do
   putText $ "\n\n=========================\n" <> title <> "\n===============================\n"
   forM_ paths $ \(p, matches) -> do
@@ -157,27 +157,18 @@ showPathsWithMatches title paths = do
     putText "Bug Matches:"
     traverse showBugMatch matches
 
-showBugMatch :: ((MatcherState, MatcherResult), BugMatch) -> IO ()
+showBugMatch :: ((MatcherState a, MatcherResult), BugMatch) -> IO ()
 showBugMatch ((ms, r), bm) = do
   putText $ bm ^. #bugName <> ":"
   case r of
     Matcher.NoMatch -> putText "No match."
-    Matcher.MatchNoAssertions _ -> foundBug False
-    Matcher.MatchWithAssertions stmts -> do
-      foundBug True
-      putText "Here are the new statements:\n"
-      prettyStmts' stmts
-      putText "\n"
-    Matcher.UnboundVariableError s -> putText $ "Unbound variable in bug pattern: " <> s
-  putText "\n"
-  where
-    resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
-    foundBug hasAssertions = do
+    Matcher.Match _stmts -> do
       putText "Found Primitive:"
       putText $ resolveText $ bm ^. #bugDescription
       putText "\nSuggested Mitigation:"
-      putText $ resolveText $ bm ^. #mitigationAdvice
-      when hasAssertions $ putText "Under Construction Warning: this bug was found with assertions added during pattern matching, which have not yet been checked by a solver."
+      putText $ resolveText $ bm ^. #mitigationAdvice      
+  where
+    resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
 
 showPathsOfInterest :: [(BndbFilePath, [(Address, [Address])])] -> IO ()
 showPathsOfInterest = traverse_ handleBin
@@ -274,7 +265,9 @@ showQuerySummaries tps store (q, bugMatchers) = do
       withMatches = flip fmap okPaths
         $ \p -> ( p
                 , flip fmap bugMatchers $ \bm ->
-                    ( matchPath tps (bm ^. #pathPattern) p
+                    -- TODO: use IO version `matchPath.
+                    -- But first we need to fix solver (issue #436)
+                    ( pureMatchPath tps (bm ^. #pathPattern) p
                     , bm
                     )
                 )
