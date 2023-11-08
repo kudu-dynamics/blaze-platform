@@ -732,7 +732,7 @@ runMatchStmts
   -> [Pil.Stmt]
   -> m (MatcherState m, Bool)
 runMatchStmts solver tps pats stmts = fmap (second isJust) . runMatcher solver tps stmts $ do
-  traverse_ matchNextStmt pats
+  matchNextStmt $ Ordered pats
   drainRemainingStmts
   where
     drainRemainingStmts :: MatcherT m ()
