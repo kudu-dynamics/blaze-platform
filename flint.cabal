@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -29,6 +29,7 @@ library
       Flint.Analysis.Uefi
       Flint.Analysis
       Flint.Analysis.Path.Matcher
+      Flint.Analysis.Path.Matcher.Stub
       Flint.Types.Analysis
       Flint.Util
       Flint.Cfg
@@ -404,6 +405,7 @@ test-suite flint-tests
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Flint.Analysis.Path.Matcher.StubSpec
       Flint.Analysis.Path.MatcherSpec
       Flint.Cfg.PathSpec
       Flint.CfgSpec

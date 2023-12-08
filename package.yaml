@@ -100,6 +100,7 @@ library:
   - Flint.Analysis.Uefi
   - Flint.Analysis
   - Flint.Analysis.Path.Matcher
+  - Flint.Analysis.Path.Matcher.Stub
   - Flint.Types.Analysis
   - Flint.Util
   - Flint.Cfg
