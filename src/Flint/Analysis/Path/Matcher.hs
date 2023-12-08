@@ -76,6 +76,12 @@ data BoundExpr
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
+class BoundVar a where
+  bound :: Symbol -> a
+
+instance BoundVar BoundExpr where
+  bound = Bound
+
 instance ExprConstructor BoundExprSize BoundExpr where
   mkExpr = BoundExpr
 
@@ -171,7 +177,7 @@ infix 4 .>
 (.>=) :: ExprPattern -> ExprPattern -> ExprPattern
 (.>=) = Cmp CmpGE
 infix 4 .>=
-
+  
 data AvoidSpec = AvoidSpec
   { avoid :: StmtPattern
   , until :: Maybe StmtPattern
@@ -366,7 +372,6 @@ bind sym expr = do
   case HashMap.lookup sym bsyms of
     Just expr' -> insist $ expr == expr'
     Nothing -> #boundSyms %= HashMap.insert sym expr
-
 
 -- | Tries to absorb a "not" into a bool expression.
 -- For instance, `(not (x == y))` will become `(x != y)`,

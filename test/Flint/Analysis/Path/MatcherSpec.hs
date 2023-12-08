@@ -231,7 +231,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
-
     it "should match on an indirect call" $ do
       let cdest = Pil.CallExpr $ var "x" 4
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
@@ -402,7 +401,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             expected = Match stmts'
         matchStmtsIO [] pats stmts `shouldReturn` expected
 
-
     context "taint propagators" $ do
       let f = Function Nothing "myfunc" 0x888 []
           tps =
@@ -440,7 +438,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   Def
                     (Bind "out" Wild)
                     ( Bind "in" Wild
-                      `TaintedBy` (var' (pilVar 4 "d") (ConstSize 4))
+                      `TaintedBy` var' (pilVar 4 "d") (ConstSize 4)
                     )
               ]
             (ms, mr) = pureMatchStmts tps pats stmts
