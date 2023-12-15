@@ -150,12 +150,17 @@ toStmts p = concatMap getStmtsFromEdge (snd $ P.toEdgeList p) <> Cfg.getNodeData
   where
     getStmtsFromEdge :: LEdge Cfg.BranchType (CfNode [Stmt]) -> [Stmt]
     getStmtsFromEdge (LEdge lbl (Edge a _)) = case lbl of
-      Cfg.UnconditionalBranch -> Cfg.getNodeData a
+      Cfg.UnconditionalBranch -> ndata
       Cfg.TrueBranch -> changeLastStmtToConstraint True
       Cfg.FalseBranch -> changeLastStmtToConstraint False
       where
         ndata :: [Stmt]
-        ndata = Cfg.getNodeData a
+        ndata = (<> Cfg.getNodeData a) $ case a of
+          Cfg.EnterFunc x -> [Pil.EnterContext . Pil.EnterContextOp $ x ^. #nextCtx]
+          Cfg.LeaveFunc x -> [ Pil.ExitContext
+                               $ Pil.ExitContextOp (x ^. #prevCtx) (x ^. #nextCtx)
+                             ]
+          _ -> []
         changeLastStmtToConstraint isTrueBranch = case lastMay ndata of
           Nothing -> ndata
           Just stmt -> case stmt of
