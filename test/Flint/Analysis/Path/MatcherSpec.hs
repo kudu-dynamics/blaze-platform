@@ -330,23 +330,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
-    it "should avoid single statement" $ do
-      let stmts = [ def "b" (const 0 4)
-                  ]
-          pats = [ AvoidUntil $ AvoidSpec (Stmt $ Def (Var "b") Wild) Nothing
-                 ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
-
-    it "should avoid later statement" $ do
-      let stmts = [ def "a" (const 0 4)
-                  , def "b" (const 0 4)
-                  ]
-          pats = [ AvoidUntil $ AvoidSpec (Stmt $ Def (Var "b") Wild) Nothing
-                 ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
-
     it "should avoid until" $ do
       let stmts = [ def "a" (const 0 4)
                   , def "wiff" (const 1 4)
@@ -354,7 +337,51 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ AvoidUntil $ AvoidSpec
                    (Stmt $ Def (Var "b") Wild)
-                   (Just . Stmt $ Def (Var "wiff") Wild)
+                   (Stmt $ Def (Var "wiff") Wild)
+                 ]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should fail if Until not reached" $ do
+      let stmts = [ def "a" (const 0 4)
+                  , def "wiff" (const 1 4)
+                  , def "b" (const 0 4)
+                  ]
+          pats = [ AvoidUntil $ AvoidSpec
+                   { avoid = Stmt $ Def (Var "b") Wild
+                   , until = Stmt $ Def (Var "c") Wild
+                   }
+                 ]
+          expected = NoMatch
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should fail if avoid is reached before until" $ do
+      -- The problem here currently is that if the avoid matches the first stmt
+      -- it moves on and tries from the second, forgetting that the first failed big time
+      let stmts = [ def "a" (const 0 4)
+                  , def "wiff" (const 1 4)
+                  , def "b" (const 0 4)
+                  ]
+          pats = [ AvoidUntil $ AvoidSpec
+                   { avoid = Stmt $ Def (Var "a") Wild
+                   , until = Stmt $ Def (Var "b") Wild
+                   }
+                 ]
+          expected = NoMatch
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+
+    it "should find the 'until' first, then backtrack and check the 'avoid' after" $ do
+      -- If AvoidUntil is implemented without backtracking, it will bind "ptr" to the var named "x"
+      -- Then it will fail because (Bind "ptr" Wild) in the Until part doesn't bind to "x"
+      let stmts = [ constraint $ cmpSlt (load (var "x" 8) 8) (const 888 8) 8
+                  , store (var "a" 8) $ add (load (var "a" 8) 8) (const 1 8) 8
+                  ]
+          pats = [ AvoidUntil $ AvoidSpec
+                   { avoid = Stmt . Constraint $ load (Bind "ptr" Wild) () .< Wild
+                   , until = Stmt $ Store (Bind "ptr" Wild)
+                             $ add (load (Bind "ptr" Wild) ()) Wild ()
+                   }
                  ]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
