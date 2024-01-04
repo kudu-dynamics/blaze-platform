@@ -180,7 +180,7 @@ infix 4 .>=
   
 data AvoidSpec = AvoidSpec
   { avoid :: StmtPattern
-  , until :: Maybe StmtPattern
+  , until :: StmtPattern
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 type StmtSolver m = [Pil.Stmt] -> m SolverResult
@@ -188,7 +188,7 @@ type StmtSolver m = [Pil.Stmt] -> m SolverResult
 data MatcherState m = MatcherState
   { remainingStmts :: [Pil.Stmt]
   , boundSyms :: HashMap Symbol Pil.Expression
-  , avoids :: HashSet AvoidSpec
+  , avoids :: HashMap AvoidSpec [Pil.Stmt]
   -- The successfully parsed stmts, stored in reverse order
   -- possibly interleaved with user-made Assertions
   , parsedStmtsWithAssertions :: [Pil.Stmt]
@@ -297,7 +297,7 @@ mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
 mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
 mkMatcherState :: StmtSolver m -> [TaintPropagator] -> [Pil.Stmt] -> MatcherState m
-mkMatcherState solver tps stmts = MatcherState stmts HashMap.empty HashSet.empty [] (mkTaintSet tps stmts) solver Nothing
+mkMatcherState solver tps stmts = MatcherState stmts HashMap.empty HashMap.empty [] (mkTaintSet tps stmts) solver Nothing
 
 runMatcher
   :: Monad m
@@ -579,8 +579,13 @@ matchStmt sPat stmt = case (sPat, stmt) of
 
 backtrackOnError :: Monad m => MatcherT m a -> MatcherT m a
 backtrackOnError action = do
-  s <- get
-  action <|> (put s >> throwError ())
+  oldSt <- get
+  tryError action >>= \case
+    Right x -> return x
+    Left _ -> do
+      newSt <- get
+      put $ oldSt & #avoids .~ (newSt ^. #avoids)
+      throwError ()
 
 -- | Runs action and always backtracks state
 backtrack :: Monad m => MatcherT m a -> MatcherT m a
@@ -599,23 +604,39 @@ addConstraint x = do
 storeAsParsed :: Monad m => Pil.Stmt -> MatcherT m ()
 storeAsParsed x = #parsedStmtsWithAssertions %= (x :)
 
-checkAvoid :: Monad m => AvoidSpec -> MatcherT m ()
-checkAvoid fullAvoid@(AvoidSpec avoid' mUntil) = case mUntil of
-  Nothing -> tryAvoid
-  Just until' -> tryError (backtrack $ matchNextStmt_ False False until') >>= \case
-    Left _ -> tryAvoid
-    -- Matched an "until", so remove the Avoid from the avoid state.
-    Right _ -> #avoids %= HashSet.delete fullAvoid
+addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
+addAvoid x = do
+  rstmts <- use #remainingStmts
+  #avoids %= HashMap.alter (f rstmts) x
   where
-    tryAvoid = tryError (backtrack $ matchNextStmt_ False False avoid') >>= \case
-      Left _ -> good -- Avoid has been avoided 
-      Right _ -> bad
+    -- Insert only if key doesn't exist. (Is there a lib func to do this already?)
+    f rstmts Nothing = Just rstmts
+    f _ (Just rstmts) = Just rstmts
+
+removeAvoid :: Monad m => AvoidSpec -> MatcherT m ()
+removeAvoid x = #avoids %= HashMap.delete x
+
+checkAvoid :: Monad m => AvoidSpec -> [Pil.Stmt] -> MatcherT m ()
+checkAvoid fullAvoid@(AvoidSpec avoid' until') retroStmts = do
+  matchNextStmt_ False until'
+  remainingstmts' <- use #remainingStmts
+  let stmtsToCheckForAvoid = take (length retroStmts - length remainingstmts') retroStmts
+  -- let stmtsToCheckForAvoid = take (length (oldMs ^. #remainingStmts) - length (newMs ^. #remainingStmts))
+  --           $ oldMs ^. #remainingStmts
+  #remainingStmts .= stmtsToCheckForAvoid
+  tryError (backtrack $ matchNextStmt_ True avoid') >>= \case
+    Left _ -> do
+      #remainingStmts .= remainingstmts'
+      removeAvoid fullAvoid
+      good
+    Right _ -> do
+      #remainingStmts .= remainingstmts'
+      bad
 
 -- | This checks all the avoids and fails if any occur.
 -- The only state this changes is the avoid list
 checkAvoids :: Monad m => MatcherT m ()
-checkAvoids = use #avoids >>= traverse_ checkAvoid
-
+checkAvoids = use #avoids >>= void . HashMap.traverseWithKey checkAvoid
 
 -- | Runs the solver on the path up to this point. Includes remaining path
 -- because the asserts might not be compatible with rest of path.
@@ -635,14 +656,16 @@ checkPath = solvePath >>= \case
   _ -> bad
 
 matchNextStmt :: Monad m => StmtPattern -> MatcherT m ()
-matchNextStmt = matchNextStmt_ True True
+matchNextStmt = matchNextStmt_ True
+
+-- when shouldCheckAvoids checkAvoids >> 
 
 -- | Matches the next statement with the next stmt pattern.
-matchNextStmt_ :: Monad m => Bool -> Bool -> StmtPattern -> MatcherT m ()
-matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids checkAvoids >> peekNextStmt >>= \case
+matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
+matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
   Nothing -> case pat of
     Stmt _ -> bad
-    AvoidUntil _ -> good
+    AvoidUntil _ -> use #avoids >>= bool bad good . HashMap.null
     AnyOne [] -> good
     AnyOne _ -> bad
     Unordered [] -> good
@@ -659,7 +682,10 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
       Right _ -> retireStmt
       -- Stmt failed to match. Try next stmt with same pattern.
       Left _ -> perhapsRecur
-    AvoidUntil avoidSpec -> #avoids %= HashSet.insert avoidSpec
+    AvoidUntil avoidSpec -> do
+      addAvoid avoidSpec
+      retroStmts <- fromJust . HashMap.lookup avoidSpec <$> use #avoids
+      checkAvoid avoidSpec retroStmts
     AnyOne [] -> return ()
     AnyOne pats -> do
       tryError (asum $ backtrackOnError . matchNextStmt <$> pats) >>= \case
@@ -670,7 +696,7 @@ matchNextStmt_ firstCheckAvoids tryNextStmtOnFailure pat = when firstCheckAvoids
     Unordered [] -> return ()
     Unordered pats -> do
       tryError (asum
-                 $ backtrackOnError . traverse (matchNextStmt_ True False) <$> zip [0..] pats
+                 $ backtrackOnError . traverse (matchNextStmt_ False) <$> zip [0..] pats
                ) >>= \case
         -- One matched, now remove successful pattern from pats and continue
         Right (i, _) -> do
@@ -744,7 +770,6 @@ runMatchStmts solver tps pats stmts = fmap (second isJust) . runMatcher solver t
     drainRemainingStmts = use #remainingStmts >>= \case
       [] -> return ()
       _ -> do
-        checkAvoids
         retireStmt
         drainRemainingStmts
 

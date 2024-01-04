@@ -48,10 +48,9 @@ failedToCheckCommBufferIsOutsideSmramPattern :: [StmtPattern]
 failedToCheckCommBufferIsOutsideSmramPattern =
   [ AvoidUntil $ AvoidSpec
     (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
-    Nothing
-  , AnyOne [ Stmt $ Store (Contains (Var "arg3")) Wild
-           , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Contains (Var "arg3"), Wild, Wild]
-           ]
+    $ AnyOne [ Stmt $ Store (Contains (Var "arg3")) Wild
+             , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Contains (Var "arg3"), Wild, Wild]
+             ]
   ]
 
 failedToCheckCommBufferIsOutsideSmramBug :: BugMatch
@@ -59,10 +58,9 @@ failedToCheckCommBufferIsOutsideSmramBug = BugMatch
   { pathPattern =
     [ AvoidUntil $ AvoidSpec
       (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
-      Nothing
-    , AnyOne [ Stmt $ Store (Bind "fullAddr" (Contains (Var "arg3"))) (Bind "value" Wild)
-             , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), Bind "value" Wild, Wild]
-             ]
+      $ AnyOne [ Stmt $ Store (Bind "fullAddr" (Contains (Var "arg3"))) (Bind "value" Wild)
+               , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), Bind "value" Wild, Wild]
+               ]
     ]
   , bugName = "Arbitrary Write to SMRAM"
   , bugDescription = "This path writes a value `" <> TextExpr "value" <> "' to the address `" <> TextExpr "fullAddr" <> "`, which contains the user-controlled CommBuffer (arg3), without first checking to make sure arg3 is pointing outside of SMRAM, allowing a user to overwrite SMRAM."
@@ -82,8 +80,7 @@ failedToCheckCommBufferIsOutsideSmramArbitraryReadBug =
     { pathPattern =
       [ AvoidUntil $ AvoidSpec
         (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
-        Nothing
-      , Stmt $ Call Nothing (CallIndirect setVariable) [Wild, Wild, Wild, Wild, Bind "srcBuffer" $ Contains (Var "arg3")]
+        $ Stmt $ Call Nothing (CallIndirect setVariable) [Wild, Wild, Wild, Wild, Bind "srcBuffer" $ Contains (Var "arg3")]
       ]
     , bugName = "Arbitrary Read from SMRAM through NV Variable"
     , bugDescription = "In this path, the call to `setVariable` fills the contents of a NV variable with the contents of a buffer at location `" <> TextExpr "srcBuffer" <> "', which is at least partially controlled by the user-supplied CommBuffer (arg3), possibly allowing a user to read memory from SMRAM."
