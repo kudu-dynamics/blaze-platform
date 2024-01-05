@@ -776,6 +776,38 @@ newtype PStmts a = PStmts [Pil.Statement a]
 
 newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
 
+tokenizeStmtsWithIndents
+  :: forall a.
+  ( Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , NeedsParens a
+  ) 
+  => [Pil.Statement a]
+  -> Tokenizer [Token]
+tokenizeStmtsWithIndents = \case
+  [] -> return []
+  (stmt:stmts) -> tokenize stmt
+    <++> [tt "\n"]
+    <++> go (bool 0 1 $ isEnterContext stmt) stmts
+  where
+    isEnterContext (Pil.EnterContext _) = True
+    isEnterContext _ = False
+    spaces :: Int -> [Token]
+    spaces n = [tt $ Text.replicate (max 0 n) "  "]
+    go :: Int -> [Pil.Statement a] -> Tokenizer [Token]
+    go _ [] = return []
+    -- Last Stmt
+    go i [stmt] = case stmt of
+      Pil.ExitContext _ -> spaces (i - 1) <++> tokenize stmt
+      _ -> tokenize stmt
+    -- Middle statements
+    go i (stmt:stmts) = case stmt of
+      Pil.EnterContext _ ->
+        spaces i <++> tokenize stmt <++> [tt "\n"] <++> go (i + 1) stmts
+      Pil.ExitContext _ ->
+        spaces (i - 1) <++> tokenize stmt <++> [tt "\n"] <++> go (i - 1) stmts
+      _ -> spaces i <++> tokenize stmt <++> [tt "\n"] <++> go i stmts
+
 instance
   ( Tokenizable a
   , HasField' "size" a (Pil.Size a)
@@ -783,7 +815,8 @@ instance
   ) =>
   Tokenizable (PStmts a)
   where
-  tokenize (PStmts stmts) = intercalate [tt "\n"] <$> traverse tokenize stmts
+  tokenize (PStmts stmts) = tokenizeStmtsWithIndents stmts
+  -- tokenize (PStmts stmts) = intercalate [tt "\n"] <$> traverse tokenize stmts
 
 instance
   ( Tokenizable a
