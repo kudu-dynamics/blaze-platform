@@ -727,7 +727,10 @@ instance
     Pil.Undef -> pure [keywordToken "Undefined"]
     Pil.Nop -> pure [keywordToken "Nop"]
     Pil.Annotation t -> pure [plainToken CommentToken "// ", plainToken CommentToken t]
-    Pil.EnterContext x -> tt "----> Entering " <++> tokenize (x ^. #ctx)
+    Pil.EnterContext x -> tt "----> Entering "
+      <++> tokenize (x ^. #ctx)
+      <++> [tt " "]
+      <++> tokenizeAsList (x ^. #args)
     Pil.ExitContext x -> tt "<---- Leaving " <++> tokenize (x ^. #leavingCtx)
     Pil.Call callOp -> tokenize callOp
     Pil.DefPhi x ->
