@@ -154,9 +154,22 @@ toStmts p = concatMap getStmtsFromEdge (snd $ P.toEdgeList p) <> Cfg.getNodeData
       Cfg.TrueBranch -> changeLastStmtToConstraint True
       Cfg.FalseBranch -> changeLastStmtToConstraint False
       where
+        -- | Gets the arg exprs out of the node data from EnterFuncNode
+        -- This is sort of dirty because it relies on the behavior of
+        -- Interprecedural.mkEnterFuncNode to define the args in the proper order.
+        -- To make this more reliable, we could add an `args :: [Pil.Expression]`
+        -- field to the `Cfg.EnterFuncNode a` type. 
+        getArgs' :: Cfg.EnterFuncNode [Stmt] -> [Pil.Expression]
+        getArgs' (Cfg.EnterFuncNode _ _ _ xs) = getArg <$> xs
+          where
+            getArg (Pil.Def x) = x ^. #value
+            getArg _ = error "Unexpected arg format"
         ndata :: [Stmt]
         ndata = (<> Cfg.getNodeData a) $ case a of
-          Cfg.EnterFunc x -> [Pil.EnterContext . Pil.EnterContextOp $ x ^. #nextCtx]
+          Cfg.EnterFunc x -> [ Pil.EnterContext
+                               . Pil.EnterContextOp (x ^. #nextCtx)
+                               $ getArgs' x
+                             ]
           Cfg.LeaveFunc x -> [ Pil.ExitContext
                                $ Pil.ExitContextOp (x ^. #prevCtx) (x ^. #nextCtx)
                              ]

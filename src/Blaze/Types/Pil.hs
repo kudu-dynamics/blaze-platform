@@ -236,6 +236,7 @@ data UnimplMemOp expr = UnimplMemOp
 {- HLINT ignore EnterContextOp "Use newtype instead of data" -}
 data EnterContextOp expr = EnterContextOp
   { ctx :: Ctx
+  , args :: [expr]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data ExitContextOp expr = ExitContextOp
