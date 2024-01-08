@@ -289,6 +289,22 @@ func3ctx :: (CtxId -> Ctx)
       , C.ret (C.var' (x i) 8)
       ]
 
+func3PathNoRet :: Path (CfNode [Stmt])
+func3bb0NoRet :: (CtxId -> CfNode [Stmt])
+func3ctxNoRet :: (CtxId -> Ctx)
+(func3PathNoRet, func3bb0NoRet, func3ctxNoRet) =
+  ( CfgP.build 1 $ start (bb0 0)
+  , bb0
+  , mkCtx
+  )
+  where
+    mkCtx :: CtxId -> Ctx
+    mkCtx = Ctx func3
+    [arg1, x] = (\t ctxId -> pilVar' (mkCtx ctxId) t) <$> ["arg1", "x"]
+    bb0 i = bbp (mkCtx i) "bb0"
+      [ C.def' (x i) $ C.add (C.var' (arg1 i) 8) (C.var' (arg1 i) 8)  8
+      ]
+
 getUpdatedNodeId :: CfNode [Stmt] -> UUID
 getUpdatedNodeId n = UUID.fromWords64 h h where h = fromIntegral $ hash (Cfg.getNodeUUID n)
 
@@ -435,6 +451,27 @@ spec = describe "Blaze.Cfg.Path" $ do
               -| UnconditionalBranch |- func3bb0 1
               -| UnconditionalBranch |- leaveFuncNode
               -| UnconditionalBranch |- func2bb2 0
+      PrettyShow' (fmap FullCfNode <$> result) `shouldBe` PrettyShow' (Just $ FullCfNode <$> expected)
+
+    it "should snip off remainder of path if inner path has no Ret" $ do
+      let outerPath = func2Path
+          innerPath = func3PathNoRet
+          callNode = func2call0 0
+          leaveFuncUuid = mkUuid1 (1234 :: Int)
+          result = CfgP.expandCall leaveFuncUuid outerPath callNode innerPath
+          enterFuncNode = Cfg.EnterFunc $ Cfg.EnterFuncNode
+            { prevCtx = func2ctx 0
+            , nextCtx = func3ctxNoRet 1
+            , uuid = callNode ^. #uuid
+            , nodeData =
+              [ C.def' (pilVar' (func3ctxNoRet 1) "arg1")
+                $ C.var' (pilVar' (func2ctx 0) "x") 8
+              ]
+            }
+          expected = CfgP.build 2 $ start (func2bb0 0)
+              -| TrueBranch |- func2bb1 0
+              -| UnconditionalBranch |- enterFuncNode
+              -| UnconditionalBranch |- func3bb0NoRet 1
       PrettyShow' (fmap FullCfNode <$> result) `shouldBe` PrettyShow' (Just $ FullCfNode <$> expected)
 
     it "should expand call where target has many nodes but a single context" $ do

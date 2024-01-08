@@ -73,9 +73,10 @@ getSimpleReturnPaths cfg = getSimplePathsContaining (G.getTermNodes cfg) cfg
 
 -- | Expands a call node with another path. Updates ctxIds of inner path,
 -- as well as node UUIDs.
+-- If inner path does not return, snips off path after call expansion.
 -- Returns Nothing if call node not found.
 -- WARNING: innerPath must contain nodes with unique node ids!
---          
+--
 expandCall
   :: UUID
   -> PilPath
@@ -89,16 +90,21 @@ expandCall leaveFuncUuid outerPath callNode innerPath
       return $ Path
         { nextCtxIndex = outerPathNextCtxIndex'
         , outerCtx = outerPath ^. #outerCtx
-        , path = P.expandNode (Cfg.Call callNode) (outerPath ^. #path) (wrapInnerPath callStmt ^. #path)
+        , path = P.expandNode (Cfg.Call callNode) outerPathPerhapsSnipped (wrapInnerPath callStmt ^. #path)
         }
   where
+    outerPathPerhapsSnipped = case retExpr of
+      Nothing -> P.removeAfterNode (Cfg.Call callNode) $ outerPath ^. #path
+      Just _ -> outerPath ^. #path
+
     outerPathNextCtxIndex' = outerPath ^. #nextCtxIndex + innerPath ^. #nextCtxIndex
     innerPath' = recurSubst (+ (outerPath ^. #nextCtxIndex)) innerPath
     innerPathCtx' = getCtx innerPath'
-    
+
     wrapInnerPath :: CallStatement -> PilPath
     wrapInnerPath cstmt = P.append (mkEnterNodePath cstmt) UnconditionalBranch
-      $ P.append innerPath' UnconditionalBranch (mkLeaveNodePath cstmt)
+      . maybe innerPath' (P.append innerPath' UnconditionalBranch)
+      $ mkLeaveNodePath cstmt
 
     mkEnterNodePath :: CallStatement -> PilPath
     mkEnterNodePath = build outerPathNextCtxIndex' . P.start . mkEnterNode
@@ -113,15 +119,17 @@ expandCall leaveFuncUuid outerPath callNode innerPath
       Pil.Ret x -> return $ x ^. #value
       _ -> Nothing
 
-    mkLeaveNodePath :: CallStatement -> PilPath
-    mkLeaveNodePath = build outerPathNextCtxIndex' . P.start . mkLeaveNode
-    mkLeaveNode :: CallStatement -> CfNode [Stmt]
-    mkLeaveNode cstmt = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
-      { prevCtx = innerPathCtx'
-      , nextCtx = outerPath ^. #outerCtx
-      , uuid = leaveFuncUuid
-      , nodeData = maybeToList $ C.def' <$> cstmt ^. #resultVar <*> retExpr
-      }
+    mkLeaveNodePath :: CallStatement -> Maybe PilPath
+    mkLeaveNodePath = fmap (build outerPathNextCtxIndex' . P.start) . mkLeaveNode
+    mkLeaveNode :: CallStatement -> Maybe (CfNode [Stmt])
+    mkLeaveNode cstmt = case retExpr of
+      Nothing -> Nothing
+      Just _ -> return . Cfg.LeaveFunc $ Cfg.LeaveFuncNode
+        { prevCtx = innerPathCtx'
+        , nextCtx = outerPath ^. #outerCtx
+        , uuid = leaveFuncUuid
+        , nodeData = maybeToList $ C.def' <$> cstmt ^. #resultVar <*> retExpr
+        }
 
 expandCallWithNewInnerPathIds :: UUID -> PilPath -> CallNode [Stmt] -> PilPath -> IO (Maybe PilPath)
 expandCallWithNewInnerPathIds leaveFuncUuid outerPath callNode innerPath = do
