@@ -6,7 +6,7 @@ import Blaze.Types.Function (Function(Function))
 import Blaze.Types.Pil
   ( ExprOp,
     Expression (Expression),
-    Size(Size),
+    Size,
     PilVar (PilVar),
     Statement,
     Symbol,
