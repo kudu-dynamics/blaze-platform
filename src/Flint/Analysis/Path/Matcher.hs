@@ -552,7 +552,7 @@ matchStmt sPat stmt = case (sPat, stmt) of
   (Store addrPat valPat, Pil.Store (Pil.StoreOp addrExpr valExpr)) -> do
     matchExpr addrPat addrExpr
     matchExpr valPat valExpr
-  (EnterFunc funcPat, Pil.EnterContext (Pil.EnterContextOp ctx)) ->
+  (EnterFunc funcPat, Pil.EnterContext (Pil.EnterContextOp ctx _)) ->
     matchFuncPatWithFunc funcPat $ ctx ^. #func
   (Call mResultPat callDestPat argPats, _) -> case Pil.mkCallStatement stmt of
     Nothing -> bad
