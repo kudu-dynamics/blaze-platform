@@ -9,7 +9,7 @@ extra-deps:
   - ../binaryninja-haskell
   - ../ghidra-haskell
   - git: https://github.com/kudu-dynamics/inline-java.git
-    commit: 50559145af55b170fab9904ad9f0d773ea12f6fe
+    commit: 47d7e8c609847804676f7bdcaa3c2d45a59ba483
     subdirs:
       - jni
       - jvm
