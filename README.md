@@ -21,3 +21,6 @@ You can do this easily in three steps:
 
 - Use a single cabal.project file and Cabal flags and conditionals to specify whether to compile -O0 or not.
 - Tell projectile to ignore `dist-newstyle` build dir. Also, consider renaming to a hidden folder.
+
+
+Distribution A. (Approved for public release; distribution unlimited.)
