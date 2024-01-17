@@ -1,19 +1,6 @@
-# flint
+# Flint
 
-A program that uses Blaze to find EE primitives.
-
-## Using with Emacs
-
-This project uses `cabal` instead of `stack`. To set your `haskell-mode` in emacs to use `cabal`, run this command:
-
-```
-(setq haskell-process-type 'cabal-repl)
-```
-
-You can do this easily in three steps:
-1. Load up this README.md in emacs.
-2. Move cursor to right after closing paren of line above
-3. Press `C-x C-e`
+A program that uses [Blaze][blaze] to find [emergent execution][ee] primitives.
 
 # TODO
 
@@ -24,3 +11,6 @@ You can do this easily in three steps:
 
 
 Distribution A. (Approved for public release; distribution unlimited.)
+
+[blaze]: https://github.com/kudu-dynamics/blaze
+[ee]: https://en.wikipedia.org/wiki/Weird_machine
