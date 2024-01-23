@@ -1,0 +1,481 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           flint
+version:        0.1.0.0
+synopsis:       An analysis tool that aids in finding bugs.
+description:    Please see the README.
+category:       Program Analysis, Binary Analysis
+author:         Matt (drone) Revelle <drone@bitrit.es>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+maintainer:     Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>,
+                Matt (drone) Revelle <drone@bitrit.es>
+copyright:      2023 Kudu Dynamics
+license:        BSD-2-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+library
+  exposed-modules:
+      Flint.Prelude
+      Flint.Analysis.Uefi
+      Flint.Analysis
+      Flint.Analysis.Path.Matcher
+      Flint.Analysis.Path.Matcher.Stub
+      Flint.Types.Analysis
+      Flint.Util
+      Flint.Cfg
+      Flint.Cfg.Path
+      Flint.Cfg.Store
+      Flint.Types.Cfg.Store
+      Flint.Types.CachedCalc
+      Flint.Types.Query
+  other-modules:
+      Flint.Types.Cfg
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      src
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules -j4 -O2
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs ==0.6.1
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , relude
+    , sbv >=8.6 && <10
+    , stm
+    , streamly
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable demo1-demo
+  main-is: Main.hs
+  other-modules:
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      demo/Demo1
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs ==0.6.1
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , flint
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , relude
+    , sbv >=8.6 && <10
+    , stm
+    , streamly
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable ev1smm
+  main-is: Main.hs
+  other-modules:
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      demo/ev1smm
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs ==0.6.1
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , flint
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , relude
+    , sbv >=8.6 && <10
+    , stm
+    , streamly
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable flint
+  main-is: Main.hs
+  other-modules:
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      app
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs ==0.6.1
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , flint
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , relude
+    , sbv >=8.6 && <10
+    , stm
+    , streamly
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable kernel
+  main-is: Main.hs
+  other-modules:
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      demo/Kernel
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs ==0.6.1
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , flint
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , relude
+    , sbv >=8.6 && <10
+    , stm
+    , streamly
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+test-suite flint-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Flint.Analysis.Path.Matcher.StubSpec
+      Flint.Analysis.Path.MatcherSpec
+      Flint.Cfg.PathSpec
+      Flint.CfgSpec
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      test
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -Wall -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs ==0.6.1
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , flint
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , hspec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , relude
+    , sbv >=8.6 && <10
+    , stm
+    , streamly
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
