@@ -1,0 +1,140 @@
+name:                binja-header-cleaner
+version:             0.1.0.0
+github:              "mp/binja-header-cleaner"
+license:             LicenseRef-Kudu
+author:              "Matt Parker"
+maintainer:          "mp@kududyn.com"
+copyright:           "2019 Kudu Dynamics"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the readme
+
+dependencies:
+  - attoparsec
+  - base
+  - casing
+  - containers
+  - data-binary-ieee754
+  - envy
+  - language-c
+  - lens
+  - mtl
+  - newtype
+  - pretty-simple
+  - protolude
+  - raw-strings-qq
+  - stm
+  - template-haskell
+  - text
+  - transformers
+
+default-extensions:
+  - DeriveDataTypeable
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveTraversable
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - LambdaCase
+  - MultiParamTypeClasses
+  - NoImplicitPrelude   
+  - OverloadedStrings
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+
+  
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -j4
+  - -O2
+  - +RTS
+  - -A256m
+  - -n16m
+  - -RTS
+  source-dirs: src
+  exposed-modules:
+  - Binja.Header.Prelude
+  - Binja.Header.Types.Printer
+  - Binja.Header.ParseHeader
+  - Binja.Header.ParseEnums
+  
+executables:
+  clean-binja-header:
+    main: Main.hs
+    source-dirs: app/clean
+    ghc-options:
+      - -Wall
+      - -Wcompat
+      - -Wincomplete-record-updates
+      - -Wincomplete-uni-patterns
+      - -Wredundant-constraints
+      - -j4
+      - -O2
+      - +RTS
+      - -A256m
+      - -n16m
+      - -RTS
+    dependencies:
+      - base
+      - binja-header-cleaner
+
+  gen-mlil-op-modules:
+    main: Main.hs
+    source-dirs: app/gen-mlil-op-modules
+    ghc-options:
+      - -Wall
+      - -Wincomplete-record-updates
+      - -Wincomplete-uni-patterns
+      - -Wredundant-constraints
+      - -j4
+      - -O2
+    dependencies:
+      - base
+      - binja-header-cleaner
+      - filepath
+      - directory
+      - text
+
+
+include-dirs:
+  - "src"
+
+
+tests:
+  binja-header-cleaner-test:
+    main: Spec.hs
+    source-dirs:
+    - test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -j4
+    - -O2
+    dependencies:
+    - containers
+    - binja-header-cleaner
+    - hspec
+    

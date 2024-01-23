@@ -1,0 +1,256 @@
+stages:
+  - check
+  - build
+  - test
+  - push
+  - trigger
+  - docs
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_TAG
+
+# Not making these global variables because they would get overridden in multi-project pipelines
+.variables: &variables
+  # The base of this repo's docker registry
+  REPO_DOCKER_REGISTRY: ${CI_REGISTRY_IMAGE}
+  # The image name of binaryninja-haskell-base
+  BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE: ${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/devops/binaryninja-haskell-base
+  # Enable buildkit for more efficient layer caching
+  DOCKER_BUILDKIT: "1"
+
+# Potential build dependencies for the dind host
+.script-bootstrap-dind: &script-bootstrap-dind
+  - echo -e "section_start:`date +%s`:bootstrap[collapsed=true]\r\e[0KBootstrap build dependencies"
+  - |
+    if [ -f /etc/alpine-release ]; then
+      apk add git coreutils python3
+      apk add -X http://dl-cdn.alpinelinux.org/alpine/edge/testing time
+    fi
+  - echo -e "section_end:`date +%s`:bootstrap\r\e[0K"
+
+.script-setup-dependencies: &script-setup-dependencies
+  - echo -e "section_start:`date +%s`:setup[collapsed=true]\r\e[0KProject Setup"
+  - echo -e "machine ${CI_SERVER_HOST}\nlogin gitlab-ci-token\npassword ${CI_JOB_TOKEN}" > ~/.netrc
+  - |
+    for project in binary-analysis; do
+      rm -rf "../${project}"
+      git clone --depth=1 "${CI_REPOSITORY_URL%/*}/${project}.git" "../${project}"
+    done
+  - echo -e "section_end:`date +%s`:setup\r\e[0K"
+
+  - echo -e "section_start:`date +%s`:setup-dockerignore[collapsed=true]\r\e[0KSet up .dockerignore"
+
+  # Write a .dockerignore to the build context (../). This ignores everything there except for
+  # our source dependencies, since gitlab runner will have cloned our other repos to ../
+  - |
+    cat <<EOF >../.dockerignore
+    *
+
+    !binaryninja-haskell
+    !binary-analysis
+
+    **/.git
+    **/.gitlab-ci.yml
+
+    **/.stack
+    **/.stack-work*
+
+    **/*.cabal
+
+    **/dist-newstyle
+    **/dist
+
+    binaryninja-haskell/docs
+    EOF
+  - |
+    { echo -e '\n\n# From binary-analysis/.gitignore:';
+      cat ../binary-analysis/.gitignore \
+      | sed -E 's|^/|/binary-analysis/|;s|^([^/])|/binary-analysis/**/\1|';
+      echo -e '\n\n# From binaryninja-haskell/.gitignore:';
+      cat ../binaryninja-haskell/.gitignore \
+      | sed -E 's|^/|/binaryninja-haskell/|;s|^([^/])|/binaryninja-haskell/**/\1|';
+    } >>../.dockerignore
+
+  - echo -e "section_end:`date +%s`:setup-dockerignore\r\e[0K"
+
+.job:
+  timeout: 1h
+  variables:
+    <<: *variables
+  before_script: &job-before-script
+    - echo -e "section_start:`date +%s`:pre-env[collapsed=true]\r\e[0KEnvironment info (before_script)"
+    - uname -a
+    - env
+    - ls -al
+    - find . -maxdepth 1 \( ! -name . \) -print0 | sort -z | xargs -0 -x du -bhsc
+    - echo -e "section_end:`date +%s`:pre-env\r\e[0K"
+
+.docker-job:
+  extends: .job
+  image: docker:dind
+  before_script:
+    - *script-bootstrap-dind
+    - *job-before-script
+    - docker login -u "${CI_REGISTRY_USER}" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+
+.haskell-job:
+  extends: .job
+  image: ${REPO_DOCKER_REGISTRY}/binaryninja-haskell:pipeline-${CI_PIPELINE_IID}
+
+# stage: check
+include:
+  project: 'kevino/filter-check'
+  file: '/filtercheck.gitlab-ci.yml'
+
+lint:
+  stage: check
+  extends: .job
+  image: ${BLAZE_BINARYNINJA_HASKELL_BASE_IMAGE}
+  needs: []
+  script:
+    - hlint --color=always src test demo
+  allow_failure: true
+
+build:
+  stage: build
+  extends: .docker-job
+  needs: []
+  script:
+    - *script-setup-dependencies
+    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker pull "${image}:latest" || true
+    - if [ "${CI_COMMIT_BRANCH}" = "${CI_DEFAULT_BRANCH}" ]; then
+        build_type=release;
+      else
+        build_type=dev;
+      fi
+    - docker build --pull .. -f Dockerfile
+      --build-arg "CI_REGISTRY=${CI_REGISTRY}"
+      --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
+      --build-arg "BUILD_TYPE=${build_type}"
+      --build-arg STACK_BUILD_OPTIONS=--ghc-options=-fdiagnostics-color=always
+      -t "${image}:pipeline-${CI_PIPELINE_IID}"
+    - docker push "${image}:pipeline-${CI_PIPELINE_IID}"
+
+test:
+  stage: test
+  extends: .haskell-job
+  needs:
+    - build
+  variables:
+    <<: *variables
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - cp -T "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
+    - cd /blaze/build/binaryninja-haskell
+    - .ci/scripts/run_test.py ~/.local/bin/binja-header-cleaner-test
+    - .ci/scripts/run_test.py ~/.local/bin/binja-test
+
+    # Test gen-mlil-op-modules
+    - d=$(mktemp -d)
+    - ~/.local/bin/gen-mlil-op-modules "$d"
+
+push:latest:
+  stage: push
+  extends: .docker-job
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - test
+  variables:
+    <<: *variables
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker pull "${image}:pipeline-${CI_PIPELINE_IID}"
+    - docker tag "${image}:pipeline-${CI_PIPELINE_IID}" "${image}:latest"
+    - docker push "${image}:latest"
+
+push:tag:
+  stage: push
+  extends: .docker-job
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - test
+  variables:
+    <<: *variables
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker pull "${image}:pipeline-${CI_PIPELINE_IID}"
+    - docker tag "${image}:pipeline-${CI_PIPELINE_IID}" "${image}:tag-${CI_COMMIT_TAG}"
+    - docker push "${image}:tag-${CI_COMMIT_TAG}"
+
+pages:
+  extends: .docker-job
+  stage: docs
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_MERGE_REQUEST_ID == null
+      when: on_success
+    - if: $CI_MERGE_REQUEST_ID == null
+      when: manual
+  needs:
+    - test
+  variables:
+    <<: *variables
+  script:
+    - *script-setup-dependencies
+    - image=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - docker build --pull .. -f Dockerfile
+      --build-arg "CI_REGISTRY=${CI_REGISTRY}"
+      --build-arg "CI_PROJECT_NAMESPACE=${CI_PROJECT_NAMESPACE}"
+      --target docs
+      -t "${image}/docs:pipeline-${CI_PIPELINE_IID}"
+    - mkdir public
+    - docker run --rm "${image}/docs:pipeline-${CI_PIPELINE_IID}" tar -cvC docs . | tar -xvC public --no-same-owner
+  allow_failure: true
+  artifacts:
+    paths:
+      - public
+    expire_in: 12 hours
+
+trigger-blaze:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  stage: trigger
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/alpine
+  script:
+    - apk add curl jq
+    - curl --fail-with-body
+        -X POST
+        -F token="${CI_JOB_TOKEN}"
+        -F ref=master
+        "${CI_API_V4_URL}"/projects/"$(jq -rn --arg x "${CI_PROJECT_NAMESPACE}/blaze" '$x|@uri')"/trigger/pipeline
+
+cleanup:
+  stage: .post
+  when: always
+  extends: .docker-job
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - apk add --no-cache --update bash
+    - images=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+    - "# Untag all images created by this pipeline so we don't waste space on CI runner"
+    - |
+      bash -c '
+        images=${REPO_DOCKER_REGISTRY}/binaryninja-haskell
+        tags=()
+        for image in "${images[@]}"; do
+          tags+=(
+            "${image}:pipeline-${CI_PIPELINE_IID}"
+            "${image}/docs:pipeline-${CI_PIPELINE_IID}"
+            "${CI_COMMIT_TAG:+${image}:tag-${CI_COMMIT_TAG}}"
+            )
+        done
+        for i in "${!tags[@]}"; do if [ -z "${tags[$i]}" ]; then unset tags[$i]; fi; done
+        echo "${tags[@]}"
+        docker image rm "${tags[@]}" || true
+      '

@@ -1,0 +1,13 @@
+resolver: lts-20.0
+compiler: ghc-9.2.5
+
+packages:
+  - ../binary-analysis
+  - .
+  - binja-header-cleaner
+
+extra-deps:
+
+rebuild-ghc-options: true
+ghc-options:
+  "$locals": -O0
