@@ -1,0 +1,288 @@
+name:                blaze
+version:             0.1.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+copyright:           "2021 Kudu Dynamics"
+synopsis:            A program analysis framework with a focus on context- and path-sensitive analyses, tiered abstraction layers, and type systems.
+category:            Program Analysis, Binary Analysis
+description:         Please see the README.
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+
+dependencies:
+  - aeson
+  - algebraic-graphs
+  - async
+  - base >= 4.7 && < 5
+  - binary-analysis
+  - bimap
+  - binaryninja
+  - bv
+  - bytestring
+  - casing
+  - constraints
+  - containers
+  - data-binary-ieee754
+  - directory
+  - dlist
+  - envy
+  - extra
+  - generic-lens
+  - ghidra
+  - hashable
+  - lens
+  - list-t
+  - megaparsec
+  - mtl
+  - newtype
+  - parser-combinators
+  - pretty-simple
+  - protolude
+  - random
+  - raw-strings-qq
+  - recursion-schemes
+  - sbv >= 8.6
+  - stm
+  - streamly
+  - string-conversions
+  - template-haskell
+  - text
+  - transformers
+  - unordered-containers
+  - uuid >= 1.3.14
+  - vector
+
+language: GHC2021
+
+default-extensions:
+  - AllowAmbiguousTypes
+  - DataKinds
+  - DeriveAnyClass
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - FunctionalDependencies
+  - GADTs
+  - LambdaCase
+  - NoImplicitPrelude
+  - NoMonomorphismRestriction
+  - OverloadedLabels
+  - OverloadedStrings
+  - TypeFamilies
+
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -j4
+  - -O2
+  source-dirs:
+  - src
+  exposed-modules:
+  - Blaze.CallGraph
+  - Blaze.Cfg
+  - Blaze.Cfg.Analysis
+  - Blaze.Cfg.Checker
+  - Blaze.Cfg.Interprocedural
+  - Blaze.Cfg.Loop
+  - Blaze.Cfg.Path
+  - Blaze.Cfg.Path.Solver
+  - Blaze.Cfg.Solver.BranchContext
+  - Blaze.Cfg.Solver.General
+  - Blaze.Types.Cfg.Path
+  - Blaze.Fir
+  - Blaze.Function
+  - Blaze.Graph
+  - Blaze.Import.Binary
+  - Blaze.Import.CallGraph
+  - Blaze.Import.Cfg
+  - Blaze.Import.Pil
+  - Blaze.Import.Source.BinaryNinja
+  - Blaze.Import.Source.BinaryNinja.Pil
+  - Blaze.Import.Source.BinaryNinja.CallGraph
+  - Blaze.Import.Source.BinaryNinja.Cfg
+  - Blaze.Import.Source.BinaryNinja.Types
+  - Blaze.Import.Source.Ghidra
+  - Blaze.Import.Source.Ghidra.Pil
+  - Blaze.Import.Source.Ghidra.CallGraph
+  - Blaze.Import.Source.Ghidra.Cfg
+  - Blaze.Import.Source.Ghidra.Types
+  - Blaze.IndirectCallResolution
+  - Blaze.Path
+  - Blaze.Pil
+  - Blaze.Pil.Analysis
+  - Blaze.Pil.Analysis.Path
+  - Blaze.Pil.Analysis.Rewrite
+  - Blaze.Pil.Checker
+  - Blaze.Pil.Checker.Constraints
+  - Blaze.Pil.Checker.Unification
+  - Blaze.Pil.Construct
+  - Blaze.Pil.Display
+  - Blaze.Pil.Function
+  - Blaze.Pil.Parse
+  - Blaze.Pil.Summary
+  - Blaze.Prelude
+  - Blaze.Pretty
+  - Blaze.Search
+  - Blaze.Pil.Solver
+  - Blaze.Types.CallGraph
+  - Blaze.Types.Cfg
+  - Blaze.Types.Cfg.Analysis
+  - Blaze.Types.Cfg.Grouping
+  - Blaze.Types.Cfg.Interprocedural
+  - Blaze.Types.Cfg.Loop
+  - Blaze.Types.Fir
+  - Blaze.Types.Function
+  - Blaze.Types.Graph
+  - Blaze.Types.Graph.Alga
+  - Blaze.Types.Graph.EdgeGraph
+  - Blaze.Types.Import
+  - Blaze.Types.IndirectCallResolution
+  - Blaze.Types.Path
+  - Blaze.Types.Path.Alga
+  - Blaze.Types.Pil
+  - Blaze.Types.Pil.Analysis
+  - Blaze.Types.Pil.Analysis.Subst
+  - Blaze.Types.Pil.Checker
+  - Blaze.Types.Pil.Function
+  - Blaze.Types.Pil.Solver
+  - Blaze.Types.Pil.Summary
+  - Blaze.Types.VTable
+  - Blaze.Util
+  - Blaze.Util.MLIL
+  - Blaze.Util.Spec
+  - Blaze.VTable
+
+include-dirs:
+  - "src"
+  - "../binaryninja-haskell/res"
+
+executables:
+  demo:
+    main: Main.hs
+    source-dirs:  demo
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binaryninja
+    - hspec
+    - text
+  find_mlil_ssa:
+    main: Main.hs
+    source-dirs:  app/find_mlil
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binaryninja
+    - hspec
+    - text
+  gen_pil_ops:
+    main: Main.hs
+    source-dirs:  app/gen_pil_ops
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - containers
+    - binaryninja
+    - filepath
+    - hspec
+    - text
+
+
+benchmarks:
+  call-graph-benchmark:
+    main:                CallGraph.hs
+    source-dirs:         benchmarks
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - binaryninja
+    - text
+    #- criterion
+
+tests:
+  blaze-general-test:
+    main: Spec.hs
+    source-dirs:
+    - test/general
+    ghc-options:
+    - -Wall
+    - -j4
+    - -O2
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - hspec
+    - hspec-megaparsec
+
+  blaze-binja-test:
+    main: Spec.hs
+    source-dirs:
+    - test/binja
+    ghc-options:
+    - -Wall
+    - -j4
+    - -O2
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - binaryninja
+    - hspec
+
+  blaze-ghidra-test:
+    main: Spec.hs
+    source-dirs:
+    - test/ghidra
+    ghc-options:
+    - -Wall
+    - -j4
+    - -O2
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - ghidra
+    - hspec

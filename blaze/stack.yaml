@@ -1,0 +1,19 @@
+resolver: lts-20.0
+compiler: ghc-9.2.5
+
+packages:
+  - .
+
+extra-deps:
+  - ../binary-analysis
+  - ../binaryninja-haskell
+  - ../ghidra-haskell
+  - git: https://github.com/kudu-dynamics/inline-java.git
+    commit: 061fd73d661698c0b0ac3902c9832c9b499a661c
+    subdirs:
+      - jni
+      - jvm
+  - git: https://github.com/tweag/distributed-closure
+    commit: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
+
+rebuild-ghc-options: true
