@@ -1,0 +1,138 @@
+name:                ghidra
+version:             0.1.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+copyright:           "2022 Kudu Dynamics"
+synopsis:            Call Clojure from Haskell
+category:            Bindings
+description:         Please see the README.
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+dependencies:
+  - async
+  - base
+  - binary-analysis
+  - bytestring
+  - containers
+  - directory
+  - envy
+  - errors
+  - extra
+  - generic-lens
+  - io-memoize
+  - jni
+  - jvm
+  - lens
+  - mtl
+  - newtype
+  - pretty-simple
+  - protolude
+  - random
+  - singletons-base
+  - stm
+  - string-conversions
+  - template-haskell >= 2.18.0.0
+  - text
+  - transformers
+  - unordered-containers
+  - vector
+
+language: GHC2021
+
+default-extensions:
+  - DeriveAnyClass
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - FunctionalDependencies
+  - LambdaCase
+  - NoImplicitPrelude
+  - OverloadedLabels
+  - OverloadedStrings
+
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -j4
+  - -O2
+  extra-libraries: jvm
+  source-dirs:
+    - src
+  #   - res/c
+  #   - res/bridge
+  # c-sources:
+  #   - res/c/java.c
+  #   - res/bridge/ffijni.c
+  exposed-modules:
+    - Ghidra.Address
+    - Ghidra.BasicBlock
+    - Ghidra.Core
+    - Ghidra.Function
+    - Ghidra.Instruction
+    - Ghidra.Pcode
+    - Ghidra.PcodeBlock
+    - Ghidra.Prelude
+    - Ghidra.Program
+    - Ghidra.Reference
+    - Ghidra.Register
+    - Ghidra.State
+    - Ghidra.Types
+    - Ghidra.Types.Address
+    - Ghidra.Types.BasicBlock
+    - Ghidra.Types.Function
+    - Ghidra.Types.Pcode
+    - Ghidra.Types.PcodeBlock
+    - Ghidra.Types.Pcode.Lifted
+    - Ghidra.Types.Register
+    - Ghidra.Types.Variable
+
+include-dirs:
+  - "src"
+  - "res"
+
+executables:
+  create-ghidra-db:
+    main: Main.hs
+    source-dirs: app/create-ghidra-db
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - ghidra
+
+tests:
+  ghidra-test:
+    main: Spec.hs
+    source-dirs:
+    - test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -j4
+    - -O2
+    extra-libraries: jvm
+    dependencies:
+    - containers
+    - ghidra
+    - hspec
+    - temporary
+    - text
