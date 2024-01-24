@@ -1,7 +1,12 @@
 {-# LANGUAGE DataKinds #-}
-module Ghidra.Types where
+module Ghidra.Types
+  ( module Ghidra.Types
+  , module Exports
+  ) where
 
 import Ghidra.Prelude hiding (String)
+import Ghidra.Types.Internal as Exports (Ghidra)
+import Ghidra.Types.Internal (runIO)
 import qualified Language.Java as Java
 import qualified Foreign.JNI as JNI
 import Language.Java (J)
@@ -86,70 +91,70 @@ type VarNodeAST = J ('Java.Class "ghidra.program.model.pcode.VarnodeAST")
 
 
 class Addressable a where
-  toAddr :: a -> IO Address
-  toAddrSet :: a -> IO AddressSet
+  toAddr :: a -> Ghidra Address
+  toAddrSet :: a -> Ghidra AddressSet
 
 instance Addressable Address where
   toAddr = pure
-  toAddrSet = Java.new
+  toAddrSet = runIO . Java.new
 
-addressIteratorToList :: AddressIterator -> IO [Address]
+addressIteratorToList :: AddressIterator -> Ghidra [Address]
 addressIteratorToList x = do
-  hasNext :: Bool <- Java.call x "hasNext"
+  hasNext :: Bool <- runIO $ Java.call x "hasNext"
   if hasNext
     then do
-      addr <- Java.call x "next" >>= JNI.newGlobalRef
+      addr <- runIO $ Java.call x "next" >>= JNI.newGlobalRef
       (addr:) <$> addressIteratorToList x
     else return []
 
-toAddrs :: Addressable a => a -> IO [Address]
+toAddrs :: Addressable a => a -> Ghidra [Address]
 toAddrs x = do
   s <- toAddrSet x
-  Java.call s "getAddresses" True >>= addressIteratorToList
+  runIO (Java.call s "getAddresses" True) >>= addressIteratorToList
 
 instance Addressable Instruction where
-  toAddr x = Java.call x "getAddress"
-  toAddrSet = Java.new <=< toAddr
+  toAddr x = runIO $ Java.call x "getAddress"
+  toAddrSet = (runIO . Java.new) <=< toAddr
 
 instance Addressable Function where
-  toAddr fn = Java.call fn "getEntryPoint"
+  toAddr fn = runIO $ Java.call fn "getEntryPoint"
   toAddrSet fn = do
-    r :: AddressSetView <- Java.call fn "getBody"
+    r :: AddressSetView <- runIO $ Java.call fn "getBody"
     return $ coerce r
 
 instance Addressable CodeBlock where
-  toAddr block = Java.call block "getFirstStartAddress"
+  toAddr block = runIO $ Java.call block "getFirstStartAddress"
   toAddrSet = return . coerce
 
 instance Addressable PcodeBlockBasic where
-  toAddr pb = Java.call pb "getStart"
-  toAddrSet pb = do
+  toAddr pb = runIO $ Java.call pb "getStart"
+  toAddrSet pb = runIO $ do
     start :: Address <- Java.call pb "getStart"
     end :: Address <- Java.call pb "getStop"
     Java.new start end
 
 instance Addressable AddressSet where
-  toAddr x = Java.call x "getMinAddress"
+  toAddr x = runIO $ Java.call x "getMinAddress"
   toAddrSet = return
 
-mkAddressSetFromRange :: Address -> Address -> IO AddressSet
-mkAddressSetFromRange = Java.new
+mkAddressSetFromRange :: Address -> Address -> Ghidra AddressSet
+mkAddressSetFromRange a = runIO . Java.new a
 
 -- | Equality check that extends beyond pointer location of J objects
 -- This is especially necessary because we use newGlobalRef so often.
 class JEqual a where
-  (<==>) :: a -> a -> IO Bool
+  (<==>) :: a -> a -> Ghidra Bool
 
 instance JEqual Address where
   a <==> b = (==) <$> f a <*> f b
     where
-      f addr = do
+      f addr = runIO $ do
         addrSpace :: AddressSpace <- Java.call addr "getAddressSpace"
         id :: Int32 <- Java.call addrSpace "getSpaceID"
         offset :: Int64 <- Java.call addr "getOffset"
         return (id, offset)
 
-jEqualAddressable :: Addressable a => a -> a -> IO Bool
+jEqualAddressable :: Addressable a => a -> a -> Ghidra Bool
 jEqualAddressable a b = ((,) <$> toAddr a <*> toAddr b) >>= uncurry (<==>)
 
 instance JEqual Function where
@@ -158,7 +163,7 @@ instance JEqual Function where
 instance JEqual CodeBlock where
   (<==>) = jEqualAddressable
 
-arrayListToList :: (Coercible Object a) => ArrayList a -> IO [a]
+arrayListToList :: (Coercible Object a) => ArrayList a -> Ghidra [a]
 arrayListToList al = do
-  xs :: [Object] <- Java.call al "toArray" >>= Java.reify
+  xs :: [Object] <- runIO $ Java.call al "toArray" >>= Java.reify
   return $ coerce <$> xs

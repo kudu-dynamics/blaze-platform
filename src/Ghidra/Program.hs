@@ -20,39 +20,41 @@ import Ghidra.Address (
 import Ghidra.Register (Register)
 import Ghidra.Register qualified as Reg
 import Ghidra.Types qualified as J
+import Ghidra.Types.Internal (Ghidra, runIO)
 import Ghidra.Util (isJNull)
 
-getAddressFactory :: J.ProgramDB -> IO J.AddressFactory
-getAddressFactory p = Java.call p "getAddressFactory" >>= JNI.newGlobalRef
+
+getAddressFactory :: J.ProgramDB -> Ghidra J.AddressFactory
+getAddressFactory p = runIO $ Java.call p "getAddressFactory" >>= JNI.newGlobalRef
 
 -- | Returns an address from the constant space of the program.
-getConstantAddress :: J.AddressFactory -> BA.Address -> IO J.Address
-getConstantAddress gen off = Java.call gen "getConstantAddress" (fromIntegral off :: Int64) >>= JNI.newGlobalRef
+getConstantAddress :: J.AddressFactory -> BA.Address -> Ghidra J.Address
+getConstantAddress gen off = runIO $ Java.call gen "getConstantAddress" (fromIntegral off :: Int64) >>= JNI.newGlobalRef
 
-getAddressSpaceMap :: J.ProgramDB -> IO AddressSpaceMap
+getAddressSpaceMap :: J.ProgramDB -> Ghidra AddressSpaceMap
 getAddressSpaceMap p = do
-  af <-  getAddressFactory p
-  spaces :: [J.AddressSpace] <- Java.call af "getAllAddressSpaces"
+  af <- getAddressFactory p
+  spaces :: [J.AddressSpace] <- runIO $ Java.call af "getAllAddressSpaces"
                                 >>= Java.reify
                                 >>= traverse JNI.newGlobalRef
   HashMap.fromList <$> traverse f spaces
   where
-    f :: J.AddressSpace -> IO (AddressSpaceId, AddressSpace)
+    f :: J.AddressSpace -> Ghidra (AddressSpaceId, AddressSpace)
     f x = do
-      id <- AddressSpaceId <$> Java.call x "getSpaceID"
+      id <- runIO $ AddressSpaceId <$> Java.call x "getSpaceID"
       (id,) <$> mkAddressSpace x
 
-getExecutableMD5 :: J.ProgramDB -> IO Text
-getExecutableMD5 p = Java.call p "getExecutableMD5"
+getExecutableMD5 :: J.ProgramDB -> Ghidra Text
+getExecutableMD5 p = runIO $ Java.call p "getExecutableMD5"
                      >>= Java.reify
 
 -- | Given a program DB, address, and size, provide the associated register.
-getRegister :: J.ProgramDB -> Int64 -> Int -> IO (Maybe Register)
+getRegister :: J.ProgramDB -> Int64 -> Int -> Ghidra (Maybe Register)
 getRegister p offset size = do
   jAddrFactory <- getAddressFactory p
   jSpace :: J.AddressSpace <-
-    Java.call jAddrFactory "getRegisterSpace" >>= JNI.newGlobalRef
-  spaceId :: Int32 <- Java.call jSpace "getSpaceID"
+    runIO $ Java.call jAddrFactory "getRegisterSpace" >>= JNI.newGlobalRef
+  spaceId :: Int32 <- runIO $ Java.call jSpace "getSpaceID"
   jAddr <-
     getAddress
       jAddrFactory
@@ -60,7 +62,7 @@ getRegister p offset size = do
       offset
   let size' :: Int32 = fromIntegral size
   reg :: J.Register <-
-    Java.call p "getRegister" jAddr size'
+    runIO $ Java.call p "getRegister" jAddr size'
       >>= JNI.newLocalRef
   if isJNull reg
     then return Nothing

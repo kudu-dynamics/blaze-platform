@@ -10,6 +10,7 @@ import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
 import Ghidra.Types (Iterator)
+import Ghidra.Types.Internal (Ghidra(Ghidra), runIO)
 import Language.Java (J(J))
 import qualified Foreign.JNI.Types as JNI
 import qualified Foreign.JNI as JNI
@@ -17,17 +18,17 @@ import Foreign.Ptr (nullPtr)
 import Foreign.ForeignPtr (withForeignPtr)
 
 
-iteratorToList :: forall a. (Java.Coercible a, Coercible JObject a) => Iterator a -> IO [a]
+iteratorToList :: forall a. (Java.Coercible a, Coercible JObject a) => Iterator a -> Ghidra [a]
 iteratorToList it = do
-  Java.call it "hasNext" >>= \case
+  runIO (Java.call it "hasNext") >>= \case
     False -> return []
     True -> do
-      x :: JObject <- Java.call it "next"
+      x :: JObject <- runIO $ Java.call it "next"
       (coerce x:) <$> iteratorToList it
 
-getDomainObject :: forall a. (Coercible JObject a) => J.Loaded a -> IO a
+getDomainObject :: forall a. (Coercible JObject a) => J.Loaded a -> Ghidra a
 getDomainObject l = do
-  x :: J.DomainObject <- Java.call l "getDomainObject"
+  x :: J.DomainObject <- runIO $ Java.call l "getDomainObject"
   return $ coerce x
 
 isJNull :: J a -> Bool
@@ -36,15 +37,15 @@ isJNull x = x == JNI.jnull
 maybeNull :: J a -> Maybe (J a)
 maybeNull x = bool (Just x) Nothing $ isJNull x
 
-isJNull' :: J a -> IO Bool
-isJNull' (J fptr) = withForeignPtr fptr $ return . (== nullPtr)
+isJNull' :: J a -> Ghidra Bool
+isJNull' (J fptr) = runIO $ withForeignPtr fptr $ return . (== nullPtr)
 
-maybeNull' :: J a -> IO (Maybe (J a))
+maybeNull' :: J a -> Ghidra (Maybe (J a))
 maybeNull' x = bool (Just x) Nothing <$> isJNull' x
 
 -- | Catches any Java NullPointerException and returns 'Nothing' instead
-maybeNullCall :: IO a -> IO (Maybe a)
-maybeNullCall callAction = do
+maybeNullCall :: Ghidra a -> Ghidra (Maybe a)
+maybeNullCall (Ghidra callAction) = runIO $ do
   jvm <- JNI.getJNIEnv
   -- Try to run action, but catch any JVM NPEs. However, some internal
   -- inline-java code might have lifted some NPE into a Haskell-side
@@ -59,14 +60,14 @@ maybeNullCall callAction = do
           False -> throwIO ex)
     ]
 
-tryJVM :: IO a -> IO (Either Text a)
-tryJVM action = do
+tryJVM :: Ghidra a -> Ghidra (Either Text a)
+tryJVM (Ghidra action) = runIO $ do
   try action >>= \case
     Left (e :: JNI.JVMException) -> Left <$> JNI.showException e
     Right a -> pure $ Right a
 
-suppressOut :: IO a -> IO a
-suppressOut action = do
+suppressOut :: Ghidra a -> Ghidra a
+suppressOut (Ghidra action) = runIO $ do
   bracket quietStreams setStreams $ const action
   where
     quietStreams :: IO (J.PrintStream, J.PrintStream)

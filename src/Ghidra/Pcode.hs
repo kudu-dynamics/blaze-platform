@@ -21,36 +21,37 @@ import qualified Ghidra.Types.Pcode.Lifted as L
 import Ghidra.Types.Pcode.Lifted (PcodeOp, Input(Input), Output(Output), Destination, LiftPcodeError(..))
 import Ghidra.Address (mkAddress)
 import Ghidra.Types.Address (Address, AddressSpace, AddressSpaceMap)
+import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Foreign.JNI as JNI
 
 
-getPcode :: J.Instruction -> IO [J.PcodeOp]
-getPcode x = Java.call x "getPcode" >>= Java.reify >>= traverse JNI.newGlobalRef
+getPcode :: J.Instruction -> Ghidra [J.PcodeOp]
+getPcode x = runIO $ Java.call x "getPcode" >>= Java.reify >>= traverse JNI.newGlobalRef
 
-getRawPcodeOps :: J.Addressable a => GhidraState -> a -> IO [(Address, J.PcodeOp)]
+getRawPcodeOps :: J.Addressable a => GhidraState -> a -> Ghidra [(Address, J.PcodeOp)]
 getRawPcodeOps gs x = do
   instrs <- getInstructions gs x
   flip concatMapM instrs $ \instr -> do
     addr <- Instr.getAddress instr >>= mkAddress
     fmap (addr,) <$> getPcode instr
 
-getPcodeOpAST :: J.HighFunction -> J.Instruction -> IO [J.PcodeOpAST]
+getPcodeOpAST :: J.HighFunction -> J.Instruction -> Ghidra [J.PcodeOpAST]
 getPcodeOpAST hfunc instr = do
   addr <- J.toAddr instr
-  iter :: J.Iterator J.PcodeOpAST <- Java.call hfunc "getPcodeOps" addr >>= JNI.newGlobalRef
+  iter :: J.Iterator J.PcodeOpAST <- runIO $ Java.call hfunc "getPcodeOps" addr >>= JNI.newGlobalRef
   iteratorToList iter
 
-getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> IO [(Address, J.PcodeOpAST)]
+getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> Ghidra [(Address, J.PcodeOpAST)]
 getHighPcodeOps gs hfunc x = do
   instrs <- getInstructions gs x
   flip concatMapM instrs $ \instr -> do
     addr <- Instr.getAddress instr >>= mkAddress
     fmap (addr,) <$> getPcodeOpAST hfunc instr
 
-getBarePcodeOp :: Coercible a J.PcodeOp => a -> IO BarePcodeOp
+getBarePcodeOp :: Coercible a J.PcodeOp => a -> Ghidra BarePcodeOp
 getBarePcodeOp x = do
-  s :: Text <- Java.call x' "getMnemonic" >>= Java.reify
+  s :: Text <- runIO $ Java.call x' "getMnemonic" >>= Java.reify
   case readMaybe s :: Maybe BarePcodeOp of
     Nothing -> error $ "Can't convert pcode op: " <> show s
     Just op -> return op
@@ -58,33 +59,33 @@ getBarePcodeOp x = do
     x' :: J.PcodeOp
     x' = coerce x
 
-mkBareRawPcodeInstruction :: J.PcodeOp -> IO BareRawPcodeInstruction
+mkBareRawPcodeInstruction :: J.PcodeOp -> Ghidra BareRawPcodeInstruction
 mkBareRawPcodeInstruction x = PcodeInstruction
   <$> getBarePcodeOp x
-  <*> (maybeNull <$> (Java.call x "getOutput" >>= JNI.newGlobalRef))
-  <*> (Java.call x "getInputs" >>= Java.reify >>= traverse JNI.newGlobalRef)
+  <*> (maybeNull <$> runIO (Java.call x "getOutput" >>= JNI.newGlobalRef))
+  <*> runIO (Java.call x "getInputs" >>= Java.reify >>= traverse JNI.newGlobalRef)
 
-getHighOutput :: J.PcodeOpAST -> IO (Maybe J.VarNodeAST)
+getHighOutput :: J.PcodeOpAST -> Ghidra (Maybe J.VarNodeAST)
 getHighOutput x = do
-  vnode :: J.VarNode <- Java.call (coerce x :: J.PcodeOp) "getOutput" >>= JNI.newGlobalRef
+  vnode :: J.VarNode <- runIO $ Java.call (coerce x :: J.PcodeOp) "getOutput" >>= JNI.newGlobalRef
   if isJNull vnode then return Nothing else return . Just $ coerce vnode
 
-getHighInputs :: J.PcodeOpAST -> IO [J.VarNodeAST]
+getHighInputs :: J.PcodeOpAST -> Ghidra [J.VarNodeAST]
 getHighInputs x = do
-  vnodes :: [J.VarNode] <- Java.call (coerce x :: J.PcodeOp) "getInputs" >>= Java.reify
+  vnodes :: [J.VarNode] <- runIO $ Java.call (coerce x :: J.PcodeOp) "getInputs" >>= Java.reify
   return $ coerce <$> vnodes
 
-mkBareHighPcodeInstruction :: J.PcodeOpAST -> IO BareHighPcodeInstruction
+mkBareHighPcodeInstruction :: J.PcodeOpAST -> Ghidra BareHighPcodeInstruction
 mkBareHighPcodeInstruction x = PcodeInstruction
   <$> getBarePcodeOp x
   <*> getHighOutput x
   -- <*> (maybeNull <$> Java.call x "getOutput")
   <*> getHighInputs x -- (Java.call x "getInputs" >>= Java.reify)
 
-mkHighPcodeInstruction :: BareHighPcodeInstruction -> IO HighPcodeInstruction
+mkHighPcodeInstruction :: BareHighPcodeInstruction -> Ghidra HighPcodeInstruction
 mkHighPcodeInstruction = traverse Var.mkHighVarNode
 
-mkRawPcodeInstruction :: BareRawPcodeInstruction -> IO RawPcodeInstruction
+mkRawPcodeInstruction :: BareRawPcodeInstruction -> Ghidra RawPcodeInstruction
 mkRawPcodeInstruction = traverse Var.mkVarNode
 
 class CanBeDestination a where
@@ -242,7 +243,7 @@ getRawPcode
   => GhidraState
   -> AddressSpaceMap
   -> a
-  -> IO [(Address, PcodeOp VarNode)]
+  -> Ghidra [(Address, PcodeOp VarNode)]
 getRawPcode gs addressSpaceMap a = do
   jpcodes <- getRawPcodeOps gs a
   rawInstrs :: [(Address, RawPcodeInstruction)] <- traverse (traverse $ mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
@@ -266,7 +267,7 @@ getHighPcode
   -> AddressSpaceMap
   -> J.HighFunction
   -> a
-  -> IO [(Address, PcodeOp HighVarNode)]
+  -> Ghidra [(Address, PcodeOp HighVarNode)]
 getHighPcode gs addressSpaceMap hfn a = do
   jpcodes <- getHighPcodeOps gs hfn a
   highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
@@ -282,13 +283,13 @@ getHighPcode gs addressSpaceMap hfn a = do
 getBlockHighPcode
   :: AddressSpaceMap
   -> J.PcodeBlockBasic
-  -> IO [(Address, PcodeOp HighVarNode)]
+  -> Ghidra [(Address, PcodeOp HighVarNode)]
 getBlockHighPcode addressSpaceMap block = do
-  ops :: [J.PcodeOpAST] <- iteratorToList =<< Java.call block "getIterator"
+  ops :: [J.PcodeOpAST] <- iteratorToList =<< runIO (Java.call block "getIterator")
   opsWithAddr :: [(Address, J.PcodeOpAST)] <-
     forM ops $ \op -> do
-      seqnum :: J.SequenceNumber <- Java.call op "getSeqnum"
-      addr <- Java.call seqnum "getTarget" >>= mkAddress
+      seqnum :: J.SequenceNumber <- runIO $ Java.call op "getSeqnum"
+      addr <- runIO (Java.call seqnum "getTarget") >>= mkAddress
       pure (addr, op)
   highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) opsWithAddr
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
