@@ -1,0 +1,35 @@
+*.liquid
+*~
+.DS_Store
+.ghcid
+*/res/extra_bins
+res/extra_bins
+TAGS
+cabal.config
+.envrc
+
+## from gitignore.io/api/haskell
+dist
+dist-*
+cabal-dev
+*.o
+*.hi
+*.hie
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+.hpc
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+*.prof
+*.aux
+*.hp
+*.eventlog
+.stack-work*/
+cabal.project.local
+cabal.project.local~
+.HTF/
+.ghc.environment.*
+## end gitignore.io/api/haskell
