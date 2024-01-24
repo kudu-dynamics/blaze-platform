@@ -4,10 +4,14 @@
 
 module Blaze.Import.Source.GhidraSpec where
 
+import Blaze.CallGraph (getCallGraph)
 import Blaze.Function (Function)
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Import.Source.Ghidra as G
+import qualified Blaze.Types.Graph as Graph
+
+import qualified Data.HashSet as HashSet
 import Test.Hspec
 
 
@@ -21,7 +25,7 @@ spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra" $ do
   context "Importing call graphs" $ do
     importer <- runIO $ G.getImporter diveBin
-    funcs <- runIO $ getFunctions importer
+    funcs <- fmap sort . runIO $ getFunctions importer
     it "should import all functions" $ do
       length funcs `shouldBe` 106
 
@@ -32,3 +36,6 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
     it "should import call sites" $ do
       length changeDiveCalls `shouldBe` 3
       length printfCalls `shouldBe` 35
+
+    it "should get a call graph" $ do
+      (sort . HashSet.toList . Graph.nodes <$> getCallGraph importer funcs) `shouldReturn` funcs

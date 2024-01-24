@@ -2,6 +2,7 @@ module Blaze.Import.Source.Ghidra.Pil where
 
 import Blaze.Prelude hiding (Const, Symbol)
 
+import Ghidra.Core (runGhidraOrError)
 import Ghidra.Function qualified as GFunc
 import Ghidra.Pcode (getHighPcode, getRawPcode)
 import Ghidra.Program (getAddressSpaceMap, getRegister)
@@ -269,7 +270,7 @@ varNodeToReference v = do
   case getVarNodeType v of
     VReg offset -> do
       prg <- use $ #ghidraState . #program
-      reg <- liftIO $ getRegister prg offset (fromIntegral size)
+      reg <- liftIO . runGhidraOrError $ getRegister prg offset (fromIntegral size)
       let name = getRegisterName offset size reg
       pure . Left . pv $ name
     VStack n -> pure . Left . pv $ stackVarName n
@@ -562,17 +563,18 @@ getFuncStatementsFromRawPcode :: GhidraState -> Function -> CtxId -> IO [Either 
 getFuncStatementsFromRawPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
   let ctx = Ctx func ctxId
-  addrSpaceMap <- getAddressSpaceMap (gs ^. #program)
-  pcodeOps <- fmap (first convertAddress) <$> getRawPcode gs addrSpaceMap jfunc
+  addrSpaceMap <- runGhidraOrError $ getAddressSpaceMap (gs ^. #program)
+  pcodeOps <- fmap (first convertAddress) <$> runGhidraOrError (getRawPcode gs addrSpaceMap jfunc)
   convertPcodeOps gs ctx pcodeOps
 
 getFuncStatementsFromHighPcode :: GhidraState -> Function -> CtxId -> IO [Either ConverterError (MappedStmt Address)]
 getFuncStatementsFromHighPcode gs func ctxId = do
   jfunc <- GCG.toGhidraFunction gs func
-  hfunc <- GFunc.getHighFunction gs jfunc
   let ctx = Ctx func ctxId
-  addrSpaceMap <- getAddressSpaceMap (gs ^. #program)
-  pcodeOps <- fmap (first convertAddress) <$> getHighPcode gs addrSpaceMap hfunc jfunc
+  pcodeOps <- runGhidraOrError $ do
+    hfunc <- GFunc.getHighFunction gs jfunc
+    addrSpaceMap <- getAddressSpaceMap (gs ^. #program)
+    fmap (first convertAddress) <$> getHighPcode gs addrSpaceMap hfunc jfunc
   convertPcodeOps gs ctx pcodeOps
 
 getCodeRefStatementsFromRawPcode
@@ -582,11 +584,12 @@ getCodeRefStatementsFromRawPcode
   -> IO [Either ConverterError (MappedStmt Address)]
 getCodeRefStatementsFromRawPcode gs ctxId ref = do
   let ctx = Ctx (ref ^. #function) ctxId
-  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
-  start <- GState.mkAddress gs $ ref ^. #startIndex
-  end <- GState.mkAddress gs $ ref ^. #endIndex
-  addrSet <- J.mkAddressSetFromRange start end
-  pcodeOps <- fmap (first convertAddress) <$> getRawPcode gs addrSpaceMap addrSet
+  pcodeOps <- runGhidraOrError $ do
+    addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
+    start <- GState.mkAddress gs $ ref ^. #startIndex
+    end <- GState.mkAddress gs $ ref ^. #endIndex
+    addrSet <- J.mkAddressSetFromRange start end
+    fmap (first convertAddress) <$> getRawPcode gs addrSpaceMap addrSet
   convertPcodeOps gs ctx pcodeOps
 
 getCodeRefStatementsFromHighPcode
@@ -596,11 +599,12 @@ getCodeRefStatementsFromHighPcode
   -> IO [Either ConverterError (MappedStmt Address)]
 getCodeRefStatementsFromHighPcode gs ctxId ref = do
   jfunc <- GCG.toGhidraFunction gs $ ref ^. #function
-  hfunc <- GFunc.getHighFunction gs jfunc
   let ctx = Ctx (ref ^. #function) ctxId
-  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
-  start <- GState.mkAddress gs $ ref ^. #startIndex
-  end <- GState.mkAddress gs $ ref ^. #endIndex
-  addrSet <- J.mkAddressSetFromRange start end
-  pcodeOps <- fmap (first convertAddress) <$> getHighPcode gs addrSpaceMap hfunc addrSet
+  pcodeOps <- runGhidraOrError $ do
+    hfunc <- GFunc.getHighFunction gs jfunc
+    addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
+    start <- GState.mkAddress gs $ ref ^. #startIndex
+    end <- GState.mkAddress gs $ ref ^. #endIndex
+    addrSet <- J.mkAddressSetFromRange start end
+    fmap (first convertAddress) <$> getHighPcode gs addrSpaceMap hfunc addrSet
   convertPcodeOps gs ctx pcodeOps
