@@ -9,6 +9,7 @@ import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Types (Addressable, toAddrs)
+import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Ghidra.Types as J
 import qualified Foreign.JNI as JNI
 import qualified Ghidra.Address as Addr
@@ -17,29 +18,29 @@ import Ghidra.Types.Function (Function)
 import qualified Ghidra.Function as Func
 
 
-referenceIteratorToList :: J.ReferenceIterator -> IO [J.Reference]
+referenceIteratorToList :: J.ReferenceIterator -> Ghidra [J.Reference]
 referenceIteratorToList x = do
-  hasNext :: Bool <- Java.call x "hasNext"
+  hasNext :: Bool <- runIO $ Java.call x "hasNext"
   if hasNext
     then do
-      ref <- Java.call x "next" >>= JNI.newGlobalRef
+      ref <- runIO $ Java.call x "next" >>= JNI.newGlobalRef
       (ref:) <$> referenceIteratorToList x
     else return []
 
-getReferencesToAddress :: GhidraState -> J.Address -> IO [J.Reference]
+getReferencesToAddress :: GhidraState -> J.Address -> Ghidra [J.Reference]
 getReferencesToAddress gs addr = do
   prg <- State.getProgram gs
-  rm :: J.ReferenceManager <- Java.call prg "getReferenceManager" >>= JNI.newGlobalRef
-  Java.call rm "getReferencesTo" addr >>= JNI.newGlobalRef >>= referenceIteratorToList
+  rm :: J.ReferenceManager <- runIO $ Java.call prg "getReferenceManager" >>= JNI.newGlobalRef
+  runIO (Java.call rm "getReferencesTo" addr >>= JNI.newGlobalRef) >>= referenceIteratorToList
 
-getReferencesTo :: (Addressable a) => GhidraState -> a -> IO [J.Reference]
+getReferencesTo :: (Addressable a) => GhidraState -> a -> Ghidra [J.Reference]
 getReferencesTo gs x = toAddrs x >>= concatMapM (getReferencesToAddress gs)
 
-getFromAddress :: J.Reference -> IO J.Address
-getFromAddress ref = Java.call ref "getFromAddress"
+getFromAddress :: J.Reference -> Ghidra J.Address
+getFromAddress ref = runIO $ Java.call ref "getFromAddress"
 
-getToAddress :: J.Reference -> IO J.Address
-getToAddress ref = Java.call ref "getToAddress"
+getToAddress :: J.Reference -> Ghidra J.Address
+getToAddress ref = runIO $ Java.call ref "getToAddress"
 
 data FuncRef = FuncRef
   { caller :: Function
@@ -47,7 +48,7 @@ data FuncRef = FuncRef
   , callerAddr :: Address
   } deriving (Eq, Ord, Show, Generic)
 
-toFuncReference :: GhidraState -> J.Reference -> IO (Maybe FuncRef)
+toFuncReference :: GhidraState -> J.Reference -> Ghidra (Maybe FuncRef)
 toFuncReference gs ref = do
   callerAddr_ <- getFromAddress ref
   calleeAddr <- getToAddress ref
@@ -56,7 +57,7 @@ toFuncReference gs ref = do
       FuncRef <$> Func.mkFunction callerFunc <*> Func.mkFunction calleeFunc <*> Addr.mkAddress callerAddr_
     _ -> return Nothing
 
-getFunctionRefs :: GhidraState -> J.Function -> IO [FuncRef]
+getFunctionRefs :: GhidraState -> J.Function -> Ghidra [FuncRef]
 getFunctionRefs gs fn = do
   funcStart <- J.toAddr fn
   refs <- getReferencesTo gs funcStart
