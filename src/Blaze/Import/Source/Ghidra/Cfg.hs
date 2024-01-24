@@ -2,6 +2,7 @@ module Blaze.Import.Source.Ghidra.Cfg where
 
 import qualified Prelude as P
 
+import Ghidra.Core (runGhidraOrError)
 import qualified Ghidra.BasicBlock as BB
 import Ghidra.State (GhidraState)
 import qualified Ghidra.Function as GFunc
@@ -57,8 +58,9 @@ newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (State
 
 getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
 getRawPcodeForBasicBlock gs bb = do
-  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
-  xs <- Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
+  xs <- runGhidraOrError $ do
+    addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
+    Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
   return $ first convertAddress <$> xs
   -- traverse (\(addr, op) -> (,op) . convertAddress <$> addr) xs
 
@@ -96,7 +98,7 @@ mkCfNodeBasicBlock getPcode ctx bb = do
   uuid <- randomIO
   pcode <- getPcode bb
   let startAddr = convertAddress $ bb ^. #startAddress
-  endAddr <- convertAddress <$> BB.getMaxAddress bb
+  endAddr <- convertAddress <$> runGhidraOrError (BB.getMaxAddress bb)
   return . BasicBlock $ BasicBlockNode ctx startAddr endAddr uuid pcode
 
 mkCfEdgesFromEdgeSet
@@ -146,11 +148,11 @@ getPcodeCfg
   -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)])))
 getPcodeCfg getPcode gs fn ctxId = do
   jfunc <- CGI.toGhidraFunction gs fn
-  GFunc.isThunk jfunc >>= \case
+  runGhidraOrError (GFunc.isThunk jfunc) >>= \case
     True -> do
-      Left <$> GFunc.unsafeGetThunkedFunction jfunc
+      Left <$> runGhidraOrError (GFunc.unsafeGetThunkedFunction jfunc)
     False -> fmap Right $ do
-      bbGraph <- BB.getBasicBlockGraph gs jfunc
+      bbGraph <- runGhidraOrError (BB.getBasicBlockGraph gs jfunc)
       let ctx = Ctx fn ctxId
       bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc gs) ctx bb)
         $ bbGraph ^. #nodes
@@ -181,16 +183,17 @@ getHighPcodeForPcodeBlock
   -> PB.PcodeBlock
   -> IO [(Address, PcodeOp HighVarNode)]
 getHighPcodeForPcodeBlock gs pb = do
-  addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
-  xs <- Pcode.getBlockHighPcode addrSpaceMap $ pb ^. #handle
+  xs <- runGhidraOrError $ do
+    addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
+    Pcode.getBlockHighPcode addrSpaceMap $ pb ^. #handle
   return $ first convertAddress <$> xs
 
 mkCfNodePcodeBlock :: (PB.PcodeBlock -> IO [(Address, PcodeOp HighVarNode)]) -> Ctx -> PB.PcodeBlock -> IO (CfNode [(Address, PcodeOp HighVarNode)])
 mkCfNodePcodeBlock getPcode ctx pb = do
   uuid <- randomIO
   pcode <- getPcode pb
-  startAddr <- convertAddress <$> PB.getStart pb
-  endAddr <- convertAddress <$> PB.getStop pb
+  startAddr <- runGhidraOrError $ convertAddress <$> PB.getStart pb
+  endAddr <- runGhidraOrError $ convertAddress <$> PB.getStop pb
   return . BasicBlock $ BasicBlockNode ctx startAddr endAddr uuid pcode
 
 mkCfEdgeFromPcodeBlockEdge :: (PB.BranchType, (a, a)) -> CfEdge a
@@ -206,12 +209,12 @@ getHighPcodeCfg
   -> IO (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp HighVarNode)])))
 getHighPcodeCfg gs fn ctxId = do
   jfunc <- CGI.toGhidraFunction gs fn
-  GFunc.isThunk jfunc >>= \case
+  runGhidraOrError (GFunc.isThunk jfunc) >>= \case
     True -> do
-      Left <$> GFunc.unsafeGetThunkedFunction jfunc
+      Left <$> runGhidraOrError (GFunc.unsafeGetThunkedFunction jfunc)
     False -> fmap Right $ do
-      hfunc <- GFunc.getHighFunction gs jfunc -- TODO: cache this
-      bbGraph <- PB.getPcodeBlockGraph hfunc
+      hfunc <- runGhidraOrError $ GFunc.getHighFunction gs jfunc -- TODO: cache this
+      bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
       let ctx = Ctx fn ctxId
       nodePcodeTuples <- traverse (\pb -> (pb,) <$> mkCfNodePcodeBlock (getHighPcodeForPcodeBlock gs) ctx pb)
         $ bbGraph ^. #nodes
