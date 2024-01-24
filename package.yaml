@@ -98,6 +98,10 @@ library:
     - Ghidra.Types.Pcode.Lifted
     - Ghidra.Types.Register
     - Ghidra.Types.Variable
+    - Ghidra.Util
+    - Ghidra.Variable
+  other-modules:
+    - Ghidra.Types.Internal
 
 include-dirs:
   - "src"

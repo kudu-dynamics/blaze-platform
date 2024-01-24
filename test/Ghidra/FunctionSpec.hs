@@ -6,7 +6,7 @@ import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
 import Ghidra.Types (Function)
 import Ghidra.Core
-import qualified Language.Java as Java
+
 import Test.Hspec
 
 
@@ -52,7 +52,7 @@ spec = describe "Ghidra.Function" $ do
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
       -- Don't really know how else to easily check that HighFunc is valid
-      func' :: Function <- Java.call hfunc "getFunction"
+      func' :: Function <- Function.getLowFunction hfunc
       (,) <$> Function.getName func <*> Function.getName func'
 
     it "should get high function" $ do
@@ -64,7 +64,7 @@ spec = describe "Ghidra.Function" $ do
       faddr' <- State.mkAddressBased gs faddr
       (Just func) <- Function.fromAddr gs faddr'
       hfunc <- Function.getHighFunction gs func
-      func' <- Java.call hfunc "getFunction"
+      func' <- Function.getLowFunction hfunc
       Function.getParams func'
     it "should find params for high func" $ do
       params `shouldBe` []
