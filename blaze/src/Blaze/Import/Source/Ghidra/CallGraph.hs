@@ -66,11 +66,11 @@ getFunction_ gs addr = runGhidraOrError $ do
 getFunction :: GhidraState -> Address -> IO (Maybe Function)
 getFunction gs addr = getFunction_ gs addr >>= \case
   Nothing -> return Nothing
-  Just jfunc -> Just <$> (G.mkFunction jfunc >>= toBlazeFunction)
+  Just jfunc -> Just <$> (runGhidraOrError (G.mkFunction jfunc) >>= toBlazeFunction)
   
 getFunctions :: GhidraState -> IO [Function]
-getFunctions gs = runGhidraOrError $ G.getFunctions' opts gs
-  >>= traverse G.mkFunction
+getFunctions gs = runGhidraOrError (G.getFunctions' opts gs)
+  >>= traverse (runGhidraOrError . G.mkFunction)
   >>= traverse toBlazeFunction
   where
     -- Are these sensible options for blaze?
@@ -83,11 +83,11 @@ getFunctions gs = runGhidraOrError $ G.getFunctions' opts gs
       }
 
 getCallSites :: GhidraState -> Function -> IO [CallSite]
-getCallSites gs fn = runGhidraOrError $ do
-  startAddr <- State.mkAddress gs $ fn ^. #address
-  G.fromAddr gs startAddr >>= \case
+getCallSites gs fn = do
+  startAddr <- runGhidraOrError . State.mkAddress gs $ fn ^. #address
+  runGhidraOrError (G.fromAddr gs startAddr) >>= \case
     Nothing -> error "Could not find callee function"
-    Just gfunc -> GRef.getFunctionRefs gs gfunc >>= traverse f
+    Just gfunc -> runGhidraOrError (GRef.getFunctionRefs gs gfunc) >>= traverse f
   where
     f :: GRef.FuncRef -> IO CallSite
     f x = do
