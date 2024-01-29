@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Blaze.Types.VTable where
   
 
@@ -12,18 +10,19 @@ type Ctx = ReaderT VTContext IO
 
 data VTContext
   = VTContext
-    { _width :: AddressWidth,
-      _reader :: BNBinaryReader,
-      _bv :: BNBinaryView
+    { width :: AddressWidth,
+      reader :: BNBinaryReader,
+      bv :: BNBinaryView
     }
+  deriving (Eq, Ord, Show, Generic)
 
 data VTable
   = VTable
-      { _topOffset :: Maybe Bytes,
-        _typeInfo :: Maybe TypeInfo,
-        _vptrAddress :: Address,
-        _vFunctions :: [Function],
-        _parents :: Maybe [VTable]
+      { topOffset :: Maybe Bytes,
+        typeInfo :: Maybe TypeInfo,
+        vptrAddress :: Address,
+        vFunctions :: [Function],
+        parents :: Maybe [VTable]
       }
   deriving (Eq, Ord, Show, Generic)
 
@@ -31,14 +30,10 @@ instance Hashable VTable
 
 data TypeInfo
   = TypeInfo
-      { _helperClass :: Maybe Address,
-        _name :: Maybe Text,
-        _parentsTypeInfo :: Maybe TypeInfo
+      { helperClass :: Maybe Address,
+        name :: Maybe Text,
+        parentsTypeInfo :: Maybe TypeInfo
       }
   deriving (Eq, Ord, Show, Generic)
 
 instance Hashable TypeInfo
-
-$(makeFieldsNoPrefix ''VTable)
-$(makeFieldsNoPrefix ''TypeInfo)
-$(makeFieldsNoPrefix ''VTContext)

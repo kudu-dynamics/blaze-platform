@@ -39,10 +39,10 @@ getIfChainNodes g = do
       [p] -> return p
       _ -> Nothing
     (pkid1, pkid2) <- HashMap.lookup p twoKidsMap
-    let cnode cEsc dest = IfChainNode { _commonEscape = cEsc
-                                      , _destination = dest
-                                      , _self = n
-                                      , _parent = p
+    let cnode cEsc dest = IfChainNode { commonEscape = cEsc
+                                      , destination = dest
+                                      , self = n
+                                      , parent = p
                                       }
     case (c1 == pkid1 || c1 == pkid2, c2 == pkid1 || c2 == pkid2) of
       (True, False) -> return $ cnode c1 c2
@@ -71,21 +71,21 @@ getIfChains g = do
     convertChainList xs = do
       lastNode <- lastMay xs
       lastIfChainNode <- HashMap.lookup lastNode chainNodeMap
-      let dest = view destination (lastIfChainNode :: IfChainNode n)
-          esc = view commonEscape (lastIfChainNode :: IfChainNode n)
+      let dest = (lastIfChainNode :: IfChainNode n) ^. #destination
+          esc = (lastIfChainNode :: IfChainNode n) ^. #commonEscape
       -- restNodes <- getRestNodes firstNode (drop 1 xs)
-      return $ IfChain { _commonEscape = esc
-                       , _destination = dest
-                       , _nodes = xs
+      return $ IfChain { commonEscape = esc
+                       , destination = dest
+                       , nodes = xs
                        }
 
     chainNodeMap :: HashMap n (IfChainNode n)
-    chainNodeMap = HashMap.fromList . fmap (\n -> (view self n, n)) $ chainNodes
+    chainNodeMap = HashMap.fromList . fmap (\n -> (n ^. #self, n)) $ chainNodes
     
     chainMapping :: HashMap n n
     chainMapping = HashMap.fromList . fmap f $ chainNodes
       where
-        f n = (view parent n, view self n)
+        f n = (n ^. #parent, n ^. #self)
 
 toFirGraph :: forall l n g g'.
               ( Graph l n g
@@ -104,15 +104,15 @@ toFirGraph ifChains g = case HashSet.toList $ G.nodes g of
         $ LEdge (Standard e) (Edge (FirBasicBlock src) (FirIfChain ifc))
   where
     nodeSet :: HashSet n
-    nodeSet = HashSet.fromList $ concatMap (view nodes) ifChains
+    nodeSet = HashSet.fromList $ concatMap (view #nodes) ifChains
 
     ifChainEdges :: [G.LEdge (FirEdgeLabel e) (FirNode n)]
     ifChainEdges = do
       ifc <- ifChains
       [ LEdge ChainEscapeEdge
-        $ Edge (FirIfChain ifc) (maybeSwap $ ifc ^. commonEscape)
+        $ Edge (FirIfChain ifc) (maybeSwap $ ifc ^. #commonEscape)
         , LEdge ChainDestinationEdge
-          $ Edge (FirIfChain ifc) (maybeSwap $ ifc ^. destination)
+          $ Edge (FirIfChain ifc) (maybeSwap $ ifc ^. #destination)
         ]
 
     maybeSwap :: n -> FirNode n
@@ -121,4 +121,4 @@ toFirGraph ifChains g = case HashSet.toList $ G.nodes g of
     startNodeMap :: HashMap n (IfChain n)
     startNodeMap = HashMap.fromList $ mapMaybe f ifChains
       where
-        f ifc = (,ifc) <$> headMay (ifc ^. nodes)
+        f ifc = (,ifc) <$> headMay (ifc ^. #nodes)
