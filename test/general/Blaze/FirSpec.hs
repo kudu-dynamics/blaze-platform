@@ -60,11 +60,11 @@ spec = describe "Blaze.Fir" $ do
 
   context "if chains" $ do
     it "should detect an obvious if-chain" $ do
-      let answer = [IfChain {_commonEscape = 's', _destination = 'f', _nodes = "abcd"}]
+      let answer = [IfChain {commonEscape = 's', destination = 'f', nodes = "abcd"}]
       getIfChains singleIfChainGraph `shouldBe` answer
     it "should detect two if-chains" $ do
-      let answer = [ IfChain {_commonEscape = 's', _destination = 'f', _nodes = "abcd"}
-                   , IfChain {_commonEscape = 'x', _destination = 'p', _nodes = "no"}
+      let answer = [ IfChain {commonEscape = 's', destination = 'f', nodes = "abcd"}
+                   , IfChain {commonEscape = 'x', destination = 'p', nodes = "no"}
                    ]
       getIfChains comboIfChainGraph `shouldBe` answer
 
@@ -74,15 +74,15 @@ spec = describe "Blaze.Fir" $ do
           g = toFirGraph chains singleIfChainGraph :: FirGraph
           answer = [ G.fromTupleLEdge
                      ( ChainDestinationEdge
-                     , ( FirIfChain (IfChain { _commonEscape = 's'
-                                             , _destination = 'f'
-                                             ,  _nodes = "abcd"})
+                     , ( FirIfChain (IfChain { commonEscape = 's'
+                                             , destination = 'f'
+                                             ,  nodes = "abcd"})
                        , FirBasicBlock 'f'))
                    , G.fromTupleLEdge
                      ( ChainEscapeEdge
-                     , (FirIfChain (IfChain { _commonEscape = 's'
-                                            , _destination = 'f'
-                                            , _nodes = "abcd"})
+                     , (FirIfChain (IfChain { commonEscape = 's'
+                                            , destination = 'f'
+                                            , nodes = "abcd"})
                        , FirBasicBlock 's'))]
       G.edges g `shouldBe` answer
 
