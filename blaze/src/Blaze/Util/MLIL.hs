@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Util.MLIL where
 
 import Blaze.Prelude
@@ -16,18 +15,15 @@ import Blaze.Pretty (showHex)
 type F = MLILSSAFunction
 
 data FoundInstruction fun = FoundInstruction
-  { _foundFunction :: Function
-  , _foundIndex :: InstructionIndex fun
-  , _foundInstruction :: Instruction fun
-  } deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''FoundInstruction)
+  { foundFunction :: Function
+  , foundIndex :: InstructionIndex fun
+  , foundInstruction :: Instruction fun
+  } deriving (Eq, Ord, Show, Generic)
 
 data OpWithSize fun = OpWithSize
-  { _size :: MLIL.OperationSize
-  , _op :: MLIL.Operation (MLIL.Expression fun)
-  } deriving (Eq, Ord, Show)
-$(makeFieldsNoPrefix ''OpWithSize)
+  { size :: MLIL.OperationSize
+  , op :: MLIL.Operation (MLIL.Expression fun)
+  } deriving (Eq, Ord, Show, Generic)
 
 
 getOperations :: forall fun. Instruction fun -> [OpWithSize fun]
@@ -68,24 +64,24 @@ getInstructionsWithOpAndSize g binPath = do
   xs <- getFoundInstructions bv g
   return $ f <$> xs
   where
-    f x = ( x ^. foundFunction . Func.name
-            <> " @ " <> showHex (x ^. foundFunction . Func.start)
-          , fromIntegral $ x ^. foundIndex
+    f x = ( x ^. #foundFunction . #_name
+            <> " @ " <> showHex (x ^. #foundFunction . #_start)
+          , fromIntegral $ x ^. #foundIndex
           )
 
 getInstructionsWithOp :: (MLIL.Operation (MLIL.Expression F) -> Bool) -> FilePath -> IO [(Text, Int)]
-getInstructionsWithOp f = getInstructionsWithOpAndSize $ f . view op
+getInstructionsWithOp f = getInstructionsWithOpAndSize $ f . view #op
 
 -- convenience function, returns func name and statement index
 getInstructionsWithOpByName :: Text -> FilePath -> IO [(Text, Int)]
 getInstructionsWithOpByName opName binPath = do
   bv <- unsafeFromRight <$> BN.getBinaryView binPath
   BN.updateAnalysisAndWait bv
-  xs <- getFoundInstructions bv (matchInstructionByName opName . view op)
+  xs <- getFoundInstructions bv (matchInstructionByName opName . view #op)
   return $ f <$> xs
   where
-    f x = ( x ^. foundFunction . Func.name
-          , fromIntegral $ x ^. foundIndex
+    f x = ( x ^. #foundFunction . #_name
+          , fromIntegral $ x ^. #foundIndex
           )
 
 matchInstructionByName :: Text -> MLIL.Operation (MLIL.Expression F) -> Bool

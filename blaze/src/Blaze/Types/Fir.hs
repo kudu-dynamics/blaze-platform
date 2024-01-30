@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Blaze.Types.Fir where
 
 import           Blaze.Prelude
@@ -11,15 +10,13 @@ import           Blaze.Pretty
 type F = MLILSSAFunction
 
 data IfChainNode n = IfChainNode
-  { _commonEscape :: n
-  , _destination :: n
-  , _self :: n
-  , _parent :: n
+  { commonEscape :: n
+  , destination :: n
+  , self :: n
+  , parent :: n
   } deriving (Eq, Ord, Show, Generic)
 
 instance Hashable n => Hashable (IfChainNode n)
-
-$(makeFieldsNoPrefix ''IfChainNode)
 
 -- newtype ChildSibling n = ChildSibling n
 --   deriving (Eq, Ord, Show, Hashable)
@@ -33,12 +30,10 @@ instance Hashable n => Hashable (ChainNode n)
 -- TODO: needs to keep track of whether True or False branch goes
 -- to escape or destination
 data IfChain n = IfChain
-  { _commonEscape :: n
-  , _destination :: n
-  , _nodes :: [n]
+  { commonEscape :: n
+  , destination :: n
+  , nodes :: [n]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-
-$(makeFieldsNoPrefix ''IfChain)
 
 instance Hashable n => Hashable (IfChain n)
 
@@ -70,9 +65,7 @@ data FirEdgeLabel l = ChainEscapeEdge
 -- type FirBasicBlockNode = BasicBlock F
 
 data FirIfChainNode a = FirIfChainNode
-  { _dest :: a
-  , _escape :: a
-  , _nodes :: a
-  } deriving (Eq, Ord, Show)
-
-$(makeFieldsNoPrefix ''FirIfChainNode)
+  { dest :: a
+  , escape :: a
+  , nodes :: a
+  } deriving (Eq, Ord, Show, Generic)

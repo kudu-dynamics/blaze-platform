@@ -55,7 +55,6 @@ dependencies:
   - stm
   - streamly
   - string-conversions
-  - template-haskell
   - text
   - transformers
   - unordered-containers

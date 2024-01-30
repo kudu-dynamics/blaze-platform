@@ -1,6 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Blaze.Types.Pil.Solver
   ( module Exports
@@ -192,5 +191,3 @@ data SolverReport = SolverReport
   { result :: SolverResult
   , warnings :: [SolverError]
   } deriving (Eq, Ord, Show, Generic)
-
-$(makeFieldsNoPrefix ''SolverReport)
