@@ -1,0 +1,33 @@
+import: lts-20.0.cabal.config
+
+packages:
+   binaryninja-haskell
+   binaryninja-haskell/binja-header-cleaner
+   ghidra-haskell
+   blaze
+   flint
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/binary-analysis.git
+  tag: 5a617fd1cd8314fbf06a514029c20ea1293d9ecd
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/inline-java.git
+  tag: 061fd73d661698c0b0ac3902c9832c9b499a661c
+  subdir: jni
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/inline-java.git
+  tag: 061fd73d661698c0b0ac3902c9832c9b499a661c
+  subdir: jvm
+
+source-repository-package
+  type: git
+  location: https://github.com/tweag/distributed-closure
+  tag: 0eaace06ad1e9d80d13287b4e3b1e03f314082ed
+
+constraints:
+  language-c ==0.9.2

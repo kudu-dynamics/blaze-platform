@@ -1,0 +1,239 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           binja-header-cleaner
+version:        0.1.0.0
+description:    Please see the readme
+homepage:       https://github.com/mp/binja-header-cleaner#readme
+bug-reports:    https://github.com/mp/binja-header-cleaner/issues
+author:         Matt Parker
+maintainer:     mp@kududyn.com
+copyright:      2019 Kudu Dynamics
+license:        LicenseRef-Kudu
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/mp/binja-header-cleaner
+
+library
+  exposed-modules:
+      Binja.Header.Prelude
+      Binja.Header.Types.Printer
+      Binja.Header.ParseHeader
+      Binja.Header.ParseEnums
+  other-modules:
+      Binja.Header.ParseComment
+      Binja.Header.ParseFunction
+      Binja.Header.ParseStruct
+      Paths_binja_header_cleaner
+  autogen-modules:
+      Paths_binja_header_cleaner
+  hs-source-dirs:
+      src
+  default-extensions:
+      DeriveDataTypeable
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      FunctionalDependencies
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NoImplicitPrelude
+      OverloadedStrings
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2 +RTS -A256m -n16m -RTS
+  include-dirs:
+      src
+  build-depends:
+      attoparsec
+    , base
+    , casing
+    , containers
+    , data-binary-ieee754
+    , envy
+    , language-c
+    , lens
+    , mtl
+    , newtype
+    , pretty-simple
+    , protolude
+    , raw-strings-qq
+    , stm
+    , template-haskell
+    , text
+    , transformers
+  default-language: Haskell2010
+
+executable clean-binja-header
+  main-is: Main.hs
+  other-modules:
+      Paths_binja_header_cleaner
+  autogen-modules:
+      Paths_binja_header_cleaner
+  hs-source-dirs:
+      app/clean
+  default-extensions:
+      DeriveDataTypeable
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      FunctionalDependencies
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NoImplicitPrelude
+      OverloadedStrings
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2 +RTS -A256m -n16m -RTS
+  include-dirs:
+      src
+  build-depends:
+      attoparsec
+    , base
+    , binja-header-cleaner
+    , casing
+    , containers
+    , data-binary-ieee754
+    , envy
+    , language-c
+    , lens
+    , mtl
+    , newtype
+    , pretty-simple
+    , protolude
+    , raw-strings-qq
+    , stm
+    , template-haskell
+    , text
+    , transformers
+  default-language: Haskell2010
+
+executable gen-mlil-op-modules
+  main-is: Main.hs
+  other-modules:
+      Paths_binja_header_cleaner
+  autogen-modules:
+      Paths_binja_header_cleaner
+  hs-source-dirs:
+      app/gen-mlil-op-modules
+  default-extensions:
+      DeriveDataTypeable
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      FunctionalDependencies
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NoImplicitPrelude
+      OverloadedStrings
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+  ghc-options: -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2
+  include-dirs:
+      src
+  build-depends:
+      attoparsec
+    , base
+    , binja-header-cleaner
+    , casing
+    , containers
+    , data-binary-ieee754
+    , directory
+    , envy
+    , filepath
+    , language-c
+    , lens
+    , mtl
+    , newtype
+    , pretty-simple
+    , protolude
+    , raw-strings-qq
+    , stm
+    , template-haskell
+    , text
+    , transformers
+  default-language: Haskell2010
+
+test-suite binja-header-cleaner-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Binja.Header.ParseEnumsSpec
+      Paths_binja_header_cleaner
+  autogen-modules:
+      Paths_binja_header_cleaner
+  hs-source-dirs:
+      test
+  default-extensions:
+      DeriveDataTypeable
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      DuplicateRecordFields
+      FlexibleContexts
+      FlexibleInstances
+      FunctionalDependencies
+      GeneralizedNewtypeDeriving
+      LambdaCase
+      MultiParamTypeClasses
+      NoImplicitPrelude
+      OverloadedStrings
+      ScopedTypeVariables
+      StandaloneDeriving
+      TupleSections
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -j4 -O2
+  include-dirs:
+      src
+  build-depends:
+      attoparsec
+    , base
+    , binja-header-cleaner
+    , casing
+    , containers
+    , data-binary-ieee754
+    , envy
+    , hspec
+    , language-c
+    , lens
+    , mtl
+    , newtype
+    , pretty-simple
+    , protolude
+    , raw-strings-qq
+    , stm
+    , template-haskell
+    , text
+    , transformers
+  default-language: Haskell2010

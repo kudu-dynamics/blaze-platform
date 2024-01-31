@@ -1,0 +1,789 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           blaze
+version:        0.1.0
+synopsis:       A program analysis framework with a focus on context- and path-sensitive analyses, tiered abstraction layers, and type systems.
+description:    Please see the README.
+category:       Program Analysis, Binary Analysis
+author:         Matt (drone) Revelle <drone@kududyn.com>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+maintainer:     Matt (drone) Revelle <drone@kududyn.com>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+copyright:      2021 Kudu Dynamics
+license:        BSD-2-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+library
+  exposed-modules:
+      Blaze.CallGraph
+      Blaze.Cfg
+      Blaze.Cfg.Analysis
+      Blaze.Cfg.Checker
+      Blaze.Cfg.Interprocedural
+      Blaze.Cfg.Loop
+      Blaze.Cfg.Path
+      Blaze.Cfg.Path.Solver
+      Blaze.Cfg.Solver.BranchContext
+      Blaze.Cfg.Solver.General
+      Blaze.Types.Cfg.Path
+      Blaze.Fir
+      Blaze.Function
+      Blaze.Graph
+      Blaze.Import.Binary
+      Blaze.Import.CallGraph
+      Blaze.Import.Cfg
+      Blaze.Import.Pil
+      Blaze.Import.Source.BinaryNinja
+      Blaze.Import.Source.BinaryNinja.Pil
+      Blaze.Import.Source.BinaryNinja.CallGraph
+      Blaze.Import.Source.BinaryNinja.Cfg
+      Blaze.Import.Source.BinaryNinja.Types
+      Blaze.Import.Source.Ghidra
+      Blaze.Import.Source.Ghidra.Pil
+      Blaze.Import.Source.Ghidra.CallGraph
+      Blaze.Import.Source.Ghidra.Cfg
+      Blaze.Import.Source.Ghidra.Types
+      Blaze.IndirectCallResolution
+      Blaze.Path
+      Blaze.Pil
+      Blaze.Pil.Analysis
+      Blaze.Pil.Analysis.Path
+      Blaze.Pil.Analysis.Rewrite
+      Blaze.Pil.Checker
+      Blaze.Pil.Checker.Constraints
+      Blaze.Pil.Checker.Unification
+      Blaze.Pil.Construct
+      Blaze.Pil.Display
+      Blaze.Pil.Function
+      Blaze.Pil.Parse
+      Blaze.Pil.Summary
+      Blaze.Prelude
+      Blaze.Pretty
+      Blaze.Search
+      Blaze.Pil.Solver
+      Blaze.Types.CallGraph
+      Blaze.Types.Cfg
+      Blaze.Types.Cfg.Analysis
+      Blaze.Types.Cfg.Grouping
+      Blaze.Types.Cfg.Interprocedural
+      Blaze.Types.Cfg.Loop
+      Blaze.Types.Fir
+      Blaze.Types.Function
+      Blaze.Types.Graph
+      Blaze.Types.Graph.Alga
+      Blaze.Types.Graph.EdgeGraph
+      Blaze.Types.Import
+      Blaze.Types.IndirectCallResolution
+      Blaze.Types.Path
+      Blaze.Types.Path.Alga
+      Blaze.Types.Pil
+      Blaze.Types.Pil.Analysis
+      Blaze.Types.Pil.Analysis.Subst
+      Blaze.Types.Pil.Checker
+      Blaze.Types.Pil.Function
+      Blaze.Types.Pil.Solver
+      Blaze.Types.Pil.Summary
+      Blaze.Types.VTable
+      Blaze.Util
+      Blaze.Util.MLIL
+      Blaze.Util.Spec
+      Blaze.VTable
+  other-modules:
+      Blaze.Pil.Solver.List
+      Blaze.Types.Pil.Common
+      Blaze.Types.Pil.Op.AdcOp
+      Blaze.Types.Pil.Op.AddOp
+      Blaze.Types.Pil.Op.AddWillCarryOp
+      Blaze.Types.Pil.Op.AddWillOverflowOp
+      Blaze.Types.Pil.Op.AndOp
+      Blaze.Types.Pil.Op.AsrOp
+      Blaze.Types.Pil.Op.BoolToIntOp
+      Blaze.Types.Pil.Op.CeilOp
+      Blaze.Types.Pil.Op.CmpEOp
+      Blaze.Types.Pil.Op.CmpNeOp
+      Blaze.Types.Pil.Op.CmpSgeOp
+      Blaze.Types.Pil.Op.CmpSgtOp
+      Blaze.Types.Pil.Op.CmpSleOp
+      Blaze.Types.Pil.Op.CmpSltOp
+      Blaze.Types.Pil.Op.CmpUgeOp
+      Blaze.Types.Pil.Op.CmpUgtOp
+      Blaze.Types.Pil.Op.CmpUleOp
+      Blaze.Types.Pil.Op.CmpUltOp
+      Blaze.Types.Pil.Op.ConstFloatOp
+      Blaze.Types.Pil.Op.ConstOp
+      Blaze.Types.Pil.Op.ConstPtrOp
+      Blaze.Types.Pil.Op.DivsDpOp
+      Blaze.Types.Pil.Op.DivsOp
+      Blaze.Types.Pil.Op.DivuDpOp
+      Blaze.Types.Pil.Op.DivuOp
+      Blaze.Types.Pil.Op.FabsOp
+      Blaze.Types.Pil.Op.FaddOp
+      Blaze.Types.Pil.Op.FcmpEOp
+      Blaze.Types.Pil.Op.FcmpGeOp
+      Blaze.Types.Pil.Op.FcmpGtOp
+      Blaze.Types.Pil.Op.FcmpLeOp
+      Blaze.Types.Pil.Op.FcmpLtOp
+      Blaze.Types.Pil.Op.FcmpNeOp
+      Blaze.Types.Pil.Op.FcmpOOp
+      Blaze.Types.Pil.Op.FcmpUoOp
+      Blaze.Types.Pil.Op.FdivOp
+      Blaze.Types.Pil.Op.FloatConvOp
+      Blaze.Types.Pil.Op.FloatToIntOp
+      Blaze.Types.Pil.Op.FloorOp
+      Blaze.Types.Pil.Op.FmulOp
+      Blaze.Types.Pil.Op.FnegOp
+      Blaze.Types.Pil.Op.FsqrtOp
+      Blaze.Types.Pil.Op.FsubOp
+      Blaze.Types.Pil.Op.FtruncOp
+      Blaze.Types.Pil.Op.ImportOp
+      Blaze.Types.Pil.Op.IntToFloatOp
+      Blaze.Types.Pil.Op.LoadOp
+      Blaze.Types.Pil.Op.LowPartOp
+      Blaze.Types.Pil.Op.LslOp
+      Blaze.Types.Pil.Op.LsrOp
+      Blaze.Types.Pil.Op.ModsDpOp
+      Blaze.Types.Pil.Op.ModsOp
+      Blaze.Types.Pil.Op.ModuDpOp
+      Blaze.Types.Pil.Op.ModuOp
+      Blaze.Types.Pil.Op.MulOp
+      Blaze.Types.Pil.Op.MulsDpOp
+      Blaze.Types.Pil.Op.MuluDpOp
+      Blaze.Types.Pil.Op.NegOp
+      Blaze.Types.Pil.Op.NotOp
+      Blaze.Types.Pil.Op.OrOp
+      Blaze.Types.Pil.Op.PopcntOp
+      Blaze.Types.Pil.Op.RlcOp
+      Blaze.Types.Pil.Op.RolOp
+      Blaze.Types.Pil.Op.RorOp
+      Blaze.Types.Pil.Op.RoundToIntOp
+      Blaze.Types.Pil.Op.RrcOp
+      Blaze.Types.Pil.Op.SbbOp
+      Blaze.Types.Pil.Op.SubOp
+      Blaze.Types.Pil.Op.SubWillOverflowOp
+      Blaze.Types.Pil.Op.SxOp
+      Blaze.Types.Pil.Op.TestBitOp
+      Blaze.Types.Pil.Op.XorOp
+      Blaze.Types.Pil.Op.XorOpOp
+      Blaze.Types.Pil.Op.ZxOp
+      Blaze.Types.Pil.Ops
+      Blaze.Util.Analysis
+      Blaze.Util.GenericConv
+      Blaze.Util.Graph
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      src
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable demo
+  main-is: Main.hs
+  other-modules:
+      Blaze.LoopChallenge
+      Blaze.SearchDemo
+      Blaze.Types.Graph.AlgaDemo
+      Blaze.Util.MLILDemo
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      demo
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , hspec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable find_mlil_ssa
+  main-is: Main.hs
+  other-modules:
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      app/find_mlil
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , hspec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable gen_pil_ops
+  main-is: Main.hs
+  other-modules:
+      Printer
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      app/gen_pil_ops
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , filepath
+    , generic-lens
+    , ghidra
+    , hashable
+    , hspec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+test-suite blaze-binja-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Blaze.CallGraphSpec
+      Blaze.Cfg.Path.SolverSpec
+      Blaze.Import.Source.BinaryNinjaSpec
+      Blaze.IndirectCallResolutionSpec
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      test/binja
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , hspec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+test-suite blaze-general-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Blaze.Cfg.AnalysisSpec
+      Blaze.Cfg.CheckerSpec
+      Blaze.Cfg.InterproceduralSpec
+      Blaze.Cfg.LoopSpec
+      Blaze.Cfg.Path.SolverSpec
+      Blaze.Cfg.PathSpec
+      Blaze.Cfg.Solver.BranchContextSpec
+      Blaze.Cfg.Solver.GeneralSpec
+      Blaze.Cfg.SolverSpec
+      Blaze.CfgSpec
+      Blaze.FirSpec
+      Blaze.GraphSpec
+      Blaze.PathSpec
+      Blaze.Pil.Analysis.PathSpec
+      Blaze.Pil.AnalysisSpec
+      Blaze.Pil.Checker.ConstraintsSpec
+      Blaze.Pil.Checker.UnificationSpec
+      Blaze.Pil.CheckerSpec
+      Blaze.Pil.ConstructSpec
+      Blaze.Pil.ParseSpec
+      Blaze.Pil.SolverSpec
+      Blaze.Pil.SummarySpec
+      Blaze.PilSpec
+      Blaze.SearchSpec
+      Blaze.Types.Cfg.GroupingSpec
+      Blaze.Types.GraphSpec
+      Blaze.Types.PathSpec
+      Blaze.Util
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      test/general
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , hspec
+    , hspec-megaparsec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+test-suite blaze-ghidra-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Blaze.Import.Source.Ghidra.CallGraphSpec
+      Blaze.Import.Source.Ghidra.CfgSpec
+      Blaze.Import.Source.Ghidra.PilSpec
+      Blaze.Import.Source.GhidraSpec
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      test/ghidra
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , hspec
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+benchmark call-graph-benchmark
+  type: exitcode-stdio-1.0
+  main-is: CallGraph.hs
+  other-modules:
+      Paths_blaze
+  autogen-modules:
+      Paths_blaze
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  include-dirs:
+      src
+      ../binaryninja-haskell/res
+  build-depends:
+      aeson
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , generic-lens
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , protolude
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , sbv >=8.6
+    , stm
+    , streamly
+    , string-conversions
+    , text
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
