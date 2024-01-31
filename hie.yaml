@@ -1,0 +1,49 @@
+cradle:
+  stack:
+    # binaryninja
+    - path: "binaryninja-haskell/src/"
+      component: "binaryninja:lib"
+    - path: "binaryninja-haskell/test/"
+      component: "binaryninja:test:binja-test"
+    - path: "binaryninja-haskell/binja-header-cleaner/src/"
+      component: "binja-header-cleaner:lib"
+    - path: "binaryninja-haskell/binja-header-cleaner/test/"
+      component: "binja-header-cleaner:test"
+    - path: "binaryninja-haskell/binja-header-cleaner/app/gen-mlil-op-modules/"
+      component: "binja-header-cleaner:exe:gen-mlil-op-modules"
+    - path: "binaryninja-haskell/binja-header-cleaner/app/clean/"
+      component: "binja-header-cleaner:exe:clean-binja-header"
+
+    # ghidra-haskell
+    - path: "ghidra-haskell/src/"
+      component: "ghidra:lib"
+    - path: "ghidra-haskell/test/"
+      component: "ghidra:test:ghidra-test"
+
+    # blaze
+    - path: "blaze/src/"
+      component: "blaze:lib"
+    - path: "blaze/test/general/"
+      component: "blaze:test:blaze-general-test"
+    - path: "blaze/test/binja/"
+      component: "blaze:test:blaze-binja-test"
+    - path: "blaze/test/ghidra/"
+      component: "blaze:test:blaze-ghidra-test"
+    - path: "blaze/demo/"
+      component: "blaze:exe:demo"
+
+    # flint
+    - path: "flint/src/"
+      component: "flint:lib"
+    - path: "flint/test/"
+      component: "flint:test:flint-tests"
+    - path: "flint/app/"
+      component: "flint:exe:flint"
+    - path: "flint/"
+      component: "flint:exe:"
+    - path: "flint/demo/ev1smm/"
+      component: "flint:exe:ev1smm"
+    - path: "flint/demo/Kernel/"
+      component: "flint:exe:kernel-demo"
+    - path: "flint/demo/Demo1/"
+      component: "flint:exe:demo1-demo"

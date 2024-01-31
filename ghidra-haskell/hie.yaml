@@ -1,6 +1,0 @@
-cradle:
-  stack:
-    - path: "src/"
-      component: "ghidra:lib"
-    - path: "test/"
-      component: "ghidra:test:ghidra-test"
