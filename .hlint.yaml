@@ -1,3 +1,5 @@
 - ignore:
     name: Redundant return
     within: "**.*Spec"
+- ignore:
+    name: Use list comprehension
