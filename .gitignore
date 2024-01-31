@@ -2,13 +2,12 @@
 *~
 .DS_Store
 .ghcid
-*/res/extra_bins
 res/extra_bins
 TAGS
 cabal.config
 .envrc
 
-## from gitignore.io/api/haskell
+## from https://gitignore.io/api/haskell
 dist
 dist-*
 cabal-dev
@@ -32,4 +31,4 @@ cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
-## end gitignore.io/api/haskell
+## end https://gitignore.io/api/haskell

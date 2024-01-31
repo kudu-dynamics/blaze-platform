@@ -1,18 +1,13 @@
 .git
 .gitlab-ci.yml
 
-.stack-work
-*.cabal
-**/dist-newstyle
-**/dist
-
-# From .gitignore
-**/*.cabal
+## from gitignore.io part of .gitignore
 **/dist
 **/dist-*
 **/cabal-dev
 **/*.o
 **/*.hi
+**/*.hie
 **/*.chi
 **/*.chs.h
 **/*.dyn_o
@@ -25,15 +20,18 @@
 **/*.aux
 **/*.hp
 **/*.eventlog
-**/.stack-work/
+**/.stack-work*/
 **/cabal.project.local
 **/cabal.project.local~
 **/.HTF/
 **/.ghc.environment.*
-**/.stack-work
+
+## From .gitignore
 **/*.liquid
 **/*~
 **/.DS_Store
 **/.ghcid
-**/*.lock
 **/res/extra_bins
+**/TAGS
+**/cabal.config
+**/.envrc
