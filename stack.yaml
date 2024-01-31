@@ -3,15 +3,16 @@ compiler: ghc-9.2.5
 
 packages:
   - binaryninja-haskell
+  - binaryninja-haskell/binja-header-cleaner
   - ghidra-haskell
   - blaze
   - flint
 
 extra-deps:
   - git: https://github.com/kudu-dynamics/binary-analysis
-    commit: cbdaddbee91653edb1f1d6e4a0c9e3454b716cfd
+    commit: 5a617fd1cd8314fbf06a514029c20ea1293d9ecd
   - git: https://github.com/kudu-dynamics/inline-java.git
-    commit: 47d7e8c609847804676f7bdcaa3c2d45a59ba483
+    commit: 061fd73d661698c0b0ac3902c9832c9b499a661c
     subdirs:
       - jni
       - jvm

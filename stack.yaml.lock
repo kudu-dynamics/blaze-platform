@@ -5,20 +5,31 @@
 
 packages:
 - completed:
-    commit: 47d7e8c609847804676f7bdcaa3c2d45a59ba483
+    commit: 5a617fd1cd8314fbf06a514029c20ea1293d9ecd
+    git: https://github.com/kudu-dynamics/binary-analysis
+    name: binary-analysis
+    pantry-tree:
+      sha256: 51411288f2c128a225faf7517ad9ca5e8e8c2a6542988c8e47a700c670d9531f
+      size: 570
+    version: 0.1.0
+  original:
+    commit: 5a617fd1cd8314fbf06a514029c20ea1293d9ecd
+    git: https://github.com/kudu-dynamics/binary-analysis
+- completed:
+    commit: 061fd73d661698c0b0ac3902c9832c9b499a661c
     git: https://github.com/kudu-dynamics/inline-java.git
     name: jni
     pantry-tree:
-      sha256: 7b32a25e0f5b2ee919083bb7d4ce5be757a06b2e8380649cddfa1c6216424e00
+      sha256: e779f5394cee03a1c4d08ecbbc4fe18eba914ecae2c0ac901b626fee233046a5
       size: 1584
     subdir: jni
     version: 0.1.0
   original:
-    commit: 47d7e8c609847804676f7bdcaa3c2d45a59ba483
+    commit: 061fd73d661698c0b0ac3902c9832c9b499a661c
     git: https://github.com/kudu-dynamics/inline-java.git
     subdir: jni
 - completed:
-    commit: 47d7e8c609847804676f7bdcaa3c2d45a59ba483
+    commit: 061fd73d661698c0b0ac3902c9832c9b499a661c
     git: https://github.com/kudu-dynamics/inline-java.git
     name: jvm
     pantry-tree:
@@ -27,7 +38,7 @@ packages:
     subdir: jvm
     version: 0.1.0
   original:
-    commit: 47d7e8c609847804676f7bdcaa3c2d45a59ba483
+    commit: 061fd73d661698c0b0ac3902c9832c9b499a661c
     git: https://github.com/kudu-dynamics/inline-java.git
     subdir: jvm
 - completed:
