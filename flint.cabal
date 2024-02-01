@@ -292,6 +292,7 @@ executable flint
     , bv
     , bytestring
     , casing
+    , cmdargs
     , constraints
     , containers
     , data-binary-ieee754

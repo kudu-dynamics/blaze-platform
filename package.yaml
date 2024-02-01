@@ -127,6 +127,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
+    - cmdargs
   ev1smm:
     main: Main.hs
     source-dirs: demo/ev1smm
