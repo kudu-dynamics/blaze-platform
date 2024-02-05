@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+
 module Ghidra.Program (
   module Ghidra.Program,
 ) where
@@ -11,10 +12,12 @@ import Foreign.JNI qualified as JNI
 import Language.Java qualified as Java
 
 import Ghidra.Address (
+  Address,
   AddressSpace,
   AddressSpaceId (AddressSpaceId),
   AddressSpaceMap,
   getAddress,
+  mkAddress,
   mkAddressSpace,
  )
 import Ghidra.Register (Register)
@@ -23,7 +26,6 @@ import Ghidra.Types qualified as J
 import Ghidra.Types.Internal (Ghidra, runIO)
 import Ghidra.Util (isJNull)
 
-
 getAddressFactory :: J.ProgramDB -> Ghidra J.AddressFactory
 getAddressFactory p = runIO $ Java.call p "getAddressFactory" >>= JNI.newGlobalRef
 
@@ -31,12 +33,20 @@ getAddressFactory p = runIO $ Java.call p "getAddressFactory" >>= JNI.newGlobalR
 getConstantAddress :: J.AddressFactory -> BA.Address -> Ghidra J.Address
 getConstantAddress gen off = runIO $ Java.call gen "getConstantAddress" (fromIntegral off :: Int64) >>= JNI.newGlobalRef
 
+getMinAddress :: J.ProgramDB -> Ghidra Address
+getMinAddress p = runIO (Java.call p "getMinAddress" >>= JNI.newGlobalRef >>= Java.reify) >>= mkAddress
+
+getMaxAddress :: J.ProgramDB -> Ghidra Address
+getMaxAddress p = runIO (Java.call p "getMaxAddress" >>= JNI.newGlobalRef >>= Java.reify) >>= mkAddress
+
 getAddressSpaceMap :: J.ProgramDB -> Ghidra AddressSpaceMap
 getAddressSpaceMap p = do
   af <- getAddressFactory p
-  spaces :: [J.AddressSpace] <- runIO $ Java.call af "getAllAddressSpaces"
-                                >>= Java.reify
-                                >>= traverse JNI.newGlobalRef
+  spaces :: [J.AddressSpace] <-
+    runIO $
+      Java.call af "getAllAddressSpaces"
+        >>= Java.reify
+        >>= traverse JNI.newGlobalRef
   HashMap.fromList <$> traverse f spaces
   where
     f :: J.AddressSpace -> Ghidra (AddressSpaceId, AddressSpace)
@@ -45,8 +55,10 @@ getAddressSpaceMap p = do
       (id,) <$> mkAddressSpace x
 
 getExecutableMD5 :: J.ProgramDB -> Ghidra Text
-getExecutableMD5 p = runIO $ Java.call p "getExecutableMD5"
-                     >>= Java.reify
+getExecutableMD5 p =
+  runIO $
+    Java.call p "getExecutableMD5"
+      >>= Java.reify
 
 -- | Given a program DB, address, and size, provide the associated register.
 getRegister :: J.ProgramDB -> Int64 -> Int -> Ghidra (Maybe Register)
@@ -62,8 +74,9 @@ getRegister p offset size = do
       offset
   let size' :: Int32 = fromIntegral size
   reg :: J.Register <-
-    runIO $ Java.call p "getRegister" jAddr size'
-      >>= JNI.newLocalRef
+    runIO $
+      Java.call p "getRegister" jAddr size'
+        >>= JNI.newLocalRef
   if isJNull reg
     then return Nothing
     else do
