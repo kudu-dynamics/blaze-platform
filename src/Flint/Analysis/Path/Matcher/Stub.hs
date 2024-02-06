@@ -7,6 +7,8 @@ import Flint.Analysis.Path.Matcher
 import Blaze.Pil.Construct (ExprConstructor(..))
 import qualified Blaze.Pil.Construct as C
 import qualified Blaze.Types.Pil as Pil
+import qualified Blaze.Types.Cfg.Path as Path
+import Blaze.Types.Cfg.Path (PilPath)
 import Blaze.Types.Pil.Solver (SolverResult(Sat))
 
 import qualified Data.HashMap.Strict as HashMap
@@ -86,3 +88,6 @@ stubStmts specs = go (StubMatcherState 0)
       case headMay $ mapMaybe (\spec -> stubStmt st spec stmt) specs of
         Nothing -> stmt : go st stmts
         Just (st', stubbedStmts) -> stubbedStmts <> go st' stmts
+
+stubPath :: [StubSpec] -> PilPath -> PilPath
+stubPath spec = Path.safeMap (stubStmts spec <$>)

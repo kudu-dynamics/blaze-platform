@@ -10,7 +10,8 @@ import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnPa
 import Flint.Analysis.Path.Matcher
 
 import Blaze.Pil.Construct
-import Blaze.Pil.Solver (solveStmtsWithZ3, SolverLeniency(IgnoreErrors))
+import Blaze.Pil.Solver (solveStmtsWithZ3)
+import qualified Blaze.Pil.Solver as Solver
 import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
@@ -222,6 +223,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = NoMatch
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
+    it "should not match on a call that has fewer args than expected" $ do
+      let cdest = Pil.CallFunc func0
+          stmts = [ defCall "r" cdest [var "a" 4] 8
+                  ]
+          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
+                 ]
+          expected = NoMatch
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
     it "should match on a call to a named function with a return variable even if the pattern for the return variable is Nothing" $ do
       let cdest = Pil.CallFunc func0
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
@@ -387,7 +397,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
     context "assertions" $ do
-      let matchStmtsIO = matchStmts' (solveStmtsWithZ3 IgnoreErrors)
+      let matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
 
       it "should make assertion using bound vars" $ do
         let stmts = [ def "a" (const 0 4)
@@ -427,6 +437,21 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts' = stmts <> [constraint (cmpUgt (var "a" 4) (var "c" 4) 4)]
             expected = Match stmts'
         matchStmtsIO [] pats stmts `shouldReturn` expected
+
+    context "solving" $ do
+      let matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
+
+      it "should always run solver at end of match" $ do
+        let stmts = [ def "a" (const 0 4)
+                    , def "b" (const 777 4)
+                    , constraint $ cmpE (var "a" 4) (var "b" 4) 4
+                    ]
+            pats = [ Stmt $ Def (Var "a") Wild
+                   , Stmt $ Def (Var "b") Wild
+                   ]
+            expected = NoMatch
+        matchStmtsIO [] pats stmts `shouldReturn` expected
+
 
     context "taint propagators" $ do
       let f = Function Nothing "myfunc" 0x888 []
