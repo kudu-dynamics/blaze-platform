@@ -97,19 +97,20 @@ library:
   - src
   exposed-modules:
   - Flint.Prelude
-  - Flint.Analysis.Uefi
   - Flint.Analysis
   - Flint.Analysis.Path.Matcher
   - Flint.Analysis.Path.Matcher.Stub
-  - Flint.Types.Analysis
-  - Flint.Util
+  - Flint.Analysis.Uefi
   - Flint.Cfg
   - Flint.Cfg.Path
   - Flint.Cfg.Store
-  - Flint.Types.Cfg.Store
+  - Flint.Query
+  - Flint.Types.Analysis
   - Flint.Types.CachedCalc
+  - Flint.Types.Cfg.Store
   - Flint.Types.Query
-    
+  - Flint.Util
+  
 include-dirs:
   - "src"
   - "../binaryninja-haskell/res"
@@ -127,9 +128,22 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
+    - cmdargs
   ev1smm:
     main: Main.hs
     source-dirs: demo/ev1smm
+    ghc-options:
+    - -j4
+    - -O2
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
+  divelogger:
+    main: Main.hs
+    source-dirs: demo/Dive_Logger
     ghc-options:
     - -j4
     - -O2

@@ -23,10 +23,12 @@ data CfgInfo = CfgInfo
 data CfgStore = CfgStore
   { cfgCache :: CachedCalc Function (Maybe CfgInfo)
   , ancestorsCache :: CachedCalc Function (HashSet Function)
+  , descendantsCache :: CachedCalc Function (HashSet Function)
   , funcs :: [Function] -- result of `getFunctions` from CallGraph importer
   -- a dirty trick to use the CC machinery to get CG on demand
   , callGraphCache :: CachedCalc () CallGraph
   -- CallGraph, but all the edges are reversed. Useful for getting ancestors
   , transposedCallGraphCache :: CachedCalc () CallGraph
+  -- Mapping of call sites that call Function
   , callSitesCache :: CachedCalc Function [CallSite]
   } deriving (Generic)
