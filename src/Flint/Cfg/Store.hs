@@ -36,10 +36,16 @@ import qualified Data.HashMap.Strict as HashMap
 -- ld -r -o combined.o *.o
 
 
-init :: CallGraphImporter imp => imp -> IO CfgStore
+init
+  :: ( CallGraphImporter imp
+     , NodeDataType imp ~ PilNode
+     , CfgImporter imp
+     )
+  => imp -> IO CfgStore
 init imp = do
   store <- CfgStore
     <$> atomically CC.create
+    <*> atomically CC.create
     <*> atomically CC.create
     <*> CG.getFunctions imp
     <*> atomically CC.create
@@ -53,12 +59,14 @@ init imp = do
   -- Set up calcs for ancestors
   forM_ (store ^. #funcs) $ \func -> do
     CC.setCalc func (store ^. #ancestorsCache) $ do
-      -- putText $ "\nCalculating ancestors for func: " <> show func
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
+      return $ G.getDescendants func cg
+    CC.setCalc func (store ^. #descendantsCache) $ do
+      cg <- fromJust <$> CC.get () (store ^. #callGraphCache)
       return $ G.getDescendants func cg
     CC.setCalc func (store ^. #callSitesCache) $ do
       CG.getCallSites imp func
-      
+    addFunc imp store func
   return store
 
 getNewUuid :: UUID -> StateT (HashMap UUID UUID) IO UUID

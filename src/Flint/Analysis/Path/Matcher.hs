@@ -19,7 +19,7 @@ import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size(Size))
 import Blaze.Pil.Construct (ExprConstructor(..), var')
 import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil.Solver (SolverResult(Sat))
+import Blaze.Types.Pil.Solver (SolverResult(Sat, Err))
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -552,6 +552,7 @@ matchStmt sPat stmt = case (sPat, stmt) of
   (Store addrPat valPat, Pil.Store (Pil.StoreOp addrExpr valExpr)) -> do
     matchExpr addrPat addrExpr
     matchExpr valPat valExpr
+  -- TODO: match EnterContextOp args
   (EnterFunc funcPat, Pil.EnterContext (Pil.EnterContextOp ctx _)) ->
     matchFuncPatWithFunc funcPat $ ctx ^. #func
   (Call mResultPat callDestPat argPats, _) -> case Pil.mkCallStatement stmt of
@@ -567,7 +568,10 @@ matchStmt sPat stmt = case (sPat, stmt) of
       -- It's ok if there are less arg pats than there are args
       -- I don't think we should make them match, since the lifter gets
       -- the number of args wrong sometimes
-      traverse_ (uncurry matchExpr) $ zip argPats argExprs
+      -- But it should fail if there are less args than patterns.
+      if length argPats > length argExprs
+        then bad
+        else traverse_ (uncurry matchExpr) $ zip argPats argExprs
   (BranchCond condPat, Pil.BranchCond (Pil.BranchCondOp condExpr)) ->
     matchExpr condPat condExpr
   (Jump destPat, Pil.Jump (Pil.JumpOp destExpr)) ->
@@ -789,8 +793,13 @@ matchStmts
   -> m (MatcherState m, MatcherResult)
 matchStmts solver tps pats stmts = runMatchStmts solver tps pats stmts >>= \case
   (ms, False) -> return (ms, NoMatch)
-  (ms, True) -> return
-    (ms, Match $ reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts)
+  (ms, True) -> do
+    let stmts' = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts
+    solver stmts' >>= \case
+      Sat sols -> do
+        return (ms & #solutions ?~ sols, Match stmts')
+      Err err -> error $ "Solver error: " <> show err
+      _ -> return (ms, NoMatch)
 
 matchStmts'
   :: Monad m

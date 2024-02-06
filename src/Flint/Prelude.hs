@@ -10,7 +10,8 @@ import Blaze.Prelude as Exports hiding (Symbol)
 
 import Control.Monad.Extra as Exports (mapMaybeM)
 import System.Random as Exports (randomRIO)
-import Control.Concurrent.Async as Exports (replicateConcurrently)
+import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrently)
+
 
 hoistMaybeM :: Monad m => m (Maybe a) -> MaybeT m a
 hoistMaybeM m = lift m >>= maybe mzero return

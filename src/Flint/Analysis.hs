@@ -231,6 +231,8 @@ reifyQuery imp = traverse (getFunction imp)
 --   funcs <- Cg.getFunctions imp
 --   return $ filter (\func -> not $ HashSet.member (func ^. #address) excludes) funcs
 
+
+-- TODO: Remove because the CfgStore loads func Cfgs lazily.
 storeFromBinarySearchConfig
   :: ( CfgImporter imp
      , CallGraphImporter imp
@@ -252,6 +254,7 @@ showQueryHeader = \case
   QueryExpandAll x -> (x ^. #start . #name) <> " ========== Expand all "
   QueryExploreDeep x -> (x ^. #start . #name) <> " ========== Explore deep "
   QueryAllPaths x -> (x ^. #start . #name) <> " ========== All Paths "
+  QueryCallSeq x -> (x ^. #start . #name) <> " ========== Call Seq " -- TODO: show call seq path
   where
     showTargets :: NonEmpty (Function, Address) -> Text
     showTargets (x :| xs) = Text.intercalate ", " . fmap showTarget $ x:xs
