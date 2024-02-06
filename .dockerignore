@@ -1,5 +1,7 @@
 .git
 .gitlab-ci.yml
+.dockerignore
+Dockerfile
 
 ## from gitignore.io part of .gitignore
 **/dist
