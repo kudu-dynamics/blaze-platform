@@ -2,14 +2,18 @@
 
 Monorepo for Blaze, Flint, and binary lifter backends
 
+## Running
+
+### Using Docker
+
+`docker-compose run --env DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } { SERVICE_NAME } [ ARGS... ]`
+
 ## Building
 
 ### Using Docker
 
-The [`Dockerfile`](./Dockerfile) uses a [multi-stage build](https://docs.docker.com/build/building/multi-stage/).
-For instance, if you want to run Flint, the stage to target is `flint`, with `docker build . --target flint ...`.
-The `docker-compose.yml` handles this automatically, so you can just `docker-compose up [ SERVICES...
-]`.
+As simple as `docker build .` or `docker-compose build`.
+You can increase the GHC optimization level with `--build-arg OPTIM=-O2` for example (the default is `-O0`).
 
 For now, Blaze has a hard dependency on both ghidra-haskell as well as binaryninja-haskell, even if you only plan on using one or the other at run-time.
 We have plans to make these soft dependencies, but what this means is, for now, you need to have both Binary Ninja and Ghidra available.
