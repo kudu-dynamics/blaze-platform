@@ -6,13 +6,17 @@ Monorepo for Blaze, Flint, and binary lifter backends
 
 ### Using Docker
 
-`docker-compose run --env DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } { SERVICE_NAME } [ ARGS... ]`
+`DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } docker-compose run { SERVICE_NAME } [ ARGS... ]`
+
+### From source
+
+For the most part, `stack run { TARGET } [ ARGS... ]`, but see each package's `README.md` for more information.
 
 ## Building
 
 ### Using Docker
 
-As simple as `docker build .` or `docker-compose build`.
+As simple as `docker build .` or `DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } docker-compose build`.
 You can increase the GHC optimization level with `--build-arg OPTIM=-O2` for example (the default is `-O0`).
 
 For now, Blaze has a hard dependency on both ghidra-haskell as well as binaryninja-haskell, even if you only plan on using one or the other at run-time.
@@ -31,3 +35,7 @@ The version of `BinaryNinja.zip` doesn't matter, only that it's a linux build.
 > This impacts build times significantly.
 > For instance, on a 2023 M2 MacBook Pro, building from scratch takes about 40 minutes.
 > You may want to consider using a Docker remote context with an AMD64 machine.
+
+### From source
+
+For the most part, `stack build { TARGET }`, but see each package's `README.md` for more information.

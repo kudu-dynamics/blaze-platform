@@ -14,7 +14,6 @@ On Linux, the following environment variables must also be present. Users can up
 
 ```
 export BINJA_PLUGINS=/path/to/binaryninja/plugins
-export BLAZE_BINJA_API=/path/to/binaryninja-api
 ```
 
 When building the project with `stack`, it may be necessary to provide the path to `binaryninja` using the command: `stack build --extra-lib-dirs=/path/to/binaryninja`.
