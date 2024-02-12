@@ -166,6 +166,7 @@ EOF
 #   - /out/test/*
 #   - /out/run-tests
 FROM haskell as builder
+ARG OPTIM=-O0
 
 RUN cat <<EOF >root/.stack/config.yaml
 extra-lib-dirs:
@@ -207,14 +208,15 @@ COPY blaze/package.yaml \
 COPY flint/package.yaml \
      flint/package.yaml
 
-RUN stack build --only-dependencies binaryninja binja-header-cleaner ghidra blaze flint
+RUN stack build --ghc-options="${OPTIM}" --only-dependencies \
+    binaryninja binja-header-cleaner ghidra blaze flint
 
 COPY ./ ./
 RUN mv /ghidra.jar ghidra-haskell/res/ghidra.jar
 RUN mkdir -p /out/bin /out/test
 RUN <<EOF
     set -euxo pipefail
-    stack --local-bin-path /out/bin build --test --no-run-tests --copy-bins
+    stack --local-bin-path /out/bin build --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
 
     echo 'set -euxo pipefail' >/out/run-tests
     echo 'cd /build' >>/out/run-tests
@@ -235,7 +237,6 @@ EOF
 
 
 FROM base as deliver
-# COPY ./ /src/
 COPY --from=builder /out/ /out/
 COPY --from=builder /build/ghidra-haskell/res/ghidra.jar /out/res/ghidra.jar
 WORKDIR /out

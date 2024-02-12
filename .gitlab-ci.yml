@@ -1,8 +1,17 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  HASKELL_OPTIM: "-O0"
+
 workflow:
   rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        HASKELL_OPTIM: "-O2"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
     - if: $CI_COMMIT_TAG
+      variables:
+        HASKELL_OPTIM: "-O2"
 
 stages:
   - prerequisites
@@ -10,9 +19,6 @@ stages:
   - build
   - test
   - push
-
-variables:
-  GIT_SUBMODULE_STRATEGY: recursive
 
 .docker:
   image:
@@ -81,6 +87,7 @@ build:
         --pull
         --target builder
         --cache-from "${CI_REGISTRY_IMAGE}"/builder:latest
+        --build-arg OPTIM=${HASKELL_OPTIM}
         -t "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
         .
     - docker push "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
