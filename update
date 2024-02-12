@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -eux
+
+remote="$(git remote get-url origin)"
+case "$remote" in
+    */blaze-platform)
+        ;;
+    *)
+        echo "assertion error" >&2
+        exit 2
+esac
+
+group="${remote/%\/blaze-platform/}"
+
+git subtree pull --prefix=binaryninja-haskell "${group}/binaryninja-haskell" HEAD
+git subtree pull --prefix=ghidra-haskell "${group}/ghidra-haskell" HEAD
+git subtree pull --prefix=blaze "${group}/blaze" HEAD
+git subtree pull --prefix=flint "${group}/flint" HEAD
