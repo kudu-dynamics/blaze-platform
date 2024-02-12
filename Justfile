@@ -1,6 +1,6 @@
 set positional-arguments
 
-stack_options := "-j " + num_cpus()
+stack_options := ""
 stack_build_options := ""
 stack_haddock_options := ""
 
@@ -20,7 +20,7 @@ test-blaze: (test "blaze:blaze-general-test") (test "blaze:blaze-ghidra-test") (
 test-flint: (test "flint:flint-tests")
 
 test target:
-    stack test {{stack_build_options}} "$1"
+    stack {{stack_options}} test {{stack_build_options}} {{target}}
 
 hlint *hlint_args:
     #!/usr/bin/env bash

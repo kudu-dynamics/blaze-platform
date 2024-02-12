@@ -57,7 +57,7 @@ library
       ScopedTypeVariables
       StandaloneDeriving
       TupleSections
-  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2 +RTS -A256m -n16m -RTS
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints +RTS -A256m -n16m -RTS
   include-dirs:
       src
   build-depends:
@@ -107,7 +107,7 @@ executable clean-binja-header
       ScopedTypeVariables
       StandaloneDeriving
       TupleSections
-  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2 +RTS -A256m -n16m -RTS
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints +RTS -A256m -n16m -RTS
   include-dirs:
       src
   build-depends:
@@ -158,7 +158,7 @@ executable gen-mlil-op-modules
       ScopedTypeVariables
       StandaloneDeriving
       TupleSections
-  ghc-options: -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j4 -O2
+  ghc-options: -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   include-dirs:
       src
   build-depends:
@@ -213,7 +213,7 @@ test-suite binja-header-cleaner-test
       ScopedTypeVariables
       StandaloneDeriving
       TupleSections
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -j4 -O2
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
   build-depends:

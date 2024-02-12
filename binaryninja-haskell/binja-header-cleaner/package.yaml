@@ -66,8 +66,6 @@ library:
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
-  - -j4
-  - -O2
   - +RTS
   - -A256m
   - -n16m
@@ -89,8 +87,6 @@ executables:
       - -Wincomplete-record-updates
       - -Wincomplete-uni-patterns
       - -Wredundant-constraints
-      - -j4
-      - -O2
       - +RTS
       - -A256m
       - -n16m
@@ -107,8 +103,6 @@ executables:
       - -Wincomplete-record-updates
       - -Wincomplete-uni-patterns
       - -Wredundant-constraints
-      - -j4
-      - -O2
     dependencies:
       - base
       - binja-header-cleaner
@@ -131,8 +125,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -j4
-    - -O2
     dependencies:
     - containers
     - binja-header-cleaner

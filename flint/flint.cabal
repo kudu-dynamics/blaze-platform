@@ -61,7 +61,7 @@ library
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules -j4 -O2
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules
   include-dirs:
       src
       ../binaryninja-haskell/res
@@ -133,7 +133,7 @@ executable demo1-demo
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
       ../binaryninja-haskell/res
@@ -206,7 +206,7 @@ executable divelogger
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
       ../binaryninja-haskell/res
@@ -279,7 +279,7 @@ executable ev1smm
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
       ../binaryninja-haskell/res
@@ -352,7 +352,7 @@ executable flint
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
       ../binaryninja-haskell/res
@@ -426,7 +426,7 @@ executable kernel
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -j4 -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
       ../binaryninja-haskell/res
@@ -505,7 +505,7 @@ test-suite flint-tests
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -j4 -O2 -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
       src
       ../binaryninja-haskell/res

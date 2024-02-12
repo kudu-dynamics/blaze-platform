@@ -91,8 +91,6 @@ library:
   - -Wredundant-constraints
   - -Wpartial-fields
   - -Wmissing-home-modules
-  - -j4
-  - -O2
   source-dirs:
   - src
   exposed-modules:
@@ -120,8 +118,6 @@ executables:
     main: Main.hs
     source-dirs:  app
     ghc-options:
-    - -j4
-    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -133,8 +129,6 @@ executables:
     main: Main.hs
     source-dirs: demo/ev1smm
     ghc-options:
-    - -j4
-    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -145,8 +139,6 @@ executables:
     main: Main.hs
     source-dirs: demo/Dive_Logger
     ghc-options:
-    - -j4
-    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -157,8 +149,6 @@ executables:
     main: Main.hs
     source-dirs: demo/Kernel
     ghc-options:
-    - -j4
-    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -169,8 +159,6 @@ executables:
     main: Main.hs
     source-dirs: demo/Demo1
     ghc-options:
-    - -j4
-    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -186,8 +174,6 @@ tests:
     - test
     ghc-options:
     - -Wall
-    - -j4
-    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N

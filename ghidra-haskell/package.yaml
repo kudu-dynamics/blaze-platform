@@ -66,8 +66,6 @@ library:
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
-  - -j4
-  - -O2
   extra-libraries: jvm
   source-dirs:
     - src
@@ -112,8 +110,6 @@ executables:
     main: Main.hs
     source-dirs: app/create-ghidra-db
     ghc-options:
-    - -j4
-    - -O2
     - -Wall
     - -threaded
     - -rtsopts
@@ -131,8 +127,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -j4
-    - -O2
     extra-libraries: jvm
     dependencies:
     - containers

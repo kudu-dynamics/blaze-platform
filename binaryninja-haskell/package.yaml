@@ -69,8 +69,6 @@ library:
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   - -Wredundant-constraints
-  - -j4
-  - -O2
   extra-libraries: binaryninjacore
   source-dirs:
     - src
@@ -238,8 +236,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -j4
-    - -O2
     extra-libraries: binaryninjacore
     dependencies:
     - containers
