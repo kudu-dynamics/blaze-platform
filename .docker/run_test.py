@@ -29,11 +29,12 @@ proc = subprocess.Popen(
 )
 
 
-def cleanup_and_exit(retcode):
+def cleanup_and_exit(reason, retcode):
     print('\x1b[0m', end='')  # Reset terminal colors
     print('\x1b[?25h', end='')  # Show cursor
     print()
-    print('Terminating test...')
+    print(reason)
+    print('Terminating test suite...')
     proc.terminate()
 
     t = time.time()
@@ -41,28 +42,38 @@ def cleanup_and_exit(retcode):
         time.sleep(0.1)
 
     if proc.poll() is None:
-        print('Tests did not terminate. Killing instead...')
+        print('Test suite did not terminate. Killing instead...')
         proc.kill()
-        print('done!')
+        print('Killed test suite')
     else:
-        print('Tests terminated successfully')
+        print('Terminated test suite')
 
     exit(retcode)
 
 
 if (ret := proc.poll()) is not None:
-    cleanup_and_exit(ret)
+    cleanup_and_exit('Test suite exited with no output', ret)
 
 for line in proc.stdout:
     print(line, end='')
     if re.search(r'examples?, 0 failure', line):
-        cleanup_and_exit(0)
+        cleanup_and_exit('Detected test suite success', 0)
 
     if re.search(r'examples?, [1-9][0-9]* failure', line):
-        cleanup_and_exit(1)
+        cleanup_and_exit('Detected test suite failure(s)', 1)
 
-    if (ret := proc.poll()) is not None:
-        cleanup_and_exit(ret)
+    if proc.poll() is not None:
+        break
 
-print('Bad output from tests?', file=sys.stderr)
-cleanup_and_exit(1)
+if (ret := proc.poll()) is not None:
+    cleanup_and_exit(
+        f'Test suite {test_executable} exited with status code {ret}, but we did not detect the Hspec summary. '
+        'Maybe there was an error?',
+        ret
+    )
+
+cleanup_and_exit(
+    f'Test suite {test_executable} closed stdout but did not exit and we did not detect the Hspec summary. '
+    'Maybe there was an error?',
+    1
+)
