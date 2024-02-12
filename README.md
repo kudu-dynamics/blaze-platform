@@ -6,7 +6,11 @@ Monorepo for Blaze, Flint, and binary lifter backends
 
 ### Using Docker
 
-`DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } docker-compose run { SERVICE_NAME } [ ARGS... ]`
+`DOCKER_REGISTRY` is an optional environment variable that is used in [`docker-compose.yaml`](docker-compose.yaml) to refer to a Docker registry that stores the images built by [`Dockerfile`](Dockerfile) and [`.gitlab-ci.yml`](.gitlab-ci.yml).
+If you use a Docker registry, set this environment variable (e.g., `export DOCKER_REGISTRY=gitlab.example.com:1234`) to use the images stored in the registry.
+Otherwise, leave it unset.
+
+`docker-compose run { SERVICE_NAME } [ ARGS... ]`
 
 ### From source
 
@@ -16,7 +20,8 @@ For the most part, `stack run { TARGET } [ ARGS... ]`, but see each package's `R
 
 ### Using Docker
 
-As simple as `docker build --platform=linux/amd64 .` or `DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } docker-compose build`.
+As simple as `docker build --platform=linux/amd64 .` or `docker-compose build`.
+See the comments about `DOCKER_REGISTRY` in the [Running > Using Docker](#using-docker) section.
 You can increase the GHC optimization level with `--build-arg OPTIM=-O2` for example (the default is `-O0`).
 
 For now, Blaze has a hard dependency on both ghidra-haskell as well as binaryninja-haskell, even if you only plan on using one or the other at run-time.

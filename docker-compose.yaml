@@ -2,7 +2,7 @@ version: "3.4"
 
 services:
   flint:
-    image: ${DOCKER_REGISTRY}/blaze/blaze-platform
+    image: ${DOCKER_REGISTRY:+${DOCKER_REGISTRY}/}blaze/blaze-platform
     entrypoint: ["/out/bin/flint"]
     command: ["--help"]
     build:
