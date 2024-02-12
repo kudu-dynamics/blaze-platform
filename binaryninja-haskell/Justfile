@@ -1,0 +1,9 @@
+set positional-arguments
+
+make-ops:
+    stack run gen-mlil-op-modules src/Binja/Types/MLIL/Op
+
+make-header input_header_path:
+    @if [ ! -f "$1" ]; then echo "No such file: $1" >&2; exit 1; fi
+    @if [ "$(basename "$1")" != 'binaryninjacore.h' ]; then echo "\033[31mWarning: $1 should be a copy of binaryninjacore.h\033[0m" >&2; fi
+    stack run clean-binja-header "$1" res/binaryninjacore.h
