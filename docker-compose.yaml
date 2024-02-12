@@ -7,5 +7,7 @@ services:
     command: ["--help"]
     build:
       context: .
+      platforms:
+        - linux/amd64
     volumes:
       - ${BLAZE_BINARYNINJA_LICENSE_FILE:-./license.dat}:/root/.binaryninja/license.dat:ro

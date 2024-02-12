@@ -16,7 +16,7 @@ For the most part, `stack run { TARGET } [ ARGS... ]`, but see each package's `R
 
 ### Using Docker
 
-As simple as `docker build .` or `DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } docker-compose build`.
+As simple as `docker build --platform=linux/amd64 .` or `DOCKER_REGISTRY={ DOCKER_REGISTRY_URL } docker-compose build`.
 You can increase the GHC optimization level with `--build-arg OPTIM=-O2` for example (the default is `-O0`).
 
 For now, Blaze has a hard dependency on both ghidra-haskell as well as binaryninja-haskell, even if you only plan on using one or the other at run-time.
