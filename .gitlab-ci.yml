@@ -1,0 +1,160 @@
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS == null
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_TAG
+
+stages:
+  - prerequisites
+  - check
+  - build
+  - test
+  - push
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+.docker:
+  image:
+    name: docker:cli
+  tags:
+    - dind
+  before_script:
+    - apk add curl
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
+    - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
+    - '
+      curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
+        --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/binaryninja-distribution/3.5.4526/BinaryNinja.zip"
+      || { cat BinaryNinja.zip >&2; exit 1; }
+      '
+
+base-images:
+  stage: prerequisites
+  needs: []
+  extends: .docker
+  script:
+    - docker build
+        --pull
+        --cache-from "${CI_REGISTRY_IMAGE}"/haskell:latest
+        --target haskell
+        -t "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker push "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
+
+install-hlint:
+  stage: prerequisites
+  needs:
+    - base-images
+  extends: .docker
+  script:
+    - docker build
+        --pull
+        --cache-from "${CI_REGISTRY_IMAGE}"/hlint:latest
+        --target hlint
+        -t "${CI_REGISTRY_IMAGE}"/hlint:pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker push "${CI_REGISTRY_IMAGE}"/hlint:pipeline-"${CI_PIPELINE_ID}"
+
+# stage: check
+include:
+  project: 'kevino/filter-check'
+  file: '/filtercheck.gitlab-ci.yml'
+
+hlint:
+  stage: check
+  needs:
+    - install-hlint
+  image: ${CI_REGISTRY_IMAGE}/hlint:pipeline-${CI_PIPELINE_ID}
+  script:
+    - just hlint --color=always
+  allow_failure: true
+
+build:
+  stage: build
+  needs:
+    - base-images
+  extends: .docker
+  script:
+    - docker build
+        --pull
+        --target builder
+        --cache-from "${CI_REGISTRY_IMAGE}"/builder:latest
+        -t "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker push "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
+    - docker build
+        --pull
+        --cache-from "${CI_REGISTRY_IMAGE}":latest
+        -t "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker push "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
+
+test:
+  stage: test
+  needs:
+    - build
+  image: ${CI_REGISTRY_IMAGE}/builder:pipeline-${CI_PIPELINE_ID}
+  script:
+    - mkdir -p /root/.binaryninja
+    - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
+    - /out/run-tests --color
+
+push:latest:
+  stage: push
+  extends: .docker
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - test
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
+    - |-
+      set -euxo pipefail
+      for image in ${images}; do
+        docker pull "${image}:pipeline-${CI_PIPELINE_ID}"
+        docker tag  "${image}:pipeline-${CI_PIPELINE_ID}" "${image}:latest"
+        docker push "${image}:latest"
+      done
+
+push:tag:
+  stage: push
+  extends: .docker
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - test
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
+    - |-
+      set -euxo pipefail
+      for image in ${images}; do
+        docker pull "${image}:pipeline-${CI_PIPELINE_ID}"
+        docker tag  "${image}:pipeline-${CI_PIPELINE_ID}" "${image}:tag-${CI_COMMIT_TAG}"
+        docker push "${image}:tag-${CI_COMMIT_TAG}"
+      done
+
+cleanup:
+  stage: .post
+  extends: .docker
+  when: always
+  variables:
+    GIT_STRATEGY: none
+    GIT_CLEAN_FLAGS: none
+  script:
+    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
+    - |-
+      set -euxo pipefail
+      for image in ${images}; do
+        docker image rm "${image}:pipeline-${CI_PIPELINE_ID}" || true
+        if [ -n "${CI_COMMIT_TAG+x}" ]; then
+          docker image rm "${image}:tag-${CI_COMMIT_TAG}" || true
+        fi
+      done
