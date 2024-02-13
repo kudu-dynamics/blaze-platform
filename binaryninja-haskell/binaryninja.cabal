@@ -276,6 +276,8 @@ test-suite binja-test
       binaryninjacore
   build-tools:
       c2hs
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       attoparsec
     , base

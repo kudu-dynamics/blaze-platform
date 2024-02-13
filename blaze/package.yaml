@@ -236,6 +236,8 @@ tests:
     - blaze
     - hspec
     - hspec-megaparsec
+    build-tools:
+      - hspec-discover
 
   blaze-binja-test:
     main: Spec.hs
@@ -250,6 +252,8 @@ tests:
     - blaze
     - binaryninja
     - hspec
+    build-tools:
+      - hspec-discover
 
   blaze-ghidra-test:
     main: Spec.hs
@@ -264,3 +268,5 @@ tests:
     - blaze
     - ghidra
     - hspec
+    build-tools:
+      - hspec-discover

@@ -130,3 +130,5 @@ tests:
     - hspec
     - temporary
     - text
+    build-tools:
+      - hspec-discover

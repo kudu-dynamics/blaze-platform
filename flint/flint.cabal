@@ -482,6 +482,8 @@ test-suite flint-tests
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       aeson
     , algebraic-graphs
