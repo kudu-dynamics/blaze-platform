@@ -11,7 +11,6 @@ spec :: Spec
 spec = describe "Blaze.Pil.Construct" $ do
   describe "var" $ do
     it "should create a VAR expression with correct size and symbol" $ do
-      pendingWith "Currently Construct.var produces an incorrectly-sized expression"
       let sym = "asdf"
           expectedSize = 13
           Expression exprSize op = C.var sym expectedSize
