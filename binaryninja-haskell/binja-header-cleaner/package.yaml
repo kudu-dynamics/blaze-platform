@@ -110,11 +110,6 @@ executables:
       - directory
       - text
 
-
-include-dirs:
-  - "src"
-
-
 tests:
   binja-header-cleaner-test:
     main: Spec.hs

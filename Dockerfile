@@ -148,7 +148,7 @@ EOF
 FROM haskell as hlint
 RUN mkdir -p ~/.local/bin
 RUN cabal install hlint \
-        --constraint 'hlint == 3.5.*' \
+        --constraint 'hlint == 3.6.*' \
         --overwrite-policy=always \
         --install-method=copy \
         --installdir ~/.local/bin

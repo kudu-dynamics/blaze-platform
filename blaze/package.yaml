@@ -21,7 +21,7 @@ extra-source-files:
 
 dependencies:
   - aeson
-  - algebraic-graphs
+  - algebraic-graphs >=0.7
   - async
   - base >= 4.7 && < 5
   - binary-analysis
@@ -51,9 +51,8 @@ dependencies:
   - random
   - raw-strings-qq
   - recursion-schemes
-  - sbv >= 8.6
+  - sbv >= 10.1
   - stm
-  - streamly
   - string-conversions
   - text
   - transformers
@@ -161,10 +160,6 @@ library:
   - Blaze.Util.MLIL
   - Blaze.Util.Spec
   - Blaze.VTable
-
-include-dirs:
-  - "src"
-  - "../binaryninja-haskell/res"
 
 executables:
   demo:

@@ -58,8 +58,6 @@ library
       StandaloneDeriving
       TupleSections
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints +RTS -A256m -n16m -RTS
-  include-dirs:
-      src
   build-depends:
       attoparsec
     , base
@@ -108,8 +106,6 @@ executable clean-binja-header
       StandaloneDeriving
       TupleSections
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints +RTS -A256m -n16m -RTS
-  include-dirs:
-      src
   build-depends:
       attoparsec
     , base
@@ -159,8 +155,6 @@ executable gen-mlil-op-modules
       StandaloneDeriving
       TupleSections
   ghc-options: -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
-  include-dirs:
-      src
   build-depends:
       attoparsec
     , base
@@ -214,8 +208,6 @@ test-suite binja-header-cleaner-test
       StandaloneDeriving
       TupleSections
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
   build-depends:
       attoparsec
     , base
