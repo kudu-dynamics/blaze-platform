@@ -8,13 +8,13 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/kudu-dynamics/inline-java.git
-  tag: d0514b1d899f2b513e18296dd5706adcf5b6e563
+  tag: 2d90a87c0038c967c9e9e27df3f4d775a606fc2a
   subdir: jni
 
 source-repository-package
   type: git
   location: https://github.com/kudu-dynamics/inline-java.git
-  tag: d0514b1d899f2b513e18296dd5706adcf5b6e563
+  tag: 2d90a87c0038c967c9e9e27df3f4d775a606fc2a
   subdir: jvm
 
 source-repository-package
