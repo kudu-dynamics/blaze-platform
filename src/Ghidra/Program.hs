@@ -23,7 +23,7 @@ import Ghidra.Address (
 import Ghidra.Register (Register)
 import Ghidra.Register qualified as Reg
 import Ghidra.Types qualified as J
-import Ghidra.Types.Internal (Ghidra, runIO)
+import Ghidra.Types.Internal (Ghidra (..), runIO)
 import Ghidra.Util (isJNull)
 
 getAddressFactory :: J.ProgramDB -> Ghidra J.AddressFactory
@@ -60,6 +60,12 @@ getExecutableMD5 p =
     Java.call p "getExecutableMD5"
       >>= Java.reify
 
+getExecutablePath :: J.ProgramDB -> Ghidra Text
+getExecutablePath p =
+  runIO $
+    Java.call p "getExecutablePath"
+      >>= Java.reify
+
 -- | Given a program DB, address, and size, provide the associated register.
 getRegister :: J.ProgramDB -> Int64 -> Int -> Ghidra (Maybe Register)
 getRegister p offset size = do
@@ -88,3 +94,37 @@ getRegister p offset size = do
             { name = regName
             , length = regLength
             }
+
+setImageBase :: J.ProgramDB -> Int64 -> Bool -> Ghidra ()
+setImageBase p baseAddr commit = do
+  jAddrFactory <- getAddressFactory p
+  jSpace :: J.AddressSpace <-
+    runIO $ Java.call jAddrFactory "getDefaultAddressSpace" >>= JNI.newGlobalRef
+  spaceId :: Int32 <- runIO $ Java.call jSpace "getSpaceID"
+  jAddr <-
+    getAddress
+      jAddrFactory
+      spaceId
+      baseAddr
+  runIO $
+    Java.call p "setImageBase" jAddr commit
+
+withTransaction :: J.ProgramDB -> Text -> Ghidra a -> Ghidra a
+withTransaction p description action = do
+  tid <- startTransaction
+  runIO (try $ _runGhidra action) >>= \case
+    Left (err :: SomeException) -> do
+      endTransaction tid False
+      runIO $ throwIO err
+    Right res -> do
+      endTransaction tid True
+      return res
+  where
+    startTransaction :: Ghidra Int32
+    startTransaction = do
+      description' :: J.String <- runIO $ Java.reflect description >>= Java.new >>= JNI.newLocalRef
+      runIO $
+        Java.call p "startTransaction" description'
+    endTransaction :: Int32 -> Bool -> Ghidra ()
+    endTransaction id commit = do
+      runIO $ Java.call p "endTransaction" id commit
