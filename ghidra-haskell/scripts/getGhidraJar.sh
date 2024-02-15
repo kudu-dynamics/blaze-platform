@@ -27,5 +27,4 @@ trap cleanup EXIT
 curl -fSL --proto '=https' --tlsv1.2 "${GHIDRA_RELEASE_ZIP}" >"$d"/ghidra.zip
 echo "${GHIDRA_SHA256} /$d/ghidra.zip" | sha256sum -c
 unzip "$d"/ghidra.zip -d "$d"/extracted
-cd "$d"/extracted/ghidra*
-./support/buildGhidraJar -output "$output"
+"$d"/extracted/ghidra*/support/buildGhidraJar -output "$output"
