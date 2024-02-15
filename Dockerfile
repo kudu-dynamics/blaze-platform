@@ -75,36 +75,30 @@ RUN --mount=type=bind,source=BinaryNinja.zip,target=/BinaryNinja.zip \
 EOF
 
 
+# Artifacts:
+#   - /out/ghidra.jar
+FROM before-base-deps as ghidra-jar-builder
+RUN <<EOF
+    set -euxo pipefail
+    packages=(
+        curl
+        openjdk-17-jdk-headless
+        unzip
+    )
+    apt install -yq --no-install-recommends "${packages[@]}"
+EOF
+RUN mkdir -p /out
+RUN --mount=type=bind,source=ghidra-haskell/scripts/getGhidraJar.sh,target=/getGhidraJar.sh \
+    /getGhidraJar.sh /out/ghidra.jar
+
+
 FROM before-base-deps as base
 COPY --from=z3-builder /out/z3 /usr/local/bin/z3
 COPY --from=binaryninja-builder /out/binaryninja /binaryninja
+COPY --from=ghidra-jar-builder /out/ghidra.jar /out/res/ghidra.jar
 RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
 RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
 ENV BINJA_PLUGINS=/binaryninja/plugins
-
-
-# # Artifacts:
-# #   - /out/bin/z3
-# FROM base as z3-builder
-# RUN <<EOF
-#     set -euxo pipefail
-#     packages=(
-#         build-essential
-#         cmake
-#         ninja-build
-#         git
-#         python3-distutils
-#     )
-#     apt install -yq --no-install-recommends "${packages[@]}"
-# <<EOF
-# RUN <<EOF
-#     git clone --depth=1 https://github.com/Z3Prover/z3 /tmp/z3
-#     mkdir /tmp/z3/build
-#     cd /tmp/z3/build
-#     cmake -G Ninja -D CMAKE_INSTALL_PREFIX:PATH=/out ..
-#     cmake --build .
-#     cmake --install .
-# EOF
 
 
 FROM base as haskell
@@ -120,13 +114,11 @@ RUN <<EOF
         libnuma-dev
 
         # Haskell dependencies
-        git
+        git                      # Cloning inline-java and binary-analysis
+        openjdk-17-jdk-headless  # All we need this for is jni.h. Sigh
         pkg-config
+        yq                       # Determining ghc version from stack.yaml
         zlib1g-dev
-
-        # Making ghidra.jar
-        unzip
-        openjdk-17-jdk-headless
 
         # Running tests
         python3
@@ -136,29 +128,30 @@ EOF
 
 RUN <<EOF
     set -euxo pipefail
-    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
-    | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 sh
-EOF
-ENV PATH="/root/.cabal/bin:/root/.ghcup/bin:/root/.local/bin${PATH:+:$PATH}"
-
-RUN <<EOF
-    set -euxo pipefail
     curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
     | bash -s -- --to /usr/local/bin
 EOF
 
+ENV PATH="/root/.cabal/bin:/root/.ghcup/bin:/root/.local/bin${PATH:+:$PATH}"
+RUN --mount=type=bind,source=stack.yaml,target=/stack.yaml \
+<<EOF
+    set -euxo pipefail
+    if compiler_string="$(yq -r .compiler /stack.yaml)"; then
+        export BOOTSTRAP_HASKELL_GHC_VERSION="$(echo "${compiler_string}" | sed 's/^ghc-//')"
+    fi
+    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org \
+    | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 \
+      sh
+EOF
+
 
 FROM haskell as hlint
-RUN <<EOF
-    set -euxo pipefail
-    cabal update
-    mkdir -p ~/.local/bin
-    cabal install hlint \
+RUN mkdir -p ~/.local/bin
+RUN cabal install hlint \
         --constraint 'hlint == 3.5.*' \
         --overwrite-policy=always \
         --install-method=copy \
         --installdir ~/.local/bin
-EOF
 
 
 # Artifacts:
@@ -168,29 +161,14 @@ EOF
 FROM haskell as builder
 ARG OPTIM=-O0
 
-RUN cat <<EOF >root/.stack/config.yaml
-extra-lib-dirs:
-  - /usr/lib/jvm/java-17-openjdk-amd64/lib/server
-extra-include-dirs:
-  - /usr/lib/jvm/java-17-openjdk-amd64/include
-  - /usr/lib/jvm/java-17-openjdk-amd64/include/linux
-EOF
-
-RUN --mount=type=bind,source=ghidra-haskell/scripts/getGhidraJar.sh,target=/getGhidraJar.sh \
-<<EOF
-    set -euxo pipefail
-    mkdir res
-    ./getGhidraJar.sh
-    mv res/ghidra.jar .
-    rm -d res
-EOF
-
-# COPY --from=binaryninja-builder /binaryninja /binaryninja
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
-# ENV BINJA_PLUGINS=/binaryninja/plugins
-
-# COPY --from=z3-builder /out/bin/z3 /usr/local/bin/z3
+# FIXME remove if not needed
+# RUN cat <<EOF >root/.stack/config.yaml
+# extra-lib-dirs:
+#   - /usr/lib/jvm/java-17-openjdk-amd64/lib/server
+# extra-include-dirs:
+#   - /usr/lib/jvm/java-17-openjdk-amd64/include
+#   - /usr/lib/jvm/java-17-openjdk-amd64/include/linux
+# EOF
 
 WORKDIR /build
 
@@ -212,7 +190,7 @@ RUN stack build --ghc-options="${OPTIM}" --only-dependencies \
     binaryninja binja-header-cleaner ghidra blaze flint
 
 COPY ./ ./
-RUN mv /ghidra.jar ghidra-haskell/res/ghidra.jar
+RUN ln -s /out/res/ghidra.jar ghidra-haskell/res/ghidra.jar
 RUN mkdir -p /out/bin /out/test
 RUN <<EOF
     set -euxo pipefail
