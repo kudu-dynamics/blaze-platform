@@ -40,7 +40,6 @@ import Blaze.Import.Source.Ghidra.Types (convertAddress)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Function ( Function )
 
-import Unsafe.Coerce (unsafeCoerce)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
@@ -205,7 +204,7 @@ getFloatConstExpr v = case getVarNodeType v of
   VImmediate n ->
     -- TODO: make sure this is the proper way to convert const from ghidra to floats
     -- TODO: see if Ghidra will do this for us, since it's arch dependent.
-    return . mkExpr v . Pil.CONST_FLOAT . Pil.ConstFloatOp . wordToDouble . unsafeCoerce $ n
+    return . mkExpr v . Pil.CONST_FLOAT . Pil.ConstFloatOp . wordToDouble . (fromIntegral :: Int64 -> Word64) $ n
 
   _ -> Nothing
 

@@ -13,7 +13,7 @@ import Binja.C.Enums (
 import qualified Binja.Core as BN
 import qualified Binja.Function as Func
 import qualified Data.Map as Map
-import Crypto.Hash (MD5, hash, Digest)
+import Crypto.Hash (MD5, hash)
 import Test.Hspec
 import Prelude (error)
 import Data.Text (unpack)
@@ -114,7 +114,7 @@ spec = describe "Binja.Core" $ do
     it "should should not error when getting original binary" $ do
       isRight er `shouldBe` True
 
-    let r :: Text = (fromRight "") $ show @(Digest MD5) . hash <$> er
+    let r :: Text = either (const "") (show . hash @_ @MD5) er
     
     it "should match original binary hash digest" $ do
       r `shouldBe` "58d7e707a6d51ec96e87c4c76747f24f"

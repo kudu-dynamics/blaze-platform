@@ -106,8 +106,7 @@ getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
     acyclicCfg' <- Cfg.safeTraverse_ updateNodeId $ cfgInfo ^. #acyclicCfg
     dmap' <- traverseDescendantsMap updateNodeId $ cfgInfo ^. #descendantsMap
     calls' <- fmap (mapMaybe (^? #_Call))
-              . traverse (getMemoized updateNodeId)
-              . fmap Cfg.Call
+              . traverse (getMemoized updateNodeId . Cfg.Call)
               $ cfgInfo ^. #calls
     return . Just $ CfgInfo
       { cfg = cfg'

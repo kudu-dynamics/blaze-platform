@@ -634,14 +634,8 @@ resolveMemGroup group name xs =
     varExpr = C.var name $ Pil.widthToSize (group ^. (#storage . #width))
     loadExprMap :: HashMap Expression Expression
     loadExprMap =
-      HMap.fromList
-        ( zip
-            ( map
-                (coerce . (^. #loadExpr))
-                allLoads
-            )
-            (repeat varExpr)
-        )
+      HMap.fromList $
+        (, varExpr) . view (#loadExpr . #expr) <$> allLoads
     updateStmt :: HashSet Index -> Index -> Stmt -> Stmt
     updateStmt idxsToUpdate stmtIdx stmt =
       if HSet.member stmtIdx idxsToUpdate
@@ -732,30 +726,32 @@ copyPropMem_ xs = do
           propInfos
       defAfterMap :: HashMap Index (HashSet Stmt)
       defAfterMap =
-        foldr (HMap.unionWith (<>)) HMap.empty
-          . fmap
-            ( \pi ->
-                maybe
-                  HMap.empty
-                  ( flip HMap.singleton
-                      . HSet.singleton
-                      $ defStmt pi
+        foldl'
+          ( \m ->
+              HMap.unionWith (<>) m
+                . ( \pi ->
+                      maybe
+                        HMap.empty
+                        ( flip HMap.singleton
+                            . HSet.singleton
+                            $ defStmt pi
+                        )
+                        $ defAfterIndex pi
                   )
-                  $ defAfterIndex pi
-            )
-          $ propInfos
+          )
+          HMap.empty
+          propInfos
+
       allSubstsPerIndex :: HashMap Index ExprMap
       allSubstsPerIndex =
-        foldr (HMap.unionWith HMap.union) HMap.empty
-          . fmap substMap
-          $ propInfos
+        foldl' (\m -> HMap.unionWith HMap.union m . substMap) HMap.empty propInfos
       substAndInsertDefs :: (Index, Stmt) -> [Stmt] -> [Stmt]
       substAndInsertDefs (ix, stmt) ys = newStmt : newDefs <> ys
         where
           newDefs = maybe [] HSet.toList $ HMap.lookup ix defAfterMap
           newStmt =
-            maybe stmt (`substExprMap` stmt) $
-              HMap.lookup ix allSubstsPerIndex
+            maybe stmt (`substExprMap` stmt)
+              $ HMap.lookup ix allSubstsPerIndex
 
   return $ defsAtBeginning <> foldr substAndInsertDefs [] (indexed xs)
   where

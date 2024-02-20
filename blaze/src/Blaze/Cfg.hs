@@ -220,7 +220,7 @@ substNode
         . addEdges newSuccEdges
         -- Removal of the node should happen first as the root node
         -- of the inner CFG shares the UUID with the removed node.
-        . removeNode node 
+        . removeNode node
         $ outerCfg
 
 
@@ -261,7 +261,7 @@ getNode :: Cfg n -> NodeId UUID -> Maybe n
 getNode cfg = Ag.getNode (cfg ^. #graph)
 
 cfgContainsAddress :: Hashable a => Address -> Cfg (CfNode a) -> Bool
-cfgContainsAddress addr = or . fmap (nodeContainsAddress addr) . HashSet.toList . nodes
+cfgContainsAddress addr = any (nodeContainsAddress addr) . HashSet.toList . nodes
 
 nodeContainsAddress :: Hashable a => Address -> CfNode a -> Bool
 nodeContainsAddress addr = \case

@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 module Binja.TypeLibrarySpec ( spec ) where
 
 import Binja.Prelude

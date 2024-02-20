@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -68,22 +67,19 @@ parseTarget p = (Target <$> p) <|>
       s <- manyTill anyChar (endOfInput <|> void (try p))
       return . Other $ Text.pack s)
 
-maybeThing :: Parser a -> Parser (Maybe a)
-maybeThing p = (Just <$> p) <|> return Nothing
-
 parseTargets :: Parser a -> Parser [Target a]
-parseTargets p = (endOfInput >> end) <|> (p >>= isTarget) <|> (isOther "")
+parseTargets p = (endOfInput >> end) <|> (p >>= isTarget) <|> isOther ""
   where
     end = return []
     isTarget t = (Target t :) <$> parseTargets p
     isOther txt = do
       c <- anyChar
       let txt' = c:txt
-      meof <- maybeThing endOfInput
+      meof <- optional endOfInput
       case meof of
         Just _ -> return [Other . Text.pack . reverse $ txt']
         Nothing -> do
-          mtarget <- maybeThing p
+          mtarget <- optional p
           case mtarget of
             Just target -> ([Other . Text.pack . reverse $ txt' , Target target]++)
                            <$> parseTargets p
@@ -186,10 +182,6 @@ demo = do
 
 binjaHeader :: IO Text 
 binjaHeader = TextIO.readFile "/tmp/h/binaryninjacore.h"
-
-someHeader :: FilePath -> IO Text 
-someHeader fp = TextIO.readFile fp
-
 
 data RemoveComments = IsComment Comment
                     | IsText Text
