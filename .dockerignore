@@ -37,3 +37,6 @@ Dockerfile
 **/TAGS
 **/cabal.config
 **/.envrc
+
+## From ghidra-haskell/.gitignore
+ghidra-haskell/res/ghidra.jar
