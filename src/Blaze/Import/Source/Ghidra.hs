@@ -3,20 +3,25 @@ module Blaze.Import.Source.Ghidra (
   module Exports,
 ) where
 
-import Ghidra.State (GhidraState)
-import Ghidra.Core (runGhidraOrError)
-import qualified Ghidra.State as GState
+import Blaze.Import.Binary (BinaryImporter (..))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
 import Blaze.Import.Pil (PilImporter (..))
-import qualified Blaze.Import.Source.Ghidra.CallGraph as CallGraph
-import qualified Blaze.Import.Source.Ghidra.Cfg as Cfg
-import qualified Blaze.Import.Source.Ghidra.Pil as PilImp
+import Blaze.Import.Source.Ghidra.CallGraph qualified as CallGraph
+import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
+import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
+import Blaze.Import.Source.Ghidra.Types (convertAddress)
+import Ghidra.Address (mkAddress)
+import Ghidra.Core (runGhidraOrError)
+import Ghidra.Program qualified as GProg
+import Ghidra.State (GhidraState)
+import Ghidra.State qualified as GState
+
 -- import qualified Blaze.Import.Source.Ghidra.Pil.Path as Path
 import Blaze.Import.Source.Ghidra.Types as Exports
-import Ghidra.Types.Variable (VarNode)
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (PilNode)
+import Ghidra.Types.Variable (VarNode)
 import Text.Pretty.Simple (pHPrint)
 
 newtype GhidraImporter = GhidraImporter
@@ -25,11 +30,41 @@ newtype GhidraImporter = GhidraImporter
   deriving (Eq, Ord, Show, Generic)
 
 getImporter :: FilePath -> IO GhidraImporter
-getImporter fp = runGhidraOrError $ GState.openDatabase fp >>= \case
-  Left err -> error $ "Could not open binary: " <> show err
-  Right gs -> do
-    GState.analyze gs
+getImporter fp =
+  runGhidraOrError $
+    GState.openDatabase fp >>= \case
+      Left err -> error $ "Could not open binary: " <> show err
+      Right gs -> do
+        GState.analyze gs
+        return $ GhidraImporter gs
+
+instance BinaryImporter GhidraImporter where
+  openBinary fp =
+    runGhidraOrError $
+      GState.openDatabase fp >>= \case
+        Left err -> return . error $ "Could not open binary: " <> show err
+        Right gs -> do
+          GState.analyze gs
+          return . Right $ GhidraImporter gs
+
+  saveToDb fp (GhidraImporter gs) = do
+    let fp' = fp <> if ".gzf" `isSuffixOf` fp then "" else ".gzf"
+    runGhidraOrError $ GState.saveDatabase gs fp'
+    return $ Right fp'
+
+  rebaseBinary (GhidraImporter gs) off = runGhidraOrError $ do
+    GProg.withTransaction (gs ^. #program) "BinaryImporter: Set Image Base" $ do
+      GProg.setImageBase (gs ^. #program) (fromIntegral off) True
+      GState.analyze gs
     return $ GhidraImporter gs
+
+  getStart (GhidraImporter gs) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
+
+  getEnd (GhidraImporter gs) = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
+
+  getOriginalBinaryPath (GhidraImporter gs) = do
+    binPath <- runGhidraOrError $ GProg.getExecutablePath (gs ^. #program)
+    return $ cs binPath
 
 instance CallGraphImporter GhidraImporter where
   getFunction imp = CallGraph.getFunction (imp ^. #ghidraState)
