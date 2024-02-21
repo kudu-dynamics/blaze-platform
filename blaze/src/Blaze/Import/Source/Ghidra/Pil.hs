@@ -147,7 +147,7 @@ data VarNodeType
   | VOther Text Int64
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
-showHex :: (Integral a, Show a) => a -> Text
+showHex :: Integral a => a -> Text
 showHex n = Text.pack $ Numeric.showHex n ""
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
