@@ -6,13 +6,9 @@
 
 module Blaze.Prelude
   ( module Exports
-  , Streaming
-  , StreamingIO
   , PShow(PShow)
   , catchEither
   , hoistMaybe
-  , liftListM
-  , liftListIO
   , liftEitherIO
   , liftMaybeIO
   , liftEitherM
@@ -36,7 +32,7 @@ module Blaze.Prelude
 
 import qualified Prelude as P
 
---import Data.Typeable as Exports
+import Data.Type.Equality as Exports (type (~))
 
 import Control.Concurrent.Async as Exports (mapConcurrently)
 import Control.Lens as Exports
@@ -115,10 +111,6 @@ import Protolude as Exports hiding ( Bits
                                    , head
                                    )
 import Protolude.Conv as Exports (StringConv)
-import Streamly.Prelude as Exports
-  ( IsStream,
-  )
-import qualified Streamly.Prelude
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random as Exports (randomIO)
 import Text.Pretty.Simple as PP
@@ -129,17 +121,6 @@ import Prelude as Exports
     error,
   )
 import qualified Data.Text as Text
-
-
-type Streaming t m = (Monad m, Monad (t m), MonadTrans t, IsStream t)
-
-type StreamingIO t m = (Monad m, Monad (t m), MonadTrans t, IsStream t, MonadIO m, MonadIO (t m))
-
-liftListM :: Streaming t m => m [a] -> t m a
-liftListM = Streamly.Prelude.fromList <=< lift
-
-liftListIO :: (StreamingIO t m) => IO [a] -> t m a
-liftListIO = liftListM . liftIO
 
 -- | Convert a 'Maybe' computation to 'MaybeT'.
 hoistMaybe :: (Applicative m) => Maybe b -> MaybeT m b

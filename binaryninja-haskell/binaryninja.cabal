@@ -212,7 +212,6 @@ library
       TypeFamilies
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   include-dirs:
-      src
       res
   extra-libraries:
       binaryninjacore
@@ -272,7 +271,6 @@ test-suite binja-test
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   include-dirs:
-      src
       res
   extra-libraries:
       binaryninjacore

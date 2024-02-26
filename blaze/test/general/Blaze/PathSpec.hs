@@ -232,7 +232,7 @@ spec = describe "Blaze.Path" $ do
               -| 4 |- "bb" -| 2 |- "cc" -| 3 |- "dd"
               -| 4 |- "bbb" -| 2 |- "ccc" -| 3 |- "ddd"
             ]
-      result `shouldBe` expected
+      sort result `shouldBe` sort expected
 
     it "should revisit loop nodes thrice if revisitLimit is 3" $ do
       let graph = graphWithSingleLoop
@@ -243,7 +243,7 @@ spec = describe "Blaze.Path" $ do
               -| 4 |- "bbb" -| 2 |- "ccc" -| 3 |- "ddd"
               -| 4 |- "bbbb" -| 2 |- "cccc" -| 3 |- "dddd"
             ]
-      result `shouldBe` expected
+      sort result `shouldBe` sort expected
 
     it "should only find two paths in diamond loop when revisit limit is 0" $ do
       let graph = graphWithDiamondLoop
@@ -331,7 +331,7 @@ spec = describe "Blaze.Path" $ do
             , mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d" -| 4 |-
               "bb" -| 2 |- "cc" -| 5 |- "e" -| 6 |- "fin"
             ]
-      result `shouldBe` (expected :: [TextPath])
+      sort result `shouldBe` sort expected
 
   context "getPathsContainingAndAvoiding_" $ do
 
@@ -446,8 +446,20 @@ spec = describe "Blaze.Path" $ do
       let graph = graphMultiPath :: TextGraph
           requiredNodes = HashSet.empty
           dmap = graphMultiPathDmap
+          expected = Right . mkTextPath <$>
+                     [ start "a" -| 1 |- "b" -| 2 |- "c" -| 7 |- "fin"
+                     , start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d" -| 4 |- "fin"
+                     ]
+          action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
+      result <- action
+      result `shouldSatisfy` (`elem` expected)
+
+    it "should get path using rigged lowest-of-range random generator with required node" $ do
+      let graph = graphMultiPath :: TextGraph
+          requiredNodes = HashSet.fromList ["d"]
+          dmap = graphMultiPathDmap
           expected = Right . mkTextPath
-            $ start "a" -| 1 |- "b" -| 2 |- "c" -| 7 |- "fin"
+            $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d" -| 4 |- "fin"
           action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
       action `shouldReturn` expected
 

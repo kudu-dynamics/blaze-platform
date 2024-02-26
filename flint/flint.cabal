@@ -62,12 +62,9 @@ library
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -97,9 +94,8 @@ library
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text
@@ -134,12 +130,9 @@ executable demo1-demo
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -170,9 +163,8 @@ executable demo1-demo
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text
@@ -207,12 +199,9 @@ executable divelogger
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -243,9 +232,8 @@ executable divelogger
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text
@@ -280,12 +268,9 @@ executable ev1smm
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -316,9 +301,8 @@ executable ev1smm
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text
@@ -353,12 +337,9 @@ executable flint
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -390,9 +371,8 @@ executable flint
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text
@@ -427,12 +407,9 @@ executable kernel
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -463,9 +440,8 @@ executable kernel
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text
@@ -506,12 +482,9 @@ test-suite flint-tests
       TypeFamilies
       ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs ==0.6.1
+    , algebraic-graphs
     , async
     , base >=4.7 && <5
     , bimap
@@ -543,9 +516,8 @@ test-suite flint-tests
     , raw-strings-qq
     , recursion-schemes
     , relude
-    , sbv >=8.6 && <10
+    , sbv
     , stm
-    , streamly
     , string-conversions
     , template-haskell
     , text

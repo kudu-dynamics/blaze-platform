@@ -165,14 +165,17 @@ fromStmts stmts =
    in CodeSummary
         { inputVars = inputVars
         , inputLoads =
-            filter
-              ( \x ->
-                  not
-                    ( isArgLoad (HashSet.fromList inputVars) x
-                        || isStackLocalLoad x
-                    )
+            concatMap
+              ( filter
+                  ( \x ->
+                      not
+                        ( isArgLoad (HashSet.fromList inputVars) x
+                            || isStackLocalLoad x
+                        )
+                  )
+                  . findLoads
               )
-              (concatMap findLoads stmts)
+              stmts
         , results = results
         , effects = effects
         , capabilities = extractCapabilities inputVars results stmts

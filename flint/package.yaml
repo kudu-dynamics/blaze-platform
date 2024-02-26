@@ -21,7 +21,7 @@ extra-source-files:
 
 dependencies:
   - aeson
-  - algebraic-graphs ==0.6.1
+  - algebraic-graphs
   - async
   - base >=4.7 && <5
   - bimap
@@ -51,9 +51,8 @@ dependencies:
   - raw-strings-qq
   - recursion-schemes
   - relude
-  - sbv >=8.6 && <10
+  - sbv
   - stm
-  - streamly
   - string-conversions
   - template-haskell
   - text
@@ -108,10 +107,6 @@ library:
   - Flint.Types.Cfg.Store
   - Flint.Types.Query
   - Flint.Util
-  
-include-dirs:
-  - "src"
-  - "../binaryninja-haskell/res"
 
 executables:
   flint:

@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -41,7 +40,7 @@ data Struct = Struct
 
 
 printStructField :: StructField -> Printer ()
-printStructField sf = pr sf
+printStructField = pr
 
 printStruct :: Struct -> Printer ()
 printStruct s = case fields s of
@@ -64,7 +63,7 @@ parseStruct = do
   void $ string "struct "
   n <- validCName
   skipSpace
-  mf <- (Just <$> parseFields) <|> return Nothing
+  mf <- optional parseFields
   void $ char ';'
   return $ Struct { name = n
                   , fields = mf }
@@ -73,11 +72,8 @@ parseStruct = do
 parseFields :: Parser [StructField]
 parseFields = do
   void $ char '{'
-  fs <- manyTill parseField (skipSpace >> void (char '}'))
-  -- skipSpace
-  -- void $ char '}'
-  return fs
-  
+  manyTill parseField (skipSpace >> void (char '}'))
+
 parseField :: Parser StructField
 parseField = do
   skipSpace

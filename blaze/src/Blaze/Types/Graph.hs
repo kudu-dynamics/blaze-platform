@@ -285,7 +285,7 @@ calcDescendantsMapForAcyclicGraph g =
       let ss = HSet.toList $ succs n g
       let x = case ss of
             [] -> HSet.empty
-            xs -> foldr HSet.union HSet.empty . fmap (\s -> HSet.insert s $ m ! s) $ xs
+            xs -> foldl' (\a -> HSet.union a . (\s -> HSet.insert s $ m ! s)) HSet.empty xs
       return (n, x)
 
 newtype DescendantsDistanceMap node
@@ -410,9 +410,9 @@ succEdges_ n = HSet.map (Edge n) . succs n
 
 predEdges :: (Hashable l, Hashable n, Graph l n g) => n -> g n -> HashSet (LEdge l n)
 predEdges n g
-  = HSet.fromList 
-  . mapMaybe (`getFullEdge` g) 
-  . HSet.toList 
+  = HSet.fromList
+  . mapMaybe (`getFullEdge` g)
+  . HSet.toList
   $ predEdges_ n g
 
 succEdges :: (Hashable l, Hashable n, Graph l n g) => n -> g n -> HashSet (LEdge l n)
@@ -428,4 +428,4 @@ convertGraph g
   = addEdges (edges g)
   . addNodes (HSet.toList $ nodes g)
   $ empty
-  
+

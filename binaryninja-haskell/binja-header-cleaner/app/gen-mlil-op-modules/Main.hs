@@ -331,7 +331,7 @@ printModuleImports ::
 printModuleImports types = mapM_ pr imports
   where
     imports :: [Text]
-    imports = nub . mapMaybe identity . fmap (g . f) $ Set.toList types
+    imports = nub . mapMaybe (g . f) $ Set.toList types
 
     f :: Text -> Text
     f "var" = "Variable"
@@ -369,7 +369,7 @@ printRecordModule (mlilName, xs) = do
 
 writeRecordModule :: FilePath -> (Text, [(Text, Text)]) -> IO ()
 writeRecordModule outDir v@(mlilName, _) =
-  TextIO.writeFile outModulePath $ (Printer.toText $ printRecordModule v) <> "\n"
+  TextIO.writeFile outModulePath $ Printer.toText (printRecordModule v) <> "\n"
   where
     outModulePath = outDir </> recordName <.> ".hs"
       where

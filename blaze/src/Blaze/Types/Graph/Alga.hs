@@ -196,7 +196,7 @@ instance
   transpose g = g { adjacencyMap = G.transpose $ adjacencyMap g
                   , edgeMap = HMap.mapKeys (\(Edge a b) -> Edge b a) $ edgeMap g
                   }
-  bfs startNodes g = mapMaybe (getNode g) <$> GA.bfs (fmap getNodeId startNodes) (adjacencyMap g)
+  bfs startNodes g = mapMaybe (getNode g) <$> GA.bfs (adjacencyMap g) (fmap getNodeId startNodes)
   subgraph pred g = AlgaGraph
     { adjacencyMap = subgraphAdjMap
     , edgeMap = (`HMap.filterWithKey` edgeMap g) $ \k _ ->
@@ -212,7 +212,7 @@ instance
         subgraphEdges :: Set (Edge (NodeId i))
         subgraphEdges = Set.fromList . fmap (uncurry Edge) $ G.edgeList subgraphAdjMap
 
-  reachable n g = mapMaybe (getNode g) $ GA.reachable (getNodeId n) (adjacencyMap g)
+  reachable n g = mapMaybe (getNode g) $ GA.reachable (adjacencyMap g) (getNodeId n)
 
 getNode :: Hashable i => AlgaGraph l i n -> NodeId i -> Maybe n
 getNode graph nodeId = HMap.lookup nodeId (nodeMap graph)

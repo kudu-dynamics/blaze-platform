@@ -97,7 +97,7 @@ solveStmt ddg stmt = case stmt of
   Pil.BranchCond _ -> return ()
   -- TODO: convert stores/loads into immutable SSA vars
   Pil.Store _ -> return ()
-  Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (or $ isDependentOn <$> vars) pilSolveStmt
+  Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (any isDependentOn vars) pilSolveStmt
     where
       destDescendants = G.getDescendants dest ddg
       isDependentOn = flip HashSet.member destDescendants

@@ -62,9 +62,6 @@ library
       OverloadedLabels
       OverloadedStrings
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
-  include-dirs:
-      src
-      res
   extra-libraries:
       jvm
   build-depends:
@@ -115,9 +112,6 @@ executable create-ghidra-db
       OverloadedLabels
       OverloadedStrings
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      res
   build-depends:
       async
     , base
@@ -178,9 +172,6 @@ test-suite ghidra-test
       OverloadedLabels
       OverloadedStrings
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      res
   extra-libraries:
       jvm
   build-depends:

@@ -223,7 +223,6 @@ build-tools:
   - c2hs
 
 include-dirs:
-  - "src"
   - "res"
 
 tests:

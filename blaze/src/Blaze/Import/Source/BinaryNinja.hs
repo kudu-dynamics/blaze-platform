@@ -102,7 +102,7 @@ instance PilImporter BNImporter where
         mlilSsaFunc <- BnFunc.getMLILSSAFunction bnFunc
         let start = fromIntegral $ codeRef ^. #startIndex
             end = fromIntegral $ codeRef ^. #endIndex
-        nodeInstrs <- traverse (Mlil.instruction mlilSsaFunc) $ Bn.InstructionIndex <$> [start .. end]
+        nodeInstrs <- traverse (Mlil.instruction mlilSsaFunc . Bn.InstructionIndex) [start .. end]
         addrWidth <- Bn.getViewAddressSize bv
         let convSt =
               PilImp.mkConverterState

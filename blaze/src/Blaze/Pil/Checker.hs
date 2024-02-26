@@ -263,7 +263,7 @@ pilTypeWithSym originMap' s pt = do
     ptWithBool sorigin = fmap (f sorigin) pt
 
     subst :: Sym -> Maybe (PilType Sym)
-    subst sorigin = if or . fmap fst $ ptWithBool sorigin
+    subst sorigin = if any fst $ ptWithBool sorigin
       then return . fmap snd $ ptWithBool sorigin
       else Nothing
 

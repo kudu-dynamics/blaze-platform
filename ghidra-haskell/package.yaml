@@ -101,10 +101,6 @@ library:
   other-modules:
     - Ghidra.Types.Internal
 
-include-dirs:
-  - "src"
-  - "res"
-
 executables:
   create-ghidra-db:
     main: Main.hs

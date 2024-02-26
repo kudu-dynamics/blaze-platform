@@ -523,7 +523,7 @@ matchExpr pat expr = case pat of
         isSubexprTaint =
           case dst ^. #op of
             Pil.CALL _ -> False
-            op -> or (doesTaint taintSet src <$> toList op)
+            op -> any (doesTaint taintSet src) $ toList op
 
 (.||) :: ExprPattern -> ExprPattern -> ExprPattern
 (.||) = OrPattern

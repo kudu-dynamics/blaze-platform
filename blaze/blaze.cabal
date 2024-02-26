@@ -199,12 +199,9 @@ library
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -234,9 +231,8 @@ library
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -272,12 +268,9 @@ executable demo
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -309,9 +302,8 @@ executable demo
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -343,12 +335,9 @@ executable find_mlil_ssa
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -380,9 +369,8 @@ executable find_mlil_ssa
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -415,12 +403,9 @@ executable gen_pil_ops
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -453,9 +438,8 @@ executable gen_pil_ops
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -492,12 +476,9 @@ test-suite blaze-binja-test
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -529,9 +510,8 @@ test-suite blaze-binja-test
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -592,12 +572,9 @@ test-suite blaze-general-test
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -630,9 +607,8 @@ test-suite blaze-general-test
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -669,12 +645,9 @@ test-suite blaze-ghidra-test
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -706,9 +679,8 @@ test-suite blaze-ghidra-test
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
@@ -741,12 +713,9 @@ benchmark call-graph-benchmark
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  include-dirs:
-      src
-      ../binaryninja-haskell/res
   build-depends:
       aeson
-    , algebraic-graphs
+    , algebraic-graphs >=0.7
     , async
     , base >=4.7 && <5
     , bimap
@@ -777,9 +746,8 @@ benchmark call-graph-benchmark
     , random
     , raw-strings-qq
     , recursion-schemes
-    , sbv >=8.6
+    , sbv >=10.1
     , stm
-    , streamly
     , string-conversions
     , text
     , transformers
