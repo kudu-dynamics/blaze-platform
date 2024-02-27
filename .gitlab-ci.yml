@@ -49,6 +49,21 @@ base-images:
         .
     - docker push "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
 
+just-deps:
+  stage: prerequisites
+  needs:
+    - base-images
+  extends: .docker
+  script:
+    - docker build
+        --pull
+        --cache-from "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
+        --cache-from "${CI_REGISTRY_IMAGE}"/just-deps:latest
+        --target just-deps
+        -t "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker push "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
+
 install-hlint:
   stage: prerequisites
   needs:
@@ -77,15 +92,34 @@ hlint:
     - just hlint --color=always
   allow_failure: true
 
+ghc-warnings:
+  stage: check
+  needs:
+    - just-deps
+  image: ${CI_REGISTRY_IMAGE}/just-deps:pipeline-${CI_PIPELINE_ID}
+  cache:
+    key: ghc-warnings-${CI_COMMIT_BRANCH}
+    fallback_keys:
+      - ghc-warnings-${CI_DEFAULT_BRANCH}
+    paths:
+      - .stack-work
+      - '**/.stack-work'
+  script:
+    - stack clean
+    - stack --color always build --test --no-run-tests --pedantic --fast
+    - stack clean
+  allow_failure: true
+
 build:
   stage: build
   needs:
-    - base-images
+    - just-deps
   extends: .docker
   script:
     - docker build
         --pull
         --target builder
+        --cache-from "${CI_REGISTRY_IMAGE}"/just-deps:"${CI_PIPELINE_ID}"
         --cache-from "${CI_REGISTRY_IMAGE}"/builder:latest
         --build-arg OPTIM=${HASKELL_OPTIM}
         -t "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
