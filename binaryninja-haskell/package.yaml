@@ -241,3 +241,5 @@ tests:
     - binaryninja
     - hspec
     - text
+    build-tools:
+      - hspec-discover

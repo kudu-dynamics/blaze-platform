@@ -208,6 +208,8 @@ test-suite binja-header-cleaner-test
       StandaloneDeriving
       TupleSections
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       attoparsec
     , base

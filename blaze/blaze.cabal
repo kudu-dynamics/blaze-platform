@@ -476,6 +476,8 @@ test-suite blaze-binja-test
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       aeson
     , algebraic-graphs >=0.7
@@ -572,6 +574,8 @@ test-suite blaze-general-test
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       aeson
     , algebraic-graphs >=0.7
@@ -645,6 +649,8 @@ test-suite blaze-ghidra-test
       OverloadedStrings
       TypeFamilies
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       aeson
     , algebraic-graphs >=0.7

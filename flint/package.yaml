@@ -175,3 +175,5 @@ tests:
     dependencies:
     - flint
     - hspec
+    build-tools:
+      - hspec-discover
