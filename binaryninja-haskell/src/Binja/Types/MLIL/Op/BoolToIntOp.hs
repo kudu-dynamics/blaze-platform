@@ -3,8 +3,8 @@ module Binja.Types.MLIL.Op.BoolToIntOp where
 import Binja.Prelude
 
 
-data BoolToIntOp expr = BoolToIntOp
+newtype BoolToIntOp expr = BoolToIntOp
     { _boolToIntOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (BoolToIntOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

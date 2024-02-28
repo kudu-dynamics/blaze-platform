@@ -4,8 +4,8 @@ import Binja.Prelude
 
 import Binja.Types.MLIL.Common (SSAVariableDestAndSrc)
 
-data FreeVarSlotSSAOp expr = FreeVarSlotSSAOp
+newtype FreeVarSlotSSAOp expr = FreeVarSlotSSAOp
     { _freeVarSlotSSAOpPrev :: SSAVariableDestAndSrc
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (FreeVarSlotSSAOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

@@ -7,6 +7,6 @@ data SbbOp expr = SbbOp
     { _sbbOpLeft :: expr
     , _sbbOpRight :: expr
     , _sbbOpCarry :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (SbbOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

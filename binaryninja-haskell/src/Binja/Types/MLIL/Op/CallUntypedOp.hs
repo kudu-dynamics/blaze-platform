@@ -8,6 +8,6 @@ data CallUntypedOp expr = CallUntypedOp
     , _callUntypedOpDest :: expr
     , _callUntypedOpParams :: expr
     , _callUntypedOpStack :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (CallUntypedOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

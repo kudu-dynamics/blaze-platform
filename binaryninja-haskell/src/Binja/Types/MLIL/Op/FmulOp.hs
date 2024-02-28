@@ -6,6 +6,6 @@ import Binja.Prelude
 data FmulOp expr = FmulOp
     { _fmulOpLeft :: expr
     , _fmulOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (FmulOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

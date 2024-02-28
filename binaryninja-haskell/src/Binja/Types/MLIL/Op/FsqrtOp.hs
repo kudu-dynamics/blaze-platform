@@ -3,8 +3,8 @@ module Binja.Types.MLIL.Op.FsqrtOp where
 import Binja.Prelude
 
 
-data FsqrtOp expr = FsqrtOp
+newtype FsqrtOp expr = FsqrtOp
     { _fsqrtOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (FsqrtOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

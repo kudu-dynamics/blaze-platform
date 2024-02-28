@@ -4,8 +4,8 @@ import Binja.Prelude
 
 import Binja.Types.MLIL.Common (SSAVariable)
 
-data VarAliasedOp expr = VarAliasedOp
+newtype VarAliasedOp expr = VarAliasedOp
     { _varAliasedOpSrc :: SSAVariable
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarAliasedOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

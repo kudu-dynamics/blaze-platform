@@ -7,6 +7,6 @@ import Binja.Types.Variable (Variable)
 data SetVarOp expr = SetVarOp
     { _setVarOpDest :: Variable
     , _setVarOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (SetVarOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

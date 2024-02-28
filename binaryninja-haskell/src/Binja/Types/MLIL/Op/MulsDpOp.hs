@@ -6,6 +6,6 @@ import Binja.Prelude
 data MulsDpOp expr = MulsDpOp
     { _mulsDpOpLeft :: expr
     , _mulsDpOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (MulsDpOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

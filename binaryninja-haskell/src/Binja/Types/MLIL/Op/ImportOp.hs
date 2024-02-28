@@ -3,8 +3,8 @@ module Binja.Types.MLIL.Op.ImportOp where
 import Binja.Prelude
 
 
-data ImportOp expr = ImportOp
+newtype ImportOp expr = ImportOp
     { _importOpConstant :: Int64
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (ImportOp a)
+    }
+    deriving stock (Show, Generic, Functor, Foldable, Traversable)
+    deriving newtype (Eq, Ord, Hashable)

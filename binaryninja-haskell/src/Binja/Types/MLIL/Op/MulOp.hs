@@ -6,6 +6,6 @@ import Binja.Prelude
 data MulOp expr = MulOp
     { _mulOpLeft :: expr
     , _mulOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (MulOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

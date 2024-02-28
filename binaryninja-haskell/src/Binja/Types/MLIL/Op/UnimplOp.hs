@@ -4,6 +4,5 @@ import Binja.Prelude
 
 
 data UnimplOp expr = UnimplOp
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (UnimplOp a)
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

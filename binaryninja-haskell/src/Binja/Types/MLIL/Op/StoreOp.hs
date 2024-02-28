@@ -6,6 +6,6 @@ import Binja.Prelude
 data StoreOp expr = StoreOp
     { _storeOpDest :: expr
     , _storeOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (StoreOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

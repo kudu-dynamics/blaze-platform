@@ -6,6 +6,6 @@ import Binja.Prelude
 data OrOp expr = OrOp
     { _orOpLeft :: expr
     , _orOpRight :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (OrOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

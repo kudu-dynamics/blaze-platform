@@ -7,6 +7,6 @@ import Binja.Types.MLIL.Common (SSAVariable)
 data VarPhiOp expr = VarPhiOp
     { _varPhiOpDest :: SSAVariable
     , _varPhiOpSrc :: [SSAVariable]
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (VarPhiOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

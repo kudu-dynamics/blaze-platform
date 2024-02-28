@@ -8,6 +8,6 @@ data SetVarAliasedFieldOp expr = SetVarAliasedFieldOp
     { _setVarAliasedFieldOpPrev :: SSAVariableDestAndSrc
     , _setVarAliasedFieldOpOffset :: Int64
     , _setVarAliasedFieldOpSrc :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (SetVarAliasedFieldOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)

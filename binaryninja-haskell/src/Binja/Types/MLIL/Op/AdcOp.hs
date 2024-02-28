@@ -7,6 +7,6 @@ data AdcOp expr = AdcOp
     { _adcOpLeft :: expr
     , _adcOpRight :: expr
     , _adcOpCarry :: expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-
-instance Hashable a => Hashable (AdcOp a)
+    }
+    deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
+    deriving anyclass (Hashable)
