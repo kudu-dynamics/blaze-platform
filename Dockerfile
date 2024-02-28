@@ -154,22 +154,7 @@ RUN cabal install hlint \
         --installdir ~/.local/bin
 
 
-# Artifacts:
-#   - /out/bin/*
-#   - /out/test/*
-#   - /out/run-tests
-FROM haskell as builder
-ARG OPTIM=-O0
-
-# FIXME remove if not needed
-# RUN cat <<EOF >root/.stack/config.yaml
-# extra-lib-dirs:
-#   - /usr/lib/jvm/java-17-openjdk-amd64/lib/server
-# extra-include-dirs:
-#   - /usr/lib/jvm/java-17-openjdk-amd64/include
-#   - /usr/lib/jvm/java-17-openjdk-amd64/include/linux
-# EOF
-
+FROM haskell as just-deps
 WORKDIR /build
 
 # Copy stack.yaml and package.yaml files so we can build dependencies in a
@@ -188,6 +173,14 @@ COPY flint/package.yaml \
 
 RUN stack build --ghc-options="${OPTIM}" --only-dependencies \
     binaryninja binja-header-cleaner ghidra blaze flint
+
+
+# Artifacts:
+#   - /out/bin/*
+#   - /out/test/*
+#   - /out/run-tests
+FROM just-deps as builder
+ARG OPTIM=-O0
 
 COPY ./ ./
 RUN ln -s /out/res/ghidra.jar ghidra-haskell/res/ghidra.jar
