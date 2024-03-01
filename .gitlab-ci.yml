@@ -80,7 +80,7 @@ install-hlint:
 
 # stage: check
 include:
-  project: 'kevino/filter-check'
+  project: 'blaze/filter-check'
   file: '/filtercheck.gitlab-ci.yml'
 
 hlint:
