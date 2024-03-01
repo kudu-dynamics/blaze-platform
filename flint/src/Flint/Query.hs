@@ -122,7 +122,9 @@ getCallSeqPreps store restrictStartFuncs g = do
           Just s -> return
             . maybe identity (\sfuncs -> filter (`HashSet.member` sfuncs)) restrictStartFuncs
             $ HashSet.toList s
-      putText $ "Callers of first call: " <> show (length callersOfFirstCall)
+      -- Trying to limit unnecessary STDOUT output. Having a debug flag to
+      -- enable diagnostic output would be preferable. - Hazmat
+      -- putText $ "Callers of first call: " <> show (length callersOfFirstCall)
       (reachList :: [Maybe Function]) <- forConcurrently callersOfFirstCall $ \func -> do
         CC.get (func :: Function) (store ^. #descendantsCache) >>= \case
           Nothing -> return Nothing
