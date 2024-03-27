@@ -28,6 +28,8 @@ stages:
   before_script:
     - apk add curl
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
+    # --oci-worker-gc=false: see https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
+    - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --use
     - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
     - '
       curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
@@ -35,19 +37,26 @@ stages:
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/binaryninja-distribution/3.5.4526/BinaryNinja.zip"
       || { ls -l BinaryNinja.zip >&2; head -c1000 BinaryNinja.zip >&2; exit 1; }
       '
+  after_script:
+    # See https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
+    - docker buildx prune --filter="until=1h" --force
+  # Grr, we randomly get weird docker/buildx/buildkit/gitlab container registry issues
+  retry: 2
 
 base-images:
   stage: prerequisites
   needs: []
   extends: .docker
   script:
-    - docker build
+    # --provenance=false: see https://gitlab.com/gitlab-org/gitlab/-/issues/388865#workaround
+    - docker buildx build --push
         --pull
-        --cache-from "${CI_REGISTRY_IMAGE}"/haskell:latest
+        --provenance=false
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
         --target haskell
         -t "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker push "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
 
 just-deps:
   stage: prerequisites
@@ -55,14 +64,14 @@ just-deps:
     - base-images
   extends: .docker
   script:
-    - docker build
+    - docker buildx build --push
         --pull
-        --cache-from "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
-        --cache-from "${CI_REGISTRY_IMAGE}"/just-deps:latest
+        --provenance=false
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
         --target just-deps
         -t "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker push "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
 
 install-hlint:
   stage: prerequisites
@@ -70,13 +79,14 @@ install-hlint:
     - base-images
   extends: .docker
   script:
-    - docker build
+    - docker buildx build --push
         --pull
-        --cache-from "${CI_REGISTRY_IMAGE}"/hlint:latest
+        --provenance=false
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:cache
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:cache
         --target hlint
         -t "${CI_REGISTRY_IMAGE}"/hlint:pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker push "${CI_REGISTRY_IMAGE}"/hlint:pipeline-"${CI_PIPELINE_ID}"
 
 # stage: check
 include:
@@ -113,21 +123,22 @@ build:
     - just-deps
   extends: .docker
   script:
-    - docker build
+    - docker buildx build --push
         --pull
+        --provenance=false
         --target builder
-        --cache-from "${CI_REGISTRY_IMAGE}"/just-deps:"${CI_PIPELINE_ID}"
-        --cache-from "${CI_REGISTRY_IMAGE}"/builder:latest
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --build-arg OPTIM=${HASKELL_OPTIM}
         -t "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker push "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
-    - docker build
+    - docker buildx build --push
         --pull
-        --cache-from "${CI_REGISTRY_IMAGE}":latest
+        --provenance=false
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":cache
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         -t "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker push "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
 
 test:
   stage: test
@@ -187,6 +198,7 @@ cleanup:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
+    - docker buildx rm blaze-platform-builder || true
     - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
     - |-
       set -euxo pipefail
