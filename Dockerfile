@@ -53,26 +53,22 @@ EOF
 FROM --platform=linux/amd64 before-base-deps as binaryninja-builder
 ARG BINARYNINJA_CHANNEL
 ARG BINARYNINJA_VERSION
-# ARG BINARYNINJA_API_VERSION
 
 RUN <<EOF
     set -euxo pipefail
     packages=(
-        libarchive-tools  # Extracting BinaryNinja.zip
-        python3           # Updating Binary Ninja
+        unzip    # Extracting BinaryNinja.zip
+        python3  # Updating Binary Ninja
     )
     apt install -yq --no-install-recommends "${packages[@]}"
 EOF
 
+RUN mkdir -p /out
 RUN --mount=type=bind,source=BinaryNinja.zip,target=/BinaryNinja.zip \
-    --mount=type=bind,source=license.dat,target=/root/.binaryninja/license.dat \
+    unzip /BinaryNinja.zip 'binaryninja/*' -d /out
+RUN --mount=type=bind,source=license.dat,target=/root/.binaryninja/license.dat \
     --mount=type=bind,source=.docker/binary_ninja_updater.py,target=/binary_ninja_updater.py \
-<<EOF
-    set -euxo pipefail
-    mkdir -p /out/binaryninja
-    bsdtar xvf /BinaryNinja.zip --strip-components=1 -C /out/binaryninja
     PYTHONPATH=/out/binaryninja/python python3 -u /binary_ninja_updater.py "${BINARYNINJA_CHANNEL}" "${BINARYNINJA_VERSION}"
-EOF
 
 
 # Artifacts:
