@@ -33,7 +33,7 @@ stages:
       curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
         --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/binaryninja-distribution/3.5.4526/BinaryNinja.zip"
-      || { cat BinaryNinja.zip >&2; exit 1; }
+      || { ls -l BinaryNinja.zip >&2; head -c1000 BinaryNinja.zip >&2; exit 1; }
       '
 
 base-images:
