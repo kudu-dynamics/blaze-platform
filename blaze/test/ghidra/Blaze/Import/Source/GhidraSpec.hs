@@ -6,14 +6,19 @@ module Blaze.Import.Source.GhidraSpec where
 
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Function (Function)
+import Blaze.Import.Binary (BinaryImporter (getEnd, getStart, openBinary, rebaseBinary))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
+import Blaze.Import.Source.Ghidra (
+  GhidraImporter (
+    GhidraImporter
+  ),
+ )
+import Blaze.Import.Source.Ghidra qualified as G
 import Blaze.Prelude hiding (Symbol)
-import qualified Blaze.Import.Source.Ghidra as G
-import qualified Blaze.Types.Graph as Graph
+import Blaze.Types.Graph qualified as Graph
 
-import qualified Data.HashSet as HashSet
+import Data.HashSet qualified as HashSet
 import Test.Hspec
-
 
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
@@ -23,6 +28,23 @@ findFunc funcName = find ((== funcName) . (^. #name))
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra" $ do
+  context "binary" $ do
+    (importer :: GhidraImporter) <- unsafeFromRight <$> runIO (openBinary diveBin)
+    start <- runIO $ getStart importer
+    end <- runIO $ getEnd importer
+
+    it "should get start offset" $ do
+      start `shouldBe` 0x8048000
+
+    it "should get end offset" $ do
+      end `shouldBe` 0x5ef
+
+    rebasedImporter <- runIO $ rebaseBinary importer 0x10000000
+    rebasedStart <- runIO $ getStart rebasedImporter
+
+    it "should rebase binary" $ do
+      rebasedStart `shouldBe` 0x10000000
+
   context "Importing call graphs" $ do
     importer <- runIO $ G.getImporter diveBin
     funcs <- fmap sort . runIO $ getFunctions importer
