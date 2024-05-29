@@ -167,7 +167,7 @@ COPY blaze/package.yaml \
 COPY flint/package.yaml \
      flint/package.yaml
 
-RUN stack build --ghc-options="${OPTIM}" --only-dependencies \
+RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies \
     binaryninja binja-header-cleaner ghidra blaze flint
 
 
@@ -180,10 +180,11 @@ ARG OPTIM=-O0
 
 COPY ./ ./
 RUN ln -s /out/res/ghidra.jar ghidra-haskell/res/ghidra.jar
-RUN mkdir -p /out/bin /out/test
+RUN mkdir -p /out/bin
+RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
+RUN mkdir -p /out/test
 RUN <<EOF
     set -euxo pipefail
-    stack --local-bin-path /out/bin build --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
 
     echo 'set -euxo pipefail' >/out/run-tests
     echo 'cd /build' >>/out/run-tests
