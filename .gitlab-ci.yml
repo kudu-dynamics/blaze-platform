@@ -98,11 +98,8 @@ ghc-warnings:
     - just-deps
   image: ${CI_REGISTRY_IMAGE}/just-deps:pipeline-${CI_PIPELINE_ID}
   cache:
-    key: ghc-warnings-${CI_COMMIT_BRANCH}
-    fallback_keys:
-      - ghc-warnings-${CI_DEFAULT_BRANCH}
+    key: ghc-warnings-${CI_COMMIT_REF_SLUG}
     paths:
-      - .stack-work
       - '**/.stack-work'
   script:
     - stack clean
