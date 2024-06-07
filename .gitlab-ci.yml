@@ -39,7 +39,8 @@ stages:
       '
   after_script:
     # See https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
-    - docker buildx prune --filter="until=1h" --force
+    - docker buildx prune --force
+    - docker buildx rm --all-inactive -f
   # Grr, we randomly get weird docker/buildx/buildkit/gitlab container registry issues
   retry: 2
 
