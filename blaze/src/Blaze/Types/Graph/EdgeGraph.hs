@@ -3,18 +3,17 @@ module Blaze.Types.Graph.EdgeGraph where
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
 import Blaze.Types.Graph (LEdge (LEdge), Edge (Edge), Graph, GraphConstruct, Identifiable, NodeId (NodeId))
-import Blaze.Types.Cfg (BranchType, CfNode)
 import qualified Data.HashSet as HSet
 import Blaze.Types.Graph.Alga (AlgaGraph)
 
-type EdgeGraph a = AlgaGraph () (EdgeGraphNode BranchType a) (EdgeGraphNode BranchType a)
+type EdgeGraph l n = AlgaGraph () (EdgeGraphNode l n) (EdgeGraphNode l n)
 
 data EdgeGraphNode l n
   = EdgeNode (LEdge l n)
   | NodeNode n
   deriving (Eq, Ord, Generic, Hashable)
 
-instance Hashable a => Identifiable (EdgeGraphNode BranchType (CfNode a)) Int where
+instance (Hashable a, Hashable l) => Identifiable (EdgeGraphNode l a) Int where
   -- TODO: What should the ID be?
   getNodeId n = NodeId $ hash n
 

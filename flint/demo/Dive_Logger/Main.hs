@@ -2,11 +2,13 @@
 {-# OPTIONS_GHC -fno-warn-unused-local-binds #-}
 {- HLINT ignore "Redundant bracket" -}
 {- HLINT ignore "Evaluate" -}
+{- HLINT ignore "Use uncurry" -}
 
 module Main (main) where
 
 import Flint.Prelude hiding (const)
 
+import qualified Flint.Analysis as FA
 import Flint.Analysis.Path.Matcher
 import Flint.Analysis.Path.Matcher.Stub (StubSpec(StubSpec))
 import qualified Flint.Analysis.Path.Matcher.Stub as Stub
@@ -15,10 +17,15 @@ import qualified Flint.Cfg.Store as Store
 import Flint.Types.Query
 import Flint.Query
 
+import qualified Blaze.Cfg.Path as Path
+import qualified Blaze.Graph as G
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Pil.Construct hiding (not)
+import Blaze.Pretty (prettyPrint', prettyStmts')
+import Blaze.Types.Function (Function)
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
@@ -78,24 +85,31 @@ useAfterFree = BugMatch
   }
 
 incrementWithoutCheck :: Text -> BugMatch
-incrementWithoutCheck mallocFuncName = BugMatch
+incrementWithoutCheck _mallocFuncName = BugMatch
   { pathPattern =
-      [ AvoidUntil $ AvoidSpec
+    
+      [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
+      , AvoidUntil $ AvoidSpec
         { avoid = Stmt . BranchCond
                   $   ((load (Bind "ptr" Wild) ()) .< Wild)
                   .|| ((load (Bind "ptr" Wild) ()) .<= Wild)
         , until = Ordered
-          [ Stmt $ Call Nothing (CallFunc (FuncName mallocFuncName)) []
-          , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+          [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
           ]
         }
       ]
+      
   , bugName = "Increment Without Check"
   , bugDescription =
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
   , mitigationAdvice = "Add a bounds check."
   }
 
+
+
+          -- [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
+          -- , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+          -- ]
 
 
 oobWrite :: BugMatch
@@ -251,5 +265,109 @@ electronictrading = do
   -- queryForBugMatch_ 10 80 store' funcMapping (Just funcs) stubs (incrementWithoutCheck "cgc_allocate")
   putText "finished"
 
+
+diveloggerPlanner :: IO ()
+diveloggerPlanner = do
+  putText "starting"
+  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+  putText "Loaded Dive_Logger.bndb"
+  store' <- Store.init imp
+  (ctx, _innerNodes, allNodes) <- Store.getRouteMakerCtx' 5 store'
+
+  let funcNameMapping = mkFuncNameMapping $ store' ^. #funcs
+      limitStartFuncs :: HashSet Function
+      limitStartFuncs = HashSet.fromList $ mapMaybe (`HashMap.lookup` funcNameMapping)
+        [ "cgc_MainMenu"
+        , "main"
+        ]
+      mLimitStartFuncs = Nothing -- Just limitStartFuncs
+
+  let pats =
+        [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_malloc")) [Wild]
+        , Stmt $ Call Nothing (CallFunc (FuncName "cgc_free")) [Wild]
+        , Stmt $ Call Nothing (CallFunc (FuncName "cgc_free")) [Wild]
+        ]
+
+  -- let pats =
+  --       [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_malloc")) [Wild]
+  --       , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+  --       , Stmt $ Call Nothing (CallFunc (FuncName "cgc_free")) [Wild]
+  --       ]
+
+  -- let pats =
+  --       [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
+  --       , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+  --       , Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
+  --       , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+  --       ]
+  
+  let combos = matchNodesFulfillingSeq [] allNodes pats
+      r = getAllRoutesForAllSeqCombos ctx mLimitStartFuncs combos
+  print $ HashSet.size <$> combos
+  prettyPrint' $ AllRoutes r
+  return ()
+
+diveloggerSampleRoute :: IO ()
+diveloggerSampleRoute = do
+  putText "starting"
+  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+  putText "Loaded Dive_Logger.bndb"
+  store' <- Store.init imp
+  -- (ctx, _innerNodes, allNodes) <- Store.getPlanMakerCtx' 5 store'
+  pprep <- getSampleRoutePrep store'
+
+  let route :: (FuncConfig, G.Route FuncConfig Address)
+      -- -- Find single inner node
+      -- route = ( FuncSym "cgc_AddDive"
+      --        , [ G.InnerNode 0x804c839
+      --          , G.Finished
+      --          ]
+      --        )
+
+      -- -- Find two inner nodes (no loop)
+      -- route = ( FuncSym "cgc_AddDive"
+      --        , [ G.InnerNode 0x804c839
+      --          , G.InnerNode 0x804c8b2
+      --          , G.Finished
+      --          ]
+      --        )
+
+      -- -- Enter context and finish
+      -- route = ( FuncSym "cgc_DownloadDiveData"
+      --        , [ G.EnterContext 0x804d225 $ FuncSym "cgc_AddDive"
+      --          , G.InnerNode 0x804c839
+      --          , G.Finished
+      --          ]
+      --        )
+
+      -- -- Enter context and exit context
+      -- route = ( FuncSym "cgc_DownloadDiveData"
+      --        , [ G.EnterContext 0x804d225 $ FuncSym "cgc_AddDive"
+      --          , G.InnerNode 0x804c839
+      --          , G.ExitContext $ FuncSym "cgc_AddDive"
+      --          , G.InnerNode 0x804d381
+      --          , G.Finished
+      --          ]
+      --        )
+
+      -- Hit same node twice in loop
+      route = ( FuncSym "cgc_MainMenu"
+             , [ G.InnerNode 0x804cf8a
+               , G.InnerNode 0x804cf8a
+               , G.Finished
+               ]
+             )
+
+  r <- replicateM 1 $ sampleRoute imp store' pprep (fst route) (snd route)
+  let showPath p = do
+        let ps = Path.toStmts p
+            ps' = FA.simplify ps
+        putText "\n"
+        prettyStmts' ps'
+  traverse_ showPath $ catMaybes r
+
 main :: IO ()
-main = divelogger
+main = do
+  -- divelogger
+  -- diveloggerPlanner
+  diveloggerSampleRoute

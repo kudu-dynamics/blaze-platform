@@ -14,10 +14,10 @@ synopsis:            A program analysis framework with a focus on context- and p
 category:            Program Analysis, Binary Analysis
 description:         Please see the README.
 
+
 extra-source-files:
 - README.md
 - ChangeLog.md
-
 
 dependencies:
   - aeson
@@ -70,6 +70,7 @@ default-extensions:
   - DuplicateRecordFields
   - FunctionalDependencies
   - GADTs
+  - ImportQualifiedPost
   - LambdaCase
   - NoImplicitPrelude
   - NoMonomorphismRestriction
@@ -126,6 +127,7 @@ library:
   - Blaze.Pil.Checker.Unification
   - Blaze.Pil.Construct
   - Blaze.Pil.Display
+  - Blaze.Pil.Eval
   - Blaze.Pil.Function
   - Blaze.Pil.Parse
   - Blaze.Pil.Summary

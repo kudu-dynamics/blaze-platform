@@ -87,7 +87,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
           cfg :: Cfg (CfNode [Stmt])
           cfg = mkCfg 0 rootNode [] []
 
-          edgeGraph :: EdgeGraph PilNode
+          edgeGraph :: EdgeGraph BranchType PilNode
           edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph
 
           eRoot = NodeNode $ Cfg.getRootNode cfg
@@ -119,7 +119,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
 
-          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph BranchType PilNode
           eRoot = NodeNode $ Cfg.getRootNode cfg
           edgeDoms = BC.filterEdges $ G.getDominators eRoot edgeGraph
 
@@ -163,7 +163,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge rootNode endNode Cfg.TrueBranch
                 ]
 
-          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph BranchType PilNode
           eRoot = NodeNode $ Cfg.getRootNode cfg
           edgeDoms = BC.filterEdges $ G.getDominators eRoot edgeGraph
 
@@ -189,7 +189,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
 
           cfg = mkCfg 0 rootNode [] []
 
-          edgeGraph :: EdgeGraph PilNode
+          edgeGraph :: EdgeGraph BranchType PilNode
           edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
@@ -220,7 +220,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge trueNode2 endNode Cfg.UnconditionalBranch
                 ]
 
-          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph BranchType PilNode
 
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
@@ -278,7 +278,7 @@ spec = describe "Blaze.Cfg.Solver.BranchContext" $ do
                 , CfEdge trueNode1 endNode Cfg.UnconditionalBranch
                 ]
 
-          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph PilNode
+          edgeGraph = Eg.toEdgeGraph $ cfg ^. #graph :: EdgeGraph BranchType PilNode
           edgeDoms = BC.filterEdges $ G.getPostDominators dummyTermNode dummyTermEdgeType edgeGraph
 
           rootToFalse1 = CfEdge rootNode falseNode1 Cfg.FalseBranch

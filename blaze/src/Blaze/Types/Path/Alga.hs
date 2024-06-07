@@ -223,6 +223,13 @@ instance
               $ p1 ^. #graph
     }
 
+  connect p1 p2
+    | P.end p1 == P.root p2 = Just $ AlgaPath
+       { rootNode = p1 ^. #rootNode
+       , graph = G.addEdges (G.edges $ p2 ^. #graph) $ p1 ^. #graph
+       }
+    | otherwise = Nothing
+
   removeAfterNode n p = p & #graph %~ followAndRemove (P.succ n p)
     where
       followAndRemove Nothing g = g
@@ -237,6 +244,17 @@ instance
       backtrackAndRemove Nothing g = g
       backtrackAndRemove (Just x) g = backtrackAndRemove (P.pred x p)
         $ G.removeNode x g -- removing nodes removes edges with nodes in AlgaGraph
+
+  drop 0 p = p
+  drop i p = case P.succ root p of
+    Nothing -> p
+    Just n -> P.drop (i - 1) $ AlgaPath
+      { rootNode = G.getNodeId n
+      , graph = G.removeNode root $ p ^. #graph
+      }      
+    where
+      root = P.root p 
+
 
 getNode :: Hashable i => NodeId i -> AlgaPath l i n -> Maybe n
 getNode n p = HashMap.lookup n $ p ^. #graph . #nodeMap

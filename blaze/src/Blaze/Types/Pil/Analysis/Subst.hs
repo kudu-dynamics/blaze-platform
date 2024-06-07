@@ -5,7 +5,8 @@ import Blaze.Prelude
 
 import Blaze.Types.Cfg (CfNode, Cfg)
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Pil (CtxId, Ctx, PilVar, ExprOp, Expression, Statement)
+import Blaze.Types.Function (Function)
+import Blaze.Types.Pil (CtxId, Ctx, PilVar, ExprOp, Expression, Label(KeywordLabel, StackOffsetLabel), StackOffset, Statement)
 import qualified Blaze.Types.Pil as Pil
 
 
@@ -19,6 +20,10 @@ class FlatSubst a b => RecurSubst a b where
   -- | Default implementation is for case where b is a functor
   default recurSubst :: (Functor f, b ~ f c, RecurSubst a c) => (a -> a) -> b -> b
   recurSubst f b = recurSubst f <$> flatSubst f b
+
+instance FlatSubst a b => FlatSubst a (Maybe b) where
+  flatSubst _ Nothing = Nothing
+  flatSubst f (Just x) = Just $ flatSubst f x
 
 -- PilVar Substs
 
@@ -36,6 +41,14 @@ instance FlatSubst PilVar (ExprOp a) where
     x -> x
 
 instance RecurSubst PilVar a => RecurSubst PilVar (ExprOp a)
+
+fflatSubst
+  :: forall a b c. (FlatSubst a b, FlatSubst b c)
+  => (a -> a)
+  -> c
+  -> c
+fflatSubst f = flatSubst (flatSubst f :: b -> b) :: c -> c
+
 
 instance FlatSubst PilVar Expression where
   flatSubst _ = identity
@@ -129,3 +142,35 @@ instance FlatSubst Expression (Statement a) where
   flatSubst _ stmt = stmt
 
 instance RecurSubst Expression a => RecurSubst Expression (Statement a)
+
+---------- Function
+
+instance FlatSubst Function Function where
+  flatSubst f = f
+
+instance FlatSubst Function Ctx where
+  flatSubst = over #func
+
+instance FlatSubst Function PilVar where
+  flatSubst f = over #ctx $ flatSubst f
+
+instance FlatSubst Function StackOffset where
+  flatSubst f = over #ctx $ flatSubst f
+
+instance FlatSubst Function Label where
+  flatSubst f (StackOffsetLabel x) = StackOffsetLabel $ flatSubst f x
+  flatSubst _ x@(KeywordLabel _) = x
+
+instance FlatSubst Function (Pil.CallDest expr) where
+  flatSubst f (Pil.CallFunc func) = Pil.CallFunc $ f func
+  flatSubst _ x = x
+
+instance RecurSubst Function expr => RecurSubst Function (Pil.CallDest expr)
+
+-- instance FlatSubst Function Pil.CallSite where
+--   flatSubst f = over #callDest $ recurSubst f
+
+-- TODO: Anything else besides Ctx's in Exp
+instance FlatSubst Function Expression where
+  flatSubst = fflatSubst @Function @PilVar
+

@@ -6,9 +6,13 @@ module Flint.Types.Query
 import Flint.Prelude
 
 import Flint.Analysis.Path.Matcher (StmtPattern, BoundText)
+import Flint.Types.Cfg.Store (CfgStore)
+import qualified Flint.Cfg.Store as Store
 
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.CallGraph as Cg
+import qualified Blaze.Cfg as Cfg
+import Blaze.Types.Cfg (PilNode)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph as G
@@ -145,3 +149,20 @@ showCallSeqPrep x = "CallSeqPrep\n"
   <> " , lastCall = " <> x ^. #lastCall . #name <> "\n"
   <> " , callSeq = [" <> Text.intercalate ", " (fmap (view #name) . NE.toList $ x ^. #callSeq) <> "]}\n"
   <> " }"
+
+-- | Gets a PilNode for the identifier.
+--   If it can't find it, it should immediately report an error.
+class GetNode x where
+  getNode :: CfgStore -> Function -> x -> IO PilNode
+
+instance GetNode PilNode where
+  getNode _ _ = pure
+
+instance GetNode Address where
+  getNode store func addr = do
+    Store.getFuncCfgInfo store func >>= \case
+      Nothing -> error $ "Could not find CfgInfo for " <> show func
+      Just cfgInfo -> case filter (Cfg.nodeContainsAddress addr) . HashSet.toList $ cfgInfo ^. #nodes of
+        [] -> error $ "No nodes in " <> show func <> " contain address " <> show addr
+        [x] -> return x
+        xs -> error $ "Multiple nodes in " <> show func <> " contain address " <> show addr <> ":\n" <> show xs

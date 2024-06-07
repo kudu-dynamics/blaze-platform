@@ -38,10 +38,17 @@ class IsPath l n p | p -> l where
   -- Edge lable `l` is used between last node of p1 and first of p2
   append :: p n -> l -> p n -> p n
 
+  -- | Connects two paths through common end/start node.
+  -- where last node of path 1 == first node of path 2
+  connect :: p n -> p n -> Maybe (p n)
+
   -- | Removes path after n, but keeps n
   removeAfterNode :: n -> p n -> p n
   -- | Removes path before n, but keeps n
   removeBeforeNode :: n -> p n -> p n
+
+  -- | Drops max(n, len(p) - 1)  nodes from start of path
+  drop :: Word64 -> p n -> p n
 
 class PathConstruct l n p | p -> l where
   -- | From a graph with a single path. Fails if g is empty or has multiple paths

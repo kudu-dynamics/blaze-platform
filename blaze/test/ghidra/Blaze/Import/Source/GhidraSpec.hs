@@ -8,16 +8,12 @@ import Blaze.CallGraph (getCallGraph)
 import Blaze.Function (Function)
 import Blaze.Import.Binary (BinaryImporter (getEnd, getStart, openBinary, rebaseBinary))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
-import Blaze.Import.Source.Ghidra (
-  GhidraImporter (
-    GhidraImporter
-  ),
- )
-import Blaze.Import.Source.Ghidra qualified as G
+import Blaze.Import.Source.Ghidra (GhidraImporter)
+import qualified Blaze.Import.Source.Ghidra as G
 import Blaze.Prelude hiding (Symbol)
-import Blaze.Types.Graph qualified as Graph
+import qualified Blaze.Types.Graph as Graph
 
-import Data.HashSet qualified as HashSet
+import qualified Data.HashSet as HashSet
 import Test.Hspec
 
 diveBin :: FilePath

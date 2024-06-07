@@ -14,7 +14,7 @@ import Blaze.Function (
   Function (Function),
   ParamInfo (ParamInfo),
  )
-import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
+import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions, getFunction))
 import Blaze.Import.Binary (BinaryImporter (openBinary, rebaseBinary, getStart, getEnd))
 import Blaze.Import.Cfg (CfgImporter (getCfg))
 import Blaze.Prelude hiding (Symbol)
@@ -37,6 +37,9 @@ import Test.Hspec
 
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+
+cfgImporterTestBin :: FilePath
+cfgImporterTestBin = "res/test_bins/cfg_importer_test/test.bndb"
 
 findFunc :: Text -> [Function] -> Maybe Function
 findFunc funcName = find ((== funcName) . (^. #name))
@@ -74,7 +77,8 @@ spec = describe "Blaze.Import.Source.BinaryNinja" $ do
     it "should import call sites" $ do
       length changeDiveCalls `shouldBe` 3
       length printfCalls `shouldBe` 35
-  context "Importing CFGs" $ do
+
+  context "Importing CFGs (DiveLogger)" $ do
     bv <- unsafeFromRight <$> runIO (BN.getBinaryView diveBin)
     runIO $ BN.updateAnalysisAndWait bv
     let importer = BNImporter bv
@@ -125,3 +129,10 @@ spec = describe "Blaze.Import.Source.BinaryNinja" $ do
           , Cfg.fromTupleEdge (UnconditionalBranch, (nodeAt 9, nodeAt 12))
           , Cfg.fromTupleEdge (UnconditionalBranch, (nodeAt 12, nodeAt 14))
           ]
+
+  context "Importing CFGs (cfg_importer_test bin)" $ do
+    (imp :: BNImporter) <- fmap unsafeFromRight . runIO $ openBinary cfgImporterTestBin 
+    rootNodeIsOnlyGotoFunc <- fmap fromJust . runIO $ getFunction imp 0x1159
+
+    it "Should get CFG for function that starts with node that has single goto" $
+      (isJust <$> getCfg imp rootNodeIsOnlyGotoFunc 0) `shouldReturn` True

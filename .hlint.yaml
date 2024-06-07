@@ -3,3 +3,5 @@
     within: "**.*Spec"
 - ignore:
     name: Use list comprehension
+- ignore:
+    name: Use if

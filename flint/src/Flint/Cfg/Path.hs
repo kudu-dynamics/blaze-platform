@@ -1,3 +1,5 @@
+{- HLINT ignore "Use if" -}
+
 module Flint.Cfg.Path where
 
 import Flint.Prelude
@@ -8,16 +10,22 @@ import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Util (incUUID)
 
-import Blaze.Cfg.Path (PilPath)
+import qualified Blaze.Cfg.Interprocedural as InterCfg
+import Blaze.Cfg.Path (PilPath, SequenceChooserState, initSequenceChooserState, samplePathContainingSequence_)
 import qualified Blaze.Cfg.Path as CfgPath
+import Blaze.Graph (StrictDescendantsMap, Route)
+import qualified Blaze.Graph as G
 import qualified Blaze.Path as Path
-import Blaze.Path (SampleRandomPathError')
+import Blaze.Path (SampleRandomPathError', pickFromListFp)
+import Blaze.Pretty (pretty', FullCfNode(FullCfNode))
 import Blaze.Types.Function (Function)
-import Blaze.Types.Cfg (CallNode, PilNode)
+import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Pil (Stmt)
+
 import qualified Data.List.NonEmpty as NE
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.List (nub)
 
@@ -60,7 +68,7 @@ exploreFromStartingFunc_ pickFromRange expansionChooser currentDepth store start
   Just cfgInfo -> do
     er <- CfgPath.sampleRandomPath_
       pickFromRange
-      (cfgInfo ^. #descendantsMap)
+      (cfgInfo ^. #strictDescendantsMap)
       (cfgInfo ^. #acyclicCfg)
     case er of
       Left err -> error $ "Unexpected sampleRandomPath_ failure: " <> show err
@@ -89,17 +97,41 @@ expandAllStrategy
   -> CallDepth
   -> CfgStore
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
-expandAllStrategy pickFromRange expandDepthLimit store func currentDepth
+expandAllStrategy _pickFromRange expandDepthLimit store func currentDepth
   | currentDepth > expandDepthLimit = return Nothing
   | otherwise = lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
       Nothing -> return Nothing
       Just cfgInfo -> do
-        path <- CfgPath.sampleRandomPath_'
-          (Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #descendantsMap)
-          ()
-          (cfgInfo ^. #acyclicCfg)
-        let expCalls = ExpandCall (currentDepth + 1) <$> cfgInfo ^. #calls
-        return $ Just (path, HashSet.fromList expCalls)
+        -- path <- CfgPath.sampleRandomPath_'
+        --   (Path.toFullChooser . Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #strictDescendantsMap)
+        --   ()
+        --   (cfgInfo ^. #acyclicCfg)
+        let rootNode = Cfg.getRootNode $ cfgInfo ^. #cfg
+            retNodes :: [PilNode]
+            retNodes = fmap (Cfg.BasicBlock . view #basicBlock) . InterCfg.getRetNodes $ cfgInfo ^. #cfg
+        case retNodes of
+          [] -> return Nothing -- TODO: shouldn't be error, should just snip
+          (r:rs) -> do
+            retNode <- pickFromList randomRIO $ r :| rs
+            let seqState = initSequenceChooserState [retNode]
+            rpath <- liftIO $ CfgPath.samplePathContainingSequenceIO
+                     (cfgInfo ^. #strictDescendantsMap)
+                     seqState
+                     rootNode
+                     (cfgInfo ^. #cfg)
+            case rpath of
+              Left err -> do
+                error $ "Error sampling path: " <> show err
+                -- return Nothing -- TODO: should this be error?
+              Right (path, _sst) -> do
+                -- TODO: only expand calls that are actually in path.
+                let expCalls = fmap (ExpandCall (currentDepth + 1))
+                               . mapMaybe (^? #_Call)
+                               . HashSet.toList
+                               . Path.nodes
+                               $ path
+                -- let expCalls = ExpandCall (currentDepth + 1) <$> cfgInfo ^. #calls
+                return $ Just (path, HashSet.fromList expCalls)
 
 exploreDeepStrategy
   :: ((Int, Int) -> IO Int)
@@ -112,7 +144,7 @@ exploreDeepStrategy pickFromRange expandDepthLimit store func currentDepth
       Nothing -> return Nothing
       Just cfgInfo -> do
         path <- CfgPath.sampleRandomPath_'
-          (Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #descendantsMap)
+          (Path.toFullChooser . Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #strictDescendantsMap)
           ()
           (cfgInfo ^. #acyclicCfg)
         case getCallsFromPath path of
@@ -159,9 +191,9 @@ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTarg
                                         , HashSet.singleton $ ExpandCall (currentDepth + 1) targetCallNode
                                         )
           path <- CfgPath.sampleRandomPath_'
-            (Path.chooseChildByDescendantCountAndReqSomeNodes
+            (Path.toFullChooser . Path.chooseChildByDescendantCountAndReqSomeNodes
               pickFromRange
-              $ cfgInfo ^. #descendantsMap)
+              $ cfgInfo ^. #strictDescendantsMap)
             (Path.InitReqNodes $ HashSet.singleton targetNode)
             (cfgInfo ^. #acyclicCfg)
           return $ Just (path, expandLater)
@@ -209,7 +241,6 @@ mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
         Just ancestors -> return ancestors
       return . HashSet.insert func $ HashSet.union ancestors s
 
-
 -- | For now, we take the indolent approach and use ExpandToTarget
 -- to reach a callsite for the last function in the CallSeq, ignoring all
 -- the functions that may occur before.
@@ -237,46 +268,6 @@ mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
         Nothing -> error $ "Could not find func ancestors for " <> show func
         Just ancestors -> return ancestors
       return . HashSet.insert func $ HashSet.union ancestors s
-
-
--- -- | This strategy only expands call nodes that reach a target basic block.
--- -- If multiple calls reach the target, it randomly chooses one.
--- -- If the target is within the Cfg itself and through calls, it randomly chooses
--- -- between reaching the target in the current function, or pursuing a call.
--- expandAlongCallSeqStrategy
---   :: ((Int, Int) -> IO Int)
---   -> CallDepth
---   -> CfgStore
---   -> ExplorationStrategy (CallDepth, CallSeq) (SampleRandomPathError' PilNode) IO
--- expandAlongCallSeqStrategy pickFromRange expandDepthLimit store func (currentDepth, callSeq) =
---   if currentDepth > expandDepthLimit then
---     return Nothing
---   else lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
---     Nothing -> return Nothing
---     Just cfgInfo -> do
---       let nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` (cfgInfo ^. #acyclicCfg)) . NE.toList $ targets
---           callNodesThatLeadToTargets :: [CallNode [Stmt]]
---           callNodesThatLeadToTargets
---             = filter (maybe False (`HashSet.member` funcsThatLeadToTargets) . getCallNodeFunc)
---             $ cfgInfo ^. #calls
---           combined = (Left <$> nodesContainingTargets) <> (Right <$> callNodesThatLeadToTargets)
---       case NE.nonEmpty combined of
---         Nothing -> return Nothing
---         Just ne -> do
---           choice <- lift (pickFromList pickFromRange ne)
---           let (targetNode, expandLater) = case choice of
---                 Left targetNode' -> (targetNode', HashSet.empty)
---                 Right targetCallNode -> ( Cfg.Call targetCallNode
---                                         , HashSet.singleton $ ExpandCall (currentDepth + 1) targetCallNode
---                                         )
---           path <- CfgPath.sampleRandomPath_'
---             (Path.chooseChildByDescendantCountAndReqSomeNodes
---               pickFromRange
---               $ cfgInfo ^. #descendantsMap)
---             (Path.InitReqNodes $ HashSet.singleton targetNode)
---             (cfgInfo ^. #acyclicCfg)
---           return $ Just (path, expandLater)
-
 
 getCallsFromPath :: PilPath -> [CallNode [Stmt]]
 getCallsFromPath = mapMaybe (^? #_Call) . HashSet.toList . Path.nodes
@@ -331,12 +322,14 @@ exploreForward_ genUuid exploreStrat st startingFunc = do
         $ foldl
         (\p (callNode, innerPath, leaveFuncUuid) ->
             case CfgPath.expandCall leaveFuncUuid p callNode innerPath of
-              Nothing -> error $ "Failed to expand call: " <> show callNode
+              Nothing -> error
+                $  "\n\nFailed to expand call:\n " <> cs (pretty' $ FullCfNode . Cfg.Call $ callNode)
+                <> "\n\nOuter path:\n" <> cs (pretty' $ FullCfNode <$> p)
+                <> "\n\nInner Path:\n" <> cs (pretty' $ FullCfNode <$> innerPath)
               Just p' -> p'
         )
         mainPath
         innerPaths
-
 
 -- | Gets samples for a Query.
 samplesFromQuery
@@ -379,3 +372,135 @@ samplesFromQuery store = \case
           putText $ "ERROR getting sample: " <> show err
           return Nothing
         Right mpath -> return mpath
+
+data SampleFromRouteState = SampleFromRouteState
+  { remaningRoute :: Route Function PilNode
+  , sequenceChooserState :: SequenceChooserState
+  } deriving (Eq, Ord, Show, Generic)
+
+-- | Returns True of node returns control flow to caller
+isReturnNode :: PilNode -> Bool
+isReturnNode (Cfg.BasicBlock bb) = isJust $ Cfg.parseReturnNode bb
+isReturnNode _ = False
+
+sampleFromRoute_
+  :: forall m. Monad m
+  => SequenceChooserState
+  -> m Double
+  -> m UUID
+  -> HashMap Function PilCfg
+  -> HashMap Function (StrictDescendantsMap PilNode) -- dmaps of local cfg nodes
+  -> Function -- start func
+  -> PilNode -- start node
+  -> Route Function PilNode
+  -> m (Maybe (PilPath, (Route Function PilNode, SequenceChooserState)))
+sampleFromRoute_ _ _ _ _ _ _ _ [] = return Nothing
+sampleFromRoute_ seqState randDouble randUUID cfgs dmaps currentFunc currentNode (paction:pactions) =
+  case paction of
+    G.Finished -> return Nothing
+    G.InnerNode n -> do
+      -- TODO: maybe this should return Nothing instead of throwing an error?
+      let dmap = fromMaybe (error $ "Couldn't find " <> show currentFunc <> " in dmaps")
+                 $ HashMap.lookup currentFunc dmaps
+          cfg = fromMaybe (error $ "Couldn't find " <> show currentFunc <> " in cfgs")
+                $ HashMap.lookup currentFunc cfgs
+          seqState' = seqState & #seqAndVisitCounts . #reqSeq .~ [currentNode, n]
+      samplePathContainingSequence_ randDouble randUUID dmap seqState' currentNode cfg >>= \case
+        Left err -> error $ show err
+        Right (p, seqState'') -> do
+          r <- sampleFromRoute_ seqState'' randDouble randUUID cfgs dmaps currentFunc n pactions
+          case r of
+            -- Rest of route "Finished", hopefully...
+            Nothing -> return $ Just (p, ([], seqState'')) -- or return Nothing?
+            Just (p', (route', seqState''')) ->
+              case Path.connect p p' of
+                Nothing -> error "Could not connect paths"
+                Just p'' -> return $ Just (p'', (route', seqState'''))
+    G.EnterContext callNode destFunc -> do
+      let dmap = fromMaybe (error $ "Couldn't find " <> show currentFunc <> " in dmaps")
+            $ HashMap.lookup currentFunc dmaps
+          cfg = fromMaybe (error $ "Couldn't find " <> show currentFunc <> " in cfgs")
+            $ HashMap.lookup currentFunc cfgs
+          destCfg = fromMaybe (error $ "Couldn't find dest func " <> show currentFunc <> " in cfgs")
+            $ HashMap.lookup destFunc cfgs
+          asCallNode = case callNode of
+            Cfg.Call x -> x
+            _ -> error "Expected call node to be call node"
+          seqState' = seqState & #seqAndVisitCounts . #reqSeq .~ [currentNode, callNode]
+
+      -- Get path from current node to call node
+      samplePathContainingSequence_ randDouble randUUID dmap seqState' currentNode cfg >>= \case
+        Left err -> error $ show err
+        Right (pathToCallNode, seqStateAfterCallNodeReached) -> do
+
+          -- Get inner path and eat up some route actions
+          r <- sampleFromRoute_ (initSequenceChooserState []) randDouble randUUID cfgs dmaps destFunc (Cfg.getRootNode destCfg) pactions
+          case r of
+            Nothing -> return Nothing -- failed to get inner path
+            Just (innerPath, (routeAfterInnerExpansion, seqStateAfterInnerExpansion)) -> do
+              (innerPath' :: PilPath) <- flip CfgPath.safeTraverse innerPath $ \n -> do
+                uuid <- randUUID
+                return $ Cfg.setNodeUUID uuid n
+              leaveFuncUUID <- randUUID
+              case CfgPath.expandCall leaveFuncUUID pathToCallNode asCallNode innerPath' of
+                Nothing -> error $ "Failed to expand call node:\n " <> show asCallNode
+                Just pathWithExpandedCall -> do
+                  case routeAfterInnerExpansion of
+                    -- No more routes. This means the path was cut off inside
+                    -- the call and there is no LeaveFuncNode
+                    [] -> return $ Just (pathWithExpandedCall, ([], seqStateAfterCallNodeReached))
+                    routez -> do
+                      let lastNode = Path.end pathWithExpandedCall
+                      case Cfg.getNodeUUID lastNode == leaveFuncUUID of
+                        False -> error $ "Expected last node of expanded path to be LeaveFuncNode" <> ". truth b, there wuz these routez: " <> show routez
+                        True -> do
+                          -- Get rest of path from callNode.
+                          sampleFromRoute_ seqStateAfterCallNodeReached randDouble randUUID cfgs dmaps currentFunc callNode routeAfterInnerExpansion >>= \case
+                            Nothing -> return $ Just (pathWithExpandedCall, (routeAfterInnerExpansion, seqStateAfterInnerExpansion)) -- or return Nothing?
+                            Just (pathFromCallNode, (finalRoute, finalSeqState)) -> do
+                              let finalPath
+                                    = Path.append
+                                      pathWithExpandedCall Cfg.UnconditionalBranch
+                                      $ Path.drop 1 pathFromCallNode
+                              return $ Just (finalPath, (finalRoute, finalSeqState))
+    G.ExitContext _ -> do
+      -- TODO: maybe this should return Nothing instead of throwing an error?
+      let dmap = fromMaybe (error $ "Couldn't find " <> show currentFunc <> " in dmaps")
+                 $ HashMap.lookup currentFunc dmaps
+          cfg = fromMaybe (error $ "Couldn't find " <> show currentFunc <> " in cfgs")
+                $ HashMap.lookup currentFunc cfgs
+          rets = filter isReturnNode . HashSet.toList . Cfg.nodes $ cfg
+      case rets of
+        [] -> return Nothing
+        (ret:rets') -> do
+          pickedRet <- pickFromListFp randDouble $ ret :| rets'
+          let seqState' = seqState & #seqAndVisitCounts . #reqSeq .~ [currentNode, pickedRet]
+          samplePathContainingSequence_ randDouble randUUID dmap seqState' currentNode cfg >>= \case
+            Left _err ->
+              -- TODO: I think this function is overloading Nothing, using it both for an
+              -- "abort-everything" and for a "route finished"
+              -- Either pick one use for it or make a new type with 3 options
+              return Nothing -- Sometimes no ret node can be reached
+            Right (p, seqState'') -> return $ Just (p, (pactions, seqState''))
+
+sampleFromRoute
+  :: forall m. Monad m
+  => m Double
+  -> m UUID
+  -> HashMap Function PilCfg
+  -> HashMap Function (StrictDescendantsMap PilNode) -- dmaps of local cfg nodes
+  -> Function -- start func
+  -> PilNode -- start node
+  -> Route Function PilNode
+  -> m (Maybe (PilPath, (Route Function PilNode, SequenceChooserState)))
+sampleFromRoute = sampleFromRoute_ $ initSequenceChooserState []
+
+sampleFromRouteIO
+  :: HashMap Function PilCfg
+  -> HashMap Function (StrictDescendantsMap PilNode) -- dmaps of local cfg nodes
+  -> Function -- start func
+  -> PilNode -- start node
+  -> Route Function PilNode
+  -> IO (Maybe (PilPath, (Route Function PilNode, SequenceChooserState)))
+sampleFromRouteIO = sampleFromRoute randomIO randomIO
+                 

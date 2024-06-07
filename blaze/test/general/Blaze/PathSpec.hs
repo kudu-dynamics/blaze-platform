@@ -5,30 +5,31 @@ module Blaze.PathSpec where
 import Blaze.Prelude
 
 import qualified Blaze.Graph as G
-import Blaze.Types.Graph (NodeId(NodeId), DescendantsMap)
+import Blaze.Types.Graph (NodeId(NodeId), StrictDescendantsMap)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import Blaze.Path
 import Blaze.Types.Path.Alga (AlgaPath(AlgaPath, rootNode, graph))
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 import Test.Hspec
 
 type TextGraph = AlgaGraph Int Text Text
 type TextPath = AlgaPath Int Text Text
-type TextDescendantsMap = DescendantsMap Text
+type TextDescendantsMap = StrictDescendantsMap Text
 
 graphEmpty :: TextGraph
 graphEmpty = G.empty
 
 graphEmptyDmap :: TextDescendantsMap
-graphEmptyDmap = G.calcDescendantsMap graphEmpty
+graphEmptyDmap = G.calcStrictDescendantsMap graphEmpty
 
 graphSingleNode :: TextGraph
 graphSingleNode = G.fromNode "a"
 
 graphSingleNodeDmap :: TextDescendantsMap
-graphSingleNodeDmap = G.calcDescendantsMap graphSingleNode
+graphSingleNodeDmap = G.calcStrictDescendantsMap graphSingleNode
 
 pathSingleNode :: TextPath
 pathSingleNode = AlgaPath
@@ -42,7 +43,7 @@ graphSingleEdge =
     [(1, ("a", "b"))]
 
 graphSingleEdgeDmap :: TextDescendantsMap
-graphSingleEdgeDmap = G.calcDescendantsMap graphSingleEdge
+graphSingleEdgeDmap = G.calcStrictDescendantsMap graphSingleEdge
 
 graphSinglePath :: TextGraph
 graphSinglePath =
@@ -53,7 +54,7 @@ graphSinglePath =
     ]
 
 graphSinglePathDmap :: TextDescendantsMap
-graphSinglePathDmap = G.calcDescendantsMap graphSinglePath
+graphSinglePathDmap = G.calcStrictDescendantsMap graphSinglePath
 
 pathManyNodes :: TextPath
 pathManyNodes = AlgaPath
@@ -83,7 +84,20 @@ graphTwoPaths =
     ]
 
 graphTwoPathsDmap :: TextDescendantsMap
-graphTwoPathsDmap = G.calcDescendantsMap graphTwoPaths
+graphTwoPathsDmap = G.calcStrictDescendantsMap graphTwoPaths
+
+graphTwoUnevenPaths :: TextGraph
+graphTwoUnevenPaths =
+  G.fromEdges . fmap G.fromTupleLEdge $
+    [ (1, ("a", "b"))
+    , (2, ("b", "fin"))
+    , (3, ("a", "c"))
+    , (4, ("a", "d"))
+    , (5, ("d", "fin"))
+    ]
+
+graphTwoUnevenPathsDmap :: TextDescendantsMap
+graphTwoUnevenPathsDmap = G.calcStrictDescendantsMap graphTwoUnevenPaths
 
 graphMultiPath :: TextGraph
 graphMultiPath =
@@ -100,7 +114,7 @@ graphMultiPath =
     ]
 
 graphMultiPathDmap :: TextDescendantsMap
-graphMultiPathDmap = G.calcDescendantsMap graphMultiPath
+graphMultiPathDmap = G.calcStrictDescendantsMap graphMultiPath
 
 graphWithSingleLoop :: TextGraph
 graphWithSingleLoop =
@@ -126,7 +140,7 @@ graphWithDiamondLoop =
 
 
 graphWithSingleLoopDmap :: TextDescendantsMap
-graphWithSingleLoopDmap = G.calcDescendantsMap graphWithSingleLoop
+graphWithSingleLoopDmap = G.calcStrictDescendantsMap graphWithSingleLoop
 
 graphWithSingleLoopAndExit :: TextGraph
 graphWithSingleLoopAndExit =
@@ -141,8 +155,31 @@ graphWithSingleLoopAndExit =
     ]
 
 graphWithSingleLoopAndExitDmap :: TextDescendantsMap
-graphWithSingleLoopAndExitDmap = G.calcDescendantsMap graphWithSingleLoopAndExit
+graphWithSingleLoopAndExitDmap = G.calcStrictDescendantsMap graphWithSingleLoopAndExit
 
+-- This is the outling for a similar PIL cfg used to mock out func4
+graphWithLoopAndInnerBranch :: TextGraph
+graphWithLoopAndInnerBranch =
+  G.fromEdges . fmap G.fromTupleLEdge $
+  [ (1, ("a", "b"))
+  , (2, ("a", "r"))
+  
+  , (3, ("b", "c"))
+
+  , (4, ("c", "d"))
+  , (5, ("c", "r"))
+
+  , (6, ("d", "e"))
+  , (7, ("d", "f"))
+
+  , (8, ("e", "g"))
+  , (9, ("f", "g"))
+
+  , (10, ("g", "c"))
+  ]
+
+graphWithLoopAndInnerBranchDmap :: TextDescendantsMap
+graphWithLoopAndInnerBranchDmap = G.calcStrictDescendantsMap graphWithLoopAndInnerBranch
 
 spec :: Spec
 spec = describe "Blaze.Path" $ do
@@ -152,7 +189,8 @@ spec = describe "Blaze.Path" $ do
       returnLowest :: (a, a) -> IO a
       returnLowest (a, _) = return a
       returnHighest :: (a, a) -> IO a
-      returnHighest (_, b) = return b 
+      returnHighest (_, b) = return b
+      samplePath__ chooser s n = fmap fst . samplePath_ chooser s n
 
   context "getAllPaths" $ do
     
@@ -395,9 +433,9 @@ spec = describe "Blaze.Path" $ do
     it "should return error if child node not found in descendants map" $ do
       let dmap = graphEmptyDmap
           parentNode = "a" :: Text
-          childNodes = ((), "b") :| []
+          childNodes = [((), "b")]
           expected = Left $ ChildNodeNotFoundInDescendantMap "b"
-          action = runExceptT $ chooseChildByDescendantCount returnLowest dmap () parentNode childNodes
+          action = flip runMonadChooser () $ chooseChildByDescendantCount returnLowest dmap parentNode childNodes
       action `shouldReturn` expected
 
 
@@ -472,3 +510,97 @@ spec = describe "Blaze.Path" $ do
           action = sampleRandomPath_ returnHighest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
       action `shouldReturn` expected
 
+  context "samplePath_ sequence" $ do
+    it "should return Left error if graph is empty" $ do
+      let graph = G.empty :: TextGraph
+          seq' = []
+          dmap = graphEmptyDmap
+          expected = Left StartNodeNotInGraph
+          chooser = toFullChooser $ chooseChildByDescendantCountAndSequence returnLowest dmap
+          action = runExceptT $ samplePath__ chooser seq' "a" graph :: IO (Either (SampleRandomPathError' Text) TextPath)
+      action `shouldReturn` expected
+
+    it "should return single node path of seq is empty" $ do
+      let graph = graphSingleNode :: TextGraph
+          seq' = []
+          dmap = graphSingleNodeDmap
+          startNode = "a"
+          chooser = toFullChooser $ chooseChildByDescendantCountAndSequence returnLowest dmap
+          action = runExceptT $ samplePath__ chooser seq' startNode graph :: IO (Either (SampleRandomPathError' Text) TextPath)
+          expected = Right . mkTextPath $ start "a"
+      action `shouldReturn` expected
+
+    it "should error if single seq and single node don't match" $ do
+      let graph = graphSingleNode :: TextGraph
+          seq' = ["b"]
+          dmap = graphSingleNodeDmap
+          startNode = "a" 
+          chooser = toFullChooser $ chooseChildByDescendantCountAndSequence returnLowest dmap
+          action = runExceptT $ samplePath__ chooser seq' startNode graph :: IO (Either (SampleRandomPathError' Text) TextPath)
+          expected = Left . BranchChooserError $ ReqNodeCannotBeReached
+      action `shouldReturn` expected
+
+    it "should succeed if single seq and single node match" $ do
+      let graph = graphSingleNode :: TextGraph
+          seq' = ["a"]
+          dmap = graphSingleNodeDmap
+          startNode = "a" 
+          chooser = toFullChooser $ chooseChildByDescendantCountAndSequence returnLowest dmap
+          action = runExceptT $ samplePath__ chooser seq' startNode graph :: IO (Either (SampleRandomPathError' Text) TextPath)
+          expected = Right . mkTextPath $ start "a"
+      action `shouldReturn` expected
+
+    it "should find path that matches seq" $ do
+      let graph = graphMultiPath :: TextGraph
+          dmap = graphMultiPathDmap
+          seq' = ["a", "d"]
+          startNode = "a"
+          chooser = toFullChooser $ chooseChildByDescendantCountAndSequence returnLowest dmap
+          action = runExceptT $ samplePath__ chooser seq' startNode graph :: IO (Either (SampleRandomPathError' Text) TextPath)
+          expected = Right . mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d"
+      action `shouldReturn` expected
+
+    it "should fail if order cannot be matched" $ do
+      let graph = graphMultiPath :: TextGraph
+          dmap = graphMultiPathDmap
+          seq' = ["a", "d", "c"]
+          startNode = "a"
+          chooser = toFullChooser $ chooseChildByDescendantCountAndSequence returnLowest dmap
+          action = runExceptT $ samplePath__ chooser seq' startNode graph :: IO (Either (SampleRandomPathError' Text) TextPath)
+          expected = Left . BranchChooserError $ ReqNodeCannotBeReached
+      action `shouldReturn` expected
+
+  context "chooseChildByLeastVisitedDescendantCount" $ do
+    -- run the chooser 10 times with random in range of 0.0-1.0 and records
+    -- number of times each child node is chosen
+    let getChooserResults :: StrictDescendantsMap Text -> VisitCounts Text -> Text -> [(Int, Text)] -> HashMap (Int, Text) Int
+        getChooserResults dmap visitCounts parentNode choices = foldl' tryChooser HashMap.empty ([0..99] :: [Int])
+          where
+            tryChooser results n = let randDouble = return $ fromIntegral n / 100.0 in
+              case runIdentity . flip runMonadChooser visitCounts $ chooseChildByLeastVisitedDescendantCount randDouble dmap parentNode choices of
+                Left err -> error $ show err
+                Right (Nothing, _) -> results
+                Right (Just x, _) -> HashMap.alter (maybe (Just 1) (Just . (+1))) x results
+        hasGreaterChance m a b = fromJust (HashMap.lookup a m) > fromJust (HashMap.lookup b m)
+    
+    it "should choose child with 50/50 chance if desc count is equal and no visitcounts" $ do
+      let dmap = graphTwoPathsDmap
+          visitCounts = emptyVisitCounts
+          parentNode = "a"
+          choices = [(1, "b"), (3, "c")]
+          
+          action = getChooserResults dmap visitCounts parentNode choices
+          expected = HashMap.fromList
+            [((1, "b"), 50)
+            ,((3, "c"), 50)
+            ]
+      action `shouldBe` expected
+
+    it "should favor child with descs that have not been visited" $ do
+      let dmap = graphTwoPathsDmap
+          visitCounts = visitCountsFromList [("b", 1)]
+          parentNode = "a"
+          choices = [(1, "b"), (3, "c")]
+          
+          action = getChooserResults dmap visitCounts parentNode choices
+      hasGreaterChance action (3, "c") (1, "b") `shouldBe` True

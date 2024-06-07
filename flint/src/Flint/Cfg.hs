@@ -2,10 +2,10 @@ module Flint.Cfg (module Flint.Cfg) where
 
 import Flint.Prelude hiding (sym)
 
-import qualified Blaze.Cfg.Interprocedural as InterCfg
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
 
+import qualified Blaze.Cfg.Interprocedural as InterCfg
 import Blaze.Types.Cfg (PilCallNode, PilCfg, HasCtx(getCtx))
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Pil (CallDest)

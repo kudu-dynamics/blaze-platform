@@ -64,6 +64,7 @@ library
       Blaze.Pil.Checker.Unification
       Blaze.Pil.Construct
       Blaze.Pil.Display
+      Blaze.Pil.Eval
       Blaze.Pil.Function
       Blaze.Pil.Parse
       Blaze.Pil.Summary
@@ -192,6 +193,7 @@ library
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -261,6 +263,7 @@ executable demo
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -328,6 +331,7 @@ executable find_mlil_ssa
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -396,6 +400,7 @@ executable gen_pil_ops
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -469,6 +474,7 @@ test-suite blaze-binja-test
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -545,6 +551,7 @@ test-suite blaze-general-test
       Blaze.Pil.Checker.UnificationSpec
       Blaze.Pil.CheckerSpec
       Blaze.Pil.ConstructSpec
+      Blaze.Pil.EvalSpec
       Blaze.Pil.ParseSpec
       Blaze.Pil.SolverSpec
       Blaze.Pil.SummarySpec
@@ -567,6 +574,7 @@ test-suite blaze-general-test
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -642,6 +650,7 @@ test-suite blaze-ghidra-test
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction
@@ -712,6 +721,7 @@ benchmark call-graph-benchmark
       DuplicateRecordFields
       FunctionalDependencies
       GADTs
+      ImportQualifiedPost
       LambdaCase
       NoImplicitPrelude
       NoMonomorphismRestriction

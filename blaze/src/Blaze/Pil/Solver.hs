@@ -450,6 +450,12 @@ guardBool x = case k of
 svBoolNot :: SVal -> SVal
 svBoolNot = unSBV . SBV.sNot . toSBool'
 
+svBoolOr :: SVal -> SVal -> SVal
+svBoolOr l r = unSBV $ SBV.sOr [toSBool' l, toSBool' r]
+
+svBoolAnd :: SVal -> SVal -> SVal
+svBoolAnd l r = unSBV $ SBV.sAnd [toSBool' l, toSBool' r]
+
 guardIntegral :: HasKind a => a -> Solver ()
 guardIntegral x = case k of
   KBounded _ _ -> return ()
@@ -621,7 +627,19 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     let stride = svInteger (kindOf base) . fromIntegral $ x ^. #stride
     pure $ base `svPlus` (zeroExtend (fromIntegral $ intSizeOf base) index `svTimes` stride)
 
-  Pil.AND x -> integralBinOpMatchSecondArgToFirst x svAnd
+  Pil.AND x -> do
+    lx <- solveExprRec (x ^. #left)
+    rx <- solveExprRec (x ^. #right)
+    let kl = kindOf lx
+        kr = kindOf rx
+    case (kl, kr) of
+      (KBool, KBool) -> do
+        return $ svBoolAnd lx rx
+      _ -> do
+        guardIntegralFirstWidthNotSmaller lx rx
+        let rx' = matchSign lx (matchBoundedWidth lx rx)
+        return $ svAnd lx rx'
+
   Pil.ASR x -> integralBinOpUnrelatedArgs x sSignedShiftArithRight
   Pil.BOOL_TO_INT x -> do
     b <- solveExprRec $ x ^. #src
@@ -793,11 +811,22 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
     y <- solveExprRec $ x ^. #src
     let k = kindOf y
     case k of
-      KBool -> return $ unSBV . SBV.sNot . toSBool' $ y
+      KBool -> return $ svBoolNot y
       (KBounded _ _) -> return $ svNot y
       _ -> throwError . ErrorMessage $ "NOT expecting Bool or Integral, got " <> show k
 
-  Pil.OR x -> integralBinOpMatchSecondArgToFirst x svOr
+  Pil.OR x -> do
+    lx <- solveExprRec (x ^. #left)
+    rx <- solveExprRec (x ^. #right)
+    let kl = kindOf lx
+        kr = kindOf rx
+    case (kl, kr) of
+      (KBool, KBool) -> do
+        return $ svBoolOr lx rx
+      _ -> do
+        guardIntegralFirstWidthNotSmaller lx rx
+        let rx' = matchSign lx (matchBoundedWidth lx rx)
+        return $ svOr lx rx'
   Pil.POPCNT x ->
     integralUnOpM x $ \bv -> do
       case liftSFiniteBits' sPopCount bv of

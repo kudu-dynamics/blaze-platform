@@ -234,7 +234,6 @@ getCfg imp bv func currentCtxId = do
           mlilRefMap = HMap.filterWithKey (\k _ -> not $ isGotoBlock k) mlilRefMapWithGotos
           mlilRootNode = Cfg.getRootNode mlilCfg
           mlilRestNodes = HashSet.toList $ (HashSet.delete mlilRootNode . G.nodes) mlilCfg
-
       pilRootNode <- convertToPilNode imp (ctx ^. #ctxId) mlilRefMap mlilRootNode
       pilRestNodes <- traverse (convertToPilNode imp (ctx ^. #ctxId) mlilRefMap) mlilRestNodes
       let mlilToPilNodeMap =

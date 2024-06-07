@@ -10,14 +10,11 @@ import Blaze.Import.Pil (PilImporter (..))
 import Blaze.Import.Source.Ghidra.CallGraph qualified as CallGraph
 import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
 import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
-import Blaze.Import.Source.Ghidra.Types (convertAddress)
-import Ghidra.Address (mkAddress)
 import Ghidra.Core (runGhidraOrError)
 import Ghidra.Program qualified as GProg
 import Ghidra.State (GhidraState)
 import Ghidra.State qualified as GState
 
--- import qualified Blaze.Import.Source.Ghidra.Pil.Path as Path
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (PilNode)

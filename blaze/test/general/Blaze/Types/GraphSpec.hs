@@ -6,6 +6,7 @@ import Blaze.Prelude
 
 import qualified Blaze.Graph as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Test.Hspec
 
@@ -240,11 +241,11 @@ spec = describe "Blaze.Util.Graph" $ do
           r = [HashSet.fromList [1, 2, 3], HashSet.fromList [6, 7, 8]]
       sort (G.getWeaklyConnectedComponents (g :: IntGraph)) `shouldBe` sort r
 
-  context "getDescendants" $ do
+  context "getStrictDescendants" $ do
     it "should return an empty set for singleton graph" $ do
       let g = G.fromNode "a" :: TextGraph
           r = HashSet.empty
-      G.getDescendants "a" g `shouldBe` r
+      G.getStrictDescendants "a" g `shouldBe` r
 
     it "should return dependent, but not dependee" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -252,7 +253,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("b", "c")
               ] :: TextGraph
           r = HashSet.fromList ["c"]
-      G.getDescendants "b" g `shouldBe` r
+      G.getStrictDescendants "b" g `shouldBe` r
 
     it "should return itself, if loop" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -261,7 +262,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("c", "a")
               ] :: TextGraph
           r = HashSet.fromList ["a", "b", "c"]
-      G.getDescendants "b" g `shouldBe` r
+      G.getStrictDescendants "b" g `shouldBe` r
 
     it "should find branched dependents" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -270,13 +271,45 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("b", "d")
               ] :: TextGraph
           r = HashSet.fromList ["b", "c", "d"]
-      G.getDescendants "a" g `shouldBe` r
+      G.getStrictDescendants "a" g `shouldBe` r
 
-  context "getAncestors" $ do
+  context "calcStrictDescendantsMap" $ do
+    it "should return a map with one element with no descendants for singleton graph" $ do
+      let g = G.fromNode "a" :: TextGraph
+          r = G.StrictDescendantsMap $ HashMap.fromList
+            [("a", HashSet.empty)]
+      G.calcStrictDescendantsMap g `shouldBe` r
+
+    it "should return dependents, but not dependees" $ do
+      let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
+              [ ("a", "b")
+              , ("b", "c")
+              ] :: TextGraph
+          r = G.StrictDescendantsMap $ HashMap.fromList
+              [ ("a", HashSet.fromList ["b", "c"])
+              , ("b", HashSet.fromList ["c"])
+              , ("c", HashSet.empty)
+              ] 
+      G.calcStrictDescendantsMap g `shouldBe` r
+
+    it "should handle loop" $ do
+      let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
+              [ ("a", "b")
+              , ("b", "c")
+              , ("c", "b")
+              ] :: TextGraph
+          r = G.StrictDescendantsMap $ HashMap.fromList
+            [ ("a", HashSet.fromList ["b", "c"])
+            , ("b", HashSet.fromList ["b", "c"])
+            , ("c", HashSet.fromList ["b", "c"])
+            ]
+      G.calcStrictDescendantsMap g `shouldBe` r
+
+  context "getStrictAncestors" $ do
     it "should return empty set for singleton graph" $ do
       let g = G.fromNode "a"  :: TextGraph
           r = HashSet.empty
-      G.getAncestors "a" g `shouldBe` r
+      G.getStrictAncestors "a" g `shouldBe` r
 
     it "should return dependee, but not dependent" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -284,7 +317,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("b", "c")
               ] :: TextGraph
           r = HashSet.fromList ["a"]
-      G.getAncestors "b" g `shouldBe` r
+      G.getStrictAncestors "b" g `shouldBe` r
 
     it "should return itself, if loop" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -293,7 +326,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("c", "a")
               ] :: TextGraph
           r = HashSet.fromList ["a", "b", "c"]
-      G.getAncestors "b" g `shouldBe` r
+      G.getStrictAncestors "b" g `shouldBe` r
 
     it "should find branched dependees" $ do
       let g = G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $
@@ -302,7 +335,7 @@ spec = describe "Blaze.Util.Graph" $ do
               , ("b", "c")
               ] :: TextGraph
           r = HashSet.fromList ["b", "a", "d"]
-      G.getAncestors "c" g `shouldBe` r
+      G.getStrictAncestors "c" g `shouldBe` r
 
   context "getTermNodes" $ do
     it "should get root as term for single node graph" $ do

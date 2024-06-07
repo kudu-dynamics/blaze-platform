@@ -145,17 +145,23 @@ showPathsWithMatches :: Text -> [(PilPath, [((MatcherState a, MatcherResult), Bu
 showPathsWithMatches title paths = do
   putText $ "\n\n=========================\n" <> title <> "\n===============================\n"
   forM_ paths $ \(p, matches) -> do
-    let ps = Path.toStmts p
-        ps' = simplify ps
-    putText "---------------------"
-    prettyStmts' ps'
-    putText "\n"
-    putText "Summary:"
-    let summary = Summary.removeKilledWrites . Summary.fromStmts . resolveCalls $ ps'
-    showCodeSummary summary
-    putText "--------------------\n"
-    putText "Bug Matches:"
-    traverse showBugMatch matches
+    let matchMatch ((_, Matcher.Match _), _) = True
+        matchMatch _ = False
+        containsAnyMatches = any matchMatch matches
+    case containsAnyMatches of
+      False -> putText "no matches"
+      True -> do
+        let ps = Path.toStmts p
+            ps' = simplify ps
+        putText "---------------------"
+        prettyStmts' ps'
+        putText "\n"
+        putText "Summary:"
+        let summary = Summary.removeKilledWrites . Summary.fromStmts . resolveCalls $ ps'
+        showCodeSummary summary
+        putText "--------------------\n"
+        putText "Bug Matches:"
+        traverse_ showBugMatch matches
 
 showBugMatch :: ((MatcherState a, MatcherResult), BugMatch) -> IO ()
 showBugMatch ((ms, r), bm) = do

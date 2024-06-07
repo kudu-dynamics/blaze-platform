@@ -4,7 +4,7 @@ module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
   ) where
 
-import Flint.Prelude hiding (sym, const)
+import Flint.Prelude hiding (and, const, not, or, sym)
 
 import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Analysis.Path.Matcher
@@ -39,6 +39,9 @@ path2 =
 func0 :: Function
 func0 = Function Nothing "func0" 0x888 []
 
+matchStmtsIO :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> IO MatcherResult
+matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
+
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher" $ do
   context "matchStmts" $ do
@@ -65,6 +68,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match on an immediate" $ do
       let stmts = [def "b" (const 33 4)]
+          pats = [Stmt $ Def Wild Immediate]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match on an immediate that must be evaluated" $ do
+      let stmts = [def "b" (add (const 0 4) (const 33 4) 4)]
           pats = [Stmt $ Def Wild Immediate]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
@@ -104,6 +113,19 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [Stmt . BranchCond $ Wild .== Wild]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match .== if args are flipped" $ do
+      let stmts = [branchCond $ cmpE (const 33 4) (var "x" 4) 4]
+          pats = [Stmt . BranchCond $ Var "x" .== Immediate]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match inequality if args are flipped" $ do
+      let stmts = [branchCond $ cmpSlt (const 33 4) (var "x" 4) 4]
+          pats = [Stmt . BranchCond $ Var "x" .> Immediate]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
 
     it "should match on a var" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
@@ -320,7 +342,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "d" (const 2 8)
                   ]
           pats = [ Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
-                 , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)      
+                 , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
                  ]
           expected = Match stmts
           (ms, mr) = pureMatchStmts [] pats stmts
@@ -396,8 +418,20 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
+    it "should find the 'until' first, then backtrack and check the 'avoid' after version 2" $ do
+      let stmts = [ constraint $ cmpSlt (load (var "a" 8) 8) (const 888 8) 8
+                  , store (var "a" 8) $ add (load (var "a" 8) 8) (const 1 8) 8
+                  ]
+          pats = [ AvoidUntil $ AvoidSpec
+                   { avoid = Stmt . Constraint $ load (Bind "ptr" Wild) () .< Wild
+                   , until = Stmt $ Store (Bind "ptr" Wild)
+                             $ add (load (Bind "ptr" Wild) ()) Wild ()
+                   }
+                 ]
+          expected = NoMatch
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
     context "assertions" $ do
-      let matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
 
       it "should make assertion using bound vars" $ do
         let stmts = [ def "a" (const 0 4)
@@ -438,8 +472,109 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             expected = Match stmts'
         matchStmtsIO [] pats stmts `shouldReturn` expected
 
+    context "necessarily constraint" $ do
+
+      it "should require vars to be satisfiable if necessary constraints are met" $ do
+        let stmts = [ def "a" (const 0 4)
+                    , def "b" (const 777 4)
+                    ]
+            pats = [ Ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                             , Stmt (Def (Var "b") (Bind "y" Wild))
+                             ]
+                     `Necessarily`
+                     [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
+                     ]
+                   ]
+            stmts' = stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)]
+            expected = Match stmts'
+        matchStmtsIO [] pats stmts `shouldReturn` expected
+
+      -- TODO: Understand how binding works. Results are surprising for this test.
+--       it "should require vars to be satisfiable if multiple necessary constraints are met (where test)" $ do
+--         let stmts = [ def "a" (const 0 4)
+--                     , def "b" (const 777 4)
+-- --                    , constraint $ cmpUge (var "b" 4) (const 10 4) 4
+--                     , def "c" (var "b" 4)
+--                     ]
+--             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+--                    , Stmt $ Def (Var "b") (Bind "y" Wild)
+--                    , Stmt (Def (Var "c") (Bind "z" Wild))
+--                      `Where`
+--                      [
+--                        (not (or
+--                              (cmpUge (Bound "x") (Bound "y") (ConstSize 4))
+--                              (cmpNE (Bound "z") (Bound "y") (ConstSize 4))
+--                              (ConstSize 4))
+--                          (ConstSize 4))
+--                      ]
+--                    ]
+--             expected = NoMatch
+--         matchStmtsIO [] pats stmts `shouldReturn` expected
+
+      -- TODO: Unclear why NoMatch is returned when using multiple necessary constraints.
+--       it "should require vars to be satisfiable if multiple necessary constraints are met" $ do
+--         let stmts = [ def "a" (const 0 4)
+--                     , def "b" (const 777 4)
+-- --                    , constraint $ cmpUge (var "b" 4) (const 10 4) 4
+--                     , def "c" (var "b" 4)
+--                     ]
+--             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+--                    , Stmt $ Def (Var "c") (Bind "z" Wild)
+--                    , Stmt (Def (Var "b") (Bind "y" Wild))
+--                      `Necessarily`
+--                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
+--                      , cmpE (Bound "z") (Bound "y") (ConstSize 4)
+--                      ]
+--                    ]
+--             stmts' = stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)]
+--             expected = Match stmts'
+--         matchStmtsIO [] pats stmts `shouldReturn` expected
+
+      -- it "should require vars to be unsatisfiable if necessary constrints are not met" $ do
+      --   let stmts = [ def "a" (const 10 4)
+      --               , def "b" (var "c" 4)
+      --               ]
+      --       pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+      --              , Stmt (Def (Var "b") (Bind "y" Wild))
+      --                `Necessarily`
+      --                [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
+      --              ]
+      --   matchStmtsIO [] pats stmts `shouldReturn` NoMatch
+
+      -- TODO: Unclear why NoMatch is returned when using multiple necessary constraints.
+      it "should require vars to be satisfiable if multiple necessary constraints are met" $ do
+        let stmts = [ def "a" (const 0 4)
+                    , def "b" (const 777 4)
+                    , def "c" (var "b" 4)
+                    ]
+            pats = [ Ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                             , Stmt $ Def (Var "b") (Bind "y" Wild)
+                             , Stmt (Def (Var "c") (Bind "z" Wild))
+                             ]
+                     `Necessarily`
+                     [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
+                     , cmpE (Bound "z") (Bound "y") (ConstSize 4)
+                     ]
+                   ]
+            stmts' = stmts <> [ constraint (cmpUlt (const 0 4) (const 777 4) 4)
+                              , constraint (cmpE (var "b" 4) (const 777 4) 4)
+                              ]
+            expected = Match stmts'
+        matchStmtsIO [] pats stmts `shouldReturn` expected
+
+      it "should require vars to be unsatisfiable if necessary constrints are not met" $ do
+        let stmts = [ def "a" (const 10 4)
+                    , def "b" (var "c" 4)
+                    ]
+            pats = [ Ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                             , Stmt (Def (Var "b") (Bind "y" Wild))
+                             ]
+                     `Necessarily`
+                     [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
+                   ]
+        matchStmtsIO [] pats stmts `shouldReturn` NoMatch
+
     context "solving" $ do
-      let matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
 
       it "should always run solver at end of match" $ do
         let stmts = [ def "a" (const 0 4)
