@@ -39,8 +39,8 @@ stages:
       '
   after_script:
     # See https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
-    - docker buildx prune --force
-    - docker buildx rm --all-inactive -f
+    - docker buildx stop || true
+    - docker buildx rm -f || true
   # Grr, we randomly get weird docker/buildx/buildkit/gitlab container registry issues
   retry: 2
 
@@ -54,6 +54,7 @@ base-images:
         --pull
         --provenance=false
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
         --target haskell
         -t "${CI_REGISTRY_IMAGE}"/haskell:pipeline-"${CI_PIPELINE_ID}"
@@ -69,6 +70,7 @@ just-deps:
         --pull
         --provenance=false
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
         --target just-deps
         -t "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
@@ -84,6 +86,7 @@ install-hlint:
         --pull
         --provenance=false
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:cache
         --target hlint
         -t "${CI_REGISTRY_IMAGE}"/hlint:pipeline-"${CI_PIPELINE_ID}"
@@ -108,14 +111,9 @@ ghc-warnings:
   needs:
     - just-deps
   image: ${CI_REGISTRY_IMAGE}/just-deps:pipeline-${CI_PIPELINE_ID}
-  cache:
-    key: ghc-warnings-${CI_COMMIT_REF_SLUG}
-    paths:
-      - '**/.stack-work'
   script:
     - stack clean
     - stack --color always build --test --no-run-tests --pedantic --fast
-    - stack clean
   allow_failure: true
 
 build:
@@ -129,6 +127,7 @@ build:
         --provenance=false
         --target builder
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --build-arg OPTIM=${HASKELL_OPTIM}
         -t "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
@@ -137,6 +136,7 @@ build:
         --pull
         --provenance=false
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         -t "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
         .
