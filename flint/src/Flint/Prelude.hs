@@ -1,7 +1,9 @@
 module Flint.Prelude
   ( module Exports
+  , catHashMapMaybes
   , constrName
   , hoistMaybeM
+  , mapMaybeConcurrently
   , removeNth
   , tryError
   ) where
@@ -9,8 +11,8 @@ module Flint.Prelude
 import Blaze.Prelude as Exports hiding (Symbol)
 
 import Control.Monad.Extra as Exports (mapMaybeM)
-import System.Random as Exports (randomRIO)
 import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrently)
+import qualified Data.HashMap.Strict as HashMap
 
 
 hoistMaybeM :: Monad m => m (Maybe a) -> MaybeT m a
@@ -43,3 +45,12 @@ instance (HasConstructor x, HasConstructor y) => HasConstructor (x :+: y) where
 
 instance Constructor c => HasConstructor (C1 c f) where
   genericConstrName = conName
+
+mapMaybeConcurrently :: (a -> IO (Maybe b)) -> [a] -> IO [b]
+mapMaybeConcurrently f = fmap catMaybes . mapConcurrently f
+
+catHashMapMaybes :: Hashable k => HashMap k (Maybe v) -> HashMap k v
+catHashMapMaybes = HashMap.fromList . mapMaybe f . HashMap.toList
+  where
+    f (_, Nothing) = Nothing
+    f (k, Just v) = Just (k, v)

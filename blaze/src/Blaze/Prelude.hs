@@ -112,7 +112,7 @@ import Protolude as Exports hiding ( Bits
                                    )
 import Protolude.Conv as Exports (StringConv)
 import System.IO.Unsafe (unsafePerformIO)
-import System.Random as Exports (randomIO)
+import System.Random as Exports (randomIO, randomRIO)
 import Text.Pretty.Simple as PP
 import Prelude as Exports
   ( (!!),

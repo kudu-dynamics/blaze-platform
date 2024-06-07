@@ -99,7 +99,7 @@ solveStmt ddg stmt = case stmt of
   Pil.Store _ -> return ()
   Pil.DefPhi (Pil.DefPhiOp dest vars) -> unless (any isDependentOn vars) pilSolveStmt
     where
-      destDescendants = G.getDescendants dest ddg
+      destDescendants = G.getStrictDescendants dest ddg
       isDependentOn = flip HashSet.member destDescendants
   _ -> pilSolveStmt
   where

@@ -7,6 +7,7 @@ import Flint.Prelude
 
 import Flint.Analysis
 import Flint.Analysis.Path.Matcher
+import qualified Flint.Analysis.Uefi as Uefi
 import Flint.Types.Query
 
 import Blaze.Import.Source.BinaryNinja (BNImporter)
@@ -47,20 +48,30 @@ commBufferOobWriteBug = BugMatch
 failedToCheckCommBufferIsOutsideSmramPattern :: [StmtPattern]
 failedToCheckCommBufferIsOutsideSmramPattern =
   [ AvoidUntil $ AvoidSpec
-    (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
-    $ AnyOne [ Stmt $ Store (Contains (Var "arg3")) Wild
-             , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Contains (Var "arg3"), Wild, Wild]
-             ]
+    { avoid = AnyOne
+      [ Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild]
+      , Stmt . Constraint $ load Immediate () .< Var "arg3"
+      ]
+    , until = AnyOne
+      [ Stmt $ Store (Contains (Var "arg3")) Wild
+      , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Contains (Var "arg3"), Wild, Wild]
+      ]
+    }
   ]
 
 failedToCheckCommBufferIsOutsideSmramBug :: BugMatch
 failedToCheckCommBufferIsOutsideSmramBug = BugMatch
   { pathPattern =
     [ AvoidUntil $ AvoidSpec
-      (Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild])
-      $ AnyOne [ Stmt $ Store (Bind "fullAddr" (Contains (Var "arg3"))) (Bind "value" Wild)
-               , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), Bind "value" Wild, Wild]
-               ]
+      { avoid = AnyOne
+        [ Stmt $ Call Nothing (CallFunc (FuncName "SmmIsBufferOutsideSmmValid")) [Var "arg3", Wild]
+        , Stmt . Constraint $ load Immediate () .>= Var "arg3"
+        ]
+      , until = AnyOne
+        [ Stmt $ Store (Bind "fullAddr" (Contains (Var "arg3"))) (Bind "value" Wild)
+        , Stmt $ Call Nothing (CallFunc (FuncName "CopyMem")) [Bind "fullAddr" (Contains (Var "arg3")), Bind "value" Wild, Wild]
+        ]
+      }
     ]
   , bugName = "Arbitrary Write to SMRAM"
   , bugDescription = "This path writes a value `" <> TextExpr "value" <> "' to the address `" <> TextExpr "fullAddr" <> "`, which contains the user-controlled CommBuffer (arg3), without first checking to make sure arg3 is pointing outside of SMRAM, allowing a user to overwrite SMRAM."
@@ -165,11 +176,32 @@ rwVariableConfig = BinarySearchConfig
     ]
   }
 
+
+smmFaultTolerantWrite :: BinarySearchConfig BNImporter FuncConfig
+smmFaultTolerantWrite = BinarySearchConfig
+  { binaryPath = "/tmp/edk2/SmmFaultTolerantWriteDxe.debug.bndb"
+  , excludeFuncsFromStore = []
+  , queries =
+    [
+      ( QueryAllPaths $ QueryAllPathsOpts
+        { start = FuncSym "SmmFaultTolerantWriteHandler"
+        }
+      , [ smmCalloutBug
+        , failedToCheckCommBufferIsOutsideSmramArbitraryReadBug
+        , failedToCheckCommBufferIsOutsideSmramBug
+        , commBufferOobWriteBug
+        ]
+      )
+    ]    
+  }
+
 main :: IO ()
 main = do
   putText "starting"
   -- summariesOfInterest [] queryVariableInfoConfig
   -- summariesOfInterest [] smmLightConfig
-  summariesOfInterest [] rwVariableConfig
+  -- summariesOfInterest [] rwVariableConfig
   -- summariesOfInterest Uefi.taintPropagators smmLightConfig
+  summariesOfInterest Uefi.taintPropagators smmFaultTolerantWrite
   putText "finished"
+

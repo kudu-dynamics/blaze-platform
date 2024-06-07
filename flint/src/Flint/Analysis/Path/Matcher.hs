@@ -4,7 +4,7 @@ module Flint.Analysis.Path.Matcher
  ( module Flint.Analysis.Path.Matcher
  ) where
 
-import Flint.Prelude hiding (sym)
+import Flint.Prelude hiding (sym, negate)
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 
@@ -12,6 +12,7 @@ import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
 import qualified Blaze.Pil.Display as Disp
+import Blaze.Pil.Eval (evalPilArithmeticExpr)
 import Blaze.Pretty (pretty')
 import qualified Blaze.Pretty as Pretty
 import qualified Blaze.Types.Pil as Pil
@@ -19,7 +20,7 @@ import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size(Size))
 import Blaze.Pil.Construct (ExprConstructor(..), var')
 import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil.Solver (SolverResult(Sat, Err))
+import Blaze.Types.Pil.Solver (SolverResult(Err, Sat, Unsat))
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -33,6 +34,7 @@ type Symbol = Text
 data Func
   = FuncName Text
   | FuncAddr Address
+  | FuncNameRegex Text -- currently just looks for name that contains text
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data CallDest expr
@@ -64,6 +66,7 @@ data StmtPattern
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
   -- | Once StmtPattern has matched, BoundExprs will be checked with the solver
   | Where StmtPattern [BoundExpr]
+  | Necessarily StmtPattern [BoundExpr]
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize
@@ -122,7 +125,7 @@ data ExprPattern
 
   -- | Matches if its an immediate, like a const int, ptr, float, etc.
   | Immediate
-  
+
   -- | Matches if ExprPattern matches somewhere inside expr
   | Contains ExprPattern
   -- | Matches if 'src' is involved in the definition of 'dst'
@@ -140,6 +143,9 @@ data ExprPattern
   -- | This Or's together two expr patterns, so if the first fails, it checks snd.
   -- Not to be confused with the bitwise PIL.OR operator
   | OrPattern ExprPattern ExprPattern
+
+  -- | Matches if the expr pattern inside doesn't match
+  | NotPattern ExprPattern
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 instance ExprConstructor () ExprPattern where
@@ -177,7 +183,7 @@ infix 4 .>
 (.>=) :: ExprPattern -> ExprPattern -> ExprPattern
 (.>=) = Cmp CmpGE
 infix 4 .>=
-  
+
 data AvoidSpec = AvoidSpec
   { avoid :: StmtPattern
   , until :: StmtPattern
@@ -197,6 +203,10 @@ data MatcherState m = MatcherState
   -- | If the path has been checked with the solver, this holds possible solutions
   , solutions :: Maybe (HashMap Text CV)
   } deriving Generic
+
+-- data MatcherException = MatcherUnsat
+--                       | MatcherError Text
+--   deriving (Eq, Ord, Show)
 
 -- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
 -- and solver errors
@@ -350,7 +360,17 @@ matchCallDest pat cdest = case pat of
       insist $ addr == addr'
     (FuncAddr addr, Pil.CallExtern (Pil.ExternPtrOp addr' _off _mSym)) ->
       insist $ addr == addr'
+
+    (FuncNameRegex rpat, Pil.CallFunc func) ->
+      insist $ Text.isInfixOf rpat (func ^. #name)
+            || (Text.isInfixOf rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
+    (FuncNameRegex rpat, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
+      insist $ (Text.isInfixOf rpat <$> mSym) == Just True
+    (FuncNameRegex rpat, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
+      insist $ (Text.isInfixOf rpat <$> mSym) == Just True
+
     _ -> bad
+
   CallIndirect destPat -> case cdest of
     Pil.CallExpr destExpr -> matchExpr destPat destExpr
     _ -> bad
@@ -379,7 +399,7 @@ bind sym expr = do
 -- will become `x`, and `(not x)` will just remain `(not x)`
 -- if Bool is true, then try to negate the expr
 absorbNots_ :: Bool -> Pil.Expression -> Pil.Expression
--- The True case means an outer "Not" has already been foudn
+-- The True case means an outer "Not" has already been found
 absorbNots_ True expr = case expr ^. #op of
   -- (not (not x)) = x
   Pil.NOT (Pil.NotOp x) -> absorbNots_ False x
@@ -407,8 +427,9 @@ absorbNots_ True expr = case expr ^. #op of
 
   -- Put the NOT back on because it can't be absorbed
   _ -> mkCmp . Pil.NOT $ Pil.NotOp expr
+  where
+    mkCmp = Pil.Expression $ expr ^. #size
 
-  where mkCmp = Pil.Expression $ expr ^. #size
 absorbNots_ False expr = case expr ^. #op of
   Pil.NOT (Pil.NotOp x) -> absorbNots_ True x
   _ -> expr
@@ -481,7 +502,7 @@ matchCmp cmpType patA patB expr = case cmpType of
 matchExprOp :: Monad m => Pil.ExprOp ExprPattern -> Pil.ExprOp Pil.Expression -> MatcherT m ()
 matchExprOp opPat op = do
   insist $ void opPat == void op
-  traverse_ (uncurry matchExpr) $ zip (toList opPat) (toList op)  
+  traverse_ (uncurry matchExpr) $ zip (toList opPat) (toList op)
 
 matchExpr :: Monad m => ExprPattern -> Pil.Expression -> MatcherT m ()
 matchExpr pat expr = case pat of
@@ -494,13 +515,7 @@ matchExpr pat expr = case pat of
     Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
       insist $ Text.isPrefixOf prefixOfName symb
     _ -> bad
-  Immediate -> case expr ^. #op of
-    Pil.CONST _ -> good
-    Pil.CONST_PTR _ -> good
-    Pil.CONST_FLOAT _ -> good
-    Pil.ConstStr _ -> good
-    Pil.ConstFuncPtr _ -> good
-    _ -> bad
+  Immediate -> maybe bad (const good) $ evalPilArithmeticExpr expr
   Contains xpat -> do
     backtrackOnError (matchExpr xpat expr)
       <|> asum (backtrackOnError . matchExpr (Contains xpat) <$> toList (expr ^. #op))
@@ -513,6 +528,10 @@ matchExpr pat expr = case pat of
   Expr xop -> matchExprOp xop $ expr ^. #op
   Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
   OrPattern patA patB -> backtrackOnError (matchExpr patA expr) <|> matchExpr patB expr
+  NotPattern patA -> do
+    tryError (backtrack $ matchExpr patA expr) >>= \case
+      Right _ -> bad
+      Left _ -> good
   where
     doesTaint :: HashSet Taint -> Pil.Expression -> Pil.Expression -> Bool
     doesTaint taintSet src dst = isPureTaint || isMemoryTaint || isSubexprTaint
@@ -527,18 +546,21 @@ matchExpr pat expr = case pat of
 
 (.||) :: ExprPattern -> ExprPattern -> ExprPattern
 (.||) = OrPattern
-infix 3 .||
+infixr 3 .||
 
 -- | Succeeds if any one of the patterns succeeds. Tries them left to right.
 anyExpr :: NonEmpty ExprPattern -> ExprPattern
 anyExpr (pat :| []) = pat
-anyExpr (pat :| (p:ps)) = pat .|| anyExpr (p :| ps) 
-        
+anyExpr (pat :| (p:ps)) = pat .|| anyExpr (p :| ps)
+
 matchFuncPatWithFunc :: Monad m => Func -> BFunc.Function -> MatcherT m ()
 matchFuncPatWithFunc (FuncName name) func = insist
   $ func ^. #name == name
   || func ^? #symbol . #_Just . #_symbolName == Just name
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
+matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
+  $ Text.isInfixOf rpat (func ^. #name)
+  || (Text.isInfixOf rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
 
 
 matchStmt :: Monad m => Statement ExprPattern -> Pil.Stmt -> MatcherT m ()
@@ -598,6 +620,9 @@ backtrack action = do
   tryError action >>= \case
     Left _ -> put s >> throwError ()
     Right x -> put s >> return x
+
+negate :: Pil.Expression -> Pil.Expression
+negate e = Pil.Expression (e ^. #size) . Pil.NOT $ Pil.NotOp e
 
 addConstraint :: Monad m => BoundExpr -> MatcherT m ()
 addConstraint x = do
@@ -662,7 +687,7 @@ checkPath = solvePath >>= \case
 matchNextStmt :: Monad m => StmtPattern -> MatcherT m ()
 matchNextStmt = matchNextStmt_ True
 
--- when shouldCheckAvoids checkAvoids >> 
+-- when shouldCheckAvoids checkAvoids >>
 
 -- | Matches the next statement with the next stmt pattern.
 matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
@@ -676,10 +701,11 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Unordered _ -> bad
     Ordered [] -> good
     Ordered _ -> bad
-    Where subPat boundExprs -> do
-      matchNextStmt subPat
-      traverse_ addConstraint boundExprs
-      checkPath
+    Where subPat boundExprs ->
+      matchWhere subPat boundExprs
+    Necessarily subPat boundExprs ->
+      matchNecessarily subPat boundExprs
+
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
       -- Matched Statement
@@ -715,11 +741,29 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
       ) >>= \case
       Right _ -> return ()
       Left _ -> perhapsRecur
-    Where subPat bexprs -> do
-      matchNextStmt subPat
-      traverse_ addConstraint bexprs
-      checkPath
+    Where subPat boundExprs ->
+      matchWhere subPat boundExprs
+    Necessarily subPat boundExprs ->
+      matchNecessarily subPat boundExprs
   where
+    matchWhere subPat boundExprs = do
+      matchNextStmt subPat
+      traverse_ addConstraint boundExprs
+      checkPath
+    matchNecessarily subPat boundExprs = do
+       -- First check that negation of necessary constraints are UNSAT.
+      matchNextStmt subPat
+      resolvedExprs <- traverse resolveBoundExpr boundExprs
+      let negatedExprs = fmap (absorbNots . negate) resolvedExprs
+          negatedDisjunction = C.constraint $
+            foldl' (\x y -> C.or x y $ x ^. #size) (C.constBool False 4) negatedExprs
+          constraints = fmap C.constraint resolvedExprs
+      backtrack (storeAsParsed negatedDisjunction >> solvePath) >>= \case
+        Unsat _ -> do
+          -- Second check that necessary constraints are SAT.
+          traverse_ storeAsParsed constraints
+          checkPath
+        _ -> bad
     perhapsRecur = if tryNextStmtOnFailure
       then do
         retireStmt
@@ -820,7 +864,7 @@ matchPath
 matchPath solver tps pat = matchStmts solver tps pat
   . resolveCalls
   . PA.aggressiveExpand
-  . Path.toStmts  
+  . Path.toStmts
 
 -- | Matches on statements without calling the solver on assertions.
 pureMatchStmts
@@ -849,4 +893,4 @@ pureMatchPath
 pureMatchPath tps pat = pureMatchStmts tps pat
   . resolveCalls
   . PA.aggressiveExpand
-  . Path.toStmts  
+  . Path.toStmts

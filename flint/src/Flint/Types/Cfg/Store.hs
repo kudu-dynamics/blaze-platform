@@ -6,7 +6,7 @@ import Blaze.Types.Function (Function)
 
 import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (PilCfg, PilNode, CallNode)
-import Blaze.Types.Graph (DescendantsMap)
+import Blaze.Types.Graph (DescendantsMap, StrictDescendantsMap)
 import Blaze.Types.Pil (Stmt)
 import Flint.Types.CachedCalc (CachedCalc)
 
@@ -14,14 +14,16 @@ import Flint.Types.CachedCalc (CachedCalc)
 data CfgInfo = CfgInfo
   { cfg :: PilCfg
   , acyclicCfg :: PilCfg
-  , descendantsMap :: DescendantsMap PilNode
+  , descendantsMap :: DescendantsMap PilNode -- based off of acyclicCfg
+  , strictDescendantsMap :: StrictDescendantsMap PilNode -- based off cfg
+  , nodes :: HashSet PilNode
   , calls :: [CallNode [Stmt]]
   } deriving (Eq, Ord, Show, Generic)
 
 -- | Mapping of function name to its cfg.
 -- TODO: make this into sqlite db
 data CfgStore = CfgStore
-  { cfgCache :: CachedCalc Function (Maybe CfgInfo)
+  { cfgCache :: CachedCalc Function (Maybe CfgInfo) -- TODO: get rid of Maybe
   , ancestorsCache :: CachedCalc Function (HashSet Function)
   , descendantsCache :: CachedCalc Function (HashSet Function)
   , funcs :: [Function] -- result of `getFunctions` from CallGraph importer
@@ -31,4 +33,8 @@ data CfgStore = CfgStore
   , transposedCallGraphCache :: CachedCalc () CallGraph
   -- Mapping of call sites that call Function
   , callSitesCache :: CachedCalc Function [CallSite]
+  -- -- If this is too slow or uses too much memory, we could do just calls or landmarks
+  -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
+  -- , planMakerCtx :: CachedCalc () (PlanMakerCtx Function PilNode)
+  -- | All nodes in all Cfgs. Getting this causes all CfgInfos to be calc'd
   } deriving (Generic)

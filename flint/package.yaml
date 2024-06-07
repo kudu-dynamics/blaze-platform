@@ -101,6 +101,7 @@ library:
   - Flint.Cfg
   - Flint.Cfg.Path
   - Flint.Cfg.Store
+  - Flint.Graph
   - Flint.Query
   - Flint.Types.Analysis
   - Flint.Types.CachedCalc
@@ -160,7 +161,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
-
     
 tests:
   flint-tests:

@@ -50,16 +50,14 @@ main = do
   opts <- cmdArgs options
   let (backend, files) = parseArgs opts
   if files == ""
-    then print "--files= is required!"
-    else
-      if backend == Binja
-        then do
-          edb <- openBinary files :: IO (Either Text BNImporter)
-          case edb of
-            Left err -> print err
-            Right edb -> putText "Got bndb."
-        else do
-          importer <- G.getImporter files
-          putText "Got ghidradb."
+    then putText "--files= is required!"
+    else case backend of
+      Binja -> do
+        (openBinary files :: IO (Either Text BNImporter)) >>= \case
+          Left err -> print err
+          Right _bndb -> putText "Got bndb."
+      Ghidra -> do
+        _importer <- G.getImporter files
+        putText "Got ghidradb."
   print backend
   print files

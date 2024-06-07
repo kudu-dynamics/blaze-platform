@@ -154,14 +154,7 @@ instance Identifiable (CfNode a) UUID where
 
 -- | Attempts to set uuid field for cfnode constructor
 mkUniqueNode :: CfNode a -> IO (CfNode a)
-mkUniqueNode n = do
-  uuid' <- randomIO
-  return $ case n of
-    BasicBlock x -> BasicBlock $ x & #uuid .~ uuid'
-    Call x -> Call $ x & #uuid .~ uuid'
-    EnterFunc x -> EnterFunc $ x & #uuid .~ uuid'
-    LeaveFunc x -> LeaveFunc $ x & #uuid .~ uuid'
-    Grouping x -> Grouping $ x & #uuid .~ uuid'
+mkUniqueNode n = flip setNodeUUID n <$> randomIO
 
 data CfEdge a = CfEdge
   { src :: a
@@ -424,9 +417,14 @@ removeAndRebindEdges_ ::
   Hashable a =>
   (BranchType -> BranchType -> BranchType)
   -> CfNode a -> Cfg (CfNode a) -> Cfg (CfNode a)
-removeAndRebindEdges_ mergeBranchType n cfg' = G.removeNode n
-  . addEdges newEdges
-  $ cfg'
+removeAndRebindEdges_ mergeBranchType n cfg'
+  | getRootNode cfg' == n = case HashSet.toList $ G.succs n cfg' of
+      [] -> error "Cfg cannot be empty"
+      [succ] -> G.removeNode n $ cfg' & #rootId .~ getNodeId succ
+      _ -> error "Root node to be deleted has multiple successors"
+  | otherwise = G.removeNode n
+    . addEdges newEdges
+    $ cfg'
   where
     preds = HashSet.toList $ G.preds n cfg'
     succs = HashSet.toList $ G.succs n cfg'

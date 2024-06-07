@@ -36,6 +36,7 @@ module Blaze.Pretty
     tokenizeAsList,
     tokenizeAsTuple,
     tokenizeAsCurlyList,
+    tokenizeAsNewlinedList,
     tokenizeExprOp,
     pretty,
     pretty',
@@ -1076,11 +1077,10 @@ instance
   , Show a
   , Tokenizable a
   , G.Identifiable a UUID) => Tokenizable (CfgPath.Path a) where
-  tokenize p = tt "--- CtxPath ---"
+  tokenize p = tt "--- CfgPath ---"
                <++> tt "\nouterCtx: " <++> tokenize (p ^. #outerCtx)
                <++> tt "\nnextCtxIndex: " <++> tokenize (fromIntegral $ p ^. #nextCtxIndex :: Int)
                <++> tt "\n" <++> tokenize (p ^. #path)
-
 
 -- | Tokenizable print to IO.
 prettyPrint :: (MonadIO m, Tokenizable a) => TokenizerCtx -> a -> m ()
@@ -1233,3 +1233,11 @@ instance Tokenizable Effect where
           (EffectCall s) -> ("Call", s)
     in
         [tt "<", tt name, tt ">"] <++> tokenize stmt
+
+instance (Tokenizable a, Tokenizable b) => Tokenizable (G.RouteAction a b) where
+  tokenize (G.InnerNode n) = tt "InnerNode: " <++> tokenize n
+  tokenize (G.EnterContext n _ctx)
+    = tt "EnterContext: " <++> tokenize n
+    -- = tt "EnterContext: (" <++> tokenize n <++> tt ", " <++> tokenize ctx <++> tt ")"
+  tokenize (G.ExitContext ctx) = tt "ExitContext: " <++> tokenize ctx
+  tokenize G.Finished = pure [tt "Finished"]

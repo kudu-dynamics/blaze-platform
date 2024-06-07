@@ -12,6 +12,7 @@ import Blaze.Types.Pil
     Symbol,
   )
 
+
 class ExprConstructor attrs expr | expr -> attrs where
   mkExpr :: attrs -> Pil.ExprOp expr -> expr
 
@@ -76,6 +77,9 @@ externPtr addr off sym size = mkExpr size (Pil.ExternPtr (Pil.ExternPtrOp addr o
 
 constStr :: ExprConstructor attrs expr => Text -> attrs -> expr
 constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
+
+constBool :: ExprConstructor attrs expr => Bool -> attrs -> expr
+constBool b size = mkExpr size (Pil.CONST_BOOL (Pil.ConstBoolOp b))
 
 var' :: ExprConstructor attrs expr => PilVar -> attrs -> expr
 var' pv size = mkExpr size (Pil.VAR $ Pil.VarOp pv)
@@ -182,7 +186,7 @@ varField sym offset attrs =
   mkExpr attrs (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar (getPilVarSize attrs) sym) offset)
 
 fieldAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
-fieldAddr base offset size = 
+fieldAddr base offset size =
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 arrayAddr :: ExprConstructor attrs expr => expr -> expr -> Word64 -> attrs -> expr
@@ -190,7 +194,7 @@ arrayAddr base index stride size =
   mkExpr size . Pil.ARRAY_ADDR $ Pil.ArrayAddrOp base index stride
 
 stackLocalAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
-stackLocalAddr base offset size = 
+stackLocalAddr base offset size =
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
 ---- Statements
@@ -232,6 +236,9 @@ defCall sym cdest args attrs = defCall' (pilVar (getPilVarSize attrs) sym) cdest
 
 defPhi :: Size PilVar -> Symbol -> [Symbol] -> Statement expr
 defPhi sz sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sz sym) . fmap (pilVar sz)
+
+defPhi' :: PilVar -> [PilVar] -> Statement expr
+defPhi' dest = Pil.DefPhi . Pil.DefPhiOp dest
 
 store :: expr -> expr -> Statement expr
 store addr val = Pil.Store (Pil.StoreOp addr val)

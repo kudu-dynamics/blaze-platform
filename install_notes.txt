@@ -1,0 +1,60 @@
+### install for Debian
+
+sudo apt-get install build-essential curl libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev libncurses6 libtinfo6 pkg-config git cmake z3
+
+curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+
+source ~/.bashrc
+
+ghcup install ghc latest
+ghcup set ghc latest
+ghcup install stack
+
+
+### java ####
+sudo apt-get install openjdk-17-jdk openjdk-17-jre
+
+# add this to .bashrc or env:
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export LD_LIBRARY_PATH=$JAVA_HOME/lib/server:$LD_LIBRARY_PATH
+
+source ~/.bashrc
+
+
+### Binary Ninja ###
+
+# you must have binaryninja installed somewhere, must be able to be headless
+# Set to version 3.5.4526
+
+# make links from some dir on your LD_LIBARY_PATH (or /usr/lib) to these binja libs
+libbinaryninjacore.so -> /path/to/binaryninja/libbinaryninjacore.so.1
+libbinaryninjacore.so.1 -> /path/to/binaryninja/libbinaryninjacore.so.1
+
+# get corresponding binja api:
+git clone https://github.com/Vector35/binaryninja-api.git
+cd binaryninja-ai
+git checkout beb79f0a7aa38bdf6818056d8c21c6e599456be8
+git submodule update --init --recursive
+cmake -S . -B build
+cmake --build build -j8
+
+#link this from some dir on your library path:
+libbinaryninjaapi.a -> /path/to/binaryninja-api/build/out/libbinaryninjaapi.a
+
+# add to .bashrc:
+export BINJA_PLUGINS="/path/to//binaryninja/plugins"
+
+# refresh
+source ~/.bashrc
+
+# copy binja license to ~/.binaryninja/license.dat
+
+
+### build blaze-platform ###
+
+cd blaze-platform
+git checkout 10-sample-plan
+stack build
+
+cd flint
+stack test

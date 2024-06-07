@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Ghidra.Core
   ( runGhidra
   , runGhidraOrError
@@ -12,12 +13,12 @@ import Ghidra.Prelude
 
 import Ghidra.Types.Internal as Exports (Ghidra)
 import Ghidra.Types.Internal (Ghidra(Ghidra))
-import qualified Foreign.JNI as JNI
+import Foreign.JNI qualified as JNI
 import Foreign.JNI.Types (JVM)
 -- import Foreign.JNI.Unsafe.Internal qualified as JNIInternal
 import Control.Concurrent.STM.TChan (TChan, newTChanIO, writeTChan, readTChan)
 import Control.Concurrent.STM.TMVar (newEmptyTMVarIO, putTMVar, readTMVar)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import System.IO.Memoize (once)
 
 import Data.IORef

@@ -35,3 +35,4 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 ## end https://gitignore.io/api/haskell
+*/stack.yaml.lock

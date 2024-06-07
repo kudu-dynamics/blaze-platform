@@ -100,12 +100,18 @@ instance (Show a, RecurSubst CtxId a, Identifiable a UUID, Hashable a) => IsPath
              $ recurSubst (+ (p1 ^. #nextCtxIndex)) <$> (p2 ^. #path)
     }
 
-  -- Use responsibly. The can make invalid paths with overlappings ctxIds.
+  -- Use responsibly. This and `connect` can make invalid paths with overlappings ctxIds.
   append p1 l p2 = p1 & #path %~ (\p1' -> P.append p1' l (p2 ^. #path))
+
+  connect p1 p2 = case P.connect (p1 ^. #path) (p2 ^. #path) of
+    Nothing -> Nothing
+    Just p' -> Just $ p1 & #path .~ p'
 
   removeAfterNode n = over #path $ P.removeAfterNode n
   -- The outerCtx might not make much sense after this
   removeBeforeNode n = over #path $ P.removeBeforeNode n
+
+  drop i = over #path $ P.drop i
 
 -- | Constructs a Path from sequential edges.
 -- This doesn't check to make sure nodes aren't grouping nodes.

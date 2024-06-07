@@ -352,6 +352,30 @@ spec = describe "Blaze.Types.Path" $ do
               -| 99 |- "x" -| 8 |- "y" -| 9 |- "z"
         result `shouldBe` expected
 
+  context "connect" $ do
+        
+    it "should connect two singleton paths into one singleton path" $ do
+        let path1 = mkTextPath $ start "x"
+            path2 = mkTextPath $ start "x"
+            result = P.connect path1 path2
+            expected = Just . mkTextPath $ start "x"
+        result `shouldBe` expected
+
+    it "should return Nothing if two singleton paths aren't same node" $ do
+        let path1 = mkTextPath $ start "x"
+            path2 = mkTextPath $ start "y"
+            result = P.connect path1 path2
+            expected = Nothing
+        result `shouldBe` expected
+
+    it "should connect two paths with many nodes and common end/start node" $ do
+        let path1 = mkTextPath $ start "a" -| 1 |- "b" -| 2 |- "c"
+            path2 = mkTextPath $ start "c" -| 3 |- "d" -| 4 |- "e"
+            result = P.connect path1 path2
+            expected = Just . mkTextPath
+              $ start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d" -| 4 |- "e"
+        result `shouldBe` expected
+
   context "removeAfterNode" $ do    
     it "should remove nothing after last node" $ do
         let path = pathSingleNode
@@ -376,6 +400,37 @@ spec = describe "Blaze.Types.Path" $ do
         let path = pathManyNodes
             result = P.removeBeforeNode "c" path
             expected = mkTextPath $ start "c" -| 3 |- "d"
+        result `shouldBe` expected
+
+  context "drop" $ do
+    it "should drop nothing if path is single node" $ do
+        let path = pathSingleNode
+            result = P.drop 1 path
+            expected = pathSingleNode
+        result `shouldBe` expected
+
+    it "should drop nothing if n is 0" $ do
+        let path = pathManyNodes
+            result = P.drop 0 path
+            expected = pathManyNodes
+        result `shouldBe` expected
+
+    it "should drop 1 node if n is 1" $ do
+        let path = pathManyNodes
+            result = P.drop 1 path
+            expected = P.build $ start "b" -| 2 |- "c" -| 3 |- "d"
+        result `shouldBe` expected
+
+    it "should be able to drop a couple nodes" $ do
+        let path = pathManyNodes
+            result = P.drop 2 path
+            expected = P.build $ start "c" -| 3 |- "d"
+        result `shouldBe` expected
+
+    it "should leave path with last node if n is greater than (len(p) - 1)" $ do
+        let path = pathManyNodes
+            result = P.drop 88 path
+            expected = P.build $ start "d"
         result `shouldBe` expected
 
   context "build" $ do    

@@ -33,6 +33,7 @@ library
       Flint.Cfg
       Flint.Cfg.Path
       Flint.Cfg.Store
+      Flint.Graph
       Flint.Query
       Flint.Types.Analysis
       Flint.Types.CachedCalc
@@ -459,7 +460,9 @@ test-suite flint-tests
       Flint.Analysis.Path.Matcher.StubSpec
       Flint.Analysis.Path.MatcherSpec
       Flint.Cfg.PathSpec
+      Flint.Cfg.StoreSpec
       Flint.CfgSpec
+      Flint.GraphSpec
       Flint.QuerySpec
       Paths_flint
   autogen-modules:
