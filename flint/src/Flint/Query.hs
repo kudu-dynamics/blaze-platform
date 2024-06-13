@@ -80,8 +80,10 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
         -- go (parents, g) . M.AnyOne . fmap M.Ordered $ permutations pats
 
       M.Ordered pats -> foldM go (parents, g) pats
+      M.Neighbors pats -> foldM go (parents, g) pats
       M.Where pat _ -> go (parents, g) pat
       M.Necessarily pat _ -> go (parents, g) pat
+      M.EndOfPath -> return (parents, g)
 
 getCallSequenceGraph :: [StmtPattern] -> CallSequenceGraph M.Func
 getCallSequenceGraph pats = snd $ evalState (getCallSequenceGraph_ pats) 0

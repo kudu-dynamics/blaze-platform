@@ -252,6 +252,14 @@ branchCond e = Pil.BranchCond (Pil.BranchCondOp e)
 ret :: expr -> Statement expr
 ret = Pil.Ret . Pil.RetOp
 
+enterContext :: Pil.Ctx -> [expr] -> Statement expr
+enterContext ctx args = Pil.EnterContext $ Pil.EnterContextOp ctx args
+
+exitContext :: Pil.Ctx -> Pil.Ctx -> Statement expr
+exitContext leavingCtx returningToCtx
+  = Pil.ExitContext
+  $ Pil.ExitContextOp leavingCtx returningToCtx
+
 nop :: Statement expr
 nop = Pil.Nop
 
