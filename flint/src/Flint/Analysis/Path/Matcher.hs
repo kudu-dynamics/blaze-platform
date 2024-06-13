@@ -46,7 +46,8 @@ data Statement expr
   = Def expr expr -- Def dst src; dst is always (Var PilVar) expr
   | Constraint expr
   | Store expr expr
-  | EnterFunc Func -- need one that lets you access args of expanded call?
+  | EnterContext CtxPattern [expr]
+  | ExitContext CtxPattern CtxPattern -- leavingCtx, returningToCtx
   | Call (Maybe expr) (CallDest expr) [expr]
   | BranchCond expr
   | Jump expr
@@ -54,6 +55,13 @@ data Statement expr
   | NoRet
   -- These are sort of supported by Call, since it matches against any CallStatement
   -- | TailCall (CallDest expr) [expr]
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+-- | TODO: might need to make a `not` and `or` for CtxPattern
+data CtxPattern
+  = AnyCtx
+  | BindCtx Symbol CtxPattern
+  | Ctx (Maybe Func) (Maybe Pil.CtxId)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data StmtPattern
@@ -64,9 +72,11 @@ data StmtPattern
   | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
   | Unordered [StmtPattern] -- matches all, but in no particular order.
   | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
+  | Neighbors [StmtPattern] -- sequential neighbors with no unmatching stmts between
   -- | Once StmtPattern has matched, BoundExprs will be checked with the solver
   | Where StmtPattern [BoundExpr]
   | Necessarily StmtPattern [BoundExpr]
+  | EndOfPath
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize
@@ -194,6 +204,7 @@ type StmtSolver m = [Pil.Stmt] -> m SolverResult
 data MatcherState m = MatcherState
   { remainingStmts :: [Pil.Stmt]
   , boundSyms :: HashMap Symbol Pil.Expression
+  , boundCtxSyms :: HashMap Symbol Pil.Ctx
   , avoids :: HashMap AvoidSpec [Pil.Stmt]
   -- The successfully parsed stmts, stored in reverse order
   -- possibly interleaved with user-made Assertions
@@ -307,7 +318,7 @@ mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
 mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
 mkMatcherState :: StmtSolver m -> [TaintPropagator] -> [Pil.Stmt] -> MatcherState m
-mkMatcherState solver tps stmts = MatcherState stmts HashMap.empty HashMap.empty [] (mkTaintSet tps stmts) solver Nothing
+mkMatcherState solver tps stmts = MatcherState stmts HashMap.empty HashMap.empty HashMap.empty [] (mkTaintSet tps stmts) solver Nothing
 
 runMatcher
   :: Monad m
@@ -384,14 +395,27 @@ bad = throwError ()
 insist :: Monad m => Bool -> MatcherT m ()
 insist = bool bad good
 
+bind_
+  :: (Eq a, Monad m)
+  => Lens' (MatcherState m) (HashMap Symbol a)
+  -> Symbol
+  -> a
+  -> MatcherT m ()
+bind_ lens' sym x = do
+  bsyms <- use lens'
+  case HashMap.lookup sym bsyms of
+    Just x' -> insist $ x  == x'
+    Nothing -> lens' %= HashMap.insert sym x
+
 -- | This either adds a new sym/expr combo to the var bindings,
 -- or if the sym already exists, it checks to see if it matches.
 bind :: Monad m => Symbol -> Pil.Expression -> MatcherT m ()
-bind sym expr = do
-  bsyms <- use #boundSyms
-  case HashMap.lookup sym bsyms of
-    Just expr' -> insist $ expr == expr'
-    Nothing -> #boundSyms %= HashMap.insert sym expr
+bind = bind_ #boundSyms
+
+-- | This either adds a new sym/expr combo to the var bindings,
+-- or if the sym already exists, it checks to see if it matches.
+bindCtx :: Monad m => Symbol -> Pil.Ctx -> MatcherT m ()
+bindCtx = bind_ #boundCtxSyms
 
 -- | Tries to absorb a "not" into a bool expression.
 -- For instance, `(not (x == y))` will become `(x != y)`,
@@ -499,6 +523,20 @@ matchCmp cmpType patA patB expr = case cmpType of
     exprWithAbsorbedNots = absorbNots expr
     op = exprWithAbsorbedNots ^. #op
 
+matchCtx :: Monad m => CtxPattern -> Pil.Ctx -> MatcherT m ()
+matchCtx pat ctx = case pat of
+  AnyCtx -> good
+  BindCtx sym ctxPat -> do
+    matchCtx ctxPat ctx
+    bindCtx sym ctx
+  Ctx mFuncPat mCtxId -> do
+    case mFuncPat of
+      Nothing -> good
+      Just funcPat -> matchFuncPatWithFunc funcPat $ ctx ^. #func
+    case mCtxId of
+      Nothing -> good
+      Just x -> insist $ x == ctx ^. #ctxId
+
 matchExprOp :: Monad m => Pil.ExprOp ExprPattern -> Pil.ExprOp Pil.Expression -> MatcherT m ()
 matchExprOp opPat op = do
   insist $ void opPat == void op
@@ -569,16 +607,55 @@ matchStmt sPat stmt = case (sPat, stmt) of
     let pvExpr = Pil.Expression (expr ^. #size) . Pil.VAR $ Pil.VarOp pv
     matchExpr destPat pvExpr
     matchExpr srcPat expr
+    retireStmt
+
   (Constraint expr, Pil.Constraint (Pil.ConstraintOp condExpr)) -> do
     matchExpr expr condExpr
+    retireStmt
+
   (Store addrPat valPat, Pil.Store (Pil.StoreOp addrExpr valExpr)) -> do
     matchExpr addrPat addrExpr
     matchExpr valPat valExpr
-  -- TODO: match EnterContextOp args
-  (EnterFunc funcPat, Pil.EnterContext (Pil.EnterContextOp ctx _)) ->
-    matchFuncPatWithFunc funcPat $ ctx ^. #func
+    retireStmt
+
+  (EnterContext ctxPat argPats, Pil.EnterContext (Pil.EnterContextOp ctx argExprs)) -> do
+    matchCtx ctxPat ctx
+    if length argPats > length argExprs
+      then bad 
+      else do
+        traverse_ (uncurry matchExpr) $ zip argPats argExprs
+        retireStmt
+
+  (ExitContext leavingCtxPat returningToCtxPat, Pil.ExitContext (Pil.ExitContextOp leavingCtx returningToCtx)) -> do
+    matchCtx leavingCtxPat leavingCtx
+    matchCtx returningToCtxPat returningToCtx
+    retireStmt
+
   (Call mResultPat callDestPat argPats, _) -> case Pil.mkCallStatement stmt of
-    Nothing -> bad
+    Nothing -> case stmt of
+      Pil.EnterContext (Pil.EnterContextOp ctx argExprs) -> do
+        case callDestPat of
+          -- TODO: it would be nice to somehow still match on expanded indirect calls,
+          --   but i'm not sure how, because the dest expr gets replaced by a concrete func
+          CallIndirect _ -> bad
+          CallFunc funcPat -> matchFuncPatWithFunc funcPat $ ctx ^. #func
+        if length argPats > length argExprs
+          then bad 
+          else traverse_ (uncurry matchExpr) $ zip argPats argExprs
+        let ctxPat = Ctx (Just . FuncAddr $ ctx ^. #func . #address) (Just $ ctx ^. #ctxId)
+            endPat = case mResultPat of
+              Nothing ->
+                AnyOne [ EndOfPath
+                       , Stmt $ ExitContext ctxPat AnyCtx
+                       ]
+              Just retPat ->
+                Neighbors [ Stmt $ Ret retPat
+                          , Stmt $ ExitContext ctxPat AnyCtx
+                          ]
+        matchNextStmt endPat
+        -- Don't retireStmt here because matchNextStmt already wil do that.
+
+      _ -> bad
     Just (Pil.CallStatement _ callOp argExprs mResultVar) -> do
       matchCallDest callDestPat $ callOp ^. #dest
       case (mResultPat, mResultVar) of
@@ -594,13 +671,22 @@ matchStmt sPat stmt = case (sPat, stmt) of
       if length argPats > length argExprs
         then bad
         else traverse_ (uncurry matchExpr) $ zip argPats argExprs
-  (BranchCond condPat, Pil.BranchCond (Pil.BranchCondOp condExpr)) ->
+      retireStmt
+
+  (BranchCond condPat, Pil.BranchCond (Pil.BranchCondOp condExpr)) -> do
     matchExpr condPat condExpr
-  (Jump destPat, Pil.Jump (Pil.JumpOp destExpr)) ->
+    retireStmt
+
+  (Jump destPat, Pil.Jump (Pil.JumpOp destExpr)) -> do
     matchExpr destPat destExpr
-  (Ret valPat, Pil.Ret (Pil.RetOp valExpr)) ->
+    retireStmt
+
+  (Ret valPat, Pil.Ret (Pil.RetOp valExpr)) -> do
     matchExpr valPat valExpr
-  (NoRet, Pil.NoRet) -> good
+    retireStmt
+
+  (NoRet, Pil.NoRet) -> retireStmt
+
   _ -> bad
 
 backtrackOnError :: Monad m => MatcherT m a -> MatcherT m a
@@ -689,6 +775,7 @@ matchNextStmt = matchNextStmt_ True
 
 -- when shouldCheckAvoids checkAvoids >>
 
+
 -- | Matches the next statement with the next stmt pattern.
 matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
 matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
@@ -696,20 +783,23 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Stmt _ -> bad
     AvoidUntil _ -> use #avoids >>= bool bad good . HashMap.null
     AnyOne [] -> good
-    AnyOne _ -> bad
+    AnyOne pats -> asum $ matchNextStmt_ False <$> pats
     Unordered [] -> good
-    Unordered _ -> bad
+    Unordered pats -> mapM_ (matchNextStmt_ False) pats
     Ordered [] -> good
-    Ordered _ -> bad
+    Ordered pats -> mapM_ (matchNextStmt_ False) pats
+    Neighbors [] -> good
+    Neighbors pats -> mapM_ (matchNextStmt_ False) pats
     Where subPat boundExprs ->
       matchWhere subPat boundExprs
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
+    EndOfPath -> good
 
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
       -- Matched Statement
-      Right _ -> retireStmt
+      Right _ -> good
       -- Stmt failed to match. Try next stmt with same pattern.
       Left _ -> perhapsRecur
     AvoidUntil avoidSpec -> do
@@ -729,22 +819,28 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
                  $ backtrackOnError . traverse (matchNextStmt_ False) <$> zip [0..] pats
                ) >>= \case
         -- One matched, now remove successful pattern from pats and continue
+
         Right (i, _) -> do
           matchNextStmt . Unordered $ removeNth i pats
         -- No matches. Continue to next statement with same pattern.
         Left _ -> perhapsRecur
-    Ordered [] -> return ()
+    Ordered [] -> good
     Ordered (p:pats) ->
       ( tryError . backtrackOnError $ do
           matchNextStmt p
           matchNextStmt $ Ordered pats
       ) >>= \case
-      Right _ -> return ()
+      Right _ -> good
+      Left _ -> perhapsRecur
+    Neighbors [] -> good
+    Neighbors pats -> (tryError . backtrackOnError . forM_ pats $ matchNextStmt_ False) >>= \case
+      Right _ -> good
       Left _ -> perhapsRecur
     Where subPat boundExprs ->
       matchWhere subPat boundExprs
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
+    EndOfPath -> perhapsRecur
   where
     matchWhere subPat boundExprs = do
       matchNextStmt subPat
