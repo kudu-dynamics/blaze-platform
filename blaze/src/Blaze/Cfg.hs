@@ -15,8 +15,6 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import Control.Lens (set)
 import qualified Data.HashSet as HashSet
-import qualified Data.List as List
-import qualified Data.List.NonEmpty as NEList
 import qualified Data.HashSet as HSet
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as Bimap
@@ -62,12 +60,20 @@ parseNoRetNode node = do
     NoRet -> return $ NoRetNode node
     _ -> Nothing
 
-parseTerminalNode :: CfNode [Stmt] -> Maybe (TerminalNode [Stmt])
-parseTerminalNode node = do
-  bb <- node ^? #_BasicBlock
-  (TermRet <$> parseReturnNode bb)
-    <|> (TermExit <$> parseExitNode bb)
-    <|> (TermNoRet <$> parseNoRetNode bb)
+parseJumpNode :: BasicBlockNode [Stmt] -> Maybe (JumpNode [Stmt])
+parseJumpNode node = do
+  jumpOp <- lastStmtFrom node >>= preview #_Jump
+  return $ JumpNode node jumpOp
+
+parseTerminalNode :: CfNode [Stmt] -> TerminalNode [Stmt]
+parseTerminalNode node =
+  fromMaybe (TermOther node) $ do
+    bb <- node ^? #_BasicBlock
+    (TermRet <$> parseReturnNode bb)
+      <|> (TermExit <$> parseExitNode bb)
+      <|> (TermNoRet <$> parseNoRetNode bb)
+      <|> (TermJump <$> parseJumpNode bb)
+      <|> Just (TermOther node)
 
 parseBranchNode
   :: (CfNode [Stmt] -> [Stmt])
@@ -80,22 +86,13 @@ parseBranchNode getStmts node = do
     Pil.BranchCond op -> Just $ BranchNode bb op
     _ -> Nothing
 
-{- |Get all terminal blocks. An error is raised if a CFG does not contain at least
- one terminal block.
+{- | Get all terminal blocks, if any, of 'cfg'. There may be no terminal blocks
 -}
-getTerminalBlocks :: PilCfg -> NonEmpty (TerminalNode [Stmt])
+getTerminalBlocks :: PilCfg -> HashSet (TerminalNode [Stmt])
 getTerminalBlocks cfg =
-  -- TODO: We may want to add a 'FuncCfg' type so that arbitrary CFGs that may not correspond
-  --       to an entire function do not cause errors.
-  if List.null termNodes
-    then error "CFGs should always have at least one terminal basic block."
-    else NEList.fromList termNodes
- where
-  termNodes :: [TerminalNode [Stmt]]
-  termNodes =
-    mapMaybe
-      parseTerminalNode
-      (HashSet.toList $ Cfg.nodes cfg)
+  HashSet.map parseTerminalNode
+  . HashSet.filter (\n -> HashSet.null $ succs n cfg)
+  $ Cfg.nodes cfg
 
 -- |Get all the return expressions.
 getRetExprs :: PilCfg -> [Expression]
@@ -103,7 +100,7 @@ getRetExprs cfg =
   view (#retOp . #value) <$> retBlocks
  where
   retBlocks :: [ReturnNode [Stmt]]
-  retBlocks = mapMaybe (preview #_TermRet) (NEList.toList $ getTerminalBlocks cfg)
+  retBlocks = mapMaybe (preview #_TermRet) . HashSet.toList $ getTerminalBlocks cfg
 
 evalCondition :: BranchCondOp Expression -> Maybe Bool
 evalCondition bn = case bn ^. #cond . #op of

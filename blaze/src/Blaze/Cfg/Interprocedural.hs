@@ -23,7 +23,7 @@ import Blaze.Types.Pil (
   Symbol,
   mkCallStatement,
  )
-import qualified Data.List.NonEmpty as NEList
+import qualified Data.HashSet as HashSet
 import qualified Blaze.Graph as G
 
 
@@ -193,4 +193,4 @@ wrapTargetCfg enterFuncUUID leaveFuncUUID callerCtx calleeCtx callStmt targetCfg
 
 getRetNodes :: PilCfg -> [ReturnNode [Stmt]]
 getRetNodes cfg =
-  mapMaybe (\tn -> tn ^? #_TermRet) $ NEList.toList (getTerminalBlocks cfg)
+  mapMaybe (\tn -> tn ^? #_TermRet) . HashSet.toList $ getTerminalBlocks cfg
