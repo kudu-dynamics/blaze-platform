@@ -424,8 +424,8 @@ convertPcodeOpToPilStmt = \case
   P.LOAD out addrSpace in1 -> do
     offset <- varNodeToValueExpr in1
     -- TODO: we need to make use of the address space during the LOAD. How?
-    if addrSpace ^. #value . #ptrSize == 1 then do
-      let target = Pil.LOAD . Pil.LoadOp $ offset
+    if addrSpace ^. #value . #ptrSize == 1 || addrSpace ^. #value . #addressableUnitSize == 1 then do
+      let target = Pil.LOAD $ Pil.LoadOp offset
       mkDef out target
     else do
       let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
@@ -471,7 +471,7 @@ convertPcodeOpToPilStmt = \case
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.SEGMENTOP -> pure [Pil.UnimplInstr "SEGMENTOP"]
   P.STORE addrSpace destOffset in1 -> do
-    if addrSpace ^. #value . #ptrSize == 1 then do
+    if addrSpace ^. #value . #ptrSize == 1 || addrSpace ^. #value . #addressableUnitSize == 1 then do
       destOffset' <- varNodeToValueExpr destOffset
       in1' <- varNodeToValueExpr in1
       -- TODO we need to make use of the address space during the Store. How?
