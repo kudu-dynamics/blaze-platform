@@ -3,6 +3,7 @@
 {- HLINT ignore "Redundant bracket" -}
 {- HLINT ignore "Evaluate" -}
 {- HLINT ignore "Use uncurry" -}
+{- HLINT ignore "Move brackets to avoid $" -}
 
 module Main (main) where
 
@@ -13,16 +14,16 @@ import Flint.Analysis.Path.Matcher
 import Flint.Analysis.Path.Matcher.Stub (StubSpec(StubSpec))
 import qualified Flint.Analysis.Path.Matcher.Stub as Stub
 import qualified Flint.Cfg.Store as Store
-
 import Flint.Types.Query
 import Flint.Query
+import Flint.Util (sequentialPutText)
 
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Graph as G
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Pil.Construct hiding (not)
-import Blaze.Pretty (prettyPrint', prettyStmts')
+import Blaze.Pretty (prettyPrint', prettyStmts', pretty')
 import Blaze.Types.Function (Function)
 
 import qualified Data.HashMap.Strict as HashMap
@@ -84,15 +85,15 @@ useAfterFree = BugMatch
   , mitigationAdvice = "Bad job."
   }
 
-incrementWithoutCheck :: Text -> BugMatch
-incrementWithoutCheck _mallocFuncName = BugMatch
+incrementWithoutCheck :: BugMatch
+incrementWithoutCheck = BugMatch
   { pathPattern =
-    
-      [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
-      , AvoidUntil $ AvoidSpec
-        { avoid = Stmt . BranchCond
-                  $   ((load (Bind "ptr" Wild) ()) .< Wild)
-                  .|| ((load (Bind "ptr" Wild) ()) .<= Wild)
+      [ AvoidUntil $ AvoidSpec
+        { avoid = Stmt . Constraint
+                  $   (Contains $ (load (Bind "ptr" Wild) ()) .< Wild)
+                  .|| (Contains $ (load (Bind "ptr" Wild) ()) .<= Wild)
+                  .|| (Contains $ (load (Bind "ptr" Wild) ()) .== Wild)
+                  .|| (Contains $ (load (Bind "ptr" Wild) ()) ./= Wild)
         , until = Ordered
           [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
           ]
@@ -104,13 +105,6 @@ incrementWithoutCheck _mallocFuncName = BugMatch
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
   , mitigationAdvice = "Add a bounds check."
   }
-
-
-
-          -- [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
-          -- , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
-          -- ]
-
 
 oobWrite :: BugMatch
 oobWrite = BugMatch
@@ -212,7 +206,7 @@ divelogger = do
       stubs = []
       callDepth = 10
       maxSamples = 80
-      bugPattern = incrementWithoutCheck "cgc_malloc"
+      bugPattern = incrementWithoutCheck
 
   -- mapM_ (\func -> putText $ func ^. #name) . sort . HashSet.toList $ startFuncs
   queryForBugMatch_ useSolver callDepth maxSamples store' funcMapping (Just startFuncs) stubs bugPattern
@@ -256,7 +250,7 @@ electronictrading = do
       stubs = [allocStub "cgc_allocate", allocStub "cgc_pool_alloc"]
       callDepth = 10
       maxSamples = 80
-      bugPattern = incrementWithoutCheck "cgc_allocate"
+      bugPattern = incrementWithoutCheck
 
   -- mapM_ (\func -> putText $ func ^. #name) . sort . HashSet.toList $ startFuncs
   queryForBugMatch_ useSolver callDepth maxSamples store' funcMapping (Just startFuncs) stubs bugPattern
@@ -352,11 +346,11 @@ diveloggerSampleRoute = do
 
       -- Hit same node twice in loop
       route = ( FuncSym "cgc_MainMenu"
-             , [ G.InnerNode 0x804cf8a
-               , G.InnerNode 0x804cf8a
-               , G.Finished
-               ]
-             )
+              , [ G.InnerNode 0x804cf8a
+                , G.InnerNode 0x804cf8a
+                , G.Finished
+                ]
+              )
 
   r <- replicateM 1 $ sampleRoute imp store' pprep (fst route) (snd route)
   let showPath p = do
@@ -366,8 +360,31 @@ diveloggerSampleRoute = do
         prettyStmts' ps'
   traverse_ showPath $ catMaybes r
 
+
+spamDiveLogger :: IO ()
+spamDiveLogger = do
+  putText "starting"
+  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+  putText "Loaded Dive_Logger.bndb"
+  store' <- Store.init imp
+
+  let q :: Query Function
+      q = QueryExpandAll $ QueryExpandAllOpts
+          { callExpandDepthLimit = 0
+          , numSamples = 15
+          }
+      bms :: [BugMatch]
+      bms =
+        [ incrementWithoutCheck
+        ]
+      funcs :: HashSet Function
+      funcs = HashSet.fromList $ store' ^. #funcs
+        
+  checkFuncs False store' q bms (sequentialPutText . pretty') funcs
+
 main :: IO ()
 main = do
   -- divelogger
   -- diveloggerPlanner
-  diveloggerSampleRoute
+  -- diveloggerSampleRoute
+  spamDiveLogger

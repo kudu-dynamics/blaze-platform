@@ -13,9 +13,12 @@ import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (PilNode)
+import Blaze.Pretty (Tokenizable(tokenize), tt, (<++>), PStmts(PStmts))
+import Blaze.Types.Cfg.Path (PilPath)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph as G
+import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
@@ -30,51 +33,73 @@ data BugMatch = BugMatch
   , mitigationAdvice :: BoundText
   } deriving (Eq, Ord, Show, Generic)
 
+-- | A path that matches a bug pattern
+data MatchingResult = MatchingResult
+  { func :: Function
+  , path :: PilPath
+  , pathAsStmts :: [Pil.Stmt]
+  , bugName :: Text
+  , bugDescription :: Text
+  , mitigationAdvice :: Text
+  } deriving (Eq, Ord, Show, Generic)
+
+instance Tokenizable MatchingResult where
+  tokenize x = tt ("\n---==== Found " <> x ^. #bugName <> " ====---\n")
+               <++> tt ("Function: " <> x ^. #func . #name)
+               <++> tt "\n\n"
+               <++> tt "---- Path:\n"
+               <++> tokenize (PStmts $ x ^. #pathAsStmts)
+               <++> tt "\n\n"
+               <++> tt "Bug Description:\n"
+               <++> tt (x ^. #bugDescription)
+               <++> tt "\n\n"
+               <++> tt "Suggested Mitigation:\n"
+               <++> tt (x ^. #mitigationAdvice)
+               <++> tt "\n------------------------------------\n"
+
+data QueryConfig func = QueryConfig
+  { startFunc :: func
+  , query :: Query func
+  , bugMatches :: [BugMatch]
+  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+
 data BinarySearchConfig imp func = BinarySearchConfig
   { excludeFuncsFromStore :: [func]
   , binaryPath :: FilePath
   -- | runs the query to get paths, then the PathMatch to look for bugs in paths
-  , queries :: [(Query func, [BugMatch])]
+  , queryConfigs :: [QueryConfig func]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   
 data QueryTargetOpts func = QueryTargetOpts
-  { start :: func
-  , mustReachSome :: NonEmpty (func, Address) -- addr inside any basic block
+  { mustReachSome :: NonEmpty (func, Address) -- addr inside any basic block
   , callExpandDepthLimit :: Word64
   , numSamples :: Word64
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | This just picks one callsite to expand until it reaches a dead-end or its limit.
-data QueryExploreDeepOpts func = QueryExploreDeepOpts
-  { start :: func
-  , callExpandDepthLimit :: Word64
+data QueryExploreDeepOpts = QueryExploreDeepOpts
+  { callExpandDepthLimit :: Word64
   , numSamples :: Word64
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  } deriving (Eq, Ord, Show, Generic)
 
-data QueryExpandAllOpts func = QueryExpandAllOpts
-  { start :: func
-  , callExpandDepthLimit :: Word64
+data QueryExpandAllOpts = QueryExpandAllOpts
+  { callExpandDepthLimit :: Word64
   , numSamples :: Word64
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  } deriving (Eq, Ord, Show, Generic)
 
--- leaving this `data` for now bc we'll probably expand opts
-data QueryAllPathsOpts func = QueryAllPathsOpts
-  { start :: func
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-
-data QueryCallSeqOpts func = QueryCallSeqOpts
-  { start :: func
-  , callSeqPrep :: CallSeqPrep
+data QueryCallSeqOpts = QueryCallSeqOpts
+  { callSeqPrep :: CallSeqPrep
   , numSamples :: Word64
   , callExpandDepthLimit :: Word64
-  } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
+  } deriving (Eq, Ord, Show, Generic)
 
+-- | Strategies for getting paths out of an individual function
 data Query func
   = QueryTarget (QueryTargetOpts func)
-  | QueryExpandAll (QueryExpandAllOpts func)
-  | QueryExploreDeep (QueryExploreDeepOpts func)
-  | QueryAllPaths (QueryAllPathsOpts func)
-  | QueryCallSeq (QueryCallSeqOpts func)
+  | QueryExpandAll QueryExpandAllOpts
+  | QueryExploreDeep QueryExploreDeepOpts
+  | QueryAllPaths
+  | QueryCallSeq QueryCallSeqOpts
   deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | Used in the query config to identify a function by name or addr
@@ -136,9 +161,6 @@ data CallSeqPrep = CallSeqPrep
   , lastCall :: Function
   , callSeq :: NonEmpty Function
   } deriving (Eq, Ord, Show, Generic)
-
--- instance Tokenizable CallSeqPrep where
---   tokenize x = 
 
 -- for debugging
 showCallSeqPrep :: CallSeqPrep -> Text

@@ -334,33 +334,34 @@ exploreForward_ genUuid exploreStrat st startingFunc = do
 -- | Gets samples for a Query.
 samplesFromQuery
   :: CfgStore
+  -> Function
   -> Query Function
   -> IO [PilPath]
-samplesFromQuery store = \case
+samplesFromQuery store startFunc = \case
   QueryTarget opts -> do
     strat <- mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) store (opts ^. #mustReachSome)
-    let action = exploreForward_ incUUID' strat 0 (opts ^. #start)
+    let action = exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
   QueryExpandAll opts -> do
     let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) store
-        action = exploreForward_ incUUID' strat 0 (opts ^. #start)
+        action = exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
   QueryExploreDeep opts -> do
     let strat = exploreDeepStrategy randomRIO (opts ^. #callExpandDepthLimit) store
-        action = exploreForward_ incUUID' strat 0 (opts ^. #start)
+        action = exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
-  QueryAllPaths opts -> CfgStore.getFuncCfgInfo store (opts ^. #start) >>= \case
-    Nothing -> error $ "Could not get cfg for function " <> show (opts ^. #start)
+  QueryAllPaths -> CfgStore.getFuncCfgInfo store startFunc >>= \case
+    Nothing -> error $ "Could not get cfg for function " <> show startFunc
     Just cfgInfo -> return . CfgPath.getAllSimplePaths $ cfgInfo ^. #acyclicCfg
 
   QueryCallSeq opts -> do
     mkFanAlongCallSeqStrategy randomRIO (opts ^. #callExpandDepthLimit) store (opts ^. #callSeqPrep) >>= \case
       Nothing -> return [] -- TODO: this currently happens when there are no call sites for last func in CallSeq
       Just strat -> do
-        let action = exploreForward_ incUUID' strat 0 (opts ^. #start)
+        let action = exploreForward_ incUUID' strat 0 startFunc
         collectSamples (opts ^. #numSamples) action
 
   where

@@ -665,6 +665,32 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = NoMatch
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
+
+    it "should handle avoid/until for real world example" $ do
+      
+      let addr :: Pil.Expression
+          addr = add (var "arg1" 0x8) (const 0x8 0x8) 0x8
+          stmts :: [Pil.Stmt]
+          stmts =
+            [ constraint $ not (cmpUgt (add (load addr 0x8) (const 0x1 0x8) 0x8) (var "x" 0x8) 0x8) 0x8
+            , store addr $ add (load addr 0x8) (const 0x1 0x8) 0x8
+            ]
+          pats = [ AvoidUntil $ AvoidSpec
+                   { avoid = Stmt . Constraint
+                     $   (Contains (load (Bind "ptr" Wild) ()) .< Wild)
+                     .|| (Contains (load (Bind "ptr" Wild) ()) .<= Wild)
+                     .|| (Contains (load (Bind "ptr" Wild) ()) .> Wild)
+                     .|| (Contains (load (Bind "ptr" Wild) ()) .>= Wild)
+                     .|| (Contains (load (Bind "ptr" Wild) ()) .== Wild)
+                     .|| (Contains (load (Bind "ptr" Wild) ()) ./= Wild)
+                   , until = Ordered
+                     [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+                     ]
+                   }
+                 ]
+          expected = NoMatch
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
     context "assertions" $ do
 
       it "should make assertion using bound vars" $ do

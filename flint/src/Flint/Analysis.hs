@@ -215,28 +215,6 @@ reifyQuery
   -> Query a
   -> IO (Query Function)
 reifyQuery imp = traverse (getFunction imp)
-  
--- -- | Opens binary specified by FilePath and gets Functions from Addresses
--- reifyBinarySearchConfig
---   :: (GetFunction a, BinaryImporter imp, CallGraphImporter imp)
---   => BinarySearchConfig FilePath a
---   -> IO (BinarySearchConfig imp Function)
--- reifyBinarySearchConfig bconfig = (openBinary $ bconfig ^. #binary) >>= \case
---   Left err -> error $ cs err
---   Right imp -> do
---     bconfig' <- traverse (getFunction imp) bconfig
---     return $ bconfig' & #binary .~ imp
-
--- getFuncsForBinarySearchConfig
---   :: CallGraphImporter imp
---   => BinarySearchConfig imp Function
---   -> IO [Function]
--- getFuncsForBinarySearchConfig bconfig = do
---   let imp = bconfig ^. #binary
---       excludes = bconfig ^. #excludeFuncsFromStore
---   funcs <- Cg.getFunctions imp
---   return $ filter (\func -> not $ HashSet.member (func ^. #address) excludes) funcs
-
 
 -- TODO: Remove because the CfgStore loads func Cfgs lazily.
 storeFromBinarySearchConfig
@@ -254,22 +232,22 @@ storeFromBinarySearchConfig imp bconfig store = do
   let funcs = filter (\func -> not $ HashSet.member func excludes) allFuncs
   addCfgStoreForBinary imp funcs store
 
-showQueryHeader :: Query Function -> Text
-showQueryHeader = \case
-  QueryTarget x -> (x ^. #start . #name) <> " ==> " <> showTargets (x ^. #mustReachSome)
-  QueryExpandAll x -> (x ^. #start . #name) <> " ========== Expand all "
-  QueryExploreDeep x -> (x ^. #start . #name) <> " ========== Explore deep "
-  QueryAllPaths x -> (x ^. #start . #name) <> " ========== All Paths "
-  QueryCallSeq x -> (x ^. #start . #name) <> " ========== Call Seq " -- TODO: show call seq path
+showQueryHeader :: Function -> Query Function -> Text
+showQueryHeader startFunc = \case
+  QueryTarget opts -> (startFunc ^. #name) <> " ==> " <> showTargets (opts ^. #mustReachSome)
+  QueryExpandAll _opts -> (startFunc ^. #name) <> " ========== Expand all "
+  QueryExploreDeep _opts -> (startFunc ^. #name) <> " ========== Explore deep "
+  QueryAllPaths -> (startFunc ^. #name) <> " ========== All Paths "
+  QueryCallSeq _opts -> (startFunc ^. #name) <> " ========== Call Seq " -- TODO: show call seq path
   where
     showTargets :: NonEmpty (Function, Address) -> Text
     showTargets (x :| xs) = Text.intercalate ", " . fmap showTarget $ x:xs
     showTarget :: (Function, Address) -> Text
     showTarget (func, addr) = pretty' addr <> func ^. #name
 
-showQuerySummaries :: [TaintPropagator] -> CfgStore -> (Query Function, [BugMatch]) -> IO ()
-showQuerySummaries tps store (q, bugMatchers) = do
-  paths <- samplesFromQuery store q
+showQuerySummaries :: [TaintPropagator] -> CfgStore -> Function -> Query Function -> [BugMatch] -> IO ()
+showQuerySummaries tps store startFunc q bugMatchers = do
+  paths <- samplesFromQuery store startFunc q
   let okPaths = paths -- filterOkPaths paths
       withMatches = flip fmap okPaths
         $ \p -> ( p
@@ -280,7 +258,7 @@ showQuerySummaries tps store (q, bugMatchers) = do
                     , bm
                     )
                 )
-  showPathsWithMatches (showQueryHeader q) withMatches
+  showPathsWithMatches (showQueryHeader startFunc q) withMatches
 
 summariesOfInterest
   :: forall imp func.
@@ -298,7 +276,8 @@ summariesOfInterest tps bconfig = do
   bconfig' <- traverse (getFunction imp) bconfig
   cfgStore <- CfgStore.init imp
   storeFromBinarySearchConfig imp bconfig' cfgStore
-  mapM_ (showQuerySummaries tps cfgStore) $ bconfig' ^. #queries
+  mapM_ (\x -> showQuerySummaries tps cfgStore (x ^. #startFunc) (x ^. #query) (x ^. #bugMatches))
+    $ bconfig' ^. #queryConfigs
 
 sampleForAllFunctions :: HashSet Text -> BndbFilePath -> IO ()
 sampleForAllFunctions blacklist binPath = do

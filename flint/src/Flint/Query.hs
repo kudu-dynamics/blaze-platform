@@ -15,6 +15,7 @@ import Flint.Types.Analysis (TaintPropagator)
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Types.Query
+import Flint.Util (sequentialWarn)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
@@ -120,7 +121,11 @@ toFullFunctionSequenceGraph m = traverse . traverse $ getFullFunction m
 -- that will is useful for sampling Cfg paths along the call seq path.
 -- The optional second argument is a set that restricts the possible start functions
 -- TODO: break this out into some pure functions and add tests
-getCallSeqPreps :: CfgStore -> Maybe (HashSet Function) -> CallSequenceGraph Function -> IO [CallSeqPrep]
+getCallSeqPreps
+  :: CfgStore
+  -> Maybe (HashSet Function)
+  -> CallSequenceGraph Function
+  -> IO [CallSeqPrep]
 getCallSeqPreps store restrictStartFuncs g = do
   let starts = HashSet.toList $ G.sources g
   fmap concat . forConcurrently starts $ \start -> do
@@ -166,13 +171,12 @@ samplePathFromPrep callDepth numSamples store prep = do
     [] -> return Nothing -- no functions can reach all the calls
     (x:xs) -> do
       luckyStart <- pickFromList randomRIO (x :| xs)
-      let opts = QueryCallSeqOpts
-            { start = luckyStart
-            , callSeqPrep = prep
-            , numSamples = numSamples
-            , callExpandDepthLimit = callDepth
-            }
-      paths <- samplesFromQuery store $ QueryCallSeq opts
+      let q = QueryCallSeq $ QueryCallSeqOpts
+              { callSeqPrep = prep
+              , numSamples = numSamples
+              , callExpandDepthLimit = callDepth
+              }
+      paths <- samplesFromQuery store luckyStart q
       return $ Just (luckyStart, paths)
 
 -- | Uses static calls in pattern to narrow down search space.
@@ -643,3 +647,55 @@ checkPathsForBugMatch actuallySolve _taints stubs bugMatch fpaths = do
       = (func, path',) <$> M.matchPath solver [] (bugMatch ^. #pathPattern) path'
       where
         path' = stubPath stubs path
+
+-- | Convenient function to query multiple functions and check for a bug match
+checkFuncs
+  :: Bool                   -- actually use SMT solver?
+  -> CfgStore
+  -> Query Function         -- method to get the paths from each func
+  -> [BugMatch]             -- checks all on each path
+  -> (MatchingResult -> IO ()) -- stream out matches per function
+  -> HashSet Function       -- start funcs
+  -> IO ()
+checkFuncs actuallySolve store q bugMatches streamResults funcs = do
+  mapConcurrently_ (checkFunc actuallySolve store q bugMatches streamResults) . HashSet.toList $ funcs
+  putText "Finished"
+  
+checkFunc
+  :: Bool                   -- actually use SMT solver?
+  -> CfgStore
+  -> Query Function         -- method to get the paths from each func
+  -> [BugMatch]             -- checks all on each path
+  -> (MatchingResult -> IO ()) -- stream out matches per function
+  -> Function               -- start func
+  -> IO ()
+checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch reportError $ do
+  paths <- samplesFromQuery store startFunc q
+  forConcurrently_ paths $ \path -> do
+    forConcurrently_ bugMatches $ \bugMatch -> do
+      M.matchPath solver [] (bugMatch ^. #pathPattern) path >>= \case
+        (_, M.NoMatch) -> return ()
+        (ms, M.Match stmtsWithAssertions) -> do
+          streamResults $ MatchingResult
+            { func = startFunc
+            , path = path
+            -- TODO: do we want to include a bug match's SMT assertions in result path?
+            , pathAsStmts = stmtsWithAssertions
+            , bugName = bugMatch ^. #bugName
+            , bugDescription = resolveText $ bugMatch ^. #bugDescription
+            , mitigationAdvice = resolveText $ bugMatch ^. #mitigationAdvice
+            }
+            where
+              resolveText = M.resolveBoundText (ms ^. #boundSyms)
+  where
+    solver = if actuallySolve
+      then const . return $ Solver.Sat HashMap.empty
+      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+    reportError :: SomeException -> IO ()
+    reportError e = do
+      let msg = "\n---------------------------\n"
+                <> "Error when checking function: "
+                <> show (startFunc ^. #name)
+                <> "\n"
+                <> show e
+      sequentialWarn msg
