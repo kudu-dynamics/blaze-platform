@@ -98,7 +98,6 @@ failedToCheckCommBufferIsOutsideSmramArbitraryReadBug =
     , mitigationAdvice = "Before writing to the CommBuffer in any way, SmmIsBufferOutsideSmmValid should be called on the user-supplied pointer to the CommBuffer to ensure it is not pointing inside SMRAM."
   }
 
-
 smmCalloutPattern :: [StmtPattern]
 smmCalloutPattern =
   [ AnyOne
@@ -130,14 +129,14 @@ queryVariableInfoConfig :: BinarySearchConfig BNImporter FuncConfig
 queryVariableInfoConfig = BinarySearchConfig
   { binaryPath = "/tmp/e1smm/QueryVariableInfo.debug.bndb"
   , excludeFuncsFromStore = []
-  , queries =
-    [
-      ( QueryAllPaths $ QueryAllPathsOpts
-        { start = FuncSym "QueryVariableInfoHandler"
-        }
-      , [ smmCalloutBug
+  , queryConfigs =
+    [ QueryConfig
+      { startFunc = FuncSym "QueryVariableInfoHandler"
+      , query = QueryAllPaths
+      , bugMatches =
+        [ smmCalloutBug
         ]
-      )
+      }
     ]    
   }
 
@@ -145,17 +144,17 @@ smmLightConfig :: BinarySearchConfig BNImporter FuncConfig
 smmLightConfig = BinarySearchConfig
   { binaryPath = "/tmp/e1smm/HwSmmLight.debug.bndb"
   , excludeFuncsFromStore = []
-  , queries =
-    [
-      ( QueryAllPaths $ QueryAllPathsOpts
-        { start = FuncSym "UnregisterCBFunctionLight"
-        }
-      , [ smmCalloutBug
+  , queryConfigs =
+    [ QueryConfig
+      { startFunc = FuncSym "UnregisterCBFunctionLight"
+      , query = QueryAllPaths
+      , bugMatches =
+        [ smmCalloutBug
         , failedToCheckCommBufferIsOutsideSmramArbitraryReadBug
         , failedToCheckCommBufferIsOutsideSmramBug
         , commBufferOobWriteBug
         ]
-      )
+      }
     ]    
   }
 
@@ -163,16 +162,16 @@ rwVariableConfig :: BinarySearchConfig BNImporter FuncConfig
 rwVariableConfig = BinarySearchConfig
   { binaryPath = "/tmp/e1smm/RWVariable.debug.bndb"
   , excludeFuncsFromStore = []
-  , queries =
-    [
-      ( QueryAllPaths $ QueryAllPathsOpts
-        { start = FuncSym "RWVariableHandler"
-        }
-      , [ smmCalloutBug
+  , queryConfigs =
+    [ QueryConfig
+      { startFunc = FuncSym "RWVariableHandler"
+      , query = QueryAllPaths
+      , bugMatches =
+        [ smmCalloutBug
         , failedToCheckCommBufferIsOutsideSmramBug
         , failedToCheckCommBufferIsOutsideSmramArbitraryReadBug
         ]
-      )
+      }
     ]
   }
 
@@ -181,17 +180,17 @@ smmFaultTolerantWrite :: BinarySearchConfig BNImporter FuncConfig
 smmFaultTolerantWrite = BinarySearchConfig
   { binaryPath = "/tmp/edk2/SmmFaultTolerantWriteDxe.debug.bndb"
   , excludeFuncsFromStore = []
-  , queries =
-    [
-      ( QueryAllPaths $ QueryAllPathsOpts
-        { start = FuncSym "SmmFaultTolerantWriteHandler"
-        }
-      , [ smmCalloutBug
+  , queryConfigs =
+    [ QueryConfig
+      { startFunc = FuncSym "SmmFaultTolerantWriteHandler"
+      , query = QueryAllPaths
+      , bugMatches =
+        [ smmCalloutBug
         , failedToCheckCommBufferIsOutsideSmramArbitraryReadBug
         , failedToCheckCommBufferIsOutsideSmramBug
         , commBufferOobWriteBug
         ]
-      )
+      }
     ]    
   }
 

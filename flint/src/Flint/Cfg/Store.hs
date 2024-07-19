@@ -173,7 +173,14 @@ addFunc
      , NodeDataType a ~ PilNode)
   => a -> CfgStore -> Function -> IO ()
 addFunc imp store func = CC.setCalc func (store ^. #cfgCache) $ do
-  fmap (calcCfgInfo . view #result) <$> ImpCfg.getCfg imp func 0
+  cfg <- ImpCfg.getCfg imp func 0
+  flip catch handleException . evaluate . fmap (calcCfgInfo . view #result) $ cfg
+  where
+    handleException :: SomeException -> IO (Maybe CfgInfo)
+    handleException e = do
+      putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> func ^. #name <> " ------------"
+      print e
+      return Nothing
 
 -- | Adds a func/cfg to the store.
 -- Overwrites existing function Cfg.

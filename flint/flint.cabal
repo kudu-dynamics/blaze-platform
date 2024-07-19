@@ -28,6 +28,7 @@ library
       Flint.Prelude
       Flint.Analysis
       Flint.Analysis.Path.Matcher
+      Flint.Analysis.Path.Matcher.Patterns
       Flint.Analysis.Path.Matcher.Stub
       Flint.Analysis.Uefi
       Flint.Cfg
@@ -348,7 +349,6 @@ executable flint
     , bv
     , bytestring
     , casing
-    , cmdargs
     , constraints
     , containers
     , data-binary-ieee754
@@ -366,6 +366,7 @@ executable flint
     , megaparsec
     , mtl
     , newtype
+    , optparse-applicative
     , parser-combinators
     , pretty-simple
     , random

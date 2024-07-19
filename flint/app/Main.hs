@@ -1,63 +1,144 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# OPTIONS_GHC -fno-cse #-}
-
 module Main (main) where
-
-import Blaze.Import.Binary (openBinary)
-import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Import.Source.Ghidra qualified as G
-import System.Console.CmdArgs
 
 import Flint.Prelude
 
-{- Usage:
-./flint --backend <ghidra,binja> --file <path/to/binary>
-1. Parse cmdline args
-2. Open file
-3. Choose backend
-4. Lift binary with backend of choice
-5. Run queries against binary
--}
+import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
+import qualified Flint.Cfg.Store as Store
+import Flint.Query
+import Flint.Util (sequentialPutText)
 
-data Backend = Binja | Ghidra deriving (Data, Show, Eq)
+import Blaze.Function (Function)
+import Blaze.Pretty (pretty')
+import Blaze.Import.Binary (openBinary)
+import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Import.Source.Ghidra qualified as G
+
+import qualified Data.HashSet as HashSet
+import qualified Data.Text as Text
+import Options.Applicative
+
+
+data Backend
+  = BinaryNinja
+  | Ghidra
+  deriving (Eq, Ord, Read, Show)
+
+defaultBackend :: Backend
+defaultBackend = BinaryNinja
 
 data Options = Options
-  { backend :: Backend
-  , files :: String
+  { backend :: Maybe Backend
+  , doNotUseSolver :: Bool
+  , maxSamplesPerFunc :: Word64
+  , expandCallDepth :: Word64
+  , inputFile :: FilePath
   }
-  deriving (Data, Typeable)
+  deriving (Eq, Ord, Read, Show, Generic)
 
-options :: Options
-options =
-  Options
-    { backend = enum [Binja &= help "Use binja backend", Ghidra &= help "Use ghidra backend"]
-    , files =
-        ""
-          &= typ "FILES/DIRS"
-          &= help "Choose a binary to analyze"
-    }
-    &= verbosity
-    &= help "Run search queries against binary executables"
-    &= summary "Flint"
-    &= program "flint"
-    &= details ["Flint is a static analysis tool that can run queries on binary code"]
+parseBackend :: Parser Backend
+parseBackend = option auto
+  ( long "backend"
+    <> metavar "BACKEND"
+    <> help "preferred backend (BinaryNinja or Ghidra)"
+  )
 
-parseArgs :: Options -> (Backend, String)
-parseArgs Options{backend = b, files = f} = (b, f)
+parseMaxSamplesPerFunc :: Parser Word64
+parseMaxSamplesPerFunc = option auto
+  ( long "maxSamplesPerFunc"
+    <> metavar "MAX_SAMPLES_PER_FUNC"
+    <> help "max number of path samples to take per function"
+  )
+
+parseExpandCallDepth :: Parser Word64
+parseExpandCallDepth = option auto
+  ( long "expandCallDepth"
+    <> metavar "EXPAND_CALL_DEPTH"
+    <> help "depth of calls to expand"
+  )
+
+parseInputFile :: Parser FilePath
+parseInputFile = argument str
+  ( metavar "INPUT_FILE"
+    <> help "input file"
+  )
+
+parseDoNotUseSolver :: Parser Bool
+parseDoNotUseSolver = switch
+  ( long "doNotUseSolver"
+    <> help "do not verify if paths are satisfiable" )
+
+optionsParser :: Parser Options
+optionsParser = Options
+  <$> optional parseBackend
+  <*> (parseDoNotUseSolver <|> pure False)
+  <*> (parseMaxSamplesPerFunc <|> pure 15)
+  <*> (parseExpandCallDepth <|> pure 0)
+  <*> parseInputFile
 
 main :: IO ()
 main = do
-  opts <- cmdArgs options
-  let (backend, files) = parseArgs opts
-  if files == ""
-    then putText "--files= is required!"
-    else case backend of
-      Binja -> do
-        (openBinary files :: IO (Either Text BNImporter)) >>= \case
-          Left err -> print err
-          Right _bndb -> putText "Got bndb."
-      Ghidra -> do
-        _importer <- G.getImporter files
-        putText "Got ghidradb."
-  print backend
-  print files
+  opts <- execParser optsParser
+  defaultCheck opts
+  where
+    optsParser = info (optionsParser <**> helper)
+      ( fullDesc
+     <> progDesc "Static path-based analysis to find bugs."
+     <> header "Flint" )
+
+guessFileBackend :: FilePath -> Maybe Backend
+guessFileBackend fp
+  | Text.isSuffixOf ".bndb" fp' = Just BinaryNinja
+  | Text.isSuffixOf ".gzf" fp' = Just Ghidra
+  | otherwise = Nothing
+  where
+    fp' = Text.pack fp
+
+-- | Checks for bugs by blindly sampling paths from every function
+defaultCheck :: Options -> IO ()
+defaultCheck opts = do
+  let (msg :: Text, backend') = case (opts ^. #backend, guessFileBackend $ opts ^. #inputFile) of
+        (Nothing, Nothing) ->
+          ( "Opening binary with default backend (" <> show defaultBackend <> ")"
+          , BinaryNinja
+          )
+        (Nothing, Just b) ->
+          ( "Opening " <> show b <> " db with " <> show b <> " backend"
+          , b
+          )
+        (Just specifiedBackend, Nothing) ->
+          ( "Opening binary with " <> show specifiedBackend <> " backend"
+          , specifiedBackend
+          )
+        (Just specifiedBackend, Just guessedBackend)
+          | specifiedBackend /= guessedBackend ->
+            ( "WARNING: detected db file for " <> show guessedBackend <> " but using user-specified backend: " <> show specifiedBackend
+            , specifiedBackend
+            )
+          | otherwise ->
+            ( "Opening " <> show specifiedBackend <> " db with " <> show specifiedBackend <> " backend"
+            , specifiedBackend
+            )
+  putText msg
+  store <- case backend' of
+    BinaryNinja -> do
+      (ebv :: Either Text BNImporter) <- openBinary (opts ^. #inputFile)
+      either (error . cs) Store.init ebv
+    Ghidra -> do
+      (egz :: Either Text G.GhidraImporter) <- openBinary (opts ^. #inputFile)
+      either (error . cs) Store.init egz
+  
+  let q :: Query Function
+      q = QueryExpandAll $ QueryExpandAllOpts
+          { callExpandDepthLimit = opts ^. #expandCallDepth
+          -- TODO: At some point, we should base the # samples on the size of func
+          , numSamples = opts ^. #maxSamplesPerFunc
+          }
+      bms :: [BugMatch]
+      bms =
+        [ Pat.incrementWithoutCheck
+        ]
+      funcs :: HashSet Function
+      funcs = HashSet.fromList $ store ^. #funcs
+  let output = sequentialPutText . pretty'
+  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output funcs
+      

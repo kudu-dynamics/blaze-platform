@@ -96,6 +96,7 @@ library:
   - Flint.Prelude
   - Flint.Analysis
   - Flint.Analysis.Path.Matcher
+  - Flint.Analysis.Path.Matcher.Patterns
   - Flint.Analysis.Path.Matcher.Stub
   - Flint.Analysis.Uefi
   - Flint.Cfg
@@ -120,7 +121,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
-    - cmdargs
+    - optparse-applicative
   ev1smm:
     main: Main.hs
     source-dirs: demo/ev1smm
