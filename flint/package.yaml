@@ -50,6 +50,7 @@ dependencies:
   - random
   - raw-strings-qq
   - recursion-schemes
+  - regex-tdfa
   - relude
   - sbv
   - stm

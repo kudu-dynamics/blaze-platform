@@ -42,6 +42,9 @@ func0 = Function Nothing "func0" 0x888 []
 func1 :: Function
 func1 = Function Nothing "func1" 0x999 []
 
+func2 :: Function
+func2 = Function Nothing "CGC_free" 0xAAA []
+
 matchStmtsIO :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> IO MatcherResult
 matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
 
@@ -259,6 +262,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
+                 ]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match on a call to a named function using regex" $ do
+      let cdest = Pil.CallFunc func2
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
+                  ]
+          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNameRegex "^[a-zA-Z0-9_]+free$")) [Wild, Wild]
                  ]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
