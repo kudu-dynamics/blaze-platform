@@ -27,6 +27,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic as Exports (CV)
 import Data.String (IsString(fromString))
 import qualified Data.Text as Text
+import Text.Regex.TDFA
 
 
 type Symbol = Text
@@ -373,12 +374,12 @@ matchCallDest pat cdest = case pat of
       insist $ addr == addr'
 
     (FuncNameRegex rpat, Pil.CallFunc func) ->
-      insist $ Text.isInfixOf rpat (func ^. #name)
-            || (Text.isInfixOf rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
+      insist $ regexIsIn rpat (func ^. #name)
+            || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
     (FuncNameRegex rpat, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
-      insist $ (Text.isInfixOf rpat <$> mSym) == Just True
+      insist $ (regexIsIn rpat <$> mSym) == Just True
     (FuncNameRegex rpat, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
-      insist $ (Text.isInfixOf rpat <$> mSym) == Just True
+      insist $ (regexIsIn rpat <$> mSym) == Just True
 
     _ -> bad
 
@@ -394,6 +395,9 @@ bad = throwError ()
 
 insist :: Monad m => Bool -> MatcherT m ()
 insist = bool bad good
+
+regexIsIn :: Text -> Text -> Bool 
+regexIsIn a b = b =~ a
 
 bind_
   :: (Eq a, Monad m)
@@ -597,8 +601,8 @@ matchFuncPatWithFunc (FuncName name) func = insist
   || func ^? #symbol . #_Just . #_symbolName == Just name
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
 matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
-  $ Text.isInfixOf rpat (func ^. #name)
-  || (Text.isInfixOf rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
+  $ regexIsIn rpat (func ^. #name)
+  || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
 
 
 matchStmt :: Monad m => Statement ExprPattern -> Pil.Stmt -> MatcherT m ()

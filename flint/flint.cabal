@@ -95,6 +95,7 @@ library
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
@@ -164,6 +165,7 @@ executable demo1-demo
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
@@ -233,6 +235,7 @@ executable divelogger
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
@@ -302,6 +305,7 @@ executable ev1smm
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
@@ -372,6 +376,7 @@ executable flint
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
@@ -441,6 +446,7 @@ executable kernel
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
@@ -521,6 +527,7 @@ test-suite flint-tests
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , relude
     , sbv
     , stm
