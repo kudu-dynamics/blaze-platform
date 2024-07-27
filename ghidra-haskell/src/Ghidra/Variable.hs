@@ -29,7 +29,14 @@ mkVarType v = runIO (Java.call v "isConstant") >>= \case
     addr :: J.Address <- runIO $ Java.call v "getAddress"
     Const <$> runIO (Java.call addr "getOffset")
   False -> do
-    Addr <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
+    Addr
+      <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
+      <*> do
+        pcAddr :: J.Address <- runIO (Java.call v "getPCAddress" >>= JNI.newGlobalRef)
+        noAddr :: J.Address <- runIO (Java.getStaticField "ghidra.program.model.address.Address" "NO_ADDRESS")
+        runIO (Java.call pcAddr "equals" noAddr >>= Java.reify) >>= \case
+          True -> pure Nothing
+          False -> Just <$> mkAddress pcAddr
 
 mkVarNode :: J.VarNode -> Ghidra VarNode
 mkVarNode v = do

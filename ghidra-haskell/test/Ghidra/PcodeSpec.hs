@@ -50,29 +50,38 @@ spec = describe "Ghidra.Pcode" $ do
     let expected = PcodeInstruction
           { op = COPY
           , output = Just VarNode
-            { varType = Addr Address
-                        { space = AddressSpace
-                          { id = AddressSpaceId 291
-                          , ptrSize = 4
-                          , addressableUnitSize = 1
-                          , name = Unique
-                          }
-                        , offset = 61312
-                        }
+            { varType =
+              Addr
+              { location =
+                  Address
+                  { space = AddressSpace
+                    { id = AddressSpaceId 291
+                    , ptrSize = 4
+                    , addressableUnitSize = 1
+                    , name = Unique
+                    }
+                  , offset = 61312
+                  }
+              , pcAddress = Nothing
+              }
             , size = Bytes 8
             }
           , inputs =
               [ VarNode
                 { varType =
-                    Addr (Address
-                           { space = AddressSpace
-                                     { id = AddressSpaceId 548
-                                     , ptrSize = 4
-                                     , addressableUnitSize = 1
-                                     , name = Register
-                                     }
-                           , offset = 40
-                           })
+                    Addr
+                    { location =
+                        Address
+                        { space = AddressSpace
+                                  { id = AddressSpaceId 548
+                                  , ptrSize = 4
+                                  , addressableUnitSize = 1
+                                  , name = Register
+                                  }
+                        , offset = 40
+                        }
+                    , pcAddress = Nothing
+                    }
                 , size = Bytes 8
                 }]}
 
