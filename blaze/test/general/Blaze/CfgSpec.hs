@@ -2,13 +2,17 @@
 
 module Blaze.CfgSpec where
 
+import qualified Data.HashSet as HashSet
+
 import Blaze.Function (Function (Function))
 import Blaze.Cfg hiding (func, BasicBlockNode(ctx), CallNode(ctx))
 import qualified Blaze.Cfg as Cfg
 import Blaze.Prelude
 import Test.Hspec
 import Blaze.Types.Pil (Ctx(Ctx))
-import Blaze.Util.Spec (bb)
+import qualified Blaze.Types.Pil as Pil
+import qualified Blaze.Pil.Construct as C
+import Blaze.Util.Spec (bb, mkUuid2)
 
 
 ctx :: Ctx
@@ -20,6 +24,22 @@ bbn :: Text -> CfNode Text
 bbn name = bb ctx x x name
   where
     x = fromIntegral $ hash name
+
+{-
+        [root]
+           |
+        [goto]
+           |
+       [if node]
+       ___/ \___
+      /         \
+[true node] [gotoFalse]
+     |           |
+     |      [false node]
+      \___   ___/
+          \ /
+    [terminal node]
+-}
 
 simpleCfg :: Cfg (CfNode Text)
 simpleCfg = mkCfg 0
@@ -61,44 +81,248 @@ simpleCfg = mkCfg 0
     UnconditionalBranch
   ]
 
-cfgWithSimpleLoop :: Cfg (CfNode ())
-cfgWithSimpleLoop =
+{-
+     [00]
+      |
+     [10]
+      |
+     [20]
+     / \
+    /   \
+  [30] [40]
+   |    |
+   |   [50]
+    \   /
+     \ /
+     [60]
+-}
+
+simplePilCfg :: PilCfg
+simplePilCfg = mkCfg 0
+  (bb ctx 0x00 0x0f [C.nop])
+  [ bb ctx 0x00 0x0f [C.nop]
+  , bb ctx 0x10 0x1f [C.nop]
+  , bb ctx 0x20 0x2f [C.nop]
+  , bb ctx 0x30 0x3f [C.nop]
+  , bb ctx 0x40 0x4f [C.nop]
+  , bb ctx 0x50 0x5f [C.nop]
+  ]
+  [ CfEdge
+    (bb ctx 0x00 0x0f [C.nop])
+    (bb ctx 0x10 0x1f [C.nop])
+    UnconditionalBranch
+  , CfEdge
+    (bb ctx 0x10 0x1f [C.nop])
+    (bb ctx 0x20 0x2f [C.nop])
+    UnconditionalBranch
+  , CfEdge
+    (bb ctx 0x20 0x2f [C.nop])
+    (bb ctx 0x30 0x3f [C.nop])
+    TrueBranch
+  , CfEdge
+    (bb ctx 0x20 0x2f [C.nop])
+    (bb ctx 0x40 0x4f [C.nop])
+    FalseBranch
+  , CfEdge
+    (bb ctx 0x30 0x3f [C.nop])
+    (bb ctx 0x60 0x6f [C.nop])
+    UnconditionalBranch
+  , CfEdge
+    (bb ctx 0x40 0x4f [C.nop])
+    (bb ctx 0x50 0x5f [C.nop])
+    UnconditionalBranch
+  , CfEdge
+    (bb ctx 0x50 0x5f [C.nop])
+    (bb ctx 0x60 0x6f [C.nop])
+    UnconditionalBranch
+  ]
+
+{-
+        [root]
+           |
+        [goto]
+           |
+       [if node]
+       ___/ \___
+      /         \
+[true node] [gotoFalse]
+                 |
+            [false node]
+-}
+
+cfgWithTwoTerminals :: Cfg (CfNode Text)
+cfgWithTwoTerminals = mkCfg 0
+  (bbn "root")
+  [ bbn "goto"
+  , bbn "if node"
+  , bbn "true node"
+  , bbn "gotoFalse"
+  , bbn "false node"
+  ]
+  [ CfEdge
+    (bbn "root")
+    (bbn "goto")
+    UnconditionalBranch
+  , CfEdge
+    (bbn "goto")
+    (bbn "if node")
+    UnconditionalBranch
+  , CfEdge
+    (bbn "if node")
+    (bbn "true node")
+    TrueBranch
+  , CfEdge
+    (bbn "if node")
+    (bbn "gotoFalse")
+    FalseBranch
+  , CfEdge
+    (bbn "gotoFalse")
+    (bbn "false node")
+    UnconditionalBranch
+  ]
+
+{-
+  [00]
+    |
+  [10]
+    |
+  [20]
+   / \
+  /   \
+[30] [40]
+      |
+     [50]
+-}
+
+pilCfgWithTwoTerminals :: PilCfg
+pilCfgWithTwoTerminals = mkCfg 0
+  (bb ctx 0x00 0x0f [C.nop])
+  [ bb ctx 0x00 0x0f [C.nop]
+  , bb ctx 0x10 0x1f [C.nop]
+  , bb ctx 0x20 0x2f [C.nop]
+  , bb ctx 0x30 0x3f [C.nop]
+  , bb ctx 0x40 0x4f [C.nop]
+  ]
+  [ CfEdge
+    (bb ctx 0x00 0x0f [C.nop])
+    (bb ctx 0x10 0x1f [C.nop])
+    UnconditionalBranch
+  , CfEdge
+    (bb ctx 0x10 0x1f [C.nop])
+    (bb ctx 0x20 0x2f [C.nop])
+    UnconditionalBranch
+  , CfEdge
+    (bb ctx 0x20 0x2f [C.nop])
+    (bb ctx 0x30 0x3f [C.nop])
+    TrueBranch
+  , CfEdge
+    (bb ctx 0x20 0x2f [C.nop])
+    (bb ctx 0x40 0x4f [C.nop])
+    FalseBranch
+  , CfEdge
+    (bb ctx 0x40 0x4f [C.nop])
+    (bb ctx 0x50 0x5f [C.nop])
+    UnconditionalBranch
+  ]
+
+{-
+          [00]
+     _____  |
+    /     \ |
+    |     [10]
+    |     /  \
+    |  [20]  [30]
+    |     \  /
+    |     [40]
+    \_____/  \
+            [50]
+-}
+
+pilCfgWithSimpleLoop :: PilCfg
+pilCfgWithSimpleLoop =
   mkCfg 0
-    (bb ctx 0x00 0x0F ())
-    [ bb ctx 0x10 0x1F ()
-    , bb ctx 0x20 0x2F ()
-    , bb ctx 0x30 0x3F ()
-    , bb ctx 0x40 0x4F ()
-    , bb ctx 0x50 0x5F ()
+    (bb ctx 0x00 0x0F [C.nop])
+    [ bb ctx 0x10 0x1F [C.nop]
+    , bb ctx 0x20 0x2F [C.nop]
+    , bb ctx 0x30 0x3F [C.nop]
+    , bb ctx 0x40 0x4F [C.nop]
+    , bb ctx 0x50 0x5F [C.nop]
     ]
     [ CfEdge
-        (bb ctx 0x00 0x0F ())
-        (bb ctx 0x10 0x1F ())
+        (bb ctx 0x00 0x0F [C.nop])
+        (bb ctx 0x10 0x1F [C.nop])
         UnconditionalBranch
     , CfEdge
-        (bb ctx 0x10 0x1F ())
-        (bb ctx 0x20 0x2F ())
+        (bb ctx 0x10 0x1F [C.nop])
+        (bb ctx 0x20 0x2F [C.nop])
         TrueBranch
     , CfEdge
-        (bb ctx 0x10 0x1F ())
-        (bb ctx 0x30 0x3F ())
+        (bb ctx 0x10 0x1F [C.nop])
+        (bb ctx 0x30 0x3F [C.nop])
         FalseBranch
     , CfEdge
-        (bb ctx 0x20 0x2F ())
-        (bb ctx 0x40 0x4F ())
+        (bb ctx 0x20 0x2F [C.nop])
+        (bb ctx 0x40 0x4F [C.nop])
         UnconditionalBranch
     , CfEdge
-        (bb ctx 0x30 0x3F ())
-        (bb ctx 0x40 0x4F ())
+        (bb ctx 0x30 0x3F [C.nop])
+        (bb ctx 0x40 0x4F [C.nop])
         UnconditionalBranch
     , CfEdge
-        (bb ctx 0x40 0x4F ())
-        (bb ctx 0x10 0x1F ())
+        (bb ctx 0x40 0x4F [C.nop])
+        (bb ctx 0x10 0x1F [C.nop])
         TrueBranch
     , CfEdge
-        (bb ctx 0x40 0x4F ())
-        (bb ctx 0x50 0x5F ())
+        (bb ctx 0x40 0x4F [C.nop])
+        (bb ctx 0x50 0x5F [C.nop])
         FalseBranch
+    ]
+
+{-
+          [00]
+     _____  |
+    /     \ |
+    |     [10]
+    |     /  \
+    |  [20]  [30]
+    |     \  /
+    |     [40]
+    \_____/
+-}
+
+pilCfgWithInfiniteLoop :: PilCfg
+pilCfgWithInfiniteLoop =
+  mkCfg 0
+    (bb ctx 0x00 0x0F [C.nop])
+    [ bb ctx 0x10 0x1F [C.nop]
+    , bb ctx 0x20 0x2F [C.nop]
+    , bb ctx 0x30 0x3F [C.nop]
+    , bb ctx 0x40 0x4F [C.nop]
+    ]
+    [ CfEdge
+        (bb ctx 0x00 0x0F [C.nop])
+        (bb ctx 0x10 0x1F [C.nop])
+        UnconditionalBranch
+    , CfEdge
+        (bb ctx 0x10 0x1F [C.nop])
+        (bb ctx 0x20 0x2F [C.nop])
+        TrueBranch
+    , CfEdge
+        (bb ctx 0x10 0x1F [C.nop])
+        (bb ctx 0x30 0x3F [C.nop])
+        FalseBranch
+    , CfEdge
+        (bb ctx 0x20 0x2F [C.nop])
+        (bb ctx 0x40 0x4F [C.nop])
+        UnconditionalBranch
+    , CfEdge
+        (bb ctx 0x30 0x3F [C.nop])
+        (bb ctx 0x40 0x4F [C.nop])
+        UnconditionalBranch
+    , CfEdge
+        (bb ctx 0x40 0x4F [C.nop])
+        (bb ctx 0x10 0x1F [C.nop])
+        UnconditionalBranch
     ]
 
 spec :: Spec
@@ -206,3 +430,58 @@ spec = describe "Blaze.Cfg" $ do
     -- TODO: Add tests
     it "should find dominators" $ do
       True `shouldBe` True
+
+  let bb' start end = Cfg.BasicBlockNode ctx start end (mkUuid2 start end)
+
+  context "parseTerminalNode" $ do
+    it "should parse Return nodes" $ do
+      let ret = Pil.RetOp $ C.const 172844 4
+          node = bb' 0x00 0x0f [C.nop, Pil.Ret ret]
+          node' = bb' 0x00 0x0f [Pil.Ret ret]
+      Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermRet (Cfg.ReturnNode node ret)
+      Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermRet (Cfg.ReturnNode node' ret)
+
+    it "should parse Exit nodes" $ do
+      let node = bb' 0x00 0x0f [C.nop, Pil.Exit]
+          node' = bb' 0x00 0x0f [Pil.Exit]
+      Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermExit (Cfg.ExitNode node)
+      Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermExit (Cfg.ExitNode node')
+
+    it "should parse NoRet nodes" $ do
+      let node = bb' 0x00 0x0f [C.nop, Pil.NoRet]
+          node' = bb' 0x00 0x0f [Pil.NoRet]
+      Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermNoRet (Cfg.NoRetNode node)
+      Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermNoRet (Cfg.NoRetNode node')
+
+    it "should parse Jump nodes" $ do
+      let jump = Pil.JumpOp $ C.const 385018 4
+          node = bb' 0x00 0x0f [C.nop, Pil.Jump jump]
+          node' = bb' 0x00 0x0f [Pil.Jump jump]
+      Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermJump (Cfg.JumpNode node jump)
+      Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermJump (Cfg.JumpNode node' jump)
+
+    it "should parse any other nodes" $ do
+      let node1 = bb ctx 0x00 0x0f []
+          node2 = bb ctx 0x10 0x1f [C.nop]
+          node3 = bb ctx 0x20 0x2f [C.def "x" $ C.add (C.const 1234 4) (C.const 1947 4) 4]
+      Cfg.parseTerminalNode node1 `shouldBe` Cfg.TermOther node1
+      Cfg.parseTerminalNode node2 `shouldBe` Cfg.TermOther node2
+      Cfg.parseTerminalNode node3 `shouldBe` Cfg.TermOther node3
+
+  context "getTerminalBlocks" $ do
+    it "should find a single terminal block" $ do
+      getTerminalBlocks simplePilCfg
+        `shouldBe` HashSet.fromList [TermOther $ bb ctx 0x60 0x6f [C.nop]]
+      getTerminalBlocks pilCfgWithSimpleLoop
+        `shouldBe` HashSet.fromList [TermOther $ bb ctx 0x50 0x5f [C.nop]]
+
+    it "should find multiple terminal blocks" $ do
+      getTerminalBlocks pilCfgWithTwoTerminals
+        `shouldBe`
+        HashSet.fromList
+          [ TermOther $ bb ctx 0x30 0x3f [C.nop]
+          , TermOther $ bb ctx 0x50 0x5f [C.nop]
+          ]
+
+    it "should fail to find terminal blocks given a loop with no exit" $ do
+      getTerminalBlocks pilCfgWithInfiniteLoop `shouldBe` HashSet.empty

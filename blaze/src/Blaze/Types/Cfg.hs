@@ -20,7 +20,7 @@ import Blaze.Types.Graph (Graph, Identifiable (getNodeId), NodeId (NodeId), Edge
 import Blaze.Types.Graph qualified as G
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph.Alga as Ag
-import Blaze.Types.Pil (BranchCondOp, CallDest, Ctx, CtxId, Expression, RetOp, Stmt)
+import Blaze.Types.Pil (BranchCondOp, CallDest, Ctx, CtxId, Expression, JumpOp, RetOp, Stmt)
 import Blaze.Types.Pil qualified as Pil
 import Blaze.Util (getMemoized)
 
@@ -105,6 +105,8 @@ data TerminalNode a
   = TermRet (ReturnNode a)
   | TermExit (ExitNode a)
   | TermNoRet (NoRetNode a)
+  | TermJump (JumpNode a)
+  | TermOther (CfNode a)
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON)
   deriving anyclass (Hashable)
 
@@ -123,6 +125,13 @@ newtype ExitNode a = ExitNode
 
 newtype NoRetNode a = NoRetNode
   { basicBlock :: BasicBlockNode a
+  }
+  deriving (Eq, Ord, Show, Generic, Functor)
+  deriving anyclass (Hashable, FromJSON, ToJSON)
+
+data JumpNode a = JumpNode
+  { basicBlock :: BasicBlockNode a
+  , jumpOp :: JumpOp Expression
   }
   deriving (Eq, Ord, Show, Generic, Functor)
   deriving anyclass (Hashable, FromJSON, ToJSON)
