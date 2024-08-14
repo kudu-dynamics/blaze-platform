@@ -474,14 +474,13 @@ convertPcodeOpToPilStmt = \case
     if addrSpace ^. #value . #ptrSize == 1 || addrSpace ^. #value . #addressableUnitSize == 1 then do
       destOffset' <- varNodeToValueExpr destOffset
       in1' <- varNodeToValueExpr in1
-      -- TODO we need to make use of the address space during the Store. How?
       pure [Pil.Store $ Pil.StoreOp destOffset' in1']
+      -- TODO we need to make use of the address space during the Store. How?
     else do
       destOffset' <- varNodeToValueExpr destOffset
       in1' <- varNodeToValueExpr in1
       let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
           scale = C.const (fromIntegral (addrSpace ^. #value . #addressableUnitSize :: Bytes)) ptrSize
-      -- TODO we need to make use of the address space during the Store. How?
       pure [Pil.Store $ Pil.StoreOp (C.mul scale destOffset' ptrSize) in1']
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)

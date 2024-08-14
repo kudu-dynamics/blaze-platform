@@ -2,10 +2,11 @@ module Blaze.Pil.SummarySpec where
 
 import Blaze.Prelude
 import qualified Blaze.Pil.Construct as C
+import Blaze.Pil.Analysis (LoadExpr (LoadExpr), getVarsFromExpr)
 import Blaze.Types.Pil.Summary
-import Blaze.Pil.Summary (extractCapabilities)
+import Blaze.Pil.Summary (extractCapabilities, getReadsWrites, filterArgs)
+import qualified Data.HashSet as HashSet
 import Test.Hspec
-
 
 spec :: Spec
 spec = do
@@ -107,3 +108,60 @@ spec = do
 
   describe "removeKilledWrites" $ do
     pure ()
+
+  describe "getReadsWrites" $ do
+    let arg0 = C.var "arg0" 8
+        arg1 = C.var "arg1" 8
+        arg2 = C.var "arg2" 8
+        arg3 = C.var "arg3" 8
+        arg4 = C.var "arg4" 8
+
+        var0 = C.var "var0" 8
+        var1 = C.var "var1" 8
+        var2 = C.var "var2" 8
+        var3 = C.var "var3" 8
+
+        expr0 = LoadExpr (C.load arg0 4)
+        expr1 = LoadExpr (C.load var0 4)
+        expr2 = LoadExpr (C.load arg1 4)
+        expr3 = LoadExpr (C.load arg1 4)
+
+        ew0 = EffectWrite (C.store arg2 var1)
+        ew1 = EffectWrite (C.store var2 var1)
+        ew2 = EffectWrite (C.store var3 arg3)
+        ew3 = EffectWrite (C.store arg4 arg3)
+
+        sampleCS0 = CodeSummary
+              { inputVars = []
+              , inputLoads = []
+              , results = []
+              , effects = []
+              , capabilities = []
+              }
+        sampleCS1 = CodeSummary
+              { inputVars = []
+              , inputLoads = [expr0, expr1, expr2, expr3]
+              , results = []
+              , effects = [ew0, ew1, ew2, ew3]
+              , capabilities = []
+              }
+
+        cs1Reads = foldMap getVarsFromExpr [arg0, arg1, var0]
+        cs1Writes = foldMap getVarsFromExpr [arg2, arg4, var2, var3]
+        cs1ArgReads = foldMap getVarsFromExpr [arg0, arg1]
+        cs1ArgWrites = foldMap getVarsFromExpr [arg2, arg4]
+
+    it "returns an empty ReadsWrites when no LoadExprs or EffectWrites are present" $ do
+      getReadsWrites [sampleCS0]
+        `shouldBe`
+        ReadsWrites HashSet.empty HashSet.empty
+
+    it "returns all vars present in a ReadsWrites in a normal example" $ do
+      getReadsWrites [sampleCS1]
+        `shouldBe`
+        ReadsWrites cs1Reads cs1Writes
+
+    it "returns all args present in a ReadsWrites in a normal example" $ do
+      filterArgs (getReadsWrites [sampleCS1])
+        `shouldBe`
+        ReadsWrites cs1ArgReads cs1ArgWrites
