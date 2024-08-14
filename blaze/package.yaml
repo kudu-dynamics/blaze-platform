@@ -51,6 +51,7 @@ dependencies:
   - random
   - raw-strings-qq
   - recursion-schemes
+  - regex-tdfa
   - sbv >= 10.1
   - stm
   - string-conversions

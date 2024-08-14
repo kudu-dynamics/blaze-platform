@@ -6,6 +6,7 @@ import Blaze.Prelude
 
 import Blaze.Types.Pil (Expression, PilVar, Stmt)
 import Blaze.Types.Pil.Analysis (LoadExpr)
+import Data.HashSet as HashSet
 
 -- | Specification of the origin of the data being copied
 data InputLocation =
@@ -39,6 +40,20 @@ data CodeSummary = CodeSummary
     , effects :: [Effect]
     , capabilities :: [Capability]
     } deriving (Eq, Ord, Show, Generic)
+
+data ReadsWrites = ReadsWrites 
+  { readsFrom :: HashSet PilVar 
+  , writesTo :: HashSet PilVar 
+  } deriving (Eq, Ord, Show, Generic)
+
+instance Semigroup ReadsWrites where
+  x <> y = ReadsWrites reads' writes'
+    where
+      reads' = x ^. #readsFrom <> y ^. #readsFrom
+      writes' = x ^. #writesTo <> y ^. #writesTo
+
+instance Monoid ReadsWrites where
+  mempty = ReadsWrites HashSet.empty HashSet.empty
 
 data Effect
   = EffectWrite Stmt

@@ -16,12 +16,13 @@ import Blaze.Pil (
   Stmt,
   StoreOp (StoreOp),
   VarOp (VarOp),
-  mkCallStatement,
  )
-import Blaze.Pil.Analysis (DefLoadStmt (DefLoadStmt), LoadExpr (LoadExpr), LoadStmt (LoadStmt), findLoads, getFreeVars, mkDefLoadStmt, mkStoreStmt)
+import Blaze.Pil.Analysis (DefLoadStmt (DefLoadStmt), LoadExpr (LoadExpr), LoadStmt (LoadStmt), findLoads, getFreeVars, mkDefLoadStmt, mkStoreStmt, getVarsFromExpr)
 import Blaze.Prelude
 import Blaze.Types.Pil.Summary
 import Data.HashSet qualified as HashSet
+import Text.Regex.TDFA ((=~))
+import Blaze.Types.Pil (mkCallStatement)
 
 -- TODO: Names of specific allocation and deallocation functions should be
 --       relocated to the application using this summarization.
@@ -180,6 +181,30 @@ fromStmts stmts =
         , effects = effects
         , capabilities = extractCapabilities inputVars results stmts
         }
+
+getLoadExprVars :: LoadExpr -> HashSet PilVar
+getLoadExprVars (LoadExpr e) = getVarsFromExpr e
+
+getEffectWriteVars :: Effect -> HashSet PilVar
+getEffectWriteVars x = case x of
+  (EffectWrite (Store e)) -> getVarsFromExpr $ e ^. #addr
+  _notWrite -> HashSet.empty
+
+getReadsWritesFromCodeSummary :: CodeSummary -> ReadsWrites
+getReadsWritesFromCodeSummary cs' = ReadsWrites reads' writes
+  where
+    reads' = foldMap getLoadExprVars $ cs' ^. #inputLoads
+    writes = foldMap getEffectWriteVars $ cs' ^. #effects
+
+getReadsWrites :: [CodeSummary] -> ReadsWrites
+getReadsWrites = foldMap getReadsWritesFromCodeSummary
+
+filterArgs :: ReadsWrites -> ReadsWrites
+filterArgs rw = ReadsWrites reads' writes'
+  where
+    f x = (x ^. #symbol) =~ ("arg" :: Text)
+    reads' = HashSet.filter f $ rw ^. #readsFrom
+    writes' = HashSet.filter f $ rw ^. #writesTo
 
 data RemoveKilledResult = RemoveKilledResult
   { effects :: [Effect]
