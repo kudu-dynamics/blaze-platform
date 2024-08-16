@@ -66,6 +66,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5
@@ -135,6 +136,7 @@ executable demo1-demo
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5
@@ -205,6 +207,7 @@ executable divelogger
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5
@@ -275,6 +278,7 @@ executable ev1smm
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5
@@ -345,6 +349,7 @@ executable flint
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5
@@ -416,6 +421,7 @@ executable kernel
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5
@@ -496,6 +502,7 @@ test-suite flint-tests
       hspec-discover:hspec-discover
   build-depends:
       aeson
+    , aeson-pretty
     , algebraic-graphs
     , async
     , base >=4.7 && <5

@@ -21,6 +21,7 @@ extra-source-files:
 
 dependencies:
   - aeson
+  - aeson-pretty
   - algebraic-graphs
   - async
   - base >=4.7 && <5
