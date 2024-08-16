@@ -233,6 +233,7 @@ library
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -305,6 +306,7 @@ executable demo
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -373,6 +375,7 @@ executable find_mlil_ssa
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -443,6 +446,7 @@ executable gen_pil_ops
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -518,6 +522,7 @@ test-suite blaze-binja-test
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -619,6 +624,7 @@ test-suite blaze-general-test
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -694,6 +700,7 @@ test-suite blaze-ghidra-test
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions
@@ -762,6 +769,7 @@ benchmark call-graph-benchmark
     , random
     , raw-strings-qq
     , recursion-schemes
+    , regex-tdfa
     , sbv >=10.1
     , stm
     , string-conversions

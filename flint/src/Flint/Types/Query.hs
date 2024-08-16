@@ -57,6 +57,15 @@ instance Tokenizable MatchingResult where
                <++> tt (x ^. #mitigationAdvice)
                <++> tt "\n------------------------------------\n"
 
+-- | A simpler version of MatchingResult for printing in JSON format
+data MatchingResultBlob = MatchingResultBlob
+  { func :: (Text, Address)
+  , pathAsStmts :: [Text]
+  , bugName :: Text
+  , bugDescription :: Text
+  , mitigationAdvice :: Text
+  } deriving (Eq, Ord, Show, Generic, ToJSON)
+
 data QueryConfig func = QueryConfig
   { startFunc :: func
   , query :: Query func
@@ -69,7 +78,7 @@ data BinarySearchConfig imp func = BinarySearchConfig
   -- | runs the query to get paths, then the PathMatch to look for bugs in paths
   , queryConfigs :: [QueryConfig func]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
-  
+
 data QueryTargetOpts func = QueryTargetOpts
   { mustReachSome :: NonEmpty (func, Address) -- addr inside any basic block
   , callExpandDepthLimit :: Word64
