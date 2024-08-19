@@ -26,7 +26,11 @@ stages:
   tags:
     - dind
   before_script:
+    - env
+    - docker context list
+    - df -h
     - apk add curl
+    - if [[ $CI_SERVER_HOST == code.* ]]; then docker system prune -af; fi
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
     # --oci-worker-gc=false: see https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
     - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --use
@@ -96,6 +100,8 @@ install-hlint:
 include:
   project: 'blaze/filter-check'
   file: '/filtercheck.gitlab-ci.yml'
+  rules:
+    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
 
 hlint:
   stage: check
