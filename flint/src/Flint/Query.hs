@@ -396,6 +396,7 @@ instance Tokenizable AllRoutesFromStartFuncs where
   tokenize (AllRoutesFromStartFuncs m)
     = fmap (P.delimitedList [P.tt "--------------\n"] [P.tt "\n\n"] [P.tt "\n"])
     . traverse f
+    . filter (not . null . snd)
     . HashMap.toList
     $ m
     where

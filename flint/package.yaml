@@ -101,6 +101,7 @@ library:
   - Flint.Analysis.Path.Matcher.Patterns
   - Flint.Analysis.Path.Matcher.Stub
   - Flint.Analysis.Uefi
+  - Flint.App
   - Flint.Cfg
   - Flint.Cfg.Path
   - Flint.Cfg.Store
@@ -115,7 +116,29 @@ library:
 executables:
   flint:
     main: Main.hs
-    source-dirs:  app
+    source-dirs:  app/flint
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
+    - optparse-applicative
+  routes:
+    main: Main.hs
+    source-dirs:  app/routes
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
+    - optparse-applicative
+  binaryToGhidra:
+    main: Main.hs
+    source-dirs:  app/binaryToGhidra
     ghc-options:
     - -Wall
     - -threaded

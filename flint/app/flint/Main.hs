@@ -3,15 +3,13 @@ module Main (main) where
 import Flint.Prelude
 
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
+import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
 import Flint.Util (sequentialPutText)
 
 import Blaze.Function (Function)
 import Blaze.Pretty (pretty')
-import Blaze.Import.Binary (openBinary)
-import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Import.Source.Ghidra qualified as G
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -20,14 +18,6 @@ import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Options.Applicative
 
-
-data Backend
-  = BinaryNinja
-  | Ghidra
-  deriving (Eq, Ord, Read, Show)
-
-defaultBackend :: Backend
-defaultBackend = BinaryNinja
 
 data Options = Options
   { backend :: Maybe Backend
@@ -95,14 +85,6 @@ main = do
      <> progDesc "Static path-based analysis to find bugs."
      <> header "Flint" )
 
-guessFileBackend :: FilePath -> Maybe Backend
-guessFileBackend fp
-  | Text.isSuffixOf ".bndb" fp' = Just BinaryNinja
-  | Text.isSuffixOf ".gzf" fp' = Just Ghidra
-  | otherwise = Nothing
-  where
-    fp' = Text.pack fp
-
 printJSON :: MatchingResult -> IO()
 printJSON res = do
   let func = res ^. #func
@@ -119,37 +101,8 @@ printJSON res = do
 
 -- | Checks for bugs by blindly sampling paths from every function
 defaultCheck :: Options -> IO ()
-defaultCheck opts = do
-  let (msg :: Text, backend') = case (opts ^. #backend, guessFileBackend $ opts ^. #inputFile) of
-        (Nothing, Nothing) ->
-          ( "Opening binary with default backend (" <> show defaultBackend <> ")"
-          , BinaryNinja
-          )
-        (Nothing, Just b) ->
-          ( "Opening " <> show b <> " db with " <> show b <> " backend"
-          , b
-          )
-        (Just specifiedBackend, Nothing) ->
-          ( "Opening binary with " <> show specifiedBackend <> " backend"
-          , specifiedBackend
-          )
-        (Just specifiedBackend, Just guessedBackend)
-          | specifiedBackend /= guessedBackend ->
-            ( "WARNING: detected db file for " <> show guessedBackend <> " but using user-specified backend: " <> show specifiedBackend
-            , specifiedBackend
-            )
-          | otherwise ->
-            ( "Opening " <> show specifiedBackend <> " db with " <> show specifiedBackend <> " backend"
-            , specifiedBackend
-            )
-  putText msg
-  store <- case backend' of
-    BinaryNinja -> do
-      (ebv :: Either Text BNImporter) <- openBinary (opts ^. #inputFile)
-      either (error . cs) Store.init ebv
-    Ghidra -> do
-      (egz :: Either Text G.GhidraImporter) <- openBinary (opts ^. #inputFile)
-      either (error . cs) Store.init egz
+defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+  store <- Store.init imp
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
