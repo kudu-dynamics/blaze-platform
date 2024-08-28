@@ -19,7 +19,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.Cfg as ImpCfg
-import Blaze.Import.Cfg (CfgImporter, NodeDataType) 
+import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
 import Blaze.Types.CallGraph (CallGraph)
 import Blaze.Types.Cfg (PilCfg, PilNode)

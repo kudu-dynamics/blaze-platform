@@ -10,7 +10,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/kudu-dynamics/binary-analysis.git
-  tag: 5a617fd1cd8314fbf06a514029c20ea1293d9ecd
+  tag: 421057ba848999f0b1ffec303eb6936e18e673cd
 
 source-repository-package
   type: git

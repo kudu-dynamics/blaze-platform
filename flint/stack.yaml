@@ -12,7 +12,7 @@ extra-deps:
   - ../binaryninja-haskell/binja-header-cleaner
   - ../ghidra-haskell
   - git: https://github.com/kudu-dynamics/binary-analysis
-    commit: 5a617fd1cd8314fbf06a514029c20ea1293d9ecd
+    commit: 421057ba848999f0b1ffec303eb6936e18e673cd
   - git: https://github.com/kudu-dynamics/inline-java.git
     commit: 9de6cfa65b8d5d692bf7f5de1e4f1b853f2bbef1
     subdirs:
