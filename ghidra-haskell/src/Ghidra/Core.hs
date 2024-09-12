@@ -11,15 +11,16 @@ where
 
 import Ghidra.Prelude
 
-import Ghidra.Types.Internal as Exports (Ghidra)
-import Ghidra.Types.Internal (Ghidra(Ghidra))
 import Foreign.JNI qualified as JNI
 import Foreign.JNI.Types (JVM)
+import Ghidra.Types.Internal (Ghidra(Ghidra))
+import Ghidra.Types.Internal as Exports (Ghidra)
 -- import Foreign.JNI.Unsafe.Internal qualified as JNIInternal
 import Control.Concurrent.STM.TChan (TChan, newTChanIO, writeTChan, readTChan)
 import Control.Concurrent.STM.TMVar (newEmptyTMVarIO, putTMVar, readTMVar)
 import Data.ByteString qualified as BS
 import System.IO.Memoize (once)
+import System.Directory (canonicalizePath, doesFileExist)
 
 import Data.IORef
 
@@ -55,11 +56,14 @@ isJVMDestroyed = readIORef jvms >>= \case
 getGhidraJarFiles :: GhidraOptions -> [ByteString]
 getGhidraJarFiles = fmap encodeUtf8 . jarFiles
 
+ghidraJarPath :: Text
+ghidraJarPath = "res/ghidra.jar"
+
 -- | Default options for starting the JVM. This is still just the "ghidraJars"
 -- list but renamed to indicate its intended purpose is to pass multiple options
 -- when initializing the JVM.
 defaultOptions :: GhidraOptions
-defaultOptions = GhidraOptions { jarFiles = [ "res/ghidra.jar" ] }
+defaultOptions = GhidraOptions { jarFiles = [ghidraJarPath] }
 
 -- | You can only call Java.withJVM once in the life of a program, for some reason,
 -- according to the tweag jvm lib docs.
@@ -141,17 +145,37 @@ withJVM options = unsafePerformIO $ do
       atomically $ readTMVar resultVar
 {-# NOINLINE withJVM #-}
 
+checkGhidraJar :: IO (Either Text ())
+checkGhidraJar =
+  doesFileExist (cs ghidraJarPath) >>= \case
+    True -> pure $ Right ()
+    False -> do
+      jarPath <- canonicalizePath (cs ghidraJarPath)
+      pure . Left $
+        "Ghidra JAR not found at expected path "
+        <> show jarPath
+        <> ". Run `make res/ghidra.jar` from `ghidra-haskell/`."
+
 -- | Run an action that relies on a running JVM with Ghidra. Any JVM error
 -- encountered is stringified with @.toString()@ and returned as @Left _@
 runGhidra :: Ghidra a -> IO (Either Text a)
-runGhidra (Ghidra action) = withJVM defaultOptions action
+runGhidra (Ghidra action) =
+  checkGhidraJar >>= \case
+    Right () -> withJVM defaultOptions action
+    Left e -> pure $ Left e
 
 -- | Run an action that relies on a running JVM with Ghidra. Any JVM error is
 -- stringified with @.toString()@, wrapped in 'JVMException', and thrown as an
 -- IO exception
 runGhidraOrError :: Ghidra a -> IO a
-runGhidraOrError (Ghidra action) = either (throwIO . JVMException) pure =<< withJVM defaultOptions action
+runGhidraOrError (Ghidra action) =
+  checkGhidraJar >>= \case
+    Right () -> either (throwIO . JVMException) pure =<< withJVM defaultOptions action
+    Left e -> error $ cs e
 
 -- | Run ghidra with custom options
 runGhidraWithOptionsOrError :: GhidraOptions -> Ghidra a -> IO a
-runGhidraWithOptionsOrError options (Ghidra action) = either (throwIO . JVMException) pure =<< withJVM options action
+runGhidraWithOptionsOrError options (Ghidra action) =
+  checkGhidraJar >>= \case
+    Right () -> either (throwIO . JVMException) pure =<< withJVM options action
+    Left e -> error $ cs e
