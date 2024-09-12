@@ -2,7 +2,7 @@ module Flint.App where
 
 import Flint.Prelude
 
-import Blaze.Import.Binary (BinaryImporter, openBinary)
+import Blaze.Import.Binary (BinaryImporter, openBinary, shutdown)
 import Blaze.Import.CallGraph (CallGraphImporter)
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 import Blaze.Import.Pil (PilImporter)
@@ -38,10 +38,14 @@ type FullImporter imp =
   , NodeDataType imp ~ PilNode
   )
 
+-- | Open @file@ using @backend@, if it is specified; otherwise, attempt to
+-- guess backend if @file@ is a database. Then run @f@ with the resulting
+-- importer. 'Blaze.Import.Binary.shutdown' will automatically be called after
+-- @f@.
 withBackend
-  :: Maybe Backend
-  -> FilePath
-  -> (forall imp. FullImporter imp => imp -> IO ())
+  :: Maybe Backend -- ^ @backend@
+  -> FilePath -- ^ @file@
+  -> (forall imp. FullImporter imp => imp -> IO ()) -- ^ @f@
   -> IO ()
 withBackend mBackend fp action = do
   let (msg :: Text, backend') = case (mBackend, guessFileBackend fp) of
@@ -71,6 +75,11 @@ withBackend mBackend fp action = do
     BinaryNinja -> do
       (ebv :: Either Text BNImporter) <- openBinary fp
       either (error . cs) action ebv
+        `finally`
+        shutdown @BNImporter
+
     Ghidra -> do
       (egz :: Either Text G.GhidraImporter) <- openBinary fp
       either (error . cs) action egz
+        `finally`
+        shutdown @G.GhidraImporter

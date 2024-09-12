@@ -13,6 +13,7 @@ import Flint.Types.Query
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Blaze.Pil.Construct
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Import.Binary (BinaryImporter(shutdown))
 
 
 -- This example shows a failed check where they check the commbuffer size (arg4)
@@ -203,4 +204,4 @@ main = do
   -- summariesOfInterest Uefi.taintPropagators smmLightConfig
   summariesOfInterest Uefi.taintPropagators smmFaultTolerantWrite
   putText "finished"
-
+  shutdown @BNImporter

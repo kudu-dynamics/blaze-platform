@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -118,7 +118,7 @@ executable binaryToGhidra
   autogen-modules:
       Paths_flint
   hs-source-dirs:
-      apps/binaryToGhidra
+      app/binaryToGhidra
   default-extensions:
       AllowAmbiguousTypes
       DataKinds
@@ -403,7 +403,7 @@ executable flint
   autogen-modules:
       Paths_flint
   hs-source-dirs:
-      apps/flint
+      app/flint
   default-extensions:
       AllowAmbiguousTypes
       DataKinds
@@ -546,7 +546,7 @@ executable routes
   autogen-modules:
       Paths_flint
   hs-source-dirs:
-      apps/routes
+      app/routes
   default-extensions:
       AllowAmbiguousTypes
       DataKinds
@@ -613,7 +613,7 @@ executable routes
 
 test-suite flint-tests
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Main.hs
   other-modules:
       Flint.Analysis.Path.Matcher.StubSpec
       Flint.Analysis.Path.MatcherSpec
@@ -622,6 +622,7 @@ test-suite flint-tests
       Flint.CfgSpec
       Flint.GraphSpec
       Flint.QuerySpec
+      Spec
       Paths_flint
   autogen-modules:
       Paths_flint

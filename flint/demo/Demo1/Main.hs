@@ -2,6 +2,8 @@ module Main (main) where
 
 import Flint.Prelude
 
+import Blaze.Import.Binary (BinaryImporter(shutdown))
+import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Flint.Types.Analysis
 import Flint.Analysis
 
@@ -24,3 +26,4 @@ accessKeyPathsOfInterest =
 main :: IO ()
 main = do
   showPathsOfInterest accessKeyPathsOfInterest
+  shutdown @BNImporter
