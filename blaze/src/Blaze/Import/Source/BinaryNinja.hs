@@ -48,6 +48,8 @@ instance BinaryImporter BNImporter where
       Bn.updateAnalysisAndWait bv
       return . Right $ BNImporter bv
 
+  shutdown = Bn.shutdown
+
   saveToDb fp (BNImporter bv) = do
     let fp' = fp <> if ".bndb" `isSuffixOf` fp then "" else ".bndb"
     Bn.saveBndb bv fp' >>= \case
