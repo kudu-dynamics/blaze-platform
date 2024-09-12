@@ -4,6 +4,8 @@ import Blaze.Prelude
 
 import Blaze.Util.MLIL
 import qualified Data.Text as Text
+import Blaze.Import.Binary (BinaryImporter(shutdown))
+import Blaze.Import.Source.BinaryNinja (BNImporter)
 
 main :: IO ()
 main = getArgs >>= \case
@@ -11,6 +13,7 @@ main = getArgs >>= \case
     xs <- getInstructionsWithOpByName (Text.pack opName) binPath
     mapM_ p xs
     putText "[finished]"
+    shutdown @BNImporter
     exitSuccess
     where
       p (fn, ix) = putText $ fn <> " " <> show ix

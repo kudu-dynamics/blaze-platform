@@ -3,7 +3,7 @@ module Main (main) where
 import Flint.Prelude
 
 import qualified Blaze.Import.Binary as BinImp
-import Blaze.Import.Binary (openBinary)
+import Blaze.Import.Binary (openBinary, shutdown)
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 
 import Options.Applicative
@@ -47,6 +47,7 @@ main = do
       BinImp.saveToDb outputFilePath gz >>= \case
         Left err -> error $ cs err
         Right fp -> putText $ "Saved to: " <> show fp
+      shutdown @GhidraImporter
   where
     optsParser = info (optionsParser <**> helper)
       ( fullDesc

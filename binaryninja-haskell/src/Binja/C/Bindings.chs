@@ -134,6 +134,8 @@ void wrapBNSetParametersForAnalysis(BNBinaryView* view, BNAnalysisParameters* ap
 
 {#fun BNGetViewAddressSize as getViewAddressSize {withPtr* `BNBinaryView' } -> `AddressWidth' bytesToAddressWidth #}
 
+{#fun BNShutdown as shutdown {} -> `()' #}
+
 ---- Stream reader
 
 {#fun BNCreateBinaryReader as createBinaryReader {withPtr* `BNBinaryView'} -> `Maybe BNBinaryReader' nilable* #}

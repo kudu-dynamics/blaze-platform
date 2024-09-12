@@ -10,7 +10,7 @@ import Blaze.Import.Pil (PilImporter (..))
 import Blaze.Import.Source.Ghidra.CallGraph qualified as CallGraph
 import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
 import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
-import Ghidra.Core (runGhidraOrError)
+import Ghidra.Core (runGhidraOrError, stopJVMIfRunning)
 import Ghidra.Program qualified as GProg
 import Ghidra.State (GhidraState)
 import Ghidra.State qualified as GState
@@ -43,6 +43,8 @@ instance BinaryImporter GhidraImporter where
         Right gs -> do
           GState.analyze gs
           return . Right $ GhidraImporter gs
+
+  shutdown = stopJVMIfRunning
 
   saveToDb fp (GhidraImporter gs) = do
     let fp' = fp <> if ".gzf" `isSuffixOf` fp then "" else ".gzf"

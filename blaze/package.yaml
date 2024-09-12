@@ -243,7 +243,7 @@ tests:
       - hspec-discover
 
   blaze-binja-test:
-    main: Spec.hs
+    main: Main.hs
     source-dirs:
     - test/binja
     ghc-options:
@@ -259,7 +259,7 @@ tests:
       - hspec-discover
 
   blaze-ghidra-test:
-    main: Spec.hs
+    main: Main.hs
     source-dirs:
     - test/ghidra
     ghc-options:

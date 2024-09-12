@@ -10,7 +10,7 @@ import Flint.Types.Query
 
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Import.Binary (openBinary)
+import Blaze.Import.Binary (openBinary, BinaryImporter(shutdown))
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Import.CallGraph as CG
 
@@ -77,3 +77,4 @@ main = do
   putText "starting"
   testGettingCallGraph "/tmp/vmlinux3.16.7_x86.bndb"
   putText "finished"
+  shutdown @BNImporter

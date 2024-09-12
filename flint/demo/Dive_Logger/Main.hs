@@ -21,7 +21,7 @@ import Flint.Util (sequentialPutText)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Graph as G
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Import.Binary (BinaryImporter(openBinary))
+import Blaze.Import.Binary (BinaryImporter(openBinary, shutdown))
 import Blaze.Pil.Construct hiding (not)
 import Blaze.Pretty (prettyPrint', prettyStmts', pretty')
 import Blaze.Types.Function (Function)
@@ -388,3 +388,4 @@ main = do
   -- diveloggerPlanner
   -- diveloggerSampleRoute
   spamDiveLogger
+  shutdown @BNImporter

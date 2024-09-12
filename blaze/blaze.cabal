@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -459,12 +459,13 @@ executable gen_pil_ops
 
 test-suite blaze-binja-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Main.hs
   other-modules:
       Blaze.CallGraphSpec
       Blaze.Cfg.Path.SolverSpec
       Blaze.Import.Source.BinaryNinjaSpec
       Blaze.IndirectCallResolutionSpec
+      Spec
       Paths_blaze
   autogen-modules:
       Paths_blaze
@@ -637,12 +638,13 @@ test-suite blaze-general-test
 
 test-suite blaze-ghidra-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Main.hs
   other-modules:
       Blaze.Import.Source.Ghidra.CallGraphSpec
       Blaze.Import.Source.Ghidra.CfgSpec
       Blaze.Import.Source.Ghidra.PilSpec
       Blaze.Import.Source.GhidraSpec
+      Spec
       Paths_blaze
   autogen-modules:
       Paths_blaze

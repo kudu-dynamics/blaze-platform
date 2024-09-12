@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -145,7 +145,7 @@ executable create-ghidra-db
 
 test-suite ghidra-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Main.hs
   other-modules:
       Ghidra.AddressSpec
       Ghidra.BasicBlockSpec
@@ -157,6 +157,7 @@ test-suite ghidra-test
       Ghidra.ProgramSpec
       Ghidra.ReferenceSpec
       Ghidra.StateSpec
+      Spec
       Paths_ghidra
   autogen-modules:
       Paths_ghidra
