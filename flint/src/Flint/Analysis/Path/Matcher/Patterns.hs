@@ -43,3 +43,56 @@ oobWrite mallocFunc = BugMatch
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
   , mitigationAdvice = "Add a bounds check."
   }
+
+isArg :: ExprPattern
+isArg = Var "arg"
+
+bufferOverflow :: BugMatch
+bufferOverflow = BugMatch
+  { pathPattern =
+      -- TODO: make this more general than just strcpy
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "strcpy") [Bind "dest" Wild, Bind "src" isArg]
+      ]
+  , bugName = "Buffer Overflow"
+  , bugDescription =
+    "The buffer at `" <> TextExpr "dest" <> "` can be overflowed by `" <> TextExpr "src" <> "` because the copy function has no bounds limit and `" <> TextExpr "src" <> "` could be user-controlled."
+  , mitigationAdvice = "Use strncpy"
+  }
+
+formatStringVulnerability :: BugMatch
+formatStringVulnerability = BugMatch
+  { pathPattern =
+      -- TODO: make this more general to match any stdlib func that takes a format str
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "printf") [Bind "arg" isArg]
+      ]
+  , bugName = "Potentially User Controlled Format String"
+  , bugDescription =
+    "The format string for printf is controlled by `" <> TextExpr "arg" <> "`, which could be user controlled."
+  , mitigationAdvice = "Don't do it."
+  }
+
+memIsUsed :: Symbol -> StmtPattern
+memIsUsed boundMemSymbol = AnyOne
+  [ Stmt $ Call Nothing (CallFunc $ FuncName "strcpy") [v]
+  -- TODO: other calls
+  , Stmt $ Store v Wild
+  -- TODO: look for statements that contain loads
+  ]
+  where
+    -- maybe should be wrapped with Contains?
+    v = Bind boundMemSymbol Wild
+
+useAfterFree :: BugMatch
+useAfterFree = BugMatch
+  { pathPattern =
+      -- TODO: make this more general to match any stdlib func that takes a format str
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "free") [Bind "ptr" Wild]
+      , memIsUsed "ptr"
+      ]
+  , bugName = "Use after free"
+  , bugDescription =
+    "The pointer `" <> TextExpr "ptr" <> "` if freed and is later used."
+  , mitigationAdvice = "Don't."
+  }
+
+
