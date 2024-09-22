@@ -140,7 +140,7 @@ instance IsVariable a => IsVariable (P.Input a) where
   getVarType = getVarType . view #value
 
 data VarNodeType
-  = VUnique Int64
+  = VUnique {offset :: Int64, pcAddress :: Maybe Int64}
   | VReg {offset :: Int64, pcAddress :: Maybe Int64}
   | VStack {offset :: Int64, pcAddress :: Maybe Int64}
   | VRam Int64
@@ -151,7 +151,8 @@ data VarNodeType
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
 data SSAType
-  = SSAReg Int64
+  = SSAUnique Int64
+  | SSAReg Int64
   | SSAStack Int64
   deriving (Eq, Ord, Show, Generic, Hashable)
 
@@ -168,7 +169,7 @@ getVarNodeType v = case getVarType v of
     GAddr.Ram -> VRam off
     GAddr.Register -> VReg{offset = off, pcAddress = pcAddressOffset}
     GAddr.Stack -> VStack{offset = off, pcAddress = pcAddressOffset}
-    GAddr.Unique -> VUnique off
+    GAddr.Unique -> VUnique{offset = off, pcAddress = pcAddressOffset}
     GAddr.Other t -> VOther t off
     where
       off = location ^. #offset
@@ -309,7 +310,13 @@ varNodeToReference v = do
         case version of
           Nothing -> stackVarName offset
           Just ver -> stackVarName offset <> "#" <> show ver
-    VUnique n -> pure . Left . pv $ "unique_" <> showHex n
+    VUnique{offset, pcAddress} -> do
+      -- pure . Left . pv $ "unique_" <> showHex n
+      version <- lift $ internVarnode (SSAUnique offset) pcAddress
+      pure . Left . pv $
+        case version of
+          Nothing -> "unique_" <> showHex offset
+          Just ver -> "unique_" <> showHex offset <> "#" <> show ver
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
@@ -351,7 +358,7 @@ varNodeToValueExpr v = do
     VStack{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
-    VUnique _ -> do
+    VUnique{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
     VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize
