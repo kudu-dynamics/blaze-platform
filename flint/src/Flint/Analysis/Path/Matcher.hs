@@ -35,7 +35,7 @@ type Symbol = Text
 data Func
   = FuncName Text
   | FuncAddr Address
-  | FuncNameRegex Text -- currently just looks for name that contains text
+  | FuncNameRegex Text
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data CallDest expr
