@@ -16,6 +16,7 @@ import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
 import Test.Hspec
 
@@ -262,6 +263,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
+                 ]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match on a call to a named function from a set of names" $ do
+      let cdest = Pil.CallFunc func0
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
+                  ]
+          funcNames = HashSet.fromList ["func0", "func1"]
+          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNames funcNames)) [Wild, Wild]
                  ]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected

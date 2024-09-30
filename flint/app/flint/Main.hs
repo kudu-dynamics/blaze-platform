@@ -111,9 +111,9 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
           , numSamples = opts ^. #maxSamplesPerFunc
           }
       bms :: [BugMatch]
-      bms =
-        [ Pat.incrementWithoutCheck
-        ]
+      bms = Pat.allPatterns
+        -- [ Pat.incrementWithoutCheck
+        -- ]
       funcs :: HashSet Function
       funcs = HashSet.fromList $ store ^. #funcs
   let output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'

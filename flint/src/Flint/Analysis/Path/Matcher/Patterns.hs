@@ -1,11 +1,29 @@
 module Flint.Analysis.Path.Matcher.Patterns where
 
-import Flint.Prelude
+import Flint.Prelude hiding (const)
 
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Query (BugMatch(..))
 
 import Blaze.Pil.Construct hiding (not)
+
+import qualified Data.HashSet as HashSet
+
+
+-- | All the patterns that don't need to use the solver
+allPatterns :: [BugMatch]
+allPatterns = [simple]
+-- allPatterns = [nullPointerDereference]
+-- allPatterns = [formatStringVulnerability]
+-- allPatterns =
+--   [ incrementWithoutCheck
+--   , stackSetToExecutable
+--   , bufferOverflow
+--   , formatStringVulnerability
+--   , useAfterFree
+--   , nullPointerDereference
+--   , stackBasedBufferOverflow
+--   ]
 
 
 incrementWithoutCheck :: BugMatch
@@ -44,6 +62,21 @@ oobWrite mallocFunc = BugMatch
   , mitigationAdvice = "Add a bounds check."
   }
 
+
+stackSetToExecutable :: BugMatch
+stackSetToExecutable = BugMatch
+  { pathPattern =
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "fopen") [constStr "/proc/self/maps" ()]
+      , Stmt $ Call Nothing (CallFunc $ FuncName "mprotect") [Wild, Wild, const 7 ()]
+      ]
+  , bugName = "Stack Set to Executable"
+  , bugDescription = "The stack might be set to executable in this function."
+  , mitigationAdvice = "Be careful."
+  }
+
+
+-----------------------
+-- patterns from dirty test binary
 ---------------------------------
 
 isArg :: ExprPattern
@@ -96,10 +129,73 @@ formatStringCallPattern formatStringArgBindName formatStringArgCheck = AnyOne
     secondArg = [Wild, arg]
     thirdArg = [Wild, Wild, arg]
 
+formatStringCallPattern' :: StmtPattern
+formatStringCallPattern' = AnyOne
+  . fmap (\(name, args) -> Stmt $ Call Nothing (CallFunc $ FuncName name) args)
+  $ [ ("printf"   , firstArg)
+    , ("fprintf"  , secondArg)
+    , ("sprintf"  , secondArg)
+    , ("snprintf" , thirdArg)
+    , ("vprintf"  , firstArg)
+    , ("vfprintf" , secondArg)
+    , ("vsprintf" , secondArg)
+    , ("vsnprintf", thirdArg)
+    , ("scanf"    , firstArg)
+    , ("fscanf"   , secondArg)
+    , ("sscanf"   , secondArg)
+    , ("vscanf"   , firstArg)
+    , ("vfscanf"  , secondArg)
+    , ("vsscanf"  , secondArg)
+    , ("asprintf" , secondArg)
+    , ("vasprintf", secondArg)
+    ]
+  where
+    arg = Bind "arg" isArg
+    firstArg = [arg]
+    secondArg = [Wild, arg]
+    thirdArg = [Wild, Wild, arg]
+
+formatStringCallPattern'' :: ExprPattern -> StmtPattern
+formatStringCallPattern'' argPat = AnyOne
+  [ Stmt $ Call Nothing (CallFunc $ FuncNames firstArgFuncs) firstArg
+  , Stmt $ Call Nothing (CallFunc $ FuncNames secondArgFuncs) secondArg
+  , Stmt $ Call Nothing (CallFunc $ FuncNames thirdArgFuncs) thirdArg
+  ]
+  where
+    firstArg = [argPat]
+    secondArg = [Wild, argPat]
+    thirdArg = [Wild, Wild, argPat]
+    firstArgFuncs = HashSet.fromList
+      [ "printf"
+      , "vprintf"
+      , "scanf"
+      , "vscanf"
+      ]
+    secondArgFuncs = HashSet.fromList
+      [ "fprintf"
+      , "sprintf"
+      , "vfprintf"
+      , "vsprintf"
+      , "fscanf"
+      , "sscanf"
+      , "vfscanf"
+      , "vsscanf"
+      , "asprintf"
+      , "vasprintf"
+      ]
+    thirdArgFuncs = HashSet.fromList
+      [ "snprintf"
+      , "vsnprintf"
+      ]
+
 formatStringVulnerability :: BugMatch
 formatStringVulnerability = BugMatch
   { pathPattern =
-      [ formatStringCallPattern "arg" isArg
+      [
+        -- Stmt $ Call Nothing (CallFunc $ FuncNames badFuncs) []
+        -- formatStringCallPattern "arg" isArg
+        -- formatStringCallPattern'
+        formatStringCallPattern'' (Bind "arg" isArg)
       ]
   , bugName = "Potentially User Controlled Format String"
   , bugDescription =
@@ -123,34 +219,360 @@ anyArg argPat mkCallDest = AnyOne
   where
     stmt = Stmt . mkCallDest 
 
-memIsUsed :: Symbol -> StmtPattern
-memIsUsed boundMemSymbol = AnyOne
+
+-- This is mainly to be used with the Use After Free pattern.
+-- This is looking for a store or load
+-- It also flags any call to a func where the arg is passed in, which
+-- will produce some false positives until we have a way to ensure it's
+-- not passing in &ptr instead of just ptr.
+memIsUsed :: ExprPattern -> StmtPattern
+memIsUsed memPat = AnyOne
   [ anyArg v $ Call Nothing (CallFunc $ FuncNameRegex ".*")
   , anyArg v $ EnterContext AnyCtx
   , Stmt $ Store v Wild
-  , Stmt $ Store Wild v
-  , Stmt $ Def Wild v
-  , Stmt $ BranchCond v
-  , Stmt $ Jump v
-  , Stmt $ Ret v
-  , Stmt $ Constraint v
+
+  -- Do we really care if v is wrapped in a LOAD?
+  , Stmt $ Store Wild v'
+  , Stmt $ Def Wild v'
+  , Stmt $ BranchCond v'
+  , Stmt $ Jump v'
+  , Stmt $ Ret v'
+  , Stmt $ Constraint v'
   ]
   where
-    v = Contains $ Bind boundMemSymbol Wild
+    v = Contains memPat
+    v' = Contains $ load v ()
 
+pointerAssigned :: ExprPattern -> StmtPattern
+pointerAssigned ptrPat = AnyOne
+  [ Stmt $ Def ptrPat Wild
+  
+  -- TODO: handle these calls that take **ptr and set it to newly allocated mem:
+  -- [ ("getline", 0)
+  -- , ("getdelim", 0)
+  -- , ("asprintf", 0)
+  -- , ("vasprintf", 0)
+  -- , ("getaddrinfo", 3)
+  -- ]
+  ]
+  
 useAfterFree :: BugMatch
 useAfterFree = BugMatch
   { pathPattern =
       -- TODO: make this more general to match any stdlib func that takes a format str
       [ Stmt $ Call Nothing (CallFunc $ FuncName "free") [Bind "ptr" Wild]
-      , memIsUsed "ptr"
+      , AvoidUntil $ AvoidSpec
+        { avoid = pointerAssigned $ Bind "ptr" Wild
+        , until = memIsUsed $ Bind "ptr" Wild
+        }
       ]
   , bugName = "Use after free"
   , bugDescription =
-    "The pointer `" <> TextExpr "ptr" <> "` if freed and is later used."
+    "The pointer `" <> TextExpr "ptr" <> "` is freed and is later used."
   , mitigationAdvice = "Don't."
   }
 
+badboyz :: HashSet Text
+badboyz = HashSet.fromList . fmap fst $ badboys
+
+badboys :: [(Text, Int)]
+badboys =
+  [ ("strcpy", firstArg)
+    , ("strcpy", secondArg)
+    , ("strcat", firstArg)
+    , ("strcat", secondArg)
+    , ("strcmp", firstArg)
+    , ("strcmp", secondArg)
+    , ("strncmp", firstArg)
+    , ("strncmp", secondArg)
+    , ("strncpy", firstArg)
+    , ("strncpy", secondArg)
+    , ("strncat", firstArg)
+    , ("strncat", secondArg)
+    , ("strlen", firstArg)
+    , ("strchr", firstArg)
+    , ("strrchr", firstArg)
+    , ("strstr", firstArg)
+    , ("strstr", secondArg)
+    , ("strdup", firstArg)
+    , ("strndup", firstArg)
+    , ("strtok", firstArg)
+    , ("strtok", secondArg)
+    , ("memcpy", firstArg)
+    , ("memcpy", secondArg)
+    , ("memmove", firstArg)
+    , ("memmove", secondArg)
+    , ("memcmp", firstArg)
+    , ("memcmp", secondArg)
+    , ("memset", firstArg)
+    , ("memchr", firstArg)
+    , ("fopen", firstArg)
+    , ("fopen", secondArg)
+    , ("fclose", firstArg)
+    , ("fread", firstArg)
+    , ("fread", fourthArg)
+    , ("fwrite", firstArg)
+    , ("fwrite", fourthArg)
+    , ("fprintf", firstArg)
+    , ("fprintf", secondArg)
+    , ("fscanf", firstArg)
+    , ("fscanf", secondArg)
+    , ("scanf", firstArg)
+    , ("printf", firstArg)
+    , ("sprintf", firstArg)
+    , ("sprintf", secondArg)
+    , ("snprintf", firstArg)
+    , ("snprintf", thirdArg)
+    , ("fgetc", firstArg)
+    , ("fgets", firstArg)
+    , ("fgets", thirdArg)
+    , ("fputc", secondArg)
+    , ("fputs", firstArg)
+    , ("fputs", secondArg)
+    , ("fseek", firstArg)
+    , ("ftell", firstArg)
+    , ("rewind", firstArg)
+    , ("feof", firstArg)
+    , ("ferror", firstArg)
+    , ("clearerr", firstArg)
+    , ("fgetpos", firstArg)
+    , ("fsetpos", firstArg)
+    , ("perror", firstArg)
+    , ("strerror", firstArg)
+    ]
+  where
+    firstArg = 0
+    secondArg = 1
+    thirdArg = 2
+    fourthArg = 3
+
+shouldn'tGetPassedNullPtr :: ExprPattern -> StmtPattern
+shouldn'tGetPassedNullPtr argPat = AnyOne
+  . fmap (\(name, args) -> Stmt $ Call Nothing (CallFunc $ FuncName name) args)
+  $ [ ("strcpy", firstArg)
+    , ("strcpy", secondArg)
+    , ("strcat", firstArg)
+    , ("strcat", secondArg)
+    , ("strcmp", firstArg)
+    , ("strcmp", secondArg)
+    , ("strncmp", firstArg)
+    , ("strncmp", secondArg)
+    , ("strncpy", firstArg)
+    , ("strncpy", secondArg)
+    , ("strncat", firstArg)
+    , ("strncat", secondArg)
+    , ("strlen", firstArg)
+    , ("strchr", firstArg)
+    , ("strrchr", firstArg)
+    , ("strstr", firstArg)
+    , ("strstr", secondArg)
+    , ("strdup", firstArg)
+    , ("strndup", firstArg)
+    , ("strtok", firstArg)
+    , ("strtok", secondArg)
+    , ("memcpy", firstArg)
+    , ("memcpy", secondArg)
+    , ("memmove", firstArg)
+    , ("memmove", secondArg)
+    , ("memcmp", firstArg)
+    , ("memcmp", secondArg)
+    , ("memset", firstArg)
+    , ("memchr", firstArg)
+    , ("fopen", firstArg)
+    , ("fopen", secondArg)
+    , ("fclose", firstArg)
+    , ("fread", firstArg)
+    , ("fread", fourthArg)
+    , ("fwrite", firstArg)
+    , ("fwrite", fourthArg)
+    , ("fprintf", firstArg)
+    , ("fprintf", secondArg)
+    , ("fscanf", firstArg)
+    , ("fscanf", secondArg)
+    , ("scanf", firstArg)
+    , ("printf", firstArg)
+    , ("sprintf", firstArg)
+    , ("sprintf", secondArg)
+    , ("snprintf", firstArg)
+    , ("snprintf", thirdArg)
+    , ("fgetc", firstArg)
+    , ("fgets", firstArg)
+    , ("fgets", thirdArg)
+    , ("fputc", secondArg)
+    , ("fputs", firstArg)
+    , ("fputs", secondArg)
+    , ("fseek", firstArg)
+    , ("ftell", firstArg)
+    , ("rewind", firstArg)
+    , ("feof", firstArg)
+    , ("ferror", firstArg)
+    , ("clearerr", firstArg)
+    , ("fgetpos", firstArg)
+    , ("fsetpos", firstArg)
+    , ("perror", firstArg)
+    , ("strerror", firstArg)
+    ]
+  where
+    firstArg = [argPat]
+    secondArg = [Wild, argPat]
+    thirdArg = [Wild, Wild, argPat]
+    fourthArg = [Wild, Wild, Wild, argPat]
+
+shouldn'tGetPassedNullPtrFirstArgFuncs :: HashSet Text
+shouldn'tGetPassedNullPtrFirstArgFuncs = HashSet.fromList
+  [ "strcpy"
+  , "strcat"
+  , "strcmp"
+  , "strncmp"
+  , "strncpy"
+  , "strncat"
+  , "strlen"
+  , "strchr"
+  , "strrchr"
+  , "strstr"
+  , "strdup"
+  , "strndup"
+  , "strtok"
+  , "memcpy"
+  , "memmove"
+  , "memcmp"
+  , "memset"
+  , "memchr"
+  , "fopen"
+  , "fclose"
+  , "fread"
+  , "fwrite"
+  , "fprintf"
+  , "fscanf"
+  , "scanf"
+  , "printf"
+  , "sprintf"
+  , "snprintf"
+  , "fgetc"
+  , "fgets"
+  , "fputs"
+  , "fseek"
+  , "ftell"
+  , "rewind"
+  , "feof"
+  , "ferror"
+  , "clearerr"
+  , "fgetpos"
+  , "fsetpos"
+  , "perror"
+  , "strerror"
+  ]
+
+shouldn'tGetPassedNullPtrSecondArgFuncs :: HashSet Text
+shouldn'tGetPassedNullPtrSecondArgFuncs = HashSet.fromList
+  [ "strcpy"
+  , "strcat"
+  , "strcmp"
+  , "strncmp"
+  , "strncpy"
+  , "strncat"
+  , "strstr"
+  , "strtok"
+  , "memcpy"
+  , "memmove"
+  , "memcmp"
+  , "fopen"
+  , "fprintf"
+  , "fscanf"
+  , "sprintf"
+  , "fputc"
+  , "fputs"
+  ]
+
+shouldn'tGetPassedNullPtrThirdArgFuncs :: HashSet Text
+shouldn'tGetPassedNullPtrThirdArgFuncs = HashSet.fromList
+  [ "snprintf"
+  , "fgets"
+  ]
+
+shouldn'tGetPassedNullPtrFourthArgFuncs :: HashSet Text
+shouldn'tGetPassedNullPtrFourthArgFuncs = HashSet.fromList
+  [ "fread"
+  , "fwrite"
+  ]
+
+shouldn'tGetPassedNullPtr' :: ExprPattern -> StmtPattern
+shouldn'tGetPassedNullPtr' argPat = AnyOne
+  [ Stmt $ Call Nothing (CallFunc $ FuncNames badboyz) fourthArg
+  ]
+  -- [ Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFirstArgFuncs) firstArg
+  -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrSecondArgFuncs) secondArg
+  -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrThirdArgFuncs) thirdArg
+  -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFourthArgFuncs) fourthArg
+  -- ]
+  where
+    firstArg  = [argPat]
+    secondArg = [Wild, argPat]
+    thirdArg  = [Wild, Wild, argPat]
+    fourthArg = [Wild, Wild, Wild, argPat]
+
+nullPtr :: ExprPattern
+nullPtr = const 0 () .|| constPtr 0 ()
+
+nullPointerDereference :: BugMatch
+nullPointerDereference = BugMatch
+  { pathPattern =
+      [ AnyOne
+        [ Ordered
+          [ Stmt $ Def (Bind "ptr" Wild) nullPtr
+          , AvoidUntil $ AvoidSpec
+            { avoid = pointerAssigned $ Bind "ptr" Wild
+            , until = AnyOne
+                      [ shouldn'tGetPassedNullPtr' (Bind "ptr" Wild) ]
+            }
+          ]
+        , shouldn'tGetPassedNullPtr' (Bind "ptr" nullPtr)
+        ]
+      ]
+  , bugName = "Null Pointer Dereference"
+  , bugDescription =
+    "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
+  , mitigationAdvice = "Don't do it."
+  }
+
+simple :: BugMatch
+simple = BugMatch
+  { pathPattern =
+    [ Stmt $ Def (Var "x") (const 55 ())
+    ]
+  , bugName = "Simple"
+  , bugDescription =
+    "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
+  , mitigationAdvice = "Don't do it."
+  }
 
 
+-- Here are some funcs that copy between two buffers.
+-- (func_name, dest, src, size)
+-- TODO: use these in stack based buffer overflow check:
+-- [ ("memcpy", 0, 1, 2)        -- void *dest, const void *src, size_t n
+-- , ("memmove", 0, 1, 2)       -- void *dest, const void *src, size_t n
+-- , ("memccpy", 0, 1, 3)       -- void *dest, const void *src, int c, size_t n
+-- , ("strncpy", 0, 1, 2)       -- char *dest, const char *src, size_t n
+-- , ("strncat", 0, 1, 2)       -- char *dest, const char *src, size_t n
+-- , ("strlcpy", 0, 1, 2)       -- char *dest, const char *src, size_t size
+-- , ("strlcat", 0, 1, 2)       -- char *dest, const char *src, size_t size
+-- , ("bcopy", 1, 0, 2)         -- void *dest, const void *src, size_t n (Note: some implementations have src and dest swapped)
+-- , ("memcpy_s", 0, 2, 3)      -- void *dest, rsize_t destsz, const void *src, rsize_t count
+-- , ("memmove_s", 0, 2, 3)     -- void *dest, rsize_t destsz, const void *src, rsize_t count
+-- , ("strncpy_s", 0, 2, 3)     -- char *dest, rsize_t destsz, const char *src, rsize_t count
+-- , ("strncat_s", 0, 2, 3)     -- char *dest, rsize_t destsz, const char *src, rsize_t count
+-- ]
 
+-- TODO: make more general
+stackBasedBufferOverflow :: BugMatch
+stackBasedBufferOverflow = BugMatch
+  { pathPattern =
+      [ Stmt $ Call (Just $ Bind "len" Wild) (CallFunc $ FuncName "strlen") [Bind "buf" isArg]
+      , Stmt $ Call Nothing (CallFunc $ FuncName "memcpy") [Wild, Bind "buf" isArg, Bind "len" Wild]
+      ]
+  , bugName = "Stack Based Buffer Overflow"
+  , bugDescription =
+    "There might be an overflow. Sorry."
+  , mitigationAdvice = "Don't do it."
+  }

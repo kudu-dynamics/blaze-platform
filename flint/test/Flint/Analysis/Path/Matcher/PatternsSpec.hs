@@ -73,3 +73,19 @@ spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
 
       action `shouldReturn` expected
 
+    it "should find a null_pointer_dereference" $ do
+      let func = getFunc "null_pointer_dereference"
+          pat = Pat.nullPointerDereference
+          action = funcHasPattern False func pat
+          expected = True
+
+      action `shouldReturn` expected
+
+    it "should find a stack_based_buffer_overflow" $ do
+      let func = getFunc "stack_based_buffer_overflow"
+          pat = Pat.stackBasedBufferOverflow
+          action = funcHasPattern False func pat
+          expected = True
+
+      action `shouldReturn` expected
+

@@ -34,6 +34,7 @@ type Symbol = Text
 
 data Func
   = FuncName Text
+  | FuncNames (HashSet Text)
   | FuncAddr Address
   | FuncNameRegex Text
   deriving (Eq, Ord, Show, Hashable, Generic)
@@ -366,6 +367,15 @@ matchCallDest pat cdest = case pat of
     (FuncName name, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
       insist $ Just name == mSym
 
+    (FuncNames names, Pil.CallFunc func) ->
+      insist $ HashSet.member (func ^. #name) names
+            || fromMaybe False ((`HashSet.member` names) <$> func ^? #symbol . #_Just . #_symbolName)
+    (FuncNames names, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
+      insist $ fromMaybe False ((`HashSet.member` names) <$> mSym)
+    (FuncNames names, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
+      insist $ fromMaybe False ((`HashSet.member` names) <$> mSym)
+
+
     (FuncAddr addr, Pil.CallFunc func) ->
       insist $ addr == func ^. #address
     (FuncAddr addr, Pil.CallAddr (Pil.ConstFuncPtrOp addr' _)) ->
@@ -599,6 +609,8 @@ matchFuncPatWithFunc :: Monad m => Func -> BFunc.Function -> MatcherT m ()
 matchFuncPatWithFunc (FuncName name) func = insist
   $ func ^. #name == name
   || func ^? #symbol . #_Just . #_symbolName == Just name
+matchFuncPatWithFunc (FuncNames names) func = insist
+  $ (func ^. #name) `HashSet.member` names
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
 matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
   $ regexIsIn rpat (func ^. #name)

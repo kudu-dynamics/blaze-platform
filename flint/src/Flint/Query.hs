@@ -209,8 +209,8 @@ queryForBugMatch_ actuallySolve maxCallDepthLimit maxSamples store funcMapping r
           tryPrepsUntilExhausted HashSet.empty 0 $ x :| xs
   where
     solver = if actuallySolve
-      then const . return $ Solver.Sat HashMap.empty
-      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
     getMatch path = (path',) <$> M.matchPath solver [] (bm ^. #pathPattern) path'
       where
         path' = stubPath stubs path
@@ -604,8 +604,8 @@ queryForBugMatchUsingRoutes actuallySolve imp store routeMakerCtx sampleRoutePre
         showPathsWithMatches (func ^. #name) [(path, [((ms, mr), bugMatch)])]
   where
     solver = if actuallySolve
-      then const . return $ Solver.Sat HashMap.empty
-      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
     getMatch ((func, _route), path)
       = (func, path',) <$> M.matchPath solver [] (bugMatch ^. #pathPattern) path'
       where
@@ -690,8 +690,8 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
               resolveText = M.resolveBoundText (ms ^. #boundSyms)
   where
     solver = if actuallySolve
-      then const . return $ Solver.Sat HashMap.empty
-      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
     reportError :: SomeException -> IO ()
     reportError e = do
       let msg = "\n---------------------------\n"
