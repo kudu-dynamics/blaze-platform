@@ -615,6 +615,7 @@ test-suite flint-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Flint.Analysis.Path.Matcher.PatternsSpec
       Flint.Analysis.Path.Matcher.StubSpec
       Flint.Analysis.Path.MatcherSpec
       Flint.Cfg.PathSpec

@@ -9,7 +9,7 @@ import Flint.Query
 import Flint.Util (sequentialPutText)
 
 import Blaze.Function (Function)
-import Blaze.Pretty (pretty')
+import Blaze.Pretty (pretty', prettyPrint')
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -116,5 +116,6 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
         -- ]
       funcs :: HashSet Function
       funcs = HashSet.fromList $ store ^. #funcs
+  prettyPrint' $ HashSet.toList funcs
   let output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
   checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output funcs

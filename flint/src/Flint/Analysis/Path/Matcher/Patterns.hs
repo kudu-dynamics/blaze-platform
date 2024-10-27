@@ -12,18 +12,31 @@ import qualified Data.HashSet as HashSet
 
 -- | All the patterns that don't need to use the solver
 allPatterns :: [BugMatch]
-allPatterns = [simple]
+-- allPatterns = [simple]
+-- allPatterns = [incrementWithoutCheck]
+-- allPatterns =
+--   [ -- incrementWithoutCheck
+--    -- stackSetToExecutable'
+--   -- , bufferOverflow
+--   -- , formatStringVulnerability
+--   -- , useAfterFree
+--   -- , nullPointerDereference
+--   -- , stackBasedBufferOverflow
+--   ]
+
 -- allPatterns = [nullPointerDereference]
 -- allPatterns = [formatStringVulnerability]
--- allPatterns =
---   [ incrementWithoutCheck
---   , stackSetToExecutable
---   , bufferOverflow
---   , formatStringVulnerability
---   , useAfterFree
---   , nullPointerDereference
---   , stackBasedBufferOverflow
---   ]
+allPatterns =
+  [ incrementWithoutCheck
+  , stackSetToExecutable
+  , bufferOverflow
+  , formatStringVulnerability
+  , useAfterFree
+  -- , nullPointerDereference
+  , stackBasedBufferOverflow
+  , inputControlledIndirectCall
+  , writeToGlobal
+  ]
 
 
 incrementWithoutCheck :: BugMatch
@@ -62,6 +75,37 @@ oobWrite mallocFunc = BugMatch
   , mitigationAdvice = "Add a bounds check."
   }
 
+writeToGlobal :: BugMatch
+writeToGlobal = BugMatch
+  { pathPattern =
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "_copy_from_user")
+        [ Bind "out" isGlobal
+        , Bind "in" (isGlobal .|| isArg)
+        ]
+      ]
+      
+  , bugName = "User input writes to kernel global"
+  , bugDescription =
+    "This path shows that possibly user-controllable memory from " <> TextExpr "in" <> " is written to a global in the kernel module: `" <> TextExpr "out" <> "`."
+  , mitigationAdvice = "Try harder."
+  }
+
+inputControlledIndirectCall :: BugMatch
+inputControlledIndirectCall = BugMatch
+  { pathPattern =
+      [ AnyOne
+        [ Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" Wild) []
+        -- , Stmt $ Call Nothing (CallFunc $ FuncNameRegex "^.*$") []
+        ]
+      ]
+  , bugName = "Input Controlled Indirect Call"
+  , bugDescription =
+    "This path shows an indirect call to `" <> TextExpr "callTarget" <> "` which is controlled by an input to the function."
+  , mitigationAdvice = "Be careful."
+  }
+  where
+    inputDest = Contains isArg .|| load isGlobal ()
+
 
 stackSetToExecutable :: BugMatch
 stackSetToExecutable = BugMatch
@@ -74,10 +118,27 @@ stackSetToExecutable = BugMatch
   , mitigationAdvice = "Be careful."
   }
 
+stackSetToExecutable' :: BugMatch
+stackSetToExecutable' = BugMatch
+  { pathPattern =
+      [ -- Stmt $ Call Nothing (CallFunc $ FuncName "fopen") [constStr "/proc/self/maps" ()]
+       Stmt $ Call Nothing (CallFunc $ FuncName "mprotect") [Wild, Wild, const 7 ()]
+      ]
+  , bugName = "Stack Set to Executable"
+  , bugDescription = "The stack might be set to executable in this function."
+  , mitigationAdvice = "Be careful."
+  }
+
 
 -----------------------
 -- patterns from dirty test binary
 ---------------------------------
+
+-- | In Binja, I've seen a global be a Const or a ConstPtr.
+-- Since this is just matching on an "immediate" the context will be important,
+-- like it'll need to be in a place that expects a pointer.
+isGlobal :: ExprPattern
+isGlobal = Immediate
 
 isArg :: ExprPattern
 isArg = Var "arg"
@@ -496,44 +557,44 @@ shouldn'tGetPassedNullPtrFourthArgFuncs = HashSet.fromList
   , "fwrite"
   ]
 
-shouldn'tGetPassedNullPtr' :: ExprPattern -> StmtPattern
-shouldn'tGetPassedNullPtr' argPat = AnyOne
-  [ Stmt $ Call Nothing (CallFunc $ FuncNames badboyz) fourthArg
-  ]
-  -- [ Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFirstArgFuncs) firstArg
-  -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrSecondArgFuncs) secondArg
-  -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrThirdArgFuncs) thirdArg
-  -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFourthArgFuncs) fourthArg
-  -- ]
-  where
-    firstArg  = [argPat]
-    secondArg = [Wild, argPat]
-    thirdArg  = [Wild, Wild, argPat]
-    fourthArg = [Wild, Wild, Wild, argPat]
+-- shouldn'tGetPassedNullPtr' :: ExprPattern -> StmtPattern
+-- shouldn'tGetPassedNullPtr' argPat = AnyOne
+--   [ Stmt $ Call Nothing (CallFunc $ FuncNames badboyz) fourthArg
+--   ]
+--   -- [ Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFirstArgFuncs) firstArg
+--   -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrSecondArgFuncs) secondArg
+--   -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrThirdArgFuncs) thirdArg
+--   -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFourthArgFuncs) fourthArg
+--   -- ]
+--   where
+--     firstArg  = [argPat]
+--     secondArg = [Wild, argPat]
+--     thirdArg  = [Wild, Wild, argPat]
+--     fourthArg = [Wild, Wild, Wild, argPat]
 
 nullPtr :: ExprPattern
 nullPtr = const 0 () .|| constPtr 0 ()
 
-nullPointerDereference :: BugMatch
-nullPointerDereference = BugMatch
-  { pathPattern =
-      [ AnyOne
-        [ Ordered
-          [ Stmt $ Def (Bind "ptr" Wild) nullPtr
-          , AvoidUntil $ AvoidSpec
-            { avoid = pointerAssigned $ Bind "ptr" Wild
-            , until = AnyOne
-                      [ shouldn'tGetPassedNullPtr' (Bind "ptr" Wild) ]
-            }
-          ]
-        , shouldn'tGetPassedNullPtr' (Bind "ptr" nullPtr)
-        ]
-      ]
-  , bugName = "Null Pointer Dereference"
-  , bugDescription =
-    "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
-  , mitigationAdvice = "Don't do it."
-  }
+-- nullPointerDereference :: BugMatch
+-- nullPointerDereference = BugMatch
+--   { pathPattern =
+--       [ AnyOne
+--         [ Ordered
+--           [ Stmt $ Def (Bind "ptr" Wild) nullPtr
+--           , AvoidUntil $ AvoidSpec
+--             { avoid = pointerAssigned $ Bind "ptr" Wild
+--             , until = AnyOne
+--                       [ shouldn'tGetPassedNullPtr' (Bind "ptr" Wild) ]
+--             }
+--           ]
+--         , shouldn'tGetPassedNullPtr' (Bind "ptr" nullPtr)
+--         ]
+--       ]
+--   , bugName = "Null Pointer Dereference"
+--   , bugDescription =
+--     "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
+--   , mitigationAdvice = "Don't do it."
+--   }
 
 simple :: BugMatch
 simple = BugMatch
