@@ -10,20 +10,24 @@ import qualified Flint.Analysis as FA
 import Flint.Analysis.Path.Matcher (StmtPattern)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
+import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRouteIO)
 import Flint.Types.Analysis (TaintPropagator)
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
+import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
 import Flint.Util (sequentialWarn)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
+import qualified Blaze.Cfg.Path as CfgP
 import Blaze.Graph (OuterNodeDescendants, RouteMakerCtx, Route, RouteAction)
 import qualified Blaze.Graph as G
 import Blaze.Import.CallGraph (CallGraphImporter)
-import Blaze.Pretty (Tokenizable(tokenize), Tokenizer, Token, (<++>), tt, pretty')
+import Blaze.Pretty (Tokenizable(tokenize), Tokenizer, Token, (<++>), tt, pretty', prettyPrint')
 import qualified Blaze.Pretty as P
+import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import Blaze.Types.Cfg (PilNode, PilCfg)
 import qualified Blaze.Types.Cfg as Cfg
@@ -31,6 +35,8 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge))
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Path as Path
+import Blaze.Path ((-|), (|-))
+import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 
@@ -672,6 +678,7 @@ checkFunc
   -> IO ()
 checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch reportError $ do
   paths <- samplesFromQuery store startFunc q
+  -- putText $ "Got Some paths: " <> show (length paths)
   forConcurrently_ paths $ \path -> do
     forConcurrently_ bugMatches $ \bugMatch -> do
       M.matchPath solver [] (bugMatch ^. #pathPattern) path >>= \case
@@ -700,3 +707,80 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
                 <> "\n"
                 <> show e
       sequentialWarn msg
+
+checkKernelLifecycle
+  :: Bool
+  -> CfgStore
+  -> Word64
+  -> Word64
+  -> (MatchingResult -> IO ())
+  -> IO ()
+checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth streamResults = do
+  case (findFuncByName "init_module", findFuncByName "cleanup_module") of
+    (Just initFunc, Just cleanupFunc) -> do
+      uuidInit <- randomIO
+      uuidClean <- randomIO
+      uuidBbEnd <- randomIO
+      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" 0 []
+          lifeCtx = Pil.Ctx lifecycleFunc 0
+          initDest = Pil.CallFunc initFunc
+          cleanDest = Pil.CallFunc cleanupFunc
+          callNodeInit
+            = Cfg.Call $ Cfg.CallNode
+              lifeCtx
+              0
+              initDest
+              uuidInit
+              [ C.defCall "r1" initDest [] 8 ]
+
+          callNodeCleanup
+            = Cfg.Call $ Cfg.CallNode
+              lifeCtx
+              8
+              cleanDest
+              uuidClean
+              [ C.defCall "r1" cleanDest [] 8 ]
+
+          bbEnd = Cfg.BasicBlock $ Cfg.BasicBlockNode
+                  lifeCtx
+                  0x10
+                  0x12
+                  uuidBbEnd
+                  [ C.ret $ C.var "r1" 8 ]
+                  
+          lifeCfg = Cfg.mkCfg
+            0
+            callNodeInit
+            [ callNodeInit, callNodeCleanup, bbEnd]
+            [ Cfg.CfEdge callNodeInit callNodeCleanup Cfg.UnconditionalBranch
+            , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
+            ]
+          lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
+      CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
+      
+      let q :: Query Function
+          q = QueryExpandAll $ QueryExpandAllOpts
+              { callExpandDepthLimit = expandCallDepth + 1
+              -- TODO: At some point, we should base the # samples on the size of func
+              , numSamples = maxSamplesPerFunc
+              }
+          bms :: [BugMatch]
+          bms = Pat.kernelModulePatterns
+
+      checkFunc
+        actuallyUseSolver
+        store
+        q
+        bms
+        streamResults
+        lifecycleFunc
+
+
+      return ()
+      
+    _ -> do
+      putText "Failed to find both `init_module` and `cleanup_module` for kernel"
+      return ()
+  where
+    findFuncByName t = headMay . filter (\func -> func ^. #name == t) . view #funcs $ store
+  

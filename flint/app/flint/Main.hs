@@ -25,6 +25,7 @@ data Options = Options
   , doNotUseSolver :: Bool
   , maxSamplesPerFunc :: Word64
   , expandCallDepth :: Word64
+  , isKernelModule :: Bool
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -40,6 +41,11 @@ parseJSONOption :: Parser Bool
 parseJSONOption = switch
   ( long "outputJSON"
     <> help "output in a JSON format" )
+
+parseIsKernelModule :: Parser Bool
+parseIsKernelModule = switch
+  ( long "isKernelModule"
+    <> help "do lifecyle check for kernel modules" )
 
 parseMaxSamplesPerFunc :: Parser Word64
 parseMaxSamplesPerFunc = option auto
@@ -73,6 +79,7 @@ optionsParser = Options
   <*> (parseDoNotUseSolver <|> pure False)
   <*> (parseMaxSamplesPerFunc <|> pure 15)
   <*> (parseExpandCallDepth <|> pure 0)
+  <*> (parseIsKernelModule <|> pure False)
   <*> parseInputFile
 
 main :: IO ()
@@ -112,10 +119,17 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
           }
       bms :: [BugMatch]
       bms = Pat.allPatterns
-        -- [ Pat.incrementWithoutCheck
-        -- ]
       funcs :: HashSet Function
       funcs = HashSet.fromList $ store ^. #funcs
+      output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
   prettyPrint' $ HashSet.toList funcs
-  let output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
+
+  when (opts ^. #isKernelModule)
+    $ checkKernelLifecycle
+      (not $ opts ^. #doNotUseSolver)
+      store
+      (opts ^. #maxSamplesPerFunc)
+      (opts ^. #expandCallDepth)
+      output
+      
   checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output funcs

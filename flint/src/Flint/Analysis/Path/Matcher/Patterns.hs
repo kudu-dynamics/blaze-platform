@@ -36,7 +36,49 @@ allPatterns =
   , stackBasedBufferOverflow
   , inputControlledIndirectCall
   , writeToGlobal
+  , inputDataCopiedToStack
   ]
+
+kernelModulePatterns :: [BugMatch]
+kernelModulePatterns =
+  [ usbRegisterNotifyImbalance
+  , nfHookImbalance
+  -- , simple
+  ]
+
+usbRegisterNotifyImbalance :: BugMatch
+usbRegisterNotifyImbalance = BugMatch
+  { pathPattern =
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "usb_register_notify") [ Bind "handler" Wild ]
+      -- , AvoidUntil $ AvoidSpec
+      --   { avoid = Stmt $ Call Nothing (CallFunc $ FuncName "usb_unregister_notify")
+      --             [ Bind "handler" Wild ]
+      --   , until = EndOfPath
+      --   }
+      , EndOfPath
+      ]
+  , bugName = "Dangling Usb Notify Handler in Kernel Module"
+  , bugDescription =
+      "There is a possible path through the lifecycle of this kernel module where the handler '" <> TextExpr "handler" <> "' is registered with 'usb_register_notify' but is never unregistered, leaving a dangling handler."
+  , mitigationAdvice = "Unregister it."
+  }
+
+nfHookImbalance :: BugMatch
+nfHookImbalance = BugMatch
+  { pathPattern =
+      [ Stmt $ Call Nothing (CallFunc $ FuncName "nf_register_net_hook") [ Bind "handler" Wild ]
+      -- , AvoidUntil $ AvoidSpec
+      --   { avoid = Stmt $ Call Nothing (CallFunc $ FuncName "nf_unregister_net_hook")
+      --             [ Bind "handler" Wild ]
+      --   , until = EndOfPath
+      --   }
+      , EndOfPath
+      ]
+  , bugName = "Dangling Nf Hook in Kernel Module"
+  , bugDescription =
+      "There is a possible path through the lifecycle of this kernel module where the handler '" <> TextExpr "handler" <> "' is registered with 'nf_register_net_hook' but is never unregistered, leaving a dangling handler."
+  , mitigationAdvice = "Unregister it."
+  }
 
 
 incrementWithoutCheck :: BugMatch
@@ -89,6 +131,28 @@ writeToGlobal = BugMatch
     "This path shows that possibly user-controllable memory from " <> TextExpr "in" <> " is written to a global in the kernel module: `" <> TextExpr "out" <> "`."
   , mitigationAdvice = "Try harder."
   }
+
+inputDataCopiedToStack :: BugMatch
+inputDataCopiedToStack = BugMatch
+  { pathPattern =
+      [ AvoidUntil $ AvoidSpec
+        { avoid = Stmt $ Call (Just $ Bind "stackVar" Wild) (CallFunc $ FuncNameRegex "alloc") []
+        , until = AnyOne
+          [ Stmt $ Call Nothing (CallFunc $ FuncName "memcpy")
+            [ Bind "stackVar" stackVar
+            , Bind "src" (isGlobal .|| isArg)
+            ]
+            -- TODO: add regular STORE and other stdlib copies
+          ]
+        }
+      ]
+  , bugName = "User input writes to stack"
+  , bugDescription =
+    "This path shows that possibly user-controllable memory from " <> TextExpr "src" <> " is written to memory on the stack: `" <> TextExpr "stackVar" <> "`."
+  , mitigationAdvice = "Try harder."
+  }
+  where
+    stackVar = NotPattern (isGlobal .|| Contains isArg)
 
 inputControlledIndirectCall :: BugMatch
 inputControlledIndirectCall = BugMatch
@@ -599,7 +663,7 @@ nullPtr = const 0 () .|| constPtr 0 ()
 simple :: BugMatch
 simple = BugMatch
   { pathPattern =
-    [ Stmt $ Def (Var "x") (const 55 ())
+    [ Stmt $ Def Wild Wild
     ]
   , bugName = "Simple"
   , bugDescription =
