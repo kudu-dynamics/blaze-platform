@@ -797,7 +797,9 @@ matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
 matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
   Nothing -> case pat of
     Stmt _ -> bad
-    AvoidUntil _ -> use #avoids >>= bool bad good . HashMap.null
+    AvoidUntil _ -> do
+      checkAvoids
+      use #avoids >>= bool bad good . HashMap.null
     AnyOne [] -> good
     AnyOne pats -> asum $ matchNextStmt_ False <$> pats
     Unordered [] -> good
