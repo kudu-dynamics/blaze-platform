@@ -12,32 +12,25 @@ import qualified Data.HashSet as HashSet
 
 -- | All the patterns that don't need to use the solver
 allPatterns :: [BugMatch]
--- allPatterns = [simple]
--- allPatterns = [incrementWithoutCheck]
 -- allPatterns =
---   [ -- incrementWithoutCheck
---    -- stackSetToExecutable'
---   -- , bufferOverflow
---   -- , formatStringVulnerability
---   -- , useAfterFree
+--   [ incrementWithoutCheck
+--   , stackSetToExecutable
+--   , bufferOverflow
+--   , formatStringVulnerability
+--   , useAfterFree
 --   -- , nullPointerDereference
---   -- , stackBasedBufferOverflow
+--   , stackBasedBufferOverflow
+--   , inputControlledIndirectCall
+--   , writeToGlobal
+--   , inputDataCopiedToStack
 --   ]
-
--- allPatterns = [nullPointerDereference]
--- allPatterns = [formatStringVulnerability]
 allPatterns =
   [ incrementWithoutCheck
-  , stackSetToExecutable
-  , bufferOverflow
-  , formatStringVulnerability
-  , useAfterFree
-  -- , nullPointerDereference
-  , stackBasedBufferOverflow
   , inputControlledIndirectCall
   , writeToGlobal
   , inputDataCopiedToStack
   ]
+
 
 kernelModulePatterns :: [BugMatch]
 kernelModulePatterns =
@@ -50,12 +43,11 @@ usbRegisterNotifyImbalance :: BugMatch
 usbRegisterNotifyImbalance = BugMatch
   { pathPattern =
       [ Stmt $ Call Nothing (CallFunc $ FuncName "usb_register_notify") [ Bind "handler" Wild ]
-      -- , AvoidUntil $ AvoidSpec
-      --   { avoid = Stmt $ Call Nothing (CallFunc $ FuncName "usb_unregister_notify")
-      --             [ Bind "handler" Wild ]
-      --   , until = EndOfPath
-      --   }
-      , EndOfPath
+      , AvoidUntil $ AvoidSpec
+        { avoid = Stmt $ Call Nothing (CallFunc $ FuncName "usb_unregister_notify")
+                  [ Bind "handler" Wild ]
+        , until = EndOfPath
+        }
       ]
   , bugName = "Dangling Usb Notify Handler in Kernel Module"
   , bugDescription =
@@ -67,12 +59,11 @@ nfHookImbalance :: BugMatch
 nfHookImbalance = BugMatch
   { pathPattern =
       [ Stmt $ Call Nothing (CallFunc $ FuncName "nf_register_net_hook") [ Bind "handler" Wild ]
-      -- , AvoidUntil $ AvoidSpec
-      --   { avoid = Stmt $ Call Nothing (CallFunc $ FuncName "nf_unregister_net_hook")
-      --             [ Bind "handler" Wild ]
-      --   , until = EndOfPath
-      --   }
-      , EndOfPath
+      , AvoidUntil $ AvoidSpec
+        { avoid = Stmt $ Call Nothing (CallFunc $ FuncName "nf_unregister_net_hook")
+                  [ Bind "handler" Wild ]
+        , until = EndOfPath
+        }
       ]
   , bugName = "Dangling Nf Hook in Kernel Module"
   , bugDescription =
