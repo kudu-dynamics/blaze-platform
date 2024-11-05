@@ -12,24 +12,24 @@ import qualified Data.HashSet as HashSet
 
 -- | All the patterns that don't need to use the solver
 allPatterns :: [BugMatch]
--- allPatterns =
---   [ incrementWithoutCheck
---   , stackSetToExecutable
---   , bufferOverflow
---   , formatStringVulnerability
---   , useAfterFree
---   -- , nullPointerDereference
---   , stackBasedBufferOverflow
---   , inputControlledIndirectCall
---   , writeToGlobal
---   , inputDataCopiedToStack
---   ]
 allPatterns =
   [ incrementWithoutCheck
+  , stackSetToExecutable
+  , bufferOverflow
+  , formatStringVulnerability
+  , useAfterFree
+  -- , nullPointerDereference
+  , stackBasedBufferOverflow
   , inputControlledIndirectCall
   , writeToGlobal
   , inputDataCopiedToStack
   ]
+-- allPatterns =
+--   [ incrementWithoutCheck
+--   , inputControlledIndirectCall
+--   , writeToGlobal
+--   , inputDataCopiedToStack
+--   ]
 
 
 kernelModulePatterns :: [BugMatch]
