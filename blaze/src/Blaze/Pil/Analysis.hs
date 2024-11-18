@@ -800,8 +800,10 @@ parseFieldAddr expr =
     -- Case where there is a const on the left
     Pil.ADD addOp@(Pil.AddOp Pil.Expression {op = (Pil.CONST _)} _right) -> do
       baseAddr <- base addOp (^. #right)
-      fullAddr <- Pil.Expression (expr ^. #size) . Pil.FIELD_ADDR
-                  <$> ( Pil.FieldAddrOp baseAddr <$> offset addOp (^. #left))
+      fullAddr <- Pil.Expression (expr ^. #size)
+                  . Pil.FIELD_ADDR
+                  . Pil.FieldAddrOp baseAddr
+                  <$> offset addOp (^. #left)
       return $ ParsedAddr baseAddr fullAddr
 
     _ -> Nothing
