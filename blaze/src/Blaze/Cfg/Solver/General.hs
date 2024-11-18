@@ -1,3 +1,5 @@
+{- HLINT ignore "Move mapMaybe" -}
+
 module Blaze.Cfg.Solver.General where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
