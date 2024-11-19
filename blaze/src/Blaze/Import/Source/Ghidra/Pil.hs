@@ -90,6 +90,8 @@ data ConverterState = ConverterState
   , usedVars :: HashSet PilVar
     -- | A mapping of PilVars to the a variable from the import source.
   , sourceVars :: HashMap PilVar VarNode
+    -- | A mapping of varnodes to their SSA versions
+  , varnodeVersions :: HashMap SSAType (HashMap Int64 Int)
   , ghidraState :: GhidraState
   }
   deriving (Eq, Ord, Show, Generic)
@@ -101,6 +103,7 @@ mkConverterState gs ctx = ConverterState
   , definedVars = []
   , usedVars = HashSet.empty
   , sourceVars = HashMap.empty
+  , varnodeVersions = HashMap.empty
   , ghidraState = gs
   }
 
@@ -137,9 +140,9 @@ instance IsVariable a => IsVariable (P.Input a) where
   getVarType = getVarType . view #value
 
 data VarNodeType
-  = VUnique Int64
-  | VReg Int64
-  | VStack Int64
+  = VUnique {offset :: Int64, pcAddress :: Maybe Int64}
+  | VReg {offset :: Int64, pcAddress :: Maybe Int64}
+  | VStack {offset :: Int64, pcAddress :: Maybe Int64}
   | VRam Int64
   -- | VConstAddr Int64
   | VExtern Int64
@@ -147,23 +150,30 @@ data VarNodeType
   | VOther Text Int64
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
 
+data SSAType
+  = SSAUnique Int64
+  | SSAReg Int64
+  | SSAStack Int64
+  deriving (Eq, Ord, Show, Generic, Hashable)
+
 showHex :: Integral a => a -> Text
 showHex n = Text.pack $ Numeric.showHex n ""
 
 getVarNodeType :: IsVariable a => a -> VarNodeType
 getVarNodeType v = case getVarType v of
   GVar.Const n -> VImmediate n
-  GVar.Addr x -> case x ^. #space . #name of
+  GVar.Addr{location, pcAddress} -> case location ^. #space . #name of
     GAddr.EXTERNAL -> VExtern off
     GAddr.HASH -> VOther "HASH" off
     GAddr.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
     GAddr.Ram -> VRam off
-    GAddr.Register -> VReg off
-    GAddr.Stack -> VStack off
-    GAddr.Unique -> VUnique off
+    GAddr.Register -> VReg{offset = off, pcAddress = pcAddressOffset}
+    GAddr.Stack -> VStack{offset = off, pcAddress = pcAddressOffset}
+    GAddr.Unique -> VUnique{offset = off, pcAddress = pcAddressOffset}
     GAddr.Other t -> VOther t off
     where
-      off = x ^. #offset
+      off = location ^. #offset
+      pcAddressOffset = view #offset <$> pcAddress
 
 -- | Get a register name given a Ghidra address and possible `Register` instance.
 -- Ghidra provides a `Nothing` value when requesting a `Register` with an offset
@@ -226,7 +236,7 @@ mkAddressExpr x = Expression (fromIntegral $ x ^. #space . #ptrSize) . Pil.CONST
 requireConst :: IsVariable a => a -> ExceptT ConverterError Converter Int64
 requireConst v = case getVarType v of
   GVar.Const n -> return n
-  GVar.Addr x -> throwError $ ExpectedConstButGotAddress x
+  GVar.Addr{location = x} -> throwError $ ExpectedConstButGotAddress x
 
 requireConstIntExpr :: IsVariable a => a -> ExceptT ConverterError Converter Expression
 requireConstIntExpr v = mkExpr v . Pil.CONST . Pil.ConstOp <$> requireConst v
@@ -253,6 +263,24 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
     return . Pil.CallAddr $ Pil.ConstFuncPtrOp paddr Nothing
   _ -> return . Pil.CallExpr $ mkAddressExpr addr
 
+internVarnode :: SSAType -> Maybe Int64 -> Converter (Maybe Int)
+internVarnode _ Nothing = pure Nothing
+internVarnode s (Just pcAddress) = do
+  subMap <-
+    use #varnodeVersions <&> HashMap.lookup s >>= \case
+      Just sm -> pure sm
+      Nothing -> do
+        #varnodeVersions . at s .= Just HashMap.empty
+        pure HashMap.empty
+  case HashMap.lookup pcAddress subMap of
+    Just ver -> pure (Just ver)
+    Nothing -> do
+      let oldVersions = HashMap.elems subMap
+          highestVer = if null oldVersions then 0 else maximum oldVersions
+          newVer = highestVer + 1
+      #varnodeVersions . at s . _Just %= HashMap.insert pcAddress newVer
+      pure (Just newVer)
+
 -- | Converts a Ghidra VarNode to either a 'PilVar' or 'Expression' that
 -- represents the __abstract location__ that the VarNode specifies. If a
 -- 'PilVar' is returned, then it can be used as the left-hand-side of a 'Def';
@@ -267,13 +295,28 @@ varNodeToReference v = do
       size :: Bytes = getSize v
       operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
-    VReg offset -> do
+    VReg{offset, pcAddress} -> do
       prg <- use $ #ghidraState . #program
       reg <- liftIO . runGhidraOrError $ getRegister prg offset (fromIntegral size)
       let name = getRegisterName offset size reg
-      pure . Left . pv $ name
-    VStack n -> pure . Left . pv $ stackVarName n
-    VUnique n -> pure . Left . pv $ "unique_" <> showHex n
+      version <- lift $ internVarnode (SSAReg offset) pcAddress
+      pure . Left . pv $
+        case version of
+          Nothing -> name
+          Just ver -> name <> "#" <> show ver
+    VStack{offset, pcAddress} -> do
+      version <- lift $ internVarnode (SSAStack offset) pcAddress
+      pure . Left . pv $
+        case version of
+          Nothing -> stackVarName offset
+          Just ver -> stackVarName offset <> "#" <> show ver
+    VUnique{offset, pcAddress} -> do
+      -- pure . Left . pv $ "unique_" <> showHex n
+      version <- lift $ internVarnode (SSAUnique offset) pcAddress
+      pure . Left . pv $
+        case version of
+          Nothing -> "unique_" <> showHex offset
+          Just ver -> "unique_" <> showHex offset <> "#" <> show ver
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
@@ -309,13 +352,13 @@ varNodeToValueExpr v = do
   let size :: Bytes = getSize v
       operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
-    VReg _ -> do
+    VReg{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
-    VStack _ -> do
+    VStack{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
-    VUnique _ -> do
+    VUnique{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
     VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize

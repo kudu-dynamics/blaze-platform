@@ -39,8 +39,8 @@ import Binja.C.Enums (BNAnalysisSkipReason, BNFunctionAnalysisSkipOverride)
 
 createFunction :: FromFunction fun => BNFunction -> IO fun
 createFunction ptr = do
-  fn <- Function ptr
-        <$> (Text.pack <$> BN.getFunctionName ptr)
+  fn <- Function ptr . Text.pack
+        <$> BN.getFunctionName ptr
         <*> BN.getFunctionStart ptr
   fromFunction fn
 

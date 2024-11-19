@@ -8,7 +8,10 @@ import Ghidra.Types.Address (Address)
 
 data VarType
   = Const Int64
-  | Addr Address
+  | Addr
+    { location :: Address
+    , pcAddress :: Maybe Address
+    }
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 data VarNode = VarNode

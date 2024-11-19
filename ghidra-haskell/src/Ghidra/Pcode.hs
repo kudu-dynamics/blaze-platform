@@ -93,7 +93,7 @@ class CanBeDestination a where
 
 instance CanBeDestination Var.VarType where
   toDestination (Var.Const n) = L.Relative n
-  toDestination (Var.Addr addr) = L.Absolute addr
+  toDestination (Var.Addr {location}) = L.Absolute location
 
 instance CanBeDestination VarNode where
   toDestination = toDestination . view #varType
@@ -106,7 +106,7 @@ class GetConst a where
 
 instance GetConst Var.VarType where
   getConst (Var.Const n) = Just n
-  getConst (Var.Addr _) = Nothing
+  getConst (Var.Addr {}) = Nothing
 
 instance GetConst VarNode where
   getConst = getConst . view #varType

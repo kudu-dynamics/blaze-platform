@@ -21,9 +21,29 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
 
     let func = fromJust mFunc
     stmts <- runIO $ getFuncStatements importer func 0
-    -- The statement used for the test: zf_1@0 = eax_4@0 == 0x0
-    let stmt = stmts !! 5
-    let pv = stmt ^? _Ctor @"Def" . #value . #op . _Ctor @"CMP_E" . #left . #op . _Ctor @"VAR" . #src
+
+    -- stmt0: zf_1#1@10 = eax_4#1@10 == 0x0
+    -- stmt1: var_14#4@10 = var_14#2@10
+    -- stmt2: unique_1d00#1@10 = esp_4#1@10 + offset 0xffffffac
+    -- stmt3: unique_1d00#2@10 = esp_4#1@10 + offset 0xffffffac
+    let stmt0 = stmts !! 5
+    let stmt1 = stmts !! 12
+    let stmt2 = stmts !! 15
+    let stmt3 = stmts !! 21
+
+    let pv0 = stmt0 ^? _Ctor @"Def" . #value . #op . _Ctor @"CMP_E" . #left . #op . _Ctor @"VAR" . #src
+    let pv1_l = stmt1 ^? _Ctor @"Def" . #var
+    let pv1_r = stmt1 ^? _Ctor @"Def" . #value . #op . _Ctor @"VAR" . #src
+    let pv2 = stmt2 ^? _Ctor @"Def" . #var
+    let pv3 = stmt3 ^? _Ctor @"Def" . #var
 
     it "should use register names for symbols" $ do
-      pv ^. _Just . #symbol `shouldBe` "eax_4"
+      pv0 ^. _Just . #symbol `shouldBe` "eax_4#1"
+
+    it "should have separate number labels for assignments to the same stack var" $ do
+      pv1_l ^. _Just . #symbol `shouldBe` "var_14#4"
+      pv1_r ^. _Just . #symbol `shouldBe` "var_14#2"
+
+    it "should have separate number labels for assignments to the same unique var" $ do
+      pv2 ^. _Just . #symbol `shouldBe` "unique_1d00#1"
+      pv3 ^. _Just . #symbol `shouldBe` "unique_1d00#2"

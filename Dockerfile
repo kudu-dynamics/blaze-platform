@@ -4,7 +4,7 @@ ARG BINARYNINJA_CHANNEL=release
 ARG BINARYNINJA_VERSION=3.4.4271
 # ARG BINARYNINJA_API_VERSION=v3.4.4271-stable
 
-FROM ubuntu:mantic-20240530 as before-base-deps
+FROM ubuntu:latest as before-base-deps
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 RUN <<EOF

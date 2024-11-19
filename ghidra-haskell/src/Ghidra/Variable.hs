@@ -22,19 +22,36 @@ import qualified Data.Text as Text
 import qualified Foreign.JNI as JNI
 
 
-mkVarType :: J.VarNode -> Ghidra VarType
-mkVarType v = runIO (Java.call v "isConstant") >>= \case
+mkVarType :: Either J.VarNode J.VarNodeAST -> Ghidra VarType
+mkVarType (Left v) = runIO (Java.call v "isConstant") >>= \case
   True -> do
     -- value of const is stored in address
     addr :: J.Address <- runIO $ Java.call v "getAddress"
     Const <$> runIO (Java.call addr "getOffset")
   False -> do
-    Addr <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
+    Addr
+      <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
+      <*> pure Nothing
+mkVarType (Right v) = runIO (Java.call v "isConstant") >>= \case
+  True -> do
+    -- value of const is stored in address
+    addr :: J.Address <- runIO $ Java.call v "getAddress"
+    Const <$> runIO (Java.call addr "getOffset")
+  False -> do
+    Addr
+      <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
+      <*> do
+        pcAddr :: J.Address <- runIO (Java.call v "getPCAddress")
+        noAddr :: J.Address <- runIO (Java.getStaticField "ghidra.program.model.address.Address" "NO_ADDRESS")
+        if pcAddr == noAddr
+          then pure Nothing
+          -- call to JNI.newGlobalRef should occur at this point since pcAddr can be discarded otherwise
+          else Just <$> do runIO (JNI.newGlobalRef pcAddr) >>= mkAddress
 
 mkVarNode :: J.VarNode -> Ghidra VarNode
 mkVarNode v = do
   sz :: Int32 <- runIO $ Java.call v "getSize"
-  VarNode <$> mkVarType v <*> pure (fromIntegral sz)
+  VarNode <$> mkVarType (Left v) <*> pure (fromIntegral sz)
 
 mkHighVariableType :: J.HighVariable -> Ghidra HighVariableType
 mkHighVariableType hv = do
@@ -81,7 +98,7 @@ mkHighVarNode v = do
   sz :: Int32 <- runIO $ Java.call v "getSize"
   mhv <- maybeNull <$> runIO (Java.call v "getHigh")
   mhv' <- maybe (return Nothing) (fmap Just . (mkHighVariable <=< runIO . JNI.newGlobalRef)) mhv
-  HighVarNode <$> mkVarType (coerce v) <*> pure (fromIntegral sz) <*> getPcAddress <*> pure mhv'
+  HighVarNode <$> mkVarType (Right v) <*> pure (fromIntegral sz) <*> getPcAddress <*> pure mhv'
 
   where
     -- Only works for high varnodes
