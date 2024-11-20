@@ -149,8 +149,7 @@ inputControlledIndirectCall :: BugMatch
 inputControlledIndirectCall = BugMatch
   { pathPattern =
       [ AnyOne
-        [ Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" Wild) []
-        -- , Stmt $ Call Nothing (CallFunc $ FuncNameRegex "^.*$") []
+        [ Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" inputDest) []
         ]
       ]
   , bugName = "Input Controlled Indirect Call"

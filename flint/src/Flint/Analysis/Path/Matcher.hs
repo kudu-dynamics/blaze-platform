@@ -34,6 +34,7 @@ type Symbol = Text
 
 data Func
   = FuncName Text
+  -- Maybe FuncNames should just be handled by FuncNameRegex?
   | FuncNames (HashSet Text)
   | FuncAddr Address
   | FuncNameRegex Text
@@ -325,7 +326,7 @@ mkMatcherState :: StmtSolver m -> [TaintPropagator] -> [Pil.Stmt] -> MatcherStat
 -- Removed the mkTaintSet bc we aren't using it for anything atm
 -- TODO: precalc that once per path, then pass it in to the matcher for each
 -- pattern matched.
-mkMatcherState solver tps stmts = MatcherState stmts HashMap.empty HashMap.empty HashMap.empty [] HashSet.empty solver Nothing
+mkMatcherState solver _tps stmts = MatcherState stmts HashMap.empty HashMap.empty HashMap.empty [] HashSet.empty solver Nothing
 
 runMatcher
   :: Monad m

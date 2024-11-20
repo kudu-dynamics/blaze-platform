@@ -21,11 +21,10 @@ import Flint.Util (sequentialWarn)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
-import qualified Blaze.Cfg.Path as CfgP
 import Blaze.Graph (OuterNodeDescendants, RouteMakerCtx, Route, RouteAction)
 import qualified Blaze.Graph as G
 import Blaze.Import.CallGraph (CallGraphImporter)
-import Blaze.Pretty (Tokenizable(tokenize), Tokenizer, Token, (<++>), tt, pretty', prettyPrint')
+import Blaze.Pretty (Tokenizable(tokenize), Tokenizer, Token, (<++>), tt, pretty')
 import qualified Blaze.Pretty as P
 import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
@@ -35,7 +34,6 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge))
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Path as Path
-import Blaze.Path ((-|), (|-))
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
@@ -116,6 +114,7 @@ getFullFunction m (M.FuncAddr x) = HashMap.lookup x $ m ^. #addrMap
 -- TODO: could fill this out to work with regex... or...
 --       we'll probably deprecate queryForBugMatch_ one day, so just procrastinate
 getFullFunction _m (M.FuncNameRegex _x) = Nothing
+getFullFunction _m (M.FuncNames _x) = Nothing
 
 toFullFunctionSequenceGraph
   :: FuncMapping
