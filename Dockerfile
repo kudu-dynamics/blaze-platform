@@ -111,7 +111,7 @@ RUN <<EOF
 
         # Haskell dependencies
         git                      # Cloning inline-java and binary-analysis
-        openjdk-21-jdk-headless  # All we need this for is jni.h. Sigh
+        openjdk-21-jdk           # All we need this for is jni.h. Sigh
         pkg-config
         yq                       # Determining ghc version from stack.yaml
         zlib1g-dev
