@@ -29,7 +29,7 @@ getSemGroups archPtr = fmap (SemGroups . Map.fromList) $
     f n = (n,) . Text.pack <$> BN.getArchitectureSemanticFlagGroupName archPtr n
 
 create :: BNArchitecture -> IO Architecture
-create ptr = Architecture ptr
-             <$> (Text.pack <$> BN.getArchitectureName ptr)
+create ptr = Architecture ptr . Text.pack
+             <$> BN.getArchitectureName ptr
              <*> getSemClasses ptr
              <*> getSemGroups ptr

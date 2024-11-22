@@ -4,7 +4,7 @@ ARG BINARYNINJA_CHANNEL=release
 ARG BINARYNINJA_VERSION=3.4.4271
 # ARG BINARYNINJA_API_VERSION=v3.4.4271-stable
 
-FROM ubuntu:mantic-20240530 as before-base-deps
+FROM ubuntu:noble as before-base-deps
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 RUN <<EOF
@@ -14,11 +14,11 @@ RUN <<EOF
         ca-certificates           # Downloads (curl, git, etc)
         fonts-dejavu-core         # Smallest font that satisfies openjdk dependencies
         dbus                      # Binary Ninja
-        openjdk-17-jre-headless   # Ghidra
+        openjdk-21-jre-headless   # Ghidra
     )
     apt install -yq --no-install-recommends "${packages[@]}"
 EOF
-RUN echo '/usr/lib/jvm/java-17-openjdk-amd64/lib/server' >/etc/ld.so.conf.d/jvm.conf && ldconfig
+RUN echo '/usr/lib/jvm/java-21-openjdk-amd64/lib/server' >/etc/ld.so.conf.d/jvm.conf && ldconfig
 
 
 # Artifacts:
@@ -78,7 +78,7 @@ RUN <<EOF
     set -euxo pipefail
     packages=(
         curl
-        openjdk-17-jdk-headless
+        openjdk-21-jdk-headless
         unzip
     )
     apt install -yq --no-install-recommends "${packages[@]}"
@@ -111,7 +111,7 @@ RUN <<EOF
 
         # Haskell dependencies
         git                      # Cloning inline-java and binary-analysis
-        openjdk-17-jdk-headless  # All we need this for is jni.h. Sigh
+        openjdk-21-jdk           # All we need this for is jni.h. Sigh
         pkg-config
         yq                       # Determining ghc version from stack.yaml
         zlib1g-dev

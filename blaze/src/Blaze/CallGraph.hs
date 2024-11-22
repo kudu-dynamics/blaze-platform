@@ -16,7 +16,7 @@ import Control.Concurrent.Async (forConcurrently)
 getUndirectedCallGraph :: CallGraph -> CallGraph
 getUndirectedCallGraph cg = G.addNodes (toList $ G.nodes cg) . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges <> map inverseEdge edges
   where
-    edges = snd <$> (G.toTupleLEdge <$> G.edges cg)
+    edges = snd . G.toTupleLEdge <$> G.edges cg
     inverseEdge (a,b) = (b,a)
 
 getCallGraph :: CallGraphImporter a => a -> [Function] -> IO CallGraph
