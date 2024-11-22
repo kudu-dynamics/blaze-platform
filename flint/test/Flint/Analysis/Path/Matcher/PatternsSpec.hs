@@ -42,7 +42,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
         funcHasPattern actuallySolve func bms = do
           paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
           matcherResults <- traverse (M.matchPath solver [] (bms ^. #pathPattern)) paths
-          let onlyMatches = filter ((is #_Match) . snd) matcherResults
+          let onlyMatches = filter (is #_Match . snd) matcherResults
           return . isJust . headMay $ onlyMatches
           where
             solver = if actuallySolve

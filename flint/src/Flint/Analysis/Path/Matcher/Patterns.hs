@@ -1,3 +1,5 @@
+{- HLINT ignore "Evaluate" -}
+
 module Flint.Analysis.Path.Matcher.Patterns where
 
 import Flint.Prelude hiding (const)

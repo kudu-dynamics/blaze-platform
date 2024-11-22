@@ -375,11 +375,11 @@ matchCallDest pat cdest = case pat of
 
     (FuncNames names, Pil.CallFunc func) ->
       insist $ HashSet.member (func ^. #name) names
-            || fromMaybe False ((`HashSet.member` names) <$> func ^? #symbol . #_Just . #_symbolName)
+            || maybe False (`HashSet.member` names) (func ^? #symbol . #_Just . #_symbolName)
     (FuncNames names, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
-      insist $ fromMaybe False ((`HashSet.member` names) <$> mSym)
+      insist $ maybe False (`HashSet.member` names) mSym
     (FuncNames names, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
-      insist $ fromMaybe False ((`HashSet.member` names) <$> mSym)
+      insist $ maybe False (`HashSet.member` names) mSym
 
 
     (FuncAddr addr, Pil.CallFunc func) ->
