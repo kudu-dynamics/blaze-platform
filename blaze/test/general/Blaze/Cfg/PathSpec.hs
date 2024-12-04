@@ -158,6 +158,7 @@ mkEnterFunc :: Text -> Ctx -> Ctx -> [Stmt] -> CfNode [Stmt]
 mkEnterFunc name prevCtx_ nextCtx_ stmts = Cfg.EnterFunc $ Cfg.EnterFuncNode
   { prevCtx = prevCtx_
   , nextCtx = nextCtx_
+  , callSiteAddress = 0
   , uuid = mkUuid1 $ hash (prevCtx_, nextCtx_, name)
   , nodeData = stmts
   }
@@ -166,6 +167,7 @@ mkLeaveFunc :: Text -> Ctx -> Ctx -> [Stmt] -> CfNode [Stmt]
 mkLeaveFunc name prevCtx_ nextCtx_ stmts = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
   { prevCtx = prevCtx_
   , nextCtx = nextCtx_
+  , callSiteAddress = 0
   , uuid = mkUuid1 $ hash (prevCtx_, nextCtx_, name)
   , nodeData = stmts
   }
@@ -604,6 +606,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterFuncNode = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func2ctx 0
             , nextCtx = func3ctx 1
+            , callSiteAddress = 0
             , uuid = callNode ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func3ctx 1) "arg1")
@@ -613,6 +616,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           leaveFuncNode = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
             { prevCtx = func3ctx 1
             , nextCtx = func2ctx 0
+            , callSiteAddress = 0
             , uuid = leaveFuncUuid
             , nodeData = [ C.def' (pilVar' (func2ctx 0) "r")
                                   (C.var' (pilVar' (func3ctx 1) "x") 8)
@@ -635,6 +639,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterFuncNode = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func2ctx 0
             , nextCtx = func3ctxNoRet 1
+            , callSiteAddress = 0
             , uuid = callNode ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func3ctxNoRet 1) "arg1")
@@ -656,6 +661,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterFuncNode = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func1ctx 0
             , nextCtx = func2ctx 1
+            , callSiteAddress = 0
             , uuid = callNode ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func2ctx 1) "arg1")
@@ -667,6 +673,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           leaveFuncNode = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
             { prevCtx = func2ctx 1
             , nextCtx = func1ctx 0
+            , callSiteAddress = 0
             , uuid = leaveFuncUuid
             , nodeData = [ C.def' (pilVar' (func1ctx 0) "r")
                                   (C.var' (pilVar' (func2ctx 1) "r") 8)
@@ -693,6 +700,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterFuncNode = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func1ctx 0
             , nextCtx = func2ctx 1
+            , callSiteAddress = 0
             , uuid = callNode ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func2ctx 1) "arg1")
@@ -704,6 +712,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           leaveFuncNode = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
             { prevCtx = func2ctx 1
             , nextCtx = func1ctx 0
+            , callSiteAddress = 0
             , uuid = leaveFuncUuid
             , nodeData = [ C.def' (pilVar' (func1ctx 0) "r")
                                   (C.var' (pilVar' (func2ctx 1) "r") 8)
@@ -712,6 +721,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterInnerFuncNode = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func2ctx 1
             , nextCtx = func3ctx 2
+            , callSiteAddress = 0
             , uuid = innerPathCallNode ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func3ctx 2) "arg1")
@@ -721,6 +731,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           leaveInnerFuncNode = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
             { prevCtx = func3ctx 2
             , nextCtx = func2ctx 1
+            , callSiteAddress = 0
             , uuid = innerPathLeaveFuncUuid
             , nodeData = [ C.def' (pilVar' (func2ctx 1) "r")
                                   (C.var' (pilVar' (func3ctx 2) "x") 8)
@@ -753,6 +764,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterFuncNode1 = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func0ctx 0
             , nextCtx = func3ctx 1
+            , callSiteAddress = 0
             , uuid = callNode1 ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func3ctx 1) "arg1")
@@ -762,6 +774,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           leaveFuncNode1 = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
             { prevCtx = func3ctx 1
             , nextCtx = func0ctx 0
+            , callSiteAddress = 0
             , uuid = leaveFuncUuid1
             , nodeData = [ C.def' (pilVar' (func0ctx 0) "r1")
                                   (C.var' (pilVar' (func3ctx 1) "x") 8)
@@ -770,6 +783,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           enterFuncNode2 = Cfg.EnterFunc $ Cfg.EnterFuncNode
             { prevCtx = func0ctx 0
             , nextCtx = func3ctx 2
+            , callSiteAddress = 0
             , uuid = callNode2 ^. #uuid
             , nodeData =
               [ C.def' (pilVar' (func3ctx 2) "arg1")
@@ -779,6 +793,7 @@ spec = describe "Blaze.Cfg.Path" $ do
           leaveFuncNode2 = Cfg.LeaveFunc $ Cfg.LeaveFuncNode
             { prevCtx = func3ctx 2
             , nextCtx = func0ctx 0
+            , callSiteAddress = 0
             , uuid = leaveFuncUuid2
             , nodeData = [ C.def' (pilVar' (func0ctx 0) "r2")
                                   (C.var' (pilVar' (func3ctx 2) "x") 8)

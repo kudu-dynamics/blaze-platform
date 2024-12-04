@@ -64,7 +64,7 @@ resolveStubBoundExpr (StubNewVar sym sz) = do
 data StubSpec = StubSpec
   { stmtToStub :: Statement ExprPattern
   , removeOriginalStmt :: Bool
-  , stubs :: [Pil.Statement StubBoundExpr]
+  , stubs :: [Pil.AddressableStatement StubBoundExpr]
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | Replaces a matching statement with stubbed statements.

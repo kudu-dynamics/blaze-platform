@@ -46,7 +46,7 @@ relationships between lengths, bitwidths, signedness, and other type-level attri
 module Blaze.Pil.Checker where
 
 import Blaze.Prelude hiding (Type, sym, bitSize, Constraint)
-import Blaze.Types.Pil (Ctx, Expression, Statement, PilVar, FuncVar)
+import Blaze.Types.Pil (Ctx, Expression, PilVar, FuncVar, Stmt, AddressableStatement)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -113,17 +113,17 @@ unifyConstraints cxs = snd $ runUnify unify initialState
                               , currentStmt = 0
                               }
 
-addAllConstraints_ ::
-  ConstraintGenCtx ->
-  [(Int, Statement Expression)] ->
-  Either ConstraintGenError
-    ( [Statement SymExpression],
-      ConstraintGenState
-    )
+addAllConstraints_
+  :: ConstraintGenCtx
+  -> [(Int, AddressableStatement Expression)]
+  -> Either ConstraintGenError
+     ( [AddressableStatement SymExpression]
+     , ConstraintGenState
+     )
 addAllConstraints_ cgCtx indexedStmts =
   fmap (, gst) er
   where
-    er :: Either ConstraintGenError [Statement SymExpression]
+    er :: Either ConstraintGenError [AddressableStatement SymExpression]
     gst :: ConstraintGenState
     (er, gst) = flip runConstraintGen (cgCtx, emptyConstraintGenState) $ do
       mapM
@@ -138,9 +138,9 @@ addAllConstraints_ cgCtx indexedStmts =
 -- access to all statements.
 addAllConstraints ::
   Maybe Ctx ->
-  [(Int, Statement Expression)] ->
+  [(Int, AddressableStatement Expression)] ->
   Either ConstraintGenError
-    ( [Statement SymExpression],
+    ( [AddressableStatement SymExpression],
       ConstraintGenState
     )
 addAllConstraints mRootCtx = addAllConstraints_ cgCtx
@@ -152,9 +152,9 @@ addAllConstraints mRootCtx = addAllConstraints_ cgCtx
 -- | Attempt to find a unification solution to the provided statements.
 stmtSolutions ::
   Maybe Ctx ->
-  [(Int, Statement Expression)] ->
+  [(Int, AddressableStatement Expression)] ->
   Either ConstraintGenError
-    ( [Statement SymExpression],
+    ( [AddressableStatement SymExpression],
       ConstraintGenState,
       UnifyState
     )
@@ -170,11 +170,11 @@ stmtSolutions mRootCtx indexedStmts = do
 -- | This is the main function to check / infer types for a collection of statements.
 checkIndexedStmts
   :: Maybe Ctx
-  -> [(Int, Statement Expression)]
+  -> [(Int, Stmt)]
   -> Either ConstraintGenError TypeReport
 checkIndexedStmts mRootCtx indexedStmts = fmap toReport . stmtSolutions mRootCtx $ indexedStmts
   where
-    toReport :: ( [Statement SymExpression]
+    toReport :: ( [AddressableStatement SymExpression]
                 , ConstraintGenState
                 , UnifyState
                 )
@@ -238,7 +238,7 @@ checkIndexedStmts mRootCtx indexedStmts = fmap toReport . stmtSolutions mRootCtx
 
 checkStmts
   :: Maybe Ctx
-  -> [Statement Expression]
+  -> [Stmt]
   -> Either ConstraintGenError TypeReport
 checkStmts mRootCtx = checkIndexedStmts mRootCtx . zip [0..]
 

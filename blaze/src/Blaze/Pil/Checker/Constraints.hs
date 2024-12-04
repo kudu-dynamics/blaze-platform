@@ -5,6 +5,7 @@ module Blaze.Pil.Checker.Constraints where
 
 import Blaze.Prelude hiding (Constraint, Symbol, Type, bitSize, sym)
 import Blaze.Types.Pil (
+  AddressableStatement,
   CallDest,
   Expression (Expression),
   FuncVar (FuncParam, FuncResult),
@@ -814,9 +815,10 @@ toSymExpression (Expression sz op') = do
 -- | Generate all rules for a statement, including sub-expressions,
 -- and add them to the ConstraintGen state. Also creates a 'Statement SymExpression'.
 -- Make sure to set the 'currentStmt' index before calling this function.
-addStmtTypeConstraints :: Statement Expression
-                       -> ConstraintGen (Statement SymExpression)
-addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
+addStatementTypeConstraints
+  :: Statement Expression
+  -> ConstraintGen (Statement SymExpression)
+addStatementTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym
   pvSym <- lookupVarSym pv
@@ -824,14 +826,14 @@ addStmtTypeConstraints (Pil.Def (Pil.DefOp pv expr)) = do
   equals pvSym exprSym
   return $ Pil.Def (Pil.DefOp pv symExpr)
 
-addStmtTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
+addStatementTypeConstraints (Pil.Constraint (Pil.ConstraintOp expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym
   addExprTypeConstraints symExpr
   assignType exprSym TBool
   return $ Pil.Constraint (Pil.ConstraintOp symExpr)
 
-addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
+addStatementTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   symAddrExpr <- toSymExpression addrExpr
   symValExpr <- toSymExpression valExpr
   let symAddr = symAddrExpr ^. #info . #sym
@@ -842,21 +844,21 @@ addStmtTypeConstraints (Pil.Store (Pil.StoreOp addrExpr valExpr)) = do
   assignType symAddr $ TPointer ptrWidth symVal
   return $ Pil.Store (Pil.StoreOp symAddrExpr symValExpr)
 
-addStmtTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
+addStatementTypeConstraints stmt@(Pil.DefPhi (Pil.DefPhiOp pv vs)) = do
   pvSym <- lookupVarSym pv
   mapM_ (addPhiConstraint pvSym) vs
   traverse toSymExpression stmt -- does nothing but change the type
   where
     addPhiConstraint pvSym v = lookupVarSym v >>= equals pvSym
 
-addStmtTypeConstraints (Pil.DefMemPhi x) = traverse toSymExpression $ Pil.DefMemPhi x
+addStatementTypeConstraints (Pil.DefMemPhi x) = traverse toSymExpression $ Pil.DefMemPhi x
 -- TODO: Link up args to params
-addStmtTypeConstraints (Pil.Call x) = do
+addStatementTypeConstraints (Pil.Call x) = do
   callOp <- traverse toSymExpression x
   void $ addCallOpConstraints callOp
   traverse_ addExprTypeConstraints callOp
   return $ Pil.Call callOp
-addStmtTypeConstraints (Pil.TailCall x) = do
+addStatementTypeConstraints (Pil.TailCall x) = do
   tailCallOp <- traverse toSymExpression x
   callTgt <- addCallOpConstraints tailCallOp
   traverse_ addExprTypeConstraints tailCallOp
@@ -867,22 +869,29 @@ addStmtTypeConstraints (Pil.TailCall x) = do
       retSym <- lookupVarSym retVar
       equals retSym resultFuncSym
   return $ Pil.TailCall tailCallOp
-addStmtTypeConstraints (Pil.BranchCond (Pil.BranchCondOp expr)) = do
+addStatementTypeConstraints (Pil.BranchCond (Pil.BranchCondOp expr)) = do
   symExpr <- toSymExpression expr
   let exprSym = symExpr ^. #info . #sym
   addExprTypeConstraints symExpr
   assignType exprSym TBool
   return $ Pil.BranchCond (Pil.BranchCondOp symExpr)
 
-addStmtTypeConstraints (Pil.UnimplInstr x) = return $ Pil.UnimplInstr x
-addStmtTypeConstraints (Pil.UnimplMem x) = traverse toSymExpression $ Pil.UnimplMem x
-addStmtTypeConstraints Pil.Undef = return Pil.Undef
-addStmtTypeConstraints Pil.Nop = return Pil.Nop
-addStmtTypeConstraints (Pil.Annotation x) = return $ Pil.Annotation x
-addStmtTypeConstraints (Pil.EnterContext x) = traverse toSymExpression $ Pil.EnterContext x
-addStmtTypeConstraints (Pil.ExitContext x) = traverse toSymExpression $ Pil.ExitContext x
-addStmtTypeConstraints (Pil.Jump x) = traverse toSymExpression $ Pil.Jump x
-addStmtTypeConstraints (Pil.JumpTo x) = traverse toSymExpression $ Pil.JumpTo x
-addStmtTypeConstraints (Pil.Ret x) = traverse toSymExpression $ Pil.Ret x
-addStmtTypeConstraints Pil.NoRet = return Pil.NoRet
-addStmtTypeConstraints Pil.Exit = return Pil.Exit
+addStatementTypeConstraints (Pil.UnimplInstr x) = return $ Pil.UnimplInstr x
+addStatementTypeConstraints (Pil.UnimplMem x) = traverse toSymExpression $ Pil.UnimplMem x
+addStatementTypeConstraints Pil.Undef = return Pil.Undef
+addStatementTypeConstraints Pil.Nop = return Pil.Nop
+addStatementTypeConstraints (Pil.Annotation x) = return $ Pil.Annotation x
+addStatementTypeConstraints (Pil.EnterContext x) = traverse toSymExpression $ Pil.EnterContext x
+addStatementTypeConstraints (Pil.ExitContext x) = traverse toSymExpression $ Pil.ExitContext x
+addStatementTypeConstraints (Pil.Jump x) = traverse toSymExpression $ Pil.Jump x
+addStatementTypeConstraints (Pil.JumpTo x) = traverse toSymExpression $ Pil.JumpTo x
+addStatementTypeConstraints (Pil.Ret x) = traverse toSymExpression $ Pil.Ret x
+addStatementTypeConstraints Pil.NoRet = return Pil.NoRet
+addStatementTypeConstraints Pil.Exit = return Pil.Exit
+
+
+addStmtTypeConstraints
+  :: AddressableStatement Expression
+  -> ConstraintGen (AddressableStatement SymExpression)
+addStmtTypeConstraints (Pil.Stmt addr statement) =
+  Pil.Stmt addr <$> addStatementTypeConstraints statement

@@ -75,7 +75,7 @@ instance CallGraphImporter GhidraImporter where
 instance CfgImporter GhidraImporter where
   type NodeDataType GhidraImporter = PilNode
   type NodeMapType GhidraImporter = PilPcodeMap VarNode
-  getCfg imp func ctxId = fmap (fmap Cfg.removeStmtAddrs) <$> Cfg.getPilCfgFromHighPcode (imp ^. #ghidraState) func ctxId
+  getCfg imp = Cfg.getPilCfgFromHighPcode (imp ^. #ghidraState)
 
 instance PilImporter GhidraImporter where
   type IndexType GhidraImporter = Address

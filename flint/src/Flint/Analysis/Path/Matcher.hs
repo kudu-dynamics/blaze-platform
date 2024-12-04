@@ -290,8 +290,8 @@ mkTaintPropagatorTaintSet tps mRetVar =
           FunctionCallPropagator {} -> []
 
 mkStmtTaintSet :: [TaintPropagator] -> Pil.Stmt -> HashSet Taint
-mkStmtTaintSet tps =
-  \case
+mkStmtTaintSet tps (Pil.Stmt _ statement) =
+  case statement of
     Pil.Def (Pil.DefOp dst src) ->
       HashSet.fromList (interestingSubexpressions src <&> (`Tainted` Left dst))
         <> mkTaintPropagatorTaintSet tps (Just dst) (src ^. #op)
@@ -606,7 +606,7 @@ matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
 
 
 matchStmt :: Monad m => Statement ExprPattern -> Pil.Stmt -> MatcherT m ()
-matchStmt sPat stmt = case (sPat, stmt) of
+matchStmt sPat stmt@(Pil.Stmt _ statement) = case (sPat, statement) of
   (Def destPat srcPat, Pil.Def (Pil.DefOp pv expr)) -> do
     let pvExpr = Pil.Expression (expr ^. #size) . Pil.VAR $ Pil.VarOp pv
     matchExpr destPat pvExpr
@@ -636,7 +636,7 @@ matchStmt sPat stmt = case (sPat, stmt) of
     retireStmt
 
   (Call mResultPat callDestPat argPats, _) -> case Pil.mkCallStatement stmt of
-    Nothing -> case stmt of
+    Nothing -> case statement of
       Pil.EnterContext (Pil.EnterContextOp ctx argExprs) -> do
         case callDestPat of
           -- TODO: it would be nice to somehow still match on expanded indirect calls,

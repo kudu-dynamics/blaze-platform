@@ -8,6 +8,7 @@ import Blaze.Types.Function (
   FuncParamInfo(FuncParamInfo, FuncVarArgInfo),
   )
 import Blaze.Types.Pil (
+  AddressableStatement,
   CallTarget(CallTarget),
   Ctx,
   ExprOp,
@@ -27,7 +28,7 @@ charSize = 8
 
 type SymConstraint = (Sym, ConstraintSymType)
 
-type SymTypedStmt = Statement (InfoExpression (SymInfo, Maybe DeepSymType))
+type SymTypedStmt = AddressableStatement (InfoExpression (SymInfo, Maybe DeepSymType))
 
 -- | Type symbols. Both type variables and metavariables are represented as
 -- 'Sym's
@@ -162,8 +163,8 @@ type VarSymMap = HashMap PilVar Sym
 
 -- | The final report of the type checker, which contains types and errors.
 data TypeReport = TypeReport
-  { symTypedStmts :: [(Int, Statement (InfoExpression (SymInfo, Maybe DeepSymType)))]
-  , symStmts :: [(Int, Statement SymExpression)]
+  { symTypedStmts :: [(Int, AddressableStatement (InfoExpression (SymInfo, Maybe DeepSymType)))]
+  , symStmts :: [(Int, AddressableStatement SymExpression)]
   , varSymTypeMap :: HashMap PilVar DeepSymType
   , varSymMap :: VarSymMap
   , varEqMap :: VarEqMap
@@ -336,6 +337,9 @@ instance VarSubst Constraint where
   varSubst m (Constraint i v t) = Constraint i (varSubst m v) (varSubst m t)
 
 instance VarSubst a => VarSubst (Statement a) where
+  varSubst m = fmap (varSubst m)
+
+instance VarSubst a => VarSubst (AddressableStatement a) where
   varSubst m = fmap (varSubst m)
 
 instance VarSubst a => VarSubst (InfoExpression a) where

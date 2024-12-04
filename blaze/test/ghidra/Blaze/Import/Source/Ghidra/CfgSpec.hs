@@ -47,7 +47,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
       sort nodeCounts `shouldBe` expected
 
   context "getPilCfgFromRawPcode" $ do
-    cfgs :: [Maybe (Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
+    cfgs :: [Maybe (Cfg.Cfg (CfNode [Pil.Stmt]))] <-
       runIO $ traverse
         (\func -> view #result <<$>> getPilCfgFromRawPcode gs func 0)
         funcs
@@ -60,7 +60,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
       sort nodeCounts `shouldBe` expected
 
   context "getPilCfgFromHighPcode" $ do
-    cfgs :: [Maybe (Cfg.Cfg (CfNode [(Address, Pil.Stmt)]))] <-
+    cfgs :: [Maybe (Cfg.Cfg (CfNode [Pil.Stmt]))] <-
       runIO $ traverse
         (\func -> view #result <<$>> getPilCfgFromHighPcode gs func 0)
         funcs

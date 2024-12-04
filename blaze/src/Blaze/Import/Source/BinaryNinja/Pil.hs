@@ -462,12 +462,14 @@ convertInstrOpSplitPhi = \case
   x -> convertInstrOp x
 
 convertInstr :: MLIL.Instruction t -> Converter [Stmt]
-convertInstr = convertInstrOp . view MLIL.op
+convertInstr instr_ = fmap (Pil.Stmt $ instr_ ^. MLIL.address)
+  <$> (convertInstrOp . view MLIL.op $ instr_)
 
 convertInstrSplitPhi :: MLIL.Instruction F -> Converter [Stmt]
-convertInstrSplitPhi instr_ = case toCallInstruction instr_ of
-  Nothing -> convertInstrOpSplitPhi . view MLIL.op $ instr_
-  Just x -> convertCallInstruction x
+convertInstrSplitPhi instr_ = fmap (fmap $ Pil.Stmt (instr_ ^. MLIL.address)) $
+  case toCallInstruction instr_ of
+    Nothing -> convertInstrOpSplitPhi . view MLIL.op $ instr_
+    Just x -> convertCallInstruction x
 
 convertInstrs :: [MLIL.Instruction t] -> Converter [Stmt]
 convertInstrs = concatMapM convertInstr
@@ -517,7 +519,7 @@ getCallDestFromCallTargetExpr targetExpr = case targetExpr ^. #op of
   _ -> return $ Pil.CallExpr targetExpr
 
 -- TODO: How to deal with BN functions the report multiple return values? Multi-variable def?
-convertCallInstruction :: CallInstruction -> Converter [Stmt]
+convertCallInstruction :: CallInstruction -> Converter [Statement Expression]
 convertCallInstruction ci = do
   -- TODO: Better handling of possible Nothing value
   targetExpr <- convertExpr (fromJust (ci ^. #dest))
@@ -549,7 +551,7 @@ convertCallInstruction ci = do
             else Def . DefOp dest'' $ callExpr
       return $ callStmt : outStores
   where
-    getOutStores :: Maybe Text -> HashMap Text Func.FuncInfo -> [Expression] -> [Stmt]
+    getOutStores :: Maybe Text -> HashMap Text Func.FuncInfo -> [Expression] -> [Statement Expression]
     getOutStores mname funcInfos args =
       case mname >>= (`HMap.lookup` funcInfos) of
         Nothing -> []

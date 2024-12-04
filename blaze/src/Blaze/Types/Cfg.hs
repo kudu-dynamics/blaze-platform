@@ -70,6 +70,7 @@ data CallNode a = CallNode
 data EnterFuncNode a = EnterFuncNode
   { prevCtx :: Ctx
   , nextCtx :: Ctx
+  , callSiteAddress :: Address
   , uuid :: UUID
   , nodeData :: a
   }
@@ -79,6 +80,7 @@ data EnterFuncNode a = EnterFuncNode
 data LeaveFuncNode a = LeaveFuncNode
   { prevCtx :: Ctx
   , nextCtx :: Ctx
+  , callSiteAddress :: Address
   , uuid :: UUID
   , nodeData :: a
   }
@@ -568,19 +570,22 @@ nextVal = do
  1. Regular callnode with Def/Call
  2. BasicBlockNode with return
 -}
-splitTailCallNodes :: forall m. (MonadIO m, (Identifiable PilNode UUID)) => Cfg PilNode -> m (Cfg PilNode)
+splitTailCallNodes
+  :: forall m. (MonadIO m, (Identifiable PilNode UUID))
+  => Cfg PilNode
+  -> m (Cfg PilNode)
 splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
  where
-  splitTailCall ::
-    Cfg PilNode ->
-    ( PilNode
-    , CallNode [Stmt]
-    , Pil.TailCallOp Pil.Expression
-    ) ->
-    m (Cfg PilNode)
+  splitTailCall
+    :: Cfg PilNode
+    -> ( PilNode
+       , CallNode [Stmt]
+       , Pil.TailCallOp Pil.Expression
+       )
+    -> m (Cfg PilNode)
   splitTailCall cfg (n, call, tc) = case tc ^. #ret of
     Nothing ->
-      return $ G.updateNode (setNodeData ([Pil.Call callOp] <> outStores)) n cfg
+      return $ G.updateNode (setNodeData ([Pil.Stmt (call ^. #start) $ Pil.Call callOp] <> outStores)) n cfg
     Just (pv, sz) -> do
       uuid' <- liftIO randomIO
       let retNode =
@@ -592,11 +597,12 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
                 , uuid = uuid'
                 , nodeData =
                     outStores
-                      <> [ Pil.Ret . Pil.RetOp
-                            . Pil.Expression sz
-                            . Pil.VAR
-                            . Pil.VarOp
-                            $ pv
+                      <> [ Pil.Stmt (call ^. #start)
+                           . Pil.Ret . Pil.RetOp
+                           . Pil.Expression sz
+                           . Pil.VAR
+                           . Pil.VarOp
+                           $ pv
                          ]
                 }
       case HashSet.toList $ G.succs n cfg of
@@ -612,25 +618,25 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
             $ cfg
         _ -> P.error "splitTailCallNodes: TailCall node has multiple successors"
      where
-      callStmt =
-        Pil.Def . Pil.DefOp pv
-          . Pil.Expression sz
-          . Pil.CALL
-          $ callOp
+      callStmt = Pil.Stmt (call ^. #start)
+                 . Pil.Def . Pil.DefOp pv
+                 . Pil.Expression sz
+                 . Pil.CALL
+                 $ callOp
    where
     outStores :: [Stmt]
     outStores = drop 1 $ call ^. #nodeData
     callOp :: Pil.CallOp Pil.Expression
     callOp = Pil.CallOp (tc ^. #dest) (tc ^. #name) (tc ^. #args)
 
-  getTcNodeOp ::
-    PilNode ->
-    Maybe
-      ( PilNode
-      , CallNode [Stmt]
-      , Pil.TailCallOp Pil.Expression
-      )
-  getTcNodeOp n = (n,,) <$> n ^? #_Call <*> n ^? #_Call . #nodeData . ix 0 . #_TailCall
+  getTcNodeOp
+    :: PilNode
+    -> Maybe
+       ( PilNode
+       , CallNode [Stmt]
+       , Pil.TailCallOp Pil.Expression
+       )
+  getTcNodeOp n = (n,,) <$> n ^? #_Call <*> n ^? #_Call . #nodeData . ix 0 . #statement . #_TailCall
 
   tcNodes = mapMaybe getTcNodeOp . HashSet.toList $ G.nodes ogCfg
 

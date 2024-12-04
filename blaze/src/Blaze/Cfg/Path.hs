@@ -140,21 +140,22 @@ updatePilVarName m pv = case HashMap.lookup pv m of
 -- | Updates used vars in statements and adds defined vars to state.
 -- This is used on statements that reside in a revisited node in a loop.
 updatePossiblyLoopingStmt :: Stmt -> State DefinedVarVersions Stmt
-updatePossiblyLoopingStmt = \case
+updatePossiblyLoopingStmt stmt@(Pil.Stmt stmtAddr statement) = case statement of
   Pil.Def (Pil.DefOp dest src) -> do
     src' <- substAll src
     dest' <- addDefinedVar dest
-    return . Pil.Def $ Pil.DefOp dest' src'
+    return . mkStmt . Pil.Def $ Pil.DefOp dest' src'
 
   Pil.DefPhi (Pil.DefPhiOp dest srcs) -> do
     dvv <- get
     let srcs' = flatSubst (updatePilVarName dvv) <$> srcs
     dest' <- addDefinedVar dest
-    return . Pil.DefPhi $ Pil.DefPhiOp dest' srcs'
+    return . mkStmt . Pil.DefPhi $ Pil.DefPhiOp dest' srcs'
     
-  stmt -> substAll stmt
+  _ -> substAll stmt
 
   where
+    mkStmt = Pil.Stmt stmtAddr
     substAll x = do
       dvv <- get
       return $ recurSubst (updatePilVarName dvv) x
@@ -267,7 +268,7 @@ expandCall leaveFuncUuid outerPath callNode innerPath
     --   Returns Nothing if last stmt of last node is not ret
     retExpr :: Maybe Expression
     retExpr = (lastMay . Cfg.getNodeData $ P.end innerPath') >>= \case
-      Pil.Ret x -> return $ x ^. #value
+      Pil.Stmt _ (Pil.Ret x) -> return $ x ^. #value
       _ -> Nothing
 
     mkLeaveNodePath :: CallStatement -> Maybe PilPath
@@ -278,6 +279,7 @@ expandCall leaveFuncUuid outerPath callNode innerPath
       Just _ -> return . Cfg.LeaveFunc $ Cfg.LeaveFuncNode
         { prevCtx = innerPathCtx'
         , nextCtx = outerPath ^. #outerCtx
+        , callSiteAddress = cstmt ^. #stmt . #addr
         , uuid = leaveFuncUuid
         , nodeData = maybeToList $ C.def' <$> cstmt ^. #resultVar <*> retExpr
         }
