@@ -141,7 +141,7 @@ fixupJumpToPred node cfg = fromMaybe cfg $ do
   pred_ <- onlyPred cfg node
   addr <- node ^? (#_BasicBlock . #start <> #_Call . #start)
   let filterAddr ns = if addr `elem` ns then [addr] else []
-  return . G.updateNode (Cfg.updateNodeData (_last . #_JumpTo . #targets %~ filterAddr)) pred_ $ cfg
+  return . G.updateNode (Cfg.updateNodeData (_last . #statement . #_JumpTo . #targets %~ filterAddr)) pred_ $ cfg
 
 -- | Removes all nodes/edges that don't lead to or can't be reached by node.
 -- Returns a modified and simplified ICFG.

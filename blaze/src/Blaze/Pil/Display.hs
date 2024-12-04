@@ -407,7 +407,10 @@ instance Disp ByteOffset where
 instance Disp Bytes where
   disp (Bytes x) = "bytes " <> show x
 
-instance Disp [Pil.Stmt] where
+instance (Disp a, NeedsParens a) => Disp (Pil.AddressableStatement a) where
+  disp (Pil.Stmt addr statement) = disp addr <> ": " <> disp statement
+
+instance (Disp a, NeedsParens a) => Disp [Pil.AddressableStatement a] where
   disp = Text.intercalate "\n" . fmap disp
 
 instance (Disp a, Disp b) => Disp (a, b) where

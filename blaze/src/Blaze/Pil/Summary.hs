@@ -17,6 +17,7 @@ import Blaze.Pil (
   StoreOp (StoreOp),
   VarOp (VarOp),
  )
+import qualified Blaze.Types.Pil as Pil
 import Blaze.Pil.Analysis (DefLoadStmt (DefLoadStmt), LoadExpr (LoadExpr), LoadStmt (LoadStmt), findLoads, getFreeVars, mkDefLoadStmt, mkStoreStmt, getVarsFromExpr)
 import Blaze.Prelude
 import Blaze.Types.Pil.Summary
@@ -62,7 +63,7 @@ isStackLocalLoad load =
     load ^? #expr . #op . _Ctor @"LOAD" . #src . #op . _Ctor @"STACK_LOCAL_ADDR"
 
 getRetVal :: Stmt -> Maybe Expression
-getRetVal (Ret (RetOp x)) = Just x
+getRetVal (Pil.Stmt _ (Ret (RetOp x))) = Just x
 getRetVal _ = Nothing
 
 -- | Given a list of function parameters, a list of returned values, and a
@@ -128,7 +129,7 @@ mkEffect parseWrite parseAlloc parseDealloc parseCall stmt =
   msum $ fmap ($ stmt) [parseWrite, parseAlloc, parseDealloc, parseCall]
 
 mkWrite :: Stmt -> Maybe Effect
-mkWrite stmt@(Store _) = Just $ EffectWrite stmt
+mkWrite stmt@(Pil.Stmt _ (Store _)) = Just $ EffectWrite stmt
 mkWrite stmt = do
   callStmt <- mkCallStatement stmt
   funcName <- callStmt ^. #callOp . #name
@@ -187,7 +188,7 @@ getLoadExprVars (LoadExpr e) = getVarsFromExpr e
 
 getEffectWriteVars :: Effect -> HashSet PilVar
 getEffectWriteVars x = case x of
-  (EffectWrite (Store e)) -> getVarsFromExpr $ e ^. #addr
+  (EffectWrite (Pil.Stmt _ (Store e))) -> getVarsFromExpr $ e ^. #addr
   _notWrite -> HashSet.empty
 
 getReadsWritesFromCodeSummary :: CodeSummary -> ReadsWrites
@@ -220,7 +221,7 @@ removeKilledWrites codeSum =
       f :: Effect -> RemoveKilledResult -> RemoveKilledResult
       f x prevResult@(RemoveKilledResult effects seenStoreAddr) =
         case x of
-          EffectWrite (Store (StoreOp addr _)) ->
+          EffectWrite (Pil.Stmt _ (Store (StoreOp addr _))) ->
             if HashSet.member addr seenStoreAddr
               then prevResult
               else RemoveKilledResult (x : effects) (HashSet.insert addr seenStoreAddr)

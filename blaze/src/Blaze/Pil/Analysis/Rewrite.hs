@@ -12,7 +12,7 @@ import qualified Blaze.Pil.Construct as C
 
 
 rewriteStmt :: Stmt -> [Stmt]
-rewriteStmt stmt = case stmt of
+rewriteStmt stmt@(Pil.Stmt _ statement) = case statement of
   Pil.Call callOp -> case callOp ^. #name of
     Just "CopyMem" -> case callOp ^. #args of
       [dest, src, Pil.Expression _ (Pil.CONST x)] ->

@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DefaultSignatures #-}
 module Blaze.Types.Pil.Analysis.Subst where
 
@@ -6,7 +7,7 @@ import Blaze.Prelude
 import Blaze.Types.Cfg (CfNode, Cfg)
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Types.Function (Function)
-import Blaze.Types.Pil (CtxId, Ctx, PilVar, ExprOp, Expression, Label(KeywordLabel, StackOffsetLabel), StackOffset, Statement)
+import Blaze.Types.Pil (AddressableStatement, CtxId, Ctx, PilVar, ExprOp, Expression, Label(KeywordLabel, StackOffsetLabel), StackOffset, Statement)
 import qualified Blaze.Types.Pil as Pil
 
 
@@ -67,6 +68,7 @@ instance FlatSubst PilVar (Statement a) where
     x -> x
 
 instance RecurSubst PilVar a => RecurSubst PilVar (Statement a)
+
 
 ---- CtxId Substs
 
@@ -174,3 +176,8 @@ instance RecurSubst Function expr => RecurSubst Function (Pil.CallDest expr)
 instance FlatSubst Function Expression where
   flatSubst = fflatSubst @Function @PilVar
 
+
+instance FlatSubst b (Statement a) => FlatSubst b (AddressableStatement a) where
+  flatSubst f = over #statement $ flatSubst f
+
+instance (FlatSubst b (Statement a), RecurSubst b a) => RecurSubst b (AddressableStatement a)

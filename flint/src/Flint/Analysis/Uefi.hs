@@ -125,7 +125,7 @@ taintPropagators =
   ]
 
 isCall :: Stmt -> Bool
-isCall (Def (DefOp _var (Expression _sz (CALL _callOp)))) = True
+isCall (Pil.Stmt _ (Def (DefOp _var (Expression _sz (CALL _callOp))))) = True
 isCall _ = False
 
 getCallExpr :: Stmt -> Maybe Expression

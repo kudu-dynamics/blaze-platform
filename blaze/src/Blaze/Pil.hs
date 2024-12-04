@@ -41,7 +41,7 @@ getLastDefined orderedVars candidateVars =
 
 -- |Generate store statements that correspond to any arguments used
 -- for output for a called function.
-genCallOutputStores :: [FuncParamInfo] -> [Expression] -> [Stmt]
+genCallOutputStores :: [FuncParamInfo] -> [Expression] -> [Statement Expression]
 genCallOutputStores paramInfos params =
   uncurry mkStore <$> zip outArgs exprSyms
   where
@@ -53,7 +53,7 @@ genCallOutputStores paramInfos params =
         else Nothing
     outArgs :: [Expression]
     outArgs = mapMaybe (uncurry maybeOutParam) . zip paramInfos $ params
-    mkStore :: Expression -> Symbol -> Stmt
+    mkStore :: Expression -> Symbol -> Statement Expression
     mkStore argExpr freeVarSym =
       Store $
         StoreOp

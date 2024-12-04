@@ -4,7 +4,8 @@ import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Function (Function(Function))
 import Blaze.Types.Pil
-  ( ExprOp,
+  ( AddressableStatement(Stmt),
+    ExprOp,
     Expression (Expression),
     Size,
     PilVar (PilVar),
@@ -197,13 +198,16 @@ stackLocalAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> e
 stackLocalAddr base offset size =
   mkExpr size . Pil.FIELD_ADDR $ Pil.FieldAddrOp base offset
 
----- Statements
-def :: GetExprSize expr => Symbol -> expr -> Statement expr
+-- | Makes a statement with 0x0 address
+mkStmt_ :: Statement expr -> AddressableStatement expr
+mkStmt_ = Stmt 0
+
+def :: GetExprSize expr => Symbol -> expr -> AddressableStatement expr
 def sym expr = def' (pilVar_ (getPilVarSize expr) Nothing sym) expr
 
 -- | Constructs a 'Pil.Def' that assigns 'val' to 'pv'
-def' :: PilVar -> expr -> Statement expr
-def' pv val = Pil.Def (Pil.DefOp pv val)
+def' :: PilVar -> expr -> AddressableStatement expr
+def' pv val = mkStmt_ $ Pil.Def (Pil.DefOp pv val)
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
@@ -213,7 +217,7 @@ defCall'
   -> Pil.CallDest expr
   -> [expr]
   -> attrs
-  -> Statement expr
+  -> AddressableStatement expr
 defCall' pv dest args size = def' pv callExpr
   where
     mname :: Maybe Text
@@ -231,40 +235,39 @@ defCall
   -> Pil.CallDest expr
   -> [expr]
   -> attrs
-  -> Statement expr
+  -> AddressableStatement expr
 defCall sym cdest args attrs = defCall' (pilVar (getPilVarSize attrs) sym) cdest args attrs
 
-defPhi :: Size PilVar -> Symbol -> [Symbol] -> Statement expr
-defPhi sz sym = Pil.DefPhi . Pil.DefPhiOp (pilVar sz sym) . fmap (pilVar sz)
+defPhi :: Size PilVar -> Symbol -> [Symbol] -> AddressableStatement expr
+defPhi sz sym = mkStmt_ . Pil.DefPhi . Pil.DefPhiOp (pilVar sz sym) . fmap (pilVar sz)
 
-defPhi' :: PilVar -> [PilVar] -> Statement expr
-defPhi' dest = Pil.DefPhi . Pil.DefPhiOp dest
+defPhi' :: PilVar -> [PilVar] -> AddressableStatement expr
+defPhi' dest = mkStmt_ . Pil.DefPhi . Pil.DefPhiOp dest
 
-store :: expr -> expr -> Statement expr
-store addr val = Pil.Store (Pil.StoreOp addr val)
+store :: expr -> expr -> AddressableStatement expr
+store addr val = mkStmt_ $ Pil.Store (Pil.StoreOp addr val)
 
-constraint :: expr -> Statement expr
-constraint e = Pil.Constraint (Pil.ConstraintOp e)
+constraint :: expr -> AddressableStatement expr
+constraint e = mkStmt_ $ Pil.Constraint (Pil.ConstraintOp e)
 
-branchCond :: expr -> Statement expr
-branchCond e = Pil.BranchCond (Pil.BranchCondOp e)
+branchCond :: expr -> AddressableStatement expr
+branchCond e = mkStmt_ $ Pil.BranchCond (Pil.BranchCondOp e)
 
-ret :: expr -> Statement expr
-ret = Pil.Ret . Pil.RetOp
+ret :: expr -> AddressableStatement expr
+ret = mkStmt_ . Pil.Ret . Pil.RetOp
 
-enterContext :: Pil.Ctx -> [expr] -> Statement expr
-enterContext ctx args = Pil.EnterContext $ Pil.EnterContextOp ctx args
+enterContext :: Pil.Ctx -> [expr] -> AddressableStatement expr
+enterContext ctx args = mkStmt_ . Pil.EnterContext $ Pil.EnterContextOp ctx args
 
-exitContext :: Pil.Ctx -> Pil.Ctx -> Statement expr
+exitContext :: Pil.Ctx -> Pil.Ctx -> AddressableStatement expr
 exitContext leavingCtx returningToCtx
-  = Pil.ExitContext
-  $ Pil.ExitContextOp leavingCtx returningToCtx
+  = mkStmt_ . Pil.ExitContext $ Pil.ExitContextOp leavingCtx returningToCtx
 
-nop :: Statement expr
-nop = Pil.Nop
+nop :: AddressableStatement expr
+nop = mkStmt_ Pil.Nop
 
-callStmt :: Pil.CallDest expr -> [expr] -> Statement expr
-callStmt dest args = Pil.Call $ Pil.CallOp dest mname args
+callStmt :: Pil.CallDest expr -> [expr] -> AddressableStatement expr
+callStmt dest args = mkStmt_ . Pil.Call $ Pil.CallOp dest mname args
   where
     mname :: Maybe Text
     mname = case dest of

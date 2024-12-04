@@ -31,11 +31,11 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let stmt2 = stmts !! 15
     let stmt3 = stmts !! 21
 
-    let pv0 = stmt0 ^? _Ctor @"Def" . #value . #op . _Ctor @"CMP_E" . #left . #op . _Ctor @"VAR" . #src
-    let pv1_l = stmt1 ^? _Ctor @"Def" . #var
-    let pv1_r = stmt1 ^? _Ctor @"Def" . #value . #op . _Ctor @"VAR" . #src
-    let pv2 = stmt2 ^? _Ctor @"Def" . #var
-    let pv3 = stmt3 ^? _Ctor @"Def" . #var
+    let pv0 = stmt0 ^? #statement . #_Def . #value . #op . #_CMP_E . #left . #op . #_VAR . #src
+    let pv1_l = stmt1 ^? #statement . #_Def . #var
+    let pv1_r = stmt1 ^? #statement . #_Def . #value . #op . #_VAR . #src
+    let pv2 = stmt2 ^? #statement . #_Def . #var
+    let pv3 = stmt3 ^? #statement . #_Def . #var
 
     it "should use register names for symbols" $ do
       pv0 ^. _Just . #symbol `shouldBe` "eax_4#1"

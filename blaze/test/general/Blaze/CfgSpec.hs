@@ -436,27 +436,31 @@ spec = describe "Blaze.Cfg" $ do
   context "parseTerminalNode" $ do
     it "should parse Return nodes" $ do
       let ret = Pil.RetOp $ C.const 172844 4
-          node = bb' 0x00 0x0f [C.nop, Pil.Ret ret]
-          node' = bb' 0x00 0x0f [Pil.Ret ret]
+          retStmt = Pil.Stmt 0x0 . Pil.Ret $ ret
+          node = bb' 0x00 0x0f [C.nop, retStmt]
+          node' = bb' 0x00 0x0f [retStmt]
       Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermRet (Cfg.ReturnNode node ret)
       Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermRet (Cfg.ReturnNode node' ret)
 
     it "should parse Exit nodes" $ do
-      let node = bb' 0x00 0x0f [C.nop, Pil.Exit]
-          node' = bb' 0x00 0x0f [Pil.Exit]
+      let exitStmt = Pil.Stmt 0 Pil.Exit
+          node = bb' 0x00 0x0f [C.nop, exitStmt]
+          node' = bb' 0x00 0x0f [exitStmt]
       Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermExit (Cfg.ExitNode node)
       Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermExit (Cfg.ExitNode node')
 
     it "should parse NoRet nodes" $ do
-      let node = bb' 0x00 0x0f [C.nop, Pil.NoRet]
-          node' = bb' 0x00 0x0f [Pil.NoRet]
+      let noRetStmt = Pil.Stmt 0 Pil.NoRet
+          node = bb' 0x00 0x0f [C.nop, noRetStmt]
+          node' = bb' 0x00 0x0f [noRetStmt]
       Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermNoRet (Cfg.NoRetNode node)
       Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermNoRet (Cfg.NoRetNode node')
 
     it "should parse Jump nodes" $ do
       let jump = Pil.JumpOp $ C.const 385018 4
-          node = bb' 0x00 0x0f [C.nop, Pil.Jump jump]
-          node' = bb' 0x00 0x0f [Pil.Jump jump]
+          jumpStmt = Pil.Stmt 0 . Pil.Jump $ jump
+          node = bb' 0x00 0x0f [C.nop, jumpStmt]
+          node' = bb' 0x00 0x0f [jumpStmt]
       Cfg.parseTerminalNode (Cfg.BasicBlock node) `shouldBe` Cfg.TermJump (Cfg.JumpNode node jump)
       Cfg.parseTerminalNode (Cfg.BasicBlock node') `shouldBe` Cfg.TermJump (Cfg.JumpNode node' jump)
 
