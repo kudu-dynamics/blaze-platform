@@ -53,6 +53,8 @@ dependencies:
   - recursion-schemes
   - regex-tdfa
   - sbv >= 10.1
+  - selda
+  - selda-sqlite
   - stm
   - string-conversions
   - text
@@ -119,6 +121,7 @@ library:
   - Blaze.Import.Source.Ghidra.Types
   - Blaze.IndirectCallResolution
   - Blaze.Path
+  - Blaze.Persist.Db
   - Blaze.Pil
   - Blaze.Pil.Analysis
   - Blaze.Pil.Analysis.Path
@@ -151,6 +154,8 @@ library:
   - Blaze.Types.IndirectCallResolution
   - Blaze.Types.Path
   - Blaze.Types.Path.Alga
+  - Blaze.Types.Persist.Db
+  - Blaze.Types.Persist.Db.Address
   - Blaze.Types.Pil
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Pil.Analysis.Subst
@@ -255,6 +260,7 @@ tests:
     - blaze
     - binaryninja
     - hspec
+    - temporary
     build-tools:
       - hspec-discover
 
@@ -271,5 +277,6 @@ tests:
     - blaze
     - ghidra
     - hspec
+    - temporary
     build-tools:
       - hspec-discover

@@ -35,6 +35,8 @@ import qualified Prelude as P
 import Data.Type.Equality as Exports (type (~))
 
 import Control.Concurrent.Async as Exports (mapConcurrently)
+import Control.Concurrent.STM.TVar as Exports (TVar)
+import Control.Concurrent.STM.TMVar as Exports (TMVar)
 import Control.Lens as Exports
   ( (%=),
     (%~),

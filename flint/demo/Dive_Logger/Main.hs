@@ -14,6 +14,7 @@ import Flint.Analysis.Path.Matcher
 import Flint.Analysis.Path.Matcher.Stub (StubSpec(StubSpec))
 import qualified Flint.Analysis.Path.Matcher.Stub as Stub
 import qualified Flint.Cfg.Store as Store
+import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Query
 import Flint.Query
 import Flint.Util (sequentialPutText)
@@ -22,6 +23,7 @@ import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Graph as G
 import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Blaze.Import.Binary (BinaryImporter(openBinary, shutdown))
+import qualified Blaze.Persist.Db as Db
 import Blaze.Pil.Construct hiding (not)
 import Blaze.Pretty (prettyPrint', prettyStmts', pretty')
 import Blaze.Types.Function (Function)
@@ -147,13 +149,31 @@ oobRead = BugMatch
   , mitigationAdvice = "Bad job."
   }
 
+demoDbSave :: IO ()
+demoDbSave = do
+  putText "starting"
+  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+  putText "Loaded Dive_Logger.bndb"
+  store' <- Store.init Nothing imp
+
+  (Just cg) <- CC.get () $ store' ^. #callGraphCache
+  conn <- Db.init "/tmp/divelogger.flint"
+  Db.insertCallGraph conn cg
+
+  mCallGraph <- Db.loadCallGraph conn
+
+  pprint mCallGraph
+  
+  putText "done"
+  
 
 divelogger :: IO ()
 divelogger = do
   putText "starting"
   (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
   putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  store' <- Store.init Nothing imp
+  
   let funcMapping = mkFuncMapping $ store' ^. #funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
@@ -228,7 +248,7 @@ electronictrading = do
   putText "starting"
   (Right (imp :: BNImporter)) <- openBinary "res/demo/cb/electronictrading.bndb"
   putText "Loaded electronictrading.bndb"
-  store' <- Store.init imp
+  store' <- Store.init Nothing imp
   let funcMapping = mkFuncMapping $ store' ^. #funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
@@ -265,7 +285,7 @@ diveloggerPlanner = do
   putText "starting"
   (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
   putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  store' <- Store.init Nothing imp
   (ctx, _innerNodes, allNodes) <- Store.getRouteMakerCtx' 5 store'
 
   let funcNameMapping = mkFuncNameMapping $ store' ^. #funcs
@@ -306,7 +326,7 @@ diveloggerSampleRoute = do
   putText "starting"
   (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
   putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  store' <- Store.init Nothing imp
   -- (ctx, _innerNodes, allNodes) <- Store.getPlanMakerCtx' 5 store'
   pprep <- getSampleRoutePrep store'
 
@@ -366,7 +386,7 @@ spamDiveLogger = do
   putText "starting"
   (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
   putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  store' <- Store.init Nothing imp
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -387,5 +407,6 @@ main = do
   -- divelogger
   -- diveloggerPlanner
   -- diveloggerSampleRoute
-  spamDiveLogger
+  -- spamDiveLogger
+  demoDbSave
   shutdown @BNImporter

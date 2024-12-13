@@ -174,7 +174,7 @@ spec = describe "Flint.Query" $ do
 
   context "sampleFromRoute" $ do
     (bv :: BNImporter) <- unsafeFromRight <$> runIO (openBinary diveLoggerBndb)
-    store <- runIO $ Store.init bv
+    store <- runIO $ Store.init Nothing bv
     pprep <- runIO $ getSampleRoutePrep store
 
     it "Should find single inner node" $ do

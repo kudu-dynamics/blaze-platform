@@ -36,7 +36,7 @@ spec = describe "Flint.Cfg.Path" $ do
   (bv :: BNImporter) <- unsafeFromRight <$> runIO (openBinary interCfgBndb)
   store <- runIO $ do
     allFuncs <- Cg.getFunctions bv
-    cfgStore <- CfgStore.init bv
+    cfgStore <- CfgStore.init Nothing bv
     addCfgStoreForBinary bv allFuncs cfgStore
     return cfgStore
 

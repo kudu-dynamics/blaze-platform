@@ -55,6 +55,7 @@ library
       Blaze.Import.Source.Ghidra.Types
       Blaze.IndirectCallResolution
       Blaze.Path
+      Blaze.Persist.Db
       Blaze.Pil
       Blaze.Pil.Analysis
       Blaze.Pil.Analysis.Path
@@ -87,6 +88,8 @@ library
       Blaze.Types.IndirectCallResolution
       Blaze.Types.Path
       Blaze.Types.Path.Alga
+      Blaze.Types.Persist.Db
+      Blaze.Types.Persist.Db.Address
       Blaze.Types.Pil
       Blaze.Types.Pil.Analysis
       Blaze.Types.Pil.Analysis.Subst
@@ -235,6 +238,8 @@ library
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
     , text
@@ -308,6 +313,8 @@ executable demo
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
     , text
@@ -377,6 +384,8 @@ executable find_mlil_ssa
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
     , text
@@ -448,6 +457,8 @@ executable gen_pil_ops
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
     , text
@@ -465,6 +476,7 @@ test-suite blaze-binja-test
       Blaze.Cfg.Path.SolverSpec
       Blaze.Import.Source.BinaryNinjaSpec
       Blaze.IndirectCallResolutionSpec
+      Blaze.Persist.DbSpec
       Spec
       Paths_blaze
   autogen-modules:
@@ -525,8 +537,11 @@ test-suite blaze-binja-test
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
+    , temporary
     , text
     , transformers
     , unordered-containers
@@ -627,6 +642,8 @@ test-suite blaze-general-test
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
     , text
@@ -644,6 +661,7 @@ test-suite blaze-ghidra-test
       Blaze.Import.Source.Ghidra.CfgSpec
       Blaze.Import.Source.Ghidra.PilSpec
       Blaze.Import.Source.GhidraSpec
+      Blaze.Persist.DbSpec
       Spec
       Paths_blaze
   autogen-modules:
@@ -704,8 +722,11 @@ test-suite blaze-ghidra-test
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
+    , temporary
     , text
     , transformers
     , unordered-containers
@@ -773,6 +794,8 @@ benchmark call-graph-benchmark
     , recursion-schemes
     , regex-tdfa
     , sbv >=10.1
+    , selda
+    , selda-sqlite
     , stm
     , string-conversions
     , text
