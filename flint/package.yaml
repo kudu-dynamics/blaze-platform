@@ -26,6 +26,7 @@ dependencies:
   - async
   - base >=4.7 && <5
   - bimap
+  - binary-analysis
   - blaze
   - bv
   - bytestring
@@ -53,6 +54,8 @@ dependencies:
   - recursion-schemes
   - regex-tdfa
   - relude
+  - selda
+  - selda-sqlite
   - sbv
   - stm
   - string-conversions
@@ -124,6 +127,18 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
+    - optparse-applicative
+  gen_flint_db:
+    main: Main.hs
+    source-dirs:  app/gen_flint_db
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
+    - unix
     - optparse-applicative
   routes:
     main: Main.hs
@@ -200,6 +215,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - flint
+    - temporary
     - hspec
     build-tools:
       - hspec-discover

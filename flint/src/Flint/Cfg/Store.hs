@@ -1,6 +1,6 @@
 {- HLINT ignore "Redundant <$>" -}
 
-module Flint.Cfg.Store ( module Flint.Cfg.Store ) where
+module Flint.Cfg.Store where
 
 import Flint.Prelude
 
@@ -12,6 +12,7 @@ import qualified Blaze.Cfg.Interprocedural as CfgI
 import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Graph (RouteMakerCtx(RouteMakerCtx))
 import qualified Blaze.Graph as G
+import qualified Blaze.Persist.Db as Db
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (calcDescendantsMap, calcStrictDescendantsMap, DescendantsMap(DescendantsMap), StrictDescendantsMap(StrictDescendantsMap))
 import qualified Blaze.Types.Pil as Pil
@@ -30,6 +31,8 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 
 
+
+
 -- This is a cache of Cfgs for functions.
 -- This version only supports functions from a single binary.
 
@@ -44,8 +47,11 @@ init
      , NodeDataType imp ~ PilNode
      , CfgImporter imp
      )
-  => imp -> IO CfgStore
-init imp = do
+  => Maybe FilePath -> imp -> IO CfgStore
+init mDbFilePath imp = do
+  mDb <- case mDbFilePath of
+    Nothing -> return Nothing
+    Just fp -> Just <$> Db.init fp
   store <- CfgStore
     <$> atomically CC.create
     <*> atomically CC.create
@@ -55,7 +61,18 @@ init imp = do
     <*> atomically CC.create
     <*> atomically CC.create
   CC.setCalc () (store ^. #callGraphCache) $ do
-    CG.getCallGraph imp $ store ^. #funcs
+    case mDb of
+      Nothing -> CG.getCallGraph imp $ store ^. #funcs
+      Just db -> Db.loadCallGraph db >>= \case
+        Nothing -> do
+          putText "Creating new call graph"
+          cg <- CG.getCallGraph imp $ store ^. #funcs
+          Db.insertCallGraph db cg
+          putText $ "Stored CallGraph in db " <> show (length (show cg :: String))
+          return cg
+        Just cg -> do
+          putText $ "Retrieved CallGraph from db " <> show (length (show cg :: String))
+          return cg
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg

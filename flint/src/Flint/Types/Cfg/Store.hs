@@ -36,5 +36,5 @@ data CfgStore = CfgStore
   -- -- If this is too slow or uses too much memory, we could do just calls or landmarks
   -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
   -- , planMakerCtx :: CachedCalc () (PlanMakerCtx Function PilNode)
-  -- | All nodes in all Cfgs. Getting this causes all CfgInfos to be calc'd
+  -- -- | All nodes in all Cfgs. Getting this causes all CfgInfos to be calc'd
   } deriving (Generic)

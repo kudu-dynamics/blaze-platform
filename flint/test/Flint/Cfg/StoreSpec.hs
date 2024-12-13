@@ -26,7 +26,7 @@ spec :: Spec
 spec = describe "Flint.Cfg.Store" $ do
   context "shimmyFunc" $ do
     (bv :: BNImporter) <- unsafeFromRight <$> runIO (openBinary shimMainBndb)
-    store <- runIO $ CfgStore.init bv
+    store <- runIO $ CfgStore.init Nothing bv
 
     strDupFunc <- runIO . getFunction bv $ FuncSym "strdup"
     strDupCfg <- fmap fromJust . runIO $ CfgStore.getFuncCfgInfo store strDupFunc
