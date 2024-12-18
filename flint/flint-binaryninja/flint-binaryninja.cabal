@@ -1,0 +1,60 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           flint-binaryninja
+version:        0.1.0.0
+synopsis:       An analysis tool that aids in finding bugs.
+description:    Please see the README.
+category:       Program Analysis, Binary Analysis
+author:         Matt (drone) Revelle <drone@bitrit.es>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+maintainer:     Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>,
+                Matt (drone) Revelle <drone@bitrit.es>
+copyright:      2024 Kudu Dynamics
+license:        BSD-2-Clause
+build-type:     Simple
+
+test-suite flint-binaryninja-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Flint.Cfg.PathSpec
+      Flint.Cfg.StoreSpec
+      Flint.QuerySpec
+      Spec
+      Paths_flint_binaryninja
+  autogen-modules:
+      Paths_flint_binaryninja
+  hs-source-dirs:
+      test
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      base >=4.7 && <5
+    , blaze
+    , blaze-binaryninja
+    , flint
+    , hspec
+    , unordered-containers
+  default-language: GHC2021

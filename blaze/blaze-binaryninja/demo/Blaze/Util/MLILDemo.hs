@@ -1,7 +1,7 @@
 module Blaze.Util.MLILDemo where
 
 import Blaze.Prelude
-import Blaze.Util.MLIL
+import Blaze.Import.Source.BinaryNinja.MLIL
 import Binja.C.Enums (BNVariableSourceType(StackVariableSourceType))
 import qualified Binja.Variable as Var
 import qualified Binja.MLIL as MLIL

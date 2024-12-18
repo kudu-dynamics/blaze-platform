@@ -8,7 +8,9 @@ packages:
   - binaryninja-haskell/binja-header-cleaner
   - ghidra-haskell
   - blaze
+  - blaze/blaze-binaryninja
   - flint
+  - flint/flint-binaryninja
 
 extra-deps:
   - git: https://github.com/kudu-dynamics/binary-analysis

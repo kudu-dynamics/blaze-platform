@@ -2,7 +2,7 @@ module Main where
 
 import Blaze.Prelude
 
-import Blaze.Util.MLIL
+import Blaze.Import.Source.BinaryNinja.MLIL (getInstructionsWithOpByName)
 import qualified Data.Text as Text
 import Blaze.Import.Binary (BinaryImporter(shutdown))
 import Blaze.Import.Source.BinaryNinja (BNImporter)

@@ -4,7 +4,7 @@ github:              "mp/binja-header-cleaner"
 license:             LicenseRef-Kudu
 author:              "Matt Parker"
 maintainer:          "mp@kududyn.com"
-copyright:           "2019 Kudu Dynamics"
+copyright:           "2024 Kudu Dynamics"
 
 extra-source-files:
 - README.md

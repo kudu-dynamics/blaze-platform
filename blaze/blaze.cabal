@@ -15,7 +15,7 @@ author:         Matt (drone) Revelle <drone@kududyn.com>,
 maintainer:     Matt (drone) Revelle <drone@kududyn.com>,
                 Matt Parker <mp@kududyn.com>,
                 Kevin Orr <kevino@kududyn.com>
-copyright:      2021 Kudu Dynamics
+copyright:      2024 Kudu Dynamics
 license:        BSD-2-Clause
 license-file:   LICENSE
 build-type:     Simple
@@ -36,18 +36,12 @@ library
       Blaze.Cfg.Solver.BranchContext
       Blaze.Cfg.Solver.General
       Blaze.Types.Cfg.Path
-      Blaze.Fir
       Blaze.Function
       Blaze.Graph
       Blaze.Import.Binary
       Blaze.Import.CallGraph
       Blaze.Import.Cfg
       Blaze.Import.Pil
-      Blaze.Import.Source.BinaryNinja
-      Blaze.Import.Source.BinaryNinja.Pil
-      Blaze.Import.Source.BinaryNinja.CallGraph
-      Blaze.Import.Source.BinaryNinja.Cfg
-      Blaze.Import.Source.BinaryNinja.Types
       Blaze.Import.Source.Ghidra
       Blaze.Import.Source.Ghidra.Pil
       Blaze.Import.Source.Ghidra.CallGraph
@@ -79,7 +73,6 @@ library
       Blaze.Types.Cfg.Grouping
       Blaze.Types.Cfg.Interprocedural
       Blaze.Types.Cfg.Loop
-      Blaze.Types.Fir
       Blaze.Types.Function
       Blaze.Types.Graph
       Blaze.Types.Graph.Alga
@@ -99,7 +92,6 @@ library
       Blaze.Types.Pil.Summary
       Blaze.Types.VTable
       Blaze.Util
-      Blaze.Util.MLIL
       Blaze.Util.Spec
       Blaze.VTable
   other-modules:
@@ -181,7 +173,6 @@ library
       Blaze.Types.Pil.Op.ZxOp
       Blaze.Types.Pil.Ops
       Blaze.Util.Analysis
-      Blaze.Util.GenericConv
       Blaze.Util.Graph
       Paths_blaze
   autogen-modules:
@@ -211,7 +202,6 @@ library
     , base >=4.7 && <5
     , bimap
     , binary-analysis
-    , binaryninja
     , bv
     , bytestring
     , casing
@@ -225,152 +215,6 @@ library
     , generic-lens
     , ghidra
     , hashable
-    , lens
-    , list-t
-    , megaparsec
-    , mtl
-    , newtype
-    , parser-combinators
-    , pretty-simple
-    , protolude
-    , random
-    , raw-strings-qq
-    , recursion-schemes
-    , regex-tdfa
-    , sbv >=10.1
-    , selda
-    , selda-sqlite
-    , stm
-    , string-conversions
-    , text
-    , transformers
-    , unordered-containers
-    , uuid >=1.3.14
-    , vector
-  default-language: GHC2021
-
-executable demo
-  main-is: Main.hs
-  other-modules:
-      Blaze.LoopChallenge
-      Blaze.SearchDemo
-      Blaze.Types.Graph.AlgaDemo
-      Blaze.Util.MLILDemo
-      Paths_blaze
-  autogen-modules:
-      Paths_blaze
-  hs-source-dirs:
-      demo
-  default-extensions:
-      AllowAmbiguousTypes
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DuplicateRecordFields
-      FunctionalDependencies
-      GADTs
-      ImportQualifiedPost
-      LambdaCase
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedStrings
-      TypeFamilies
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      aeson
-    , algebraic-graphs >=0.7
-    , async
-    , base >=4.7 && <5
-    , bimap
-    , binary-analysis
-    , binaryninja
-    , blaze
-    , bv
-    , bytestring
-    , casing
-    , constraints
-    , containers
-    , data-binary-ieee754
-    , directory
-    , dlist
-    , envy
-    , extra
-    , generic-lens
-    , ghidra
-    , hashable
-    , hspec
-    , lens
-    , list-t
-    , megaparsec
-    , mtl
-    , newtype
-    , parser-combinators
-    , pretty-simple
-    , protolude
-    , random
-    , raw-strings-qq
-    , recursion-schemes
-    , regex-tdfa
-    , sbv >=10.1
-    , selda
-    , selda-sqlite
-    , stm
-    , string-conversions
-    , text
-    , transformers
-    , unordered-containers
-    , uuid >=1.3.14
-    , vector
-  default-language: GHC2021
-
-executable find_mlil_ssa
-  main-is: Main.hs
-  other-modules:
-      Paths_blaze
-  autogen-modules:
-      Paths_blaze
-  hs-source-dirs:
-      app/find_mlil
-  default-extensions:
-      AllowAmbiguousTypes
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DuplicateRecordFields
-      FunctionalDependencies
-      GADTs
-      ImportQualifiedPost
-      LambdaCase
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedStrings
-      TypeFamilies
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      aeson
-    , algebraic-graphs >=0.7
-    , async
-    , base >=4.7 && <5
-    , bimap
-    , binary-analysis
-    , binaryninja
-    , blaze
-    , bv
-    , bytestring
-    , casing
-    , constraints
-    , containers
-    , data-binary-ieee754
-    , directory
-    , dlist
-    , envy
-    , extra
-    , generic-lens
-    , ghidra
-    , hashable
-    , hspec
     , lens
     , list-t
     , megaparsec
@@ -427,7 +271,6 @@ executable gen_pil_ops
     , base >=4.7 && <5
     , bimap
     , binary-analysis
-    , binaryninja
     , blaze
     , bv
     , bytestring
@@ -468,87 +311,6 @@ executable gen_pil_ops
     , vector
   default-language: GHC2021
 
-test-suite blaze-binja-test
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  other-modules:
-      Blaze.CallGraphSpec
-      Blaze.Cfg.Path.SolverSpec
-      Blaze.Import.Source.BinaryNinjaSpec
-      Blaze.IndirectCallResolutionSpec
-      Blaze.Persist.DbSpec
-      Spec
-      Paths_blaze
-  autogen-modules:
-      Paths_blaze
-  hs-source-dirs:
-      test/binja
-  default-extensions:
-      AllowAmbiguousTypes
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DuplicateRecordFields
-      FunctionalDependencies
-      GADTs
-      ImportQualifiedPost
-      LambdaCase
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedStrings
-      TypeFamilies
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends:
-      hspec-discover:hspec-discover
-  build-depends:
-      aeson
-    , algebraic-graphs >=0.7
-    , async
-    , base >=4.7 && <5
-    , bimap
-    , binary-analysis
-    , binaryninja
-    , blaze
-    , bv
-    , bytestring
-    , casing
-    , constraints
-    , containers
-    , data-binary-ieee754
-    , directory
-    , dlist
-    , envy
-    , extra
-    , generic-lens
-    , ghidra
-    , hashable
-    , hspec
-    , lens
-    , list-t
-    , megaparsec
-    , mtl
-    , newtype
-    , parser-combinators
-    , pretty-simple
-    , protolude
-    , random
-    , raw-strings-qq
-    , recursion-schemes
-    , regex-tdfa
-    , sbv >=10.1
-    , selda
-    , selda-sqlite
-    , stm
-    , string-conversions
-    , temporary
-    , text
-    , transformers
-    , unordered-containers
-    , uuid >=1.3.14
-    , vector
-  default-language: GHC2021
-
 test-suite blaze-general-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
@@ -563,7 +325,6 @@ test-suite blaze-general-test
       Blaze.Cfg.Solver.GeneralSpec
       Blaze.Cfg.SolverSpec
       Blaze.CfgSpec
-      Blaze.FirSpec
       Blaze.GraphSpec
       Blaze.PathSpec
       Blaze.Pil.Analysis.PathSpec
@@ -612,7 +373,6 @@ test-suite blaze-general-test
     , base >=4.7 && <5
     , bimap
     , binary-analysis
-    , binaryninja
     , blaze
     , bv
     , bytestring
@@ -653,7 +413,7 @@ test-suite blaze-general-test
     , vector
   default-language: GHC2021
 
-test-suite blaze-ghidra-test
+test-suite blaze-ghidra-importer-test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
@@ -693,7 +453,6 @@ test-suite blaze-ghidra-test
     , base >=4.7 && <5
     , bimap
     , binary-analysis
-    , binaryninja
     , blaze
     , bv
     , bytestring
@@ -727,77 +486,6 @@ test-suite blaze-ghidra-test
     , stm
     , string-conversions
     , temporary
-    , text
-    , transformers
-    , unordered-containers
-    , uuid >=1.3.14
-    , vector
-  default-language: GHC2021
-
-benchmark call-graph-benchmark
-  type: exitcode-stdio-1.0
-  main-is: CallGraph.hs
-  other-modules:
-      Paths_blaze
-  autogen-modules:
-      Paths_blaze
-  hs-source-dirs:
-      benchmarks
-  default-extensions:
-      AllowAmbiguousTypes
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DuplicateRecordFields
-      FunctionalDependencies
-      GADTs
-      ImportQualifiedPost
-      LambdaCase
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedStrings
-      TypeFamilies
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      aeson
-    , algebraic-graphs >=0.7
-    , async
-    , base >=4.7 && <5
-    , bimap
-    , binary-analysis
-    , binaryninja
-    , blaze
-    , bv
-    , bytestring
-    , casing
-    , constraints
-    , containers
-    , data-binary-ieee754
-    , directory
-    , dlist
-    , envy
-    , extra
-    , generic-lens
-    , ghidra
-    , hashable
-    , lens
-    , list-t
-    , megaparsec
-    , mtl
-    , newtype
-    , parser-combinators
-    , pretty-simple
-    , protolude
-    , random
-    , raw-strings-qq
-    , recursion-schemes
-    , regex-tdfa
-    , sbv >=10.1
-    , selda
-    , selda-sqlite
-    , stm
-    , string-conversions
     , text
     , transformers
     , unordered-containers

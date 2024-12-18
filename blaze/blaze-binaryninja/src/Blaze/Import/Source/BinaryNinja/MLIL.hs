@@ -1,4 +1,4 @@
-module Blaze.Util.MLIL where
+module Blaze.Import.Source.BinaryNinja.MLIL where
 
 import Blaze.Prelude
 

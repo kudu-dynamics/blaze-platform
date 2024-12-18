@@ -15,7 +15,6 @@ import Blaze.Import.Pil (PilImporter (..))
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as CallGraph
 import qualified Blaze.Import.Source.BinaryNinja.Cfg as Cfg
 import qualified Blaze.Import.Source.BinaryNinja.Pil as PilImp
--- import qualified Blaze.Import.Source.BinaryNinja.Pil.Path as Path
 import Blaze.Import.Source.BinaryNinja.Types as Exports
 import qualified Blaze.Pil as Pil
 import Blaze.Prelude hiding (Symbol)

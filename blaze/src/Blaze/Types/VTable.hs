@@ -1,20 +1,20 @@
 module Blaze.Types.VTable where
   
 
-import Binja.Core (BNBinaryReader, BNBinaryView)
+-- import Binja.Core (BNBinaryReader, BNBinaryView)
 import Blaze.Function (Function)
 import Blaze.Prelude
 
-type Ctx = ReaderT VTContext IO
+-- type Ctx = ReaderT VTContext IO
 
 
-data VTContext
-  = VTContext
-    { width :: AddressWidth,
-      reader :: BNBinaryReader,
-      bv :: BNBinaryView
-    }
-  deriving (Eq, Ord, Show, Generic)
+-- data VTContext
+--   = VTContext
+--     { width :: AddressWidth,
+--       reader :: BNBinaryReader,
+--       bv :: BNBinaryView
+--     }
+--   deriving (Eq, Ord, Show, Generic)
 
 data VTable
   = VTable

@@ -15,13 +15,18 @@ author:         Matt (drone) Revelle <drone@bitrit.es>,
 maintainer:     Matt Parker <mp@kududyn.com>,
                 Kevin Orr <kevino@kududyn.com>,
                 Matt (drone) Revelle <drone@bitrit.es>
-copyright:      2023 Kudu Dynamics
+copyright:      2024 Kudu Dynamics
 license:        BSD-2-Clause
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
     ChangeLog.md
+
+flag binaryninja
+  description: Enable Binary Ninja support (through blaze-binaryninja and conditional compilation)
+  manual: True
+  default: False
 
 library
   exposed-modules:
@@ -113,6 +118,10 @@ library
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable binaryToGhidra
   main-is: Main.hs
@@ -168,80 +177,6 @@ executable binaryToGhidra
     , mtl
     , newtype
     , optparse-applicative
-    , parser-combinators
-    , pretty-simple
-    , random
-    , raw-strings-qq
-    , recursion-schemes
-    , regex-tdfa
-    , relude
-    , sbv
-    , selda
-    , selda-sqlite
-    , stm
-    , string-conversions
-    , template-haskell
-    , text
-    , time
-    , transformers
-    , unordered-containers
-    , uuid >=1.3.14
-    , vector
-  default-language: GHC2021
-
-executable demo1-demo
-  main-is: Main.hs
-  other-modules:
-      Paths_flint
-  autogen-modules:
-      Paths_flint
-  hs-source-dirs:
-      demo/Demo1
-  default-extensions:
-      AllowAmbiguousTypes
-      DataKinds
-      DeriveAnyClass
-      DerivingStrategies
-      DuplicateRecordFields
-      FunctionalDependencies
-      GADTs
-      LambdaCase
-      NoImplicitPrelude
-      NoMonomorphismRestriction
-      OverloadedLabels
-      OverloadedStrings
-      TypeFamilies
-      ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      aeson
-    , aeson-pretty
-    , algebraic-graphs
-    , async
-    , base >=4.7 && <5
-    , bimap
-    , binary-analysis
-    , blaze
-    , bv
-    , bytestring
-    , casing
-    , constraints
-    , containers
-    , data-binary-ieee754
-    , directory
-    , dlist
-    , envy
-    , extra
-    , flint
-    , generic-lens
-    , generics-sop
-    , ghidra
-    , hashable
-    , lens
-    , list-t
-    , megaparsec
-    , mtl
-    , newtype
     , parser-combinators
     , pretty-simple
     , random
@@ -711,19 +646,15 @@ executable routes
     , vector
   default-language: GHC2021
 
-test-suite flint-tests
+test-suite flint-general-test
   type: exitcode-stdio-1.0
-  main-is: Main.hs
+  main-is: Spec.hs
   other-modules:
       Flint.Analysis.Path.Matcher.StubSpec
       Flint.Analysis.Path.MatcherSpec
-      Flint.Cfg.PathSpec
-      Flint.Cfg.StoreSpec
       Flint.CfgSpec
       Flint.GraphSpec
       Flint.Persist.DbSpec
-      Flint.QuerySpec
-      Spec
       Paths_flint
   autogen-modules:
       Paths_flint

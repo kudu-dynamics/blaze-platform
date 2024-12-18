@@ -73,27 +73,11 @@ just-deps:
     - docker buildx build --push
         --pull
         --provenance=false
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:latest
-        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
-        --target just-deps
-        -t "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
-        .
-
-install-hlint:
-  stage: prerequisites
-  needs:
-    - base-images
-  extends: .docker
-  script:
-    - docker buildx build --push
-        --pull
-        --provenance=false
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:cache
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:latest
-        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/hlint:cache
-        --target hlint
-        -t "${CI_REGISTRY_IMAGE}"/hlint:pipeline-"${CI_PIPELINE_ID}"
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:latest
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
+        --target just-deps-binaryninja
+        -t "${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:pipeline-"${CI_PIPELINE_ID}"
         .
 
 # stage: check
@@ -106,8 +90,8 @@ include:
 hlint:
   stage: check
   needs:
-    - install-hlint
-  image: ${CI_REGISTRY_IMAGE}/hlint:pipeline-${CI_PIPELINE_ID}
+    - base-images
+  image: ${CI_REGISTRY_IMAGE}/haskell:pipeline-${CI_PIPELINE_ID}
   script:
     - just hlint --color=always
   allow_failure: true
@@ -116,7 +100,7 @@ ghc-warnings:
   stage: check
   needs:
     - just-deps
-  image: ${CI_REGISTRY_IMAGE}/just-deps:pipeline-${CI_PIPELINE_ID}
+  image: ${CI_REGISTRY_IMAGE}/just-deps-binaryninja:pipeline-${CI_PIPELINE_ID}
   script:
     - stack clean
     - stack --color always build --test --no-run-tests --pedantic --fast
@@ -141,10 +125,32 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
+        --target builder-binaryninja
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:latest
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:cache
+        --build-arg OPTIM=${HASKELL_OPTIM}
+        -t "${CI_REGISTRY_IMAGE}"/builder-binaryninja:pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker buildx build --push
+        --pull
+        --provenance=false
+        --target deliver
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         -t "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
+        .
+    - docker buildx build --push
+        --pull
+        --provenance=false
+        --target deliver-binaryninja
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:latest
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
+        -t "${CI_REGISTRY_IMAGE}"/with-binaryninja:pipeline-"${CI_PIPELINE_ID}"
         .
 
 test:
@@ -152,6 +158,14 @@ test:
   needs:
     - build
   image: ${CI_REGISTRY_IMAGE}/builder:pipeline-${CI_PIPELINE_ID}
+  script:
+    - /out/run-tests --color
+
+test-binaryninja:
+  stage: test
+  needs:
+    - build
+  image: ${CI_REGISTRY_IMAGE}/builder-binaryninja:pipeline-${CI_PIPELINE_ID}
   script:
     - mkdir -p /root/.binaryninja
     - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
@@ -168,7 +182,7 @@ push:latest:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
+    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}/builder-binaryninja ${CI_REGISTRY_IMAGE}"
     - |-
       set -euxo pipefail
       for image in ${images}; do

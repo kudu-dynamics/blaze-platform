@@ -54,8 +54,6 @@ where
 
 import Prelude (id)
 import qualified Prelude (show)
-import qualified Binja.Function
-import qualified Binja.MLIL as MLIL
 import Blaze.Prelude hiding (Symbol, bracket, const, sym)
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
@@ -378,9 +376,6 @@ instance (Tokenizable k, Tokenizable v) => Tokenizable (Map k v) where
 instance Tokenizable a => Tokenizable (HashSet a) where
   tokenize x = delimitedList [tt "#{"] [tt ", "] [tt "}"] <$> traverse tokenize (HashSet.toList x)
 
-instance Tokenizable (MLIL.Expression a) where
-  tokenize _ = pure [tt "(TODO: MLIL Expression)"]
-
 instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
   tokenize (a, b) = paren <$> tokenize a <++> tt ", " <++> tokenize b
 
@@ -395,24 +390,6 @@ instance Tokenizable a => Tokenizable (Pil.CallDest a) where
     Pil.CallExtern x -> tokenize x
     Pil.CallUnk -> return [tt "unknown"]
 
-
-instance Tokenizable Binja.Function.Function where
-  tokenize f =
-    pure
-      [ Token
-          { tokenType = CodeSymbolToken
-          , text = f ^. Binja.Function.name
-          , value = toInteger start
-          , size = 0
-          , operand = 0xffffffff
-          , context = NoTokenContext
-          , address = 0
-          , typeSym = Nothing
-          }
-      ]
-    where
-      start :: Word64
-      (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Tokenizable Pil.Ctx where
   tokenize ctx =

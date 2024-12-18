@@ -24,8 +24,6 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (CfNode, PilNode)
 import qualified Blaze.Cfg.Path as Path
 import Blaze.Cfg.Path (Path, PilPath)
-import qualified Blaze.Import.Source.BinaryNinja as Binja
-import Blaze.Import.Source.BinaryNinja (BNImporter)
 import qualified Blaze.Pil.Summary as Summary
 
 import Blaze.Pretty (NewlinedList(NewlinedList), pp', prettyStmts', pretty')
@@ -113,9 +111,6 @@ getOkFunctionPathsContaining importer func addrs = do
 simplify :: [Stmt] -> [Stmt]
 simplify = resolveCalls . PA.aggressiveExpand --  . PA.simplifyVars
 
-getImporter' :: FilePath -> IO BNImporter
-getImporter' = Binja.getImporter
-
 showCodeSummary :: CodeSummary -> IO ()
 showCodeSummary s = do
   putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> s ^. #inputVars)
@@ -175,26 +170,6 @@ showBugMatch ((ms, r), bm) = do
       putText $ resolveText $ bm ^. #mitigationAdvice      
   where
     resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
-
-showPathsOfInterest :: [(BndbFilePath, [(Address, [Address])])] -> IO ()
-showPathsOfInterest = traverse_ handleBin
-  where
-    handleBin :: (BndbFilePath, [(Address, [Address])]) -> IO ()
-    handleBin (binPath, addrs) = do
-      putText "\n==================================================="
-      putText $ show binPath
-      imp <- getImporter' binPath
-      handleFuncAddrs imp addrs
-
-    handleFuncAddrs :: BNImporter -> [(Address, [Address])] -> IO ()
-    handleFuncAddrs imp addrs = forM_ addrs $ \(funcAddr, requiredAddrs) -> do
-      Cg.getFunction imp funcAddr >>= \case
-        Nothing -> putText $ "Couldn't find function at " <> show funcAddr
-        Just func -> do
-          putText "\n||||||||||||||||||||||||||||||||||||||||||||||||||||"
-          putText $ "Function: " <> func ^. #name
-          paths <- getOkFunctionPathsContaining imp func requiredAddrs
-          showPaths "OK Paths" paths
 
 addCfgStoreForBinary
   :: ( CfgImporter imp
@@ -278,18 +253,3 @@ summariesOfInterest tps bconfig = do
   storeFromBinarySearchConfig imp bconfig' cfgStore
   mapM_ (\x -> showQuerySummaries tps cfgStore (x ^. #startFunc) (x ^. #query) (x ^. #bugMatches))
     $ bconfig' ^. #queryConfigs
-
-sampleForAllFunctions :: HashSet Text -> BndbFilePath -> IO ()
-sampleForAllFunctions blacklist binPath = do
-  putText "\n==================================================="
-  putText $ show binPath
-  imp <- getImporter' binPath
-  funcs <- Cg.getFunctions imp
-  forM_ funcs $ \func -> do
-    putText "\n||||||||||||||||||||||||||||||||||||||||||||||||||||"
-    putText $ "Function: " <> func ^. #name
-    if HashSet.member (func ^. #name) blacklist
-      then putText "Blacklisted function. Causes Flint analysis to fail."
-      else do
-        paths <- getOkFunctionPathsContaining imp func []
-        showPaths "OK Paths" paths

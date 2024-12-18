@@ -9,7 +9,7 @@ maintainer:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
-copyright:           "2022 Kudu Dynamics"
+copyright:           "2024 Kudu Dynamics"
 synopsis:            Call Clojure from Haskell
 category:            Bindings
 description:         Please see the README.

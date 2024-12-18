@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main (main) where
 
 import Flint.Prelude
@@ -34,7 +36,13 @@ parseBackend :: Parser Backend
 parseBackend = option auto
   ( long "backend"
     <> metavar "BACKEND"
-    <> help "preferred backend (BinaryNinja or Ghidra)"
+    <> help
+       ( "preferred backend ("
+#ifdef FLINT_SUPPORT_BINARYNINJA
+         <> "BinaryNinja or "
+#endif
+         <> "Ghidra)"
+       )
   )
 
 parseAnalysisDb :: Parser FilePath

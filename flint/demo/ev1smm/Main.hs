@@ -10,7 +10,7 @@ import Flint.Analysis.Path.Matcher
 import qualified Flint.Analysis.Uefi as Uefi
 import Flint.Types.Query
 
-import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Construct
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Import.Binary (BinaryImporter(shutdown))
@@ -126,9 +126,9 @@ smmCalloutBug = BugMatch
       (CallIndirect . Bind "fullAddr" . Contains . Bind "globalTable" $ Var tableName)
       []
 
-queryVariableInfoConfig :: BinarySearchConfig BNImporter FuncConfig
+queryVariableInfoConfig :: BinarySearchConfig GhidraImporter FuncConfig
 queryVariableInfoConfig = BinarySearchConfig
-  { binaryPath = "/tmp/e1smm/QueryVariableInfo.debug.bndb"
+  { binaryPath = "/tmp/e1smm/QueryVariableInfo.debug.gzf"
   , excludeFuncsFromStore = []
   , queryConfigs =
     [ QueryConfig
@@ -141,9 +141,9 @@ queryVariableInfoConfig = BinarySearchConfig
     ]    
   }
 
-smmLightConfig :: BinarySearchConfig BNImporter FuncConfig
+smmLightConfig :: BinarySearchConfig GhidraImporter FuncConfig
 smmLightConfig = BinarySearchConfig
-  { binaryPath = "/tmp/e1smm/HwSmmLight.debug.bndb"
+  { binaryPath = "/tmp/e1smm/HwSmmLight.debug.gzf"
   , excludeFuncsFromStore = []
   , queryConfigs =
     [ QueryConfig
@@ -159,9 +159,9 @@ smmLightConfig = BinarySearchConfig
     ]    
   }
 
-rwVariableConfig :: BinarySearchConfig BNImporter FuncConfig
+rwVariableConfig :: BinarySearchConfig GhidraImporter FuncConfig
 rwVariableConfig = BinarySearchConfig
-  { binaryPath = "/tmp/e1smm/RWVariable.debug.bndb"
+  { binaryPath = "/tmp/e1smm/RWVariable.debug.gzf"
   , excludeFuncsFromStore = []
   , queryConfigs =
     [ QueryConfig
@@ -177,9 +177,9 @@ rwVariableConfig = BinarySearchConfig
   }
 
 
-smmFaultTolerantWrite :: BinarySearchConfig BNImporter FuncConfig
+smmFaultTolerantWrite :: BinarySearchConfig GhidraImporter FuncConfig
 smmFaultTolerantWrite = BinarySearchConfig
-  { binaryPath = "/tmp/edk2/SmmFaultTolerantWriteDxe.debug.bndb"
+  { binaryPath = "/tmp/edk2/SmmFaultTolerantWriteDxe.debug.gzf"
   , excludeFuncsFromStore = []
   , queryConfigs =
     [ QueryConfig
@@ -204,4 +204,4 @@ main = do
   -- summariesOfInterest Uefi.taintPropagators smmLightConfig
   summariesOfInterest Uefi.taintPropagators smmFaultTolerantWrite
   putText "finished"
-  shutdown @BNImporter
+  shutdown @GhidraImporter
