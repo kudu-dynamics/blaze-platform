@@ -9,7 +9,7 @@ import Flint.Analysis.Path.Matcher
 import Flint.Types.Query
 
 import Blaze.CallGraph (getCallGraph)
-import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Import.Binary (openBinary, BinaryImporter(shutdown))
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Import.CallGraph as CG
@@ -53,8 +53,8 @@ kernelBugs =
 testGettingCallGraph :: FilePath -> IO ()
 testGettingCallGraph fp = do
   t00 <- getCurrentTime
-  (Right bv) <- openBinary fp :: IO (Either Text BNImporter)
-  putText "Got bndb."
+  (Right bv) <- openBinary fp :: IO (Either Text GhidraImporter)
+  putText "Got gzf."
   t0 <- getCurrentTime
   putText $ "Time spent: " <> show (diffUTCTime t0 t00)  
   funcs <- CG.getFunctions bv
@@ -75,6 +75,6 @@ testGettingCallGraph fp = do
 main :: IO ()
 main = do
   putText "starting"
-  testGettingCallGraph "/tmp/vmlinux3.16.7_x86.bndb"
+  testGettingCallGraph "/tmp/vmlinux3.16.7_x86.gzf"
   putText "finished"
-  shutdown @BNImporter
+  shutdown @GhidraImporter

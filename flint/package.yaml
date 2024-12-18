@@ -9,10 +9,17 @@ maintainer:
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
   - Matt (drone) Revelle <drone@bitrit.es>
-copyright:           "2023 Kudu Dynamics"
+copyright:           "2024 Kudu Dynamics"
 synopsis:            An analysis tool that aids in finding bugs.
 category:            Program Analysis, Binary Analysis
 description:         Please see the README.
+
+flags:
+  binaryninja:
+    description:
+      "Enable Binary Ninja support (through blaze-binaryninja and conditional compilation)"
+    default: False
+    manual: True
 
 extra-source-files:
 - README.md
@@ -115,6 +122,11 @@ library:
   - Flint.Types.Cfg.Store
   - Flint.Types.Query
   - Flint.Util
+  when:
+    - condition: flag(binaryninja)
+      dependencies:
+        - blaze-binaryninja
+      cpp-options: -DFLINT_SUPPORT_BINARYNINJA
 
 executables:
   flint:
@@ -192,20 +204,11 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
-  demo1-demo:
-    main: Main.hs
-    source-dirs: demo/Demo1
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - flint
-    
+
 tests:
-  flint-tests:
-    main: Main.hs
+  # Flint tests that don't depend on a concrete importer
+  flint-general-test:
+    main: Spec.hs
     source-dirs:
     - test
     ghc-options:

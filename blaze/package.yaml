@@ -9,11 +9,10 @@ maintainer:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
-copyright:           "2021 Kudu Dynamics"
+copyright:           "2024 Kudu Dynamics"
 synopsis:            A program analysis framework with a focus on context- and path-sensitive analyses, tiered abstraction layers, and type systems.
 category:            Program Analysis, Binary Analysis
 description:         Please see the README.
-
 
 extra-source-files:
 - README.md
@@ -26,7 +25,6 @@ dependencies:
   - base >= 4.7 && < 5
   - binary-analysis
   - bimap
-  - binaryninja
   - bv
   - bytestring
   - casing
@@ -102,18 +100,12 @@ library:
   - Blaze.Cfg.Solver.BranchContext
   - Blaze.Cfg.Solver.General
   - Blaze.Types.Cfg.Path
-  - Blaze.Fir
   - Blaze.Function
   - Blaze.Graph
   - Blaze.Import.Binary
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
   - Blaze.Import.Pil
-  - Blaze.Import.Source.BinaryNinja
-  - Blaze.Import.Source.BinaryNinja.Pil
-  - Blaze.Import.Source.BinaryNinja.CallGraph
-  - Blaze.Import.Source.BinaryNinja.Cfg
-  - Blaze.Import.Source.BinaryNinja.Types
   - Blaze.Import.Source.Ghidra
   - Blaze.Import.Source.Ghidra.Pil
   - Blaze.Import.Source.Ghidra.CallGraph
@@ -145,7 +137,6 @@ library:
   - Blaze.Types.Cfg.Grouping
   - Blaze.Types.Cfg.Interprocedural
   - Blaze.Types.Cfg.Loop
-  - Blaze.Types.Fir
   - Blaze.Types.Function
   - Blaze.Types.Graph
   - Blaze.Types.Graph.Alga
@@ -165,39 +156,10 @@ library:
   - Blaze.Types.Pil.Summary
   - Blaze.Types.VTable
   - Blaze.Util
-  - Blaze.Util.MLIL
   - Blaze.Util.Spec
   - Blaze.VTable
 
 executables:
-  demo:
-    main: Main.hs
-    source-dirs:  demo
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - blaze
-    - containers
-    - binaryninja
-    - hspec
-    - text
-  find_mlil_ssa:
-    main: Main.hs
-    source-dirs:  app/find_mlil
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - blaze
-    - containers
-    - binaryninja
-    - hspec
-    - text
   gen_pil_ops:
     main: Main.hs
     source-dirs:  app/gen_pil_ops
@@ -209,28 +171,12 @@ executables:
     dependencies:
     - blaze
     - containers
-    - binaryninja
     - filepath
     - hspec
     - text
 
-
-benchmarks:
-  call-graph-benchmark:
-    main:                CallGraph.hs
-    source-dirs:         benchmarks
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - blaze
-    - binaryninja
-    - text
-    #- criterion
-
 tests:
+  # General Blaze tests that don't depend on any specific importer
   blaze-general-test:
     main: Spec.hs
     source-dirs:
@@ -247,24 +193,8 @@ tests:
     build-tools:
       - hspec-discover
 
-  blaze-binja-test:
-    main: Main.hs
-    source-dirs:
-    - test/binja
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - blaze
-    - binaryninja
-    - hspec
-    - temporary
-    build-tools:
-      - hspec-discover
-
-  blaze-ghidra-test:
+  # Tests for the Ghidra importer
+  blaze-ghidra-importer-test:
     main: Main.hs
     source-dirs:
     - test/ghidra

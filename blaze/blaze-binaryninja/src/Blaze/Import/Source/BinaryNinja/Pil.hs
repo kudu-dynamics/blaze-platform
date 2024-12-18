@@ -40,7 +40,6 @@ import qualified Binja.Variable as BNVar
 import qualified Blaze.Import.Source.BinaryNinja.CallGraph as BNCG
 import Blaze.Import.Source.BinaryNinja.Types
 import qualified Blaze.Types.Function as Func
-import Blaze.Util.GenericConv (GConv, gconv)
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import qualified Data.Text as Text
@@ -132,151 +131,227 @@ typeWidthToSize (BNVar.TypeWidth n) = Pil.Size n
 convertExpr :: MLIL.Expression t -> Converter Expression
 convertExpr expr = do
   case expr ^. MLIL.op of
-    (MLIL.ADC x) -> mkExpr . Pil.ADC <$> f x
-    (MLIL.ADD x) -> mkExpr . Pil.ADD <$> f x
-    (MLIL.ADDRESS_OF x) -> varToStackLocalAddr (x ^. MLIL.src)
-    (MLIL.ADDRESS_OF_FIELD x) -> do
+    MLIL.ADC (MLIL.AdcOp in0 in1 in2) -> triOp Pil.ADC Pil.AdcOp in0 in1 in2
+    MLIL.ADD (MLIL.AddOp in0 in1) -> binOp Pil.ADD Pil.AddOp in0 in1
+    MLIL.ADDRESS_OF x -> varToStackLocalAddr (x ^. MLIL.src)
+    MLIL.ADDRESS_OF_FIELD x -> do
       stackAddr <- varToStackLocalAddr $ x ^. MLIL.src
       return $ mkExpr . Pil.FIELD_ADDR
         . Pil.FieldAddrOp stackAddr
         . fromIntegral
         $ x ^. MLIL.offset
-    (MLIL.ADD_OVERFLOW x) -> mkExpr . Pil.ADD_WILL_OVERFLOW <$> f x
-    (MLIL.AND x) -> mkExpr . Pil.AND <$> f x
-    (MLIL.ASR x) -> mkExpr . Pil.ASR <$> f x
-    (MLIL.BOOL_TO_INT x) -> mkExpr . Pil.BOOL_TO_INT <$> f x
-    (MLIL.CEIL x) -> mkExpr . Pil.CEIL <$> f x
-    (MLIL.CMP_E x) -> mkExpr . Pil.CMP_E <$> f x
-    (MLIL.CMP_NE x) -> mkExpr . Pil.CMP_NE <$> f x
-    (MLIL.CMP_SGE x) -> mkExpr . Pil.CMP_SGE <$> f x
-    (MLIL.CMP_SGT x) -> mkExpr . Pil.CMP_SGT <$> f x
-    (MLIL.CMP_SLE x) -> mkExpr . Pil.CMP_SLE <$> f x
-    (MLIL.CMP_SLT x) -> mkExpr . Pil.CMP_SLT <$> f x
-    (MLIL.CMP_UGE x) -> mkExpr . Pil.CMP_UGE <$> f x
-    (MLIL.CMP_UGT x) -> mkExpr . Pil.CMP_UGT <$> f x
-    (MLIL.CMP_ULE x) -> mkExpr . Pil.CMP_ULE <$> f x
-    (MLIL.CMP_ULT x) -> mkExpr . Pil.CMP_ULT <$> f x
-    (MLIL.CONST x) -> mkConstStrOrFuncPtr addr def
+    MLIL.ADD_OVERFLOW (MLIL.AddOverflowOp in0 in1) -> binOp Pil.ADD_WILL_OVERFLOW Pil.AddWillOverflowOp in0 in1
+    MLIL.AND (MLIL.AndOp in0 in1) -> binOp Pil.AND Pil.AndOp in0 in1
+    MLIL.ASR (MLIL.AsrOp in0 in1) -> binOp Pil.ASR Pil.AsrOp in0 in1
+    MLIL.BOOL_TO_INT (MLIL.BoolToIntOp in0) -> unOp Pil.BOOL_TO_INT Pil.BoolToIntOp in0
+    MLIL.CEIL (MLIL.CeilOp in0) -> unOp Pil.CEIL Pil.CeilOp in0
+    MLIL.CMP_E (MLIL.CmpEOp in0 in1) -> binOp Pil.CMP_E Pil.CmpEOp in0 in1
+    MLIL.CMP_NE (MLIL.CmpNeOp in0 in1) -> binOp Pil.CMP_NE Pil.CmpNeOp in0 in1
+    MLIL.CMP_SGE (MLIL.CmpSgeOp in0 in1) -> binOp Pil.CMP_SGE Pil.CmpSgeOp in0 in1
+    MLIL.CMP_SGT (MLIL.CmpSgtOp in0 in1) -> binOp Pil.CMP_SGT Pil.CmpSgtOp in0 in1
+    MLIL.CMP_SLE (MLIL.CmpSleOp in0 in1) -> binOp Pil.CMP_SLE Pil.CmpSleOp in0 in1
+    MLIL.CMP_SLT (MLIL.CmpSltOp in0 in1) -> binOp Pil.CMP_SLT Pil.CmpSltOp in0 in1
+    MLIL.CMP_UGE (MLIL.CmpUgeOp in0 in1) -> binOp Pil.CMP_UGE Pil.CmpUgeOp in0 in1
+    MLIL.CMP_UGT (MLIL.CmpUgtOp in0 in1) -> binOp Pil.CMP_UGT Pil.CmpUgtOp in0 in1
+    MLIL.CMP_ULE (MLIL.CmpUleOp in0 in1) -> binOp Pil.CMP_ULE Pil.CmpUleOp in0 in1
+    MLIL.CMP_ULT (MLIL.CmpUltOp in0 in1) -> binOp Pil.CMP_ULT Pil.CmpUltOp in0 in1
+    MLIL.CONST (MLIL.ConstOp x) -> mkConstStrOrFuncPtr addr def
       where
-        addr = fromIntegral $ x ^. MLIL.constant
-        def = mkExpr . Pil.CONST <$> f x
-    (MLIL.CONST_DATA x) -> mkConstStrOrFuncPtr addr def
+        addr = fromIntegral x
+        def = pure . mkExpr . Pil.CONST $ Pil.ConstOp x
+    MLIL.CONST_DATA (MLIL.ConstDataOp x) -> mkConstStrOrFuncPtr addr def
       where
-        addr = fromIntegral $ x ^. MLIL.constant
-        def = mkExpr . Pil.CONST <$> f x
-    (MLIL.CONST_PTR x) -> mkConstStrOrFuncPtr addr def
+        addr = fromIntegral x
+        def = pure . mkExpr . Pil.CONST $ Pil.ConstOp x
+    MLIL.CONST_PTR (MLIL.ConstPtrOp x) -> mkConstStrOrFuncPtr addr def
       where
-        addr = fromIntegral $ x ^. MLIL.constant
-        def = mkExpr . Pil.CONST_PTR <$> f x
-    (MLIL.DIVS x) -> mkExpr . Pil.DIVS <$> f x
-    (MLIL.DIVS_DP x) -> mkExpr . Pil.DIVS_DP <$> f x
-    (MLIL.DIVU x) -> mkExpr . Pil.DIVU <$> f x
-    (MLIL.DIVU_DP x) -> mkExpr . Pil.DIVU_DP <$> f x
-    (MLIL.EXTERN_PTR x) -> mkExpr . Pil.ExternPtr . Pil.ExternPtrOp addr off
+        addr = fromIntegral x
+        def = pure . mkExpr . Pil.CONST_PTR $ Pil.ConstPtrOp x
+    MLIL.DIVS (MLIL.DivsOp in0 in1) -> binOp Pil.DIVS Pil.DivsOp in0 in1
+    MLIL.DIVS_DP (MLIL.DivsDpOp in0 in1) -> binOp Pil.DIVS_DP Pil.DivsDpOp in0 in1
+    MLIL.DIVU (MLIL.DivuOp in0 in1) -> binOp Pil.DIVU Pil.DivuOp in0 in1
+    MLIL.DIVU_DP (MLIL.DivuDpOp in0 in1) -> binOp Pil.DIVU_DP Pil.DivuDpOp in0 in1
+    MLIL.EXTERN_PTR x -> mkExpr . Pil.ExternPtr . Pil.ExternPtrOp addr off
       <$> getSymbolAtAddress addr
       where
         addr = fromIntegral $ x ^. MLIL.constant
         off = fromIntegral $ x ^. MLIL.offset
-    (MLIL.FABS x) -> mkExpr . Pil.FABS <$> f x
-    (MLIL.FADD x) -> mkExpr . Pil.FADD <$> f x
-    (MLIL.FCMP_E x) -> mkExpr . Pil.FCMP_E <$> f x
-    (MLIL.FCMP_GE x) -> mkExpr . Pil.FCMP_GE <$> f x
-    (MLIL.FCMP_GT x) -> mkExpr . Pil.FCMP_GT <$> f x
-    (MLIL.FCMP_LE x) -> mkExpr . Pil.FCMP_LE <$> f x
-    (MLIL.FCMP_LT x) -> mkExpr . Pil.FCMP_LT <$> f x
-    (MLIL.FCMP_NE x) -> mkExpr . Pil.FCMP_NE <$> f x
-    (MLIL.FCMP_O x) -> mkExpr . Pil.FCMP_O <$> f x
-    (MLIL.FCMP_UO x) -> mkExpr . Pil.FCMP_UO <$> f x
-    (MLIL.FDIV x) -> mkExpr . Pil.FDIV <$> f x
-    (MLIL.FLOAT_CONST x) -> mkExpr . Pil.CONST_FLOAT <$> f x
-    (MLIL.FLOAT_CONV x) -> mkExpr . Pil.FLOAT_CONV <$> f x
-    (MLIL.FLOAT_TO_INT x) -> mkExpr . Pil.FLOAT_TO_INT <$> f x
-    (MLIL.FLOOR x) -> mkExpr . Pil.FLOOR <$> f x
-    (MLIL.FMUL x) -> mkExpr . Pil.FMUL <$> f x
-    (MLIL.FNEG x) -> mkExpr . Pil.FNEG <$> f x
-    (MLIL.FSQRT x) -> mkExpr . Pil.FSQRT <$> f x
-    (MLIL.FSUB x) -> mkExpr . Pil.FSUB <$> f x
-    (MLIL.FTRUNC x) -> mkExpr . Pil.FTRUNC <$> f x
-    (MLIL.IMPORT x) -> mkExpr . Pil.IMPORT <$> f x
-    (MLIL.INT_TO_FLOAT x) -> mkExpr . Pil.INT_TO_FLOAT <$> f x
-    (MLIL.LOAD x) -> mkExpr . Pil.LOAD <$> f x
-    (MLIL.LOAD_SSA x) -> do
+    MLIL.FABS (MLIL.FabsOp in0) -> unOp Pil.FABS Pil.FabsOp in0
+    MLIL.FADD (MLIL.FaddOp in0 in1) -> binOp Pil.FADD Pil.FaddOp in0 in1
+    MLIL.FCMP_E (MLIL.FcmpEOp in0 in1) -> binOp Pil.FCMP_E Pil.FcmpEOp in0 in1
+    MLIL.FCMP_GE (MLIL.FcmpGeOp in0 in1) -> binOp Pil.FCMP_GE Pil.FcmpGeOp in0 in1
+    MLIL.FCMP_GT (MLIL.FcmpGtOp in0 in1) -> binOp Pil.FCMP_GT Pil.FcmpGtOp in0 in1
+    MLIL.FCMP_LE (MLIL.FcmpLeOp in0 in1) -> binOp Pil.FCMP_LE Pil.FcmpLeOp in0 in1
+    MLIL.FCMP_LT (MLIL.FcmpLtOp in0 in1) -> binOp Pil.FCMP_LT Pil.FcmpLtOp in0 in1
+    MLIL.FCMP_NE (MLIL.FcmpNeOp in0 in1) -> binOp Pil.FCMP_NE Pil.FcmpNeOp in0 in1
+    MLIL.FCMP_O (MLIL.FcmpOOp in0 in1) -> binOp Pil.FCMP_O Pil.FcmpOOp in0 in1
+    MLIL.FCMP_UO (MLIL.FcmpUoOp in0 in1) -> binOp Pil.FCMP_UO Pil.FcmpUoOp in0 in1
+    MLIL.FDIV (MLIL.FdivOp in0 in1) -> binOp Pil.FDIV Pil.FdivOp in0 in1
+    MLIL.FLOAT_CONST (MLIL.FloatConstOp in0) -> pure . mkExpr . Pil.CONST_FLOAT $ Pil.ConstFloatOp in0
+    MLIL.FLOAT_CONV (MLIL.FloatConvOp in0) -> unOp Pil.FLOAT_CONV Pil.FloatConvOp in0
+    MLIL.FLOAT_TO_INT (MLIL.FloatToIntOp in0) -> unOp Pil.FLOAT_TO_INT Pil.FloatToIntOp in0
+    MLIL.FLOOR (MLIL.FloorOp in0) -> unOp Pil.FLOOR Pil.FloorOp in0
+    MLIL.FMUL (MLIL.FmulOp in0 in1) -> binOp Pil.FMUL Pil.FmulOp in0 in1
+    MLIL.FNEG (MLIL.FnegOp in0) -> unOp Pil.FNEG Pil.FnegOp in0
+    MLIL.FSQRT (MLIL.FsqrtOp in0) -> unOp Pil.FSQRT Pil.FsqrtOp in0
+    MLIL.FSUB (MLIL.FsubOp in0 in1) -> binOp Pil.FSUB Pil.FsubOp in0 in1
+    MLIL.FTRUNC (MLIL.FtruncOp in0) -> unOp Pil.FTRUNC Pil.FtruncOp in0
+    MLIL.IMPORT (MLIL.ImportOp in0) -> pure . mkExpr . Pil.IMPORT $ Pil.ImportOp in0
+    MLIL.INT_TO_FLOAT (MLIL.IntToFloatOp in0) -> unOp Pil.INT_TO_FLOAT Pil.IntToFloatOp in0
+    MLIL.LOAD (MLIL.LoadOp in0) -> unOp Pil.LOAD Pil.LoadOp in0
+    MLIL.LOAD_SSA x -> do
       srcExpr <- convertExpr $ x ^. MLIL.src
       return $ mkExpr . Pil.LOAD . Pil.LoadOp $ srcExpr
-    (MLIL.LOAD_STRUCT x) -> do
+    MLIL.LOAD_STRUCT x -> do
       srcExpr <- convertExpr $ x ^. MLIL.src
       return $ mkExpr . Pil.LOAD . Pil.LoadOp $
         Pil.mkFieldOffsetExprAddr srcExpr (x ^. MLIL.offset)
-    (MLIL.LOAD_STRUCT_SSA x) -> do
+    MLIL.LOAD_STRUCT_SSA x -> do
       srcExpr <- convertExpr $ x ^. MLIL.src
       return $ mkExpr . Pil.LOAD . Pil.LoadOp $
         Pil.mkFieldOffsetExprAddr srcExpr (x ^. MLIL.offset)
-    (MLIL.LOW_PART x) -> mkExpr . Pil.LOW_PART <$> f x
-    (MLIL.LSL x) -> mkExpr . Pil.LSL <$> f x
-    (MLIL.LSR x) -> mkExpr . Pil.LSR <$> f x
-    (MLIL.MODS x) -> mkExpr . Pil.MODS <$> f x
-    (MLIL.MODS_DP x) -> mkExpr . Pil.MODS_DP <$> f x
-    (MLIL.MODU x) -> mkExpr . Pil.MODU <$> f x
-    (MLIL.MODU_DP x) -> mkExpr . Pil.MODU_DP <$> f x
-    (MLIL.MUL x) -> mkExpr . Pil.MUL <$> f x
+    MLIL.LOW_PART (MLIL.LowPartOp in0) -> unOp Pil.LOW_PART Pil.LowPartOp in0
+    MLIL.LSL (MLIL.LslOp in0 in1) -> binOp Pil.LSL Pil.LslOp in0 in1
+    MLIL.LSR (MLIL.LsrOp in0 in1) -> binOp Pil.LSR Pil.LsrOp in0 in1
+    MLIL.MODS (MLIL.ModsOp in0 in1) -> binOp Pil.MODS Pil.ModsOp in0 in1
+    MLIL.MODS_DP (MLIL.ModsDpOp in0 in1) -> binOp Pil.MODS_DP Pil.ModsDpOp in0 in1
+    MLIL.MODU (MLIL.ModuOp in0 in1) -> binOp Pil.MODU Pil.ModuOp in0 in1
+    MLIL.MODU_DP (MLIL.ModuDpOp in0 in1) -> binOp Pil.MODU_DP Pil.ModuDpOp in0 in1
+    MLIL.MUL (MLIL.MulOp in0 in1) -> binOp Pil.MUL Pil.MulOp in0 in1
 
-    -- NOTE: binja gets these return sizes wrong
-    (MLIL.MULS_DP x) -> Expression (toPilOpSize $ 2 * expr ^. MLIL.size)
-                        . Pil.MULS_DP <$> f x
-    (MLIL.MULU_DP x) -> Expression (toPilOpSize $ 2 * expr ^. MLIL.size)
-                        . Pil.MULU_DP <$> f x
+    -- -- NOTE: binja gets these return sizes wrong
+    MLIL.MULS_DP (MLIL.MulsDpOp in0 in1) ->
+      Expression (toPilOpSize $ 2 * expr ^. MLIL.size) . Pil.MULS_DP
+      <$> (Pil.MulsDpOp <$> convertExpr in0 <*> convertExpr in1)
 
-    (MLIL.NEG x) -> mkExpr . Pil.NEG <$> f x
-    (MLIL.NOT x) -> mkExpr . Pil.NOT <$> f x
-    (MLIL.OR x) -> mkExpr . Pil.OR <$> f x
-    (MLIL.RLC x) -> mkExpr . Pil.RLC <$> f x
-    (MLIL.ROL x) -> mkExpr . Pil.ROL <$> f x
-    (MLIL.ROR x) -> mkExpr . Pil.ROR <$> f x
-    (MLIL.ROUND_TO_INT x) -> mkExpr . Pil.ROUND_TO_INT <$> f x
-    (MLIL.RRC x) -> mkExpr . Pil.RRC <$> f x
-    (MLIL.SBB x) -> mkExpr . Pil.SBB <$> f x
-    (MLIL.SUB x) -> mkExpr . Pil.SUB <$> f x
-    (MLIL.SX x) -> mkExpr . Pil.SX <$> f x
-    (MLIL.TEST_BIT x) -> mkExpr . Pil.TEST_BIT <$> f x
+    MLIL.MULU_DP (MLIL.MuluDpOp in0 in1) ->
+      Expression (toPilOpSize $ 2 * expr ^. MLIL.size) . Pil.MULU_DP
+      <$> (Pil.MuluDpOp <$> convertExpr in0 <*> convertExpr in1)
+
+    MLIL.NEG (MLIL.NegOp in0) -> unOp Pil.NEG Pil.NegOp in0
+    MLIL.NOT (MLIL.NotOp in0) -> unOp Pil.NOT Pil.NotOp in0
+    MLIL.OR (MLIL.OrOp in0 in1) -> binOp Pil.OR Pil.OrOp in0 in1
+    MLIL.RLC (MLIL.RlcOp in0 in1 in2) -> triOp Pil.RLC Pil.RlcOp in0 in1 in2
+    MLIL.ROL (MLIL.RolOp in0 in1) -> binOp Pil.ROL Pil.RolOp in0 in1
+    MLIL.ROR (MLIL.RorOp in0 in1) -> binOp Pil.ROR Pil.RorOp in0 in1
+    MLIL.ROUND_TO_INT (MLIL.RoundToIntOp in0) -> unOp Pil.ROUND_TO_INT Pil.RoundToIntOp in0
+    MLIL.RRC (MLIL.RrcOp in0 in1 in2) -> triOp Pil.RRC Pil.RrcOp in0 in1 in2
+    MLIL.SBB (MLIL.SbbOp in0 in1 in2) -> triOp Pil.SBB Pil.SbbOp in0 in1 in2
+    MLIL.SUB (MLIL.SubOp in0 in1) -> binOp Pil.SUB Pil.SubOp in0 in1
+    MLIL.SX (MLIL.SxOp in0) -> unOp Pil.SX Pil.SxOp in0
+    MLIL.TEST_BIT (MLIL.TestBitOp in0 in1) -> binOp Pil.TEST_BIT Pil.TestBitOp in0 in1
     MLIL.UNIMPL -> return $ mkExpr $ Pil.UNIMPL "UNIMPL"
-    --    (MLIL.VAR x) -> VarOp expr)
-    (MLIL.VAR_ALIASED x) -> mkExpr . Pil.LOAD . Pil.LoadOp
+    MLIL.UNIMPL_MEM _ -> unimpl
+    MLIL.VAR_ALIASED x -> mkExpr . Pil.LOAD . Pil.LoadOp
       <$> varToStackLocalAddr (x ^. MLIL.src . MLIL.var)
-    (MLIL.VAR_ALIASED_FIELD x) -> do
+    MLIL.VAR_ALIASED_FIELD x -> do
       addrExpr <- varToStackLocalAddr (x ^. MLIL.src . MLIL.var)
       return $ mkExpr . Pil.LOAD . Pil.LoadOp
         . Pil.mkFieldOffsetExprAddr addrExpr
         $ x ^. MLIL.offset
-    (MLIL.VAR_SPLIT_SSA x) -> do
+    MLIL.VAR_SPLIT_SSA x -> do
       highVar <- convertToPilVarAndLog $ x ^. MLIL.high
       lowVar <- convertToPilVarAndLog $ x ^. MLIL.low
       -- return $ mkExpr . Pil.VAR_JOIN $ Pil.VarJoinOp highVar lowVar
       -- NOTE: Binja gets the return size wrong. use above if they fix it
       return $ Expression (toPilOpSize $ 2 * expr ^. MLIL.size)
         . Pil.VAR_JOIN $ Pil.VarJoinOp highVar lowVar
-    (MLIL.VAR_SSA x) -> do
+    MLIL.VAR_SSA x -> do
       srcVar <- convertToPilVarAndLog $ x ^. MLIL.src
       return $ mkExpr . Pil.VAR $ Pil.VarOp srcVar
-    (MLIL.VAR_SSA_FIELD x) -> do
+    MLIL.VAR_SSA_FIELD x -> do
       srcVar <- convertToPilVarAndLog $ x ^. MLIL.src
       return $ mkExpr . Pil.VAR_FIELD $
         Pil.VarFieldOp srcVar (ByteOffset $ x ^. MLIL.offset)
-    (MLIL.XOR x) -> mkExpr . Pil.XOR <$> f x
-    (MLIL.ZX x) -> mkExpr . Pil.ZX <$> f x
-    x -> return $ mkExpr . Pil.UNIMPL $ Text.take 20 (show x) <> "..."
+    MLIL.XOR (MLIL.XorOp in0 in1) -> binOp Pil.XOR Pil.XorOp in0 in1
+    MLIL.ZX (MLIL.ZxOp in0) -> unOp Pil.ZX Pil.ZxOp in0
+
+    MLIL.INTRINSIC _ -> unimpl
+    MLIL.INTRINSIC_SSA _ -> unimpl
+
+    MLIL.MEM_PHI _ -> unimpl
+    MLIL.VAR _ -> unimpl
+    MLIL.VAR_FIELD _ -> unimpl
+    MLIL.VAR_PHI _ -> unimpl
+    MLIL.VAR_SPLIT _ -> unimpl
+
+    MLIL.SET_VAR _ -> unimpl
+    MLIL.SET_VAR_SSA _ -> unimpl
+    MLIL.SET_VAR_FIELD _ -> unimpl
+    MLIL.SET_VAR_SSA_FIELD _ -> unimpl
+    MLIL.SET_VAR_SPLIT _ -> unimpl
+    MLIL.SET_VAR_SPLIT_SSA _ -> unimpl
+    MLIL.SET_VAR_ALIASED _ -> unimpl
+    MLIL.SET_VAR_ALIASED_FIELD _ -> unimpl
+
+    MLIL.BP -> unimpl
+    MLIL.CALL _ -> unimpl
+    MLIL.CALL_OUTPUT _ -> unimpl
+    MLIL.CALL_OUTPUT_SSA _ -> unimpl
+    MLIL.CALL_PARAM _ -> unimpl
+    MLIL.CALL_PARAM_SSA _ -> unimpl
+    MLIL.CALL_SSA _ -> unimpl
+    MLIL.CALL_UNTYPED _ -> unimpl
+    MLIL.CALL_UNTYPED_SSA _ -> unimpl
+    MLIL.FREE_VAR_SLOT _ -> unimpl
+    MLIL.FREE_VAR_SLOT_SSA _ -> unimpl
+    MLIL.GOTO _ -> unimpl
+    MLIL.IF _ -> unimpl
+    MLIL.JUMP _ -> unimpl
+    MLIL.JUMP_TO _ -> unimpl
+    MLIL.NOP -> unimpl
+    MLIL.NORET -> unimpl
+    MLIL.RET _ -> unimpl
+    MLIL.RET_HINT _ -> unimpl
+    MLIL.STORE _ -> unimpl
+    MLIL.STORE_SSA _ -> unimpl
+    MLIL.STORE_STRUCT _ -> unimpl
+    MLIL.STORE_STRUCT_SSA _ -> unimpl
+    MLIL.SYSCALL _ -> unimpl
+    MLIL.SYSCALL_SSA _ -> unimpl
+    MLIL.SYSCALL_UNTYPED _ -> unimpl
+    MLIL.SYSCALL_UNTYPED_SSA _ -> unimpl
+    MLIL.TAILCALL _ -> unimpl
+    MLIL.TAILCALL_SSA _ -> unimpl
+    MLIL.TAILCALL_UNTYPED _ -> unimpl
+    MLIL.TAILCALL_UNTYPED_SSA _ -> unimpl
+    MLIL.TRAP _ -> unimpl
+    MLIL.UNDEF -> unimpl
     where
-      -- f :: Traversable m => m (MLIL.Expression t) -> Converter (m Expression)
-      f :: forall m m' t.
-           ( Traversable m
-           , Generic (m Expression)
-           , Generic (m' Expression)
-           , GConv (Rep (m Expression)) (Rep (m' Expression))
-           )
-        => m (MLIL.Expression t)
-        -> Converter (m' Expression)
-      f = fmap gconv . traverse convertExpr
+      unimpl = pure . mkExpr . Pil.UNIMPL $ Text.take 20 (show expr) <> "..."
+
       mkExpr :: Pil.ExprOp Expression -> Expression
       mkExpr = Expression (toPilOpSize $ expr ^. MLIL.size)
+
+      unOp ::
+        forall t a.
+        (a -> Pil.ExprOp Expression) ->
+        (Expression -> a) ->
+        MLIL.Expression t ->
+        Converter Expression
+      unOp opCons opArgsCons in0 =
+        mkExpr . opCons . opArgsCons <$> convertExpr in0
+
+      binOp ::
+        forall t a.
+        (a -> Pil.ExprOp Expression) ->
+        (Expression -> Expression -> a) ->
+        MLIL.Expression t ->
+        MLIL.Expression t ->
+        Converter Expression
+      binOp opCons opArgsCons in0 in1 =
+        mkExpr . opCons <$> (opArgsCons <$> convertExpr in0 <*> convertExpr in1)
+
+      triOp ::
+        forall t a.
+        (a -> Pil.ExprOp Expression) ->
+        (Expression -> Expression -> Expression -> a) ->
+        MLIL.Expression t ->
+        MLIL.Expression t ->
+        MLIL.Expression t ->
+        Converter Expression
+      triOp opCons opArgsCons in0 in1 in2 =
+        mkExpr . opCons <$> (opArgsCons <$> convertExpr in0 <*> convertExpr in1 <*> convertExpr in2)
 
       mkConstFuncPtrExpr :: Address -> ExceptT () Converter Expression
       mkConstFuncPtrExpr addr = do

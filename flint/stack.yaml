@@ -7,10 +7,12 @@ packages:
   - .
 
 extra-deps:
-  - ../blaze
   - ../binaryninja-haskell
   - ../binaryninja-haskell/binja-header-cleaner
+  - ../blaze
+  - ../blaze/blaze-binaryninja
   - ../ghidra-haskell
+  - flint-binaryninja
   - git: https://github.com/kudu-dynamics/binary-analysis
     commit: 421057ba848999f0b1ffec303eb6936e18e673cd
   - git: https://github.com/kudu-dynamics/inline-java.git

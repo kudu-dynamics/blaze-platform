@@ -1,0 +1,18 @@
+stack_options := ""
+stack_build_options := ""
+
+test-flint: test-flint-general test-flint-binaryninja
+test-flint-general: (test "flint:flint-general-test")
+test-flint-binaryninja: (test "flint-binaryninja:flint-binaryninja-test")
+
+test target:
+    stack {{stack_options}} test {{stack_build_options}} {{target}}
+
+build:
+    stack {{stack_options}} build --test --no-run-tests {{stack_build_options}}
+
+build-with-binaryninja:
+    stack build --flag flint:binaryninja
+
+run-with-binaryninja:
+    stack run flint --flag flint:binaryninja

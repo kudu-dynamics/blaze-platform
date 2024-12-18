@@ -2,6 +2,7 @@
 
 ARG BINARYNINJA_CHANNEL=release
 ARG BINARYNINJA_VERSION=3.4.4271
+ARG HLINT_VERSION=3.6.1
 # ARG BINARYNINJA_API_VERSION=v3.4.4271-stable
 
 FROM ubuntu:noble as before-base-deps
@@ -14,6 +15,7 @@ RUN <<EOF
         ca-certificates           # Downloads (curl, git, etc)
         fonts-dejavu-core         # Smallest font that satisfies openjdk dependencies
         dbus                      # Binary Ninja
+        libharfbuzz0b             # JDK libfontmanager needs this but openjdk-21-jre-headless made it recommended only
         openjdk-21-jre-headless   # Ghidra
     )
     apt install -yq --no-install-recommends "${packages[@]}"
@@ -26,6 +28,7 @@ RUN echo '/usr/lib/jvm/java-21-openjdk-amd64/lib/server' >/etc/ld.so.conf.d/jvm.
 FROM before-base-deps as z3-builder
 RUN <<EOF
     set -euxo pipefail
+    apt update -yq
     packages=(
         curl              # Downloading z3.zip
         libarchive-tools  # Extracting z3.zip
@@ -56,6 +59,7 @@ ARG BINARYNINJA_VERSION
 
 RUN <<EOF
     set -euxo pipefail
+    apt update -yq
     packages=(
         unzip    # Extracting BinaryNinja.zip
         python3  # Updating Binary Ninja
@@ -76,6 +80,7 @@ RUN --mount=type=bind,source=license.dat,target=/root/.binaryninja/license.dat \
 FROM before-base-deps as ghidra-jar-builder
 RUN <<EOF
     set -euxo pipefail
+    apt update -yq
     packages=(
         curl
         openjdk-21-jdk-headless
@@ -90,16 +95,13 @@ RUN --mount=type=bind,source=ghidra-haskell/scripts/getGhidraJar.sh,target=/getG
 
 FROM before-base-deps as base
 COPY --from=z3-builder /out/z3 /usr/local/bin/z3
-COPY --from=binaryninja-builder /out/binaryninja /binaryninja
 COPY --from=ghidra-jar-builder /out/ghidra.jar /out/res/ghidra.jar
-RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
-RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
-ENV BINJA_PLUGINS=/binaryninja/plugins
 
 
 FROM base as haskell
 RUN <<EOF
     set -euxo pipefail
+    apt update -yq
     packages=(
         # GHC build dependencies
         build-essential
@@ -111,7 +113,7 @@ RUN <<EOF
 
         # Haskell dependencies
         git                      # Cloning inline-java and binary-analysis
-        openjdk-21-jdk           # All we need this for is jni.h. Sigh
+        openjdk-21-jdk-headless  # All we need this for is jni.h. Sigh
         pkg-config
         yq                       # Determining ghc version from stack.yaml
         zlib1g-dev
@@ -140,14 +142,20 @@ RUN --mount=type=bind,source=stack.yaml,target=/stack.yaml \
       sh
 EOF
 
-
-FROM haskell as hlint
-RUN mkdir -p ~/.local/bin
-RUN cabal install hlint \
-        --constraint 'hlint == 3.6.*' \
-        --overwrite-policy=always \
-        --install-method=copy \
-        --installdir ~/.local/bin
+# Install hlint
+ARG HLINT_VERSION
+RUN <<EOF
+    set -euxo pipefail
+    temp="$(mktemp -d)"
+    cd "$temp"
+    curl -fsSL --proto =https --tlsv1.2 https://github.com/ndmitchell/hlint/releases/download/v"$HLINT_VERSION"/hlint-"$HLINT_VERSION"-x86_64-linux.tar.gz | \
+        tar -xz
+    mkdir -p ~/.local/bin
+    cp hlint-"$HLINT_VERSION"/hlint ~/.local/bin/hlint
+    chmod +x ~/.local/bin/hlint
+    cd /
+    rm -rf "$temp"
+EOF
 
 
 FROM haskell as just-deps
@@ -164,11 +172,22 @@ COPY ghidra-haskell/package.yaml \
      ghidra-haskell/package.yaml
 COPY blaze/package.yaml \
      blaze/package.yaml
+COPY blaze/blaze-binaryninja/package.yaml \
+     blaze/blaze-binaryninja/package.yaml
 COPY flint/package.yaml \
      flint/package.yaml
+COPY flint/flint-binaryninja/package.yaml \
+     flint/flint-binaryninja/package.yaml
 
 RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies \
-    binaryninja binja-header-cleaner ghidra blaze flint
+    binaryninja binja-header-cleaner ghidra blaze blaze/blaze-binaryninja flint flint/flint-binaryninja
+
+
+FROM just-deps as just-deps-binaryninja
+COPY --from=binaryninja-builder /out/binaryninja /binaryninja
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
+ENV BINJA_PLUGINS=/binaryninja/plugins
 
 
 # Artifacts:
@@ -181,7 +200,9 @@ ARG OPTIM=-O0
 COPY ./ ./
 RUN ln -s /out/res/ghidra.jar ghidra-haskell/res/ghidra.jar
 RUN mkdir -p /out/bin
-RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
+# Build all packages that do not depend on binaryninja
+RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins \
+    ghidra blaze flint
 RUN mkdir -p /out/test
 RUN <<EOF
     set -euxo pipefail
@@ -195,13 +216,47 @@ RUN <<EOF
         echo "( cd $1 && /build/.docker/run_test.py /out/test/$2 \"\$@\" )" >>/out/run-tests
     }
     copytest ghidra-haskell ghidra-test
+    copytest blaze blaze-general-test
+    copytest blaze blaze-ghidra-importer-test
+    copytest flint flint-general-test
+EOF
+
+
+# Artifacts:
+#   - /out/bin/*
+#   - /out/test/*
+#   - /out/run-tests
+FROM builder as builder-binaryninja
+COPY --from=binaryninja-builder /out/binaryninja /binaryninja
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
+ENV BINJA_PLUGINS=/binaryninja/plugins
+# Build the rest of the packages that were not built in `builder`
+RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
+RUN <<EOF
+    set -euxo pipefail
+
+    dist_dir="$(stack path --dist-dir)"
+    function copytest() {
+        cp -t /out/test "$1"/"${dist_dir}"/build/"$2"/"$2"
+        echo "( cd $1 && /build/.docker/run_test.py /out/test/$2 \"\$@\" )" >>/out/run-tests
+    }
     copytest binaryninja-haskell binja-test
     copytest binaryninja-haskell/binja-header-cleaner binja-header-cleaner-test
-    copytest blaze blaze-general-test
-    copytest blaze blaze-ghidra-test
-    copytest blaze blaze-binja-test
-    copytest flint flint-tests
+    copytest blaze/blaze-binaryninja blaze-binja-test
+    copytest blaze/blaze-binaryninja blaze-binaryninja-importer-test
+    copytest flint/flint-binaryninja flint-binaryninja-test
 EOF
+
+
+FROM base as deliver-binaryninja
+COPY --from=builder-binaryninja /out/ /out/
+COPY --from=builder-binaryninja /build/ghidra-haskell/res/ghidra.jar /out/res/ghidra.jar
+COPY --from=builder-binaryninja /binaryninja /binaryninja
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
+ENV BINJA_PLUGINS=/binaryninja/plugins
+WORKDIR /out
 
 
 FROM base as deliver

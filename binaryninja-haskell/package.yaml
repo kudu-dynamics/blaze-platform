@@ -9,7 +9,7 @@ maintainer:
   - Matt (drone) Revelle <drone@kududyn.com>
   - Matt Parker <mp@kududyn.com>
   - Kevin Orr <kevino@kududyn.com>
-copyright:           "2021 Kudu Dynamics"
+copyright:           "2024 Kudu Dynamics"
 synopsis:            Haskell bindings for Binary Ninja.
 category:            Bindings, Binary Analysis
 description:         Please see the README.

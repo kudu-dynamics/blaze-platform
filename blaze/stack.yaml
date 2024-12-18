@@ -7,6 +7,7 @@ packages:
   - .
 
 extra-deps:
+  - blaze-binaryninja
   - ../binaryninja-haskell
   - ../binaryninja-haskell/binja-header-cleaner
   - ../ghidra-haskell

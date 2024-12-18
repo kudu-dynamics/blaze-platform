@@ -8,7 +8,7 @@ import qualified Flint.Cfg.Store as Store
 
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Import.Binary (openBinary)
-import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Import.Source.Ghidra (GhidraImporter)
 import qualified Blaze.Persist.Db as Db
 import qualified Blaze.Types.Graph as G
 
@@ -21,7 +21,7 @@ import Test.Hspec
 spec :: Spec
 spec = describe "Flint.Persist.Db" $ do
   context "CallGraph" $ do
-    (bv :: BNImporter) <- fmap unsafeFromRight . runIO $ openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
+    (bv :: GhidraImporter) <- fmap unsafeFromRight . runIO $ openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
     store <- runIO $ Store.init Nothing bv
     let funcs = store ^. #funcs
     cg <- runIO $ getCallGraph bv funcs
