@@ -182,7 +182,7 @@ push:latest:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
-    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}/builder-binaryninja ${CI_REGISTRY_IMAGE}"
+    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}/builder-binaryninja ${CI_REGISTRY_IMAGE}"
     - |-
       set -euxo pipefail
       for image in ${images}; do
