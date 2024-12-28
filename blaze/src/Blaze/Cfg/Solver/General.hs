@@ -52,7 +52,7 @@ getDecidedBranchCondNode n cfg = case outBranchTypes of
   _ -> Nothing
   where
     mcond = lastMay (Cfg.getNodeData n) >>= \case
-      (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ DecidedBranchCond i x
+      (i, Pil.Stmt _ (Pil.BranchCond (Pil.BranchCondOp x))) -> Just $ DecidedBranchCond i x
       _ -> Nothing
 
     outBranchTypes :: [BranchType]
@@ -91,7 +91,7 @@ solveStmt
   :: DataDependenceGraph
   -> SymTypedStmt
   -> Solver ()
-solveStmt ddg stmt = case stmt of
+solveStmt ddg stmt@(Pil.Stmt _ statement) = case statement of
   -- this is handled elsewhere (only used if there is single outgoing branch edge)
   Pil.BranchCond _ -> return ()
   -- TODO: convert stores/loads into immutable SSA vars
@@ -147,7 +147,7 @@ getUndecidedBranchCondNode n cfg = case outBranches of
   _ -> Nothing
   where
     mcond = lastMay (Cfg.getNodeData n) >>= \case
-      (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ UndecidedBranchCond i x
+      (i, Pil.Stmt _ (Pil.BranchCond (Pil.BranchCondOp x))) -> Just $ UndecidedBranchCond i x
       _ -> Nothing
 
     outBranches :: [(BranchType, CfEdge (CfNode [(Int, SymTypedStmt)]))]

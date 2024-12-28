@@ -14,14 +14,16 @@ import Flint.Analysis.Path.Matcher
 import Flint.Analysis.Path.Matcher.Stub (StubSpec(StubSpec))
 import qualified Flint.Analysis.Path.Matcher.Stub as Stub
 import qualified Flint.Cfg.Store as Store
+import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Query
 import Flint.Query
 import Flint.Util (sequentialPutText)
 
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Graph as G
-import Blaze.Import.Source.BinaryNinja (BNImporter)
+import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Import.Binary (BinaryImporter(openBinary, shutdown))
+import qualified Blaze.Persist.Db as Db
 import Blaze.Pil.Construct hiding (not)
 import Blaze.Pretty (prettyPrint', prettyStmts', pretty')
 import Blaze.Types.Function (Function)
@@ -99,7 +101,7 @@ incrementWithoutCheck = BugMatch
           ]
         }
       ]
-      
+
   , bugName = "Increment Without Check"
   , bugDescription =
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
@@ -147,13 +149,30 @@ oobRead = BugMatch
   , mitigationAdvice = "Bad job."
   }
 
+demoDbSave :: IO ()
+demoDbSave = do
+  putText "starting"
+  (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+  putText "Loaded Dive_Logger.gzf"
+  store' <- Store.init Nothing imp
+
+  (Just cg) <- CC.get () $ store' ^. #callGraphCache
+  conn <- Db.init "/tmp/divelogger.flint"
+  Db.insertCallGraph conn cg
+
+  mCallGraph <- Db.loadCallGraph conn
+
+  pprint mCallGraph
+
+  putText "done"
+
 
 divelogger :: IO ()
 divelogger = do
   putText "starting"
-  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
-  putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+  putText "Loaded Dive_Logger.gzf"
+  store' <- Store.init Nothing imp
   let funcMapping = mkFuncMapping $ store' ^. #funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
@@ -226,9 +245,9 @@ allocStub allocName = StubSpec
 electronictrading :: IO ()
 electronictrading = do
   putText "starting"
-  (Right (imp :: BNImporter)) <- openBinary "res/demo/cb/electronictrading.bndb"
-  putText "Loaded electronictrading.bndb"
-  store' <- Store.init imp
+  (Right (imp :: GhidraImporter)) <- openBinary "res/demo/cb/electronictrading.gzf"
+  putText "Loaded electronictrading.gzf"
+  store' <- Store.init Nothing imp
   let funcMapping = mkFuncMapping $ store' ^. #funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
@@ -254,7 +273,7 @@ electronictrading = do
 
   -- mapM_ (\func -> putText $ func ^. #name) . sort . HashSet.toList $ startFuncs
   queryForBugMatch_ useSolver callDepth maxSamples store' funcMapping (Just startFuncs) stubs bugPattern
-  
+
   -- mapM_ (\func -> putText $ func ^. #name) . sort . HashSet.toList $ funcs
   -- queryForBugMatch_ 10 80 store' funcMapping (Just funcs) stubs (incrementWithoutCheck "cgc_allocate")
   putText "finished"
@@ -263,9 +282,9 @@ electronictrading = do
 diveloggerPlanner :: IO ()
 diveloggerPlanner = do
   putText "starting"
-  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
-  putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+  putText "Loaded Dive_Logger.gzf"
+  store' <- Store.init Nothing imp
   (ctx, _innerNodes, allNodes) <- Store.getRouteMakerCtx' 5 store'
 
   let funcNameMapping = mkFuncNameMapping $ store' ^. #funcs
@@ -294,7 +313,7 @@ diveloggerPlanner = do
   --       , Stmt $ Call Nothing (CallFunc (FuncName "cgc_GetChar")) []
   --       , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
   --       ]
-  
+
   let combos = matchNodesFulfillingSeq [] allNodes pats
       r = getAllRoutesForAllSeqCombos ctx mLimitStartFuncs combos
   print $ HashSet.size <$> combos
@@ -304,9 +323,9 @@ diveloggerPlanner = do
 diveloggerSampleRoute :: IO ()
 diveloggerSampleRoute = do
   putText "starting"
-  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
-  putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+  putText "Loaded Dive_Logger.gzf"
+  store' <- Store.init Nothing imp
   -- (ctx, _innerNodes, allNodes) <- Store.getPlanMakerCtx' 5 store'
   pprep <- getSampleRoutePrep store'
 
@@ -364,9 +383,9 @@ diveloggerSampleRoute = do
 spamDiveLogger :: IO ()
 spamDiveLogger = do
   putText "starting"
-  (Right (imp :: BNImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.bndb"
-  putText "Loaded Dive_Logger.bndb"
-  store' <- Store.init imp
+  (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+  putText "Loaded Dive_Logger.gzf"
+  store' <- Store.init Nothing imp
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -379,7 +398,7 @@ spamDiveLogger = do
         ]
       funcs :: HashSet Function
       funcs = HashSet.fromList $ store' ^. #funcs
-        
+
   checkFuncs False store' q bms (sequentialPutText . pretty') funcs
 
 main :: IO ()
@@ -387,5 +406,6 @@ main = do
   -- divelogger
   -- diveloggerPlanner
   -- diveloggerSampleRoute
-  spamDiveLogger
-  shutdown @BNImporter
+  -- spamDiveLogger
+  demoDbSave
+  shutdown @GhidraImporter

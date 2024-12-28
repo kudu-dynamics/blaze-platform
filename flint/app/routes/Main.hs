@@ -106,7 +106,7 @@ getNodeSequenceContainingAddrs allNodes = traverse $ getNodesContainingAddr allN
 -- | Checks for bugs by blindly sampling paths from every function
 findRoutes :: Options -> IO ()
 findRoutes opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
-  store <- Store.init imp
+  store <- Store.init Nothing imp
   (ctx, _innerNodes, allNodes) <-
     Store.getRouteMakerCtx' (fromMaybe defaultMaxCallDepth $ opts ^. #maxCallDepth) store
   case getNodeSequenceContainingAddrs allNodes (opts ^. #startAddress : NE.toList (opts ^. #waypoints)) of

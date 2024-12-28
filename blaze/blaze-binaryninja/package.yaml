@@ -1,0 +1,155 @@
+name:                blaze-binaryninja
+version:             0.1.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+copyright:           "2024 Kudu Dynamics"
+synopsis:            A program analysis framework with a focus on context- and path-sensitive analyses, tiered abstraction layers, and type systems.
+category:            Program Analysis, Binary Analysis
+description:         Please see the README.
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - blaze
+  - binaryninja
+  - binary-analysis
+  - containers
+  - dlist
+  - extra
+  - text
+  - transformers
+  - unordered-containers
+
+language: GHC2021
+
+default-extensions:
+  - AllowAmbiguousTypes
+  - DataKinds
+  - DeriveAnyClass
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - FunctionalDependencies
+  - GADTs
+  - ImportQualifiedPost
+  - LambdaCase
+  - NoImplicitPrelude
+  - NoMonomorphismRestriction
+  - OverloadedLabels
+  - OverloadedStrings
+  - TypeFamilies
+
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  source-dirs:
+  - src
+  exposed-modules:
+  - Blaze.Import.Source.BinaryNinja
+  - Blaze.Import.Source.BinaryNinja.Pil
+  - Blaze.Import.Source.BinaryNinja.CallGraph
+  - Blaze.Import.Source.BinaryNinja.Cfg
+  - Blaze.Import.Source.BinaryNinja.MLIL
+  - Blaze.Import.Source.BinaryNinja.Types
+
+executables:
+  demo:
+    main: Main.hs
+    source-dirs:  demo
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - binaryninja
+    - blaze
+    - blaze-binaryninja
+    - containers
+    - directory
+    - hspec
+    - sbv >= 10.1
+    - text
+  find_mlil_ssa:
+    main: Main.hs
+    source-dirs:  app/find_mlil
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - blaze-binaryninja
+    - containers
+    - binaryninja
+    - hspec
+    - text
+
+
+benchmarks:
+  call-graph-benchmark:
+    main:                CallGraph.hs
+    source-dirs:         benchmarks
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - binaryninja
+    - text
+
+tests:
+  # General Blaze tests that have a hard dependency on BN. If any of the
+  # features that this suite tests get generalized and moved into Blaze-proper,
+  # then the corresponding tests here should be generalized as well and moved to
+  # blaze:blaze-general-test
+  blaze-binja-test:
+    main: Main.hs
+    source-dirs:
+    - test/blaze-binja
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - blaze
+    - blaze-binaryninja
+    - binaryninja
+    - hspec
+    - temporary
+    build-tools:
+      - hspec-discover
+
+  blaze-binaryninja-importer-test:
+    main: Main.hs
+    source-dirs:
+    - test/blaze-binaryninja-importer
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - binaryninja
+    - blaze
+    - blaze-binaryninja
+    - hspec
+    build-tools:
+      - hspec-discover

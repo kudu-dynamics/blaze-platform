@@ -11,7 +11,6 @@ import qualified Flint.Types.Query as Q
 
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (BinaryImporter(openBinary))
-import Blaze.Import.Source.BinaryNinja (BNImporter)
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import Blaze.Types.Function (Function)
@@ -31,8 +30,8 @@ dirtyBenchmark = "res/test_bins/dirty_benchmark/dirty_benchmark"
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
   context "Dirty Benchmark 1" $ do
-    (bv :: BNImporter) <- unsafeFromRight <$> runIO (openBinary dirtyBenchmark)
-    store <- runIO $ CfgStore.init bv
+    (bv :: GhidraImporter) <- unsafeFromRight <$> runIO (openBinary dirtyBenchmark)
+    store <- runIO $ CfgStore.init Nothing bv
 
     allFuncs <- runIO $ CG.getFunctions bv
     let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ allFuncs

@@ -10,6 +10,7 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Function (FuncParamInfo (FuncParamInfo, FuncVarArgInfo), Function)
 import Blaze.Types.Cfg.Interprocedural as Exports
 import Blaze.Types.Import (ImportResult (ImportResult))
+import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (
   CallDest (CallFunc),
   CallStatement,
@@ -45,8 +46,9 @@ getParamSym = \case
 -- | Create a node that indicates a context switch between two function contexts.
 mkEnterFuncNode :: UUID -> Ctx -> Ctx -> CallStatement -> EnterFuncNode [Stmt]
 mkEnterFuncNode uuid' outerCtx calleeCtx callStmt =
-  EnterFuncNode outerCtx calleeCtx uuid' stmts
+  EnterFuncNode outerCtx calleeCtx callStmtAddr uuid' stmts
   where
+    callStmtAddr = callStmt ^. #stmt . #addr
     mkParamVar :: (FuncParamInfo, Expression) -> (PilVar, Expression)
     mkParamVar (pinfo, x) =
       ( PilVar (fromByteBased $ x ^. #size) (Just calleeCtx) (getParamSym pinfo)
@@ -55,7 +57,7 @@ mkEnterFuncNode uuid' outerCtx calleeCtx callStmt =
     paramVarsWithExpressions = mkParamVar
       <$> zip (calleeCtx ^. #func . #params) (callStmt ^. #args)
     stmts :: [Stmt]
-    stmts = Def . uncurry DefOp <$> paramVarsWithExpressions
+    stmts = Pil.Stmt callStmtAddr . Def . uncurry DefOp <$> paramVarsWithExpressions
 
 {- |Generate a defintion for the result variable in the outer (caller) context
 where the a phi function containing variables that reference all the possible
@@ -66,16 +68,18 @@ introducing spurious variable copies which can be reduced with copy propagation.
 -}
 mkLeaveFuncNode :: UUID -> Ctx -> Ctx -> CallStatement -> [Expression] -> LeaveFuncNode [Stmt]
 mkLeaveFuncNode uuid' outerCtx calleeCtx callStmt retExprs =
-  LeaveFuncNode calleeCtx outerCtx uuid' stmts
+  LeaveFuncNode calleeCtx outerCtx callStmtAddr uuid' stmts
   where
+    callStmtAddr = callStmt ^. #stmt . #addr
+    mkStmt = Pil.Stmt callStmtAddr
     resultVar :: Maybe PilVar
     resultVar = callStmt ^. #resultVar
     retVars :: [(PilVar, Expression)]
     retVars = generateVars calleeCtx "retVar_" 0 retExprs
     retDefs :: [Stmt]
-    retDefs = Def . uncurry DefOp <$> retVars
+    retDefs = mkStmt . Def . uncurry DefOp <$> retVars
     resultDef :: Maybe Stmt
-    resultDef = DefPhi <$> (DefPhiOp <$> resultVar <*> Just (fst <$> retVars))
+    resultDef = mkStmt . DefPhi <$> (DefPhiOp <$> resultVar <*> Just (fst <$> retVars))
     stmts :: [Stmt]
     stmts = case resultDef of
       Just stmt -> retDefs ++ [stmt]

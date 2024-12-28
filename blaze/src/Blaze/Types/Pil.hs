@@ -287,7 +287,13 @@ data TailCallOp expr = TailCallOp
 
 data GotoOp expr = GotoOp
 
-type Stmt = Statement Expression
+type Stmt = AddressableStatement Expression
+
+-- A little indirection here so we can derive Functor etc
+data AddressableStatement expr = Stmt
+    { addr :: Address
+    , statement :: Statement expr
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data Statement expr
   = Def (DefOp expr)
@@ -318,7 +324,7 @@ data Statement expr
 
 data MappedStatement a expr = MappedStatement
   { ref :: a
-  , stmt :: Statement expr
+  , stmt :: AddressableStatement expr
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 instance Bifunctor MappedStatement where
@@ -327,7 +333,7 @@ instance Bifunctor MappedStatement where
 type MappedStmt a = MappedStatement a Expression
 
 data CallStatement = CallStatement
-  { stmt :: Statement Expression
+  { stmt :: Stmt
   , callOp :: CallOp Expression
   , args :: [Expression]
   , resultVar :: Maybe PilVar
@@ -336,7 +342,7 @@ data CallStatement = CallStatement
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
 mkCallStatement :: Stmt -> Maybe CallStatement
-mkCallStatement stmt' = case stmt' of
+mkCallStatement stmt' = case stmt' ^. #statement of
   Call callOp' ->
     Just $ CallStatement stmt' callOp' (callOp' ^. #args) Nothing
   Def (DefOp resultVar' (Expression _sz (CALL callOp'))) ->

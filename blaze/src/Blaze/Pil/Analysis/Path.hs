@@ -58,13 +58,13 @@ substVarExprsInStmt m = PA.substVarExpr_ $ flip HashMap.lookup m
 -- This assumes `PA.memoryTransform` has already been called.
 expandVars_ :: HashMap PilVar Expression -> [Stmt] -> [Stmt]
 expandVars_  _ [] = []
-expandVars_ varSubstMap (stmt:stmts) = case Pil.mkCallStatement stmt of
+expandVars_ varSubstMap (stmt@(Pil.Stmt stmtAddr statement):stmts) = case Pil.mkCallStatement stmt of
   -- | Don't add anything to subst map if it's a call statement.
   --   But subst over the args.
   Just _ -> (substAll <$> stmt) : expandVars_ varSubstMap stmts
 
   -- | Handle the non-call statements.
-  Nothing ->  case stmt of
+  Nothing ->  case statement of
     Pil.Def (Pil.DefOp _ (Pil.Expression _ (Pil.LOAD _))) -> defaultProp
     Pil.Def (Pil.DefOp pv expr) -> expandVars_ varSubstMap' stmts
       where
@@ -75,7 +75,7 @@ expandVars_ varSubstMap (stmt:stmts) = case Pil.mkCallStatement stmt of
 
     Pil.Store (Pil.StoreOp addr expr) -> stmt' : expandVars_ varSubstMap stmts
       where
-        stmt' = Pil.Store (Pil.StoreOp addr' expr')
+        stmt' = Pil.Stmt stmtAddr $ Pil.Store (Pil.StoreOp addr' expr')
         addr' = substAll addr
         expr' = substAll expr
 
@@ -84,7 +84,7 @@ expandVars_ varSubstMap (stmt:stmts) = case Pil.mkCallStatement stmt of
     -- Removes mem from subst map because we don't know what the unimpl instr did to it
     Pil.UnimplMem (Pil.UnimplMemOp addr) -> stmt' : expandVars_ varSubstMap stmts
       where
-        stmt' = Pil.UnimplMem (Pil.UnimplMemOp addr')
+        stmt' = Pil.Stmt stmtAddr $ Pil.UnimplMem (Pil.UnimplMemOp addr')
         addr' = substAll addr
 
     Pil.Undef -> defaultProp
@@ -138,7 +138,7 @@ aggressiveExpand_
   -> [(StmtIndex, Stmt)]
   -> [Stmt]
 aggressiveExpand_ _ _ [] = []
-aggressiveExpand_ varSubstMap memSubstMap ((stmtIndex, stmt):stmts) = case Pil.mkCallStatement stmt of
+aggressiveExpand_ varSubstMap memSubstMap ((stmtIndex, stmt@(Pil.Stmt stmtAddr statement)):stmts) = case Pil.mkCallStatement stmt of
   -- | If it's a call statement, remove args from mem subst map because the call
   -- could affect them.
   -- Also, don't add anything to varSubstMap because function calls aren't necessarily pure
@@ -150,7 +150,7 @@ aggressiveExpand_ varSubstMap memSubstMap ((stmtIndex, stmt):stmts) = case Pil.m
         stmt' = substAll <$> stmt
 
   -- | Handle the non-call statements.
-  Nothing ->  case stmt of
+  Nothing ->  case statement of
     Pil.Def (Pil.DefOp pv expr) -> aggressiveExpand_ varSubstMap' memSubstMap stmts
       where
         expr' = substAll expr
@@ -160,7 +160,7 @@ aggressiveExpand_ varSubstMap memSubstMap ((stmtIndex, stmt):stmts) = case Pil.m
 
     Pil.Store (Pil.StoreOp addr expr) -> stmt' : aggressiveExpand_ varSubstMap memSubstMap' stmts
       where
-        stmt' = Pil.Store (Pil.StoreOp addr' expr')
+        stmt' = Pil.Stmt stmtAddr $ Pil.Store (Pil.StoreOp addr' expr')
         addr' = substAll addr
         expr' = substAll expr
         memSubstMap' = HashMap.insert addr' expr' memSubstMap
@@ -170,7 +170,7 @@ aggressiveExpand_ varSubstMap memSubstMap ((stmtIndex, stmt):stmts) = case Pil.m
     -- Removes mem from subst map because we don't know what the unimpl instr did to it
     Pil.UnimplMem (Pil.UnimplMemOp addr) -> stmt' : aggressiveExpand_ varSubstMap (removeFromMemSubstMap [addr']) stmts
       where
-        stmt' = Pil.UnimplMem (Pil.UnimplMemOp addr')
+        stmt' = Pil.Stmt stmtAddr $ Pil.UnimplMem (Pil.UnimplMemOp addr')
         addr' = substAll addr
 
     Pil.Undef -> defaultProp

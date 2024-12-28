@@ -8,7 +8,9 @@ packages:
   - binaryninja-haskell/binja-header-cleaner
   - ghidra-haskell
   - blaze
+  - blaze/blaze-binaryninja
   - flint
+  - flint/flint-binaryninja
 
 extra-deps:
   - git: https://github.com/kudu-dynamics/binary-analysis
@@ -18,6 +20,11 @@ extra-deps:
     subdirs:
       - jni
       - jvm
+  - git: https://github.com/kudu-dynamics/selda.git
+    commit : efde67c131deea943e1d76e26449aa8da46c2d01
+    subdirs:
+      - selda
+      - selda-sqlite
 
 rebuild-ghc-options: true
 ghc-options:

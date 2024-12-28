@@ -117,16 +117,16 @@ leaveFuncUUID :: UUID
     --------------------
 
     enterFuncNode3 = Cfg.EnterFunc
-      $ Cfg.EnterFuncNode callerCtx targetCtx (callNodeInner1 ^. #uuid)
+      $ Cfg.EnterFuncNode callerCtx targetCtx 0 (callNodeInner1 ^. #uuid)
         [ C.def' arg1 (C.var "a1" 8)
         , C.def' arg2 (C.var "b1" 8)
         ]
 
     leaveFuncUUID' = mkUuid1 (88 :: Int)
     leaveFuncNode3 = Cfg.LeaveFunc
-      $ Cfg.LeaveFuncNode targetCtx callerCtx leaveFuncUUID'
-        [ Pil.Def $ Pil.DefOp retVar0 (C.var "r2" 8)
-        , Pil.DefPhi $ Pil.DefPhiOp (C.pilVar 8 "funcRet1") [retVar0]
+      $ Cfg.LeaveFuncNode targetCtx callerCtx 0 leaveFuncUUID'
+        [ C.def' retVar0 (C.var "r2" 8)
+        , C.defPhi' (C.pilVar 8 "funcRet1") [retVar0]
         ]
       where
         retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0"
@@ -166,6 +166,7 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
         expected = Cfg.EnterFuncNode
           { prevCtx = callerCtx
           , nextCtx = targetCtx
+          , callSiteAddress = 0
           , uuid = uuid'
           , nodeData =
             [ C.def' (pilVar' targetCtx "arg1") (C.var' (pilVar' callerCtx "x") 8)
@@ -197,11 +198,14 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
         expected = Cfg.LeaveFuncNode
           { prevCtx = targetCtx
           , nextCtx = callerCtx
+          , callSiteAddress = 0
           , uuid = uuid'
           , nodeData =
             [ C.def' retVar0 (C.var' (pilVar' targetCtx "innerRet1") 8)
             , C.def' retVar1 (C.var' (pilVar' targetCtx "innerRet2") 8)
-            , Pil.DefPhi $ Pil.DefPhiOp (pilVar' callerCtx "outerRet") [retVar0, retVar1]
+            , Pil.Stmt 0
+              . Pil.DefPhi
+              $ Pil.DefPhiOp (pilVar' callerCtx "outerRet") [retVar0, retVar1]
             ]
           }
     it "should make enter func node" $ do

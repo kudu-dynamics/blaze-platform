@@ -336,7 +336,7 @@ varNodeToPilVar v =
 
 -- | Like 'varNodeToReference', but returns either a partially applied 'Store'
 -- or a partially applied 'Def'
-varNodeToAssignment :: IsVariable a => a -> ExceptT ConverterError Converter (Expression -> Pil.Stmt)
+varNodeToAssignment :: IsVariable a => a -> ExceptT ConverterError Converter (Expression -> Pil.Statement Pil.Expression)
 varNodeToAssignment v =
   varNodeToReference v <&> \case
     Left pv -> Pil.Def . Pil.DefOp pv
@@ -368,8 +368,8 @@ varNodeToValueExpr v = do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
 
-convertPcodeOpToPilStmt :: forall a. IsVariable a => P.PcodeOp a -> ExceptT ConverterError Converter [Pil.Stmt]
-convertPcodeOpToPilStmt = \case
+convertPcodeOpToPilStatement :: forall a. IsVariable a => P.PcodeOp a -> ExceptT ConverterError Converter [Pil.Statement Pil.Expression]
+convertPcodeOpToPilStatement = \case
   P.BOOL_AND out in0 in1 -> mkDef out =<< binIntOp Pil.AND Pil.AndOp in0 in1
   P.BOOL_NEGATE out in0 -> mkDef out =<< unIntOp Pil.NOT Pil.NotOp in0
   P.BOOL_OR out in0 in1 -> mkDef out =<< binIntOp Pil.OR Pil.OrOp in0 in1
@@ -509,7 +509,7 @@ convertPcodeOpToPilStmt = \case
       _ -> do
         offset' <- varNodeToValueExpr offset
         mkDef out . Pil.ADD $ Pil.AddOp base' offset'
-  P.RETURN _ [] -> pure [C.ret $ C.unit 0]
+  P.RETURN _ [] -> pure [Pil.Ret . Pil.RetOp $ C.unit 0]
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
   P.SEGMENTOP -> pure [Pil.UnimplInstr "SEGMENTOP"]
@@ -537,7 +537,7 @@ convertPcodeOpToPilStmt = \case
     pure [Pil.UnimplInstr "unimpl"]
 
   where
-    mkDef :: P.Output a -> Pil.ExprOp Expression -> ExceptT ConverterError Converter [Pil.Stmt]
+    mkDef :: P.Output a -> Pil.ExprOp Expression -> ExceptT ConverterError Converter [Pil.Statement Pil.Expression]
     mkDef v xop = do
       assignment <- varNodeToAssignment v
       return . (: []) . assignment $ Expression (fromIntegral $ getSize v) xop
@@ -590,7 +590,12 @@ convertPcodeOps
   -> IO [Either ConverterError (MappedStmt Address)]
 convertPcodeOps gs ctx pcodeOps = do
   let cstate = mkConverterState gs ctx
-  runConverter (traverse (\ (addr, op) -> fmap (fmap (fmap (MappedStatement addr))) . swallowErrors . convertPcodeOpToPilStmt $ op) pcodeOps) cstate >>= \case
+  runConverter (traverse (\ (addr, op) -> fmap (fmap (fmap (MappedStatement addr . Pil.Stmt addr)))
+                           . swallowErrors
+                           . convertPcodeOpToPilStatement
+                           $ op
+                         )
+                 pcodeOps) cstate >>= \case
     (stmts, _st) -> return $ concat stmts
   where
     -- tryError :: ExceptT e m a -> ExceptT e m (Either e a)

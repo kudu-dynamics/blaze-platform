@@ -14,7 +14,8 @@ import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil ( Expression
                        , PilVar
-                       , Statement
+                       , AddressableStatement
+                       , Stmt
                        )
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Solver
@@ -565,15 +566,15 @@ liftSFiniteBits f sv =
 liftSFiniteBits' :: (forall a. SFiniteBits a => SBV a -> SBV b) -> SVal -> Maybe SVal
 liftSFiniteBits' sv f = (\(SBV x) -> x) <$> liftSFiniteBits sv f
 
-solveStmt :: Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
+solveStmt :: AddressableStatement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
           -> Solver ()
 solveStmt = catchIfLenientForStmt . solveStmt_ solveExpr
 
 -- | Generates consraints for statement, using provided expr solver
 solveStmt_ :: (DSTExpression -> Solver SVal)
-           -> Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
+           -> AddressableStatement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType))
            -> Solver ()
-solveStmt_ solveExprFunc stmt = catchAndWarnStmt $ case stmt of
+solveStmt_ solveExprFunc (Pil.Stmt _ statement) = catchAndWarnStmt $ case statement of
   Pil.Def x -> do
     pv <- lookupVarSym $ x ^. #var
     expr <- solveExprFunc $ x ^. #value
@@ -1069,7 +1070,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
 solveTypedStmtsWith_
   :: SMTConfig
   -> SolverCtx
-  -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> [(Int, AddressableStatement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
   -> IO (Either SolverError SolverReport)
 solveTypedStmtsWith_ solverCfg solverCtx stmts = do
   er <- runSolverWith solverCfg run (emptyState, solverCtx)
@@ -1089,7 +1090,7 @@ solveTypedStmtsWith
   :: SMTConfig
   -> SolverLeniency
   -> HashMap PilVar DeepSymType
-  -> [(Int, Statement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
+  -> [(Int, AddressableStatement (Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)))]
   -> IO (Either SolverError SolverReport)
 solveTypedStmtsWith solverCfg leniency vartypes =
   solveTypedStmtsWith_ solverCfg (SolverCtx vartypes stubbedFunctionConstraintGen True leniency)
@@ -1097,7 +1098,7 @@ solveTypedStmtsWith solverCfg leniency vartypes =
 -- | runs type checker first, then solver
 solveStmtsWith :: SMTConfig
                -> SolverLeniency
-               -> [Statement Expression]
+               -> [Stmt]
                -> IO (Either
                       (Either
                        Ch.ConstraintGenError
@@ -1116,13 +1117,13 @@ solveStmtsWith solverCfg leniency stmts = do
 -- | Convenience function for checking statements that package results nicely.
 solveStmtsWith_ :: SMTConfig
                 -> SolverLeniency
-                -> [Statement Expression]
+                -> [Stmt]
                 -> IO SolverResult
 solveStmtsWith_ solverCfg leniency stmts = solveStmtsWith solverCfg leniency stmts >>= \case
   Left err -> return $ Err err
   Right (r, _) -> return $ r ^. #result
 
-solveStmtsWithZ3 :: SolverLeniency -> [Statement Expression] -> IO SolverResult
+solveStmtsWithZ3 :: SolverLeniency -> [Stmt] -> IO SolverResult
 solveStmtsWithZ3 leniency stmts = solveStmtsWith SBV.z3 leniency stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. #result

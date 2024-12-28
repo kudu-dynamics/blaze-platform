@@ -41,6 +41,32 @@ packages:
     commit: 9de6cfa65b8d5d692bf7f5de1e4f1b853f2bbef1
     git: https://github.com/kudu-dynamics/inline-java.git
     subdir: jvm
+- completed:
+    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    git: https://github.com/kudu-dynamics/selda.git
+    name: selda
+    pantry-tree:
+      sha256: 8c2707dec8d3b2471871b37f05f7d63fa3f6c84a6338cc74abff3c97bc70a2b9
+      size: 2365
+    subdir: selda
+    version: 0.5.2.1
+  original:
+    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    git: https://github.com/kudu-dynamics/selda.git
+    subdir: selda
+- completed:
+    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    git: https://github.com/kudu-dynamics/selda.git
+    name: selda-sqlite
+    pantry-tree:
+      sha256: 2e546e059aa264aa04ccdda75c6f394f7b52f75e2ea2739ba222f72b683395db
+      size: 305
+    subdir: selda-sqlite
+    version: 0.1.7.2
+  original:
+    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    git: https://github.com/kudu-dynamics/selda.git
+    subdir: selda-sqlite
 snapshots:
 - completed:
     sha256: 2fdd7d3e54540062ef75ca0a73ca3a804c527dbf8a4cadafabf340e66ac4af40

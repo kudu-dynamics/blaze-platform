@@ -1,0 +1,56 @@
+name:                flint-binaryninja
+version:             0.1.0.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@bitrit.es>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+  - Matt (drone) Revelle <drone@bitrit.es>
+copyright:           "2024 Kudu Dynamics"
+synopsis:            An analysis tool that aids in finding bugs.
+category:            Program Analysis, Binary Analysis
+description:         Please see the README.
+
+dependencies:
+  - base >=4.7 && <5
+  - blaze
+  - blaze-binaryninja
+  - flint
+  - unordered-containers
+
+language: GHC2021
+
+default-extensions:
+  - AllowAmbiguousTypes
+  - DataKinds
+  - DeriveAnyClass
+  - DerivingStrategies
+  - DuplicateRecordFields
+  - FunctionalDependencies
+  - GADTs
+  - LambdaCase
+  - NoImplicitPrelude
+  - NoMonomorphismRestriction
+  - OverloadedLabels
+  - OverloadedStrings
+  - TypeFamilies
+  - ViewPatterns
+
+tests:
+  # Flint tests that depend on Binary Ninja backend
+  flint-binaryninja-test:
+    main: Main.hs
+    source-dirs:
+    - test
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - hspec
+    build-tools:
+      - hspec-discover

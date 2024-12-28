@@ -5,7 +5,9 @@ packages:
    binaryninja-haskell/binja-header-cleaner
    ghidra-haskell
    blaze
+   blaze/blaze-binaryninja
    flint
+   flint/flint-binaryninja
 
 source-repository-package
   type: git

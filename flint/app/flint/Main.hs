@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main (main) where
 
 import Flint.Prelude
@@ -26,6 +28,7 @@ data Options = Options
   , maxSamplesPerFunc :: Word64
   , expandCallDepth :: Word64
   , isKernelModule :: Bool
+  , analysisDb :: Maybe FilePath
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -34,7 +37,20 @@ parseBackend :: Parser Backend
 parseBackend = option auto
   ( long "backend"
     <> metavar "BACKEND"
-    <> help "preferred backend (BinaryNinja or Ghidra)"
+    <> help
+       ( "preferred backend ("
+#ifdef FLINT_SUPPORT_BINARYNINJA
+         <> "BinaryNinja or "
+#endif
+         <> "Ghidra)"
+       )
+  )
+
+parseAnalysisDb :: Parser FilePath
+parseAnalysisDb = strOption
+  ( long "analysisDb"
+    <> metavar "ANALYSIS_DB"
+    <> help "DB to save a load analysis data"
   )
 
 parseJSONOption :: Parser Bool
@@ -80,6 +96,7 @@ optionsParser = Options
   <*> (parseMaxSamplesPerFunc <|> pure 15)
   <*> (parseExpandCallDepth <|> pure 0)
   <*> (parseIsKernelModule <|> pure False)
+  <*> optional parseAnalysisDb
   <*> parseInputFile
 
 main :: IO ()
@@ -109,7 +126,7 @@ printJSON res = do
 -- | Checks for bugs by blindly sampling paths from every function
 defaultCheck :: Options -> IO ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
-  store <- Store.init imp
+  store <- Store.init (opts ^. #analysisDb) imp
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts

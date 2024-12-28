@@ -1,10 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Blaze.Pil.Display where
 
-import qualified Binja.Function
-import qualified Binja.MLIL
 import qualified Data.HashMap.Strict as HMap
-import qualified Binja.Variable
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (Size)
@@ -137,17 +134,6 @@ asMultilineList = bracket . Text.cons ' ' . Text.intercalate "\n, "
 class Disp a where
   disp :: a -> Text
 
-instance Disp Binja.Variable.Variable where
-  disp v = v ^. Binja.Variable.name
-
-instance Disp Binja.MLIL.SSAVariable where
-  disp ssaVar = Text.pack $ printf "%s@%s" name version
-    where
-      name :: Text
-      name = disp (ssaVar ^. Binja.MLIL.var)
-      version :: Text
-      version = show (ssaVar ^. Binja.MLIL.version)
-
 instance Disp Address where
   disp = show
 
@@ -174,13 +160,6 @@ instance Disp Pil.ExternPtrOp where
            (show $ x ^. #address :: String)
            (disp $ x ^. #offset)
            (show $ x ^. #symbol :: String)
-
-instance Disp Binja.Function.Function where
-  disp f = Text.pack $ printf "func \"%s\" %s" name start
-    where
-      name = f ^. Binja.Function.name
-      start :: Text
-      start = show $ f ^. Binja.Function.start
 
 instance Disp Pil.Ctx where
   disp ctx = Text.pack $ printf "simpCtx (%s) %s" func idx
@@ -407,7 +386,10 @@ instance Disp ByteOffset where
 instance Disp Bytes where
   disp (Bytes x) = "bytes " <> show x
 
-instance Disp [Pil.Stmt] where
+instance (Disp a, NeedsParens a) => Disp (Pil.AddressableStatement a) where
+  disp (Pil.Stmt addr statement) = disp addr <> ": " <> disp statement
+
+instance (Disp a, NeedsParens a) => Disp [Pil.AddressableStatement a] where
   disp = Text.intercalate "\n" . fmap disp
 
 instance (Disp a, Disp b) => Disp (a, b) where

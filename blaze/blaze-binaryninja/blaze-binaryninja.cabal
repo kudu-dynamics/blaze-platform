@@ -1,0 +1,280 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           blaze-binaryninja
+version:        0.1.0
+synopsis:       A program analysis framework with a focus on context- and path-sensitive analyses, tiered abstraction layers, and type systems.
+description:    Please see the README.
+category:       Program Analysis, Binary Analysis
+author:         Matt (drone) Revelle <drone@kududyn.com>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+maintainer:     Matt (drone) Revelle <drone@kududyn.com>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+copyright:      2024 Kudu Dynamics
+license:        BSD-2-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+library
+  exposed-modules:
+      Blaze.Import.Source.BinaryNinja
+      Blaze.Import.Source.BinaryNinja.Pil
+      Blaze.Import.Source.BinaryNinja.CallGraph
+      Blaze.Import.Source.BinaryNinja.Cfg
+      Blaze.Import.Source.BinaryNinja.MLIL
+      Blaze.Import.Source.BinaryNinja.Types
+  other-modules:
+      Paths_blaze_binaryninja
+  autogen-modules:
+      Paths_blaze_binaryninja
+  hs-source-dirs:
+      src
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , containers
+    , dlist
+    , extra
+    , text
+    , transformers
+    , unordered-containers
+  default-language: GHC2021
+
+executable demo
+  main-is: Main.hs
+  other-modules:
+      Blaze.LoopChallenge
+      Blaze.SearchDemo
+      Blaze.Types.Graph.AlgaDemo
+      Blaze.Util.MLILDemo
+      Paths_blaze_binaryninja
+  autogen-modules:
+      Paths_blaze_binaryninja
+  hs-source-dirs:
+      demo
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , blaze-binaryninja
+    , containers
+    , directory
+    , dlist
+    , extra
+    , hspec
+    , sbv >=10.1
+    , text
+    , transformers
+    , unordered-containers
+  default-language: GHC2021
+
+executable find_mlil_ssa
+  main-is: Main.hs
+  other-modules:
+      Paths_blaze_binaryninja
+  autogen-modules:
+      Paths_blaze_binaryninja
+  hs-source-dirs:
+      app/find_mlil
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , blaze-binaryninja
+    , containers
+    , dlist
+    , extra
+    , hspec
+    , text
+    , transformers
+    , unordered-containers
+  default-language: GHC2021
+
+test-suite blaze-binaryninja-importer-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Blaze.Import.Source.BinaryNinjaSpec
+      Spec
+      Paths_blaze_binaryninja
+  autogen-modules:
+      Paths_blaze_binaryninja
+  hs-source-dirs:
+      test/blaze-binaryninja-importer
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      base >=4.7 && <5
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , blaze-binaryninja
+    , containers
+    , dlist
+    , extra
+    , hspec
+    , text
+    , transformers
+    , unordered-containers
+  default-language: GHC2021
+
+test-suite blaze-binja-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Blaze.CallGraphSpec
+      Blaze.Cfg.Path.SolverSpec
+      Blaze.IndirectCallResolutionSpec
+      Spec
+      Paths_blaze_binaryninja
+  autogen-modules:
+      Paths_blaze_binaryninja
+  hs-source-dirs:
+      test/blaze-binja
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      base >=4.7 && <5
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , blaze-binaryninja
+    , containers
+    , dlist
+    , extra
+    , hspec
+    , temporary
+    , text
+    , transformers
+    , unordered-containers
+  default-language: GHC2021
+
+benchmark call-graph-benchmark
+  type: exitcode-stdio-1.0
+  main-is: CallGraph.hs
+  other-modules:
+      Paths_blaze_binaryninja
+  autogen-modules:
+      Paths_blaze_binaryninja
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      ImportQualifiedPost
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , binary-analysis
+    , binaryninja
+    , blaze
+    , containers
+    , dlist
+    , extra
+    , text
+    , transformers
+    , unordered-containers
+  default-language: GHC2021

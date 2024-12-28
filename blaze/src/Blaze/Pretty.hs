@@ -54,8 +54,6 @@ where
 
 import Prelude (id)
 import qualified Prelude (show)
-import qualified Binja.Function
-import qualified Binja.MLIL as MLIL
 import Blaze.Prelude hiding (Symbol, bracket, const, sym)
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
@@ -378,9 +376,6 @@ instance (Tokenizable k, Tokenizable v) => Tokenizable (Map k v) where
 instance Tokenizable a => Tokenizable (HashSet a) where
   tokenize x = delimitedList [tt "#{"] [tt ", "] [tt "}"] <$> traverse tokenize (HashSet.toList x)
 
-instance Tokenizable (MLIL.Expression a) where
-  tokenize _ = pure [tt "(TODO: MLIL Expression)"]
-
 instance (Tokenizable a, Tokenizable b) => Tokenizable (a, b) where
   tokenize (a, b) = paren <$> tokenize a <++> tt ", " <++> tokenize b
 
@@ -395,24 +390,6 @@ instance Tokenizable a => Tokenizable (Pil.CallDest a) where
     Pil.CallExtern x -> tokenize x
     Pil.CallUnk -> return [tt "unknown"]
 
-
-instance Tokenizable Binja.Function.Function where
-  tokenize f =
-    pure
-      [ Token
-          { tokenType = CodeSymbolToken
-          , text = f ^. Binja.Function.name
-          , value = toInteger start
-          , size = 0
-          , operand = 0xffffffff
-          , context = NoTokenContext
-          , address = 0
-          , typeSym = Nothing
-          }
-      ]
-    where
-      start :: Word64
-      (Address (Bytes start)) = f ^. Binja.Function.start
 
 instance Tokenizable Pil.Ctx where
   tokenize ctx =
@@ -770,15 +747,28 @@ instance Tokenizable a => Tokenizable (Pil.CallOp a) where
           <++> tokenize (op ^. #dest)
           <++> tokenizeAsTuple (op ^. #args)
 
+instance
+  ( Tokenizable a
+  , HasField' "size" a (Pil.Size a)
+  , NeedsParens a
+  ) =>
+  Tokenizable (Pil.AddressableStatement a)
+  where
+  tokenize (Pil.Stmt addr statement) =
+    [ addressToken Nothing addr
+    , tt ": "
+    ]
+    <++> tokenize statement
+
 instance Tokenizable Pil.CallSite where
   tokenize x =
     tokenize (x ^. #caller)
       <++> tt " -> "
       <++> tokenize (x ^. #callDest)
 
-newtype PStmts a = PStmts [Pil.Statement a]
+newtype PStmts a = PStmts [Pil.AddressableStatement a]
 
-newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.Statement a)]
+newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.AddressableStatement a)]
 
 tokenizeStmtsWithIndents
   :: forall a.
@@ -786,26 +776,26 @@ tokenizeStmtsWithIndents
   , HasField' "size" a (Pil.Size a)
   , NeedsParens a
   ) 
-  => [Pil.Statement a]
+  => [Pil.AddressableStatement a]
   -> Tokenizer [Token]
 tokenizeStmtsWithIndents = \case
   [] -> return []
   (stmt:stmts) -> tokenize stmt
     <++> [tt "\n"]
-    <++> go (bool 0 1 $ isEnterContext stmt) stmts
+    <++> go (bool 0 1 $ isEnterContext $ stmt ^. #statement) stmts
   where
     isEnterContext (Pil.EnterContext _) = True
     isEnterContext _ = False
     spaces :: Int -> [Token]
     spaces n = [tt $ Text.replicate (max 0 n) "  "]
-    go :: Int -> [Pil.Statement a] -> Tokenizer [Token]
+    go :: Int -> [Pil.AddressableStatement a] -> Tokenizer [Token]
     go _ [] = return []
     -- Last Stmt
-    go i [stmt] = case stmt of
+    go i [stmt@(Pil.Stmt _ statement)] = case statement of
       Pil.ExitContext _ -> spaces (i - 1) <++> tokenize stmt
       _ -> tokenize stmt
     -- Middle statements
-    go i (stmt:stmts) = case stmt of
+    go i (stmt@(Pil.Stmt _ statement):stmts) = case statement of
       Pil.EnterContext _ ->
         spaces i <++> tokenize stmt <++> [tt "\n"] <++> go (i + 1) stmts
       Pil.ExitContext _ ->
@@ -831,7 +821,7 @@ instance
   where
   tokenize (PIndexedStmts stmts) = intercalate [tt "\n"] <$> traverse f (sortOn fst stmts)
    where
-    f :: (Int, Pil.Statement a) -> Tokenizer [Token]
+    f :: (Int, Pil.AddressableStatement a) -> Tokenizer [Token]
     f (i, stmt) = [tt (show i), tt ": "] <++> tokenize stmt
 
 instance Tokenizable ByteOffset where
@@ -982,14 +972,14 @@ instance Tokenizable (CallNode a) where
       <++> tokenize dest
 
 instance Tokenizable (EnterFuncNode a) where
-  tokenize (Cfg.EnterFuncNode prevCtx nextCtx _ _) =
+  tokenize (Cfg.EnterFuncNode prevCtx nextCtx _ _ _) =
     tt "EnterFunc Ctx: "
       <++> tokenize prevCtx
       <++> tt " -> "
       <++> tokenize nextCtx
 
 instance Tokenizable (LeaveFuncNode a) where
-  tokenize (Cfg.LeaveFuncNode prevCtx nextCtx _ _) =
+  tokenize (Cfg.LeaveFuncNode prevCtx nextCtx _ _ _) =
     tt "LeaveFunc Ctx: "
       <++> tokenize prevCtx
       <++> tt " -> "
@@ -1102,7 +1092,7 @@ prettyStmts ::
   , NeedsParens a
   ) =>
   TokenizerCtx ->
-  [Pil.Statement a] ->
+  [Pil.AddressableStatement a] ->
   m ()
 prettyStmts ctx = prettyPrint ctx . PStmts
 
@@ -1112,7 +1102,7 @@ prettyStmts' ::
   , HasField' "size" a (Pil.Size a)
   , NeedsParens a
   ) =>
-  [Pil.Statement a] ->
+  [Pil.AddressableStatement a] ->
   m ()
 prettyStmts' = prettyPrint' . PStmts
 
@@ -1123,7 +1113,7 @@ prettyIndexedStmts ::
   , NeedsParens a
   ) =>
   TokenizerCtx ->
-  [(Int, Pil.Statement a)] ->
+  [(Int, Pil.AddressableStatement a)] ->
   m ()
 prettyIndexedStmts ctx = prettyPrint ctx . PIndexedStmts
 
@@ -1133,7 +1123,7 @@ prettyIndexedStmts' ::
   , HasField' "size" a (Pil.Size a)
   , NeedsParens a
   ) =>
-  [(Int, Pil.Statement a)] ->
+  [(Int, Pil.AddressableStatement a)] ->
   m ()
 prettyIndexedStmts' = prettyPrint' . PIndexedStmts
 

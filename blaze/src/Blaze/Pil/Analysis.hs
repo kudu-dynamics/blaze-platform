@@ -63,8 +63,8 @@ import qualified Data.Set as Set
 
 
 getDefinedVar :: Stmt -> Maybe PilVar
-getDefinedVar (Def d) = Just $ d ^. #var
-getDefinedVar (Pil.DefPhi d) = Just $ d ^. #dest
+getDefinedVar (Pil.Stmt _ (Def d)) = Just $ d ^. #var
+getDefinedVar (Pil.Stmt _ (Pil.DefPhi d)) = Just $ d ^. #dest
 getDefinedVar _ = Nothing
 
 getDefinedVars :: [Stmt] -> HashSet PilVar
@@ -87,7 +87,7 @@ getVarsFromStmt s = foldr f init s
     f x = HSet.union (getVarsFromExpr x)
 
 getRefVars_ :: Stmt -> HashSet PilVar
-getRefVars_ (Pil.DefPhi defPhiOp) = HSet.fromList $ defPhiOp ^. #src
+getRefVars_ (Pil.Stmt _ (Pil.DefPhi defPhiOp)) = HSet.fromList $ defPhiOp ^. #src
 getRefVars_ stmt = HSet.fromList . concatMap getVarsFromExpr_ $ stmt
 
 -- | Get all vars references in any of the provided statements.
@@ -114,8 +114,8 @@ substVarsInExpr = recurSubst
 
 -- | ignores left side of Def, Store, and DefPhi
 substVars_ :: (PilVar -> PilVar) -> Stmt -> Stmt
-substVars_ f (Pil.DefPhi (Pil.DefPhiOp pv vs)) =
-  Pil.DefPhi . Pil.DefPhiOp pv . List.nub . fmap f $ vs
+substVars_ f (Pil.Stmt addr (Pil.DefPhi (Pil.DefPhiOp pv vs))) =
+  Pil.Stmt addr . Pil.DefPhi . Pil.DefPhiOp pv . List.nub . fmap f $ vs
 substVars_ f s = fmap (substVarsInExpr f) s
 
 substVars :: (PilVar -> PilVar) -> [Stmt] -> [Stmt]
@@ -196,9 +196,9 @@ originMapToGroups :: Hashable a
 originMapToGroups = HSet.fromList . HMap.elems . originMapToGroupMap
 
 updateOriginMap :: Stmt -> EqMap PilVar -> EqMap PilVar
-updateOriginMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
+updateOriginMap (Pil.Stmt _ (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2)))))) m =
   addToOriginMap_ v1 v2 m
-updateOriginMap (Def (Pil.DefOp v1 _)) m =
+updateOriginMap (Pil.Stmt _ (Def (Pil.DefOp v1 _))) m =
   addToOriginMap_ v1 v1 m
 updateOriginMap _ m = m
 
@@ -213,7 +213,7 @@ putOriginMap xs = #originMap .= Just (getOriginMap xs)
 -----------------
 
 updateVarEqMap :: Stmt -> EqMap PilVar -> EqMap PilVar
-updateVarEqMap (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2))))) m =
+updateVarEqMap (Pil.Stmt _ (Def (Pil.DefOp v1 (Expression _ (Pil.VAR (Pil.VarOp v2)))))) m =
   HMap.insert v1 v2 m
 updateVarEqMap _ m = m
 
@@ -242,8 +242,8 @@ buildConstPropState =
       { _exprMap = HMap.insert var cnst (_exprMap s)
       , _stmts = Set.insert stmt (_stmts s)
       }
-  f constPropState stmt =
-    case stmt of
+  f constPropState stmt@(Pil.Stmt _ statement) =
+    case statement of
       (Pil.Def (Pil.DefOp var (Pil.Expression sz (Pil.CONST constOp)))) ->
         addConst constPropState stmt var (Pil.Expression sz (Pil.CONST constOp))
       _ ->
@@ -303,8 +303,8 @@ _foldCopyPropState :: [Stmt] -> CopyPropState
 _foldCopyPropState = foldr f (CopyPropState HMap.empty Set.empty)
   where
     f :: Stmt -> CopyPropState -> CopyPropState
-    f stmt copyPropState =
-      case stmt of
+    f stmt@(Pil.Stmt _ statement) copyPropState =
+      case statement of
         (Pil.Def (Pil.DefOp lhVar (Pil.Expression _ (Pil.VAR (Pil.VarOp rhVar)))))
           | lhVar == rhVar ->
               -- let msg = cs $ "Warning in _foldCopyPropState: self-assignemnt ("
@@ -345,7 +345,7 @@ copyProp :: [Stmt] -> [Stmt]
 copyProp xs = _copyProp (buildCopyPropState xs) xs
 
 isUnusedDef :: HashSet PilVar -> Stmt -> Bool
-isUnusedDef refs (Pil.Def (Pil.DefOp v _)) = not $ HSet.member v refs
+isUnusedDef refs (Pil.Stmt _ (Pil.Def (Pil.DefOp v _))) = not $ HSet.member v refs
 isUnusedDef _ _ = False
 
 removeUnusedDef :: HashSet PilVar -> [Stmt] -> [Stmt]
@@ -361,7 +361,7 @@ fixedRemoveUnusedDef :: [Stmt] -> [Stmt]
 fixedRemoveUnusedDef = fixedRemoveUnusedDef_ 100
 
 isUnusedPhi :: HashSet PilVar -> Stmt -> Bool
-isUnusedPhi refs (Pil.DefPhi (Pil.DefPhiOp v _)) = not $ HSet.member v refs
+isUnusedPhi refs (Pil.Stmt _ (Pil.DefPhi (Pil.DefPhiOp v _))) = not $ HSet.member v refs
 isUnusedPhi _ _ = False
 
 -- | Checks if the variable assigned to in a 'DefPhi' statement is ever used. If not, remove the
@@ -381,16 +381,17 @@ fixedRemoveUnusedPhi :: [Stmt] -> [Stmt]
 fixedRemoveUnusedPhi = fixedRemoveUnusedPhi_ 100
 
 reducePhi :: HashSet PilVar -> Stmt -> Maybe Stmt
-reducePhi undefVars stmt = case stmt of
+reducePhi undefVars stmt@(Pil.Stmt addr statement) = case statement of
   Pil.DefPhi (Pil.DefPhiOp dstVar vars) ->
     case vars' of
       [] -> Nothing
-      [x] -> Just $
-        Pil.Def $
-          Pil.DefOp
+      [x] -> Just
+        . Pil.Stmt addr
+        . Pil.Def
+        $ Pil.DefOp
             dstVar
             (Pil.Expression (fromByteBased $ x ^. #size) (Pil.VAR (Pil.VarOp x)))
-      xs -> Just $ Pil.DefPhi $ Pil.DefPhiOp dstVar xs
+      xs -> Just . Pil.Stmt addr . Pil.DefPhi $ Pil.DefPhiOp dstVar xs
    where
     vars' = filter (not . (`HSet.member` undefVars)) vars
   _ -> Just stmt
@@ -402,7 +403,7 @@ reducePhis undefVars =
 --------------- MEMORY --------------------
 
 usesAddr :: MemAddr -> Stmt -> Bool
-usesAddr addr stmt = case stmt of
+usesAddr addr (Pil.Stmt _ statement) = case statement of
   Pil.Def Pil.DefOp {value = Pil.Expression {op = (Pil.LOAD loadOp)}} ->
     (loadOp ^. #src) == coerce addr
   Pil.Store storeOp ->
@@ -410,7 +411,7 @@ usesAddr addr stmt = case stmt of
   _ -> False
 
 usesStorage :: MemStorage -> Stmt -> Bool
-usesStorage storage stmt = case stmt of
+usesStorage storage (Pil.Stmt _ statement) = case statement of
   Pil.Def Pil.DefOp {value = expr@Pil.Expression {op = (Pil.LOAD loadOp)}} ->
     loadStorage == storage
     where
@@ -436,12 +437,13 @@ getStorage = \case
 -- | A store of the form `[addr] = [addr]` where the value at
 -- the address is loaded and then stored.
 isNopStore :: Stmt -> Bool
-isNopStore (Pil.Store
-             (Pil.StoreOp
-               storeAddr
-               (Expression _
-                 (Pil.LOAD
-                   (Pil.LoadOp loadAddr))))) =
+isNopStore (Pil.Stmt _
+             (Pil.Store
+              (Pil.StoreOp
+                storeAddr
+                (Expression _
+                  (Pil.LOAD
+                    (Pil.LoadOp loadAddr)))))) =
   storeAddr == loadAddr
 isNopStore _ = False
 
@@ -458,7 +460,7 @@ _findLoads e = case e ^. #op of
 --  I.e., when processing PIL from MLIL SSA we would expect this function to only ever return
 --  a list with a single item.
 findLoads :: Stmt -> [LoadExpr]
-findLoads s = case s of
+findLoads (Pil.Stmt _ statement) = case statement of
   (Pil.Def op) -> _findLoads (op ^. #value)
   (Pil.Store op) -> _findLoads (op ^. #value)
   (Pil.Constraint op) -> _findLoads (op ^. #condition)
@@ -492,7 +494,7 @@ memSubst :: HashMap Word64 Text -> [Stmt] -> [Stmt]
 memSubst valmap = fmap (memSubst' valmap)
 
 mkStoreStmt :: Index -> Stmt -> Maybe StoreStmt
-mkStoreStmt idx s = case s of
+mkStoreStmt idx s@(Pil.Stmt _ statement) = case statement of
   Pil.Store storeOp ->
     Just $ StoreStmt s storeOp storage idx
     where
@@ -501,7 +503,7 @@ mkStoreStmt idx s = case s of
 
 -- | A Def Load statement is "def x = [y]" (load is not nested)
 mkDefLoadStmt :: Index -> Stmt -> Maybe DefLoadStmt
-mkDefLoadStmt idx s = case s of
+mkDefLoadStmt idx s@(Pil.Stmt _ statement) = case statement of
   Pil.Def (Pil.DefOp pv expr@Pil.Expression {op = (Pil.LOAD loadOp)}) ->
     Just . DefLoadStmt pv $ LoadStmt s (LoadExpr expr) storage idx
     where
@@ -523,7 +525,7 @@ mkNestedLoadStmts idx s = loadExprToLoadStmt idx s `mapMaybe` findLoads s
 -- | Creates MemStmts.
 -- a statement can have multiple loads and will generate one memstmt for each load
 mkMemStmt :: Index -> Stmt -> Maybe [MemStmt]
-mkMemStmt idx s = case s of
+mkMemStmt idx s@(Pil.Stmt _ statement) = case statement of
   Pil.Def Pil.DefOp {value = Pil.Expression {op = (Pil.LOAD _)}} ->
     (: []) . MemDefLoadStmt <$> mkDefLoadStmt idx s
   Pil.Store _ -> do
@@ -656,7 +658,7 @@ resolveMemGroups groups stmts = toList result
     f (group, symbol) = resolveMemGroup group symbol
 
 replaceStore :: StoreStmt -> Symbol -> Seq Stmt -> Seq Stmt
-replaceStore store symbol = update storeIdx varDef
+replaceStore store symbol = update storeIdx $ store ^. #stmt & #statement .~ varDef
   where
     storeIdx = store ^. #index
     storedVal = store ^. (#op . #value)
@@ -687,12 +689,13 @@ propInfoForMemGroup mg = do
       storageExpr = mg ^. #storage . #start
       storageWidth = fromIntegral . (`div` 8) $ mg ^. #storage . #width
       loadExpr = C.load storageExpr storageWidth
-      defStmt' = Pil.Def (Pil.DefOp (pv $ fromByteBased storageWidth) loadExpr)
+      defStmtAddr = maybe 0 (view $ #stmt . #addr) $ mg ^. #store
+      defStatement = Pil.Def (Pil.DefOp (pv $ fromByteBased storageWidth) loadExpr)
       pvExpr = C.var s $ storageExpr ^. #size
   return $
     PropInfo
       { substMap = mkSubstMap pvExpr allLoads
-      , defStmt = defStmt'
+      , defStmt = Pil.Stmt defStmtAddr defStatement
       , defAfterIndex = view #index <$> mg ^. #store
       }
   where
@@ -875,20 +878,21 @@ substArrayOrFieldAddr x = case parseFieldAddr x of
 substAddr_ :: (Expression -> Analysis Expression)
            -> Stmt
            -> Analysis Stmt
-substAddr_ addrParser stmt = case stmt of
+substAddr_ addrParser stmt@(Pil.Stmt addr statement) = case statement of
   Pil.Def (Pil.DefOp var value) ->
-    Pil.Def . Pil.DefOp var <$> parseLoad value
-  Pil.Store (Pil.StoreOp addr value) ->
-    fmap Pil.Store . Pil.StoreOp
-      <$> addrParser addr
+    mkStmt . Pil.Def . Pil.DefOp var <$> parseLoad value
+  Pil.Store (Pil.StoreOp addr' value) ->
+    fmap (mkStmt . Pil.Store) . Pil.StoreOp
+      <$> addrParser addr'
       <*> parseLoad value
   Pil.Constraint (Pil.ConstraintOp cond) ->
-    Pil.Constraint . Pil.ConstraintOp <$> parseLoad cond
+    mkStmt . Pil.Constraint . Pil.ConstraintOp <$> parseLoad cond
   Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) -> do
     cx <- parseLoad expr
-    return $ Pil.Call (callOp & #dest .~ Pil.CallExpr cx)
+    return . mkStmt $ Pil.Call (callOp & #dest .~ Pil.CallExpr cx)
   _ -> return stmt
   where
+    mkStmt = Pil.Stmt addr
     parseLoad = substExprInExprM $ parseAddrInLoad addrParser
 
 substZeroOffsetFields :: Expression -> Analysis Expression
@@ -921,16 +925,17 @@ substAddrs stmts = A.runAnalysis_ $ do
 getDataDependenceGraph :: [Stmt] -> DataDependenceGraph
 getDataDependenceGraph = foldl' (flip f) G.empty
   where
-    f (Pil.Def d) = G.addNodes [dest] . G.addEdges edges
-      where
-        vars = getVarsFromExpr_ $ d ^. #value
-        dest = d ^. #var
-        edges = G.LEdge () . flip G.Edge dest <$> vars
-    f (Pil.DefPhi d) = G.addNodes [dest] . G.addEdges edges
-      where
-        dest = d ^. #dest
-        edges = G.LEdge () . flip G.Edge dest <$> d ^. #src
-    f _ = identity
+    f (Pil.Stmt _ statement) = case statement of
+      (Pil.Def d) -> G.addNodes [dest] . G.addEdges edges
+        where
+          vars = getVarsFromExpr_ $ d ^. #value
+          dest = d ^. #var
+          edges = G.LEdge () . flip G.Edge dest <$> vars
+      (Pil.DefPhi d) -> G.addNodes [dest] . G.addEdges edges
+        where
+          dest = d ^. #dest
+          edges = G.LEdge () . flip G.Edge dest <$> d ^. #src
+      _ -> identity
 
 -- | Converts a data dependence graph to a map of vars that point to
 --   any vars that share dependence.

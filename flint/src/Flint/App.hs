@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Flint.App where
 
 import Flint.Prelude
@@ -7,7 +9,9 @@ import Blaze.Import.CallGraph (CallGraphImporter)
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 import Blaze.Import.Pil (PilImporter)
 
+#ifdef FLINT_SUPPORT_BINARYNINJA
 import Blaze.Import.Source.BinaryNinja (BNImporter)
+#endif
 import Blaze.Import.Source.Ghidra qualified as G
 
 import Blaze.Types.Cfg (PilNode)
@@ -15,16 +19,24 @@ import Blaze.Types.Cfg (PilNode)
 import qualified Data.Text as Text
 
 data Backend
-  = BinaryNinja
-  | Ghidra
+  = Ghidra
+#ifdef FLINT_SUPPORT_BINARYNINJA
+  | BinaryNinja
+#endif
   deriving (Eq, Ord, Read, Show)
 
 defaultBackend :: Backend
+#ifdef FLINT_SUPPORT_BINARYNINJA
 defaultBackend = BinaryNinja
+#else
+defaultBackend = Ghidra
+#endif
 
 guessFileBackend :: FilePath -> Maybe Backend
 guessFileBackend fp
+#ifdef FLINT_SUPPORT_BINARYNINJA
   | Text.isSuffixOf ".bndb" fp' = Just BinaryNinja
+#endif
   | Text.isSuffixOf ".gzf" fp' = Just Ghidra
   | otherwise = Nothing
   where
@@ -51,7 +63,7 @@ withBackend mBackend fp action = do
   let (msg :: Text, backend') = case (mBackend, guessFileBackend fp) of
         (Nothing, Nothing) ->
           ( "Opening binary with default backend (" <> show defaultBackend <> ")"
-          , BinaryNinja
+          , defaultBackend
           )
         (Nothing, Just b) ->
           ( "Opening " <> show b <> " db with " <> show b <> " backend"
@@ -72,11 +84,13 @@ withBackend mBackend fp action = do
             )
   putText msg
   case backend' of
+#ifdef FLINT_SUPPORT_BINARYNINJA
     BinaryNinja -> do
       (ebv :: Either Text BNImporter) <- openBinary fp
       either (error . cs) action ebv
         `finally`
         shutdown @BNImporter
+#endif
 
     Ghidra -> do
       (egz :: Either Text G.GhidraImporter) <- openBinary fp

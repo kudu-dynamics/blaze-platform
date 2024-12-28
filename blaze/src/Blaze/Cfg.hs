@@ -10,7 +10,7 @@ import qualified Blaze.Graph as G
 import Blaze.Prelude
 import Blaze.Types.Cfg as Exports
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Pil (BranchCondOp, Expression, PilVar, Statement (Exit, NoRet), Stmt, Ctx)
+import Blaze.Types.Pil (BranchCondOp, Expression, PilVar, Statement (Exit, NoRet), AddressableStatement, Stmt, Ctx)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkDummyCtx, mkDummyTermNode)
 import Control.Lens (set)
@@ -43,26 +43,26 @@ lastStmtFrom = lastMay . view #nodeData
 
 parseReturnNode :: BasicBlockNode [Stmt] -> Maybe (ReturnNode [Stmt])
 parseReturnNode node = do
-  retOp_ <- lastStmtFrom node >>= preview #_Ret
+  retOp_ <- lastStmtFrom node >>= preview (#statement . #_Ret)
   return $ ReturnNode node retOp_
 
 parseExitNode :: BasicBlockNode [Stmt] -> Maybe (ExitNode [Stmt])
 parseExitNode node = do
-  lastStmt <- lastStmtFrom node
+  (Pil.Stmt _ lastStmt) <- lastStmtFrom node
   case lastStmt of
     Exit -> return $ ExitNode node
     _ -> Nothing
 
 parseNoRetNode :: BasicBlockNode [Stmt] -> Maybe (NoRetNode [Stmt])
 parseNoRetNode node = do
-  lastStmt <- lastStmtFrom node
+  (Pil.Stmt _ lastStmt) <- lastStmtFrom node
   case lastStmt of
     NoRet -> return $ NoRetNode node
     _ -> Nothing
 
 parseJumpNode :: BasicBlockNode [Stmt] -> Maybe (JumpNode [Stmt])
 parseJumpNode node = do
-  jumpOp <- lastStmtFrom node >>= preview #_Jump
+  jumpOp <- lastStmtFrom node >>= preview (#statement . #_Jump)
   return $ JumpNode node jumpOp
 
 parseTerminalNode :: CfNode [Stmt] -> TerminalNode [Stmt]
@@ -81,7 +81,7 @@ parseBranchNode
   -> Maybe (BranchNode [Stmt])
 parseBranchNode getStmts node = do
   bb <- node ^? #_BasicBlock
-  lastStmt <- lastMay $ getStmts node
+  (Pil.Stmt _ lastStmt) <- lastMay $ getStmts node
   case lastStmt of
     Pil.BranchCond op -> Just $ BranchNode bb op
     _ -> Nothing
@@ -152,26 +152,25 @@ getOutBranchingType n cfg = case outBranches of
   this returns which branch remains (True or False) and the conditional expr.
   TODO: Rerwrite this for clarity
 -}
-getBranchCondNode ::
-  forall a b.
-  Hashable a =>
-  (a -> (Maybe Int, Statement b)) ->
-  CfNode [a] ->
-  Cfg (CfNode [a]) ->
-  Maybe (BranchCond (CfNode [a]) b)
+getBranchCondNode
+  :: forall a b. Hashable a
+  => (a -> (Maybe Int, AddressableStatement b))
+  -> CfNode [a]
+  -> Cfg (CfNode [a])
+  -> Maybe (BranchCond (CfNode [a]) b)
 getBranchCondNode extractIndexStmt n cfg = mcond <*> getOutBranchingType n cfg
  where
   mcond =
     lastMay (getNodeData n)
       >>= ( \case
-              (i, Pil.BranchCond (Pil.BranchCondOp x)) -> Just $ BranchCond i x
+              (i, Pil.Stmt _ (Pil.BranchCond (Pil.BranchCondOp x))) -> Just $ BranchCond i x
               _ -> Nothing
           )
         . extractIndexStmt
 
 getBranchCondNodes
   :: (Hashable a, Identifiable (CfNode [a]) UUID)
-  => (a -> (Maybe Int, Statement b))
+  => (a -> (Maybe Int, AddressableStatement b))
   -> Cfg (CfNode [a])
   -> [BranchCond (CfNode [a]) b]
 getBranchCondNodes extractIndexStmt typedCfg = mapMaybe (flip (getBranchCondNode extractIndexStmt) typedCfg)

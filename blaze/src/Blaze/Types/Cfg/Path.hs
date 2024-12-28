@@ -166,26 +166,29 @@ toStmts p = concatMap getStmtsFromEdge (snd $ P.toEdgeList p) <> Cfg.getNodeData
         -- To make this more reliable, we could add an `args :: [Pil.Expression]`
         -- field to the `Cfg.EnterFuncNode a` type. 
         getArgs' :: Cfg.EnterFuncNode [Stmt] -> [Pil.Expression]
-        getArgs' (Cfg.EnterFuncNode _ _ _ xs) = getArg <$> xs
+        getArgs' (Cfg.EnterFuncNode _ _ _ _ xs) = getArg <$> xs
           where
-            getArg (Pil.Def x) = x ^. #value
+            getArg (Pil.Stmt _ (Pil.Def x)) = x ^. #value
             getArg _ = error "Unexpected arg format"
         ndata :: [Stmt]
         ndata = (<> Cfg.getNodeData a) $ case a of
-          Cfg.EnterFunc x -> [ Pil.EnterContext
+          Cfg.EnterFunc x -> [ Pil.Stmt (x ^. #callSiteAddress)
+                               . Pil.EnterContext
                                . Pil.EnterContextOp (x ^. #nextCtx)
                                $ getArgs' x
                              ]
-          Cfg.LeaveFunc x -> [ Pil.ExitContext
+          Cfg.LeaveFunc x -> [ Pil.Stmt (x ^. #callSiteAddress)
+                               . Pil.ExitContext
                                $ Pil.ExitContextOp (x ^. #prevCtx) (x ^. #nextCtx)
                              ]
           _ -> []
         changeLastStmtToConstraint isTrueBranch = case lastMay ndata of
           Nothing -> ndata
-          Just stmt -> case stmt of
+          Just (Pil.Stmt stmtAddr statement) -> case statement of
             Pil.BranchCond (Pil.BranchCondOp cond) ->
               take (length ndata - 1) ndata
-              <> [ Pil.Constraint
+              <> [ Pil.Stmt stmtAddr
+                   . Pil.Constraint
                    . Pil.ConstraintOp
                    $ bool (C.not cond $ cond ^. #size) cond isTrueBranch
                  ]

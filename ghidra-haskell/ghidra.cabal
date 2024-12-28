@@ -15,7 +15,7 @@ author:         Matt (drone) Revelle <drone@kududyn.com>,
 maintainer:     Matt (drone) Revelle <drone@kududyn.com>,
                 Matt Parker <mp@kududyn.com>,
                 Kevin Orr <kevino@kududyn.com>
-copyright:      2022 Kudu Dynamics
+copyright:      2024 Kudu Dynamics
 license:        BSD-2-Clause
 license-file:   LICENSE
 build-type:     Simple

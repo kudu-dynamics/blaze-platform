@@ -237,7 +237,7 @@ convertToPilCfg
   => GhidraState
   -> Ctx
   -> Cfg (CfNode [(Address, PcodeOp a)])
-  -> IO (HashMap PilVar VarNode, [PilConv.PCodeOpToPilStmtConversionError], Cfg (CfNode [(Address, Pil.Stmt)]))
+  -> IO (HashMap PilVar VarNode, [PilConv.PCodeOpToPilStmtConversionError], Cfg (CfNode [Pil.Stmt]))
 convertToPilCfg gs ctx cfg = do
   let convState = PilConv.mkConverterState gs ctx
 
@@ -255,7 +255,7 @@ convertIndexedPcodeOpToPilStmt
   :: (IsVariable a, Show a)
   => Ctx
   -> (Address, PcodeOp a)
-  -> ExceptT PilConv.PCodeOpToPilStmtConversionError PilConv.Converter [(Address, Pil.Stmt)]
+  -> ExceptT PilConv.PCodeOpToPilStmtConversionError PilConv.Converter [Pil.Stmt]
 convertIndexedPcodeOpToPilStmt ctx (addr, op) = do
   modifyError
     (\e ->
@@ -265,22 +265,22 @@ convertIndexedPcodeOpToPilStmt ctx (addr, op) = do
         , failedOp = show <$> op
         , conversionError = e
         })
-  . fmap (fmap (addr,))
-  $ PilConv.convertPcodeOpToPilStmt op
+  . fmap (fmap $ Pil.Stmt addr)
+  $ PilConv.convertPcodeOpToPilStatement op
   where
     modifyError :: Functor m => (e -> e') -> ExceptT e m a -> ExceptT e' m a
     modifyError f m = ExceptT . fmap (first f) $ runExceptT m
 
 splitCallsInCfg
   :: Ctx
-  -> Cfg (CfNode [(Address, Pil.Stmt)])
-  -> IO (Cfg (CfNode [(Address, Pil.Stmt)]))
+  -> Cfg (CfNode [ Pil.Stmt])
+  -> IO (Cfg (CfNode [Pil.Stmt]))
 splitCallsInCfg ctx cfg = foldM splitAndReplace cfg . Cfg.nodes $ cfg
   where
     splitAndReplace
-      :: Cfg (CfNode [(Address, Pil.Stmt)])
-      -> CfNode [(Address, Pil.Stmt)]
-      -> IO (Cfg (CfNode [(Address, Pil.Stmt)]))
+      :: Cfg (CfNode [Pil.Stmt])
+      -> CfNode [Pil.Stmt]
+      -> IO (Cfg (CfNode [Pil.Stmt]))
     splitAndReplace cfg' node = splitNodeOnCalls ctx node >>= \case
       Nothing -> return cfg'
       Just allNodesNE@(rootSplitNode :| splitNodes) -> do
@@ -292,10 +292,10 @@ splitCallsInCfg ctx cfg = foldM splitAndReplace cfg . Cfg.nodes $ cfg
 -- | Splits basic blocks that have calls. Returns Nothing if no change was made.
 splitNodeOnCalls
   :: Ctx
-  -> CfNode [(Address, Pil.Stmt)]
-  -> IO (Maybe (NonEmpty (CfNode [(Address, Pil.Stmt)])))
+  -> CfNode [Pil.Stmt]
+  -> IO (Maybe (NonEmpty (CfNode [Pil.Stmt])))
 splitNodeOnCalls ctx' cnode = do
-  xs <- groupNodes . fmap (fmap isCallOrNot) . Cfg.getNodeData $ cnode
+  xs <- groupNodes . fmap isCallOrNot . Cfg.getNodeData $ cnode
   return $ case xs of
     [] -> Nothing
     -- There's an 'if' and `==` here because an input CfNode could have a single
@@ -306,26 +306,26 @@ splitNodeOnCalls ctx' cnode = do
     -- | Take non-call statements up to a Call or end. Returns:
     --   (addr of last stmt, non-call stmts, remaining list)
     takeWhileNotCall
-      :: [(Address, Either Pil.Stmt Pil.CallStatement)]
+      :: [Either Pil.Stmt Pil.CallStatement]
       -> Address
-      -> (Address, [(Address, Pil.Stmt)], [(Address, Either Pil.Stmt Pil.CallStatement)])
+      -> (Address, [Pil.Stmt], [Either Pil.Stmt Pil.CallStatement])
     takeWhileNotCall [] lastAddr = (lastAddr, [], [])
-    takeWhileNotCall xs@((_, Right _):_) lastAddr = (lastAddr, [], xs)
-    takeWhileNotCall ((addr, Left stmt):xs) _ = takeWhileNotCall xs addr & _2 %~ ((addr, stmt):)
+    takeWhileNotCall xs@((Right _):_) lastAddr = (lastAddr, [], xs)
+    takeWhileNotCall ((Left stmt@(Pil.Stmt addr _)):xs) _ = takeWhileNotCall xs addr & _2 %~ (stmt:)
 
-    groupNodes :: [(Address, Either Pil.Stmt Pil.CallStatement)] -> IO [CfNode [(Address, Pil.Stmt)]]
+    groupNodes :: [Either Pil.Stmt Pil.CallStatement] -> IO [CfNode [Pil.Stmt]]
     groupNodes [] = return []
-    groupNodes ((addr, Right cstmt):xs) = do
+    groupNodes ((Right cstmt):xs) = do
       uuid <- randomIO
       let callNode = Cfg.Call $ Cfg.CallNode
                      { ctx = ctx'
-                     , start = addr
+                     , start = cstmt ^. #stmt . #addr
                      , callDest = Pil.getCallDest cstmt
                      , uuid = uuid
-                     , nodeData = [(addr, cstmt ^. #stmt)]
+                     , nodeData = [cstmt ^. #stmt]
                      }
       (callNode:) <$> groupNodes xs
-    groupNodes (x@(firstAddr, Left _):xs) = do
+    groupNodes (x@(Left (Pil.Stmt firstAddr _)):xs) = do
       let (lastAddr, nonCallStmts, restXs) = takeWhileNotCall (x:xs) firstAddr
       case nonCallStmts of
         [] -> groupNodes restXs
@@ -349,7 +349,7 @@ getPilCfg
   -> GhidraState
   -> Function
   -> CtxId
-  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [(Address, Pil.Stmt)]))))
+  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfg pcodeCfgGetter gs func ctxId = do
   let ctx = Ctx func ctxId
   pcodeCfgGetter gs func ctxId >>= \case
@@ -372,12 +372,12 @@ getPilCfgFromRawPcode
   :: GhidraState
   -> Function
   -> CtxId
-  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [(Address, Pil.Stmt)]))))
+  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfgFromRawPcode = getPilCfg getRawPcodeCfg
 
 getPilCfgFromHighPcode
   :: GhidraState
   -> Function
   -> CtxId
-  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [(Address, Pil.Stmt)]))))
+  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfgFromHighPcode = getPilCfg getHighPcodeCfg
