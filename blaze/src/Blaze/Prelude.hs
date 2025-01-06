@@ -28,6 +28,7 @@ module Blaze.Prelude
   , unsafeFromRight
   , ByteBased(toBytes_, fromBytes_)
   , fromByteBased
+  , warn
   ) where
 
 import qualified Prelude as P
@@ -255,3 +256,6 @@ fromByteBased = fromBytes_ . toBytes_
 instance ByteBased Bytes
 instance ByteBased ByteOffset
 instance ByteBased Address
+
+warn :: Text -> IO ()
+warn = hPutStrLn stderr

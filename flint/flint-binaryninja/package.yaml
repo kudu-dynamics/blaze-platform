@@ -19,6 +19,7 @@ dependencies:
   - blaze
   - blaze-binaryninja
   - flint
+  - text
   - unordered-containers
 
 language: GHC2021

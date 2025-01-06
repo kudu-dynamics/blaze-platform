@@ -6,7 +6,6 @@ module Flint.Prelude
   , mapMaybeConcurrently
   , removeNth
   , tryError
-  , warn
   ) where
 
 import Blaze.Prelude as Exports hiding (Symbol)
@@ -55,6 +54,3 @@ catHashMapMaybes = HashMap.fromList . mapMaybe f . HashMap.toList
   where
     f (_, Nothing) = Nothing
     f (k, Just v) = Just (k, v)
-
-warn :: Text -> IO ()
-warn = hPutStrLn stderr

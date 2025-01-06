@@ -1,6 +1,9 @@
 stack_options := ""
 stack_build_options := ""
 
+default:
+    just --list
+
 test-flint: test-flint-general test-flint-binaryninja
 test-flint-general: (test "flint:flint-general-test")
 test-flint-binaryninja: (test "flint-binaryninja:flint-binaryninja-test")

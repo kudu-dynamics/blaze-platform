@@ -214,12 +214,12 @@ unsatBranches ddg typedCfg = case undecidedBranchCondNodes of
     findRemoveableUnsats xs = do
       (BranchCheckAccum condsToRecheck edgesToRemove) <-
         foldM checkBranchCond (BranchCheckAccum [] []) xs
-      if null edgesToRemove then
-        return []
-      else do
-        edgesToRemove' <- findRemoveableUnsats condsToRecheck
-        return $ edgesToRemove <> edgesToRemove'
-       where
+      case null edgesToRemove of
+        True -> return []
+        False -> do
+          edgesToRemove' <- findRemoveableUnsats condsToRecheck
+          return $ edgesToRemove <> edgesToRemove'
+      where
         -- | Check an individual branch condition. If a conditional edge is unsat,
         -- that edge is added to `edgesToRemove` and the constraint implied by the
         -- remaining edge is added to the assertion stack.
