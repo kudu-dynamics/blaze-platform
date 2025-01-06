@@ -48,6 +48,7 @@ library
       Flint.Types.Query
       Flint.Util
   other-modules:
+      Flint.Types.CallGraph
       Flint.Types.Cfg
       Paths_flint
   autogen-modules:
@@ -505,6 +506,80 @@ executable kernel
       Paths_flint
   hs-source-dirs:
       demo/Kernel
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DuplicateRecordFields
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      NoMonomorphismRestriction
+      OverloadedLabels
+      OverloadedStrings
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , aeson-pretty
+    , algebraic-graphs
+    , async
+    , base >=4.7 && <5
+    , bimap
+    , binary-analysis
+    , blaze
+    , bv
+    , bytestring
+    , casing
+    , constraints
+    , containers
+    , data-binary-ieee754
+    , directory
+    , dlist
+    , envy
+    , extra
+    , flint
+    , generic-lens
+    , generics-sop
+    , ghidra
+    , hashable
+    , lens
+    , list-t
+    , megaparsec
+    , mtl
+    , newtype
+    , parser-combinators
+    , pretty-simple
+    , random
+    , raw-strings-qq
+    , recursion-schemes
+    , regex-tdfa
+    , relude
+    , sbv
+    , selda
+    , selda-sqlite
+    , stm
+    , string-conversions
+    , template-haskell
+    , text
+    , time
+    , transformers
+    , unordered-containers
+    , uuid >=1.3.14
+    , vector
+  default-language: GHC2021
+
+executable plt_thunk
+  main-is: Main.hs
+  other-modules:
+      Paths_flint
+  autogen-modules:
+      Paths_flint
+  hs-source-dirs:
+      demo/plt_thunk
   default-extensions:
       AllowAmbiguousTypes
       DataKinds

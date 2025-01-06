@@ -23,10 +23,10 @@ data CfgInfo = CfgInfo
 -- | Mapping of function name to its cfg.
 -- TODO: make this into sqlite db
 data CfgStore = CfgStore
-  { cfgCache :: CachedCalc Function (Maybe CfgInfo) -- TODO: get rid of Maybe
+  { cfgCache :: CachedCalc Function (Maybe CfgInfo)
   , ancestorsCache :: CachedCalc Function (HashSet Function)
   , descendantsCache :: CachedCalc Function (HashSet Function)
-  , funcs :: [Function] -- result of `getFunctions` from CallGraph importer
+  , funcs :: CachedCalc () [Function] -- result of `getFunctions` from CallGraph importer
   -- a dirty trick to use the CC machinery to get CG on demand
   , callGraphCache :: CachedCalc () CallGraph
   -- CallGraph, but all the edges are reversed. Useful for getting ancestors

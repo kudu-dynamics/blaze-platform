@@ -8,6 +8,7 @@ import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
+import qualified Flint.Types.CachedCalc as CC
 import Flint.Util (sequentialPutText)
 
 import Blaze.Function (Function)
@@ -120,7 +121,8 @@ printJSON res = do
 defaultCheck :: Options -> IO ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-
+  funcs <- CC.get_ $ store ^. #funcs
+  
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
           { callExpandDepthLimit = opts ^. #expandCallDepth
@@ -131,7 +133,5 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
       bms =
         [ Pat.incrementWithoutCheck
         ]
-      funcs :: HashSet Function
-      funcs = HashSet.fromList $ store ^. #funcs
   let output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
-  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output funcs
+  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output $ HashSet.fromList funcs

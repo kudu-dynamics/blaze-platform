@@ -56,5 +56,6 @@ test-suite flint-binaryninja-test
     , blaze-binaryninja
     , flint
     , hspec
+    , text
     , unordered-containers
   default-language: GHC2021

@@ -44,13 +44,13 @@ isThunk :: J.Function -> Ghidra Bool
 isThunk func = runIO $ Java.call func "isThunk"
 
 -- | Only safe if `isThunk func` is True.
-unsafeGetThunkedFunction :: J.Function -> Ghidra J.Function
-unsafeGetThunkedFunction func = runIO $ Java.call func "getThunkedFunction" False
+unsafeGetThunkedFunction :: Bool -> J.Function -> Ghidra J.Function
+unsafeGetThunkedFunction recursive func = runIO $ Java.call func "getThunkedFunction" recursive
 
-getThunkedFunction :: J.Function -> Ghidra (Maybe J.Function)
-getThunkedFunction func = isThunk func >>= \case
+getThunkedFunction :: Bool -> J.Function -> Ghidra (Maybe J.Function)
+getThunkedFunction recursive func = isThunk func >>= \case
   False -> return Nothing
-  True -> Just <$> unsafeGetThunkedFunction func
+  True -> Just <$> unsafeGetThunkedFunction recursive func
 
 resolveThunk :: J.Function -> Ghidra J.Function
 resolveThunk func = do
@@ -154,3 +154,8 @@ mkParameter p = runIO $ do
 getParams :: J.Function -> Ghidra [Parameter]
 getParams fn =
   runIO (Java.call fn "getParameters" >>= Java.reify) >>= traverse mkParameter
+
+getExternalLocation :: J.Function -> Ghidra J.ExternalLocationDB
+getExternalLocation fn = runIO $ coerce (Java.call fn "getExternalLocation" :: IO J.ExternalLocation)
+
+

@@ -52,6 +52,9 @@ modifyCalc f k (CachedCalc cc) = do
         let action = atomically (readTMVar tmv) >>= f . Just
         writeTVar cc $ HashMap.insert k (Left action) m
 
+get_ :: CachedCalc () v -> IO v
+get_ = fmap fromJust . get ()
+
 -- | Retrieves the cached calc. Returns Nothing if the key cannot be found.
 -- Otherwise, it will either return `v` or calculate `IO v` then return `v`
 get :: Hashable k => k -> CachedCalc k v -> IO (Maybe v)

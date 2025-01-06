@@ -16,3 +16,11 @@ class CfgImporter a where
     -> Function
     -> CtxId
     -> IO (Maybe (ImportResult (NodeMapType a) (Cfg (NodeDataType a))))
+
+getCfg_
+  :: CfgImporter a
+  => a
+  -> Function
+  -> CtxId
+  -> IO (Maybe (Cfg (NodeDataType a)))
+getCfg_ imp func = fmap (fmap $ view #result) . getCfg imp func
