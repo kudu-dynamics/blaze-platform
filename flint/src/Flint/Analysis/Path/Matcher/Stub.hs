@@ -44,7 +44,7 @@ runStubMatcher_
 runStubMatcher_ m s = flip runState s . flip runMatcher_ mstate $ m
   where
     solver _ = return $ Sat HashMap.empty
-    mstate = mkMatcherState solver [] []
+    mstate = mkMatcherState solver $ mkPathPrep [] ([] :: [Pil.Stmt])
   
 resolveStubBoundExpr :: StubBoundExpr -> StubMatcher Pil.Expression
 resolveStubBoundExpr (StubBound sym) = lookupBound sym

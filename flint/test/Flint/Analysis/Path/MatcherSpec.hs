@@ -47,7 +47,7 @@ func2 :: Function
 func2 = Function Nothing "CGC_free" 0xAAA []
 
 matchStmtsIO :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> IO MatcherResult
-matchStmtsIO = matchStmts' (solveStmtsWithZ3 Solver.AbortOnError)
+matchStmtsIO tps pats = match' (solveStmtsWithZ3 Solver.AbortOnError) pats . mkPathPrep tps
 
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher" $ do
@@ -56,7 +56,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         solver _ = return $ Solver.Sat HashMap.empty
 
         matchNextStmt_' :: Bool -> [Pil.Stmt] -> StmtPattern -> (MatcherState Identity, Bool)
-        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher solver [] stmts $ do
+        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher solver (mkPathPrep [] stmts) $ do
           matchNextStmt_ tryNextStmtOnFailure pat
 
         matchNextStmt' = matchNextStmt_' True
@@ -77,6 +77,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       expected `shouldBe` actual
       
   context "matchStmts" $ do
+    let pureMatchStmts' tps pats stmts = pureMatch' pats $ mkPathPrep tps (stmts :: [Pil.Stmt])
+        pureMatchStmts tps pats stmts = pureMatch pats $ mkPathPrep tps (stmts :: [Pil.Stmt])
+
     it "should match empty list of stmts when provided no patterns" $ do
       pureMatchStmts' [] [] [] `shouldBe` Match []
 

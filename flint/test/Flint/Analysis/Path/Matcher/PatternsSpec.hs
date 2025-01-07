@@ -6,7 +6,7 @@ import qualified Flint.Analysis.Path.Matcher as M
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import qualified Flint.Cfg.Path as CfgPath
 import qualified Flint.Cfg.Store as CfgStore
-import Flint.Types.Query (getFunction, FuncConfig(FuncSym, FuncAddr), BugMatch)
+import Flint.Types.Query (BugMatch)
 import qualified Flint.Types.Query as Q
 
 import qualified Blaze.Import.CallGraph as CG
@@ -14,12 +14,9 @@ import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import Blaze.Types.Function (Function)
-import qualified Blaze.Types.Graph as G
-import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 
 import Test.Hspec
 
@@ -40,7 +37,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
         funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
         funcHasPattern actuallySolve func bms = do
           paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
-          matcherResults <- traverse (M.matchPath solver [] (bms ^. #pathPattern)) paths
+          matcherResults <- traverse (M.match solver (bms ^. #pathPattern) . M.mkPathPrep []) paths
           let onlyMatches = filter (is #_Match . snd) matcherResults
           return . isJust . headMay $ onlyMatches
           where

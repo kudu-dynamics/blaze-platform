@@ -11,7 +11,7 @@ import Flint.Query
 import Flint.Util (sequentialPutText)
 
 import Blaze.Function (Function)
-import Blaze.Pretty (pretty', prettyPrint')
+import Blaze.Pretty (pretty')
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -127,7 +127,8 @@ printJSON res = do
 defaultCheck :: Options -> IO ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-
+  funcs <- Store.getFuncs store
+  
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
           { callExpandDepthLimit = opts ^. #expandCallDepth
@@ -136,10 +137,7 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
           }
       bms :: [BugMatch]
       bms = Pat.allPatterns
-      funcs :: HashSet Function
-      funcs = HashSet.fromList $ store ^. #funcs
       output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
-  prettyPrint' $ HashSet.toList funcs
 
   when (opts ^. #isKernelModule)
     $ checkKernelLifecycle
@@ -149,4 +147,4 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
       (opts ^. #expandCallDepth)
       output
       
-  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output funcs
+  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output . HashSet.fromList $ funcs

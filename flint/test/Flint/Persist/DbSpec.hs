@@ -23,7 +23,7 @@ spec = describe "Flint.Persist.Db" $ do
   context "CallGraph" $ do
     (bv :: GhidraImporter) <- fmap unsafeFromRight . runIO $ openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
     store <- runIO $ Store.init Nothing bv
-    let funcs = store ^. #funcs
+    funcs <- runIO $ Store.getFuncs store
     cg <- runIO $ getCallGraph bv funcs
     mCg' <- runIO $ withSystemTempFile "dive_callgraph.flint" $ \fp _ -> do
       conn <- Db.init fp

@@ -68,3 +68,27 @@ spec = describe "Ghidra.Function" $ do
       Function.getParams func'
     it "should find params for high func" $ do
       params `shouldBe` []
+
+  context "Thunks" $ do
+    let putsThunkAddr = 0x1030
+    putsThunkFunc <- fmap fromJust . runIO . runGhidraOrError $ do
+      faddr <- State.mkAddressBased gs putsThunkAddr
+      Function.fromAddr gs faddr
+      
+    putsThunkIsThunk <- runIO . runGhidraOrError $ Function.isThunk putsThunkFunc
+
+    it "should identify puts as a thunk" $
+      putsThunkIsThunk `shouldBe` True
+
+    thunkedFuncDest <- runIO . runGhidraOrError $ Function.unsafeGetThunkedFunction True putsThunkFunc
+
+    thunkedFuncDestIsExternal <- runIO . runGhidraOrError $ Function.isExternal thunkedFuncDest
+
+    it "should identify thunk dest as external" $
+      thunkedFuncDestIsExternal `shouldBe` True
+
+    bname <- runIO . runGhidraOrError $ Function.getName thunkedFuncDest
+ 
+    it "should identify dest of dest of puts thunk's thunk as not a thunk" $
+      bname `shouldBe` "puts"
+   

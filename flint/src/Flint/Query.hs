@@ -216,7 +216,7 @@ queryForBugMatch_ actuallySolve maxCallDepthLimit maxSamples store funcMapping r
     solver = if actuallySolve
       then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
       else const . return $ Solver.Sat HashMap.empty
-    getMatch path = (path',) <$> M.matchPath solver [] (bm ^. #pathPattern) path'
+    getMatch path = (path',) <$> M.match solver (bm ^. #pathPattern) (M.mkPathPrep [] path')
       where
         path' = stubPath stubs path
     tryPrepsUntilExhausted prevSamples numSamples preps
@@ -285,7 +285,7 @@ matchNodesFulfillingSeq tps allNodes = fmap getAllMatches
     
     matchesPat :: StmtPattern -> (PilNode, [Pil.Stmt]) -> Maybe PilNode
     matchesPat pat (node, nodeData) =
-      case M.pureMatchStmts' tps [pat] nodeData of
+      case M.pureMatch' [pat] $ M.mkPathPrep tps nodeData of
         M.Match _ -> Just node
         M.NoMatch -> Nothing
 
@@ -612,7 +612,7 @@ queryForBugMatchUsingRoutes actuallySolve imp store routeMakerCtx sampleRoutePre
       then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
       else const . return $ Solver.Sat HashMap.empty
     getMatch ((func, _route), path)
-      = (func, path',) <$> M.matchPath solver [] (bugMatch ^. #pathPattern) path'
+      = (func, path',) <$> M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep taints path')
       where
         path' = stubPath stubs path
 
@@ -626,7 +626,7 @@ checkPathsForBugMatch
   -> BugMatch
   -> [(Function, PilPath)]
   -> IO ()
-checkPathsForBugMatch actuallySolve _taints stubs bugMatch fpaths = do
+checkPathsForBugMatch actuallySolve tps stubs bugMatch fpaths = do
   matches <- traverse getMatch fpaths
   forM_ matches $ \(func, path, (ms, mr)) -> do
     case mr of
@@ -650,7 +650,7 @@ checkPathsForBugMatch actuallySolve _taints stubs bugMatch fpaths = do
       False -> const . return $ Solver.Sat HashMap.empty
       True -> solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
     getMatch (func, path)
-      = (func, path',) <$> M.matchPath solver [] (bugMatch ^. #pathPattern) path'
+      = (func, path',) <$> M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep tps path')
       where
         path' = stubPath stubs path
 
@@ -680,7 +680,7 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
   -- putText $ "Got Some paths: " <> show (length paths)
   forConcurrently_ paths $ \path -> do
     forConcurrently_ bugMatches $ \bugMatch -> do
-      M.matchPath solver [] (bugMatch ^. #pathPattern) path >>= \case
+      M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep [] path) >>= \case
         (_, M.NoMatch) -> return ()
         (ms, M.Match stmtsWithAssertions) -> do
           streamResults $ MatchingResult
@@ -715,7 +715,8 @@ checkKernelLifecycle
   -> (MatchingResult -> IO ())
   -> IO ()
 checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth streamResults = do
-  case (findFuncByName "init_module", findFuncByName "cleanup_module") of
+  funcs <- CfgStore.getFuncs store
+  case (findFuncByName funcs "init_module", findFuncByName funcs "cleanup_module") of
     (Just initFunc, Just cleanupFunc) -> do
       uuidInit <- randomIO
       uuidClean <- randomIO
@@ -781,5 +782,4 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
       putText "Failed to find both `init_module` and `cleanup_module` for kernel"
       return ()
   where
-    findFuncByName t = headMay . filter (\func -> func ^. #name == t) . view #funcs $ store
-  
+    findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
