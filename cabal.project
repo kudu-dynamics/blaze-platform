@@ -25,3 +25,15 @@ source-repository-package
   location: https://github.com/kudu-dynamics/inline-java.git
   tag: 9de6cfa65b8d5d692bf7f5de1e4f1b853f2bbef1
   subdir: jvm
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/selda.git
+  tag: efde67c131deea943e1d76e26449aa8da46c2d01
+  subdir: selda
+
+source-repository-package
+  type: git
+  location: https://github.com/kudu-dynamics/selda.git
+  tag: efde67c131deea943e1d76e26449aa8da46c2d01
+  subdir: selda-sqlite
