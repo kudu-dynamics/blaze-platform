@@ -4,7 +4,7 @@ module Flint.Analysis
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher ( pureMatchPath, MatcherResult, MatcherState )
+import Flint.Analysis.Path.Matcher ( pureMatch, MkPathPrep(mkPathPrep), MatcherResult, MatcherState )
 import qualified Flint.Analysis.Path.Matcher as Matcher
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis
@@ -225,14 +225,15 @@ showQuerySummaries tps store startFunc q bugMatchers = do
   paths <- samplesFromQuery store startFunc q
   let okPaths = paths -- filterOkPaths paths
       withMatches = flip fmap okPaths
-        $ \p -> ( p
-                , flip fmap bugMatchers $ \bm ->
-                    -- TODO: use IO version `matchPath.
-                    -- But first we need to fix solver (issue #436)
-                    ( pureMatchPath tps (bm ^. #pathPattern) p
-                    , bm
-                    )
-                )
+        $ \p -> let pathPrep = mkPathPrep tps p in
+                  ( p
+                  , flip fmap bugMatchers $ \bm ->
+                      -- TODO: use IO version `matchPath.
+                      -- But first we need to fix solver (issue #436)
+                      ( pureMatch (bm ^. #pathPattern) pathPrep
+                      , bm
+                      )
+                  )
   showPathsWithMatches (showQueryHeader startFunc q) withMatches
 
 summariesOfInterest

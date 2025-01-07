@@ -27,7 +27,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic as Exports (CV)
 import Data.String (IsString(fromString))
 import qualified Data.Text as Text
-import Text.Regex.TDFA
+import Text.Regex.TDFA ((=~))
 
 
 type Symbol = Text
@@ -318,17 +318,34 @@ mkStmtTaintSet tps (Pil.Stmt _ statement) =
 mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
 mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
-mkMatcherState :: StmtSolver m -> [TaintPropagator] -> [Pil.Stmt] -> MatcherState m
-mkMatcherState solver tps stmts = MatcherState stmts HashMap.empty HashMap.empty HashMap.empty [] (mkTaintSet tps stmts) solver Nothing
+data PathPrep = PathPrep
+  { stmts :: [Pil.Stmt]
+  , taintSet :: HashSet Taint
+  } deriving (Eq, Ord, Show, Generic)
+
+
+class MkPathPrep a where
+  mkPathPrep :: [TaintPropagator] -> a -> PathPrep
+
+instance MkPathPrep [Pil.Stmt] where
+  mkPathPrep props stmts = PathPrep stmts $ mkTaintSet props stmts
+
+instance MkPathPrep PilPath where
+  mkPathPrep mprops = mkPathPrep mprops
+    . resolveCalls
+    . PA.aggressiveExpand
+    . Path.toStmts
+
+mkMatcherState :: StmtSolver m -> PathPrep -> MatcherState m
+mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing
 
 runMatcher
   :: Monad m
   => StmtSolver m
-  -> [TaintPropagator]
-  -> [Pil.Stmt]
+  -> PathPrep
   -> MatcherT m a
   -> m (MatcherState m, Maybe a)
-runMatcher solver tps stmts action = runMatcher_ action (mkMatcherState solver tps stmts) >>= \case
+runMatcher solver pathPrep action = runMatcher_ action (mkMatcherState solver pathPrep) >>= \case
   (Left _, s) -> return (s, Nothing)
   (Right x, s) -> return (s, Just x)
 
@@ -906,11 +923,10 @@ resolveBoundText m (CaseContains bt cases) = let t = resolveBoundText m bt in
 runMatchStmts
   :: forall m. Monad m
   => StmtSolver m
-  -> [TaintPropagator]
   -> [StmtPattern]
-  -> [Pil.Stmt]
+  -> PathPrep
   -> m (MatcherState m, Bool)
-runMatchStmts solver tps pats stmts = fmap (second isJust) . runMatcher solver tps stmts $ do
+runMatchStmts solver pats pathPrep = fmap (second isJust) . runMatcher solver pathPrep $ do
   matchNextStmt $ Ordered pats
   drainRemainingStmts
   where
@@ -928,14 +944,13 @@ data MatcherResult
 
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.
-matchStmts
+match
   :: Monad m
   => StmtSolver m
-  -> [TaintPropagator]
   -> [StmtPattern]
-  -> [Pil.Stmt]
+  -> PathPrep
   -> m (MatcherState m, MatcherResult)
-matchStmts solver tps pats stmts = runMatchStmts solver tps pats stmts >>= \case
+match solver pats pathPrep = runMatchStmts solver pats pathPrep >>= \case
   (ms, False) -> return (ms, NoMatch)
   (ms, True) -> do
     let stmts' = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts
@@ -945,52 +960,27 @@ matchStmts solver tps pats stmts = runMatchStmts solver tps pats stmts >>= \case
       Err err -> error $ "Solver error: " <> show err
       _ -> return (ms, NoMatch)
 
-matchStmts'
+match'
   :: Monad m
   => StmtSolver m
-  -> [TaintPropagator]
   -> [StmtPattern]
-  -> [Pil.Stmt]
+  -> PathPrep
   -> m MatcherResult
-matchStmts' solver tps pats = fmap snd . matchStmts solver tps pats
-
-matchPath
-  :: Monad m
-  => StmtSolver m
-  -> [TaintPropagator]
-  -> [StmtPattern]
-  -> PilPath
-  -> m (MatcherState m, MatcherResult)
-matchPath solver tps pat = matchStmts solver tps pat
-  . resolveCalls
-  . PA.aggressiveExpand
-  . Path.toStmts
+match' solver pats = fmap snd . match solver pats
 
 -- | Matches on statements without calling the solver on assertions.
-pureMatchStmts
-  :: [TaintPropagator]
-  -> [StmtPattern]
-  -> [Pil.Stmt]
+pureMatch
+  :: [StmtPattern]
+  -> PathPrep
   -> (MatcherState Identity, MatcherResult)
-pureMatchStmts tps pats = runIdentity . matchStmts solver tps pats
+pureMatch pats = runIdentity . match solver pats
   where
     -- Solver always succeeds.
     solver :: StmtSolver Identity
     solver _ = return $ Sat HashMap.empty
 
-pureMatchStmts'
-  :: [TaintPropagator]
-  -> [StmtPattern]
-  -> [Pil.Stmt]
+pureMatch'
+  :: [StmtPattern]
+  -> PathPrep
   -> MatcherResult
-pureMatchStmts' tps pats = snd . pureMatchStmts tps pats
-
-pureMatchPath
-  :: [TaintPropagator]
-  -> [StmtPattern]
-  -> PilPath
-  -> (MatcherState Identity, MatcherResult)
-pureMatchPath tps pat = pureMatchStmts tps pat
-  . resolveCalls
-  . PA.aggressiveExpand
-  . Path.toStmts
+pureMatch' pats = snd . pureMatch pats
