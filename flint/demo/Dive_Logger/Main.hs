@@ -173,7 +173,8 @@ divelogger = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
-  let funcMapping = mkFuncMapping $ store' ^. #funcs
+  funcs <- CC.get_ $ store' ^. #funcs
+  let funcMapping = mkFuncMapping funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
         . headMay
@@ -182,10 +183,10 @@ divelogger = do
         . view #name
       userlandFuncs = HashSet.fromList
         . filter isUserlandFunc
-        $ store' ^. #funcs
+        $ funcs
       deleteDive = HashSet.fromList
         . filter (\func -> func ^. #name == "cgc_DeleteDive")
-        $ store' ^. #funcs
+        $ funcs
       funcNames = FuncSym <$>
         [ "cgc_AddDive"
         , "cgc_ChangeDive"
@@ -248,7 +249,8 @@ electronictrading = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/demo/cb/electronictrading.gzf"
   putText "Loaded electronictrading.gzf"
   store' <- Store.init Nothing imp
-  let funcMapping = mkFuncMapping $ store' ^. #funcs
+  funcs <- CC.get_ $ store' ^. #funcs
+  let funcMapping = mkFuncMapping funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
         . headMay
@@ -257,12 +259,12 @@ electronictrading = do
         . view #name
       userlandFuncs = HashSet.fromList
         . filter isUserlandFunc
-        $ store' ^. #funcs
+        $ funcs
       deleteDive = HashSet.fromList
         . filter (\func -> func ^. #name == "cgc_DeleteDive")
-        $ store' ^. #funcs
+        $ funcs
 
-  let allFuncs = HashSet.fromList $ store' ^. #funcs
+  let allFuncs = HashSet.fromList funcs
 
   let startFuncs = allFuncs
       useSolver = False
@@ -285,9 +287,10 @@ diveloggerPlanner = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
+  funcs <- CC.get_ $ store' ^. #funcs
   (ctx, _innerNodes, allNodes) <- Store.getRouteMakerCtx' 5 store'
 
-  let funcNameMapping = mkFuncNameMapping $ store' ^. #funcs
+  let funcNameMapping = mkFuncNameMapping funcs
       limitStartFuncs :: HashSet Function
       limitStartFuncs = HashSet.fromList $ mapMaybe (`HashMap.lookup` funcNameMapping)
         [ "cgc_MainMenu"
@@ -386,6 +389,7 @@ spamDiveLogger = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
+  funcs <- CC.get_ $ store' ^. #funcs
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -396,10 +400,10 @@ spamDiveLogger = do
       bms =
         [ incrementWithoutCheck
         ]
-      funcs :: HashSet Function
-      funcs = HashSet.fromList $ store' ^. #funcs
-
-  checkFuncs False store' q bms (sequentialPutText . pretty') funcs
+      funcs' :: HashSet Function
+      funcs' = HashSet.fromList funcs
+        
+  checkFuncs False store' q bms (sequentialPutText . pretty') funcs'
 
 main :: IO ()
 main = do

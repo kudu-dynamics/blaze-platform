@@ -194,6 +194,16 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
+  plt_thunk:
+    main: Main.hs
+    source-dirs: demo/plt_thunk
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
   kernel:
     main: Main.hs
     source-dirs: demo/Kernel

@@ -78,6 +78,7 @@ library:
     - Ghidra.Address
     - Ghidra.BasicBlock
     - Ghidra.Core
+    - Ghidra.ExternalLocation
     - Ghidra.Function
     - Ghidra.Instruction
     - Ghidra.Pcode

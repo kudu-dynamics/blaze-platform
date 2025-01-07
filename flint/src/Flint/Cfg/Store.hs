@@ -41,7 +41,6 @@ import qualified Data.HashMap.Strict as HashMap
 -- OR you can maybe use this one:
 -- ld -r -o combined.o *.o
 
-
 init
   :: ( CallGraphImporter imp
      , NodeDataType imp ~ PilNode
@@ -56,17 +55,30 @@ init mDbFilePath imp = do
     <$> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
-    <*> CG.getFunctions imp
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
+    <*> atomically CC.create
+
+  allFuncCfgs <- getFuncsWithCfgs imp
+  let funcCfgsSansPltThunks = purgeInternalPltThunks allFuncCfgs
+      funcCfgsMapping = HashMap.fromList funcCfgsSansPltThunks
+      callNodesMapping = getCallNodesMapping funcCfgsSansPltThunks
+      internalCallDests :: HashMap Function (HashSet Function)
+      internalCallDests = fmap ( HashSet.fromList
+                                . mapMaybe getConcreteFuncCallDest)
+                          callNodesMapping
+      internalFuncs = fst <$> funcCfgsSansPltThunks
+
+  CC.setCalc () (store ^. #funcs) $ return internalFuncs
   CC.setCalc () (store ^. #callGraphCache) $ do
+    let getCG = return $ calcCallGraphFromInternalCallDests internalCallDests
     case mDb of
-      Nothing -> CG.getCallGraph imp $ store ^. #funcs
+      Nothing -> getCG
       Just db -> Db.loadCallGraph db >>= \case
         Nothing -> do
           putText "Creating new call graph"
-          cg <- CG.getCallGraph imp $ store ^. #funcs
+          cg <- getCG
           Db.insertCallGraph db cg
           putText $ "Stored CallGraph in db " <> show (length (show cg :: String))
           return cg
@@ -76,8 +88,9 @@ init mDbFilePath imp = do
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg
+  initialFuncs <- CC.get_ $ store ^. #funcs
   -- Set up calcs for ancestors
-  forM_ (store ^. #funcs) $ \func -> do
+  forM_ initialFuncs $ \func -> do
     CC.setCalc func (store ^. #ancestorsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
       return $ G.getStrictDescendants func cg
@@ -85,9 +98,222 @@ init mDbFilePath imp = do
       cg <- fromJust <$> CC.get () (store ^. #callGraphCache)
       return $ G.getStrictDescendants func cg
     CC.setCalc func (store ^. #callSitesCache) $ do
-      CG.getCallSites imp func
-    addFunc imp store func
+      case HashMap.lookup func callNodesMapping of
+        Nothing -> return []
+        Just dests -> return $ mapMaybe toCallSite dests
+          where
+            toCallSite n = case n ^. #callDest of
+              Pil.CallFunc destFunc -> Just
+                $ CG.CallSite func (n ^. #start) (CG.DestFunc destFunc)
+              _ -> Nothing
+    addFunc' store func $ HashMap.lookup func funcCfgsMapping
   return store
+
+-- | Returns a list of all the functions in the binary that we can make a Cfg for.
+getFuncsWithCfgs
+  :: ( CallGraphImporter a
+     , CfgImporter a
+     , NodeDataType a ~ PilNode
+     )
+  => a -> IO [(Function, PilCfg)]
+getFuncsWithCfgs imp = do
+  funcs <- CG.getFunctions imp
+  fmap catMaybes . forM funcs $ \func -> fmap (func,) <$> ImpCfg.getCfg_ imp func 0
+
+data PltThunkMapping = PltThunkMapping
+  { renamedFunc :: Function
+  , newCallDest :: Pil.CallDest Pil.Expression
+  } deriving (Eq, Ord, Show, Generic)
+
+-- | our heuristic for finding a Plt thunk is that the CFG has a single block
+-- with a single tailcall with a ConstFuncPtr target to func of same name
+-- Returns Nothing if function is apparently not a Plt thunk
+getPltThunkDest :: Function -> PilCfg -> Maybe (Pil.CallDest Pil.Expression)
+getPltThunkDest srcFunc cfg = case HashSet.size nodes of
+  2 -> case (getNodeStatements rootNode, getNodeStatements <$> HashSet.toList nonRootNodes) of
+         ( [ Pil.Def (Pil.DefOp v (Pil.Expression _ (Pil.CALL (Pil.CallOp dest@(Pil.CallAddr (Pil.ConstFuncPtrOp _ (Just x))) _ _)))) ]
+           , [[ Pil.Ret (Pil.RetOp (Pil.Expression _ (Pil.VAR (Pil.VarOp v')))) ]]) ->
+           if v == v' && x == srcFunc ^. #name
+           then Just dest
+           else Nothing
+         ( [ Pil.Def (Pil.DefOp v (Pil.Expression _ (Pil.CALL (Pil.CallOp dest@(Pil.CallFunc destFunc) _ _)))) ]
+           , [[ Pil.Ret (Pil.RetOp (Pil.Expression _ (Pil.VAR (Pil.VarOp v')))) ]]) ->
+           if v == v' && destFunc ^. #name == srcFunc ^. #name
+           then Just dest
+           else Nothing
+         _ -> Nothing
+  _ -> Nothing
+  where
+    getNodeStatements = fmap (view #statement) . Cfg.getNodeData
+    rootNode = Cfg.getRootNode cfg
+    nodes = G.nodes cfg
+    nonRootNodes = HashSet.delete rootNode nodes
+
+-- | Finds all the PLT thunks and possibly the real funcs they point to
+-- The result is map where:
+-- key: original Function object that is actually a thunk
+-- val: new _renamed function and CallDest that should replace calls to this thunk
+-- The CallDest will be a `CallAddr ConstFuncPtrOp` for externs and will be
+-- a `CallFunc Function` for thunks that point internally.
+getPltThunkMapping :: [(Function, PilCfg)] -> HashMap Function PltThunkMapping
+getPltThunkMapping allFuncCfgs = HashMap.fromList . fmap f $ pltFuncs
+  where
+    f :: (Function, Pil.CallDest Pil.Expression)
+      -> (Function, PltThunkMapping)
+    f (thunkFunc, thunkDest) =
+      ( thunkFunc
+      , PltThunkMapping
+        { renamedFunc = thunkFunc & #name %~ ("_" <>)
+        , newCallDest = maybe thunkDest Pil.CallFunc
+          $ HashMap.lookup (thunkFunc ^. #name) allFuncsSansPltsByName
+        }
+      )
+
+    pltFuncs :: [(Function, Pil.CallDest Pil.Expression)]
+    pltFuncs = flip mapMaybe allFuncCfgs $ \(func, cfg) -> do
+      (func,) <$> getPltThunkDest func cfg
+
+    pltFuncSet :: HashSet Function
+    pltFuncSet = HashSet.fromList . fmap fst $ pltFuncs
+
+    allFuncsSansPlts :: [(Function, PilCfg)]
+    allFuncsSansPlts = filter (not . (`HashSet.member` pltFuncSet) . fst) allFuncCfgs
+
+    -- TODO: Should we throw an error if there are two funcs with the same name?
+    -- presumably, without the PLT thunk funcs, all func names should be unique.
+    allFuncsSansPltsByName :: HashMap Text Function
+    allFuncsSansPltsByName = HashMap.fromList
+      . fmap ((\func -> (func ^. #name, func)) . fst)
+      $ allFuncsSansPlts
+
+-- | Makes a store of call nodes contained within a function
+getCallNodesMapping
+  :: [(Function, PilCfg)]
+  -> HashMap Function [Cfg.CallNode [Pil.Stmt]]
+getCallNodesMapping = HashMap.fromList . fmap (over _2 getCallNodes)
+  where
+    getCallNodes :: PilCfg -> [Cfg.CallNode [Pil.Stmt]]
+    getCallNodes = mapMaybe (^? #_Call) . HashSet.toList . G.nodes
+
+getConcreteFuncCallDest :: Cfg.CallNode [Pil.Stmt] -> Maybe Function
+getConcreteFuncCallDest = (^? #callDest . #_CallFunc)
+
+getExternalFuncCallDest :: Cfg.CallNode [Pil.Stmt] -> Maybe Pil.ConstFuncPtrOp
+getExternalFuncCallDest cnode = do
+  case cnode ^. #callDest of
+    Pil.CallAddr x -> Just x
+    Pil.CallExtern x -> Just $ Pil.ConstFuncPtrOp (x ^. #address) (x ^. #symbol)
+    _ -> Nothing
+
+
+-- | Replaces any calls to PLT thunks in Cfgs with direct calls.
+-- Renames PLT thunks in function list (prepends `_`).
+purgePltThunks :: [(Function, PilCfg)] -> [(Function, PilCfg)]
+purgePltThunks allFuncCfgs = replaceCallSitesAndRenameThunks <$> allFuncCfgs
+  where
+    replaceCallSitesAndRenameThunks :: (Function, PilCfg) -> (Function, PilCfg)
+    replaceCallSitesAndRenameThunks (func, cfg) = (func', cfg')
+      where
+        func' = maybe func (view #renamedFunc) . HashMap.lookup func $ pltMap
+        cfg' = Cfg.safeMap replacePltThunkCallNode cfg
+
+    replacePltThunkCallNode :: Cfg.PilNode -> Cfg.PilNode
+    replacePltThunkCallNode = \case
+      Cfg.Call x -> Cfg.Call $ case x ^. #callDest of
+        Pil.CallFunc destFunc -> case HashMap.lookup destFunc pltMap of
+          Nothing -> x
+          Just thunkMapping -> x
+            & #callDest .~ (thunkMapping ^. #newCallDest)
+            & #nodeData %~ updateNodeData (thunkMapping ^. #newCallDest)
+        _ ->  x
+      n -> n
+
+    updateNodeData :: Pil.CallDest Pil.Expression -> [Pil.Stmt] -> [Pil.Stmt]
+    updateNodeData newDest = fmap (updateCallStatement newDest)
+
+    updateCallStatement :: Pil.CallDest Pil.Expression -> Pil.Stmt -> Pil.Stmt
+    updateCallStatement newDest stmt@(Pil.Stmt addr statement) = case statement of
+      Pil.Call callOp -> Pil.Stmt addr . Pil.Call $ callOp & #dest .~ newDest
+      Pil.TailCall tailCallOp -> Pil.Stmt addr . Pil.TailCall $ tailCallOp & #dest .~ newDest
+      _ -> updateCallExpr newDest <$> stmt
+
+    updateCallExpr
+      :: Pil.CallDest Pil.Expression
+      -> Pil.Expression
+      -> Pil.Expression
+    updateCallExpr newDest x = case x ^. #op of
+      Pil.CALL callOp -> x & #op .~ Pil.CALL (callOp & #dest .~ newDest)
+      _ -> x & #op %~ fmap (updateCallExpr newDest)
+
+
+    pltMap :: HashMap Function PltThunkMapping
+    pltMap = getPltThunkMapping allFuncCfgs
+
+
+-- | Replaces any calls to interally pointing PLT thunks in Cfgs with direct calls.
+-- Renames PLT thunks in function list (prepends `_`).
+purgeInternalPltThunks :: [(Function, PilCfg)] -> [(Function, PilCfg)]
+purgeInternalPltThunks allFuncCfgs = replaceCallSitesAndRenameThunks <$> allFuncCfgs
+  where
+    replaceCallSitesAndRenameThunks :: (Function, PilCfg) -> (Function, PilCfg)
+    replaceCallSitesAndRenameThunks (func, cfg) = (func', cfg')
+      where
+        func' = case HashMap.lookup func pltMap of
+          Nothing -> func
+          Just x -> case isInternal x of
+            False -> func
+            True -> x ^. #renamedFunc
+        cfg' = Cfg.safeMap replacePltThunkCallNode cfg
+
+    isInternal :: PltThunkMapping -> Bool
+    isInternal x = case x ^. #newCallDest of
+      Pil.CallFunc _ -> True
+      _ -> False
+
+    replacePltThunkCallNode :: Cfg.PilNode -> Cfg.PilNode
+    replacePltThunkCallNode = \case
+      Cfg.Call x -> Cfg.Call $ case x ^. #callDest of
+        Pil.CallFunc destFunc -> case HashMap.lookup destFunc pltMap of
+          Nothing -> x
+          Just thunkMapping -> case isInternal thunkMapping of
+            True -> x
+              & #callDest .~ (thunkMapping ^. #newCallDest)
+              & #nodeData %~ updateNodeData (thunkMapping ^. #newCallDest)
+            False -> x -- if it's not an internal func just leave it be
+        _ ->  x
+      n -> n
+
+    updateNodeData :: Pil.CallDest Pil.Expression -> [Pil.Stmt] -> [Pil.Stmt]
+    updateNodeData newDest = fmap (updateCallStatement newDest)
+
+    updateCallStatement :: Pil.CallDest Pil.Expression -> Pil.Stmt -> Pil.Stmt
+    updateCallStatement newDest stmt@(Pil.Stmt addr statement) = case statement of
+      Pil.Call callOp -> Pil.Stmt addr . Pil.Call $ callOp & #dest .~ newDest
+      Pil.TailCall tailCallOp -> Pil.Stmt addr . Pil.TailCall $ tailCallOp & #dest .~ newDest
+      _ -> updateCallExpr newDest <$> stmt
+
+    updateCallExpr
+      :: Pil.CallDest Pil.Expression
+      -> Pil.Expression
+      -> Pil.Expression
+    updateCallExpr newDest x = case x ^. #op of
+      Pil.CALL callOp -> x & #op .~ Pil.CALL (callOp & #dest .~ newDest)
+      _ -> x & #op %~ fmap (updateCallExpr newDest)
+
+
+    pltMap :: HashMap Function PltThunkMapping
+    pltMap = getPltThunkMapping allFuncCfgs
+
+calcCallGraphFromInternalCallDests :: HashMap Function (HashSet Function) -> CallGraph
+calcCallGraphFromInternalCallDests = G.fromEdges
+  . concatMap getEdges
+  . HashMap.toList
+  where
+    getEdges :: (Function, HashSet Function) -> [G.LEdge () Function]
+    getEdges (bfunc, s) = do
+      dest <- HashSet.toList s
+      return . G.LEdge () $ G.Edge bfunc dest
+
 
 getNewUuid :: UUID -> StateT (HashMap UUID UUID) IO UUID
 getNewUuid old = do
@@ -179,8 +405,26 @@ getFuncCfg store func = fmap (view #cfg) <$> getFuncCfgInfo store func
 getCallGraph :: CfgStore -> IO CallGraph
 getCallGraph store = fromJust <$> CC.get () (store ^. #callGraphCache)
 
+getFuncs :: CfgStore -> IO [Function]
+getFuncs store = fromJust <$> CC.get () (store ^. #funcs)
+
 getTransposedCallGraph :: CfgStore -> IO CallGraph
 getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
+
+-- | Adds a func/cfg to the store.
+-- Overwrites existing function Cfg.
+-- Any Cfgs in the store should have a CtxId of 0
+addFunc'
+  :: CfgStore -> Function -> Maybe PilCfg -> IO ()
+addFunc' store func mcfg = CC.setCalc func (store ^. #cfgCache) $ do
+  flip catch handleException . evaluate . fmap calcCfgInfo $ mcfg
+  where
+    handleException :: SomeException -> IO (Maybe CfgInfo)
+    handleException e = do
+      putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> func ^. #name <> " ------------"
+      print e
+      return Nothing
+
 
 -- | Adds a func/cfg to the store.
 -- Overwrites existing function Cfg.
@@ -350,3 +594,9 @@ shimmyFuncByName imp store func1name func2 = do
   case HashMap.lookup func1name m of
     Nothing -> error $ "Couldn't find func " <> cs func1name <> " in store"
     Just func1 -> shimmyFunc imp store func1 func2
+
+-- -- | This finds PTL thunks replaces their Cfg with a call to the func with
+-- -- the corresponding name.
+-- -- It also updates the call graph.
+-- linkPltThunks :: CfgStore -> IO ()
+-- linkPltThunks store

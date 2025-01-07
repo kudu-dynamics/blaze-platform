@@ -26,6 +26,7 @@ spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra" $ do
   context "binary" $ do
     (importer :: GhidraImporter) <- unsafeFromRight <$> runIO (openBinary diveBin)
+    runIO $ putText "got binary ok"
     start <- runIO $ getStart importer
     end <- runIO $ getEnd importer
 
