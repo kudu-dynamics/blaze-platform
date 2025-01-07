@@ -325,10 +325,10 @@ data PathPrep = PathPrep
 
 
 class MkPathPrep a where
-  mkPathPrep :: Maybe [TaintPropagator] -> a -> PathPrep
+  mkPathPrep :: [TaintPropagator] -> a -> PathPrep
 
 instance MkPathPrep [Pil.Stmt] where
-  mkPathPrep mprops stmts = PathPrep stmts . maybe HashSet.empty (`mkTaintSet` stmts) $ mprops
+  mkPathPrep props stmts = PathPrep stmts $ mkTaintSet props stmts
 
 instance MkPathPrep PilPath where
   mkPathPrep mprops = mkPathPrep mprops

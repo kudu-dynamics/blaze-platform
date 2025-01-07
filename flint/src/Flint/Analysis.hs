@@ -225,7 +225,7 @@ showQuerySummaries tps store startFunc q bugMatchers = do
   paths <- samplesFromQuery store startFunc q
   let okPaths = paths -- filterOkPaths paths
       withMatches = flip fmap okPaths
-        $ \p -> let pathPrep = mkPathPrep (Just tps) p in
+        $ \p -> let pathPrep = mkPathPrep tps p in
                   ( p
                   , flip fmap bugMatchers $ \bm ->
                       -- TODO: use IO version `matchPath.
