@@ -20,25 +20,17 @@ allPatterns =
   , bufferOverflow
   , formatStringVulnerability
   , useAfterFree
-  -- , nullPointerDereference
   , stackBasedBufferOverflow
   , inputControlledIndirectCall
   , writeToGlobal
   , inputDataCopiedToStack
   ]
--- allPatterns =
---   [ incrementWithoutCheck
---   , inputControlledIndirectCall
---   , writeToGlobal
---   , inputDataCopiedToStack
---   ]
 
 
 kernelModulePatterns :: [BugMatch]
 kernelModulePatterns =
   [ usbRegisterNotifyImbalance
   , nfHookImbalance
-  -- , simple
   ]
 
 usbRegisterNotifyImbalance :: BugMatch
