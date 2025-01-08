@@ -195,7 +195,6 @@ stackSetToExecutable' = BugMatch
   , mitigationAdvice = "Be careful."
   }
 
-
 -----------------------
 -- patterns from dirty test binary
 ---------------------------------
@@ -399,79 +398,79 @@ useAfterFree = BugMatch
   , mitigationAdvice = "Don't."
   }
 
-badboyz :: HashSet Text
-badboyz = HashSet.fromList . fmap fst $ badboys
+-- badboyz :: HashSet Text
+-- badboyz = HashSet.fromList . fmap fst $ badboys
 
-badboys :: [(Text, Int)]
-badboys =
-  [ ("strcpy", firstArg)
-    , ("strcpy", secondArg)
-    , ("strcat", firstArg)
-    , ("strcat", secondArg)
-    , ("strcmp", firstArg)
-    , ("strcmp", secondArg)
-    , ("strncmp", firstArg)
-    , ("strncmp", secondArg)
-    , ("strncpy", firstArg)
-    , ("strncpy", secondArg)
-    , ("strncat", firstArg)
-    , ("strncat", secondArg)
-    , ("strlen", firstArg)
-    , ("strchr", firstArg)
-    , ("strrchr", firstArg)
-    , ("strstr", firstArg)
-    , ("strstr", secondArg)
-    , ("strdup", firstArg)
-    , ("strndup", firstArg)
-    , ("strtok", firstArg)
-    , ("strtok", secondArg)
-    , ("memcpy", firstArg)
-    , ("memcpy", secondArg)
-    , ("memmove", firstArg)
-    , ("memmove", secondArg)
-    , ("memcmp", firstArg)
-    , ("memcmp", secondArg)
-    , ("memset", firstArg)
-    , ("memchr", firstArg)
-    , ("fopen", firstArg)
-    , ("fopen", secondArg)
-    , ("fclose", firstArg)
-    , ("fread", firstArg)
-    , ("fread", fourthArg)
-    , ("fwrite", firstArg)
-    , ("fwrite", fourthArg)
-    , ("fprintf", firstArg)
-    , ("fprintf", secondArg)
-    , ("fscanf", firstArg)
-    , ("fscanf", secondArg)
-    , ("scanf", firstArg)
-    , ("printf", firstArg)
-    , ("sprintf", firstArg)
-    , ("sprintf", secondArg)
-    , ("snprintf", firstArg)
-    , ("snprintf", thirdArg)
-    , ("fgetc", firstArg)
-    , ("fgets", firstArg)
-    , ("fgets", thirdArg)
-    , ("fputc", secondArg)
-    , ("fputs", firstArg)
-    , ("fputs", secondArg)
-    , ("fseek", firstArg)
-    , ("ftell", firstArg)
-    , ("rewind", firstArg)
-    , ("feof", firstArg)
-    , ("ferror", firstArg)
-    , ("clearerr", firstArg)
-    , ("fgetpos", firstArg)
-    , ("fsetpos", firstArg)
-    , ("perror", firstArg)
-    , ("strerror", firstArg)
-    ]
-  where
-    firstArg = 0
-    secondArg = 1
-    thirdArg = 2
-    fourthArg = 3
+-- badboys :: [(Text, Int)]
+-- badboys =
+--   [ ("strcpy", firstArg)
+--     , ("strcpy", secondArg)
+--     , ("strcat", firstArg)
+--     , ("strcat", secondArg)
+--     , ("strcmp", firstArg)
+--     , ("strcmp", secondArg)
+--     , ("strncmp", firstArg)
+--     , ("strncmp", secondArg)
+--     , ("strncpy", firstArg)
+--     , ("strncpy", secondArg)
+--     , ("strncat", firstArg)
+--     , ("strncat", secondArg)
+--     , ("strlen", firstArg)
+--     , ("strchr", firstArg)
+--     , ("strrchr", firstArg)
+--     , ("strstr", firstArg)
+--     , ("strstr", secondArg)
+--     , ("strdup", firstArg)
+--     , ("strndup", firstArg)
+--     , ("strtok", firstArg)
+--     , ("strtok", secondArg)
+--     , ("memcpy", firstArg)
+--     , ("memcpy", secondArg)
+--     , ("memmove", firstArg)
+--     , ("memmove", secondArg)
+--     , ("memcmp", firstArg)
+--     , ("memcmp", secondArg)
+--     , ("memset", firstArg)
+--     , ("memchr", firstArg)
+--     , ("fopen", firstArg)
+--     , ("fopen", secondArg)
+--     , ("fclose", firstArg)
+--     , ("fread", firstArg)
+--     , ("fread", fourthArg)
+--     , ("fwrite", firstArg)
+--     , ("fwrite", fourthArg)
+--     , ("fprintf", firstArg)
+--     , ("fprintf", secondArg)
+--     , ("fscanf", firstArg)
+--     , ("fscanf", secondArg)
+--     , ("scanf", firstArg)
+--     , ("printf", firstArg)
+--     , ("sprintf", firstArg)
+--     , ("sprintf", secondArg)
+--     , ("snprintf", firstArg)
+--     , ("snprintf", thirdArg)
+--     , ("fgetc", firstArg)
+--     , ("fgets", firstArg)
+--     , ("fgets", thirdArg)
+--     , ("fputc", secondArg)
+--     , ("fputs", firstArg)
+--     , ("fputs", secondArg)
+--     , ("fseek", firstArg)
+--     , ("ftell", firstArg)
+--     , ("rewind", firstArg)
+--     , ("feof", firstArg)
+--     , ("ferror", firstArg)
+--     , ("clearerr", firstArg)
+--     , ("fgetpos", firstArg)
+--     , ("fsetpos", firstArg)
+--     , ("perror", firstArg)
+--     , ("strerror", firstArg)
+--     ]
+--   where
+--     firstArg = 0
+--     secondArg = 1
+--     thirdArg = 2
+--     fourthArg = 3
 
 shouldn'tGetPassedNullPtr :: ExprPattern -> StmtPattern
 shouldn'tGetPassedNullPtr argPat = AnyOne
@@ -545,129 +544,25 @@ shouldn'tGetPassedNullPtr argPat = AnyOne
     thirdArg = [Wild, Wild, argPat]
     fourthArg = [Wild, Wild, Wild, argPat]
 
-shouldn'tGetPassedNullPtrFirstArgFuncs :: HashSet Text
-shouldn'tGetPassedNullPtrFirstArgFuncs = HashSet.fromList
-  [ "strcpy"
-  , "strcat"
-  , "strcmp"
-  , "strncmp"
-  , "strncpy"
-  , "strncat"
-  , "strlen"
-  , "strchr"
-  , "strrchr"
-  , "strstr"
-  , "strdup"
-  , "strndup"
-  , "strtok"
-  , "memcpy"
-  , "memmove"
-  , "memcmp"
-  , "memset"
-  , "memchr"
-  , "fopen"
-  , "fclose"
-  , "fread"
-  , "fwrite"
-  , "fprintf"
-  , "fscanf"
-  , "scanf"
-  , "printf"
-  , "sprintf"
-  , "snprintf"
-  , "fgetc"
-  , "fgets"
-  , "fputs"
-  , "fseek"
-  , "ftell"
-  , "rewind"
-  , "feof"
-  , "ferror"
-  , "clearerr"
-  , "fgetpos"
-  , "fsetpos"
-  , "perror"
-  , "strerror"
-  ]
-
-shouldn'tGetPassedNullPtrSecondArgFuncs :: HashSet Text
-shouldn'tGetPassedNullPtrSecondArgFuncs = HashSet.fromList
-  [ "strcpy"
-  , "strcat"
-  , "strcmp"
-  , "strncmp"
-  , "strncpy"
-  , "strncat"
-  , "strstr"
-  , "strtok"
-  , "memcpy"
-  , "memmove"
-  , "memcmp"
-  , "fopen"
-  , "fprintf"
-  , "fscanf"
-  , "sprintf"
-  , "fputc"
-  , "fputs"
-  ]
-
-shouldn'tGetPassedNullPtrThirdArgFuncs :: HashSet Text
-shouldn'tGetPassedNullPtrThirdArgFuncs = HashSet.fromList
-  [ "snprintf"
-  , "fgets"
-  ]
-
-shouldn'tGetPassedNullPtrFourthArgFuncs :: HashSet Text
-shouldn'tGetPassedNullPtrFourthArgFuncs = HashSet.fromList
-  [ "fread"
-  , "fwrite"
-  ]
-
--- shouldn'tGetPassedNullPtr' :: ExprPattern -> StmtPattern
--- shouldn'tGetPassedNullPtr' argPat = AnyOne
---   [ Stmt $ Call Nothing (CallFunc $ FuncNames badboyz) fourthArg
---   ]
---   -- [ Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFirstArgFuncs) firstArg
---   -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrSecondArgFuncs) secondArg
---   -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrThirdArgFuncs) thirdArg
---   -- , Stmt $ Call Nothing (CallFunc $ FuncNames shouldn'tGetPassedNullPtrFourthArgFuncs) fourthArg
---   -- ]
---   where
---     firstArg  = [argPat]
---     secondArg = [Wild, argPat]
---     thirdArg  = [Wild, Wild, argPat]
---     fourthArg = [Wild, Wild, Wild, argPat]
-
 nullPtr :: ExprPattern
 nullPtr = const 0 () .|| constPtr 0 ()
 
--- nullPointerDereference :: BugMatch
--- nullPointerDereference = BugMatch
---   { pathPattern =
---       [ AnyOne
---         [ Ordered
---           [ Stmt $ Def (Bind "ptr" Wild) nullPtr
---           , AvoidUntil $ AvoidSpec
---             { avoid = pointerAssigned $ Bind "ptr" Wild
---             , until = AnyOne
---                       [ shouldn'tGetPassedNullPtr' (Bind "ptr" Wild) ]
---             }
---           ]
---         , shouldn'tGetPassedNullPtr' (Bind "ptr" nullPtr)
---         ]
---       ]
---   , bugName = "Null Pointer Dereference"
---   , bugDescription =
---     "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
---   , mitigationAdvice = "Don't do it."
---   }
-
-simple :: BugMatch
-simple = BugMatch
+nullPointerDereference :: BugMatch
+nullPointerDereference = BugMatch
   { pathPattern =
-    [ Stmt $ Def Wild Wild
-    ]
-  , bugName = "Simple"
+      [ AnyOne
+        [ Ordered
+          [ Stmt $ Def (Bind "ptr" Wild) nullPtr
+          , AvoidUntil $ AvoidSpec
+            { avoid = pointerAssigned $ Bind "ptr" Wild
+            , until = AnyOne
+                      [ shouldn'tGetPassedNullPtr (Bind "ptr" Wild) ]
+            }
+          ]
+        , shouldn'tGetPassedNullPtr (Bind "ptr" nullPtr)
+        ]
+      ]
+  , bugName = "Null Pointer Dereference"
   , bugDescription =
     "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
   , mitigationAdvice = "Don't do it."
