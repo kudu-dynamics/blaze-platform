@@ -329,7 +329,6 @@ formatStringVulnerability = BugMatch
   , mitigationAdvice = "Don't do it."
   }
 
-
 -- This is really stupid...
 -- We have no way to match "any arg" at the moment
 anyArg :: ExprPattern -> ([ExprPattern] -> Statement ExprPattern) -> StmtPattern
@@ -344,7 +343,6 @@ anyArg argPat mkCallDest = AnyOne
   ]
   where
     stmt = Stmt . mkCallDest 
-
 
 -- This is mainly to be used with the Use After Free pattern.
 -- This is looking for a store or load
@@ -397,80 +395,6 @@ useAfterFree = BugMatch
     "The pointer `" <> TextExpr "ptr" <> "` is freed and is later used."
   , mitigationAdvice = "Don't."
   }
-
--- badboyz :: HashSet Text
--- badboyz = HashSet.fromList . fmap fst $ badboys
-
--- badboys :: [(Text, Int)]
--- badboys =
---   [ ("strcpy", firstArg)
---     , ("strcpy", secondArg)
---     , ("strcat", firstArg)
---     , ("strcat", secondArg)
---     , ("strcmp", firstArg)
---     , ("strcmp", secondArg)
---     , ("strncmp", firstArg)
---     , ("strncmp", secondArg)
---     , ("strncpy", firstArg)
---     , ("strncpy", secondArg)
---     , ("strncat", firstArg)
---     , ("strncat", secondArg)
---     , ("strlen", firstArg)
---     , ("strchr", firstArg)
---     , ("strrchr", firstArg)
---     , ("strstr", firstArg)
---     , ("strstr", secondArg)
---     , ("strdup", firstArg)
---     , ("strndup", firstArg)
---     , ("strtok", firstArg)
---     , ("strtok", secondArg)
---     , ("memcpy", firstArg)
---     , ("memcpy", secondArg)
---     , ("memmove", firstArg)
---     , ("memmove", secondArg)
---     , ("memcmp", firstArg)
---     , ("memcmp", secondArg)
---     , ("memset", firstArg)
---     , ("memchr", firstArg)
---     , ("fopen", firstArg)
---     , ("fopen", secondArg)
---     , ("fclose", firstArg)
---     , ("fread", firstArg)
---     , ("fread", fourthArg)
---     , ("fwrite", firstArg)
---     , ("fwrite", fourthArg)
---     , ("fprintf", firstArg)
---     , ("fprintf", secondArg)
---     , ("fscanf", firstArg)
---     , ("fscanf", secondArg)
---     , ("scanf", firstArg)
---     , ("printf", firstArg)
---     , ("sprintf", firstArg)
---     , ("sprintf", secondArg)
---     , ("snprintf", firstArg)
---     , ("snprintf", thirdArg)
---     , ("fgetc", firstArg)
---     , ("fgets", firstArg)
---     , ("fgets", thirdArg)
---     , ("fputc", secondArg)
---     , ("fputs", firstArg)
---     , ("fputs", secondArg)
---     , ("fseek", firstArg)
---     , ("ftell", firstArg)
---     , ("rewind", firstArg)
---     , ("feof", firstArg)
---     , ("ferror", firstArg)
---     , ("clearerr", firstArg)
---     , ("fgetpos", firstArg)
---     , ("fsetpos", firstArg)
---     , ("perror", firstArg)
---     , ("strerror", firstArg)
---     ]
---   where
---     firstArg = 0
---     secondArg = 1
---     thirdArg = 2
---     fourthArg = 3
 
 shouldn'tGetPassedNullPtr :: ExprPattern -> StmtPattern
 shouldn'tGetPassedNullPtr argPat = AnyOne
@@ -567,7 +491,6 @@ nullPointerDereference = BugMatch
     "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
   , mitigationAdvice = "Don't do it."
   }
-
 
 -- Here are some funcs that copy between two buffers.
 -- (func_name, dest, src, size)
