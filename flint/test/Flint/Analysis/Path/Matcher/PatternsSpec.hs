@@ -11,8 +11,10 @@ import qualified Flint.Types.Query as Q
 
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (BinaryImporter(openBinary))
+import qualified Blaze.Import.Pil as PilImporter
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Solver (solveStmtsWithZ3)
+import Blaze.Pretty (prettyStmts')
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil.Solver as Solver
 
@@ -45,12 +47,18 @@ spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
               then const . return $ Solver.Sat HashMap.empty
               else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
 
+    runIO $ PilImporter.getFuncStatements bv (getFunc "buffer_overflow") 0
+      >>= prettyStmts'
+
+    runIO $ pprint $ (getFunc "buffer_overflow") ^. #params
+
     it "should find a strcpy buffer overflow" $ do
       let func = getFunc "buffer_overflow"
           pat = Pat.bufferOverflow
           action = funcHasPattern False func pat
           expected = True
 
+      
       action `shouldReturn` expected
 
     it "should find a format string vulnerability" $ do
