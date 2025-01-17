@@ -34,6 +34,7 @@ library
       Flint.Analysis
       Flint.Analysis.Path.Matcher
       Flint.Analysis.Path.Matcher.Patterns
+      Flint.Analysis.Path.Matcher.Primitives
       Flint.Analysis.Path.Matcher.Stub
       Flint.Analysis.Uefi
       Flint.App
@@ -43,6 +44,8 @@ library
       Flint.Graph
       Flint.Query
       Flint.Types.Analysis
+      Flint.Types.Analysis.Path.Matcher
+      Flint.Types.Analysis.Path.Matcher.Primitives
       Flint.Types.CachedCalc
       Flint.Types.Cfg.Store
       Flint.Types.Query

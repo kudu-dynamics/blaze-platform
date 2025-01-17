@@ -2,248 +2,31 @@
 
 module Flint.Analysis.Path.Matcher
  ( module Flint.Analysis.Path.Matcher
+ , module Flint.Types.Analysis.Path.Matcher
  ) where
 
 import Flint.Prelude hiding (sym, negate)
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
+import Flint.Types.Analysis.Path.Matcher
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
-import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Eval (evalPilArithmeticExpr)
 import Blaze.Pretty (pretty')
-import qualified Blaze.Pretty as Pretty
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size(Size))
-import Blaze.Pil.Construct (ExprConstructor(..), var')
+import Blaze.Pil.Construct (var')
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil.Solver (SolverResult(Err, Sat, Unsat))
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
-import Data.SBV.Dynamic as Exports (CV)
-import Data.String (IsString(fromString))
 import qualified Data.Text as Text
 import Text.Regex.TDFA ((=~))
 
-
-type Symbol = Text
-
-data Func
-  = FuncName Text
-  | FuncAddr Address
-  | FuncNameRegex Text -- currently just looks for name that contains text
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data CallDest expr
-  = CallFunc Func
-  | CallIndirect expr
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data Statement expr
-  = Def expr expr -- Def dst src; dst is always (Var PilVar) expr
-  | Constraint expr
-  | Store expr expr
-  | EnterContext CtxPattern [expr]
-  | ExitContext CtxPattern CtxPattern -- leavingCtx, returningToCtx
-  | Call (Maybe expr) (CallDest expr) [expr]
-  | BranchCond expr
-  | Jump expr
-  | Ret expr
-  | NoRet
-  -- These are sort of supported by Call, since it matches against any CallStatement
-  -- | TailCall (CallDest expr) [expr]
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
--- | TODO: might need to make a `not` and `or` for CtxPattern
-data CtxPattern
-  = AnyCtx
-  | BindCtx Symbol CtxPattern
-  | Ctx (Maybe Func) (Maybe Pil.CtxId)
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data StmtPattern
-  = Stmt (Statement ExprPattern)
-  -- | Eventually StmtPattern
-  -- | Avoid StmtPattern
-  | AvoidUntil AvoidSpec
-  | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
-  | Unordered [StmtPattern] -- matches all, but in no particular order.
-  | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
-  | Neighbors [StmtPattern] -- sequential neighbors with no unmatching stmts between
-  -- | Once StmtPattern has matched, BoundExprs will be checked with the solver
-  | Where StmtPattern [BoundExpr]
-  | Necessarily StmtPattern [BoundExpr]
-  | EndOfPath
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data BoundExprSize
-  = ConstSize (Size Pil.Expression)
-  | SizeOf Symbol  -- looks up symbol to get size of expr
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data BoundExpr
-  = Bound Symbol -- gets expression that has been bound with Bind
-  | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-class BoundVar a where
-  bound :: Symbol -> a
-
-instance BoundVar BoundExpr where
-  bound = Bound
-
-instance ExprConstructor BoundExprSize BoundExpr where
-  mkExpr = BoundExpr
-
-instance Disp.NeedsParens BoundExpr where
-  needsParens (Bound _) = False
-  needsParens (BoundExpr _ op) = Disp.needsParens op
-
-instance Pretty.Tokenizable BoundExpr where
-  tokenize (Bound sym) = pure [Pretty.varToken Nothing ("?" <> sym)]
-  tokenize (BoundExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
-  tokenize (BoundExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
-
--- | Text that can refer to variables bound during pattern matching
-data BoundText
-  = TextExpr Symbol
-  | PureText Text
-  | CombineText BoundText BoundText
-  | CaseContains BoundText [(Text, BoundText)]
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-instance Semigroup BoundText where
-  a <> b = CombineText a b
-
-instance IsString BoundText where
-  fromString = PureText . cs
-
-data ExprPattern
-  = Expr (Pil.ExprOp ExprPattern)
-
-  -- | Binds expr to Sym if pattern matches, or if Sym already exists,
-  -- sees if equal to old sym val.
-  -- You can nest more binds within the ExprPattern.
-  | Bind Symbol ExprPattern
-
-  -- | Matches prefix of var name, like "arg4" will match "arg4-7#1".
-  -- Also matches against ConstFuncPtrs that a name.
-  | Var Symbol
-
-  -- | Matches if its an immediate, like a const int, ptr, float, etc.
-  | Immediate
-
-  -- | Matches if ExprPattern matches somewhere inside expr
-  | Contains ExprPattern
-  -- | Matches if 'src' is involved in the definition of 'dst'
-  | TaintedBy ExprPattern BoundExpr
-  | Wild
-
-  -- | Inequalities. These match on converse inequalities that mean the same thing,
-  -- like `not (x != y)` would match `x .== y`, and `x < y` would match `y .> x`
-  -- It also will work for signed or unsigned ints and floats.
-  -- TODO: add explicit signed/unsigned variants if deemed important
-  -- TODO: do we need NOT? and if so, do we want a thing that just says
-  --       the expr needs to be true?
-  | Cmp CmpType ExprPattern ExprPattern
-
-  -- | This Or's together two expr patterns, so if the first fails, it checks snd.
-  -- Not to be confused with the bitwise PIL.OR operator
-  | OrPattern ExprPattern ExprPattern
-
-  -- | Matches if the expr pattern inside doesn't match
-  | NotPattern ExprPattern
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-instance ExprConstructor () ExprPattern where
-  mkExpr _ = Expr
-
-data CmpType
-  = CmpE
-  | CmpNE
-  | CmpGT
-  | CmpGE
-  | CmpLT
-  | CmpLE
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-(.==) :: ExprPattern -> ExprPattern -> ExprPattern
-(.==) = Cmp CmpE
-infix 4 .==
-
-(./=) :: ExprPattern -> ExprPattern -> ExprPattern
-(./=) = Cmp CmpNE
-infix 4 ./=
-
-(.<) :: ExprPattern -> ExprPattern -> ExprPattern
-(.<) = Cmp CmpLT
-infix 4 .<
-
-(.<=) :: ExprPattern -> ExprPattern -> ExprPattern
-(.<=) = Cmp CmpLE
-infix 4 .<=
-
-(.>) :: ExprPattern -> ExprPattern -> ExprPattern
-(.>) = Cmp CmpGT
-infix 4 .>
-
-(.>=) :: ExprPattern -> ExprPattern -> ExprPattern
-(.>=) = Cmp CmpGE
-infix 4 .>=
-
-data AvoidSpec = AvoidSpec
-  { avoid :: StmtPattern
-  , until :: StmtPattern
-  } deriving (Eq, Ord, Show, Hashable, Generic)
-
-type StmtSolver m = [Pil.Stmt] -> m SolverResult
-
-data MatcherState m = MatcherState
-  { remainingStmts :: [Pil.Stmt]
-  , boundSyms :: HashMap Symbol Pil.Expression
-  , boundCtxSyms :: HashMap Symbol Pil.Ctx
-  , avoids :: HashMap AvoidSpec [Pil.Stmt]
-  -- The successfully parsed stmts, stored in reverse order
-  -- possibly interleaved with user-made Assertions
-  , parsedStmtsWithAssertions :: [Pil.Stmt]
-  , taintSet :: HashSet Taint
-  , solveStmts :: StmtSolver m
-  -- | If the path has been checked with the solver, this holds possible solutions
-  , solutions :: Maybe (HashMap Text CV)
-  } deriving Generic
-
--- data MatcherException = MatcherUnsat
---                       | MatcherError Text
---   deriving (Eq, Ord, Show)
-
--- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
--- and solver errors
-newtype MatcherT m a = MatcherT {
-  _runMatcherT :: ExceptT () (StateT (MatcherState m) m) a
-  }
-  deriving newtype
-    ( Functor
-    , Applicative
-    , Monad
-    , MonadError ()
-    , MonadIO
-    , MonadState (MatcherState m)
-    , Alternative
-    )
-
-instance MonadTrans MatcherT where
-  lift = MatcherT . lift . lift
-
-runMatcher_ :: MatcherT m a -> MatcherState m -> m (Either () a, MatcherState m)
-runMatcher_ action s
-  = flip runStateT s
-  . runExceptT
-  . _runMatcherT
-  $ action
 
 -- | Transitive closure of a 'HashSet Taint'
 taintTransClos :: HashSet Taint -> HashSet Taint
@@ -418,8 +201,8 @@ regexIsIn a b = b =~ a
 
 bind_
   :: (Eq a, Monad m)
-  => Lens' (MatcherState m) (HashMap Symbol a)
-  -> Symbol
+  => Lens' (MatcherState m) (HashMap (Symbol a) a)
+  -> Symbol a
   -> a
   -> MatcherT m ()
 bind_ lens' sym x = do
@@ -430,12 +213,12 @@ bind_ lens' sym x = do
 
 -- | This either adds a new sym/expr combo to the var bindings,
 -- or if the sym already exists, it checks to see if it matches.
-bind :: Monad m => Symbol -> Pil.Expression -> MatcherT m ()
+bind :: Monad m => Symbol Pil.Expression -> Pil.Expression -> MatcherT m ()
 bind = bind_ #boundSyms
 
 -- | This either adds a new sym/expr combo to the var bindings,
 -- or if the sym already exists, it checks to see if it matches.
-bindCtx :: Monad m => Symbol -> Pil.Ctx -> MatcherT m ()
+bindCtx :: Monad m => Symbol Pil.Ctx -> Pil.Ctx -> MatcherT m ()
 bindCtx = bind_ #boundCtxSyms
 
 -- | Tries to absorb a "not" into a bool expression.
@@ -570,9 +353,9 @@ matchExpr pat expr = case pat of
     -- success
     bind sym expr
   Var prefixOfName -> case expr ^. #op of
-    Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf prefixOfName $ pv ^. #symbol
+    Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf (cs prefixOfName) $ pv ^. #symbol
     Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
-      insist $ Text.isPrefixOf prefixOfName symb
+      insist $ Text.isPrefixOf (cs prefixOfName) symb
     _ -> bad
   Immediate -> maybe bad (const good) $ evalPilArithmeticExpr expr
   Contains xpat -> do
@@ -887,11 +670,11 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
         matchNextStmt pat
       else throwError ()
 
-newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
+newtype ResolveBoundExprError = CannotFindBoundVarInState (Symbol Pil.Expression)
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable)
 
-lookupBound :: Monad m => Symbol -> MatcherT m Pil.Expression
+lookupBound :: Monad m => Symbol Pil.Expression -> MatcherT m Pil.Expression
 lookupBound sym = use #boundSyms >>= maybe bad return . HashMap.lookup sym
 
 resolveBoundExprSize :: Monad m => BoundExprSize -> MatcherT m (Size Pil.Expression)
@@ -904,10 +687,10 @@ resolveBoundExpr (BoundExpr bsize op) = do
   Pil.Expression <$> resolveBoundExprSize bsize <*> traverse resolveBoundExpr op
 
 resolveBoundText
-  :: HashMap Symbol Pil.Expression
+  :: HashMap (Symbol Pil.Expression) Pil.Expression
   -> BoundText
   -> Text
-resolveBoundText m (TextExpr sym) = maybe ("<cannot find expr sym: " <> sym <> ">") pretty'
+resolveBoundText m (TextExpr sym) = maybe ("<cannot find expr sym: " <> cs sym <> ">") pretty'
   $ HashMap.lookup sym m
 resolveBoundText _ (PureText t) = t
 resolveBoundText m (CombineText a b) = resolveBoundText m a <> resolveBoundText m b
@@ -936,11 +719,6 @@ runMatchStmts solver pats pathPrep = fmap (second isJust) . runMatcher solver pa
       _ -> do
         retireStmt
         drainRemainingStmts
-
-data MatcherResult
-  = Match [Pil.Stmt]
-  | NoMatch
-  deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.

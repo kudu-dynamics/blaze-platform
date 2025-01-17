@@ -112,6 +112,7 @@ findCopies inputVars retVals stmts = do
     getStores = fmap (view #op) . mapMaybe (uncurry mkStoreStmt) . zip [0..]
 
 
+-- TODO: write in terms where inputVars, retVals, and return are HashSets?
 extractCapabilities :: [PilVar] -> [Expression] -> [Stmt] -> [Capability]
 extractCapabilities inputVars retVals stmts =
   [ findCopies inputVars retVals
@@ -160,27 +161,28 @@ mkCall stmt = do
 
 fromStmts :: [Stmt] -> CodeSummary
 fromStmts stmts =
-  let inputVars = HashSet.toList $ getFreeVars stmts
+  let inputVars = getFreeVars stmts
       mkEffect' = mkEffect mkWrite mkAlloc mkDealloc mkCall
       results = mapMaybe getRetVal stmts
       effects = mapMaybe mkEffect' stmts
    in CodeSummary
         { inputVars = inputVars
-        , inputLoads =
-            concatMap
-              ( filter
-                  ( \x ->
-                      not
-                        ( isArgLoad (HashSet.fromList inputVars) x
-                            || isStackLocalLoad x
-                        )
-                  )
-                  . findLoads
-              )
-              stmts
-        , results = results
-        , effects = effects
-        , capabilities = extractCapabilities inputVars results stmts
+        , inputLoads = HashSet.fromList
+          . concat
+          . fmap
+          ( filter
+            ( \x ->
+                not
+                ( isArgLoad inputVars x
+                  || isStackLocalLoad x
+                )
+            )
+            . findLoads
+          )
+          $ stmts
+        , results = HashSet.fromList results
+        , effects = HashSet.fromList effects
+        , capabilities = HashSet.fromList $ extractCapabilities (HashSet.toList inputVars) results stmts
         }
 
 getLoadExprVars :: LoadExpr -> HashSet PilVar
@@ -226,8 +228,8 @@ removeKilledWrites codeSum =
               then prevResult
               else RemoveKilledResult (x : effects) (HashSet.insert addr seenStoreAddr)
           _ -> RemoveKilledResult (x : effects) seenStoreAddr
-      effects' :: [Effect]
+      effects' :: HashSet Effect
       -- The effects need to be processed in reverse order.
       -- Using `foldr` meets this requirement.
-      effects' = foldr f initResult (codeSum ^. #effects) ^. #effects
+      effects' = HashSet.fromList $ foldr f initResult (codeSum ^. #effects) ^. #effects
    in codeSum & #effects .~ effects'

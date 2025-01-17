@@ -113,13 +113,13 @@ simplify = resolveCalls . PA.aggressiveExpand --  . PA.simplifyVars
 
 showCodeSummary :: CodeSummary -> IO ()
 showCodeSummary s = do
-  putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> s ^. #inputVars)
+  putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> (HashSet.toList $ s ^. #inputVars))
   putText "InputLoads:"
-  pp' $ nub (s ^. #inputLoads)
+  pp' . HashSet.toList $ s ^. #inputLoads
   putText "Results:"
-  pp' $ s ^. #results
+  pp' . HashSet.toList $ s ^. #results
   putText "Effects:"
-  pp' . NewlinedList . sort $ s ^. #effects
+  pp' . NewlinedList . sort . HashSet.toList $ s ^. #effects
   return ()
 
 showPaths :: Text -> [PilPath] -> IO ()
