@@ -48,8 +48,9 @@ data FuncVarExpr
 data CallablePrimitive = CallablePrimitive
   { prim :: PrimType
   , callDest :: Matcher.Func -- func pattern
-  , varMapping :: HashMap (Symbol Pil.Expression) FuncVarExpr
-  , constraints :: HashSet FuncVarExpr -- constraints to reach prim, and constraints on outputs
+  , varMapping :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
+  -- |constraints to reach prim, and constraints on outputs
+  , constraints :: HashSet (FuncVarExpr, HashSet FuncVar)
   , locations :: HashMap (Symbol Location) (HashSet Address)
   -- | Vars that need to link up to the outside (used inside varMapping and constraints)
   -- if you can't control them, maybe the primitive isn't useful
