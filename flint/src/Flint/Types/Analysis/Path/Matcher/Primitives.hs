@@ -5,6 +5,7 @@ import Flint.Prelude hiding (Location)
 import Flint.Types.Analysis.Path.Matcher (Symbol)
 import qualified Flint.Types.Analysis.Path.Matcher as Matcher
 
+import Blaze.Pil.Construct (ExprConstructor(mkExpr))
 import Blaze.Types.Pil (Size)
 import qualified Blaze.Types.Pil as Pil
 
@@ -40,6 +41,9 @@ data FuncVarExpr
   | FuncVarExpr (FuncVarExprSize) (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
+instance ExprConstructor FuncVarExprSize FuncVarExpr where
+  mkExpr =  FuncVarExpr
+
 -- | This represents a concrete primitive, callable through a function,
 -- where the prim inputs are accessible through function inputs.
 -- The point of this is so we can match on PrimTypes in the Matcher
@@ -50,7 +54,7 @@ data CallablePrimitive = CallablePrimitive
   , callDest :: Matcher.Func -- func pattern
   , varMapping :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
   -- |constraints to reach prim, and constraints on outputs
-  , constraints :: HashSet (FuncVarExpr, HashSet FuncVar)
+  , constraints :: [(FuncVarExpr, HashSet FuncVar)]
   , locations :: HashMap (Symbol Location) (HashSet Address)
   -- | Vars that need to link up to the outside (used inside varMapping and constraints)
   -- if you can't control them, maybe the primitive isn't useful

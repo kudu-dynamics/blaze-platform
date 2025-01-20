@@ -1,4 +1,7 @@
-module Flint.Analysis.Path.Matcher.Primitives where
+module Flint.Analysis.Path.Matcher.Primitives
+  ( module Flint.Types.Analysis.Path.Matcher.Primitives
+  , module Flint.Analysis.Path.Matcher.Primitives
+  ) where
 
 import Flint.Prelude hiding (Location)
 
@@ -6,13 +9,10 @@ import Flint.Types.Analysis.Path.Matcher (Symbol)
 import qualified Flint.Types.Analysis.Path.Matcher as M
 import Flint.Types.Analysis.Path.Matcher.Primitives
 
-import Blaze.Types.Cfg.Path (PilPath)
 import Blaze.Types.Function (Function, FuncParamInfo)
 import qualified Blaze.Types.Function as Func
-import Blaze.Types.Pil (PilVar)
+import Blaze.Types.Pil (PilVar, Stmt)
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil.Analysis (LoadExpr(LoadExpr))
-import Blaze.Types.Pil.Analysis.Subst (flatSubst)
 import Blaze.Types.Pil.Summary (CodeSummary)
 
 import qualified Data.HashSet as HashSet
@@ -55,11 +55,11 @@ getFuncVar
   -> CodeSummary
   -> Pil.Expression
   -> Maybe FuncVar
-getFuncVar params codeSum expr@(Pil.Expression _sz exprOp) = case exprOp of
+getFuncVar params codeSum _expr@(Pil.Expression _sz exprOp) = case exprOp of
   (Pil.VAR (Pil.VarOp pv)) -> getFuncVarFromPilVar params (codeSum ^. #inputVars) pv
-  (Pil.LOAD (Pil.LoadOp _)) -> case HashSet.member (LoadExpr expr) (codeSum ^. #inputLoads) of
-    True -> Just . Global $ expr
-    False -> Nothing
+  -- (Pil.LOAD (Pil.LoadOp _)) -> case HashSet.member (LoadExpr expr) (codeSum ^. #inputLoads) of
+  --   True -> Just . Global $ expr
+  --   False -> Nothing
   -- TODO: do something about rets and output stores. Maybe use Effects from CodeSummary
   _ -> Nothing
 
@@ -91,20 +91,32 @@ mkCallablePrimitive
   -> PrimType
   -> HashMap (Symbol Pil.Expression) Pil.Expression
   -> HashMap (Symbol Location) (HashSet Address)
-  -> PilPath
+  -> [Stmt] -- whole path
   -> CallablePrimitive
-mkCallablePrimitive func codeSum primType boundExprs boundLocations _path = CallablePrimitive
+mkCallablePrimitive func codeSum primType boundExprs boundLocations path = CallablePrimitive
   { prim = primType
   , callDest = M.FuncName $ func ^. #name
   , varMapping = varMapping'
   -- TODO: derive from path.
   -- could get all constraints out of path, or just up until last boundLocation is reached
-  , constraints = HashSet.empty
+  , constraints = funcVarExprConstraints
   , locations = boundLocations
-  , linkedVars = foldMap snd . HashMap.elems $ varMapping'
+  , linkedVars =
+      (foldMap snd funcVarExprConstraints)
+      <>
+      (foldMap snd . HashMap.elems $ varMapping')
   }
   where
-    params = func ^. #params
-    varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
-    varMapping' = toFuncVarExpr params codeSum <$> boundExprs
+    funcVarExprConstraints = toFuncVarExpr' <$> allConstraints
+    allConstraints = mapMaybe extractConstraint path
     
+    extractConstraint :: Stmt -> Maybe Pil.Expression
+    extractConstraint stmt = case stmt ^. #statement of
+      (Pil.Constraint (Pil.ConstraintOp x)) -> Just x
+      (Pil.BranchCond (Pil.BranchCondOp x)) -> Just x
+      _ -> Nothing
+
+    params = func ^. #params
+    toFuncVarExpr' = toFuncVarExpr params codeSum
+    varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
+    varMapping' = toFuncVarExpr' <$> boundExprs
