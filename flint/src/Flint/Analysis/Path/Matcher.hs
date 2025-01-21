@@ -120,7 +120,7 @@ instance MkPathPrep PilPath where
     . Path.toStmts
 
 mkMatcherState :: StmtSolver m -> PathPrep -> MatcherState m
-mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing
+mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing HashMap.empty
 
 runMatcher
   :: Monad m
@@ -523,6 +523,12 @@ addConstraint x = do
 storeAsParsed :: Monad m => Pil.Stmt -> MatcherT m ()
 storeAsParsed x = #parsedStmtsWithAssertions %= (x :)
 
+addLocation :: Monad m => Symbol Address -> Address -> MatcherT m ()
+addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
+  where
+    addOrCreate Nothing = Just $ HashSet.singleton addr
+    addOrCreate (Just s) = Just $ HashSet.insert addr s
+
 addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
 addAvoid x = do
   rstmts <- use #remainingStmts
@@ -583,6 +589,7 @@ matchNextStmt = matchNextStmt_ True
 -- | Matches the next statement with the next stmt pattern.
 matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
 matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
+  -- | Case where no more statements are available (end of path)
   Nothing -> case pat of
     Stmt _ -> bad
     AvoidUntil _ -> use #avoids >>= bool bad good . HashMap.null
@@ -599,6 +606,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> good
+    LocationLabel _ p -> matchNextStmt_ False p
 
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -645,6 +653,15 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> perhapsRecur
+    LocationLabel lbl p ->
+      ( tryError . backtrackOnError $ do
+          matchNextStmt_ False p
+      ) >>= \case
+      Right _ -> do
+        addLocation lbl $ stmt ^. #addr
+        good
+      Left _ -> perhapsRecur
+
   where
     matchWhere subPat boundExprs = do
       matchNextStmt subPat

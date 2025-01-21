@@ -17,13 +17,13 @@ import Data.SBV.Dynamic as Exports (CV)
 import Data.String (IsString(fromString))
 import Data.String.Conversions (ConvertibleStrings(convertString))
 
+
 newtype Symbol a = Symbol Text
   deriving (Eq, Ord, Read, Show, Generic)
   deriving newtype (IsString, Hashable)
 
 instance (ConvertibleStrings Text b) => ConvertibleStrings (Symbol a) b where
   convertString (Symbol t) = convertString t
-
 
 data Func
   = FuncName Text
@@ -71,6 +71,7 @@ data StmtPattern
   | Where StmtPattern [BoundExpr]
   | Necessarily StmtPattern [BoundExpr]
   | EndOfPath
+  | LocationLabel (Symbol Address) StmtPattern
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize
@@ -207,6 +208,7 @@ data MatcherState m = MatcherState
   , solveStmts :: StmtSolver m
   -- | If the path has been checked with the solver, this holds possible solutions
   , solutions :: Maybe (HashMap Text CV)
+  , locations :: HashMap (Symbol Address) (HashSet Address)
   } deriving Generic
 
 -- data MatcherException = MatcherUnsat
