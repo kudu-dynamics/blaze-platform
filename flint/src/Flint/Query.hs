@@ -7,13 +7,17 @@ import Flint.Prelude
 
 import Flint.Analysis (showPathsWithMatches)
 import qualified Flint.Analysis as FA
-import Flint.Analysis.Path.Matcher (StmtPattern)
+import Flint.Analysis.Path.Matcher (StmtPattern, PathPrep, StmtSolver)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
+import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRouteIO)
 import Flint.Types.Analysis (TaintPropagator)
+import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive)
+import Flint.Types.Analysis.Path.Matcher.Primitives (Prim, CallablePrimitive)
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
+import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
 import Flint.Util (sequentialWarn)
 
@@ -22,8 +26,11 @@ import Blaze.Cfg.Path (PilPath)
 import Blaze.Graph (OuterNodeDescendants, RouteMakerCtx, Route, RouteAction)
 import qualified Blaze.Graph as G
 import Blaze.Import.CallGraph (CallGraphImporter)
+import Blaze.Pil.Summary (CodeSummary)
+import qualified Blaze.Pil.Summary as Summary
 import Blaze.Pretty (Tokenizable(tokenize), Tokenizer, Token, (<++>), tt, pretty')
 import qualified Blaze.Pretty as P
+import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import Blaze.Types.Cfg (PilNode, PilCfg)
 import qualified Blaze.Types.Cfg as Cfg
@@ -31,6 +38,7 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge))
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Path as Path
+import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 
@@ -110,6 +118,7 @@ getFullFunction m (M.FuncAddr x) = HashMap.lookup x $ m ^. #addrMap
 -- TODO: could fill this out to work with regex... or...
 --       we'll probably deprecate queryForBugMatch_ one day, so just procrastinate
 getFullFunction _m (M.FuncNameRegex _x) = Nothing
+getFullFunction _m (M.FuncNames _x) = Nothing
 
 toFullFunctionSequenceGraph
   :: FuncMapping
@@ -209,8 +218,8 @@ queryForBugMatch_ actuallySolve maxCallDepthLimit maxSamples store funcMapping r
           tryPrepsUntilExhausted HashSet.empty 0 $ x :| xs
   where
     solver = if actuallySolve
-      then const . return $ Solver.Sat HashMap.empty
-      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
     getMatch path = (path',) <$> M.match solver (bm ^. #pathPattern) (M.mkPathPrep [] path')
       where
         path' = stubPath stubs path
@@ -604,8 +613,8 @@ queryForBugMatchUsingRoutes actuallySolve imp store routeMakerCtx sampleRoutePre
         showPathsWithMatches (func ^. #name) [(path, [((ms, mr), bugMatch)])]
   where
     solver = if actuallySolve
-      then const . return $ Solver.Sat HashMap.empty
-      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
     getMatch ((func, _route), path)
       = (func, path',) <$> M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep taints path')
       where
@@ -672,6 +681,7 @@ checkFunc
   -> IO ()
 checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch reportError $ do
   paths <- samplesFromQuery store startFunc q
+  -- putText $ "Got Some paths: " <> show (length paths)
   forConcurrently_ paths $ \path -> do
     forConcurrently_ bugMatches $ \bugMatch -> do
       M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep [] path) >>= \case
@@ -690,8 +700,8 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
               resolveText = M.resolveBoundText (ms ^. #boundSyms)
   where
     solver = if actuallySolve
-      then const . return $ Solver.Sat HashMap.empty
-      else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
     reportError :: SomeException -> IO ()
     reportError e = do
       let msg = "\n---------------------------\n"
@@ -700,3 +710,149 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
                 <> "\n"
                 <> show e
       sequentialWarn msg
+
+checkKernelLifecycle
+  :: Bool
+  -> CfgStore
+  -> Word64
+  -> Word64
+  -> (MatchingResult -> IO ())
+  -> IO ()
+checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth streamResults = do
+  funcs <- CfgStore.getFuncs store
+  case (findFuncByName funcs "init_module", findFuncByName funcs "cleanup_module") of
+    (Just initFunc, Just cleanupFunc) -> do
+      uuidInit <- randomIO
+      uuidClean <- randomIO
+      uuidBbEnd <- randomIO
+      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" 0 []
+          lifeCtx = Pil.Ctx lifecycleFunc 0
+          initDest = Pil.CallFunc initFunc
+          cleanDest = Pil.CallFunc cleanupFunc
+          callNodeInit
+            = Cfg.Call $ Cfg.CallNode
+              lifeCtx
+              0
+              initDest
+              uuidInit
+              [ C.defCall "r1" initDest [] 8 ]
+
+          callNodeCleanup
+            = Cfg.Call $ Cfg.CallNode
+              lifeCtx
+              8
+              cleanDest
+              uuidClean
+              [ C.defCall "r1" cleanDest [] 8 ]
+
+          bbEnd = Cfg.BasicBlock $ Cfg.BasicBlockNode
+                  lifeCtx
+                  0x10
+                  0x12
+                  uuidBbEnd
+                  [ C.ret $ C.var "r1" 8 ]
+                  
+          lifeCfg = Cfg.mkCfg
+            0
+            callNodeInit
+            [ callNodeInit, callNodeCleanup, bbEnd]
+            [ Cfg.CfEdge callNodeInit callNodeCleanup Cfg.UnconditionalBranch
+            , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
+            ]
+          lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
+      CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
+      
+      let q :: Query Function
+          q = QueryExpandAll $ QueryExpandAllOpts
+              { callExpandDepthLimit = expandCallDepth + 1
+              -- TODO: At some point, we should base the # samples on the size of func
+              , numSamples = maxSamplesPerFunc
+              }
+          bms :: [BugMatch]
+          bms = Pat.kernelModulePatterns
+
+      checkFunc
+        actuallyUseSolver
+        store
+        q
+        bms
+        streamResults
+        lifecycleFunc
+
+
+      return ()
+      
+    _ -> do
+      putText "Failed to find both `init_module` and `cleanup_module` for kernel"
+      return ()
+  where
+    findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
+
+checkPathForPrim
+  :: StmtSolver IO
+  -> Function
+  -> PathPrep
+  -> CodeSummary
+  -> Prim
+  -> IO (Maybe CallablePrimitive)
+checkPathForPrim solver func prep codeSummary prim = do
+  M.match solver (prim ^. #stmtPattern) prep >>= \case
+    (_, M.NoMatch) -> return Nothing
+    (ms, M.Match stmtsWithAssertions) -> do
+      return . Just $ mkCallablePrimitive
+        func
+        codeSummary
+        (prim ^. #primType)
+        (ms ^. #boundSyms)
+        (ms ^. #locations)
+        stmtsWithAssertions
+
+checkFuncForPrims
+  :: Bool                   -- actually use SMT solver?
+  -> CfgStore
+  -> Query Function         -- method to get the paths from each func
+  -> [Prim]             -- checks all on each path
+  -> (MatchingPrim -> IO ()) -- stream out matches per function
+  -> Function               -- start func
+  -> IO ()
+checkFuncForPrims actuallySolve store q prims streamResults func = flip catch reportError $ do
+  paths <- samplesFromQuery store func q
+  -- putText $ "Got Some paths: " <> show (length paths)
+  forConcurrently_ paths $ \path -> do
+    let pathPrep = M.mkPathPrep [] path
+        codeSum = Summary.fromStmts $ pathPrep ^. #stmts
+    forConcurrently_ prims $ \prim -> do
+      checkPathForPrim solver func pathPrep codeSum prim >>= \case
+        Nothing -> return ()
+        Just cprim -> do
+          let matchingPrim = MatchingPrim
+                { func = func
+                , callablePrim = cprim
+                , path = pathPrep ^. #stmts
+                }
+          streamResults matchingPrim
+  where
+    solver = if actuallySolve
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
+    reportError :: SomeException -> IO ()
+    reportError e = do
+      let msg = "\n---------------------------\n"
+                <> "Error when checking function: "
+                <> show (func ^. #name)
+                <> "\n"
+                <> show e
+      sequentialWarn msg
+
+-- | Convenient function to query multiple functions and check for callable primitives
+checkFuncsForPrims
+  :: Bool                   -- actually use SMT solver?
+  -> CfgStore
+  -> Query Function         -- method to get the paths from each func
+  -> [Prim]             -- checks all on each path
+  -> (MatchingPrim -> IO ()) -- stream out matches per function
+  -> HashSet Function
+  -> IO ()
+checkFuncsForPrims actuallySolve store q bugMatches streamResults funcs = do
+  mapConcurrently_ (checkFuncForPrims actuallySolve store q prims streamResults) . HashSet.toList $ funcs
+  putText "Finished"

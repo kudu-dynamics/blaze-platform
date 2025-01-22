@@ -270,6 +270,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
+    it "should match on a call to a named function from a set of names" $ do
+      let cdest = Pil.CallFunc func0
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
+                  ]
+          funcNames = HashSet.fromList ["func0", "func1"]
+          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNames funcNames)) [Wild, Wild]
+                 ]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
     it "should match on a call to a named function using regex" $ do
       let cdest = Pil.CallFunc func2
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
@@ -582,11 +592,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             expected = Match stmts
         pureMatchStmts' [] pats stmts `shouldBe` expected
 
-      it "should match on end of path" $ do
+      it "should match on end of path in 'until' of AvoidUntil" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ EndOfPath ]
+            pats = [ AvoidUntil $ AvoidSpec
+                     { until = EndOfPath
+                     , avoid = Stmt $ Def (Var "z") Wild
+                     }
+                   ]
             expected = Match stmts
         pureMatchStmts' [] pats stmts `shouldBe` expected
 

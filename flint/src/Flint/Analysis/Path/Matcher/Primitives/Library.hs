@@ -1,14 +1,11 @@
-module Flint.Analysis.Path.Matcher.Primitives.Library
-  ( module Flint.Types.Analysis.Path.Matcher.Primitives
-  , module Flint.Analysis.Path.Matcher.Primitives
-  ) where
+module Flint.Analysis.Path.Matcher.Primitives.Library where
 
 import Flint.Prelude hiding (Location)
 
-import Flint.Types.Analysis.Path.Matcher
+import Flint.Analysis.Path.Matcher
 import Flint.Types.Analysis.Path.Matcher.Primitives
 
-import Blaze.Pil.Construct hiding (not)
+-- import Blaze.Pil.Construct hiding (not)
 
 import qualified Data.HashSet as HashSet
 
@@ -58,13 +55,26 @@ userControlledFormatStringPattern = AnyOne
       [ "snprintf"
       , "vsnprintf"
       ]
-  
-writeToKernelGlobal :: PrimType
-writeToKernelGlobal = PrimType
-  { name = "WriteToKernelGlobal"
-  , vars = HashSet.fromList
-    [ "src", "dest", "len" ]
-  , locations = HashSet.fromList
-    [ "write" ]
-  }
 
+-------------------------------------
+
+writeToKernelGlobal :: Prim
+writeToKernelGlobal = Prim
+  { primType = PrimType
+               { name = "WriteToKernelGlobal"
+               , vars = HashSet.fromList
+                 [ "src", "dest", "len" ]
+               , locations = HashSet.fromList
+                 [ "write" ]
+               }
+  , stmtPattern =
+      [ Location "write" . Stmt $ Call Nothing (CallFunc $ FuncName "_copy_from_user")
+        [ Bind "dest" isGlobal
+        , Bind "src" (isGlobal .|| isArg)
+        , Bind "len" Wild
+        ]
+      ]
+  }
+  where
+    -- TODO: pass in global from CodeSummary?
+    isGlobal = Immediate

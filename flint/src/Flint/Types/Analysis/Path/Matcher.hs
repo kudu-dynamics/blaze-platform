@@ -27,6 +27,7 @@ instance (ConvertibleStrings Text b) => ConvertibleStrings (Symbol a) b where
 
 data Func
   = FuncName Text
+  | FuncNames (HashSet Text)
   | FuncAddr Address
   | FuncNameRegex Text
   deriving (Eq, Ord, Show, Hashable, Generic)
@@ -244,3 +245,8 @@ data MatcherResult
   = Match [Pil.Stmt]
   | NoMatch
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+data PathPrep = PathPrep
+  { stmts :: [Pil.Stmt]
+  , taintSet :: HashSet Taint
+  } deriving (Eq, Ord, Show, Generic)

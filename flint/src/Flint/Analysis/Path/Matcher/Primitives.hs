@@ -90,7 +90,7 @@ mkCallablePrimitive
   -> CodeSummary
   -> PrimType
   -> HashMap (Symbol Pil.Expression) Pil.Expression
-  -> HashMap (Symbol Location) (HashSet Address)
+  -> HashMap (Symbol Address) (HashSet Address)
   -> [Stmt] -- whole path
   -> CallablePrimitive
 mkCallablePrimitive func codeSum primType boundExprs boundLocations path = CallablePrimitive

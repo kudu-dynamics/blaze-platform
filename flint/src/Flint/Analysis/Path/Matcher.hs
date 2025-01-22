@@ -5,7 +5,7 @@ module Flint.Analysis.Path.Matcher
  , module Flint.Types.Analysis.Path.Matcher
  ) where
 
-import Flint.Prelude hiding (sym, negate)
+import Flint.Prelude hiding (sym, negate, Location)
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import Flint.Types.Analysis.Path.Matcher
@@ -26,6 +26,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Text.Regex.TDFA ((=~))
+
 
 
 -- | Transitive closure of a 'HashSet Taint'
@@ -101,12 +102,6 @@ mkStmtTaintSet tps (Pil.Stmt _ statement) =
 mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
 mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
-data PathPrep = PathPrep
-  { stmts :: [Pil.Stmt]
-  , taintSet :: HashSet Taint
-  } deriving (Eq, Ord, Show, Generic)
-
-
 class MkPathPrep a where
   mkPathPrep :: [TaintPropagator] -> a -> PathPrep
 
@@ -165,6 +160,15 @@ matchCallDest pat cdest = case pat of
       insist $ Just name == mSym
     (FuncName name, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
       insist $ Just name == mSym
+
+    (FuncNames names, Pil.CallFunc func) ->
+      insist $ HashSet.member (func ^. #name) names
+            || maybe False (`HashSet.member` names) (func ^? #symbol . #_Just . #_symbolName)
+    (FuncNames names, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
+      insist $ maybe False (`HashSet.member` names) mSym
+    (FuncNames names, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
+      insist $ maybe False (`HashSet.member` names) mSym
+
 
     (FuncAddr addr, Pil.CallFunc func) ->
       insist $ addr == func ^. #address
@@ -399,6 +403,8 @@ matchFuncPatWithFunc :: Monad m => Func -> BFunc.Function -> MatcherT m ()
 matchFuncPatWithFunc (FuncName name) func = insist
   $ func ^. #name == name
   || func ^? #symbol . #_Just . #_symbolName == Just name
+matchFuncPatWithFunc (FuncNames names) func = insist
+  $ (func ^. #name) `HashSet.member` names
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
 matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
   $ regexIsIn rpat (func ^. #name)
@@ -592,7 +598,9 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
   -- | Case where no more statements are available (end of path)
   Nothing -> case pat of
     Stmt _ -> bad
-    AvoidUntil _ -> use #avoids >>= bool bad good . HashMap.null
+    AvoidUntil _ -> do
+      checkAvoids
+      use #avoids >>= bool bad good . HashMap.null
     AnyOne [] -> good
     AnyOne pats -> asum $ matchNextStmt_ False <$> pats
     Unordered [] -> good

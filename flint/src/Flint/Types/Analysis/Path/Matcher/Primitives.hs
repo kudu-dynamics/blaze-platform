@@ -2,15 +2,19 @@ module Flint.Types.Analysis.Path.Matcher.Primitives where
 
 import Flint.Prelude hiding (Location)
 
-import Flint.Types.Analysis.Path.Matcher (Symbol)
+import Flint.Types.Analysis.Path.Matcher (Symbol, StmtPattern)
 import qualified Flint.Types.Analysis.Path.Matcher as Matcher
 
 import Blaze.Pil.Construct (ExprConstructor(mkExpr))
-import Blaze.Types.Pil (Size)
+import Blaze.Pretty (tt, tokenize, (<++>))
+import qualified Blaze.Pretty as Pretty
+import Blaze.Types.Pil (Size(Size))
 import qualified Blaze.Types.Pil as Pil
 
-
-data Location
+data Prim = Prim
+  { primType :: PrimType
+  , stmtPattern :: [StmtPattern]
+  } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | The type of primitive and names for input and output vars.
 -- These are any vars both input and output, that will be
@@ -19,7 +23,7 @@ data PrimType = PrimType
   { name :: Text
   , vars :: HashSet (Symbol Pil.Expression)
   -- | important locations in the primitive
-  , locations :: HashSet (Symbol Location) 
+  , locations :: HashSet (Symbol Address) 
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | The primitive vars bound in CallablePrimitive will be written in terms of these
@@ -28,6 +32,11 @@ data FuncVar
   | Ret
   | Global Pil.Expression -- expr is address of store or load
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+instance Pretty.Tokenizable FuncVar where
+  tokenize (Arg n) = return [tt $ "ARG_" <> show n]
+  tokenize (Global x) = tt "GLOBAL(" <++> tokenize x <++> tt ")"
+  tokenize Ret = return [tt "RET"]
 
 data FuncVarExprSize
   = ConstSize (Size Pil.Expression)
@@ -40,6 +49,13 @@ data FuncVarExpr
   | FuncVar FuncVar
   | FuncVarExpr (FuncVarExprSize) (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+instance Pretty.Tokenizable FuncVarExpr where
+  tokenize (PrimVar sym) = pure [Pretty.varToken Nothing ("?" <> cs sym)]
+  tokenize (FuncVar v) = tokenize v
+  tokenize (FuncVarExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
+  tokenize (FuncVarExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
+
 
 instance ExprConstructor FuncVarExprSize FuncVarExpr where
   mkExpr =  FuncVarExpr
@@ -55,7 +71,7 @@ data CallablePrimitive = CallablePrimitive
   , varMapping :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
   -- |constraints to reach prim, and constraints on outputs
   , constraints :: [(FuncVarExpr, HashSet FuncVar)]
-  , locations :: HashMap (Symbol Location) (HashSet Address)
+  , locations :: HashMap (Symbol Address) (HashSet Address)
   -- | Vars that need to link up to the outside (used inside varMapping and constraints)
   -- if you can't control them, maybe the primitive isn't useful
   , linkedVars :: HashSet FuncVar

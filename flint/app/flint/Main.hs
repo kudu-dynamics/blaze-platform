@@ -8,7 +8,6 @@ import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
-import qualified Flint.Types.CachedCalc as CC
 import Flint.Util (sequentialPutText)
 
 import Blaze.Function (Function)
@@ -28,6 +27,7 @@ data Options = Options
   , doNotUseSolver :: Bool
   , maxSamplesPerFunc :: Word64
   , expandCallDepth :: Word64
+  , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
   , inputFile :: FilePath
   }
@@ -57,6 +57,11 @@ parseJSONOption :: Parser Bool
 parseJSONOption = switch
   ( long "outputJSON"
     <> help "output in a JSON format" )
+
+parseIsKernelModule :: Parser Bool
+parseIsKernelModule = switch
+  ( long "isKernelModule"
+    <> help "do lifecyle check for kernel modules" )
 
 parseMaxSamplesPerFunc :: Parser Word64
 parseMaxSamplesPerFunc = option auto
@@ -90,6 +95,7 @@ optionsParser = Options
   <*> (parseDoNotUseSolver <|> pure False)
   <*> (parseMaxSamplesPerFunc <|> pure 15)
   <*> (parseExpandCallDepth <|> pure 0)
+  <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
   <*> parseInputFile
 
@@ -117,11 +123,25 @@ printJSON res = do
         }
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
+printMatchingPrimJSON :: MatchingPrim -> IO()
+printMatchingPrimJSON res = do
+  let func = res ^. #func
+      name = func ^. #name
+      addr = func ^. #address
+      blob = MatchingResultBlob
+        { func = (name, addr)
+        , pathAsStmts = pretty' <$> res ^. #pathAsStmts
+        , bugName = res ^. #bugName
+        , mitigationAdvice = res ^. #mitigationAdvice
+        , bugDescription = res ^. #bugDescription
+        }
+  sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
+
 -- | Checks for bugs by blindly sampling paths from every function
 defaultCheck :: Options -> IO ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-  funcs <- CC.get_ $ store ^. #funcs
+  funcs <- Store.getFuncs store
   
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -130,8 +150,34 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
           , numSamples = opts ^. #maxSamplesPerFunc
           }
       bms :: [BugMatch]
-      bms =
-        [ Pat.incrementWithoutCheck
-        ]
-  let output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
-  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output $ HashSet.fromList funcs
+      bms = Pat.allPatterns
+      output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
+
+  when (opts ^. #isKernelModule)
+    $ checkKernelLifecycle
+      (not $ opts ^. #doNotUseSolver)
+      store
+      (opts ^. #maxSamplesPerFunc)
+      (opts ^. #expandCallDepth)
+      output
+      
+  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output . HashSet.fromList $ funcs
+
+
+-- | Checks for bugs by blindly sampling paths from every function
+defaultCheck2 :: Options -> IO ()
+defaultCheck2 opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+  store <- Store.init (opts ^. #analysisDb) imp
+  funcs <- Store.getFuncs store
+  
+  let q :: Query Function
+      q = QueryExpandAll $ QueryExpandAllOpts
+          { callExpandDepthLimit = opts ^. #expandCallDepth
+          -- TODO: At some point, we should base the # samples on the size of func
+          , numSamples = opts ^. #maxSamplesPerFunc
+          }
+      prims :: [Prim]
+      prims = [PrimLib.writeToKernelGlobal]
+      output = if opts ^. #outputJSON then printMatchingPrim else sequentialPutText . pretty'
+      
+  checkFuncsForPrims (not $ opts ^. #doNotUseSolver) store q prims output . HashSet.fromList $ funcs
