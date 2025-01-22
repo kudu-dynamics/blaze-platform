@@ -853,6 +853,6 @@ checkFuncsForPrims
   -> (MatchingPrim -> IO ()) -- stream out matches per function
   -> HashSet Function
   -> IO ()
-checkFuncsForPrims actuallySolve store q bugMatches streamResults funcs = do
+checkFuncsForPrims actuallySolve store q prims streamResults funcs = do
   mapConcurrently_ (checkFuncForPrims actuallySolve store q prims streamResults) . HashSet.toList $ funcs
   putText "Finished"

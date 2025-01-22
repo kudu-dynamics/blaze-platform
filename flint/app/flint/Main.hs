@@ -4,7 +4,9 @@ module Main (main) where
 
 import Flint.Prelude
 
+import Flint.Types.Analysis.Path.Matcher.Primitives (Prim)
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
@@ -13,6 +15,7 @@ import Flint.Util (sequentialPutText)
 import Blaze.Function (Function)
 import Blaze.Pretty (pretty')
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON(toJSON))
@@ -102,7 +105,7 @@ optionsParser = Options
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  defaultCheck opts
+  defaultCheck2 opts
   where
     optsParser = info (optionsParser <**> helper)
       ( fullDesc
@@ -128,12 +131,17 @@ printMatchingPrimJSON res = do
   let func = res ^. #func
       name = func ^. #name
       addr = func ^. #address
-      blob = MatchingResultBlob
+      blob = MatchingPrimBlob
         { func = (name, addr)
-        , pathAsStmts = pretty' <$> res ^. #pathAsStmts
-        , bugName = res ^. #bugName
-        , mitigationAdvice = res ^. #mitigationAdvice
-        , bugDescription = res ^. #bugDescription
+        , path = pretty' <$> res ^. #path -- TODO: get path with assertions
+        , primName = res ^. #callablePrim . #prim . #name
+        , vars = HashMap.fromList
+                 . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
+                 . HashMap.toList
+                 $ res ^. #callablePrim . #varMapping
+        , locations = HashMap.mapKeys pretty' $ res ^. #callablePrim . #locations
+        , constraints = pretty' <$> res ^. #callablePrim . #constraints
+        , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
         }
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
@@ -178,6 +186,6 @@ defaultCheck2 opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp 
           }
       prims :: [Prim]
       prims = [PrimLib.writeToKernelGlobal]
-      output = if opts ^. #outputJSON then printMatchingPrim else sequentialPutText . pretty'
+      output = if opts ^. #outputJSON then printMatchingPrimJSON else sequentialPutText . cs . pshow -- pretty'
       
   checkFuncsForPrims (not $ opts ^. #doNotUseSolver) store q prims output . HashSet.fromList $ funcs

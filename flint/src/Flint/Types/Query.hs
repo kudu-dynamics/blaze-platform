@@ -80,7 +80,8 @@ data MatchingPrimBlob = MatchingPrimBlob
   , path :: [Text]
   , primName :: Text
   , vars :: HashMap Text Text
-  , locations :: HashMap Text Address
+  , locations :: HashMap Text (HashSet Address)
+  , constraints :: [Text]
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 

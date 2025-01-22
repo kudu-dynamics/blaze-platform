@@ -121,6 +121,7 @@ library:
   - Flint.Types.Analysis
   - Flint.Types.Analysis.Path.Matcher
   - Flint.Types.Analysis.Path.Matcher.Primitives
+  - Flint.Analysis.Path.Matcher.Primitives.Library
   - Flint.Types.CachedCalc
   - Flint.Types.Cfg.Store
   - Flint.Types.Query

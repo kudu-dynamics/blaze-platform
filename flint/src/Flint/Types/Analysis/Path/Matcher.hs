@@ -22,6 +22,9 @@ newtype Symbol a = Symbol Text
   deriving (Eq, Ord, Read, Show, Generic)
   deriving newtype (IsString, Hashable)
 
+instance Pretty.Tokenizable (Symbol a) where
+  tokenize (Symbol t) = return [Pretty.tt t]
+
 instance (ConvertibleStrings Text b) => ConvertibleStrings (Symbol a) b where
   convertString (Symbol t) = convertString t
 

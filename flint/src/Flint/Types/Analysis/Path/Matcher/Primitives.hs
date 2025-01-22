@@ -1,10 +1,11 @@
 module Flint.Types.Analysis.Path.Matcher.Primitives where
 
-import Flint.Prelude hiding (Location)
+import Flint.Prelude hiding (Location, sym)
 
 import Flint.Types.Analysis.Path.Matcher (Symbol, StmtPattern)
 import qualified Flint.Types.Analysis.Path.Matcher as Matcher
 
+import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Construct (ExprConstructor(mkExpr))
 import Blaze.Pretty (tt, tokenize, (<++>))
 import qualified Blaze.Pretty as Pretty
@@ -49,6 +50,11 @@ data FuncVarExpr
   | FuncVar FuncVar
   | FuncVarExpr (FuncVarExprSize) (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+instance Disp.NeedsParens FuncVarExpr where
+  needsParens (PrimVar _) = False
+  needsParens (FuncVar _) = False
+  needsParens (FuncVarExpr _ op) = Disp.needsParens op
 
 instance Pretty.Tokenizable FuncVarExpr where
   tokenize (PrimVar sym) = pure [Pretty.varToken Nothing ("?" <> cs sym)]
