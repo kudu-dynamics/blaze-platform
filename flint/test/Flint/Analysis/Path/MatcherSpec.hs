@@ -16,6 +16,7 @@ import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
 import Test.Hspec
 
@@ -610,6 +611,39 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    ]
             expected = Match stmts
         pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    context "Locations" $ do
+      let loc addr s = s & #addr .~ addr
+      it "should store location for single statement" $ do
+        let stmts = [loc 0x888 $ def "b" (load (var "arg4" 4) 4)]
+            pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
+      it "should ignore unmatched statements preceeding matched location" $ do
+        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
+                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+                    ]
+            pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
+      it "should match range of statements for location of pattern that consumes multiple statements" $ do
+        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
+                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+                    , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
+                    ]
+            pats = [ Location "varPlace" $ Ordered
+                     [ Stmt $ Def (Var "b") Wild
+                     , Stmt $ Def (Var "c") Wild
+                     ]
+                   ]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888, 0x999])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
 
     it "should avoid until" $ do
       let stmts = [ def "a" (const 0 4)

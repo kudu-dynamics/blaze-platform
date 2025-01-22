@@ -606,7 +606,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> good
-    LocationLabel _ p -> matchNextStmt_ False p
+    Location _ p -> matchNextStmt_ False p
 
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -653,7 +653,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> perhapsRecur
-    LocationLabel lbl p ->
+    Location lbl p ->
       ( tryError . backtrackOnError $ do
           matchNextStmt_ False p
       ) >>= \case

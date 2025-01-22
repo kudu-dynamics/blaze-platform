@@ -71,7 +71,7 @@ data StmtPattern
   | Where StmtPattern [BoundExpr]
   | Necessarily StmtPattern [BoundExpr]
   | EndOfPath
-  | LocationLabel (Symbol Address) StmtPattern
+  | Location (Symbol Address) StmtPattern
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize

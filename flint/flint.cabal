@@ -51,6 +51,7 @@ library
       Flint.Types.Query
       Flint.Util
   other-modules:
+      Flint.Analysis.Path.Matcher.Primitives.Library
       Flint.Types.CallGraph
       Flint.Types.Cfg
       Paths_flint
