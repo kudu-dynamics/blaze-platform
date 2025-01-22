@@ -4,7 +4,7 @@ module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
   ) where
 
-import Flint.Prelude hiding (and, const, not, or, sym)
+import Flint.Prelude hiding (and, const, not, or, sym, Location)
 
 import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Analysis.Path.Matcher

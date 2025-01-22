@@ -112,7 +112,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           prim = Prim.PrimType
             { name = "copy"
             , vars = HashSet.fromList ["dest", "src"]
-            , locationLabels = HashSet.fromList ["write"]
+            , locations = HashSet.fromList ["write"]
             }
           locationMap = HashMap.fromList
             [ ("write", HashSet.singleton 0x1234) ]
