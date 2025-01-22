@@ -250,15 +250,29 @@ cleanup:
 
 # Below are jobs that only run for integration:
 
+clean-runner:
+  rules:
+    - if: $CI_SERVER_HOST =~ /^code\.*/
+  stage: prerequisites
+  script:
+    # We can't run this because we're inside a docker executor, so we'd kill our own container:
+    # - if [ "$(docker ps -a -q)" ] ; then docker stop $(docker ps -a -q) ; fi
+    - docker container prune -f
+    - docker image prune -af
+    - docker volume prune -af
+
 pull-artifacts:
   rules:
     - if: $CI_SERVER_HOST =~ /^code\.*/
-  stage: submit
+  stage: build
   image: docker:cli
   artifacts:
     paths:
-      - artifacts/artifacts/buildroot/rootfs
+      - rootfs
+      - cpio.sha256
+    expire_in: 1 day
   script:
+    - apk add jq
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
     - docker pull "${BLAZE_TARGET_ARTIFACT_IMAGE}"
     - mkdir artifacts-image artifacts
@@ -266,45 +280,49 @@ pull-artifacts:
     - layer=$(jq -r '.[0].Layers[0]' artifacts-image/manifest.json)
     - echo "[*] Layer is at ${layer}"
     - tar -C artifacts -xf artifacts-image/"${layer}"
-    - ( cd artifacts/artifacts/buildroot && mkdir rootfs && cpio -D rootfs -idmv <rootfs.cpio; )
+    - mkdir rootfs
+    - ( cd rootfs && cpio -idm <../artifacts/artifacts/buildroot/rootfs.cpio; )
+    - sha256sum artifacts/artifacts/buildroot/rootfs.cpio | cut -d' ' -f1 | tr -d '\n\t ' >cpio.sha256
 
 test-submit:
   rules:
     - if: $CI_SERVER_HOST =~ /^code\.*/
   stage: submit
-  needs: []
   image: ${CI_REGISTRY_IMAGE}
+  dependencies:
+    - pull-artifacts
   # artifacts:
   #   paths:
   #     - zips
   script:
     - apt update
-    - apt install -yq --no-install-recommends curl python3 python3-requests tar
-    - 'curl -fsSL -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/target-artifacts/2024.10.25/rootfs.tar.gz" >rootfs.tar.gz'
-    - tar -xf rootfs.tar.gz
-    - cpio_hash=d4cef3d5
+    - apt install -yq --no-install-recommends python3 python3-requests
+    # - 'curl -fsSL -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/target-artifacts/2024.10.25/rootfs.tar.gz" >rootfs.tar.gz'
+    # - tar -xf rootfs.tar.gz
+    - cpio_hash="$(cat cpio.sha256)"
     - mkdir -p /root/.binaryninja
     - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     # - mkdir zips
-    - python3 -u .docker/submit-findings.py "${CI_COMMIT_SHORT_SHA}" "${cpio_hash}" rootfs "${BLAZE_SUBMISSION_API_URL}" /test "${GITLAB_USER_NAME}" /out/bin/flint
+    - python3 -u .docker/submit-findings.py "${CI_COMMIT_SHORT_SHA}" "${cpio_hash}" rootfs "${API_URL}" /test "${GITLAB_USER_NAME}" /out/bin/flint
 
 submit:
   rules:
     - if: $CI_SERVER_HOST =~ /^code\.*/
   stage: submit
-  needs: []
   when: manual
   image: ${CI_REGISTRY_IMAGE}
+  dependencies:
+    - pull-artifacts
   # artifacts:
   #   paths:
   #     - zips
   script:
     - apt update
-    - apt install -yq --no-install-recommends curl python3 python3-requests tar
-    - 'curl -fsSL -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/target-artifacts/2024.10.25/rootfs.tar.gz" >rootfs.tar.gz'
-    - tar -xf rootfs.tar.gz
-    - cpio_hash=d4cef3d5
+    - apt install -yq --no-install-recommends python3 python3-requests
+    # - 'curl -fsSL -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/target-artifacts/2024.10.25/rootfs.tar.gz" >rootfs.tar.gz'
+    # - tar -xf rootfs.tar.gz
+    - cpio_hash="$(cat cpio.sha256)"
     - mkdir -p /root/.binaryninja
     - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     # - mkdir zips
-    - python3 -u .docker/submit-findings.py "${CI_COMMIT_SHORT_SHA}" "${cpio_hash}" rootfs "${BLAZE_SUBMISSION_API_URL}" /submit "${GITLAB_USER_NAME}" /out/bin/flint
+    - python3 -u .docker/submit-findings.py "${CI_COMMIT_SHORT_SHA}" "${cpio_hash}" rootfs "${API_URL}" /submit "${GITLAB_USER_NAME}" /out/bin/flint
