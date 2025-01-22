@@ -82,7 +82,7 @@ withBackend mBackend fp action = do
             ( "Opening " <> show specifiedBackend <> " db with " <> show specifiedBackend <> " backend"
             , specifiedBackend
             )
-  putText msg
+  -- putText msg
   case backend' of
 #ifdef FLINT_SUPPORT_BINARYNINJA
     BinaryNinja -> do

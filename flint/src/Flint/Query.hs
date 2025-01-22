@@ -15,6 +15,7 @@ import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRout
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive)
 import Flint.Types.Analysis.Path.Matcher.Primitives (Prim, CallablePrimitive)
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
@@ -42,6 +43,7 @@ import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 
+import Data.List (nub)
 import Data.List.NonEmpty ((<|))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -788,6 +790,79 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
   where
     findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
 
+checkKernelLifecycleForPrims'
+  :: Bool
+  -> CfgStore
+  -> Word64
+  -> Word64
+  -> IO [MatchingPrim]
+checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCallDepth = do
+  funcs <- CfgStore.getFuncs store
+  case (findFuncByName funcs "init_module", findFuncByName funcs "cleanup_module") of
+    (Just initFunc, Just cleanupFunc) -> do
+      uuidInit <- randomIO
+      uuidClean <- randomIO
+      uuidBbEnd <- randomIO
+      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" 0 []
+          lifeCtx = Pil.Ctx lifecycleFunc 0
+          initDest = Pil.CallFunc initFunc
+          cleanDest = Pil.CallFunc cleanupFunc
+          callNodeInit
+            = Cfg.Call $ Cfg.CallNode
+              lifeCtx
+              0
+              initDest
+              uuidInit
+              [ C.defCall "r1" initDest [] 8 ]
+
+          callNodeCleanup
+            = Cfg.Call $ Cfg.CallNode
+              lifeCtx
+              8
+              cleanDest
+              uuidClean
+              [ C.defCall "r1" cleanDest [] 8 ]
+
+          bbEnd = Cfg.BasicBlock $ Cfg.BasicBlockNode
+                  lifeCtx
+                  0x10
+                  0x12
+                  uuidBbEnd
+                  [ C.ret $ C.var "r1" 8 ]
+                  
+          lifeCfg = Cfg.mkCfg
+            0
+            callNodeInit
+            [ callNodeInit, callNodeCleanup, bbEnd]
+            [ Cfg.CfEdge callNodeInit callNodeCleanup Cfg.UnconditionalBranch
+            , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
+            ]
+          lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
+      CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
+      
+      let q :: Query Function
+          q = QueryExpandAll $ QueryExpandAllOpts
+              { callExpandDepthLimit = expandCallDepth + 1
+              -- TODO: At some point, we should base the # samples on the size of func
+              , numSamples = maxSamplesPerFunc
+              }
+          prims :: [Prim]
+          prims = PrimLib.kernelModulePrims
+
+      checkFuncForPrims'
+        actuallyUseSolver
+        store
+        q
+        prims
+        lifecycleFunc
+      
+    _ ->
+      -- TODO: WARN
+      return []
+  where
+    findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
+
+
 checkPathForPrim
   :: StmtSolver IO
   -> Function
@@ -844,6 +919,42 @@ checkFuncForPrims actuallySolve store q prims streamResults func = flip catch re
                 <> show e
       sequentialWarn msg
 
+checkFuncForPrims'
+  :: Bool                   -- actually use SMT solver?
+  -> CfgStore
+  -> Query Function         -- method to get the paths from each func
+  -> [Prim]             -- checks all on each path
+  -> Function               -- start func
+  -> IO [MatchingPrim]
+checkFuncForPrims' actuallySolve store q prims func = do
+  paths <- nub <$> samplesFromQuery store func q
+  -- putText $ "Got Some paths: " <> show (length paths)
+  fmap concat . forConcurrently paths $ \path -> do
+    let pathPrep = M.mkPathPrep [] path
+        codeSum = Summary.fromStmts $ pathPrep ^. #stmts
+    fmap catMaybes . forConcurrently prims $ \prim -> do
+      checkPathForPrim solver func pathPrep codeSum prim >>= \case
+        Nothing -> return Nothing
+        Just cprim -> do
+          let matchingPrim = MatchingPrim
+                { func = func
+                , callablePrim = cprim
+                , path = pathPrep ^. #stmts
+                }
+          return $ Just matchingPrim
+  where
+    solver = if actuallySolve
+      then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+      else const . return $ Solver.Sat HashMap.empty
+    reportError :: SomeException -> IO ()
+    reportError e = do
+      let msg = "\n---------------------------\n"
+                <> "Error when checking function: "
+                <> show (func ^. #name)
+                <> "\n"
+                <> show e
+      sequentialWarn msg
+
 -- | Convenient function to query multiple functions and check for callable primitives
 checkFuncsForPrims
   :: Bool                   -- actually use SMT solver?
@@ -855,4 +966,19 @@ checkFuncsForPrims
   -> IO ()
 checkFuncsForPrims actuallySolve store q prims streamResults funcs = do
   mapConcurrently_ (checkFuncForPrims actuallySolve store q prims streamResults) . HashSet.toList $ funcs
-  putText "Finished"
+  --putText "Finished"
+
+-- | Convenient function to query multiple functions and check for callable primitives
+checkFuncsForPrims'
+  :: Bool                   -- actually use SMT solver?
+  -> CfgStore
+  -> Query Function         -- method to get the paths from each func
+  -> [Prim]             -- checks all on each path
+  -> HashSet Function
+  -> IO [MatchingPrim]
+checkFuncsForPrims' actuallySolve store q prims funcs = do
+  r <- mapConcurrently (checkFuncForPrims' actuallySolve store q prims)
+    . HashSet.toList
+    $ funcs
+  return $ concat r
+  --putText "Finished"

@@ -126,6 +126,25 @@ printJSON res = do
         }
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
+toMatchingPrimBlob :: MatchingPrim -> MatchingPrimBlob
+toMatchingPrimBlob res = blob
+  where
+    func = res ^. #func
+    name = func ^. #name
+    addr = func ^. #address
+    blob = MatchingPrimBlob
+      { func = (name, addr)
+      , path = pretty' <$> res ^. #path -- TODO: get path with assertions
+      , primName = res ^. #callablePrim . #prim . #name
+      , vars = HashMap.fromList
+               . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
+               . HashMap.toList
+               $ res ^. #callablePrim . #varMapping
+      , locations = HashMap.mapKeys pretty' $ res ^. #callablePrim . #locations
+      , constraints = fmap (pretty' . fst) $ res ^. #callablePrim . #constraints
+      , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
+      }
+
 printMatchingPrimJSON :: MatchingPrim -> IO()
 printMatchingPrimJSON res = do
   let func = res ^. #func
@@ -185,7 +204,21 @@ defaultCheck2 opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp 
           , numSamples = opts ^. #maxSamplesPerFunc
           }
       prims :: [Prim]
-      prims = [PrimLib.writeToKernelGlobal]
-      output = if opts ^. #outputJSON then printMatchingPrimJSON else sequentialPutText . cs . pshow -- pretty'
+      prims =
+        [ PrimLib.writeToKernelGlobal
+        , PrimLib.controlledIndirectCall
+        ]
+      -- output = if opts ^. #outputJSON then printMatchingPrimJSON else sequentialPutText . cs . pshow -- pretty'
+
+  kernelResults <- case (opts ^. #isKernelModule) of
+    False -> return []
+    True -> checkKernelLifecycleForPrims'
+      (not $ opts ^. #doNotUseSolver)
+      store
+      (opts ^. #maxSamplesPerFunc)
+      (opts ^. #expandCallDepth)
+
+
       
-  checkFuncsForPrims (not $ opts ^. #doNotUseSolver) store q prims output . HashSet.fromList $ funcs
+  r <- checkFuncsForPrims' (not $ opts ^. #doNotUseSolver) store q prims . HashSet.fromList $ funcs
+  putText . Text.pack . unpack . encodePretty . toJSON . fmap toMatchingPrimBlob $ r <> kernelResults

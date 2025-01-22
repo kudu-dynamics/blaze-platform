@@ -35,7 +35,8 @@ data FuncVar
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 instance Pretty.Tokenizable FuncVar where
-  tokenize (Arg n) = return [tt $ "ARG_" <> show n]
+  -- TODO: MAYBE WE SHOULDN'T 1-index this on the printout and 0-index when using huh??
+  tokenize (Arg n) = return [tt $ "ARG_" <> show (n + 1)]
   tokenize (Global x) = tt "GLOBAL(" <++> tokenize x <++> tt ")"
   tokenize Ret = return [tt "RET"]
 
