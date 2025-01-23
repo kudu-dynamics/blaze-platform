@@ -89,7 +89,7 @@ data BoundExpr
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 class BoundVar a where
-  bound :: (Symbol Pil.Expression) -> a
+  bound :: Symbol Pil.Expression -> a
 
 instance BoundVar BoundExpr where
   bound = Bound

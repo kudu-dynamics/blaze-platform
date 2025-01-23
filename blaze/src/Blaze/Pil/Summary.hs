@@ -168,8 +168,7 @@ fromStmts stmts =
    in CodeSummary
         { inputVars = inputVars
         , inputLoads = HashSet.fromList
-          . concat
-          . fmap
+          . concatMap
           ( filter
             ( \x ->
                 not

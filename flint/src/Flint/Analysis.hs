@@ -112,7 +112,7 @@ simplify = resolveCalls . PA.aggressiveExpand --  . PA.simplifyVars
 
 showCodeSummary :: CodeSummary -> IO ()
 showCodeSummary s = do
-  putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> (HashSet.toList $ s ^. #inputVars))
+  putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> HashSet.toList (s ^. #inputVars))
   putText "InputLoads:"
   pp' . HashSet.toList $ s ^. #inputLoads
   putText "Results:"

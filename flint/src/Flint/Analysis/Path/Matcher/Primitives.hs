@@ -102,7 +102,7 @@ mkCallablePrimitive func codeSum primType boundExprs boundLocations path = Calla
   , constraints = funcVarExprConstraints
   , locations = boundLocations
   , linkedVars =
-      (foldMap snd funcVarExprConstraints)
+      foldMap snd funcVarExprConstraints
       <>
       (foldMap snd . HashMap.elems $ varMapping')
   }

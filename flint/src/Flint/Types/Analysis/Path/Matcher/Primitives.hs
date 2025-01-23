@@ -49,7 +49,7 @@ data FuncVarExprSize
 data FuncVarExpr
   = PrimVar (Symbol Pil.Expression) -- can refer to other vars bound by the primitive
   | FuncVar FuncVar
-  | FuncVarExpr (FuncVarExprSize) (Pil.ExprOp FuncVarExpr)
+  | FuncVarExpr FuncVarExprSize (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 instance Disp.NeedsParens FuncVarExpr where

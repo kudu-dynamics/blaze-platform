@@ -31,32 +31,28 @@ defaultMaxCallDepth :: Word64
 defaultMaxCallDepth = 5
 
 parseBackend :: Parser Backend
-parseBackend = option auto
-  ( long "backend"
-    <> metavar "BACKEND"
-    <> help "preferred backend (BinaryNinja or Ghidra)"
-  )
+parseBackend = option auto $
+  long "backend"
+  <> metavar "BACKEND"
+  <> help "preferred backend (BinaryNinja or Ghidra)"
 
 parseLogLevel :: Parser LogLevel
-parseLogLevel = option auto
-  ( long "logLevel"
-    <> metavar "LOGLEVEL"
-    <> help
-       ( "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"       )
-  )
+parseLogLevel = option auto $
+  long "logLevel"
+  <> metavar "LOGLEVEL"
+  <> help "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"
 
 parseMaxCallDepth :: Parser Word64
-parseMaxCallDepth = option auto
-  ( long "maxCallDepth"
-    <> metavar "MAX_CALL_DEPTH"
-    <> help ("max depth of calls to expand (default is " <> show defaultMaxCallDepth <> ")")
-  )
+parseMaxCallDepth = option auto $
+  long "maxCallDepth"
+  <> metavar "MAX_CALL_DEPTH"
+  <> help ("max depth of calls to expand (default is " <> show defaultMaxCallDepth <> ")")
 
 parseInputFile :: Parser FilePath
-parseInputFile = argument str
-  ( metavar "INPUT_FILE"
-    <> help "input file"
-  )
+parseInputFile = argument str $
+  metavar "INPUT_FILE"
+  <> help "input file"
+
 
 hexReader :: Integral a => ReadM a
 hexReader = eitherReader $ \s ->

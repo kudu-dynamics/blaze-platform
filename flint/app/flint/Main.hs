@@ -39,67 +39,60 @@ data Options = Options
   deriving (Eq, Ord, Read, Show, Generic)
 
 parseBackend :: Parser Backend
-parseBackend = option auto
-  ( long "backend"
-    <> metavar "BACKEND"
-    <> help
-       ( "preferred backend ("
+parseBackend = option auto $
+  long "backend"
+  <> metavar "BACKEND"
+  <> help
+     ( "preferred backend ("
 #ifdef FLINT_SUPPORT_BINARYNINJA
          <> "BinaryNinja or "
 #endif
          <> "Ghidra)"
-       )
-  )
+     )
 
 parseLogLevel :: Parser LogLevel
-parseLogLevel = option auto
-  ( long "logLevel"
-    <> metavar "LOGLEVEL"
-    <> help
-       ( "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"       )
-  )
+parseLogLevel = option auto $
+  long "logLevel"
+  <> metavar "LOGLEVEL"
+  <> help "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"
 
 parseAnalysisDb :: Parser FilePath
-parseAnalysisDb = strOption
-  ( long "analysisDb"
-    <> metavar "ANALYSIS_DB"
-    <> help "DB to save a load analysis data"
-  )
+parseAnalysisDb = strOption $
+  long "analysisDb"
+  <> metavar "ANALYSIS_DB"
+  <> help "DB to save a load analysis data"
 
-parseJSONOption :: Parser Bool
-parseJSONOption = switch
-  ( long "outputJSON"
-    <> help "output in a JSON format" )
+parseJSONOption :: Parser Bool 
+parseJSONOption = switch $
+  long "outputJSON"
+  <> help "output in a JSON format"
 
 parseIsKernelModule :: Parser Bool
-parseIsKernelModule = switch
-  ( long "isKernelModule"
-    <> help "do lifecyle check for kernel modules" )
+parseIsKernelModule = switch $
+  long "isKernelModule"
+  <> help "do lifecyle check for kernel modules"
 
 parseMaxSamplesPerFunc :: Parser Word64
-parseMaxSamplesPerFunc = option auto
-  ( long "maxSamplesPerFunc"
-    <> metavar "MAX_SAMPLES_PER_FUNC"
-    <> help "max number of path samples to take per function"
-  )
+parseMaxSamplesPerFunc = option auto $
+  long "maxSamplesPerFunc"
+  <> metavar "MAX_SAMPLES_PER_FUNC"
+  <> help "max number of path samples to take per function"
 
 parseExpandCallDepth :: Parser Word64
-parseExpandCallDepth = option auto
-  ( long "expandCallDepth"
-    <> metavar "EXPAND_CALL_DEPTH"
-    <> help "depth of calls to expand"
-  )
+parseExpandCallDepth = option auto $
+  long "expandCallDepth"
+  <> metavar "EXPAND_CALL_DEPTH"
+  <> help "depth of calls to expand"
 
 parseInputFile :: Parser FilePath
-parseInputFile = argument str
-  ( metavar "INPUT_FILE"
-    <> help "input file"
-  )
+parseInputFile = argument str $
+  metavar "INPUT_FILE"
+  <> help "input file"
 
 parseDoNotUseSolver :: Parser Bool
-parseDoNotUseSolver = switch
-  ( long "doNotUseSolver"
-    <> help "do not verify if paths are satisfiable" )
+parseDoNotUseSolver = switch $
+  long "doNotUseSolver"
+  <> help "do not verify if paths are satisfiable"
 
 optionsParser :: Parser Options
 optionsParser = Options
@@ -201,7 +194,6 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
       
   checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output . HashSet.fromList $ funcs
 
-
 -- | Checks for bugs by blindly sampling paths from every function
 primCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
 primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
@@ -219,17 +211,14 @@ primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> d
         [ PrimLib.writeToKernelGlobal
         , PrimLib.controlledIndirectCall
         ]
-      -- output = if opts ^. #outputJSON then printMatchingPrimJSON else sequentialPutText . cs . pshow -- pretty'
 
-  kernelResults <- case (opts ^. #isKernelModule) of
+  kernelResults <- case opts ^. #isKernelModule of
     False -> return []
     True -> checkKernelLifecycleForPrims'
       (not $ opts ^. #doNotUseSolver)
       store
       (opts ^. #maxSamplesPerFunc)
       (opts ^. #expandCallDepth)
-
-
       
   r <- checkFuncsForPrims' (not $ opts ^. #doNotUseSolver) store q prims . HashSet.fromList $ funcs
   putText . Text.pack . unpack . encodePretty . toJSON . fmap toMatchingPrimBlob $ r <> kernelResults

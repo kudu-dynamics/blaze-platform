@@ -40,7 +40,7 @@ fooPath1 :: [Stmt]
 fooPath1 =
   [ defCall "r" (Pil.CallFunc sscanf)
     [ constPtr 0x3234 8
-    , (load (add (var "arg1" 8) (const 4 8) 8) 8)
+    , load (add (var "arg1" 8) (const 4 8) 8) 8
     ]
     8
   , ret $ var "r" 8
@@ -50,7 +50,7 @@ fooPath2 :: [Stmt]
 fooPath2 =
   [ defCall "r" (Pil.CallFunc sscanf)
     [ constPtr 0x3234 8
-    , (load (add (var "global1" 8) (const 4 8) 8) 8)
+    , load (add (var "global1" 8) (const 4 8) 8) 8
     ]
     8
   , ret $ var "r" 8
@@ -60,8 +60,8 @@ fooPath3 :: [Stmt]
 fooPath3 =
   [ constraint $ cmpNE (var "arg2" 8) (const 0 8) 8
   , defCall "r" (Pil.CallFunc memcpy)
-    [ (var "global1" 8)
-    , (load (add (var "arg1" 8) (const 4 8) 8) 8)
+    [ var "global1" 8
+    , load (add (var "arg1" 8) (const 4 8) 8) 8
     ]
     8
   , ret $ var "r" 8
@@ -121,7 +121,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           codeSum = fooCodeSummary3
           varMap = HashMap.fromList
             [ ("dest", var "global1" 8)
-            , ("src", (load (add (var "arg1" 8) (const 4 8) 8) 8))
+            , ("src", load (add (var "arg1" 8) (const 4 8) 8) 8)
             ]
           -- expr = load (add (var "arg1" 8) (const 4 8) 8) 8
           expr' = ( load (add (FuncVar $ Prim.Arg 0) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)

@@ -50,7 +50,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
     runIO $ PilImporter.getFuncStatements bv (getFunc "buffer_overflow") 0
       >>= prettyStmts'
 
-    runIO $ pprint $ (getFunc "buffer_overflow") ^. #params
+    runIO . pprint $ getFunc "buffer_overflow" ^. #params
 
     it "should find a strcpy buffer overflow" $ do
       let func = getFunc "buffer_overflow"

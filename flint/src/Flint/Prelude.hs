@@ -60,4 +60,4 @@ catHashMapMaybes = HashMap.fromList . mapMaybe f . HashMap.toList
     f (k, Just v) = Just (k, v)
 
 runLoggerT :: MonadIO m => Logger.LogLevel -> Logger.LoggingT m a -> m a 
-runLoggerT lvl m = runStdoutLoggingT $ Logger.filterLogger (\_ -> (== lvl)) m
+runLoggerT lvl m = runStdoutLoggingT $ Logger.filterLogger (const (== lvl)) m
