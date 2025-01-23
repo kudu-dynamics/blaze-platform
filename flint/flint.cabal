@@ -202,6 +202,10 @@ executable binaryToGhidra
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable divelogger
   main-is: Main.hs
@@ -276,6 +280,10 @@ executable divelogger
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable ev1smm
   main-is: Main.hs
@@ -350,6 +358,10 @@ executable ev1smm
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable flint
   main-is: Main.hs
@@ -425,6 +437,10 @@ executable flint
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable gen_flint_db
   main-is: Main.hs
@@ -501,6 +517,10 @@ executable gen_flint_db
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable kernel
   main-is: Main.hs
@@ -575,6 +595,10 @@ executable kernel
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable plt_thunk
   main-is: Main.hs
@@ -649,6 +673,10 @@ executable plt_thunk
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 executable routes
   main-is: Main.hs
@@ -724,6 +752,10 @@ executable routes
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja
 
 test-suite flint-general-test
   type: exitcode-stdio-1.0
@@ -810,3 +842,7 @@ test-suite flint-general-test
     , uuid >=1.3.14
     , vector
   default-language: GHC2021
+  if flag(binaryninja)
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+    build-depends:
+        blaze-binaryninja

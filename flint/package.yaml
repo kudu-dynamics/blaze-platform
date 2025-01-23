@@ -92,6 +92,12 @@ default-extensions:
   - TypeFamilies
   - ViewPatterns
 
+when:
+  - condition: flag(binaryninja)
+    dependencies:
+      - blaze-binaryninja
+    cpp-options: -DFLINT_SUPPORT_BINARYNINJA
+
 library:
   ghc-options:
   - -Wall
@@ -126,11 +132,6 @@ library:
   - Flint.Types.Cfg.Store
   - Flint.Types.Query
   - Flint.Util
-  when:
-    - condition: flag(binaryninja)
-      dependencies:
-        - blaze-binaryninja
-      cpp-options: -DFLINT_SUPPORT_BINARYNINJA
 
 executables:
   flint:
