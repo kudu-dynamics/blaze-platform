@@ -644,10 +644,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [("varPlace", HashSet.fromList [0x888])]
         (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
 
-      it "should match range of statements for location of pattern that consumes multiple statements" $ do
+      it "should match range of Ordered statements for location of pattern that consumes multiple statements" $ do
         let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
                     , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
                     , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
+                    , loc 0x999 $ def "d" (load (var "arg6" 4) 4)
                     ]
             pats = [ Location "varPlace" $ Ordered
                      [ Stmt $ Def (Var "b") Wild
@@ -656,6 +657,20 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    ]
             expected = HashMap.fromList
               [("varPlace", HashSet.fromList [0x888, 0x999])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
+      it "should get location of AnyOne statement" $ do
+        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
+                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+                    , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
+                    ]
+            pats = [ Location "varPlace" $ AnyOne
+                     [ Stmt $ Def (Var "zzz") Wild
+                     , Stmt $ Def (Var "b") Wild
+                     ]
+                   ]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888])]
         (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
 
 

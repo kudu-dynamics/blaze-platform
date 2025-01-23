@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 
-module Main (main) where
+module Main where
 
 import Flint.Prelude
 
@@ -15,6 +15,7 @@ import Flint.Util (sequentialPutText)
 import Blaze.Function (Function)
 import Blaze.Pretty (pretty')
 
+import Control.Monad.Logger (LogLevel(LevelInfo))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -32,6 +33,7 @@ data Options = Options
   , expandCallDepth :: Word64
   , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
+  , logLevel :: LogLevel
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -47,6 +49,14 @@ parseBackend = option auto
 #endif
          <> "Ghidra)"
        )
+  )
+
+parseLogLevel :: Parser LogLevel
+parseLogLevel = option auto
+  ( long "logLevel"
+    <> metavar "LOGLEVEL"
+    <> help
+       ( "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"       )
   )
 
 parseAnalysisDb :: Parser FilePath
@@ -100,19 +110,20 @@ optionsParser = Options
   <*> (parseExpandCallDepth <|> pure 0)
   <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
+  <*> (parseLogLevel <|> pure LevelInfo)
   <*> parseInputFile
 
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  defaultCheck2 opts
+  runLoggerT (opts ^. #logLevel) $ primCheck opts
   where
     optsParser = info (optionsParser <**> helper)
       ( fullDesc
      <> progDesc "Static path-based analysis to find bugs."
      <> header "Flint" )
 
-printJSON :: MatchingResult -> IO()
+printJSON :: MatchingResult -> IO ()
 printJSON res = do
   let func = res ^. #func
       name = func ^. #name
@@ -145,7 +156,7 @@ toMatchingPrimBlob res = blob
       , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
       }
 
-printMatchingPrimJSON :: MatchingPrim -> IO()
+printMatchingPrimJSON :: MatchingPrim -> IO ()
 printMatchingPrimJSON res = do
   let func = res ^. #func
       name = func ^. #name
@@ -165,7 +176,7 @@ printMatchingPrimJSON res = do
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
 -- | Checks for bugs by blindly sampling paths from every function
-defaultCheck :: Options -> IO ()
+defaultCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   funcs <- Store.getFuncs store
@@ -192,8 +203,8 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
 
 
 -- | Checks for bugs by blindly sampling paths from every function
-defaultCheck2 :: Options -> IO ()
-defaultCheck2 opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+primCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
+primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   funcs <- Store.getFuncs store
   

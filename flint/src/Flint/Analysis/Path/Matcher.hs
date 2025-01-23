@@ -628,7 +628,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
       checkAvoid avoidSpec retroStmts
     AnyOne [] -> return ()
     AnyOne pats -> do
-      tryError (asum $ backtrackOnError . matchNextStmt <$> pats) >>= \case
+      tryError (asum $ backtrackOnError . matchNextStmt_ False <$> pats) >>= \case
         -- One of them matched.
         Right _ -> return ()
         -- Nothing matched. Try next stmt with same pattern.
@@ -647,7 +647,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Ordered [] -> good
     Ordered (p:pats) ->
       ( tryError . backtrackOnError $ do
-          matchNextStmt p
+          matchNextStmt_ tryNextStmtOnFailure p
           matchNextStmt $ Ordered pats
       ) >>= \case
       Right _ -> good
@@ -661,14 +661,18 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> perhapsRecur
-    Location lbl p ->
+    Location lbl p -> do
+      parsedStmtsLen <- length <$> use #parsedStmtsWithAssertions
       ( tryError . backtrackOnError $ do
           matchNextStmt_ False p
-      ) >>= \case
-      Right _ -> do
-        addLocation lbl $ stmt ^. #addr
-        good
-      Left _ -> perhapsRecur
+        ) >>= \case
+        Right _ -> do
+          addLocation lbl $ stmt ^. #addr
+          parsedStmts' <- use #parsedStmtsWithAssertions
+          let newlyParsedStmts = take (length parsedStmts' - parsedStmtsLen) parsedStmts'
+          mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
+          good
+        Left _ -> perhapsRecur
 
   where
     matchWhere subPat boundExprs = do

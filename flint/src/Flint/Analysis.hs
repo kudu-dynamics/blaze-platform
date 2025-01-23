@@ -36,7 +36,6 @@ import Blaze.Cfg.Path.Solver as PathSolver
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
-import Data.List (nub)
 
 import Flint.Types.Query
 

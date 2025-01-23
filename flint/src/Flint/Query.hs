@@ -95,6 +95,7 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
       M.Where pat _ -> go (parents, g) pat
       M.Necessarily pat _ -> go (parents, g) pat
       M.EndOfPath -> return (parents, g)
+      M.Location _ pat -> go (parents, g) pat
 
 getCallSequenceGraph :: [StmtPattern] -> CallSequenceGraph M.Func
 getCallSequenceGraph pats = snd $ evalState (getCallSequenceGraph_ pats) 0
@@ -946,14 +947,6 @@ checkFuncForPrims' actuallySolve store q prims func = do
     solver = if actuallySolve
       then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
       else const . return $ Solver.Sat HashMap.empty
-    reportError :: SomeException -> IO ()
-    reportError e = do
-      let msg = "\n---------------------------\n"
-                <> "Error when checking function: "
-                <> show (func ^. #name)
-                <> "\n"
-                <> show e
-      sequentialWarn msg
 
 -- | Convenient function to query multiple functions and check for callable primitives
 checkFuncsForPrims

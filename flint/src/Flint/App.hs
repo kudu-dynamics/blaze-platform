@@ -55,10 +55,11 @@ type FullImporter imp =
 -- importer. 'Blaze.Import.Binary.shutdown' will automatically be called after
 -- @f@.
 withBackend
-  :: Maybe Backend -- ^ @backend@
+  :: (MonadLogger m, MonadIO m)
+  => Maybe Backend -- ^ @backend@
   -> FilePath -- ^ @file@
   -> (forall imp. FullImporter imp => imp -> IO ()) -- ^ @f@
-  -> IO ()
+  -> m ()
 withBackend mBackend fp action = do
   let (msg :: Text, backend') = case (mBackend, guessFileBackend fp) of
         (Nothing, Nothing) ->
@@ -82,8 +83,8 @@ withBackend mBackend fp action = do
             ( "Opening " <> show specifiedBackend <> " db with " <> show specifiedBackend <> " backend"
             , specifiedBackend
             )
-  -- putText msg
-  case backend' of
+  logDebug msg
+  liftIO $ case backend' of
 #ifdef FLINT_SUPPORT_BINARYNINJA
     BinaryNinja -> do
       (ebv :: Either Text BNImporter) <- openBinary fp
