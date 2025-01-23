@@ -1,13 +1,18 @@
 module Ghidra.PcodeSpec where
 
-import Ghidra.Prelude
+import Ghidra.Prelude hiding (Const)
 
+import qualified Data.BinaryAnalysis as BA
+import Ghidra.Address (mkAddress)
 import Ghidra.Core
 import qualified Ghidra.Function as Function
 import Ghidra.Pcode
 import Ghidra.Program (getAddressSpaceMap)
 import qualified Ghidra.State as State
-import Ghidra.Types.Address
+import qualified Ghidra.Types as J
+import Ghidra.Types.Address hiding (Const)
+import qualified Ghidra.Types.Pcode.Lifted as Lifted
+import Ghidra.Types.Pcode.Lifted as Lifted (Destination(..), Input(..), Output(..))
 import Ghidra.Types.Variable
 
 import Test.Hspec
@@ -18,6 +23,16 @@ diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
 a1Bin :: FilePath
 a1Bin = "res/test_bins/a1/a1.gzf"
+
+getHighs :: State.GhidraState -> BA.Address -> IO ([(Address, J.PcodeOpAST)], [(Address, Lifted.PcodeOp HighVarNode)])
+getHighs gs faddr = runGhidraOrError $ do
+  faddr' <- State.mkAddressBased gs faddr
+  (Just func) <- Function.fromAddr gs faddr'
+  hfunc <- Function.getHighFunction gs func
+  highs <- getHighPcodeOps gs hfunc func
+  addrSpaceMap <- getAddressSpaceMap (gs ^. #program)
+  liftedHighs <- getHighPcode gs addrSpaceMap hfunc func
+  return (highs, liftedHighs)
 
 spec :: Spec
 spec = describe "Ghidra.Pcode" $ do
@@ -89,18 +104,27 @@ spec = describe "Ghidra.Pcode" $ do
       rawInstr `shouldBe` expected
 
   context "getHighPcodeOps" $ do
-    let faddr = 0x13ad
-    (highs, liftedHighs) <- runIO . runGhidraOrError $ do
-      faddr' <- State.mkAddressBased gs faddr
-      (Just func) <- Function.fromAddr gs faddr'
-      hfunc <- Function.getHighFunction gs func
-      highs <- getHighPcodeOps gs hfunc func
-      addrSpaceMap <- getAddressSpaceMap db
-      liftedHighs <- getHighPcode gs addrSpaceMap hfunc func
-      return (highs, liftedHighs)
+    context "jenkins" $ do
+      beforeAll (getHighs gs 0x13ad) $ do
+        it "should get high pcode ops" $ \(highs, _) -> do
+          length highs `shouldBe` 15
 
-    it "should get high pcode ops" $ do
-      length highs `shouldBe` 15
+        it "should lift high pcode ops" $ \(_, liftedHighs) -> do
+          length liftedHighs `shouldBe` 15
 
-    it "should lift high pcode ops" $ do
-      length liftedHighs `shouldBe` 15
+    context "g" $ do
+      beforeAll (getHighs gs 0x115e) $ do
+        it "should lift high pcode ops" $ \(_, liftedHighs) -> do
+          -- FIXME: I believe this should be 134 after we change how 'getHighPcodeOps' works
+          length liftedHighs `shouldBe` 176
+          fAddr <- runGhidraOrError $ State.mkAddressBased gs 0x1145 >>= mkAddress
+          snd (liftedHighs !! 7) `shouldSatisfy` \case
+            -- rax <- f(rdi, 80)
+            Lifted.CALL
+              (Just (Output HighVarNode{varType=Addr{location=Address{space=AddressSpace{name=Register}, offset=0}}}))
+              (Input 0 (Absolute fAddr'))
+              [ Input 1 (HighVarNode{varType=Addr{location=Address{space=AddressSpace{name=Register}, offset = 56}}})
+              , Input 2 (HighVarNode{varType=Const 80})
+              ]
+              | fAddr == fAddr' -> True
+            _ -> False

@@ -379,14 +379,22 @@ convertPcodeOpToPilStatement = \case
   P.BRANCHIND in0 -> do
     target <- varNodeToValueExpr in0
     pure [Pil.Jump . Pil.JumpOp $ target]
-  P.CALL dest inputs -> do
+  P.CALL mOut dest inputs -> do
     cdest <- lift $ callDestFromDest $ dest ^. #value
     params <-  mapM varNodeToValueExpr . fmap (view #value) $ inputs
-    pure . (: []) . Pil.Call $ Pil.CallOp cdest Nothing params
-  P.CALLIND in0 inputs -> do
-    dest <- varNodeToValueExpr in0
+    let callOp = Pil.CallOp cdest Nothing params
+    case mOut of
+      Nothing -> pure [Pil.Call callOp]
+      Just out ->
+        mkDef out $ Pil.CALL callOp
+  P.CALLIND mOut in0 inputs -> do
+    cdest <- varNodeToValueExpr in0
     params <- mapM varNodeToValueExpr . fmap (view #value) $ inputs
-    pure . (: []) . Pil.Call $ Pil.CallOp (Pil.CallExpr dest) Nothing params
+    let callOp = Pil.CallOp (Pil.CallExpr cdest) Nothing params
+    case mOut of
+      Nothing -> pure [Pil.Call callOp]
+      Just out ->
+        mkDef out $ Pil.CALL callOp
 
   -- TODO CALLOTHER is pretty much a black-box
   P.CALLOTHER _in0 _inputs -> pure [Pil.UnimplInstr "CALLOTHER"]

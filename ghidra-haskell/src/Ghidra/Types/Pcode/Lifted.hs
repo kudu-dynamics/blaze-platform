@@ -48,8 +48,8 @@ data PcodeOp a
   | BOOL_XOR (Output a) (Input a) (Input a)
   | BRANCH (Input Destination)
   | BRANCHIND (Input a)
-  | CALL (Input Destination) [Input a]
-  | CALLIND (Input a) [Input a]
+  | CALL (Maybe (Output a)) (Input Destination) [Input a]
+  | CALLIND (Maybe (Output a)) (Input a) [Input a]
   | CALLOTHER (Input a) [Input a] -- Can't find this in the docs
   | CAST (Output a) (Input a)
   | CBRANCH (Input Destination) (Input a)
