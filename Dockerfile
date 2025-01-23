@@ -231,7 +231,8 @@ RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
 RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
 ENV BINJA_PLUGINS=/binaryninja/plugins
 # Build the rest of the packages that were not built in `builder`
-RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
+RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins \
+    --flag flint:binaryninja
 RUN <<EOF
     set -euxo pipefail
 
