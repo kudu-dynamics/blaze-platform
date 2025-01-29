@@ -4,6 +4,9 @@ module Flint.Types.Analysis.Path.Matcher where
 
 import Flint.Prelude hiding (sym, negate)
 import Flint.Types.Analysis (Taint(..))
+import Flint.Types.Analysis.Path.Matcher.Func (Func(..))
+import Flint.Types.Analysis.Path.Matcher.Primitives (PrimType, CallablePrimitive)
+import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import qualified Blaze.Pretty as Pretty
@@ -15,25 +18,7 @@ import Blaze.Types.Pil.Solver (SolverResult)
 
 import Data.SBV.Dynamic as Exports (CV)
 import Data.String (IsString(fromString))
-import Data.String.Conversions (ConvertibleStrings(convertString))
 
-
-newtype Symbol a = Symbol Text
-  deriving (Eq, Ord, Read, Show, Generic)
-  deriving newtype (IsString, Hashable)
-
-instance Pretty.Tokenizable (Symbol a) where
-  tokenize (Symbol t) = return [Pretty.tt t]
-
-instance (ConvertibleStrings Text b) => ConvertibleStrings (Symbol a) b where
-  convertString (Symbol t) = convertString t
-
-data Func
-  = FuncName Text
-  | FuncNames (HashSet Text)
-  | FuncAddr Address
-  | FuncNameRegex Text
-  deriving (Eq, Ord, Show, Hashable, Generic)
 
 data CallDest expr
   = CallFunc Func
@@ -46,6 +31,10 @@ data Statement expr
   | Store expr expr
   | EnterContext CtxPattern [expr]
   | ExitContext CtxPattern CtxPattern -- leavingCtx, returningToCtx
+  -- | Call <return pat> <call dest> [<arg1>, <arg2>, ...]
+  -- If return pat is Nothing, we don't care if it returns or doesn't.
+  -- If return pat is `Just Wild` it only matches if something is returned.
+  -- The arg list can be shorter than the actual arg count, but not longer
   | Call (Maybe expr) (CallDest expr) [expr]
   | BranchCond expr
   | Jump expr
@@ -76,6 +65,8 @@ data StmtPattern
   | Necessarily StmtPattern [BoundExpr]
   | EndOfPath
   | Location (Symbol Address) StmtPattern
+  -- | Primitive <prefix for bound vars> <primtype>
+  | Primitive (Symbol Pil.Expression) PrimType
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize
@@ -213,6 +204,7 @@ data MatcherState m = MatcherState
   -- | If the path has been checked with the solver, this holds possible solutions
   , solutions :: Maybe (HashMap Text CV)
   , locations :: HashMap (Symbol Address) (HashSet Address)
+  , callablePrimitives :: HashMap PrimType (HashSet CallablePrimitive)
   } deriving Generic
 
 -- data MatcherException = MatcherUnsat
@@ -253,3 +245,11 @@ data PathPrep = PathPrep
   { stmts :: [Pil.Stmt]
   , taintSet :: HashSet Taint
   } deriving (Eq, Ord, Show, Generic)
+
+
+--------- Primitives
+
+data Prim = Prim
+  { primType :: PrimType
+  , stmtPattern :: [StmtPattern]
+  } deriving (Eq, Ord, Show, Hashable, Generic)

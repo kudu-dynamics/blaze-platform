@@ -2,20 +2,17 @@ module Flint.Types.Analysis.Path.Matcher.Primitives where
 
 import Flint.Prelude hiding (Location, sym)
 
-import Flint.Types.Analysis.Path.Matcher (Symbol, StmtPattern)
-import qualified Flint.Types.Analysis.Path.Matcher as Matcher
+import Flint.Types.Analysis.Path.Matcher.Func (Func)
+import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Construct (ExprConstructor(mkExpr))
 import Blaze.Pretty (tt, tokenize, (<++>))
 import qualified Blaze.Pretty as Pretty
-import Blaze.Types.Pil (Size(Size))
+import Blaze.Types.Function (Function)
+import Blaze.Types.Pil (Size)
 import qualified Blaze.Types.Pil as Pil
 
-data Prim = Prim
-  { primType :: PrimType
-  , stmtPattern :: [StmtPattern]
-  } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | The type of primitive and names for input and output vars.
 -- These are any vars both input and output, that will be
@@ -30,7 +27,7 @@ data PrimType = PrimType
 -- | The primitive vars bound in CallablePrimitive will be written in terms of these
 data FuncVar
   = Arg Word64
-  | Ret
+  | Ret Pil.Expression
   | Global Pil.Expression -- expr is address of store or load
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -38,33 +35,24 @@ instance Pretty.Tokenizable FuncVar where
   -- TODO: MAYBE WE SHOULDN'T 1-index this on the printout and 0-index when using huh??
   tokenize (Arg n) = return [tt $ "ARG_" <> show (n + 1)]
   tokenize (Global x) = tt "GLOBAL(" <++> tokenize x <++> tt ")"
-  tokenize Ret = return [tt "RET"]
-
-data FuncVarExprSize
-  = ConstSize (Size Pil.Expression)
-  | SizeOf FuncVar
-  deriving (Eq, Ord, Show, Hashable, Generic)
+  tokenize (Ret x) = tt "RET(" <++> tokenize x <++> tt ")"
 
 -- | This is like a BoundExpr, except it can refer to FuncVars
 data FuncVarExpr
-  = PrimVar (Symbol Pil.Expression) -- can refer to other vars bound by the primitive
-  | FuncVar FuncVar
-  | FuncVarExpr FuncVarExprSize (Pil.ExprOp FuncVarExpr)
+  = FuncVar FuncVar
+  | FuncVarExpr (Size Pil.Expression) (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 instance Disp.NeedsParens FuncVarExpr where
-  needsParens (PrimVar _) = False
   needsParens (FuncVar _) = False
   needsParens (FuncVarExpr _ op) = Disp.needsParens op
 
 instance Pretty.Tokenizable FuncVarExpr where
-  tokenize (PrimVar sym) = pure [Pretty.varToken Nothing ("?" <> cs sym)]
   tokenize (FuncVar v) = tokenize v
-  tokenize (FuncVarExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
-  tokenize (FuncVarExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
+  tokenize (FuncVarExpr sz op) = Pretty.tokenizeExprOp Nothing op sz
 
 
-instance ExprConstructor FuncVarExprSize FuncVarExpr where
+instance ExprConstructor (Size Pil.Expression) FuncVarExpr where
   mkExpr =  FuncVarExpr
 
 -- | This represents a concrete primitive, callable through a function,
@@ -74,7 +62,8 @@ instance ExprConstructor FuncVarExprSize FuncVarExpr where
 -- the Syms in the PrimType, which can be referred to in a pattern.
 data CallablePrimitive = CallablePrimitive
   { prim :: PrimType
-  , callDest :: Matcher.Func -- func pattern
+  , func :: Function
+  , callDest :: Func -- func pattern
   , varMapping :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
   -- |constraints to reach prim, and constraints on outputs
   , constraints :: [(FuncVarExpr, HashSet FuncVar)]

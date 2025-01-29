@@ -6,9 +6,13 @@ module Flint.Analysis.Path.Matcher
  ) where
 
 import Flint.Prelude hiding (sym, negate, Location)
+import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, FuncVarExpr)
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import Flint.Types.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.Func (Func(..))
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
@@ -115,7 +119,7 @@ instance MkPathPrep PilPath where
     . Path.toStmts
 
 mkMatcherState :: StmtSolver m -> PathPrep -> MatcherState m
-mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing HashMap.empty
+mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing HashMap.empty HashMap.empty
 
 runMatcher
   :: Monad m
@@ -535,6 +539,15 @@ addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
     addOrCreate Nothing = Just $ HashSet.singleton addr
     addOrCreate (Just s) = Just $ HashSet.insert addr s
 
+getArgName :: Symbol Pil.Expression -> Word64 -> Symbol Pil.Expression
+getArgName prefix n = prefix <> "_arg" <> show n
+
+mkStmtPatternFromCallablePrimitive :: Symbol Pil.Expression -> CallablePrimitive -> StmtPattern
+mkStmtPatternFromCallablePrimitive prefix x = Stmt
+  $ Call Nothing (CallFunc $ x ^. #callDest) argPatterns
+  where
+    argPatterns = fmap (\(n, _) -> Bind (getArgName prefix n) Wild) . zip [0..] $ x ^. #func . #params
+
 addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
 addAvoid x = do
   rstmts <- use #remainingStmts
@@ -586,11 +599,32 @@ checkPath = solvePath >>= \case
   Sat sols -> #solutions .= Just sols
   _ -> bad
 
+exprToBoundExpr :: Pil.Expression -> BoundExpr
+exprToBoundExpr (Pil.Expression sz op) = BoundExpr (ConstSize sz) $ exprToBoundExpr <$> op
+
+resolveFuncVars
+  :: Monad m => Symbol Pil.Expression
+  -> FuncVarExpr
+  -> MatcherT m Pil.Expression
+resolveFuncVars prefix fvExpr = do
+  boundSyms <- use #boundSyms
+  resolveBoundExpr $ funcVarExprToBoundExpr prefix boundSyms fvExpr
+
+funcVarExprToBoundExpr
+  :: Symbol Pil.Expression
+  -> HashMap (Symbol Pil.Expression) Pil.Expression
+  -> FuncVarExpr
+  -> BoundExpr
+funcVarExprToBoundExpr prefix boundSyms = \case
+  (Prim.FuncVarExpr sz op) -> BoundExpr (ConstSize sz)
+    $ funcVarExprToBoundExpr prefix boundSyms <$> op
+  (Prim.FuncVar fv) -> case fv of
+    (Prim.Ret x) -> exprToBoundExpr x
+    (Prim.Global x) -> exprToBoundExpr x
+    (Prim.Arg n) -> Bound $ getArgName prefix n
+
 matchNextStmt :: Monad m => StmtPattern -> MatcherT m ()
 matchNextStmt = matchNextStmt_ True
-
--- when shouldCheckAvoids checkAvoids >>
-
 
 -- | Matches the next statement with the next stmt pattern.
 matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
@@ -615,6 +649,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
       matchNecessarily subPat boundExprs
     EndOfPath -> good
     Location _ p -> matchNextStmt_ False p
+    Primitive _ _ -> bad
 
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -673,7 +708,27 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
           mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
           good
         Left _ -> perhapsRecur
-
+    Primitive prefix pt -> do
+      callables <- use #callablePrimitives
+      case HashMap.lookup pt callables of
+        Nothing -> perhapsRecur
+        Just s -> case Pil.mkCallStatement stmt of
+          Nothing -> perhapsRecur
+          Just _ -> do
+            let callablePats = toSnd (mkStmtPatternFromCallablePrimitive prefix)
+                               <$> HashSet.toList s
+            asum $ flip fmap callablePats $ \(cprim, cpat) -> do
+              ( tryError . backtrackOnError $ matchNextStmt_ False cpat ) >>= \case
+                Left _ -> bad
+                Right _ -> do
+                  forM_ (HashMap.toList $ cprim ^. #varMapping) $ \(var, (fvExpr, _)) -> do
+                    resolvedExpr <- resolveFuncVars prefix fvExpr
+                    #boundSyms %= HashMap.insert (prefix <> var) resolvedExpr
+                    -- TODO: add constraints to stmts
+                    return ()
+      -- check linkedVars for # of args
+      -- match on call to callDest Func with same # of args
+      -- 
   where
     matchWhere subPat boundExprs = do
       matchNextStmt subPat

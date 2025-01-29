@@ -5,9 +5,9 @@ module Flint.Analysis.Path.Matcher.Primitives
 
 import Flint.Prelude hiding (Location)
 
-import Flint.Types.Analysis.Path.Matcher (Symbol)
-import qualified Flint.Types.Analysis.Path.Matcher as M
+import qualified Flint.Types.Analysis.Path.Matcher.Func as MFunc
 import Flint.Types.Analysis.Path.Matcher.Primitives
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Types.Function (Function, FuncParamInfo)
 import qualified Blaze.Types.Function as Func
@@ -78,7 +78,7 @@ toFuncVarExpr params codeSum expr' = runState (f expr') HashSet.empty
     f :: Pil.Expression -> State (HashSet FuncVar) FuncVarExpr
     f expr@(Pil.Expression sz exprOp) =
       case getFuncVar params codeSum expr of
-        Nothing -> FuncVarExpr (ConstSize sz) <$> traverse f exprOp
+        Nothing -> FuncVarExpr sz <$> traverse f exprOp
         Just fvar -> do
           addFuncVar fvar
           return $ FuncVar fvar
@@ -95,7 +95,8 @@ mkCallablePrimitive
   -> CallablePrimitive
 mkCallablePrimitive func codeSum primType boundExprs boundLocations path = CallablePrimitive
   { prim = primType
-  , callDest = M.FuncName $ func ^. #name
+  , func = func
+  , callDest = MFunc.FuncName $ func ^. #name
   , varMapping = varMapping'
   -- TODO: derive from path.
   -- could get all constraints out of path, or just up until last boundLocation is reached

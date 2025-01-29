@@ -3,6 +3,7 @@ module Flint.Analysis.Path.Matcher.Primitives.Library where
 import Flint.Prelude hiding (Location)
 
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.Primitives
 
 import Blaze.Pil.Construct hiding (not)

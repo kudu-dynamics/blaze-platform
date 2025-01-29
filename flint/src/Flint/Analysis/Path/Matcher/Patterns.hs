@@ -5,7 +5,9 @@ module Flint.Analysis.Path.Matcher.Patterns where
 import Flint.Prelude hiding (const)
 
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Query (BugMatch(..))
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct hiding (not)
 import qualified Blaze.Types.Pil as Pil

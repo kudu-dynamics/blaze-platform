@@ -3,6 +3,7 @@ module Flint.Analysis.Path.Matcher.Stub where
 import Flint.Prelude hiding (sym)
 
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct (ExprConstructor(..))
 import qualified Blaze.Pil.Construct as C

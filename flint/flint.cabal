@@ -52,8 +52,10 @@ library
       Flint.Types.Query
       Flint.Util
   other-modules:
+      Flint.Types.Analysis.Path.Matcher.Func
       Flint.Types.CallGraph
       Flint.Types.Cfg
+      Flint.Types.Symbol
       Paths_flint
   autogen-modules:
       Paths_flint
