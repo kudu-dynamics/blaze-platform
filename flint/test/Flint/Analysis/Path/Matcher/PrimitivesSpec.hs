@@ -4,9 +4,9 @@ module Flint.Analysis.Path.Matcher.PrimitivesSpec where
 
 import Flint.Prelude hiding (const)
 
-import qualified Flint.Analysis.Path.Matcher as M
 import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
 import Flint.Analysis.Path.Matcher.Primitives
+import qualified Flint.Types.Analysis.Path.Matcher.Func as M
 
 import Blaze.Pil.Construct
 import Blaze.Pil.Summary (CodeSummary)
@@ -76,9 +76,6 @@ fooCodeSummary2 = Summary.fromStmts fooPath2
 fooCodeSummary3 :: CodeSummary
 fooCodeSummary3 = Summary.fromStmts fooPath3
 
-
-
-
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
   context "toFuncVarExpr" $ do
@@ -87,7 +84,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           codeSum = fooCodeSummary1
           expr = load (add (var "arg1" 8) (const 4 8) 8) 8
           expected =
-            ( load (add (FuncVar $ Prim.Arg 0) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)
+            ( load (add (FuncVar $ Prim.Arg 0) (const 4 8) 8) 8
             , HashSet.fromList [Prim.Arg 0]
             )
           
@@ -99,7 +96,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           globalVar = var "global1" 8
           expr = load (add globalVar (const 4 8) 8) 8
           expected =
-            ( load (add (FuncVar $ Prim.Global globalVar) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)
+            ( load (add (FuncVar $ Prim.Global globalVar) (const 4 8) 8) 8
             , HashSet.fromList [Prim.Global globalVar]
             )
 
@@ -123,17 +120,14 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
             [ ("dest", var "global1" 8)
             , ("src", load (add (var "arg1" 8) (const 4 8) 8) 8)
             ]
-          -- expr = load (add (var "arg1" 8) (const 4 8) 8) 8
-          expr' = ( load (add (FuncVar $ Prim.Arg 0) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)
-                  , HashSet.fromList [Prim.Arg 0]
-                  )
           globalFuncVar = Prim.Global $ var "global1" 8
           expected = Prim.CallablePrimitive
             { prim = prim
+            , func = foo
             , callDest = M.FuncName "foo"
             , varMapping = HashMap.fromList
               [ ( "src"
-                , ( load (add (FuncVar $ Prim.Arg 0) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)
+                , ( load (add (FuncVar $ Prim.Arg 0) (const 4 8) 8) 8
                   , HashSet.fromList [Prim.Arg 0]
                   )
                 )
@@ -144,7 +138,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
                 )
               ]
             , constraints =
-                [ ( cmpNE (FuncVar $ Prim.Arg 1) (const 0 (ConstSize 8)) (ConstSize 8)
+                [ ( cmpNE (FuncVar $ Prim.Arg 1) (const 0 8) 8
                   , HashSet.fromList [Prim.Arg 1]
                   )
                 ]

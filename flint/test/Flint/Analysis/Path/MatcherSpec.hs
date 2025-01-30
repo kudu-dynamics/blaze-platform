@@ -6,8 +6,9 @@ module Flint.Analysis.Path.MatcherSpec
 
 import Flint.Prelude hiding (and, const, not, or, sym, Location)
 
-import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
+import Flint.Types.Analysis.Path.Matcher.Func
 
 import Blaze.Pil.Construct
 import Blaze.Pil.Solver (solveStmtsWithZ3)

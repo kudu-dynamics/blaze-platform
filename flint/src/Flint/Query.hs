@@ -10,11 +10,13 @@ import qualified Flint.Analysis as FA
 import Flint.Analysis.Path.Matcher (StmtPattern, PathPrep, StmtSolver)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
+import qualified Flint.Types.Analysis.Path.Matcher.Func as M
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRouteIO)
 import Flint.Types.Analysis (TaintPropagator)
+import Flint.Types.Analysis.Path.Matcher (Prim)
 import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive)
-import Flint.Types.Analysis.Path.Matcher.Primitives (Prim, CallablePrimitive)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
@@ -96,6 +98,7 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
       M.Necessarily pat _ -> go (parents, g) pat
       M.EndOfPath -> return (parents, g)
       M.Location _ pat -> go (parents, g) pat
+      M.Primitive _ _ -> return (parents, g)
 
 getCallSequenceGraph :: [StmtPattern] -> CallSequenceGraph M.Func
 getCallSequenceGraph pats = snd $ evalState (getCallSequenceGraph_ pats) 0

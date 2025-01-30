@@ -4,7 +4,7 @@ module Main where
 
 import Flint.Prelude
 
-import Flint.Types.Analysis.Path.Matcher.Primitives (Prim)
+import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.App (withBackend, Backend)
