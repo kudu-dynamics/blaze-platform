@@ -12,10 +12,8 @@ import qualified Flint.Types.Query as Q
 
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (BinaryImporter(openBinary))
-import qualified Blaze.Import.Pil as PilImporter
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Solver (solveStmtsWithZ3)
-import Blaze.Pretty (prettyStmts')
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil.Solver as Solver
 
@@ -31,6 +29,8 @@ data TestCtx = TestCtx
   { bv :: GhidraImporter
   , store :: CfgStore
   , allFuncs :: [Function]
+  , getFunc :: Text -> Function
+  , funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
   } deriving (Generic)
 
 getTestCtx :: IO TestCtx
@@ -38,56 +38,72 @@ getTestCtx = do
   (bv :: GhidraImporter) <- unsafeFromRight <$> openBinary dirtyBenchmark
   store <- CfgStore.init Nothing bv
   allFuncs <- CG.getFunctions bv
+  let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ allFuncs
+      getFunc = fromJust . flip HashMap.lookup funcMapping
+
+      funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
+      funcHasPattern actuallySolve func bms = do
+        paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
+        matcherResults <- traverse (M.match solver (bms ^. #pathPattern) . M.mkPathPrep []) paths
+        let onlyMatches = filter (is #_Match . snd) matcherResults
+        return . isJust . headMay $ onlyMatches
+          where
+            solver = if actuallySolve
+              then const . return $ Solver.Sat HashMap.empty
+              else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+  
 
   return $ TestCtx
     { bv = bv
     , store = store
     , allFuncs = allFuncs
+    , getFunc = getFunc
+    , funcHasPattern = funcHasPattern
     }
 
 spec :: Spec
-spec = beforeAll getTestCtx $ \tctx -> describe "Flint.Analysis.Path.Matcher.Patterns" $ do
+spec = beforeAll getTestCtx $ describe "Flint.Analysis.Path.Matcher.Patterns" $ do
   context "Dirty Benchmark 1" $ do
-    let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ tctx ^. #allFuncs
-        getFunc = fromJust . flip HashMap.lookup funcMapping
+    -- let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ tctx ^. #allFuncs
+    --     getFunc = fromJust . flip HashMap.lookup funcMapping
 
-        funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
-        funcHasPattern actuallySolve func bms = do
-          paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
-          matcherResults <- traverse (M.match solver (bms ^. #pathPattern) . M.mkPathPrep []) paths
-          let onlyMatches = filter (is #_Match . snd) matcherResults
-          return . isJust . headMay $ onlyMatches
-          where
-            solver = if actuallySolve
-              then const . return $ Solver.Sat HashMap.empty
-              else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
+    --     funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
+    --     funcHasPattern actuallySolve func bms = do
+    --       paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
+    --       matcherResults <- traverse (M.match solver (bms ^. #pathPattern) . M.mkPathPrep []) paths
+    --       let onlyMatches = filter (is #_Match . snd) matcherResults
+    --       return . isJust . headMay $ onlyMatches
+    --       where
+    --         solver = if actuallySolve
+    --           then const . return $ Solver.Sat HashMap.empty
+    --           else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
 
-    runIO $ PilImporter.getFuncStatements bv (getFunc "buffer_overflow") 0
-      >>= prettyStmts'
+    -- runIO $ PilImporter.getFuncStatements bv (getFunc "buffer_overflow") 0
+    --   >>= prettyStmts'
 
-    runIO . pprint $ getFunc "buffer_overflow" ^. #params
+    -- runIO . pprint $ getFunc "buffer_overflow" ^. #params
 
-    it "should find a strcpy buffer overflow" $ do
-      let func = getFunc "buffer_overflow"
+    it "should find a strcpy buffer overflow" $ \tctx -> do
+      let func = (tctx ^. #getFunc) "buffer_overflow"
           pat = Pat.bufferOverflow
-          action = funcHasPattern False func pat
+          action = (tctx ^. #funcHasPattern) False func pat
           expected = True
 
       
       action `shouldReturn` expected
 
-    it "should find a format string vulnerability" $ do
-      let func = getFunc "format_string_vulnerability"
+    it "should find a format string vulnerability" $ \tctx -> do
+      let func = (tctx ^. #getFunc) "format_string_vulnerability"
           pat = Pat.formatStringVulnerability
-          action = funcHasPattern False func pat
+          action = (tctx ^. #funcHasPattern) False func pat
           expected = True
 
       action `shouldReturn` expected
 
-    it "should find a use-after-free" $ do
-      let func = getFunc "use_after_free"
+    it "should find a use-after-free" $ \tctx -> do
+      let func = (tctx ^. #getFunc) "use_after_free"
           pat = Pat.useAfterFree
-          action = funcHasPattern False func pat
+          action = (tctx ^. #funcHasPattern) False func pat
           expected = True
 
       action `shouldReturn` expected
@@ -100,10 +116,10 @@ spec = beforeAll getTestCtx $ \tctx -> describe "Flint.Analysis.Path.Matcher.Pat
 
     --   action `shouldReturn` expected
 
-    it "should find a stack_based_buffer_overflow" $ do
-      let func = getFunc "stack_based_buffer_overflow"
+    it "should find a stack_based_buffer_overflow" $ \tctx -> do
+      let func = (tctx ^. #getFunc) "stack_based_buffer_overflow"
           pat = Pat.stackBasedBufferOverflow
-          action = funcHasPattern False func pat
+          action = (tctx ^. #funcHasPattern) False func pat
           expected = True
 
       action `shouldReturn` expected

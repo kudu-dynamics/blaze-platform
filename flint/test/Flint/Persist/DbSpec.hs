@@ -4,12 +4,15 @@ module Flint.Persist.DbSpec where
 
 import Flint.Prelude
 
-import qualified Flint.Cfg.Store as Store
+import qualified Flint.Cfg.Store as CfgStore
+import Flint.Types.Cfg.Store (CfgStore)
 
-import Blaze.CallGraph (getCallGraph)
+import Blaze.CallGraph (getCallGraph, CallGraph)
+import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (openBinary)
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import qualified Blaze.Persist.Db as Db
+import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Graph as G
 
 import qualified Data.HashSet as HashSet
@@ -17,22 +20,40 @@ import System.IO.Temp (withSystemTempFile)
 
 import Test.Hspec
 
+diveLogger :: FilePath
+diveLogger = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+
+data TestCtx = TestCtx
+  { bv :: GhidraImporter
+  , store :: CfgStore
+  , allFuncs :: [Function]
+  , cg :: CallGraph
+  } deriving (Generic)
+
+getTestCtx :: IO TestCtx
+getTestCtx = do
+  (bv :: GhidraImporter) <- unsafeFromRight <$> openBinary diveLogger
+  store <- CfgStore.init Nothing bv
+  allFuncs <- CG.getFunctions bv
+  cg <- getCallGraph bv allFuncs
+  return $ TestCtx
+    { bv = bv
+    , store = store
+    , allFuncs = allFuncs
+    , cg = cg
+    }
 
 spec :: Spec
-spec = describe "Flint.Persist.Db" $ do
+spec = beforeAll getTestCtx . describe "Flint.Persist.Db" $ do
   context "CallGraph" $ do
-    (bv :: GhidraImporter) <- fmap unsafeFromRight . runIO $ openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
-    store <- runIO $ Store.init Nothing bv
-    funcs <- runIO $ Store.getFuncs store
-    cg <- runIO $ getCallGraph bv funcs
-    mCg' <- runIO $ withSystemTempFile "dive_callgraph.flint" $ \fp _ -> do
-      conn <- Db.init fp
-      Db.insertCallGraph conn cg
-      Db.loadCallGraph conn
-
     let reduceGraph g = ( sort . fmap (view #name) . HashSet.toList $ G.nodes g
                         , sort $ G.edges g
                         )
 
-    it "should store and load CallGraph" $ do
-      reduceGraph <$> mCg' `shouldBe` Just (reduceGraph cg)
+    it "should store and load CallGraph" $ \tctx -> do
+      let action = withSystemTempFile "dive_callgraph.flint" $ \fp _ -> do
+              conn <- Db.init fp
+              Db.insertCallGraph conn $ tctx ^. #cg
+              Db.loadCallGraph conn
+
+      fmap reduceGraph <$> action `shouldReturn` Just (reduceGraph $ tctx ^. #cg)
