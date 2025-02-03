@@ -5,6 +5,7 @@ import Flint.Prelude
 import qualified Flint.Analysis.Path.Matcher as M
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import qualified Flint.Cfg.Path as CfgPath
+import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query (BugMatch)
 import qualified Flint.Types.Query as Q
@@ -26,14 +27,28 @@ import Test.Hspec
 dirtyBenchmark :: FilePath
 dirtyBenchmark = "res/test_bins/dirty_benchmark/dirty_benchmark"
 
-spec :: Spec
-spec = describe "Flint.Analysis.Path.Matcher.Patterns" $ do
-  context "Dirty Benchmark 1" $ do
-    (bv :: GhidraImporter) <- unsafeFromRight <$> runIO (openBinary dirtyBenchmark)
-    store <- runIO $ CfgStore.init Nothing bv
+data TestCtx = TestCtx
+  { bv :: GhidraImporter
+  , store :: CfgStore
+  , allFuncs :: [Function]
+  } deriving (Generic)
 
-    allFuncs <- runIO $ CG.getFunctions bv
-    let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ allFuncs
+getTestCtx :: IO TestCtx
+getTestCtx = do
+  (bv :: GhidraImporter) <- unsafeFromRight <$> openBinary dirtyBenchmark
+  store <- CfgStore.init Nothing bv
+  allFuncs <- CG.getFunctions bv
+
+  return $ TestCtx
+    { bv = bv
+    , store = store
+    , allFuncs = allFuncs
+    }
+
+spec :: Spec
+spec = beforeAll getTestCtx $ \tctx -> describe "Flint.Analysis.Path.Matcher.Patterns" $ do
+  context "Dirty Benchmark 1" $ do
+    let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ tctx ^. #allFuncs
         getFunc = fromJust . flip HashMap.lookup funcMapping
 
         funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
