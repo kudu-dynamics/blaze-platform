@@ -971,3 +971,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         mr `shouldBe` Match stmts
         HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "r")
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
+
+    context "Primitives" $ do
+
+    -- it "should use CallablePrimitive for 
