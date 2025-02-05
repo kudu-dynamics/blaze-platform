@@ -2,7 +2,7 @@
 
 module Helper.Primitives where
 
-import Flint.Prelude hiding (const)
+import Flint.Prelude hiding (const, sym)
 
 import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
 import Flint.Analysis.Path.Matcher.Primitives
@@ -19,6 +19,16 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
+
+var_
+  :: (GetExprSize attrs, ExprConstructor attrs expr)
+  => Function
+  -> Pil.Symbol
+  -> attrs
+  -> expr
+var_ func sym attrs = mkExpr attrs (Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize attrs) (Just ctx) sym)
+  where
+    ctx = Pil.Ctx func 0
 
 memcpy :: Function
 memcpy = Function Nothing "memcpy" 0x111 []
@@ -130,13 +140,13 @@ bar = Function Nothing "bar" 0x777 barParams
 
 barPath3 :: [Stmt]
 barPath3 =
-  [ constraint $ cmpSgt (var "arg1" 8) (const 0 8) 8
+  [ constraint $ cmpSgt (var_ bar "arg1" 8) (const 0 8) 8
   , defCall "r" (Pil.CallFunc foo)
-    [ (var "arg4" 8)
-    , (load (var "arg2" 8) 8)
+    [ (var_ bar "arg4" 8)
+    , (load (var_ bar "arg2" 8) 8)
     ]
     8
-  , ret $ var "r" 8
+  , ret $ var_ bar "r" 8
   ]
 
 barCodeSummary3 :: CodeSummary

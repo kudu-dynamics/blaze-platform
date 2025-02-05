@@ -779,6 +779,7 @@ test-suite flint-general-test
       Flint.CfgSpec
       Flint.GraphSpec
       Flint.Persist.DbSpec
+      Helper.Primitives
       Paths_flint
   autogen-modules:
       Paths_flint

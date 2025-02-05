@@ -538,8 +538,9 @@ addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
     addOrCreate Nothing = Just $ HashSet.singleton addr
     addOrCreate (Just s) = Just $ HashSet.insert addr s
 
+-- TODO: What about ghidra param_n?
 getArgName :: Symbol Pil.Expression -> Word64 -> Symbol Pil.Expression
-getArgName prefix n = prefix <> "_arg" <> show n
+getArgName prefix n = prefix <> "arg" <> show n
 
 mkStmtPatternFromCallablePrimitive :: Symbol Pil.Expression -> CallablePrimitive -> StmtPattern
 mkStmtPatternFromCallablePrimitive prefix x = Stmt

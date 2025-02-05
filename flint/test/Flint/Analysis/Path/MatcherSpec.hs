@@ -6,6 +6,8 @@ module Flint.Analysis.Path.MatcherSpec
 
 import Flint.Prelude hiding (and, const, not, or, sym, Location)
 
+import Helper.Primitives
+
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Types.Analysis.Path.Matcher.Func
@@ -57,7 +59,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         solver _ = return $ Solver.Sat HashMap.empty
 
         matchNextStmt_' :: Bool -> [Pil.Stmt] -> StmtPattern -> (MatcherState Identity, Bool)
-        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher solver (mkPathPrep [] stmts) $ do
+        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher (mkMatcherState solver $ mkPathPrep [] stmts) $ do
           matchNextStmt_ tryNextStmtOnFailure pat
 
         matchNextStmt' = matchNextStmt_' True
@@ -978,6 +980,30 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let callablePrim = fooCallablePrimitive3
             outerFunc = bar
             outerPath = barPath3
-            pats = [ Primitive "writer_" copyPrim ]
-            (ms, r) = pureMatchStmts [] pats outerPath
-            
+            prim = copyPrim
+            prefix = "writer_"
+            pats = [ Primitive "writer_" prim ]
+            pprep = mkPathPrep [] outerPath
+            solver :: StmtSolver Identity
+            solver _ = return $ Solver.Sat HashMap.empty
+            callablePrims = HashMap.fromList
+              [( copyPrim, HashSet.singleton callablePrim )]
+            initMs = mkMatcherState solver pprep
+                     & #callablePrimitives .~ callablePrims
+
+            (ms, r) = pureMatchStmts_ initMs pats
+            expectedBoundSyms = HashMap.fromList
+              [ ("writer_dest", var "global1" 8)
+              , ( "writer_src"
+                , load (add (var_ bar "arg4" 8) (const 4 8) 8) 8
+                )
+              ]
+            actualBoundSyms = HashMap.filterWithKey
+              (\k _ -> HashSet.member k
+                . HashSet.map (prefix <>)
+                $ prim ^. #vars)
+              $ ms ^. #boundSyms
+
+        is #_Match r `shouldBe` True
+
+        PShow actualBoundSyms `shouldBe` PShow expectedBoundSyms

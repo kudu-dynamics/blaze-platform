@@ -61,3 +61,6 @@ catHashMapMaybes = HashMap.fromList . mapMaybe f . HashMap.toList
 
 runLoggerT :: MonadIO m => Logger.LogLevel -> Logger.LoggingT m a -> m a 
 runLoggerT lvl m = runStdoutLoggingT $ Logger.filterLogger (const (== lvl)) m
+
+data Foo = Bar Int | Baz Int Int | Jackson deriving (Show, Generic)
+
