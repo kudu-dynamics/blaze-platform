@@ -123,11 +123,10 @@ mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty
 
 runMatcher
   :: Monad m
-  => StmtSolver m
-  -> PathPrep
+  => MatcherState m
   -> MatcherT m a
   -> m (MatcherState m, Maybe a)
-runMatcher solver pathPrep action = runMatcher_ action (mkMatcherState solver pathPrep) >>= \case
+runMatcher ms action = runMatcher_ action ms >>= \case
   (Left _, s) -> return (s, Nothing)
   (Right x, s) -> return (s, Just x)
 
@@ -789,11 +788,10 @@ resolveBoundText m (CaseContains bt cases) = let t = resolveBoundText m bt in
 -- Returns MatcherState and bool indicating initial success.
 runMatchStmts
   :: forall m. Monad m
-  => StmtSolver m
+  => MatcherState m
   -> [StmtPattern]
-  -> PathPrep
   -> m (MatcherState m, Bool)
-runMatchStmts solver pats pathPrep = fmap (second isJust) . runMatcher solver pathPrep $ do
+runMatchStmts ms pats = fmap (second isJust) . runMatcher ms $ do
   matchNextStmt $ Ordered pats
   drainRemainingStmts
   where
@@ -804,6 +802,21 @@ runMatchStmts solver pats pathPrep = fmap (second isJust) . runMatcher solver pa
         retireStmt
         drainRemainingStmts
 
+match_
+  :: Monad m
+  => MatcherState m
+  -> [StmtPattern]
+  -> m (MatcherState m, MatcherResult)
+match_ initMs pats = runMatchStmts initMs pats >>= \case
+  (ms, False) -> return (ms, NoMatch)
+  (ms, True) -> do
+    let stmts' = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts
+    (ms ^. #solveStmts) stmts' >>= \case
+        Sat sols -> do
+          return (ms & #solutions ?~ sols, Match stmts')
+        Err err -> error $ "Solver error: " <> show err
+        _ -> return (ms, NoMatch)
+
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.
 match
@@ -812,15 +825,7 @@ match
   -> [StmtPattern]
   -> PathPrep
   -> m (MatcherState m, MatcherResult)
-match solver pats pathPrep = runMatchStmts solver pats pathPrep >>= \case
-  (ms, False) -> return (ms, NoMatch)
-  (ms, True) -> do
-    let stmts' = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts
-    solver stmts' >>= \case
-      Sat sols -> do
-        return (ms & #solutions ?~ sols, Match stmts')
-      Err err -> error $ "Solver error: " <> show err
-      _ -> return (ms, NoMatch)
+match solver pats pathPrep = match_ (mkMatcherState solver pathPrep) pats
 
 match'
   :: Monad m

@@ -204,6 +204,7 @@ data MatcherState m = MatcherState
   -- | If the path has been checked with the solver, this holds possible solutions
   , solutions :: Maybe (HashMap Text CV)
   , locations :: HashMap (Symbol Address) (HashSet Address)
+  -- TODO: this doesn't really belong here because it won't be modified
   , callablePrimitives :: HashMap PrimType (HashSet CallablePrimitive)
   } deriving Generic
 

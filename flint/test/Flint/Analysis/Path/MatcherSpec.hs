@@ -973,5 +973,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
 
     context "Primitives" $ do
-
-    -- it "should use CallablePrimitive for 
+      let pureMatchStmts_ ms = runIdentity . match_ ms
+      it "should match callable primitive" $ do
+        let callablePrim = fooCallablePrimitive3
+            outerFunc = bar
+            outerPath = barPath3
+            pats = [ Primitive "writer_" copyPrim ]
+            (ms, r) = pureMatchStmts [] pats outerPath
+            
