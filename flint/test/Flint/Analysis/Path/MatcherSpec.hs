@@ -15,6 +15,7 @@ import Flint.Types.Analysis.Path.Matcher.Func
 import Blaze.Pil.Construct
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
+import Blaze.Pretty (PStmts(PStmts), PrettyShow'(PrettyShow'))
 import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
@@ -1003,7 +1004,24 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                 . HashSet.map (prefix <>)
                 $ prim ^. #vars)
               $ ms ^. #boundSyms
-
+            expectedParsedSmts :: [Pil.Stmt]
+            expectedParsedSmts =
+              [ constraint $ cmpSgt (var_ bar "arg1" 8) (const 0 8) 8
+              , defCall "r" (Pil.CallFunc foo)
+                [ (var_ bar "arg4" 8)
+                , (load (var_ bar "arg2" 8) 8)
+                ]
+                8
+              -- Should add in the constraint from prim
+              , constraint $ cmpNE (load (var_ bar "arg2" 8) 8) (const 0 8) 8
+              , ret $ var_ bar "r" 8
+              ]
+            actualParsedStmts = reverse $ ms ^. #parsedStmtsWithAssertions
+        
         is #_Match r `shouldBe` True
 
         PShow actualBoundSyms `shouldBe` PShow expectedBoundSyms
+
+        PrettyShow' (PStmts actualParsedStmts) `shouldBe` PrettyShow' (PStmts expectedParsedSmts)
+
+        -- TODO: test Constraints!

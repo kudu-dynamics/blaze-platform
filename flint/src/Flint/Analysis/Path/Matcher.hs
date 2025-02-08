@@ -724,7 +724,12 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
                   forM_ (HashMap.toList $ cprim ^. #varMapping) $ \(var, (fvExpr, _)) -> do
                     resolvedExpr <- resolveFuncVars prefix fvExpr
                     #boundSyms %= HashMap.insert (prefix <> var) resolvedExpr
-                    -- TODO: add constraints to stmts
+                    
+                  -- TODO: add constraints to stmts
+                  forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
+                    resolvedExpr <- resolveFuncVars prefix fvExpr
+                    let constraintStmt = C.constraint resolvedExpr
+                    #parsedStmtsWithAssertions %= (constraintStmt :)
                     return ()
       -- check linkedVars for # of args
       -- match on call to callDest Func with same # of args

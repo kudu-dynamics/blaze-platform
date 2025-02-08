@@ -767,6 +767,7 @@ instance Tokenizable Pil.CallSite where
       <++> tokenize (x ^. #callDest)
 
 newtype PStmts a = PStmts [Pil.AddressableStatement a]
+  deriving (Eq, Ord, Generic)
 
 newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.AddressableStatement a)]
 
