@@ -1023,5 +1023,3 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         PShow actualBoundSyms `shouldBe` PShow expectedBoundSyms
 
         PrettyShow' (PStmts actualParsedStmts) `shouldBe` PrettyShow' (PStmts expectedParsedSmts)
-
-        -- TODO: test Constraints!
