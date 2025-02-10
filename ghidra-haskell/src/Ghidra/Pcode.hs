@@ -42,6 +42,7 @@ getPcodeOpAST hfunc instr = do
   iter :: J.Iterator J.PcodeOpAST <- runIO $ Java.call hfunc "getPcodeOps" addr >>= JNI.newGlobalRef
   iteratorToList iter
 
+-- TODO change this to just use the function's "getPcodeOps" method. Will probably break a bunch of tests
 getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> Ghidra [(Address, J.PcodeOpAST)]
 getHighPcodeOps gs hfunc x = do
   instrs <- getInstructions gs x
@@ -126,8 +127,8 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   BOOL_XOR -> binOp L.BOOL_XOR
   BRANCH -> L.BRANCH <$> inputDest 0
   BRANCHIND -> L.BRANCHIND <$> input 0
-  CALL -> L.CALL <$> inputDest 0 <*> inputList 1
-  CALLIND -> L.CALLIND <$> input 0 <*> inputList 1
+  CALL -> L.CALL (Output <$> x ^. #output) <$> inputDest 0 <*> inputList 1
+  CALLIND -> L.CALLIND (Output <$> x ^. #output) <$> input 0 <*> inputList 1
   CALLOTHER -> unknown "CALLOTHER" -- L.CALLOTHER <$> input 0 <*> inputList 1
   CAST -> unOp L.CAST
   CBRANCH -> L.CBRANCH <$> inputDest 0 <*> input 1

@@ -17,10 +17,11 @@ spec = describe "Blaze.Pil.Construct" $ do
       exprSize `shouldBe` expectedSize
       case op ^? #_VAR . #_VarOp of
         Nothing -> expectationFailure "op was not a VAR"
-        Just (PilVar varSize ctx varSym) -> do
+        Just (PilVar varSize ctx varSym False UnknownLocation) -> do
           ctx `shouldBe` Nothing
           varSize `shouldBe` expectedSize
           varSym `shouldBe` sym
+        Just _ -> expectationFailure "op was not the expected PilVar variant"
 
   describe "var'" $ do
     it "should create a VAR expression with correct size and symbol" $ do
@@ -28,11 +29,12 @@ spec = describe "Blaze.Pil.Construct" $ do
           varExpectedSize = 13
           exprExpectedSize = 25
           expectedCtx = Ctx (Function Nothing "qwer" 0xdeadbeef []) 17
-          Expression exprSize op = C.var' (PilVar varExpectedSize (Just expectedCtx) sym) exprExpectedSize
+          Expression exprSize op = C.var' (PilVar varExpectedSize (Just expectedCtx) sym False UnknownLocation) exprExpectedSize
       exprSize `shouldBe` exprExpectedSize
       case op ^? #_VAR . #_VarOp of
         Nothing -> expectationFailure "op was not a VAR"
-        Just (PilVar varSize ctx varSym) -> do
+        Just (PilVar varSize ctx varSym False UnknownLocation) -> do
           ctx `shouldBe` Just expectedCtx
           varSize `shouldBe` varExpectedSize
           varSym `shouldBe` sym
+        Just _ -> expectationFailure "op was not the expected PilVar variant"

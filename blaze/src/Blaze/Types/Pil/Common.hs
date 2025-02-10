@@ -30,6 +30,18 @@ data Ctx = Ctx
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
 
+type RegName = Text
+type Offset = Int64
+
+data VarLocation 
+  = Register RegName 
+  | StackMemory Offset
+  | HeapMemory Offset
+  | Code Offset 
+  | UnknownLocation
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+
 -- Maybe is used to wrap _func and _ctxId since
 -- contextual information may not be available or desirable
 -- when introducing "synthetic" variables. (I.e., variables
@@ -45,9 +57,12 @@ data PilVar = PilVar
     --       play nice with context management.
   , ctx :: Maybe Ctx
   , symbol :: Symbol
+  , isParam :: Bool
+  , location :: VarLocation
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+
 
 instance Identifiable PilVar Int where
   getNodeId pv = NodeId $ hash pv

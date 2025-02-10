@@ -20,7 +20,13 @@ newtype Thunk = Thunk J.Function
 
 data Parameter = Parameter
   { handle :: J.Parameter
-  , ordinalIndex :: Word64
+  , ordinalIndex :: Int32
   , isAutoParameter :: Bool
+  , name :: Text
+  } deriving (Eq, Ord, Show, Generic)
+
+data HighParameter = HighParameter
+  { handle :: J.HighSymbol
+  , ordinalIndex :: Int32
   , name :: Text
   } deriving (Eq, Ord, Show, Generic)

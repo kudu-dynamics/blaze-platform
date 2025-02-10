@@ -666,7 +666,7 @@ replaceStore store symbol = update storeIdx $ store ^. #stmt & #statement .~ var
     varDef =
       Pil.Def
         (Pil.DefOp
-           { var = Pil.PilVar (fromByteBased $ storedVal ^. #size) ctx symbol
+           { var = Pil.PilVar (fromByteBased $ storedVal ^. #size) ctx symbol False Pil.UnknownLocation
            , value = storedVal
            })
 

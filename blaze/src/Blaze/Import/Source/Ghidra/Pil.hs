@@ -18,6 +18,7 @@ import qualified Ghidra.Types.Variable as GVar
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Cfg (CodeReference)
 
+import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil
   (
     CtxId,
@@ -37,7 +38,6 @@ import qualified Numeric
 import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
 import Blaze.Import.Source.Ghidra.Types (convertAddress)
-import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Function ( Function )
 
 import qualified Data.HashMap.Strict as HashMap
@@ -291,7 +291,7 @@ internVarnode s (Just pcAddress) = do
 varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Either PilVar Expression)
 varNodeToReference v = do
   ctx' <- use #ctx
-  let pv = C.pilVar_ (fromByteBased size) $ Just ctx'
+  let pv = C.pilVar__ (fromByteBased size) $ Just ctx'
       size :: Bytes = getSize v
       operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
@@ -300,28 +300,22 @@ varNodeToReference v = do
       reg <- liftIO . runGhidraOrError $ getRegister prg offset (fromIntegral size)
       let name = getRegisterName offset size reg
       version <- lift $ internVarnode (SSAReg offset) pcAddress
-      pure . Left . pv $
-        case version of
-          Nothing -> name
-          Just ver -> name <> "#" <> show ver
+      pure . Left . pv (maybe name (\ver -> name <> "#" <> show ver) version) False $ Pil.Register name
     VStack{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAStack offset) pcAddress
-      pure . Left . pv $
-        case version of
-          Nothing -> stackVarName offset
-          Just ver -> stackVarName offset <> "#" <> show ver
+      pure . Left . pv (maybe (stackVarName offset) (\ver -> stackVarName offset <> "#" <> show ver) version) False $ Pil.StackMemory offset
     VUnique{offset, pcAddress} -> do
-      -- pure . Left . pv $ "unique_" <> showHex n
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
-      pure . Left . pv $
-        case version of
-          Nothing -> "unique_" <> showHex offset
-          Just ver -> "unique_" <> showHex offset <> "#" <> show ver
+      let name = maybe
+                 ("unique_" <> showHex offset)
+                 (\ver -> "unique_" <> showHex offset <> "#" <> show ver)
+                 version
+      pure . Left . pv name False $ Pil.Code offset
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
-      | t == "VARIABLE" -> pure . Left . pv $ "ghidravar_" <> showHex off
+      | t == "VARIABLE" -> pure . Left . pv ("ghidravar_" <> showHex off) False $ Pil.Code off
       | otherwise -> throwError $ UnsupportedAddressSpace t
   where
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
@@ -379,14 +373,22 @@ convertPcodeOpToPilStatement = \case
   P.BRANCHIND in0 -> do
     target <- varNodeToValueExpr in0
     pure [Pil.Jump . Pil.JumpOp $ target]
-  P.CALL dest inputs -> do
+  P.CALL mOut dest inputs -> do
     cdest <- lift $ callDestFromDest $ dest ^. #value
     params <-  mapM varNodeToValueExpr . fmap (view #value) $ inputs
-    pure . (: []) . Pil.Call $ Pil.CallOp cdest Nothing params
-  P.CALLIND in0 inputs -> do
-    dest <- varNodeToValueExpr in0
+    let callOp = Pil.CallOp cdest Nothing params
+    case mOut of
+      Nothing -> pure [Pil.Call callOp]
+      Just out ->
+        mkDef out $ Pil.CALL callOp
+  P.CALLIND mOut in0 inputs -> do
+    cdest <- varNodeToValueExpr in0
     params <- mapM varNodeToValueExpr . fmap (view #value) $ inputs
-    pure . (: []) . Pil.Call $ Pil.CallOp (Pil.CallExpr dest) Nothing params
+    let callOp = Pil.CallOp (Pil.CallExpr cdest) Nothing params
+    case mOut of
+      Nothing -> pure [Pil.Call callOp]
+      Just out ->
+        mkDef out $ Pil.CALL callOp
 
   -- TODO CALLOTHER is pretty much a black-box
   P.CALLOTHER _in0 _inputs -> pure [Pil.UnimplInstr "CALLOTHER"]
