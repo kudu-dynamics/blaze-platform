@@ -30,7 +30,7 @@ import qualified Ghidra.Reference as GRef
 getFuncAddr :: G.Function -> Address
 getFuncAddr = convertAddress . view #startAddress
 
-convertParam :: G.Parameter -> ParamInfo
+convertParam :: G.HighParameter -> ParamInfo
 convertParam p = ParamInfo (p ^. #name) BFunc.Unknown
 
 toGhidraFunction :: GhidraState -> Function -> IO J.Function
@@ -38,12 +38,14 @@ toGhidraFunction gs fn = getFunction_ gs (fn ^. #address) >>= \case
     Nothing -> error $ "Couldn't find function at addr: " <> show (fn ^. #address)
     Just fn' -> return fn'
 
-toBlazeFunction :: G.Function -> IO Function
-toBlazeFunction gfunc = runGhidraOrError $ do
-  let fn = gfunc ^. #handle
-  name <- G.getName fn
-  isVariadic <- G.hasVarArgs fn
-  paramInfos <- fmap convertParam <$> G.getParams fn
+toBlazeFunction :: GhidraState -> G.Function -> IO Function
+toBlazeFunction gs gfunc = runGhidraOrError $ do
+  let lowFn = gfunc ^. #handle
+  name <- G.getName lowFn
+  highFn <- G.getHighFunction gs lowFn
+  proto <- G.getProto highFn
+  isVariadic <- G.isVarArg proto
+  paramInfos <- fmap convertParam <$> G.getHighParams highFn
   -- Don't really know how to tell if individual params are varargs
   -- so for now, if isVariadic is true, we use FuncVarArgInfo
   let params = bool FuncParamInfo FuncVarArgInfo isVariadic <$> paramInfos
@@ -66,12 +68,12 @@ getFunction_ gs addr = runGhidraOrError $ do
 getFunction :: GhidraState -> Address -> IO (Maybe Function)
 getFunction gs addr = getFunction_ gs addr >>= \case
   Nothing -> return Nothing
-  Just jfunc -> Just <$> (runGhidraOrError (G.mkFunction jfunc) >>= toBlazeFunction)
+  Just jfunc -> Just <$> (runGhidraOrError (G.mkFunction jfunc) >>= toBlazeFunction gs)
   
 getFunctions :: GhidraState -> IO [Function]
 getFunctions gs = runGhidraOrError (G.getFunctions' opts gs)
   >>= traverse (runGhidraOrError . G.mkFunction)
-  >>= traverse toBlazeFunction
+  >>= traverse (toBlazeFunction gs)
   where
     -- Are these sensible options for blaze?
     opts = G.GetFunctionsOptions
@@ -91,7 +93,7 @@ getCallSites gs fn = do
   where
     f :: GRef.FuncRef -> IO CallSite
     f x = do
-      caller <- toBlazeFunction $ x ^. #caller
+      caller <- toBlazeFunction gs $ x ^. #caller
       let addr = convertAddress $ x ^. #callerAddr
           dest = CG.DestFunc fn
       return $ CallSite { CG.caller = caller

@@ -129,7 +129,8 @@ withJVM options = unsafePerformIO $ do
     forever $ do
       action <- atomically (readTChan tchan)
       try action >>= \case
-        Left (_ :: SomeException) -> putText "Action failed"
+        Left (e :: SomeException) ->
+          putText $ "Internal ghidra-haskell error: Action failed: " <> show e
         Right _ -> return ()
   return $ runnerFunc tchan
   where

@@ -71,7 +71,7 @@ constrainExpr nextSymNum cxTuples pilvarTuples expr =
       , sort $ HashMap.toList vars
       )
 
-pv :: Text -> PilVar
+pv :: Text -> Bool -> Pil.VarLocation -> PilVar
 pv = Pil.PilVar defaultSize Nothing
 
 spec :: Spec
@@ -259,17 +259,17 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
     it "generates constraints for a var" $ do
       let cxs = []
-          vars = [(pv "a", Sym 0)]
+          vars = [(pv "a" False Pil.UnknownLocation, Sym 0)]
           expr = InfoExpression
             { info = SymInfo 64 (Sym 1)
-            , op = Pil.VAR $ Pil.VarOp (pv "a")
+            , op = Pil.VAR $ Pil.VarOp (pv "a" False Pil.UnknownLocation)
             }
           nextSym = 2
 
           cxs' = [ (Sym 0, SType (TBitVector {bitWidth = Just 64}))
                  , (Sym 1, SVar (Sym 0))
                  ]
-          vars' = [ (pv "a", Sym 0) ]
+          vars' = [ (pv "a" False Pil.UnknownLocation, Sym 0) ]
       constrainExpr nextSym cxs vars expr `shouldBe` (sort cxs', sort vars')
 
 
@@ -278,10 +278,10 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
     it "generates constraints for a field address" $ do
       let cxs = []
-          vars = [(pv "a", Sym 0)]
+          vars = [(pv "a" False Pil.UnknownLocation, Sym 0)]
           varExpr = InfoExpression
             { info = SymInfo 64 (Sym 1)
-            , op = Pil.VAR $ Pil.VarOp (pv "a")
+            , op = Pil.VAR $ Pil.VarOp (pv "a" False Pil.UnknownLocation)
             }
           expr = InfoExpression
             { info = SymInfo 64 (Sym 2)
@@ -295,16 +295,16 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
                  , (Sym 101, SType (TRecord (HashMap.fromList [(32, Sym 100)])))
                  ]
 
-          vars' = [ (pv "a", Sym 0) ]
+          vars' = [ (pv "a" False Pil.UnknownLocation, Sym 0) ]
       constrainExpr 100 cxs vars expr `shouldBe` (sort cxs', sort vars')
 
 
     it "generates constraints for the load of a field address" $ do
       let cxs = []
-          vars = [(pv "a", Sym 0)]
+          vars = [(pv "a" False Pil.UnknownLocation, Sym 0)]
           varExpr = InfoExpression
             { info = SymInfo 64 (Sym 1)
-            , op = Pil.VAR $ Pil.VarOp (pv "a")
+            , op = Pil.VAR $ Pil.VarOp (pv "a" False Pil.UnknownLocation)
             }
           fieldAddrExpr = InfoExpression
             { info = SymInfo 64 (Sym 2)
@@ -325,16 +325,16 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
                  , (Sym 102, SType (TRecord (HashMap.fromList [(32, Sym 101)])))
                  ]
 
-          vars' = [ (pv "a", Sym 0) ]
+          vars' = [ (pv "a" False Pil.UnknownLocation, Sym 0) ]
       constrainExpr 100 cxs vars expr `shouldBe` (sort cxs', sort vars')
 
     it "generates constraints for a function call" $ do
       let cxs = []
-          vars = [(pv "a", Sym 0)]
+          vars = [(pv "a" False Pil.UnknownLocation, Sym 0)]
           varExpr =
             InfoExpression
               { info = SymInfo 32 (Sym 1),
-                op = Pil.VAR $ Pil.VarOp (pv "a")
+                op = Pil.VAR $ Pil.VarOp (pv "a" False Pil.UnknownLocation)
               }
           cp =
             InfoExpression

@@ -96,8 +96,8 @@ leaveFuncUUID :: UUID
 
     -------------------------
 
-    arg1 = Pil.PilVar defaultSize (Just targetCtx) "arg1"
-    arg2 = Pil.PilVar defaultSize (Just targetCtx) "arg2"
+    arg1 = Pil.PilVar defaultSize (Just targetCtx) "arg1" False Pil.UnknownLocation
+    arg2 = Pil.PilVar defaultSize (Just targetCtx) "arg2" False Pil.UnknownLocation
 
     rootNode2 = bbp targetCtx "root2"
       [ C.def "a2" (C.var' arg1 8)
@@ -129,7 +129,7 @@ leaveFuncUUID :: UUID
         , C.defPhi' (C.pilVar 8 "funcRet1") [retVar0]
         ]
       where
-        retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0"
+        retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0" False Pil.UnknownLocation
 
     expandedCfg' = mkCfg
       (targetCurrentCtxId + 1)
@@ -192,8 +192,8 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
                    , C.var' (pilVar' targetCtx "innerRet2") 8
                    ]
         result = ICfg.mkLeaveFuncNode uuid' callerCtx targetCtx callStmt' retExprs
-        retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0"
-        retVar1 = Pil.PilVar defaultSize (Just targetCtx) "retVar_1"
+        retVar0 = Pil.PilVar defaultSize (Just targetCtx) "retVar_0" False Pil.UnknownLocation
+        retVar1 = Pil.PilVar defaultSize (Just targetCtx) "retVar_1" False Pil.UnknownLocation
         expected :: Cfg.LeaveFuncNode [Pil.Stmt]
         expected = Cfg.LeaveFuncNode
           { prevCtx = targetCtx

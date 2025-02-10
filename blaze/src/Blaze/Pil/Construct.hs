@@ -32,8 +32,17 @@ instance GetExprSize (Size Expression) where
 getPilVarSize :: GetExprSize a => a -> Size PilVar
 getPilVarSize = fromByteBased . getExprSize
 
+pilVar__ :: Size PilVar -> Maybe Pil.Ctx -> Symbol -> Bool -> Pil.VarLocation -> PilVar
+pilVar__ size ctx symbol aParam location = PilVar
+  { size = size
+  , ctx = ctx
+  , symbol = symbol
+  , isParam = aParam
+  , location = location
+  }
+
 pilVar_ :: Size PilVar -> Maybe Pil.Ctx -> Symbol -> PilVar
-pilVar_ = PilVar
+pilVar_ size ctx symbol = PilVar size ctx symbol False Pil.UnknownLocation
 
 pilVar' :: Size PilVar -> Pil.Ctx -> Symbol -> PilVar
 pilVar' sz = pilVar_ sz . Just

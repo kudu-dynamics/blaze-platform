@@ -10,7 +10,7 @@ import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Util (iteratorToList, maybeNull)
 import qualified Ghidra.Types as J
-import Ghidra.Types.Function (Function(Function), Parameter(Parameter))
+import Ghidra.Types.Function (Function(Function), HighParameter(HighParameter), Parameter(Parameter))
 import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
@@ -131,11 +131,20 @@ getName fn = runIO $ Java.call fn "getName" >>= JNI.newGlobalRef >>= Java.reify
 getAddress :: J.Function -> Ghidra Addr.Address
 getAddress = Addr.mkAddress <=< J.toAddr
 
-hasVarArgs :: J.Function -> Ghidra Bool
-hasVarArgs fn = runIO $ Java.call fn "hasVarArgs"
+getProto :: J.HighFunction -> Ghidra J.FunctionPrototype
+getProto fn = runIO $ Java.call fn "getFunctionPrototype" >>= JNI.newGlobalRef
 
-isInline :: J.Function -> Ghidra Bool
-isInline fn = runIO $ Java.call fn "isInline"
+isConstructor :: J.FunctionPrototype -> Ghidra Bool
+isConstructor proto = runIO $ Java.call proto "isConstructor"
+
+isDestructor :: J.FunctionPrototype -> Ghidra Bool
+isDestructor proto = runIO $ Java.call proto "isDenstructor"
+
+isInline :: J.FunctionPrototype -> Ghidra Bool
+isInline proto = runIO $ Java.call proto "isInline"
+
+isVarArg :: J.FunctionPrototype -> Ghidra Bool
+isVarArg proto = runIO $ Java.call proto "isVarArg"
 
 isExternal :: J.Function -> Ghidra Bool
 isExternal fn = runIO $ Java.call fn "isExternal"
@@ -148,12 +157,29 @@ mkParameter p = runIO $ do
   ordIndex :: Int32 <- Java.call p "getOrdinal"
   isAuto <- Java.call p "isAutoParameter"
   mname :: Maybe Text <- traverse Java.reify . maybeNull =<< Java.call p "getName"
-  let name = fromMaybe ("arg" <> show ordIndex) mname
-  return $ Parameter p (fromIntegral ordIndex) isAuto name
+  let name = fromMaybe ("param_" <> show (ordIndex + 1)) mname
+  return $ Parameter p ordIndex isAuto name
 
-getParams :: J.Function -> Ghidra [Parameter]
-getParams fn =
+-- | Assumes that s.category == 0 (parameter)
+mkHighParameter :: J.HighSymbol -> Ghidra HighParameter
+mkHighParameter s = runIO $ do
+  ordIndex :: Int32 <- Java.call s "getCategoryIndex"
+  mname :: Maybe Text <- traverse Java.reify . maybeNull =<< Java.call s "getName"
+  let name = fromMaybe ("param_" <> show (ordIndex + 1)) mname
+  pure $ HighParameter s ordIndex name
+
+-- | Probably not what you want, since decompilation can uncover more parameters
+-- that were unknown at the low level. See 'getHighParams'
+getLowParams :: J.Function -> Ghidra [Parameter]
+getLowParams fn =
   runIO (Java.call fn "getParameters" >>= Java.reify) >>= traverse mkParameter
+
+getHighParams :: J.HighFunction -> Ghidra [HighParameter]
+getHighParams fn = do
+  proto :: J.FunctionPrototype <-
+    runIO $ Java.call fn "getFunctionPrototype" >>= JNI.newGlobalRef
+  paramCount :: Int32 <- runIO $ Java.call proto "getNumParams"
+  traverse (runIO . Java.call proto "getParam" >=> mkHighParameter) [0 .. paramCount - 1]
 
 getExternalLocation :: J.Function -> Ghidra J.ExternalLocationDB
 getExternalLocation fn = runIO $ coerce (Java.call fn "getExternalLocation" :: IO J.ExternalLocation)

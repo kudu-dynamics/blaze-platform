@@ -51,7 +51,7 @@ mkEnterFuncNode uuid' outerCtx calleeCtx callStmt =
     callStmtAddr = callStmt ^. #stmt . #addr
     mkParamVar :: (FuncParamInfo, Expression) -> (PilVar, Expression)
     mkParamVar (pinfo, x) =
-      ( PilVar (fromByteBased $ x ^. #size) (Just calleeCtx) (getParamSym pinfo)
+      ( PilVar (fromByteBased $ x ^. #size) (Just calleeCtx) (getParamSym pinfo) False Pil.UnknownLocation
       , x )
     paramVarsWithExpressions :: [(PilVar, Expression)]
     paramVarsWithExpressions = mkParamVar
@@ -87,7 +87,7 @@ mkLeaveFuncNode uuid' outerCtx calleeCtx callStmt retExprs =
 
 generateVars :: Ctx -> Text -> Int -> [Expression] -> [(PilVar, Expression)]
 generateVars ctx baseName id (expr : rest)
-  = (PilVar (fromByteBased $ expr ^. #size) (Just ctx) $ baseName <> show id, expr)
+  = (PilVar (fromByteBased $ expr ^. #size) (Just ctx) (baseName <> show id) False Pil.UnknownLocation , expr)
   : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 

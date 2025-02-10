@@ -886,7 +886,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   Store
                     (Bind "out" Wild)
                     ( Bind "in" Wild
-                        `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "a")
+                        `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "a" False Pil.UnknownLocation)
                     )
               ]
             (ms, mr) = pureMatchStmts tps pats stmts
