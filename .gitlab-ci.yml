@@ -28,6 +28,7 @@ stages:
     - dind
   before_script:
     - env
+    - ls -alF /root/.docker/
     - docker context list
     - df -h
     - apk add curl
