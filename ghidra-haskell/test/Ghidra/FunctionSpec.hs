@@ -59,15 +59,20 @@ spec = describe "Ghidra.Function" $ do
       fname1 `shouldBe` fname2
 
   context "getParams" $ do
-    let faddr = 0x13ad
-    params <- runIO . runGhidraOrError $ do
-      faddr' <- State.mkAddressBased gs faddr
-      (Just func) <- Function.fromAddr gs faddr'
-      hfunc <- Function.getHighFunction gs func
-      func' <- Function.getLowFunction hfunc
-      Function.getParams func'
     it "should find params for high func" $ do
-      params `shouldBe` []
+      let faddr = 0x13ad
+      params <- runGhidraOrError $ do
+        faddr' <- State.mkAddressBased gs faddr
+        (Just func) <- Function.fromAddr gs faddr'
+        hfunc <- Function.getHighFunction gs func
+        Function.getHighParams hfunc
+      let params' = sortOn fst $ fmap (\p -> (p ^. #ordinalIndex, p ^. #name)) params
+      params' `shouldBe`
+        [ (0, "param_1")
+        , (1, "param_2")
+        , (2, "param_3")
+        , (3, "param_4")
+        ]
 
   context "Thunks" $ do
     let putsThunkAddr = 0x1030

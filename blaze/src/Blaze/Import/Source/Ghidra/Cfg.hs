@@ -365,7 +365,7 @@ getPilCfg pcodeCfgGetter gs func ctxId = do
         False -> do
           callDest <- fmap Pil.CallFunc
             $ runGhidraOrError (GFunc.mkFunction thunkedDest)
-            >>= CGI.toBlazeFunction
+            >>= CGI.toBlazeFunction gs
           (callNodeUuid, retNodeUuid) <- (,) <$> randomIO <*> randomIO
           let ctx' = Pil.Ctx func ctxId
               defaultRetSize = 8

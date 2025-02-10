@@ -43,6 +43,7 @@ type FlatDecompilerAPI = J ('Java.Class "ghidra.app.decompiler.flatapi.FlatDecom
 type FlatProgramAPI = J ('Java.Class "ghidra.program.flatapi.FlatProgramAPI")
 type Function = J ('Java.Class "ghidra.program.model.listing.Function")
 type FunctionIterator = J ('Java.Class "ghidra.program.model.listing.FunctionIterator")
+type FunctionPrototype = J ('Java.Class "ghidra.program.model.pcode.FunctionPrototype")
 type GhidraJarApplicationLayout = J ('Java.Class "ghidra.GhidraJarApplicationLayout")
 type HeadlessGhidraApplicationConfiguration = J ('Java.Class "ghidra.framework.HeadlessGhidraApplicationConfiguration")
 type HighConstant = J ('Java.Class "ghidra.program.model.pcode.HighConstant")
