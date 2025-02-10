@@ -29,6 +29,7 @@ stages:
   before_script:
     - env
     - ls -alF /root/.docker/
+    - ls -alF /root/.docker/config.json/
     - docker context list
     - df -h
     - apk add curl
