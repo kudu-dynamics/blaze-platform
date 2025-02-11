@@ -14,6 +14,7 @@ import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Solver (solveStmtsWithZ3)
+import Blaze.Pretty (prettyPrint', prettyStmts')
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil.Solver as Solver
 
@@ -44,7 +45,9 @@ getTestCtx = do
       funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
       funcHasPattern actuallySolve func bms = do
         paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
-        matcherResults <- traverse (M.match solver (bms ^. #pathPattern) . M.mkPathPrep []) paths
+        let pathPreps = M.mkPathPrep [] <$> paths
+        mapM_ (prettyStmts' . view #stmts) pathPreps
+        matcherResults <- traverse (M.match solver (bms ^. #pathPattern)) pathPreps
         let onlyMatches = filter (is #_Match . snd) matcherResults
         return . isJust . headMay $ onlyMatches
           where

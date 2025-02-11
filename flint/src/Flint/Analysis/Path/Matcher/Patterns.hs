@@ -209,7 +209,7 @@ isGlobal :: ExprPattern
 isGlobal = Immediate
 
 isArg :: ExprPattern
-isArg = Var "arg"
+isArg = Var "arg" .|| Var "param"
 
 overFlowCopyingFunc
   :: Symbol Pil.Expression

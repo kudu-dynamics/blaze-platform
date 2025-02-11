@@ -5,11 +5,12 @@ compiler: ghc-9.6.4
 
 packages:
   - .
+  - ../blaze
 
 extra-deps:
   - ../binaryninja-haskell
   - ../binaryninja-haskell/binja-header-cleaner
-  - ../blaze
+  # - ../blaze
   - ../blaze/blaze-binaryninja
   - ../ghidra-haskell
   - flint-binaryninja
