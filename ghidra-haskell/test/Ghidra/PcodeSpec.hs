@@ -112,6 +112,13 @@ spec = describe "Ghidra.Pcode" $ do
         it "should lift high pcode ops" $ \(_, liftedHighs) -> do
           length liftedHighs `shouldBe` 15
 
+        it "param HighVariable should be named param_1" $ \(_, liftedHighs) -> do
+          let expected = Just "param_1"
+              name = liftedHighs ^? ix 1 . _2 . #_INT_NOTEQUAL . _2 . #value . #highVariable . _Just . #highSymbol . _Just . #name . _Just
+              isParam = liftedHighs ^? ix 1 . _2 . #_INT_NOTEQUAL . _2 . #value . #highVariable . _Just . #highSymbol . _Just . #isParameter
+          name `shouldBe` expected
+          isParam `shouldBe` Just True
+
     context "g" $ do
       beforeAll (getHighs gs 0x115e) $ do
         it "should lift high pcode ops" $ \(_, liftedHighs) -> do
