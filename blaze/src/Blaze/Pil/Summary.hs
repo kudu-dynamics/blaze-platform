@@ -180,7 +180,7 @@ fromStmts stmts =
           )
           $ stmts
         , results = HashSet.fromList results
-        , effects = HashSet.fromList effects
+        , effects = effects
         , capabilities = HashSet.fromList $ extractCapabilities (HashSet.toList inputVars) results stmts
         }
 
@@ -227,8 +227,8 @@ removeKilledWrites codeSum =
               then prevResult
               else RemoveKilledResult (x : effects) (HashSet.insert addr seenStoreAddr)
           _ -> RemoveKilledResult (x : effects) seenStoreAddr
-      effects' :: HashSet Effect
+      effects' :: [Effect]
       -- The effects need to be processed in reverse order.
       -- Using `foldr` meets this requirement.
-      effects' = HashSet.fromList $ foldr f initResult (codeSum ^. #effects) ^. #effects
+      effects' = foldr f initResult (codeSum ^. #effects) ^. #effects
    in codeSum & #effects .~ effects'

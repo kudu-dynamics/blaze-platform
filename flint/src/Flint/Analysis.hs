@@ -118,7 +118,7 @@ showCodeSummary s = do
   putText "Results:"
   pp' . HashSet.toList $ s ^. #results
   putText "Effects:"
-  pp' . NewlinedList . sort . HashSet.toList $ s ^. #effects
+  pp' . NewlinedList . sort $ s ^. #effects
   return ()
 
 showPaths :: Text -> [PilPath] -> IO ()

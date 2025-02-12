@@ -37,7 +37,7 @@ data CodeSummary = CodeSummary
     { inputVars :: HashSet PilVar
     , inputLoads :: HashSet LoadExpr
     , results :: HashSet Expression
-    , effects :: HashSet Effect
+    , effects :: [Effect]
     , capabilities :: HashSet Capability
     } deriving (Eq, Ord, Show, Generic)
 
