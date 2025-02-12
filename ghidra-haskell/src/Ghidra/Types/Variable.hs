@@ -33,11 +33,17 @@ newtype DataType = DataType { name :: Text }
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable)
 
+data HighSymbol = HighSymbol
+  { name :: Maybe Text
+  , isParameter :: Bool
+  } deriving (Eq, Ord, Show, Generic, Hashable)
+
 data HighVariable = HighVariable
   { dataType :: DataType
   , name :: Maybe Text
   , size :: Bytes
   , highVariableType :: HighVariableType
+  , highSymbol :: Maybe HighSymbol
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data HighVarNode = HighVarNode
