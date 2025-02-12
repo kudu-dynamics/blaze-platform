@@ -79,17 +79,29 @@ mkDataType hv = runIO $ do
   dt :: J.DataType <- Java.call hv "getDataType" >>= JNI.newGlobalRef
   DataType <$> (Java.call dt "getName" >>= Java.reify)
 
+getHighSymbol :: J.HighVariable -> Ghidra (Maybe HighSymbol)
+getHighSymbol hv = do
+  mhsym :: Maybe J.HighSymbol <- maybeNullCall . runIO $ Java.call hv "getSymbol"
+  case mhsym of
+    Nothing -> return Nothing
+    Just hsym -> do
+      name :: Maybe Text <- maybeNullCall . runIO $ Java.call (hsym :: J.HighSymbol) "getName" >>= Java.reify
+      isParamVar :: Bool <- fmap (fromMaybe False) . maybeNullCall . runIO $ Java.call hsym "isParameter" 
+      return . Just $ HighSymbol name isParamVar
+
 mkHighVariable :: J.HighVariable -> Ghidra HighVariable
 mkHighVariable hv = do
   sz :: Int32 <- runIO $ Java.call hv "getSize"
   mVarNameStr <- maybeNullCall . runIO $ Java.call hv "getName" >>= Java.reify
   dt <- mkDataType hv
   hvt <- mkHighVariableType hv
+  mhsym <- getHighSymbol hv
   return $ HighVariable
     { dataType = dt
     , name = mVarNameStr
     , size = fromIntegral sz
     , highVariableType = hvt
+    , highSymbol = mhsym
     }
 
 mkHighVarNode :: J.VarNodeAST -> Ghidra HighVarNode
