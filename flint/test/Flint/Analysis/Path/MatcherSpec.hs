@@ -1008,8 +1008,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             expectedParsedSmts =
               [ constraint $ cmpSgt (var_ bar "arg1" 8) (const 0 8) 8
               , defCall "r" (Pil.CallFunc foo)
-                [ (var_ bar "arg4" 8)
-                , (load (var_ bar "arg2" 8) 8)
+                [ var_ bar "arg4" 8
+                , load (var_ bar "arg2" 8) 8
                 ]
                 8
               -- Should add in the constraint from prim
