@@ -128,7 +128,7 @@ class IsVariable a where
 instance IsVariable HighVarNode where
   getSize = view #size
   getVarType = view #varType
-  getSpecialName x = x ^. #highVariable . _Just . #name
+  getSpecialName x = x ^. #highVariable . _Just . #highSymbol . _Just . #name
   -- getSpecialName x = x ^? #highVariable . _Just . #dataType . #name
 
 instance IsVariable VarNode where

@@ -14,7 +14,6 @@ import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Pil.Solver (solveStmtsWithZ3)
-import Blaze.Pretty (prettyPrint', prettyStmts')
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil.Solver as Solver
 
@@ -46,7 +45,7 @@ getTestCtx = do
       funcHasPattern actuallySolve func bms = do
         paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
         let pathPreps = M.mkPathPrep [] <$> paths
-        mapM_ (prettyStmts' . view #stmts) pathPreps
+        -- mapM_ (prettyStmts' . view #stmts) pathPreps
         matcherResults <- traverse (M.match solver (bms ^. #pathPattern)) pathPreps
         let onlyMatches = filter (is #_Match . snd) matcherResults
         return . isJust . headMay $ onlyMatches
@@ -67,32 +66,12 @@ getTestCtx = do
 spec :: Spec
 spec = beforeAll getTestCtx $ describe "Flint.Analysis.Path.Matcher.Patterns" $ do
   context "Dirty Benchmark 1" $ do
-    -- let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ tctx ^. #allFuncs
-    --     getFunc = fromJust . flip HashMap.lookup funcMapping
-
-    --     funcHasPattern :: Bool -> Function -> BugMatch -> IO Bool
-    --     funcHasPattern actuallySolve func bms = do
-    --       paths <- CfgPath.samplesFromQuery store func Q.QueryAllPaths
-    --       matcherResults <- traverse (M.match solver (bms ^. #pathPattern) . M.mkPathPrep []) paths
-    --       let onlyMatches = filter (is #_Match . snd) matcherResults
-    --       return . isJust . headMay $ onlyMatches
-    --       where
-    --         solver = if actuallySolve
-    --           then const . return $ Solver.Sat HashMap.empty
-    --           else solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
-
-    -- runIO $ PilImporter.getFuncStatements bv (getFunc "buffer_overflow") 0
-    --   >>= prettyStmts'
-
-    -- runIO . pprint $ getFunc "buffer_overflow" ^. #params
 
     it "should find a strcpy buffer overflow" $ \tctx -> do
       let func = (tctx ^. #getFunc) "buffer_overflow"
           pat = Pat.bufferOverflow
           action = (tctx ^. #funcHasPattern) False func pat
-          expected = True
-
-      
+          expected = True     
       action `shouldReturn` expected
 
     it "should find a format string vulnerability" $ \tctx -> do
