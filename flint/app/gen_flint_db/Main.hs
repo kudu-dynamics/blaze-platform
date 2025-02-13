@@ -8,6 +8,7 @@ import qualified Flint.Types.CachedCalc as CC
 
 import qualified Blaze.Persist.Db as Db
 
+import Control.Monad.Logger (LogLevel(LevelDebug))
 import Options.Applicative
 import System.Directory (removeFile)
 import System.Posix.Signals (killProcess, raiseSignal)
@@ -48,7 +49,7 @@ optionsParser = Options
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+  runLoggerT LevelDebug $ withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
     store <- Store.init Nothing imp
     (Just cg) <- CC.get () $ store ^. #callGraphCache
     catch (removeFile $ opts ^. #outputFlintDbFilePath) $ \(_ :: SomeException) -> return ()

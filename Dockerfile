@@ -15,8 +15,7 @@ RUN <<EOF
         ca-certificates           # Downloads (curl, git, etc)
         fonts-dejavu-core         # Smallest font that satisfies openjdk dependencies
         dbus                      # Binary Ninja
-        libharfbuzz0b             # JDK libfontmanager needs this but openjdk-21-jre-headless made it recommended only
-        openjdk-21-jre-headless   # Ghidra
+        libharfbuzz0b             # JDK libfontmanager needs this but openjdk-21-jre-headless made         openjdk-21-jre-headless   # Ghidra
     )
     apt install -yq --no-install-recommends "${packages[@]}"
 EOF
@@ -113,7 +112,7 @@ RUN <<EOF
 
         # Haskell dependencies
         git                      # Cloning inline-java and binary-analysis
-        openjdk-21-jdk-headless  # All we need this for is jni.h. Sigh
+        openjdk-21-jdk           # All we need this for is jni.h. Sigh
         pkg-config
         yq                       # Determining ghc version from stack.yaml
         zlib1g-dev
@@ -232,7 +231,8 @@ RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
 RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
 ENV BINJA_PLUGINS=/binaryninja/plugins
 # Build the rest of the packages that were not built in `builder`
-RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
+RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins \
+    --flag flint:binaryninja
 RUN <<EOF
     set -euxo pipefail
 

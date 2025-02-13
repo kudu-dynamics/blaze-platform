@@ -122,22 +122,29 @@ runConverter m s = flip runStateT s $ _runConverter m
 class IsVariable a where
   getSize :: a -> Bytes
   getVarType :: a -> VarType
+  -- | The special name is like "param_1" or a user defined name
+  getSpecialName :: a -> Maybe Symbol
 
 instance IsVariable HighVarNode where
   getSize = view #size
   getVarType = view #varType
+  getSpecialName x = x ^. #highVariable . _Just . #highSymbol . _Just . #name
+  -- getSpecialName x = x ^? #highVariable . _Just . #dataType . #name
 
 instance IsVariable VarNode where
   getSize = view #size
   getVarType = view #varType
+  getSpecialName _ = Nothing
 
 instance IsVariable a => IsVariable (P.Output a) where
   getSize (P.Output a) = getSize a
   getVarType (P.Output a) = getVarType a
+  getSpecialName (P.Output a) = getSpecialName a
 
 instance IsVariable a => IsVariable (P.Input a) where
   getSize = getSize . view #value
   getVarType = getVarType . view #value
+  getSpecialName = getSpecialName . view #value
 
 data VarNodeType
   = VUnique {offset :: Int64, pcAddress :: Maybe Int64}
@@ -298,26 +305,33 @@ varNodeToReference v = do
     VReg{offset, pcAddress} -> do
       prg <- use $ #ghidraState . #program
       reg <- liftIO . runGhidraOrError $ getRegister prg offset (fromIntegral size)
-      let name = getRegisterName offset size reg
+      let name = fromMaybe (getRegisterName offset size reg) specialName
       version <- lift $ internVarnode (SSAReg offset) pcAddress
       pure . Left . pv (maybe name (\ver -> name <> "#" <> show ver) version) False $ Pil.Register name
     VStack{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAStack offset) pcAddress
-      pure . Left . pv (maybe (stackVarName offset) (\ver -> stackVarName offset <> "#" <> show ver) version) False $ Pil.StackMemory offset
+      let name = fromMaybe (stackVarName offset)
+                 $ specialName
+                 <|>
+                 ((\ver -> stackVarName offset <> "#" <> show ver) <$> version)
+      pure . Left . pv name False $ Pil.StackMemory offset
     VUnique{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
-      let name = maybe
-                 ("unique_" <> showHex offset)
-                 (\ver -> "unique_" <> showHex offset <> "#" <> show ver)
-                 version
+      let name = fromMaybe ("unique_" <> showHex offset)
+                 $ specialName
+                 <|>
+                 ((\ver -> "unique_" <> showHex offset <> "#" <> show ver) <$> version)
       pure . Left . pv name False $ Pil.Code offset
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
-      | t == "VARIABLE" -> pure . Left . pv ("ghidravar_" <> showHex off) False $ Pil.Code off
+      | t == "VARIABLE" -> do
+          let name = fromMaybe ("ghidravar_" <> showHex off) specialName
+          pure . Left . pv name False $ Pil.Code off
       | otherwise -> throwError $ UnsupportedAddressSpace t
   where
+    specialName = getSpecialName v
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
 
 -- | Like 'varNodeToReference' but throw 'VarNodeInvalidAsPilVar' if an

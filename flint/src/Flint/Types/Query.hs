@@ -6,6 +6,7 @@ module Flint.Types.Query
 import Flint.Prelude
 
 import Flint.Analysis.Path.Matcher (StmtPattern, BoundText)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive)
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as Store
 
@@ -64,6 +65,24 @@ data MatchingResultBlob = MatchingResultBlob
   , bugName :: Text
   , bugDescription :: Text
   , mitigationAdvice :: Text
+  } deriving (Eq, Ord, Show, Generic, ToJSON)
+
+-- | A path that matches a bug pattern
+data MatchingPrim = MatchingPrim
+  { func :: Function
+  , callablePrim :: CallablePrimitive
+  , path :: [Pil.Stmt]
+  } deriving (Eq, Ord, Show, Generic)
+
+-- | A simpler version of MatchingResult for printing in JSON format
+data MatchingPrimBlob = MatchingPrimBlob
+  { func :: (Text, Address)
+  , path :: [Text]
+  , primName :: Text
+  , vars :: HashMap Text Text
+  , locations :: HashMap Text (HashSet Address)
+  , constraints :: [Text]
+  , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 
 data QueryConfig func = QueryConfig

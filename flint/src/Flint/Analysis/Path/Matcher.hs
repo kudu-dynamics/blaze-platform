@@ -2,248 +2,36 @@
 
 module Flint.Analysis.Path.Matcher
  ( module Flint.Analysis.Path.Matcher
+ , module Flint.Types.Analysis.Path.Matcher
  ) where
 
-import Flint.Prelude hiding (sym, negate)
+import Flint.Prelude hiding (sym, negate, Location)
+import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, FuncVarExpr)
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
+import Flint.Types.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.Func (Func(..))
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
-import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Eval (evalPilArithmeticExpr)
 import Blaze.Pretty (pretty')
-import qualified Blaze.Pretty as Pretty
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size(Size))
-import Blaze.Pil.Construct (ExprConstructor(..), var')
+import Blaze.Pil.Construct (var')
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil.Solver (SolverResult(Err, Sat, Unsat))
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
-import Data.SBV.Dynamic as Exports (CV)
-import Data.String (IsString(fromString))
 import qualified Data.Text as Text
 import Text.Regex.TDFA ((=~))
 
 
-type Symbol = Text
-
-data Func
-  = FuncName Text
-  | FuncAddr Address
-  | FuncNameRegex Text -- currently just looks for name that contains text
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data CallDest expr
-  = CallFunc Func
-  | CallIndirect expr
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data Statement expr
-  = Def expr expr -- Def dst src; dst is always (Var PilVar) expr
-  | Constraint expr
-  | Store expr expr
-  | EnterContext CtxPattern [expr]
-  | ExitContext CtxPattern CtxPattern -- leavingCtx, returningToCtx
-  | Call (Maybe expr) (CallDest expr) [expr]
-  | BranchCond expr
-  | Jump expr
-  | Ret expr
-  | NoRet
-  -- These are sort of supported by Call, since it matches against any CallStatement
-  -- | TailCall (CallDest expr) [expr]
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
--- | TODO: might need to make a `not` and `or` for CtxPattern
-data CtxPattern
-  = AnyCtx
-  | BindCtx Symbol CtxPattern
-  | Ctx (Maybe Func) (Maybe Pil.CtxId)
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data StmtPattern
-  = Stmt (Statement ExprPattern)
-  -- | Eventually StmtPattern
-  -- | Avoid StmtPattern
-  | AvoidUntil AvoidSpec
-  | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
-  | Unordered [StmtPattern] -- matches all, but in no particular order.
-  | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
-  | Neighbors [StmtPattern] -- sequential neighbors with no unmatching stmts between
-  -- | Once StmtPattern has matched, BoundExprs will be checked with the solver
-  | Where StmtPattern [BoundExpr]
-  | Necessarily StmtPattern [BoundExpr]
-  | EndOfPath
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data BoundExprSize
-  = ConstSize (Size Pil.Expression)
-  | SizeOf Symbol  -- looks up symbol to get size of expr
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data BoundExpr
-  = Bound Symbol -- gets expression that has been bound with Bind
-  | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-class BoundVar a where
-  bound :: Symbol -> a
-
-instance BoundVar BoundExpr where
-  bound = Bound
-
-instance ExprConstructor BoundExprSize BoundExpr where
-  mkExpr = BoundExpr
-
-instance Disp.NeedsParens BoundExpr where
-  needsParens (Bound _) = False
-  needsParens (BoundExpr _ op) = Disp.needsParens op
-
-instance Pretty.Tokenizable BoundExpr where
-  tokenize (Bound sym) = pure [Pretty.varToken Nothing ("?" <> sym)]
-  tokenize (BoundExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
-  tokenize (BoundExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
-
--- | Text that can refer to variables bound during pattern matching
-data BoundText
-  = TextExpr Symbol
-  | PureText Text
-  | CombineText BoundText BoundText
-  | CaseContains BoundText [(Text, BoundText)]
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-instance Semigroup BoundText where
-  a <> b = CombineText a b
-
-instance IsString BoundText where
-  fromString = PureText . cs
-
-data ExprPattern
-  = Expr (Pil.ExprOp ExprPattern)
-
-  -- | Binds expr to Sym if pattern matches, or if Sym already exists,
-  -- sees if equal to old sym val.
-  -- You can nest more binds within the ExprPattern.
-  | Bind Symbol ExprPattern
-
-  -- | Matches prefix of var name, like "arg4" will match "arg4-7#1".
-  -- Also matches against ConstFuncPtrs that a name.
-  | Var Symbol
-
-  -- | Matches if its an immediate, like a const int, ptr, float, etc.
-  | Immediate
-
-  -- | Matches if ExprPattern matches somewhere inside expr
-  | Contains ExprPattern
-  -- | Matches if 'src' is involved in the definition of 'dst'
-  | TaintedBy ExprPattern BoundExpr
-  | Wild
-
-  -- | Inequalities. These match on converse inequalities that mean the same thing,
-  -- like `not (x != y)` would match `x .== y`, and `x < y` would match `y .> x`
-  -- It also will work for signed or unsigned ints and floats.
-  -- TODO: add explicit signed/unsigned variants if deemed important
-  -- TODO: do we need NOT? and if so, do we want a thing that just says
-  --       the expr needs to be true?
-  | Cmp CmpType ExprPattern ExprPattern
-
-  -- | This Or's together two expr patterns, so if the first fails, it checks snd.
-  -- Not to be confused with the bitwise PIL.OR operator
-  | OrPattern ExprPattern ExprPattern
-
-  -- | Matches if the expr pattern inside doesn't match
-  | NotPattern ExprPattern
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-instance ExprConstructor () ExprPattern where
-  mkExpr _ = Expr
-
-data CmpType
-  = CmpE
-  | CmpNE
-  | CmpGT
-  | CmpGE
-  | CmpLT
-  | CmpLE
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-(.==) :: ExprPattern -> ExprPattern -> ExprPattern
-(.==) = Cmp CmpE
-infix 4 .==
-
-(./=) :: ExprPattern -> ExprPattern -> ExprPattern
-(./=) = Cmp CmpNE
-infix 4 ./=
-
-(.<) :: ExprPattern -> ExprPattern -> ExprPattern
-(.<) = Cmp CmpLT
-infix 4 .<
-
-(.<=) :: ExprPattern -> ExprPattern -> ExprPattern
-(.<=) = Cmp CmpLE
-infix 4 .<=
-
-(.>) :: ExprPattern -> ExprPattern -> ExprPattern
-(.>) = Cmp CmpGT
-infix 4 .>
-
-(.>=) :: ExprPattern -> ExprPattern -> ExprPattern
-(.>=) = Cmp CmpGE
-infix 4 .>=
-
-data AvoidSpec = AvoidSpec
-  { avoid :: StmtPattern
-  , until :: StmtPattern
-  } deriving (Eq, Ord, Show, Hashable, Generic)
-
-type StmtSolver m = [Pil.Stmt] -> m SolverResult
-
-data MatcherState m = MatcherState
-  { remainingStmts :: [Pil.Stmt]
-  , boundSyms :: HashMap Symbol Pil.Expression
-  , boundCtxSyms :: HashMap Symbol Pil.Ctx
-  , avoids :: HashMap AvoidSpec [Pil.Stmt]
-  -- The successfully parsed stmts, stored in reverse order
-  -- possibly interleaved with user-made Assertions
-  , parsedStmtsWithAssertions :: [Pil.Stmt]
-  , taintSet :: HashSet Taint
-  , solveStmts :: StmtSolver m
-  -- | If the path has been checked with the solver, this holds possible solutions
-  , solutions :: Maybe (HashMap Text CV)
-  } deriving Generic
-
--- data MatcherException = MatcherUnsat
---                       | MatcherError Text
---   deriving (Eq, Ord, Show)
-
--- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
--- and solver errors
-newtype MatcherT m a = MatcherT {
-  _runMatcherT :: ExceptT () (StateT (MatcherState m) m) a
-  }
-  deriving newtype
-    ( Functor
-    , Applicative
-    , Monad
-    , MonadError ()
-    , MonadIO
-    , MonadState (MatcherState m)
-    , Alternative
-    )
-
-instance MonadTrans MatcherT where
-  lift = MatcherT . lift . lift
-
-runMatcher_ :: MatcherT m a -> MatcherState m -> m (Either () a, MatcherState m)
-runMatcher_ action s
-  = flip runStateT s
-  . runExceptT
-  . _runMatcherT
-  $ action
 
 -- | Transitive closure of a 'HashSet Taint'
 taintTransClos :: HashSet Taint -> HashSet Taint
@@ -318,12 +106,6 @@ mkStmtTaintSet tps (Pil.Stmt _ statement) =
 mkTaintSet :: [TaintPropagator] -> [Pil.Stmt] -> HashSet Taint
 mkTaintSet tps = taintTransClos . HashSet.unions . fmap (mkStmtTaintSet tps)
 
-data PathPrep = PathPrep
-  { stmts :: [Pil.Stmt]
-  , taintSet :: HashSet Taint
-  } deriving (Eq, Ord, Show, Generic)
-
-
 class MkPathPrep a where
   mkPathPrep :: [TaintPropagator] -> a -> PathPrep
 
@@ -337,15 +119,14 @@ instance MkPathPrep PilPath where
     . Path.toStmts
 
 mkMatcherState :: StmtSolver m -> PathPrep -> MatcherState m
-mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing
+mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing HashMap.empty HashMap.empty
 
 runMatcher
   :: Monad m
-  => StmtSolver m
-  -> PathPrep
+  => MatcherState m
   -> MatcherT m a
   -> m (MatcherState m, Maybe a)
-runMatcher solver pathPrep action = runMatcher_ action (mkMatcherState solver pathPrep) >>= \case
+runMatcher ms action = runMatcher_ action ms >>= \case
   (Left _, s) -> return (s, Nothing)
   (Right x, s) -> return (s, Just x)
 
@@ -383,6 +164,14 @@ matchCallDest pat cdest = case pat of
     (FuncName name, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
       insist $ Just name == mSym
 
+    (FuncNames names, Pil.CallFunc func) ->
+      insist $ HashSet.member (func ^. #name) names
+            || maybe False (`HashSet.member` names) (func ^? #symbol . #_Just . #_symbolName)
+    (FuncNames names, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
+      insist $ maybe False (`HashSet.member` names) mSym
+    (FuncNames names, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
+      insist $ maybe False (`HashSet.member` names) mSym
+
     (FuncAddr addr, Pil.CallFunc func) ->
       insist $ addr == func ^. #address
     (FuncAddr addr, Pil.CallAddr (Pil.ConstFuncPtrOp addr' _)) ->
@@ -418,8 +207,8 @@ regexIsIn a b = b =~ a
 
 bind_
   :: (Eq a, Monad m)
-  => Lens' (MatcherState m) (HashMap Symbol a)
-  -> Symbol
+  => Lens' (MatcherState m) (HashMap (Symbol a) a)
+  -> Symbol a
   -> a
   -> MatcherT m ()
 bind_ lens' sym x = do
@@ -430,12 +219,12 @@ bind_ lens' sym x = do
 
 -- | This either adds a new sym/expr combo to the var bindings,
 -- or if the sym already exists, it checks to see if it matches.
-bind :: Monad m => Symbol -> Pil.Expression -> MatcherT m ()
+bind :: Monad m => Symbol Pil.Expression -> Pil.Expression -> MatcherT m ()
 bind = bind_ #boundSyms
 
 -- | This either adds a new sym/expr combo to the var bindings,
 -- or if the sym already exists, it checks to see if it matches.
-bindCtx :: Monad m => Symbol -> Pil.Ctx -> MatcherT m ()
+bindCtx :: Monad m => Symbol Pil.Ctx -> Pil.Ctx -> MatcherT m ()
 bindCtx = bind_ #boundCtxSyms
 
 -- | Tries to absorb a "not" into a bool expression.
@@ -570,9 +359,9 @@ matchExpr pat expr = case pat of
     -- success
     bind sym expr
   Var prefixOfName -> case expr ^. #op of
-    Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf prefixOfName $ pv ^. #symbol
+    Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf (cs prefixOfName) $ pv ^. #symbol
     Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
-      insist $ Text.isPrefixOf prefixOfName symb
+      insist $ Text.isPrefixOf (cs prefixOfName) symb
     _ -> bad
   Immediate -> maybe bad (const good) $ evalPilArithmeticExpr expr
   Contains xpat -> do
@@ -616,6 +405,8 @@ matchFuncPatWithFunc :: Monad m => Func -> BFunc.Function -> MatcherT m ()
 matchFuncPatWithFunc (FuncName name) func = insist
   $ func ^. #name == name
   || func ^? #symbol . #_Just . #_symbolName == Just name
+matchFuncPatWithFunc (FuncNames names) func = insist
+  $ (func ^. #name) `HashSet.member` names
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
 matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
   $ regexIsIn rpat (func ^. #name)
@@ -740,6 +531,22 @@ addConstraint x = do
 storeAsParsed :: Monad m => Pil.Stmt -> MatcherT m ()
 storeAsParsed x = #parsedStmtsWithAssertions %= (x :)
 
+addLocation :: Monad m => Symbol Address -> Address -> MatcherT m ()
+addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
+  where
+    addOrCreate Nothing = Just $ HashSet.singleton addr
+    addOrCreate (Just s) = Just $ HashSet.insert addr s
+
+-- TODO: What about ghidra param_n?
+getArgName :: Symbol Pil.Expression -> Word64 -> Symbol Pil.Expression
+getArgName prefix n = prefix <> "arg" <> show n
+
+mkStmtPatternFromCallablePrimitive :: Symbol Pil.Expression -> CallablePrimitive -> StmtPattern
+mkStmtPatternFromCallablePrimitive prefix x = Stmt
+  $ Call Nothing (CallFunc $ x ^. #callDest) argPatterns
+  where
+    argPatterns = fmap (\(n, _) -> Bind (getArgName prefix n) Wild) . zip [0..] $ x ^. #func . #params
+
 addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
 addAvoid x = do
   rstmts <- use #remainingStmts
@@ -791,18 +598,42 @@ checkPath = solvePath >>= \case
   Sat sols -> #solutions .= Just sols
   _ -> bad
 
+exprToBoundExpr :: Pil.Expression -> BoundExpr
+exprToBoundExpr (Pil.Expression sz op) = BoundExpr (ConstSize sz) $ exprToBoundExpr <$> op
+
+resolveFuncVars
+  :: Monad m => Symbol Pil.Expression
+  -> FuncVarExpr
+  -> MatcherT m Pil.Expression
+resolveFuncVars prefix fvExpr = do
+  boundSyms <- use #boundSyms
+  resolveBoundExpr $ funcVarExprToBoundExpr prefix boundSyms fvExpr
+
+funcVarExprToBoundExpr
+  :: Symbol Pil.Expression
+  -> HashMap (Symbol Pil.Expression) Pil.Expression
+  -> FuncVarExpr
+  -> BoundExpr
+funcVarExprToBoundExpr prefix boundSyms = \case
+  (Prim.FuncVarExpr sz op) -> BoundExpr (ConstSize sz)
+    $ funcVarExprToBoundExpr prefix boundSyms <$> op
+  (Prim.FuncVar fv) -> case fv of
+    (Prim.Ret x) -> exprToBoundExpr x
+    (Prim.Global x) -> exprToBoundExpr x
+    (Prim.Arg n) -> Bound $ getArgName prefix n
+
 matchNextStmt :: Monad m => StmtPattern -> MatcherT m ()
 matchNextStmt = matchNextStmt_ True
-
--- when shouldCheckAvoids checkAvoids >>
-
 
 -- | Matches the next statement with the next stmt pattern.
 matchNextStmt_ :: Monad m => Bool -> StmtPattern -> MatcherT m ()
 matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
+  -- | Case where no more statements are available (end of path)
   Nothing -> case pat of
     Stmt _ -> bad
-    AvoidUntil _ -> use #avoids >>= bool bad good . HashMap.null
+    AvoidUntil _ -> do
+      checkAvoids
+      use #avoids >>= bool bad good . HashMap.null
     AnyOne [] -> good
     AnyOne pats -> asum $ matchNextStmt_ False <$> pats
     Unordered [] -> good
@@ -816,6 +647,8 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> good
+    Location _ p -> matchNextStmt_ False p
+    Primitive _ _ -> bad
 
   Just stmt -> case pat of
     Stmt sPat -> tryError (matchStmt sPat stmt) >>= \case
@@ -829,7 +662,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
       checkAvoid avoidSpec retroStmts
     AnyOne [] -> return ()
     AnyOne pats -> do
-      tryError (asum $ backtrackOnError . matchNextStmt <$> pats) >>= \case
+      tryError (asum $ backtrackOnError . matchNextStmt_ False <$> pats) >>= \case
         -- One of them matched.
         Right _ -> return ()
         -- Nothing matched. Try next stmt with same pattern.
@@ -848,7 +681,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Ordered [] -> good
     Ordered (p:pats) ->
       ( tryError . backtrackOnError $ do
-          matchNextStmt p
+          matchNextStmt_ tryNextStmtOnFailure p
           matchNextStmt $ Ordered pats
       ) >>= \case
       Right _ -> good
@@ -862,6 +695,44 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
     Necessarily subPat boundExprs ->
       matchNecessarily subPat boundExprs
     EndOfPath -> perhapsRecur
+    Location lbl p -> do
+      parsedStmtsLen <- length <$> use #parsedStmtsWithAssertions
+      ( tryError . backtrackOnError $ do
+          matchNextStmt_ False p
+        ) >>= \case
+        Right _ -> do
+          addLocation lbl $ stmt ^. #addr
+          parsedStmts' <- use #parsedStmtsWithAssertions
+          let newlyParsedStmts = take (length parsedStmts' - parsedStmtsLen) parsedStmts'
+          mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
+          good
+        Left _ -> perhapsRecur
+    Primitive prefix pt -> do
+      callables <- use #callablePrimitives
+      case HashMap.lookup pt callables of
+        Nothing -> perhapsRecur
+        Just s -> case Pil.mkCallStatement stmt of
+          Nothing -> perhapsRecur
+          Just _ -> do
+            let callablePats = toSnd (mkStmtPatternFromCallablePrimitive prefix)
+                               <$> HashSet.toList s
+            asum $ flip fmap callablePats $ \(cprim, cpat) -> do
+              ( tryError . backtrackOnError $ matchNextStmt_ False cpat ) >>= \case
+                Left _ -> bad
+                Right _ -> do
+                  forM_ (HashMap.toList $ cprim ^. #varMapping) $ \(var, (fvExpr, _)) -> do
+                    resolvedExpr <- resolveFuncVars prefix fvExpr
+                    #boundSyms %= HashMap.insert (prefix <> var) resolvedExpr
+                    
+                  -- TODO: add constraints to stmts
+                  forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
+                    resolvedExpr <- resolveFuncVars prefix fvExpr
+                    let constraintStmt = C.constraint resolvedExpr
+                    #parsedStmtsWithAssertions %= (constraintStmt :)
+                    return ()
+      -- check linkedVars for # of args
+      -- match on call to callDest Func with same # of args
+      -- 
   where
     matchWhere subPat boundExprs = do
       matchNextStmt subPat
@@ -887,11 +758,11 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
         matchNextStmt pat
       else throwError ()
 
-newtype ResolveBoundExprError = CannotFindBoundVarInState Symbol
+newtype ResolveBoundExprError = CannotFindBoundVarInState (Symbol Pil.Expression)
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable)
 
-lookupBound :: Monad m => Symbol -> MatcherT m Pil.Expression
+lookupBound :: Monad m => Symbol Pil.Expression -> MatcherT m Pil.Expression
 lookupBound sym = use #boundSyms >>= maybe bad return . HashMap.lookup sym
 
 resolveBoundExprSize :: Monad m => BoundExprSize -> MatcherT m (Size Pil.Expression)
@@ -904,10 +775,10 @@ resolveBoundExpr (BoundExpr bsize op) = do
   Pil.Expression <$> resolveBoundExprSize bsize <*> traverse resolveBoundExpr op
 
 resolveBoundText
-  :: HashMap Symbol Pil.Expression
+  :: HashMap (Symbol Pil.Expression) Pil.Expression
   -> BoundText
   -> Text
-resolveBoundText m (TextExpr sym) = maybe ("<cannot find expr sym: " <> sym <> ">") pretty'
+resolveBoundText m (TextExpr sym) = maybe ("<cannot find expr sym: " <> cs sym <> ">") pretty'
   $ HashMap.lookup sym m
 resolveBoundText _ (PureText t) = t
 resolveBoundText m (CombineText a b) = resolveBoundText m a <> resolveBoundText m b
@@ -922,11 +793,10 @@ resolveBoundText m (CaseContains bt cases) = let t = resolveBoundText m bt in
 -- Returns MatcherState and bool indicating initial success.
 runMatchStmts
   :: forall m. Monad m
-  => StmtSolver m
+  => MatcherState m
   -> [StmtPattern]
-  -> PathPrep
   -> m (MatcherState m, Bool)
-runMatchStmts solver pats pathPrep = fmap (second isJust) . runMatcher solver pathPrep $ do
+runMatchStmts ms pats = fmap (second isJust) . runMatcher ms $ do
   matchNextStmt $ Ordered pats
   drainRemainingStmts
   where
@@ -937,10 +807,20 @@ runMatchStmts solver pats pathPrep = fmap (second isJust) . runMatcher solver pa
         retireStmt
         drainRemainingStmts
 
-data MatcherResult
-  = Match [Pil.Stmt]
-  | NoMatch
-  deriving (Eq, Ord, Show, Hashable, Generic)
+match_
+  :: Monad m
+  => MatcherState m
+  -> [StmtPattern]
+  -> m (MatcherState m, MatcherResult)
+match_ initMs pats = runMatchStmts initMs pats >>= \case
+  (ms, False) -> return (ms, NoMatch)
+  (ms, True) -> do
+    let stmts' = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts
+    (ms ^. #solveStmts) stmts' >>= \case
+        Sat sols -> do
+          return (ms & #solutions ?~ sols, Match stmts')
+        Err err -> error $ "Solver error: " <> show err
+        _ -> return (ms, NoMatch)
 
 -- | Matches list of statements with pattern. Returns new list of statements
 -- that may include added assertions.
@@ -950,15 +830,7 @@ match
   -> [StmtPattern]
   -> PathPrep
   -> m (MatcherState m, MatcherResult)
-match solver pats pathPrep = runMatchStmts solver pats pathPrep >>= \case
-  (ms, False) -> return (ms, NoMatch)
-  (ms, True) -> do
-    let stmts' = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remainingStmts
-    solver stmts' >>= \case
-      Sat sols -> do
-        return (ms & #solutions ?~ sols, Match stmts')
-      Err err -> error $ "Solver error: " <> show err
-      _ -> return (ms, NoMatch)
+match solver pats pathPrep = match_ (mkMatcherState solver pathPrep) pats
 
 match'
   :: Monad m

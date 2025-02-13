@@ -36,7 +36,6 @@ import Blaze.Cfg.Path.Solver as PathSolver
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
-import Data.List (nub)
 
 import Flint.Types.Query
 
@@ -113,11 +112,11 @@ simplify = resolveCalls . PA.aggressiveExpand --  . PA.simplifyVars
 
 showCodeSummary :: CodeSummary -> IO ()
 showCodeSummary s = do
-  putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> s ^. #inputVars)
+  putText $ "InputVars: " <>  Text.intercalate ", " (pretty' <$> HashSet.toList (s ^. #inputVars))
   putText "InputLoads:"
-  pp' $ nub (s ^. #inputLoads)
+  pp' . HashSet.toList $ s ^. #inputLoads
   putText "Results:"
-  pp' $ s ^. #results
+  pp' . HashSet.toList $ s ^. #results
   putText "Effects:"
   pp' . NewlinedList . sort $ s ^. #effects
   return ()

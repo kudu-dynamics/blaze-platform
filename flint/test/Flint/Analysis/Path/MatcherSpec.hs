@@ -4,18 +4,23 @@ module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
   ) where
 
-import Flint.Prelude hiding (and, const, not, or, sym)
+import Flint.Prelude hiding (and, const, not, or, sym, Location)
 
-import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
+import Helper.Primitives
+
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
+import Flint.Types.Analysis.Path.Matcher.Func
 
 import Blaze.Pil.Construct
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
+import Blaze.Pretty (PStmts(PStmts), PrettyShow'(PrettyShow'))
 import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 
 import Test.Hspec
 
@@ -55,7 +60,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         solver _ = return $ Solver.Sat HashMap.empty
 
         matchNextStmt_' :: Bool -> [Pil.Stmt] -> StmtPattern -> (MatcherState Identity, Bool)
-        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher solver (mkPathPrep [] stmts) $ do
+        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher (mkMatcherState solver $ mkPathPrep [] stmts) $ do
           matchNextStmt_ tryNextStmtOnFailure pat
 
         matchNextStmt' = matchNextStmt_' True
@@ -265,6 +270,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
+                 ]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match on a call to a named function from a set of names" $ do
+      let cdest = Pil.CallFunc func0
+          stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
+                  ]
+          funcNames = HashSet.fromList ["func0", "func1"]
+          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNames funcNames)) [Wild, Wild]
                  ]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
@@ -581,11 +596,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             expected = Match stmts
         pureMatchStmts' [] pats stmts `shouldBe` expected
 
-      it "should match on end of path" $ do
+      it "should match on end of path in 'until' of AvoidUntil" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ EndOfPath ]
+            pats = [ AvoidUntil $ AvoidSpec
+                     { until = EndOfPath
+                     , avoid = Stmt $ Def (Var "z") Wild
+                     }
+                   ]
             expected = Match stmts
         pureMatchStmts' [] pats stmts `shouldBe` expected
 
@@ -610,6 +629,54 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    ]
             expected = Match stmts
         pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    context "Locations" $ do
+      let loc addr s = s & #addr .~ addr
+      it "should store location for single statement" $ do
+        let stmts = [loc 0x888 $ def "b" (load (var "arg4" 4) 4)]
+            pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
+      it "should ignore unmatched statements preceeding matched location" $ do
+        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
+                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+                    ]
+            pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
+      it "should match range of Ordered statements for location of pattern that consumes multiple statements" $ do
+        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
+                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+                    , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
+                    , loc 0x999 $ def "d" (load (var "arg6" 4) 4)
+                    ]
+            pats = [ Location "varPlace" $ Ordered
+                     [ Stmt $ Def (Var "b") Wild
+                     , Stmt $ Def (Var "c") Wild
+                     ]
+                   ]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888, 0x999])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
+      it "should get location of AnyOne statement" $ do
+        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
+                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+                    , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
+                    ]
+            pats = [ Location "varPlace" $ AnyOne
+                     [ Stmt $ Def (Var "zzz") Wild
+                     , Stmt $ Def (Var "b") Wild
+                     ]
+                   ]
+            expected = HashMap.fromList
+              [("varPlace", HashSet.fromList [0x888])]
+        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+
 
     it "should avoid until" $ do
       let stmts = [ def "a" (const 0 4)
@@ -907,3 +974,52 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         mr `shouldBe` Match stmts
         HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "r")
         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
+
+    context "Primitives" $ do
+      let pureMatchStmts_ ms = runIdentity . match_ ms
+      it "should match callable primitive" $ do
+        let callablePrim = fooCallablePrimitive3
+            outerFunc = bar
+            outerPath = barPath3
+            prim = copyPrim
+            prefix = "writer_"
+            pats = [ Primitive "writer_" prim ]
+            pprep = mkPathPrep [] outerPath
+            solver :: StmtSolver Identity
+            solver _ = return $ Solver.Sat HashMap.empty
+            callablePrims = HashMap.fromList
+              [( copyPrim, HashSet.singleton callablePrim )]
+            initMs = mkMatcherState solver pprep
+                     & #callablePrimitives .~ callablePrims
+
+            (ms, r) = pureMatchStmts_ initMs pats
+            expectedBoundSyms = HashMap.fromList
+              [ ("writer_dest", var "global1" 8)
+              , ( "writer_src"
+                , load (add (var_ bar "arg4" 8) (const 4 8) 8) 8
+                )
+              ]
+            actualBoundSyms = HashMap.filterWithKey
+              (\k _ -> HashSet.member k
+                . HashSet.map (prefix <>)
+                $ prim ^. #vars)
+              $ ms ^. #boundSyms
+            expectedParsedSmts :: [Pil.Stmt]
+            expectedParsedSmts =
+              [ constraint $ cmpSgt (var_ bar "arg1" 8) (const 0 8) 8
+              , defCall "r" (Pil.CallFunc foo)
+                [ var_ bar "arg4" 8
+                , load (var_ bar "arg2" 8) 8
+                ]
+                8
+              -- Should add in the constraint from prim
+              , constraint $ cmpNE (load (var_ bar "arg2" 8) 8) (const 0 8) 8
+              , ret $ var_ bar "r" 8
+              ]
+            actualParsedStmts = reverse $ ms ^. #parsedStmtsWithAssertions
+        
+        is #_Match r `shouldBe` True
+
+        PShow actualBoundSyms `shouldBe` PShow expectedBoundSyms
+
+        PrettyShow' (PStmts actualParsedStmts) `shouldBe` PrettyShow' (PStmts expectedParsedSmts)

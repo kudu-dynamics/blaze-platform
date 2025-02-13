@@ -6,6 +6,7 @@ module Main (main) where
 import Flint.Prelude
 
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Query
 
 import Blaze.CallGraph (getCallGraph)
