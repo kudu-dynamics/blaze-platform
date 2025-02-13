@@ -86,7 +86,6 @@ failedToUnregister = fmap f thingsYouShouldUnregister
       , mitigationAdvice = "Call " <> PureText unregName
       }
 
-
 incrementWithoutCheck :: BugMatch
 incrementWithoutCheck = BugMatch
   { pathPattern =
@@ -174,7 +173,6 @@ inputControlledIndirectCall = BugMatch
   }
   where
     inputDest = Contains isArg .|| load isGlobal ()
-
 
 stackSetToExecutable :: BugMatch
 stackSetToExecutable = BugMatch

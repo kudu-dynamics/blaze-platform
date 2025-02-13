@@ -785,7 +785,6 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
         streamResults
         lifecycleFunc
 
-
       return ()
       
     _ -> do
