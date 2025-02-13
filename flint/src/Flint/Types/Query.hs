@@ -85,7 +85,6 @@ data MatchingPrimBlob = MatchingPrimBlob
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 
-
 data QueryConfig func = QueryConfig
   { startFunc :: func
   , query :: Query func

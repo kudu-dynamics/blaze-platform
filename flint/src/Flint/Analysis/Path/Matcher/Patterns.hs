@@ -328,6 +328,7 @@ formatStringVulnerability = BugMatch
         -- Stmt $ Call Nothing (CallFunc $ FuncNames badFuncs) []
         -- formatStringCallPattern "arg" isArg
         -- formatStringCallPattern'
+        -- TODO: measure if this version is significantly faster
         formatStringCallPattern'' (Bind "arg" isArg)
       ]
   , bugName = "Potentially User Controlled Format String"

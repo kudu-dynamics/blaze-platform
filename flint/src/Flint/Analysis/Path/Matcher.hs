@@ -172,7 +172,6 @@ matchCallDest pat cdest = case pat of
     (FuncNames names, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
       insist $ maybe False (`HashSet.member` names) mSym
 
-
     (FuncAddr addr, Pil.CallFunc func) ->
       insist $ addr == func ^. #address
     (FuncAddr addr, Pil.CallAddr (Pil.ConstFuncPtrOp addr' _)) ->

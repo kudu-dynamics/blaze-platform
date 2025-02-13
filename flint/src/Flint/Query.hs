@@ -866,7 +866,6 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
   where
     findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
 
-
 checkPathForPrim
   :: StmtSolver IO
   -> Function

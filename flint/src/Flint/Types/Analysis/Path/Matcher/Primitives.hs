@@ -51,7 +51,6 @@ instance Pretty.Tokenizable FuncVarExpr where
   tokenize (FuncVar v) = tokenize v
   tokenize (FuncVarExpr sz op) = Pretty.tokenizeExprOp Nothing op sz
 
-
 instance ExprConstructor (Size Pil.Expression) FuncVarExpr where
   mkExpr =  FuncVarExpr
 

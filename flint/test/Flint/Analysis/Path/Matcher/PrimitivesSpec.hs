@@ -43,7 +43,6 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
 
       PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
 
-
   context "mkCallablePrimitive" $ do
     it "should create callable primitive with single nested arg and no constraints" $ do
       let func = foo

@@ -135,14 +135,14 @@ spec = do
               { inputVars = HashSet.empty
               , inputLoads = HashSet.empty
               , results = HashSet.empty
-              , effects = HashSet.empty
+              , effects = []
               , capabilities = HashSet.empty
               }
         sampleCS1 = CodeSummary
               { inputVars = HashSet.empty
               , inputLoads = HashSet.fromList [expr0, expr1, expr2, expr3]
               , results = HashSet.empty
-              , effects = HashSet.fromList [ew0, ew1, ew2, ew3]
+              , effects = [ew0, ew1, ew2, ew3]
               , capabilities = HashSet.empty
               }
 

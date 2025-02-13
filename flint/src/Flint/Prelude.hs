@@ -18,7 +18,6 @@ import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrent
 import qualified Data.HashMap.Strict as HashMap
 
 
-
 hoistMaybeM :: Monad m => m (Maybe a) -> MaybeT m a
 hoistMaybeM m = lift m >>= maybe mzero return
 

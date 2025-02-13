@@ -208,10 +208,6 @@ data MatcherState m = MatcherState
   , callablePrimitives :: HashMap PrimType (HashSet CallablePrimitive)
   } deriving Generic
 
--- data MatcherException = MatcherUnsat
---                       | MatcherError Text
---   deriving (Eq, Ord, Show)
-
 -- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
 -- and solver errors
 newtype MatcherT m a = MatcherT {
