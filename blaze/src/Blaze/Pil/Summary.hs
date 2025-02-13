@@ -112,6 +112,7 @@ findCopies inputVars retVals stmts = do
     getStores = fmap (view #op) . mapMaybe (uncurry mkStoreStmt) . zip [0..]
 
 
+-- TODO: write in terms where inputVars, retVals, and return are HashSets?
 extractCapabilities :: [PilVar] -> [Expression] -> [Stmt] -> [Capability]
 extractCapabilities inputVars retVals stmts =
   [ findCopies inputVars retVals
@@ -160,27 +161,27 @@ mkCall stmt = do
 
 fromStmts :: [Stmt] -> CodeSummary
 fromStmts stmts =
-  let inputVars = HashSet.toList $ getFreeVars stmts
+  let inputVars = getFreeVars stmts
       mkEffect' = mkEffect mkWrite mkAlloc mkDealloc mkCall
       results = mapMaybe getRetVal stmts
       effects = mapMaybe mkEffect' stmts
    in CodeSummary
         { inputVars = inputVars
-        , inputLoads =
-            concatMap
-              ( filter
-                  ( \x ->
-                      not
-                        ( isArgLoad (HashSet.fromList inputVars) x
-                            || isStackLocalLoad x
-                        )
-                  )
-                  . findLoads
-              )
-              stmts
-        , results = results
+        , inputLoads = HashSet.fromList
+          . concatMap
+          ( filter
+            ( \x ->
+                not
+                ( isArgLoad inputVars x
+                  || isStackLocalLoad x
+                )
+            )
+            . findLoads
+          )
+          $ stmts
+        , results = HashSet.fromList results
         , effects = effects
-        , capabilities = extractCapabilities inputVars results stmts
+        , capabilities = HashSet.fromList $ extractCapabilities (HashSet.toList inputVars) results stmts
         }
 
 getLoadExprVars :: LoadExpr -> HashSet PilVar

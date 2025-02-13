@@ -132,18 +132,18 @@ spec = do
         ew3 = EffectWrite (C.store arg4 arg3)
 
         sampleCS0 = CodeSummary
-              { inputVars = []
-              , inputLoads = []
-              , results = []
+              { inputVars = HashSet.empty
+              , inputLoads = HashSet.empty
+              , results = HashSet.empty
               , effects = []
-              , capabilities = []
+              , capabilities = HashSet.empty
               }
         sampleCS1 = CodeSummary
-              { inputVars = []
-              , inputLoads = [expr0, expr1, expr2, expr3]
-              , results = []
+              { inputVars = HashSet.empty
+              , inputLoads = HashSet.fromList [expr0, expr1, expr2, expr3]
+              , results = HashSet.empty
               , effects = [ew0, ew1, ew2, ew3]
-              , capabilities = []
+              , capabilities = HashSet.empty
               }
 
         cs1Reads = foldMap getVarsFromExpr [arg0, arg1, var0]

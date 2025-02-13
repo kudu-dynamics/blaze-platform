@@ -34,11 +34,11 @@ data Capability =
   deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
 
 data CodeSummary = CodeSummary
-    { inputVars :: [PilVar]
-    , inputLoads :: [LoadExpr]
-    , results :: [Expression]
+    { inputVars :: HashSet PilVar
+    , inputLoads :: HashSet LoadExpr
+    , results :: HashSet Expression
     , effects :: [Effect]
-    , capabilities :: [Capability]
+    , capabilities :: HashSet Capability
     } deriving (Eq, Ord, Show, Generic)
 
 data ReadsWrites = ReadsWrites 
@@ -60,4 +60,4 @@ data Effect
   | EffectAlloc Stmt
   | EffectDealloc Stmt
   | EffectCall Stmt
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Hashable, Generic)

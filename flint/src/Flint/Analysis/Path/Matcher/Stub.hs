@@ -3,6 +3,7 @@ module Flint.Analysis.Path.Matcher.Stub where
 import Flint.Prelude hiding (sym)
 
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct (ExprConstructor(..))
 import qualified Blaze.Pil.Construct as C
@@ -15,9 +16,9 @@ import qualified Data.HashMap.Strict as HashMap
 
 
 data StubBoundExpr
-  = StubBound Symbol
+  = StubBound (Symbol Pil.Expression)
   | StubBoundExpr BoundExprSize (Pil.ExprOp StubBoundExpr)
-  | StubNewVar Symbol BoundExprSize
+  | StubNewVar (Symbol Pil.Expression) BoundExprSize
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 instance BoundVar StubBoundExpr where
@@ -26,7 +27,7 @@ instance BoundVar StubBoundExpr where
 instance ExprConstructor BoundExprSize StubBoundExpr where
   mkExpr = StubBoundExpr
 
-newVar :: Symbol -> BoundExprSize -> StubBoundExpr
+newVar :: Symbol Pil.Expression -> BoundExprSize -> StubBoundExpr
 newVar = StubNewVar
 
 newtype StubMatcherState = StubMatcherState
@@ -53,7 +54,7 @@ resolveStubBoundExpr (StubBoundExpr bsize op) = do
 resolveStubBoundExpr (StubNewVar sym sz) = do
   sz' <- resolveBoundExprSize sz
   vid <- lift $ use #nextNewVarId
-  let v = C.var (sym <> "_" <> show vid) sz'
+  let v = C.var (cs sym <> "_" <> show vid) sz'
   #boundSyms %= HashMap.insert sym v
   lift $ #nextNewVarId %= (+1)
   return v

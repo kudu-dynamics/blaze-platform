@@ -484,7 +484,7 @@ tokenizeExprOp ::
   (Tokenizable a, NeedsParens a) =>
   Maybe Sym ->
   Pil.ExprOp a ->
-  Pil.Size a ->
+  Pil.Size b ->
   Tokenizer [Token]
 tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.ADC op) -> tokenizeBinop msym "adc" op
@@ -767,6 +767,7 @@ instance Tokenizable Pil.CallSite where
       <++> tokenize (x ^. #callDest)
 
 newtype PStmts a = PStmts [Pil.AddressableStatement a]
+  deriving (Eq, Ord, Generic)
 
 newtype PIndexedStmts a = PIndexedStmts [(Int, Pil.AddressableStatement a)]
 

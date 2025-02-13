@@ -6,6 +6,7 @@ import Flint.Prelude hiding (sym, const)
 
 import Flint.Analysis.Path.Matcher
 import Flint.Analysis.Path.Matcher.Stub
+import Flint.Types.Analysis.Path.Matcher.Func
 
 import Blaze.Pil.Construct
 import Blaze.Types.Function (Function(Function))

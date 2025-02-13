@@ -7,6 +7,7 @@ import Flint.Prelude
 
 import Flint.Analysis
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.Func
 import qualified Flint.Analysis.Uefi as Uefi
 import Flint.Types.Query
 
