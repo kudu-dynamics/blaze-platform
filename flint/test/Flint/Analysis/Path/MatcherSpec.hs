@@ -984,7 +984,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             outerPath = barPath3
             prim = copyPrim
             prefix = "writer_"
-            pats = [ Primitive "writer_" prim ]
+            pats = [ Primitive prefix prim ]
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity
             solver _ = return $ Solver.Sat HashMap.empty
@@ -995,8 +995,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
             (ms, r) = pureMatchStmts_ initMs pats
             expectedBoundSyms = HashMap.fromList
-              [ ("writer_dest", var "global1" 8)
-              , ( "writer_src"
+              [ (prefix <> "dest", var "global1" 8)
+              , (prefix <>  "src"
                 , load (add (var_ bar "arg4" 8) (const 4 8) 8) 8
                 )
               ]
