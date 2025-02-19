@@ -13,6 +13,8 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (Size)
 import qualified Blaze.Types.Pil as Pil
 
+import qualified Data.HashSet as HashSet
+
 
 -- | The type of primitive and names for input and output vars.
 -- These are any vars both input and output, that will be
@@ -21,7 +23,7 @@ data PrimType = PrimType
   { name :: Text
   , vars :: HashSet (Symbol Pil.Expression)
   -- | important locations in the primitive
-  , locations :: HashSet (Symbol Address) 
+  , locations :: HashSet (Symbol Address)
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | The primitive vars bound in CallablePrimitive will be written in terms of these
@@ -42,6 +44,10 @@ data FuncVarExpr
   = FuncVar FuncVar
   | FuncVarExpr (Size Pil.Expression) (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+extractFuncVars :: FuncVarExpr -> HashSet FuncVar
+extractFuncVars (FuncVar v) = HashSet.singleton v
+extractFuncVars (FuncVarExpr _ op) = foldMap extractFuncVars op
 
 instance Disp.NeedsParens FuncVarExpr where
   needsParens (FuncVar _) = False
@@ -70,4 +76,14 @@ data CallablePrimitive = CallablePrimitive
   -- | Vars that need to link up to the outside (used inside varMapping and constraints)
   -- if you can't control them, maybe the primitive isn't useful
   , linkedVars :: HashSet FuncVar
+  } deriving (Eq, Ord, Show, Hashable, Generic)
+
+-- | This is a reduced version of CallablePrimitive used to describe primitives
+-- in standard lib functions. We can combine this with the real plt stdlib func
+-- in the binary to create a CallablePrimitive
+data StdLibPrimitive = StdLibPrimitive
+  { prim :: PrimType
+  , funcName :: Text
+  , varMapping :: HashMap (Symbol Pil.Expression) FuncVarExpr
+  , constraints :: [FuncVarExpr]
   } deriving (Eq, Ord, Show, Hashable, Generic)

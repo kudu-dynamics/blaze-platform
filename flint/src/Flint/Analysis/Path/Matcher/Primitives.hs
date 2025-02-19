@@ -5,6 +5,7 @@ module Flint.Analysis.Path.Matcher.Primitives
 
 import Flint.Prelude hiding (Location)
 
+import Flint.Types.Analysis.Path.Matcher (addCallablePrimitive_)
 import qualified Flint.Types.Analysis.Path.Matcher.Func as MFunc
 import Flint.Types.Analysis.Path.Matcher.Primitives
 import Flint.Types.Symbol (Symbol)
@@ -121,3 +122,39 @@ mkCallablePrimitive func codeSum primType boundExprs boundLocations path = Calla
     toFuncVarExpr' = toFuncVarExpr params codeSum
     varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
     varMapping' = toFuncVarExpr' <$> boundExprs
+
+
+fromStdLibPrimitive :: StdLibPrimitive -> Function -> CallablePrimitive
+fromStdLibPrimitive x func = CallablePrimitive
+  { prim = x ^. #prim
+  , func = func
+  , callDest = MFunc.FuncName $ func ^. #name
+  , varMapping = varMapping'
+  , constraints = constraints'
+  , locations = HashMap.fromList
+                . fmap (toSnd . const . HashSet.singleton $ func ^. #address)
+                . HashSet.toList
+                $ x ^. #prim . #locations
+  , linkedVars = HashSet.unions
+    $ fmap snd constraints'
+    <> fmap (snd . snd) (HashMap.toList varMapping')
+  }
+  where
+    varMapping' = toSnd extractFuncVars <$> x ^. #varMapping
+    constraints' = toSnd extractFuncVars <$> x ^. #constraints
+
+
+getInitialPrimitivesForFunc :: Function -> [StdLibPrimitive] -> [CallablePrimitive]
+getInitialPrimitivesForFunc func = mapMaybe f
+  where
+    f sprim = if (func ^. #name == sprim ^. #funcName)
+      then Just $ fromStdLibPrimitive sprim func
+      else Nothing
+      
+getInitialPrimitives
+  :: [StdLibPrimitive]
+  -> [Function]
+  -> HashMap PrimType (HashSet CallablePrimitive)
+getInitialPrimitives sprims
+  = foldr addCallablePrimitive_ HashMap.empty
+  . foldMap (`getInitialPrimitivesForFunc` sprims)

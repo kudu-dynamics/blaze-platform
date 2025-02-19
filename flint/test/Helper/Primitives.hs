@@ -33,8 +33,49 @@ var_ func sym attrs = mkExpr attrs (Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize
 memcpy :: Function
 memcpy = Function Nothing "memcpy" 0x111 []
 
+memcpyPrims :: [StdLibPrimitive]
+memcpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "memcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      ]
+    , constraints = []
+    }
+  ]
+
 sscanf :: Function
 sscanf = Function Nothing "sscanf" 0x222 []
+
+sscanfPrims :: [StdLibPrimitive]
+sscanfPrims =
+  [ StdLibPrimitive
+    { prim = controlledFormatStringPrim
+    , funcName = "sscanf"
+    , varMapping = HashMap.fromList
+      [ ("fmt", FuncVar $ Arg 1)
+      ]
+    , constraints = []
+    }
+  ]
+
+
+printf :: Function
+printf = Function Nothing "printf" 0x8888 []
+
+printfPrims :: [StdLibPrimitive]
+printfPrims =
+  [ StdLibPrimitive
+    { prim = controlledFormatStringPrim
+    , funcName = "printf"
+    , varMapping = HashMap.fromList
+      [ ("fmt", FuncVar $ Arg 0)
+      ]
+    , constraints = []
+    }
+  ]
 
 
 fooParams :: [FuncParamInfo]
@@ -91,6 +132,14 @@ copyPrim = PrimType
   , vars = HashSet.fromList ["dest", "src"]
   , locations = HashSet.fromList ["write"]
   }
+
+controlledFormatStringPrim :: PrimType
+controlledFormatStringPrim = PrimType
+  { name = "controlledFormatString"
+  , vars = HashSet.fromList ["fmt"]
+  , locations = HashSet.fromList ["usage"]
+  }
+
 
 globalFuncVar :: FuncVar
 globalFuncVar = Prim.Global $ var "global1" 8

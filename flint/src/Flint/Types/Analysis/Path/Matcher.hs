@@ -16,6 +16,8 @@ import Blaze.Pil.Construct (ExprConstructor)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil.Solver (SolverResult)
 
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import Data.SBV.Dynamic as Exports (CV)
 import Data.String (IsString(fromString))
 
@@ -207,6 +209,16 @@ data MatcherState m = MatcherState
   -- TODO: this doesn't really belong here because it won't be modified
   , callablePrimitives :: HashMap PrimType (HashSet CallablePrimitive)
   } deriving Generic
+
+addCallablePrimitive_
+  :: CallablePrimitive
+  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> HashMap PrimType (HashSet CallablePrimitive)
+addCallablePrimitive_ cprim = HashMap.alter f primType
+  where
+    primType = cprim ^. #prim
+    f Nothing = Just $ HashSet.singleton cprim
+    f (Just s) = Just $ HashSet.insert cprim s
 
 -- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
 -- and solver errors
