@@ -44,8 +44,223 @@ memcpyPrims =
     , varMapping = HashMap.fromList
       [ ("dest", FuncVar $ Arg 0)
       , ("src", FuncVar $ Arg 1)
-      , ("len", FuncVar $ Arg 2)
+      , ("n", FuncVar $ Arg 2)
       ]
     , constraints = []
     }
   ]
+
+memmovePrims :: [StdLibPrimitive]
+memmovePrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "memmove"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
+
+bcopyPrims :: [StdLibPrimitive]
+bcopyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "bcopy"
+    , varMapping = HashMap.fromList
+      [ ("src", FuncVar $ Arg 0)
+      , ("dest", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
+strcpyPrims :: [StdLibPrimitive]
+strcpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "strcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      ]
+    , constraints = []
+    }
+  ]
+
+strncpyPrims :: [StdLibPrimitive]
+strncpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "strncpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
+
+stpcpyPrims :: [StdLibPrimitive]
+stpcpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "stpcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      ]
+    , constraints = []
+    }
+  ]
+
+stpncpyPrims :: [StdLibPrimitive]
+stpncpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "stpncpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
+strdupPrims :: [StdLibPrimitive]
+strdupPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "strdup"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar Ret)
+      , ("src", FuncVar $ Arg 0)
+      ]
+    , constraints = []
+    }
+  ]
+
+strndupPrims :: [StdLibPrimitive]
+strndupPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "strndup"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar Ret)
+      , ("src", FuncVar $ Arg 0)
+      , ("n", FuncVar $ Arg 1)
+      ]
+    , constraints = []
+    }
+  ]
+
+
+wmemcpyPrims :: [StdLibPrimitive]
+wmemcpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "wmemcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
+wmemmovePrims :: [StdLibPrimitive]
+wmemmovePrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "wmemmove"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
+wcscpyPrims :: [StdLibPrimitive]
+wcscpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "wcscpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      ]
+    , constraints = []
+    }
+  ]
+
+wcsncpyPrims :: [StdLibPrimitive]
+wcsncpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "wcsncpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("n", FuncVar $ Arg 2)
+
+      ]
+    , constraints = []
+    }
+  ]
+
+strlcpyPrims :: [StdLibPrimitive]
+strlcpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "strlcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("size", FuncVar $ Arg 2)
+
+      ]
+    , constraints = []
+    }
+  ]
+
+
+wcslcpyPrims :: [StdLibPrimitive]
+wcslcpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "wcslcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("size", FuncVar $ Arg 2)
+
+      ]
+    , constraints = []
+    }
+  ]
+
+memccpyPrims :: [StdLibPrimitive]
+memccpyPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "memccpy"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("src", FuncVar $ Arg 1)
+      , ("c", FuncVar $ Arg 2)
+      , ("n", FuncVar $ Arg 3)
+      ]
+    , constraints = []
+    }
+  ]
+
