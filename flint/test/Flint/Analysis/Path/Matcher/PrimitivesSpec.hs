@@ -123,6 +123,3 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
                 [ sscanfCPrim, printfCPrim ] )
             ]
       initialCPrims `shouldBe` expected
-
-
---- TODO: Write a test that creates CallablePrimitives from StdLibPrimitives, then uses those to find primitive in foo

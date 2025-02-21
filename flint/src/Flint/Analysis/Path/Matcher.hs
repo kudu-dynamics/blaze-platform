@@ -541,11 +541,20 @@ addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
 getArgName :: Symbol Pil.Expression -> Word64 -> Symbol Pil.Expression
 getArgName prefix n = prefix <> "arg" <> show n
 
-mkStmtPatternFromCallablePrimitive :: Symbol Pil.Expression -> CallablePrimitive -> StmtPattern
+getRetName :: Symbol Pil.Expression -> Symbol Pil.Expression
+getRetName prefix = prefix <> "ret"
+
+mkStmtPatternFromCallablePrimitive
+  :: Symbol Pil.Expression
+  -> CallablePrimitive
+  -> StmtPattern
 mkStmtPatternFromCallablePrimitive prefix x = Stmt
-  $ Call Nothing (CallFunc $ x ^. #callDest) argPatterns
+  $ Call retPattern (CallFunc $ x ^. #callDest) argPatterns
   where
     argPatterns = fmap (\(n, _) -> Bind (getArgName prefix n) Wild) . zip [0..] $ x ^. #func . #params
+    retPattern = case HashSet.member Prim.Ret $ x ^. #linkedVars of
+      False -> Nothing
+      True -> Just $ Bind (getRetName prefix) Wild
 
 addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
 addAvoid x = do
@@ -618,7 +627,7 @@ funcVarExprToBoundExpr prefix boundSyms = \case
   (Prim.FuncVarExpr sz op) -> BoundExpr (ConstSize sz)
     $ funcVarExprToBoundExpr prefix boundSyms <$> op
   (Prim.FuncVar fv) -> case fv of
-    (Prim.Ret x) -> exprToBoundExpr x
+    Prim.Ret -> Bound $ getRetName prefix
     (Prim.Global x) -> exprToBoundExpr x
     (Prim.Arg n) -> Bound $ getArgName prefix n
 
@@ -724,7 +733,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
                     resolvedExpr <- resolveFuncVars prefix fvExpr
                     #boundSyms %= HashMap.insert (prefix <> var) resolvedExpr
                     
-                  -- TODO: add constraints to stmts
+                  -- add constraints to stmts
                   forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
                     resolvedExpr <- resolveFuncVars prefix fvExpr
                     let constraintStmt = C.constraint resolvedExpr

@@ -29,7 +29,7 @@ data PrimType = PrimType
 -- | The primitive vars bound in CallablePrimitive will be written in terms of these
 data FuncVar
   = Arg Word64
-  | Ret Pil.Expression
+  | Ret
   | Global Pil.Expression -- expr is address of store or load
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -37,7 +37,7 @@ instance Pretty.Tokenizable FuncVar where
   -- TODO: MAYBE WE SHOULDN'T 1-index this on the printout and 0-index when using huh??
   tokenize (Arg n) = return [tt $ "ARG_" <> show (n + 1)]
   tokenize (Global x) = tt "GLOBAL(" <++> tokenize x <++> tt ")"
-  tokenize (Ret x) = tt "RET(" <++> tokenize x <++> tt ")"
+  tokenize Ret = return [tt "RET"]
 
 -- | This is like a BoundExpr, except it can refer to FuncVars
 data FuncVarExpr

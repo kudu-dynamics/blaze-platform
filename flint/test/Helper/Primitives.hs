@@ -11,7 +11,7 @@ import qualified Flint.Types.Analysis.Path.Matcher.Func as M
 import Blaze.Pil.Construct
 import Blaze.Pil.Summary (CodeSummary)
 import qualified Blaze.Pil.Summary as Summary
-import Blaze.Types.Function (Function(Function), FuncParamInfo)
+import Blaze.Types.Function (Function(Function), FuncParamInfo(FuncParamInfo), ParamInfo(ParamInfo))
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Pil (Stmt)
 import qualified Blaze.Types.Pil as Pil
@@ -31,7 +31,11 @@ var_ func sym attrs = mkExpr attrs (Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize
     ctx = Pil.Ctx func 0
 
 memcpy :: Function
-memcpy = Function Nothing "memcpy" 0x111 []
+memcpy = Function Nothing "memcpy" 0x111
+  [ FuncParamInfo $ ParamInfo "dest" Func.Out
+  , FuncParamInfo $ ParamInfo "src" Func.In
+  , FuncParamInfo $ ParamInfo "n" Func.In
+  ]
 
 memcpyPrims :: [StdLibPrimitive]
 memcpyPrims =
@@ -47,7 +51,10 @@ memcpyPrims =
   ]
 
 sscanf :: Function
-sscanf = Function Nothing "sscanf" 0x222 []
+sscanf = Function Nothing "sscanf" 0x222
+  [ FuncParamInfo $ ParamInfo "str" Func.In
+  , FuncParamInfo $ ParamInfo "format" Func.In
+  ]
 
 sscanfPrims :: [StdLibPrimitive]
 sscanfPrims =
@@ -61,9 +68,23 @@ sscanfPrims =
     }
   ]
 
+strdupPrims :: [StdLibPrimitive]
+strdupPrims =
+  [ StdLibPrimitive
+    { prim = copyPrim
+    , funcName = "strdup"
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Ret)
+      , ("src", FuncVar $ Arg 0)
+      ]
+    , constraints = []
+    }
+  ]
 
 printf :: Function
-printf = Function Nothing "printf" 0x8888 []
+printf = Function Nothing "printf" 0x8888
+  [ FuncParamInfo $ ParamInfo "format" Func.In
+  ]
 
 printfPrims :: [StdLibPrimitive]
 printfPrims =

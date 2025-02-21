@@ -9,6 +9,7 @@ import Flint.Types.Analysis.Path.Matcher.Primitives
 import Blaze.Pil.Construct hiding (not)
 
 import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 
 
 controlledFormatString :: PrimType

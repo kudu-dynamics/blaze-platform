@@ -980,7 +980,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let pureMatchStmts_ ms = runIdentity . match_ ms
       it "should match callable primitive" $ do
         let callablePrim = fooCallablePrimitive3
-            outerFunc = bar
+            -- outerFunc = bar
             outerPath = barPath3
             prim = copyPrim
             prefix = "writer_"
@@ -1024,12 +1024,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         PShow actualBoundSyms `shouldBe` PShow expectedBoundSyms
 
         PrettyShow' (PStmts actualParsedStmts) `shouldBe` PrettyShow' (PStmts expectedParsedSmts)
-
+      
       it "should match format string Primitive pattern" $ do
 
         -- TODO: Write test that just tests fooPath1 matching on sscanf prim
         
-        let initialCPrims = getInitialPrimitives stdLibPrims allFuncs
+        let stdLibPrims = memcpyPrims <> sscanfPrims <> strdupPrims <> printfPrims
+            allFuncs = [memcpy, sscanf, printf, foo, bar]
+            initialCPrims = getInitialPrimitives stdLibPrims allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity
@@ -1037,10 +1039,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             initMs = mkMatcherState solver pprep
                      & #callablePrimitives .~ initialCPrims
             pat = [ Primitive "fmt_" controlledFormatStringPrim ]
-            (ms, r) = pureMatchStmts_ initMs pat
+            (_ms, r) = pureMatchStmts_ initMs pat
 
         is #_Match r `shouldBe` True
-
 
       it "should create CallablePrimitive from StdLibPrimites, then use them to match Primitive pattern" $ do
         let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
@@ -1053,7 +1054,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             initMs = mkMatcherState solver pprep
                      & #callablePrimitives .~ initialCPrims
             pat = [ Primitive "fmt_" controlledFormatStringPrim ]
-            (ms, r) = pureMatchStmts_ initMs pat
+            (_ms, r) = pureMatchStmts_ initMs pat
 
         is #_Match r `shouldBe` True
         
