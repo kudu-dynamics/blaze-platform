@@ -979,7 +979,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let pureMatchStmts_ ms = runIdentity . match_ ms
       it "should match callable primitive" $ do
         let callablePrim = fooCallablePrimitive3
-            outerFunc = bar
+            _outerFunc = bar
             outerPath = barPath3
             prim = copyPrim
             prefix = "writer_"
