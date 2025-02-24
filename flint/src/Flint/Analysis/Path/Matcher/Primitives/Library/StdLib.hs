@@ -5,6 +5,7 @@ import Flint.Prelude hiding (Location)
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.Primitives
+import qualified Flint.Types.Analysis.Path.Matcher.Primitives as Prim
 
 import Blaze.Pil.Construct hiding (not)
 
@@ -45,7 +46,7 @@ memcpyPrims =
     , varMapping = HashMap.fromList
       [ ("dest", FuncVar $ Arg 0)
       , ("src", FuncVar $ Arg 1)
-      , ("n", FuncVar $ Arg 2)
+      , ("len", FuncVar $ Arg 2)
       ]
     , constraints = []
     }
@@ -59,7 +60,7 @@ memmovePrims =
     , varMapping = HashMap.fromList
       [ ("dest", FuncVar $ Arg 0)
       , ("src", FuncVar $ Arg 1)
-      , ("n", FuncVar $ Arg 2)
+      , ("len", FuncVar $ Arg 2)
       ]
     , constraints = []
     }
@@ -141,7 +142,7 @@ strdupPrims =
     { prim = copyPrim
     , funcName = "strdup"
     , varMapping = HashMap.fromList
-      [ ("dest", FuncVar Ret)
+      [ ("dest", FuncVar Prim.Ret)
       , ("src", FuncVar $ Arg 0)
       ]
     , constraints = []
@@ -154,7 +155,7 @@ strndupPrims =
     { prim = copyPrim
     , funcName = "strndup"
     , varMapping = HashMap.fromList
-      [ ("dest", FuncVar Ret)
+      [ ("dest", FuncVar Prim.Ret)
       , ("src", FuncVar $ Arg 0)
       , ("n", FuncVar $ Arg 1)
       ]
@@ -264,4 +265,3 @@ memccpyPrims =
     , constraints = []
     }
   ]
-
