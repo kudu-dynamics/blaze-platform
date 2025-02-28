@@ -4,6 +4,7 @@ module Flint.Cfg.Store where
 
 import Flint.Prelude
 
+import Flint.Types.Analysis.Path.Matcher (PathPrep)
 import Flint.Types.Cfg.Store
 import qualified Flint.Types.CachedCalc as CC
 
@@ -53,6 +54,7 @@ init mDbFilePath imp = do
     Just fp -> Just <$> Db.init fp
   store <- CfgStore
     <$> atomically CC.create
+    <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
@@ -600,3 +602,13 @@ shimmyFuncByName imp store func1name func2 = do
 -- -- It also updates the call graph.
 -- linkPltThunks :: CfgStore -> IO ()
 -- linkPltThunks store
+
+-- | Lazily specifies how to get path samples for a function
+setPathSamples :: CfgStore -> Function -> IO [PathPrep] -> IO ()
+setPathSamples store func getPaths
+  = CC.setCalc func (store ^. #pathSamples) getPaths
+
+-- | This only works if setPathSamples has been previously set for the function
+getPathSamples :: Function -> CfgStore -> IO [PathPrep]
+getPathSamples func store = fromMaybe [] <$> CC.get func (store ^. #pathSamples)
+

@@ -976,3 +976,38 @@ checkFuncsForPrims' actuallySolve store q prims funcs = do
     $ funcs
   return $ concat r
   --putText "Finished"
+
+-- | This is a flat sample that doesn't expand calls.
+-- The number of samples is based on the complexity of the func
+-- For now, we use a simple approach:
+-- num samples = num nodes ** exponator
+-- TODO: base it on something smarter like # of conditional branches
+onionSampleBasedOnFuncSize
+  :: Double
+  -> CfgStore
+  -> Function
+  -> IO (Maybe [PilPath])
+onionSampleBasedOnFuncSize exponator store func = CfgStore.getFuncCfgInfo store func >>= \case
+  Nothing -> return Nothing
+  Just cfgInfo -> do
+    let numSamples = max 1 . floor $ fromIntegral (HashSet.size $ cfgInfo ^. #nodes) ** exponator
+        q = QueryExpandAll $ QueryExpandAllOpts
+            { callExpandDepthLimit = 1
+            , numSamples = numSamples
+            }
+    paths <- nub <$> samplesFromQuery store func q
+    return $ Just paths
+
+onionFlow
+  :: Bool               -- actually use SMT solver?
+  -> Word64             -- max times to iterate checking whole binary
+  -> CfgStore
+  -> [Prim]             -- checks all on each path
+  -> HashSet Function
+  -> IO ()              -- it should store results to db
+onionFlow actuallyUseSolver maxIterations store prims funcs = do
+  funcs <- CfgStore.getFuncs store
+  forM_ funcs $ \func -> CfgStore.setPathSamples store func $ do
+    paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
+    return $ M.mkPathPrep [] <$> paths
+    
