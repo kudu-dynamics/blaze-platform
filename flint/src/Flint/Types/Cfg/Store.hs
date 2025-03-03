@@ -11,6 +11,7 @@ import Blaze.Types.Cfg (PilCfg, PilNode, CallNode)
 import Blaze.Types.Graph (DescendantsMap, StrictDescendantsMap)
 import Blaze.Types.Pil (Stmt)
 import Flint.Types.CachedCalc (CachedCalc)
+import Flint.Types.CachedMap (CachedMap)
 
 
 data CfgInfo = CfgInfo
@@ -36,6 +37,7 @@ data CfgStore = CfgStore
   -- Mapping of call sites that call Function
   , callSitesCache :: CachedCalc Function [CallSite]
   , pathSamples :: CachedCalc Function [PathPrep]
+  , callablePrims :: CachedMap Function (HashSet CallablePrimitive)
   -- -- If this is too slow or uses too much memory, we could do just calls or landmarks
   -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
   -- , planMakerCtx :: CachedCalc () (PlanMakerCtx Function PilNode)

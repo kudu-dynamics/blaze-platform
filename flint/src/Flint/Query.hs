@@ -15,7 +15,7 @@ import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRouteIO)
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
-import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive)
+import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive, getInitialPrimitives)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
@@ -998,16 +998,23 @@ onionSampleBasedOnFuncSize exponator store func = CfgStore.getFuncCfgInfo store 
     paths <- nub <$> samplesFromQuery store func q
     return $ Just paths
 
+-- | Looks for prims with the current set of CallablePrims
+-- and if it matches one, it adds it to the CallablePrims map in the store
+matchAndReturnCallablePrim
+  
+
 onionFlow
   :: Bool               -- actually use SMT solver?
   -> Word64             -- max times to iterate checking whole binary
   -> CfgStore
+  -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
   -> HashSet Function
   -> IO ()              -- it should store results to db
-onionFlow actuallyUseSolver maxIterations store prims funcs = do
+onionFlow actuallyUseSolver maxIterations store stdLibPrims prims funcs = do
   funcs <- CfgStore.getFuncs store
   forM_ funcs $ \func -> CfgStore.setPathSamples store func $ do
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
     return $ M.mkPathPrep [] <$> paths
-    
+  let initialPrims = getInitialPrimitives stdLibPrims funcs
+  
