@@ -3,7 +3,7 @@ module Flint.Types.CachedMap where
 import Flint.Prelude hiding (get, modify)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Concurrent.STM.TVar (writeTVar, readTVar, readTVarIO, newTVar)
-import Control.Concurrent.STM.TMVar (readTMVar, newEmptyTMVar, putTMVar)
+
 
 -- | Map that can be asynchronously updated and has a default empty value
 
@@ -21,20 +21,14 @@ getKeys (CachedMap _ cc) = HashMap.keys <$> readTVarIO cc
 
 -- | Sets the value of a key. If the TVar exists, it sets that TVar instead of
 -- creating a new one.
-set :: Hashable k => k -> CachedMap k v -> v -> IO ()
-set k (CachedMap _ cc) v = atomically $ do
+set :: Hashable k => k -> v -> CachedMap k v -> IO ()
+set k v (CachedMap _ cc) = atomically $ do
   m <- readTVar cc
   case HashMap.lookup k m of
     Nothing -> do
       tv <- newTVar v
       writeTVar cc $ HashMap.insert k tv m
     Just tv -> writeTVar tv v
-
--- get_' :: Hashable k => k -> CachedMap k v -> STM (Maybe (TVar v))
--- get_' k (CachedMap cc) = HashMap.lookup k <$> readTVar cc
-
--- get_ :: Hashable k => k -> CachedMap k v -> IO (Maybe (TVar v))
--- get_ k = atomically . get_' k
 
 get_ :: Hashable k => k -> CachedMap k v -> STM (TVar v)
 get_ k (CachedMap defV cc) = do
@@ -43,7 +37,6 @@ get_ k (CachedMap defV cc) = do
 
 get :: Hashable k => k -> CachedMap k v -> IO v
 get k cc = atomically $ get_ k cc >>= readTVar
-
 
 modify :: Hashable k => (v -> v) -> k -> CachedMap k v -> IO v
 modify f k cc = atomically $ do
@@ -99,3 +92,14 @@ getSnapshot fullCc@(CachedMap _ cc) = do
   where
     getVal :: k -> IO (k, v)
     getVal k = (k,) <$> get k fullCc
+
+-- | Totally replaces values in CachedMap
+putSnapshot
+  :: forall k v. Hashable k
+  => HashMap k v
+  -> CachedMap k v
+  -> IO ()
+putSnapshot m (CachedMap _ cc) = atomically $ do
+  m' <- fmap HashMap.fromList . forM (HashMap.toList m)
+       $ \(k, v) -> (k,) <$> newTVar v
+  writeTVar cc m'
