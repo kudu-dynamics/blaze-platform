@@ -12,6 +12,7 @@ import qualified Blaze.Pil.Display as Disp
 import qualified Blaze.Pretty as Pretty
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Size(Size))
+import Blaze.Types.Pil.Summary (CodeSummary)
 import Blaze.Pil.Construct (ExprConstructor)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil.Solver (SolverResult)
@@ -253,6 +254,7 @@ data MatcherResult
 data PathPrep = PathPrep
   { stmts :: [Pil.Stmt]
   , taintSet :: HashSet Taint
+  , codeSummary :: CodeSummary
   } deriving (Eq, Ord, Show, Generic)
 
 

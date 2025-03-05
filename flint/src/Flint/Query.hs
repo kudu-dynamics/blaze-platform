@@ -15,8 +15,9 @@ import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRouteIO)
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
+import qualified Flint.Types.CachedMap as CM
 import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive, getInitialPrimitives)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, StdLibPrimitive, PrimType)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
@@ -865,6 +866,25 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
   where
     findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
 
+checkPathForPrim_
+  :: Monad m
+  => M.MatcherState m
+  -> Function
+  -> CodeSummary
+  -> Prim
+  -> m (Maybe CallablePrimitive)
+checkPathForPrim_ mstate func codeSummary prim = do
+  M.match_  mstate (prim ^. #stmtPattern) >>= \case
+    (_, M.NoMatch) -> return Nothing
+    (ms, M.Match stmtsWithAssertions) -> do
+      return . Just $ mkCallablePrimitive
+        func
+        codeSummary
+        (prim ^. #primType)
+        (ms ^. #boundSyms)
+        (ms ^. #locations)
+        stmtsWithAssertions
+
 checkPathForPrim
   :: StmtSolver IO
   -> Function
@@ -999,9 +1019,67 @@ onionSampleBasedOnFuncSize exponator store func = CfgStore.getFuncCfgInfo store 
     return $ Just paths
 
 -- | Looks for prims with the current set of CallablePrims
--- and if it matches one, it adds it to the CallablePrims map in the store
+-- and if it matches one, returns it
 matchAndReturnCallablePrim
-  
+  :: StmtSolver IO
+  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> Function
+  -> PathPrep
+  -> Prim
+  -> IO (Maybe CallablePrimitive)
+matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
+  let mstate = M.mkMatcherState solver pprep
+               & #callablePrimitives .~ callablePrimSnapshot
+  checkPathForPrim_ mstate func (pprep ^. #codeSummary) prim 
+
+-- | Checks path for prim and updates the callable primitives if the path
+-- is an instance of that callable primitive
+onionCheckPathForPrim
+  :: StmtSolver IO
+  -> CfgStore
+  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> Function
+  -> PathPrep
+  -> Prim
+  -> IO ()
+onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
+  matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
+    Nothing -> return ()
+    Just cprim -> CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
+
+-- | Gets cached paths for function, and checks them for each prim.
+-- Adds instances found of CallablePrimitives back into CfgStore
+onionCheckFunc
+  :: StmtSolver IO
+  -> CfgStore
+  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> [Prim]
+  -> Function
+  -> IO ()
+onionCheckFunc solver store callablePrimSnapshot prims func = do
+  paths <- CM.get func $ store ^. #pathSamples
+  let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
+  forM_ pathPrimCombos $ \(pprep, prim) -> do
+    onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
+
+-- | Does a single pass over all the funcs.
+-- Adds instances found of CallablePrimitives back into CfgStore
+onionSinglePass
+  :: StmtSolver IO
+  -> CfgStore
+  -> [Prim]
+  -> [Function]
+  -> IO ()
+onionSinglePass solver store prims funcs = do
+  -- Get a fresh snapshot every time
+  cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
+  mapM_ (onionCheckFunc solver store cprimsSnapshot prims) funcs
+
+chooseSolver
+  :: Bool -- actually solve?
+  -> StmtSolver IO
+chooseSolver True = solveStmtsWithZ3 Solver.AbortOnError
+chooseSolver False = const . return $ Solver.Sat HashMap.empty
 
 onionFlow
   :: Bool               -- actually use SMT solver?
@@ -1009,12 +1087,15 @@ onionFlow
   -> CfgStore
   -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
-  -> HashSet Function
   -> IO ()              -- it should store results to db
-onionFlow actuallyUseSolver maxIterations store stdLibPrims prims funcs = do
+onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
   funcs <- CfgStore.getFuncs store
-  forM_ funcs $ \func -> CfgStore.setPathSamples store func $ do
+  forM_ funcs $ \func -> do
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
-    return $ M.mkPathPrep [] <$> paths
+    let pathPreps = M.mkPathPrep [] <$> paths
+    CM.set func pathPreps $ store ^. #pathSamples
   let initialPrims = getInitialPrimitives stdLibPrims funcs
-  
+  CM.putSnapshot initialPrims $ store ^. #callablePrims
+  replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs
+  where
+    solver = chooseSolver actuallyUseSolver

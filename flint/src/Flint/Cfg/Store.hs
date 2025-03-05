@@ -4,9 +4,9 @@ module Flint.Cfg.Store where
 
 import Flint.Prelude
 
-import Flint.Types.Analysis.Path.Matcher (PathPrep)
 import Flint.Types.Cfg.Store
 import qualified Flint.Types.CachedCalc as CC
+import qualified Flint.Types.CachedMap as CM
 
 import qualified Blaze.CallGraph as CG
 import qualified Blaze.Cfg.Interprocedural as CfgI
@@ -30,8 +30,6 @@ import Blaze.Util (getMemoized)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
-
-
 
 
 -- This is a cache of Cfgs for functions.
@@ -60,7 +58,8 @@ init mDbFilePath imp = do
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
-    <*> atomically CC.create
+    <*> atomically (CM.create [])
+    <*> atomically (CM.create HashSet.empty)
 
   allFuncCfgs <- getFuncsWithCfgs imp
   let funcCfgsSansPltThunks = purgeInternalPltThunks allFuncCfgs
@@ -597,18 +596,4 @@ shimmyFuncByName imp store func1name func2 = do
     Nothing -> error $ "Couldn't find func " <> cs func1name <> " in store"
     Just func1 -> shimmyFunc imp store func1 func2
 
--- -- | This finds PTL thunks replaces their Cfg with a call to the func with
--- -- the corresponding name.
--- -- It also updates the call graph.
--- linkPltThunks :: CfgStore -> IO ()
--- linkPltThunks store
-
--- | Lazily specifies how to get path samples for a function
-setPathSamples :: CfgStore -> Function -> IO [PathPrep] -> IO ()
-setPathSamples store func getPaths
-  = CC.setCalc func (store ^. #pathSamples) getPaths
-
--- | This only works if setPathSamples has been previously set for the function
-getPathSamples :: Function -> CfgStore -> IO [PathPrep]
-getPathSamples func store = fromMaybe [] <$> CC.get func (store ^. #pathSamples)
 

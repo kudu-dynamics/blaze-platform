@@ -18,6 +18,7 @@ import Blaze.Cfg.Path (PilPath)
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Pil.Analysis.Path as PA
 import Blaze.Pil.Eval (evalPilArithmeticExpr)
+import qualified Blaze.Pil.Summary as Summary
 import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
@@ -110,7 +111,9 @@ class MkPathPrep a where
   mkPathPrep :: [TaintPropagator] -> a -> PathPrep
 
 instance MkPathPrep [Pil.Stmt] where
-  mkPathPrep props stmts = PathPrep stmts $ mkTaintSet props stmts
+  mkPathPrep props stmts = PathPrep stmts (mkTaintSet props stmts) codeSummary
+    where
+      codeSummary = Summary.fromStmts stmts
 
 instance MkPathPrep PilPath where
   mkPathPrep mprops = mkPathPrep mprops
