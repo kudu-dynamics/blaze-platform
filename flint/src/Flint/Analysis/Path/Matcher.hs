@@ -548,16 +548,14 @@ getRetName :: Symbol Pil.Expression -> Symbol Pil.Expression
 getRetName prefix = prefix <> "ret"
 
 mkStmtPatternFromCallablePrimitive
-  :: Symbol Pil.Expression
-  -> CallablePrimitive
+  :: CallablePrimitive
   -> StmtPattern
-mkStmtPatternFromCallablePrimitive prefix x = Stmt
-  $ Call retPattern (CallFunc $ x ^. #callDest) argPatterns
+mkStmtPatternFromCallablePrimitive x = Stmt
+  $ Call retPattern (CallFunc $ x ^. #callDest) []
   where
-    argPatterns = fmap (\(n, _) -> Bind (getArgName prefix n) Wild) . zip [0..] $ x ^. #func . #params
     retPattern = case HashSet.member Prim.Ret $ x ^. #linkedVars of
       False -> Nothing
-      True -> Just $ Bind (getRetName prefix) Wild
+      True -> Just Wild
 
 addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
 addAvoid x = do
@@ -613,26 +611,19 @@ checkPath = solvePath >>= \case
 exprToBoundExpr :: Pil.Expression -> BoundExpr
 exprToBoundExpr (Pil.Expression sz op) = BoundExpr (ConstSize sz) $ exprToBoundExpr <$> op
 
-resolveFuncVars
-  :: Monad m => Symbol Pil.Expression
+resolveFuncVar
+  :: [Pil.Expression]
+  -> Maybe Pil.Expression
   -> FuncVarExpr
-  -> MatcherT m Pil.Expression
-resolveFuncVars prefix fvExpr = do
-  boundSyms <- use #boundSyms
-  resolveBoundExpr $ funcVarExprToBoundExpr prefix boundSyms fvExpr
-
-funcVarExprToBoundExpr
-  :: Symbol Pil.Expression
-  -> HashMap (Symbol Pil.Expression) Pil.Expression
-  -> FuncVarExpr
-  -> BoundExpr
-funcVarExprToBoundExpr prefix boundSyms = \case
-  (Prim.FuncVarExpr sz op) -> BoundExpr (ConstSize sz)
-    $ funcVarExprToBoundExpr prefix boundSyms <$> op
+  -> Maybe Pil.Expression
+resolveFuncVar argExprs mRetExpr = \case
+  (Prim.FuncVarExpr sz op) -> fmap (Pil.Expression sz)
+    . traverse (resolveFuncVar argExprs mRetExpr)
+    $ op
   (Prim.FuncVar fv) -> case fv of
-    Prim.Ret -> Bound $ getRetName prefix
-    (Prim.Global x) -> exprToBoundExpr x
-    (Prim.Arg n) -> Bound $ getArgName prefix n
+    Prim.Ret -> mRetExpr
+    (Prim.Global x) -> Just x -- TODO: probably remove this "Global" constructor
+    (Prim.Arg n) -> argExprs ^? ix (fromIntegral n)
 
 matchNextStmt :: Monad m => StmtPattern -> MatcherT m ()
 matchNextStmt = matchNextStmt_ True
@@ -719,29 +710,38 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
           mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
           good
         Left _ -> perhapsRecur
-    Primitive prefix pt -> do
+    Primitive pt varPats -> do
       callables <- use #callablePrimitives
       case HashMap.lookup pt callables of
         Nothing -> perhapsRecur
         Just s -> case Pil.mkCallStatement stmt of
           Nothing -> perhapsRecur
-          Just _ -> do
-            let callablePats = toSnd (mkStmtPatternFromCallablePrimitive prefix)
-                               <$> HashSet.toList s
-            asum $ flip fmap callablePats $ \(cprim, cpat) -> do
-              ( tryError . backtrackOnError $ matchNextStmt_ False cpat ) >>= \case
-                Left _ -> bad
-                Right _ -> do
-                  forM_ (HashMap.toList $ cprim ^. #varMapping) $ \(var, (fvExpr, _)) -> do
-                    resolvedExpr <- resolveFuncVars prefix fvExpr
-                    #boundSyms %= HashMap.insert (prefix <> var) resolvedExpr
-                    
+          Just callStmt -> do
+            let mRetExpr = (\pv -> Pil.Expression (fromIntegral $ pv ^. #size) (Pil.VAR $ Pil.VarOp pv))
+                           <$> (callStmt ^. #resultVar)
+                resolveFuncVar' = resolveFuncVar (callStmt ^. #args) mRetExpr
+            -- TODO: We are recreating these every single stmt we check for a Primitive.
+            --       Instead, we could cache them in the MatcherState
+            let callablePats = toSnd mkStmtPatternFromCallablePrimitive <$> HashSet.toList s :: [(CallablePrimitive, StmtPattern)]
+            asum $ flip fmap callablePats $ \(cprim, cpat) -> backtrackOnError $ do
+              matchNextStmt_ False cpat
+              let mPrimVars = traverse (traverse (resolveFuncVar' . fst))
+                    . HashMap.toList
+                    $ cprim ^. #varMapping
+                    :: Maybe [(Symbol Pil.Expression, Pil.Expression)]
+              case mPrimVars of
+                Nothing -> bad
+                Just primVars -> do
+                  forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
+                    Nothing -> good
+                    Just vpat -> matchExpr vpat vexpr
+              
                   -- add constraints to stmts
                   forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
-                    resolvedExpr <- resolveFuncVars prefix fvExpr
-                    let constraintStmt = C.constraint resolvedExpr
-                    #parsedStmtsWithAssertions %= (constraintStmt :)
-                    return ()
+                    case resolveFuncVar' fvExpr of
+                      Nothing -> bad
+                      Just resolvedExpr -> do
+                        #parsedStmtsWithAssertions %= (C.constraint resolvedExpr :)
       -- check linkedVars for # of args
       -- match on call to callDest Func with same # of args
       -- 

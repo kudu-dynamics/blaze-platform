@@ -11,11 +11,18 @@ import Blaze.Pil.Construct hiding (not)
 import qualified Data.HashSet as HashSet
 
 
-userControlledFormatString :: PrimType
-userControlledFormatString = PrimType
-  { name = "UserControlledFormatString"
+copyPrim :: PrimType
+copyPrim = PrimType
+  { name = "copy"
+  , vars = HashSet.fromList ["dest", "src", "len"]
+  , locations = HashSet.fromList ["write"]
+  }
+
+controlledFormatString :: PrimType
+controlledFormatString = PrimType
+  { name = "ControlledFormatString"
   , vars = HashSet.fromList
-    [ "fmtString" ]
+    [ "fmt" ]
   , locations = HashSet.fromList
     [ "call" ]
   }
@@ -23,39 +30,39 @@ userControlledFormatString = PrimType
 isArg :: ExprPattern
 isArg = Var "arg"
 
-userControlledFormatStringPattern :: StmtPattern
-userControlledFormatStringPattern = AnyOne
-  [ Stmt $ Call Nothing (CallFunc $ FuncNames firstArgFuncs) firstArg
-  , Stmt $ Call Nothing (CallFunc $ FuncNames secondArgFuncs) secondArg
-  , Stmt $ Call Nothing (CallFunc $ FuncNames thirdArgFuncs) thirdArg
-  ]
+controlledFormatString :: PrimType
+controlledFormatString = PrimType
+  { name = "ControlledFormatString"
+  , vars = HashSet.fromList
+    [ "fmt" ]
+  , locations = HashSet.fromList
+    [ "call" ]
+  }
+
+-- | This is supposed to restrict expr to func args and globals, but I don't know how
+-- to do that yet, really this just accepts everything for now (b/c the Wild)
+isInput :: ExprPattern
+isInput = Var "arg" .|| Var "param"
+  -- TODO: need to figue out how to restrict to inputs
+  .|| Wild
+
+-- | This indicates the expr is tainted by function input (args/globals)
+-- TODO: maybe we can use CodeSummary when matching
+fromInput :: ExprPattern
+fromInput = Wild
+
+controlledFormatStringPrim :: Prim
+controlledFormatStringPrim = Prim
+  { primType = controlledFormatString
+  , stmtPattern =
+      [ Primitive controlledFormatString $ HashMap.fromList
+        [ ("fmt", fromInput) ]
+      ]
+  }
   where
-    argPat = Bind "arg" isArg
-    firstArg = [argPat]
-    secondArg = [Wild, argPat]
-    thirdArg = [Wild, Wild, argPat]
-    firstArgFuncs = HashSet.fromList
-      [ "printf"
-      , "vprintf"
-      , "scanf"
-      , "vscanf"
-      ]
-    secondArgFuncs = HashSet.fromList
-      [ "fprintf"
-      , "sprintf"
-      , "vfprintf"
-      , "vsprintf"
-      , "fscanf"
-      , "sscanf"
-      , "vfscanf"
-      , "vsscanf"
-      , "asprintf"
-      , "vasprintf"
-      ]
-    thirdArgFuncs = HashSet.fromList
-      [ "snprintf"
-      , "vsnprintf"
-      ]
+    -- TODO: pass in global from CodeSummary?
+    isGlobal = Immediate
+
 
 -------------------------------------
 

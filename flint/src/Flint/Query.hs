@@ -1087,7 +1087,7 @@ onionFlow
   -> CfgStore
   -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
-  -> IO ()              -- it should store results to db
+  -> IO ()              -- it writes results into CfgStore and hopefully DB
 onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
   funcs <- CfgStore.getFuncs store
   forM_ funcs $ \func -> do
