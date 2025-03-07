@@ -54,6 +54,7 @@ library
       Flint.Util
   other-modules:
       Flint.Analysis.Path.Matcher.Primitives.Library.StdLib
+      Flint.Types.CachedMap
       Flint.Types.CallGraph
       Flint.Types.Cfg
       Flint.Types.Symbol

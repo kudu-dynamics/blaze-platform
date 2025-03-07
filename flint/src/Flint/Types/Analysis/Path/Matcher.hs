@@ -69,7 +69,7 @@ data StmtPattern
   | EndOfPath
   | Location (Symbol Address) StmtPattern
   -- | Primitive <prefix for bound vars> <primtype>
-  | Primitive (Symbol Pil.Expression) PrimType
+  | Primitive PrimType (HashMap (Symbol Pil.Expression) ExprPattern)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize

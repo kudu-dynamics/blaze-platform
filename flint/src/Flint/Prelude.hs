@@ -16,6 +16,7 @@ import Control.Monad.Logger.CallStack as Exports (logDebug, logInfo, logWarn, lo
 import qualified Control.Monad.Logger.CallStack as Logger
 import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrently, forConcurrently_, mapConcurrently_)
 import qualified Data.HashMap.Strict as HashMap
+import Control.Lens as Exports (ix)
 
 
 hoistMaybeM :: Monad m => m (Maybe a) -> MaybeT m a
