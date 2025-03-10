@@ -64,6 +64,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
             funcs <- Store.getFuncs $ tctx ^. #dirtyStore
             funcs' <- CG.getFunctions $ tctx ^. #dirtyImp
             funcs'' <- fmap (fmap fst) . Store.getFuncsWithCfgs $ tctx ^. #dirtyImp
+            pprint . sort $ simpleFunc <$> funcs'
             pprint . sort $ simpleFunc <$> funcs''
             let cprims = getInitialPrimitives stdLibPrims funcs
             pprint cprims

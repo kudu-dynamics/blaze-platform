@@ -544,7 +544,6 @@ addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
 getArgName :: Symbol Pil.Expression -> Word64 -> Symbol Pil.Expression
 getArgName prefix n = prefix <> "arg" <> show n
 
-<<<<<<< HEAD
 getRetName :: Symbol Pil.Expression -> Symbol Pil.Expression
 getRetName prefix = prefix <> "ret"
 
@@ -557,13 +556,6 @@ mkStmtPatternFromCallablePrimitive x = Stmt
     retPattern = case HashSet.member Prim.Ret $ x ^. #linkedVars of
       False -> Nothing
       True -> Just Wild
-=======
-mkStmtPatternFromCallablePrimitive :: Symbol Pil.Expression -> CallablePrimitive -> StmtPattern
-mkStmtPatternFromCallablePrimitive prefix x = Stmt
-  $ Call Nothing (CallFunc $ x ^. #callDest) argPatterns
-  where
-    argPatterns = fmap (\(n, _) -> Bind (getArgName prefix n) Wild) . zip [0..] $ x ^. #func . #params
->>>>>>> main
 
 addAvoid :: Monad m => AvoidSpec -> MatcherT m ()
 addAvoid x = do
