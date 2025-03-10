@@ -3,10 +3,8 @@ module Flint.Analysis.Path.Matcher.Primitives.Library.StdLib where
 import Flint.Prelude hiding (Location)
 
 import Flint.Types.Analysis.Path.Matcher.Primitives
-import qualified Flint.Types.Analysis.Path.Matcher.Primitives as Prim
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimsLib
 
-import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 
 -----------------------------------

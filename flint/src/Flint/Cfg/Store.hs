@@ -4,6 +4,8 @@ module Flint.Cfg.Store where
 
 import Flint.Prelude
 
+import Flint.Analysis.Path.Matcher.Primitives (getInitialPrimitives)
+import Flint.Types.Analysis.Path.Matcher.Primitives (StdLibPrimitive)
 import Flint.Types.Cfg.Store
 import qualified Flint.Types.CachedCalc as CC
 import qualified Flint.Types.CachedMap as CM
@@ -597,3 +599,13 @@ shimmyFuncByName imp store func1name func2 = do
     Just func1 -> shimmyFunc imp store func1 func2
 
 
+-- | Looks through all funcs to which which StdLibPrimitives are in play,
+-- generates CallablePrimitives from these std lib funcs and stores it in Cfg,
+-- overwriting whatever CallablePrimitives may already be there.
+populateInitialPrimitives
+  :: [StdLibPrimitive]
+  -> CfgStore
+  -> IO ()
+populateInitialPrimitives sprims store = do
+  funcs <- getFuncs store
+  CM.putSnapshot (getInitialPrimitives sprims funcs) $ store ^. #callablePrims

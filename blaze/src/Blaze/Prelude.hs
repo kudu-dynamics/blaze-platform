@@ -64,6 +64,7 @@ import Control.Lens as Exports
     traverseOf,
     view,
     at,
+    ix,
     _Just,
     _Right,
     _Left,
