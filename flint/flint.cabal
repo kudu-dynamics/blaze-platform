@@ -50,6 +50,7 @@ library
       Flint.Types.Analysis.Path.Matcher.Func
       Flint.Types.Analysis.Path.Matcher.Primitives
       Flint.Types.CachedMap
+      Flint.Analysis.Path.Matcher.Primitives.Library
       Flint.Types.CachedCalc
       Flint.Types.Cfg.Store
       Flint.Types.Query

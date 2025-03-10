@@ -309,17 +309,19 @@ varNodeToReference v = do
       pure . Left . pv (maybe name (\ver -> name <> "#" <> show ver) version) False $ Pil.Register name
     VStack{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAStack offset) pcAddress
-      let name = fromMaybe (stackVarName offset)
-                 $ specialName
-                 <|>
-                 ((\ver -> stackVarName offset <> "#" <> show ver) <$> version)
+      let baseName = fromMaybe (stackVarName offset) specialName
+          name = maybe
+                 baseName
+                 (\ver -> baseName <> "#" <> show ver)
+                 version
       pure . Left . pv name False $ Pil.StackMemory offset
     VUnique{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
-      let name = fromMaybe ("unique_" <> showHex offset)
-                 $ specialName
-                 <|>
-                 ((\ver -> "unique_" <> showHex offset <> "#" <> show ver) <$> version)
+      let baseName = fromMaybe ("unique_" <> showHex offset) specialName
+          name = maybe
+                 baseName
+                 (\ver -> baseName <> "#" <> show ver)
+                 version
       pure . Left . pv name False $ Pil.Code offset
     VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
     VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize

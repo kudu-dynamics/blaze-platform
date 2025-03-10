@@ -28,7 +28,6 @@ controlledFormatString = PrimType
     [ "call" ]
   }
 
-
 ---------------------------
 
 
@@ -58,8 +57,6 @@ controlledFormatStringPrim = Prim
         [ ("fmt", Bind "fmt" (Contains isArg)) ] 
       ]
   }
-
-
 -------------------------------------
 
 writeToKernelGlobal :: Prim

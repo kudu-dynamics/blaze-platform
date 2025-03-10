@@ -7,6 +7,7 @@ import Flint.Prelude hiding (sym, const, until)
 import Flint.Analysis.Path.Matcher
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
+import Flint.Types.Analysis.Path.Matcher.Func
 
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Import.Source.BinaryNinja (BNImporter)
