@@ -8,6 +8,7 @@ import Flint.Types.Analysis.Path.Matcher.Primitives
 
 import Blaze.Pil.Construct hiding (not)
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
 
@@ -27,17 +28,12 @@ controlledFormatString = PrimType
     [ "call" ]
   }
 
+
+---------------------------
+
+
 isArg :: ExprPattern
 isArg = Var "arg"
-
-controlledFormatString :: PrimType
-controlledFormatString = PrimType
-  { name = "ControlledFormatString"
-  , vars = HashSet.fromList
-    [ "fmt" ]
-  , locations = HashSet.fromList
-    [ "call" ]
-  }
 
 -- | This is supposed to restrict expr to func args and globals, but I don't know how
 -- to do that yet, really this just accepts everything for now (b/c the Wild)
@@ -56,12 +52,12 @@ controlledFormatStringPrim = Prim
   { primType = controlledFormatString
   , stmtPattern =
       [ Primitive controlledFormatString $ HashMap.fromList
-        [ ("fmt", fromInput) ]
+        -- TODO: change to isInput after isInput works
+        -- Notice that we have to bind "fmt" because it's a primtype var and
+        -- to make a callable primitive, all the primtype vars must be bound.
+        [ ("fmt", Bind "fmt" (Contains isArg)) ] 
       ]
   }
-  where
-    -- TODO: pass in global from CodeSummary?
-    isGlobal = Immediate
 
 
 -------------------------------------

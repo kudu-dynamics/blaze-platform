@@ -983,8 +983,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             -- outerFunc = bar
             outerPath = barPath3
             prim = copyPrim
-            prefix = "writer_"
-            pats = [ Primitive prefix prim ]
+            varPats = HashMap.fromList
+              [ ("dest", Bind "newdest" Wild)
+              , ("src", Bind "newsrc" Wild)
+              ]
+            pats = [Primitive prim varPats]
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity
             solver _ = return $ Solver.Sat HashMap.empty
@@ -995,16 +998,17 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
             (ms, r) = pureMatchStmts_ initMs pats
             expectedBoundSyms = HashMap.fromList
-              [ (prefix <> "dest", var "global1" 8)
-              , (prefix <>  "src"
+              [ ("newdest", var "global1" 8)
+              , ("newsrc"
                 , load (add (var_ bar "arg4" 8) (const 4 8) 8) 8
                 )
               ]
-            actualBoundSyms = HashMap.filterWithKey
-              (\k _ -> HashSet.member k
-                . HashSet.map (prefix <>)
-                $ prim ^. #vars)
-              $ ms ^. #boundSyms
+            -- actualBoundSyms = HashMap.filterWithKey
+            --   (\k _ -> HashSet.member k
+            --     . HashSet.map (prefix <>)
+            --     $ prim ^. #vars)
+            --   $ ms ^. #boundSyms
+            actualBoundSyms = ms ^. #boundSyms
             expectedParsedSmts :: [Pil.Stmt]
             expectedParsedSmts =
               [ constraint $ cmpSgt (var_ bar "arg1" 8) (const 0 8) 8
@@ -1026,8 +1030,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         PrettyShow' (PStmts actualParsedStmts) `shouldBe` PrettyShow' (PStmts expectedParsedSmts)
       
       it "should match format string Primitive pattern" $ do
-
-        -- TODO: Write test that just tests fooPath1 matching on sscanf prim
         
         let stdLibPrims = memcpyPrims <> sscanfPrims <> strdupPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
@@ -1038,7 +1040,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             solver _ = return $ Solver.Sat HashMap.empty
             initMs = mkMatcherState solver pprep
                      & #callablePrimitives .~ initialCPrims
-            pat = [ Primitive "fmt_" controlledFormatStringPrim ]
+            varPats = HashMap.empty
+            pat = [ Primitive controlledFormatStringPrim varPats ]
             (_ms, r) = pureMatchStmts_ initMs pat
 
         is #_Match r `shouldBe` True
@@ -1053,7 +1056,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             solver _ = return $ Solver.Sat HashMap.empty
             initMs = mkMatcherState solver pprep
                      & #callablePrimitives .~ initialCPrims
-            pat = [ Primitive "fmt_" controlledFormatStringPrim ]
+            varPats = HashMap.empty
+            pat = [ Primitive controlledFormatStringPrim varPats ]
             (_ms, r) = pureMatchStmts_ initMs pat
 
         is #_Match r `shouldBe` True
