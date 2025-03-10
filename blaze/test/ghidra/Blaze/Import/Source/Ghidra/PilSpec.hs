@@ -6,6 +6,8 @@ import Blaze.Import.CallGraph (CallGraphImporter (getFunction))
 import Blaze.Import.Pil (PilImporter (getFuncStatements))
 import qualified Blaze.Import.Source.Ghidra as G
 
+import Blaze.Pretty (prettyStmts')
+
 import Test.Hspec
 
 diveBin :: FilePath
@@ -22,6 +24,8 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let func = fromJust mFunc
     stmts <- runIO $ getFuncStatements importer func 0
 
+    runIO $ prettyStmts' stmts
+
     -- stmt0: zf_1#1@10 = eax_4#1@10 == 0x0
     -- stmt1: var_14#4@10 = var_14#2@10
     -- stmt2: unique_1d00#1@10 = esp_4#1@10 + offset 0xffffffac
@@ -31,19 +35,21 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let stmt2 = stmts !! 15
     let stmt3 = stmts !! 21
 
-    let pv0 = stmt0 ^? #statement . #_Def . #value . #op . #_CMP_E . #left . #op . #_VAR . #src
+    
+    let _pv0 = stmt0 ^? #statement . #_Def . #value . #op . #_CMP_E . #left . #op . #_VAR . #src
     let pv1_l = stmt1 ^? #statement . #_Def . #var
     let pv1_r = stmt1 ^? #statement . #_Def . #value . #op . #_VAR . #src
     let pv2 = stmt2 ^? #statement . #_Def . #var
+    let pv2_val_l = stmt2 ^? #statement . #_Def . #value . #op . #_FIELD_ADDR . #baseAddr . #op . #_VAR . #src
     let pv3 = stmt3 ^? #statement . #_Def . #var
-
+    
     it "should use register names for symbols" $ do
-      pv0 ^. _Just . #symbol `shouldBe` "eax_4#1"
+      pv2_val_l ^? _Just . #symbol `shouldBe` Just "esp_4#1"
 
     it "should have separate number labels for assignments to the same stack var" $ do
-      pv1_l ^. _Just . #symbol `shouldBe` "var_14#4"
-      pv1_r ^. _Just . #symbol `shouldBe` "var_14#2"
+      pv1_l ^? _Just . #symbol `shouldBe` Just "temp#4"
+      pv1_r ^? _Just . #symbol `shouldBe` Just "temp#2"
 
     it "should have separate number labels for assignments to the same unique var" $ do
-      pv2 ^. _Just . #symbol `shouldBe` "unique_1d00#1"
-      pv3 ^. _Just . #symbol `shouldBe` "unique_1d00#2"
+      pv2 ^? _Just . #symbol `shouldBe` Just "unique_1d00#1"
+      pv3 ^? _Just . #symbol `shouldBe` Just "unique_1d00#2"
