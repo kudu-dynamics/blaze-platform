@@ -15,7 +15,6 @@ import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashSet as HashSet
 
-
 -- | The type of primitive and names for input and output vars.
 -- These are any vars both input and output, that will be
 -- bound to args/globals/ret-vars/immediates during a concrete pattern match
@@ -23,7 +22,7 @@ data PrimType = PrimType
   { name :: Text
   , vars :: HashSet (Symbol Pil.Expression)
   -- | important locations in the primitive
-  , locations :: HashSet (Symbol Address)
+  , locations :: HashSet (Symbol Address) 
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | The primitive vars bound in CallablePrimitive will be written in terms of these
