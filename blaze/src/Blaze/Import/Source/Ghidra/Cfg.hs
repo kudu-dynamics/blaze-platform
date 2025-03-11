@@ -204,62 +204,6 @@ mkCfEdgeFromPcodeBlockEdge (bt, edges) = Cfg.fromTupleEdge $ case bt of
   PB.FalseBranch -> (Cfg.FalseBranch, edges)
   _ -> (Cfg.UnconditionalBranch, edges)
 
-getHighPcodeCfg'
-  :: GhidraState
-  -> Function
-  -> CtxId
-  -> IO (Maybe (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp HighVarNode)]))))
-getHighPcodeCfg' gs fn ctxId = do
-  jfunc <- CGI.toGhidraFunction gs fn
-  runGhidraOrError (GFunc.isThunk jfunc) >>= \case
-    True -> do
-      case fn ^. #name of
-        "puts" -> do
-          pprint $ fn ^. #address
-          hfunc <- runGhidraOrError $ GFunc.getHighFunction gs jfunc -- TODO: cache this
-          bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
-          putText "Got it"
-          let ctx = Ctx fn ctxId
-          nodePcodeTuples <- traverse (\pb -> (pb,) <$> mkCfNodePcodeBlock (getHighPcodeForPcodeBlock gs) ctx pb)
-            $ bbGraph ^. #nodes
-          let nodeMap = Map.fromList nodePcodeTuples
-              bbGraph' = (nodeMap Map.!) <$> bbGraph
-              edges' = mkCfEdgeFromPcodeBlockEdge <$> (bbGraph' ^. #edges)
-              nodes' = snd <$> nodePcodeTuples
-          case mkCfgFindRoot ctxId nodes' edges' of
-            Left err -> case err of
-              ZeroRootNodes -> do
-                putText "error zero"
-                warn $ "Cfg for '" <> show (fn ^. #name) <> "' has no root node"
-                return Nothing
-              MultipleRootNodes -> do
-                putText "error multiroot"
-                error "Cfg has more than one root node"
-            Right cfg -> do
-              putText "wow got the cfg holmes"
-              pprint cfg
-              return . Just . Right $ cfg
-
-          -- Just . Left <$> runGhidraOrError (GFunc.unsafeGetThunkedFunction True jfunc)
-        _ -> Just . Left <$> runGhidraOrError (GFunc.unsafeGetThunkedFunction True jfunc)
-    False -> do
-      hfunc <- runGhidraOrError $ GFunc.getHighFunction gs jfunc -- TODO: cache this
-      bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
-      let ctx = Ctx fn ctxId
-      nodePcodeTuples <- traverse (\pb -> (pb,) <$> mkCfNodePcodeBlock (getHighPcodeForPcodeBlock gs) ctx pb)
-        $ bbGraph ^. #nodes
-      let nodeMap = Map.fromList nodePcodeTuples
-          bbGraph' = (nodeMap Map.!) <$> bbGraph
-          edges' = mkCfEdgeFromPcodeBlockEdge <$> (bbGraph' ^. #edges)
-          nodes' = snd <$> nodePcodeTuples
-      case mkCfgFindRoot ctxId nodes' edges' of
-        Left err -> case err of
-          ZeroRootNodes -> do
-            warn $ "Cfg for '" <> show (fn ^. #name) <> "' has no root node"
-            return Nothing
-          MultipleRootNodes -> error "Cfg has more than one root node"
-        Right cfg -> return . Just . Right $ cfg
-
 getHighPcodeCfg
   :: GhidraState
   -> Function
@@ -416,20 +360,14 @@ getPilCfg
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfg pcodeCfgGetter gs func ctxId = do
-  putText $ "========= " <> show (func ^. #name) <> " " <> show (func ^. #address) <> "========"
   let ctx = Ctx func ctxId
   pcodeCfgGetter gs func ctxId >>= \case
-    Nothing -> do
-      putText "Nothing"
-      return Nothing
+    Nothing -> return Nothing
     Just (Left thunkedDest) -> do
       destName <- runGhidraOrError $ GFunc.getName thunkedDest
       runGhidraOrError (GFunc.isExternal thunkedDest) >>= \case
-        True -> do
-          putText "Left ThunkedDest Externel"
-          return Nothing
+        True -> return Nothing
         False -> do
-          putText "Left ThunkedDest Internal"
           callDest <- fmap Pil.CallFunc
             $ runGhidraOrError (GFunc.mkFunction thunkedDest)
             >>= CGI.toBlazeFunction gs
@@ -463,7 +401,6 @@ getPilCfg pcodeCfgGetter gs func ctxId = do
       
           return . Just $ ImportResult ctx (PilPcodeMap HashMap.empty) indexedThunkCfg
     Just (Right pcodeCfg) -> do
-      putText "Just Right pcodeCfg"
       (varMapping, errs, pilCfg) <- convertToPilCfg gs ctx pcodeCfg
       unless (null errs) $ do
         putText $ "Warning: getPilCfg encountered errors for function: " <> show func

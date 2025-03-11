@@ -74,7 +74,7 @@ strdupPrims =
     { prim = copyPrim
     , funcName = "strdup"
     , varMapping = HashMap.fromList
-      [ ("dest", FuncVar $ Ret)
+      [ ("dest", FuncVar Ret)
       , ("src", FuncVar $ Arg 0)
       ]
     , constraints = []

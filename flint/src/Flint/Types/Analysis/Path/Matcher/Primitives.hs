@@ -7,7 +7,7 @@ import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Construct (ExprConstructor(mkExpr))
-import Blaze.Pretty (tt, tokenize, (<++>))
+import Blaze.Pretty (tt, tokenize)
 import qualified Blaze.Pretty as Pretty
 import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (Size)

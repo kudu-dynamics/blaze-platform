@@ -48,6 +48,7 @@ getFuncVarFromPilVar
 getFuncVarFromPilVar params _inputs pv = asParam <|> asGlobalVar <|> Nothing
   where
     asParam = Arg <$> getParamIndex params pv
+    -- TODO: the "inputs" seems to include more than globals
     asGlobalVar = Nothing
     -- asGlobalVar = bool Nothing (Just . Global $ wrapVar pv) $ HashSet.member pv inputs
   
@@ -154,7 +155,7 @@ fromStdLibPrimitive x func = CallablePrimitive
 getInitialPrimitivesForFunc :: Function -> [StdLibPrimitive] -> [CallablePrimitive]
 getInitialPrimitivesForFunc func = mapMaybe f
   where
-    f sprim = if (func ^. #name == sprim ^. #funcName)
+    f sprim = if func ^. #name == sprim ^. #funcName
       then Just $ fromStdLibPrimitive sprim func
       else Nothing
       
