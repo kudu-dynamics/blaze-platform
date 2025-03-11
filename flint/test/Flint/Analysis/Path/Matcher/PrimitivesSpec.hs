@@ -32,17 +32,17 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           
       PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
 
-    it "should properly convert global to FuncVar in Expression" $ do
-      let params = fooParams
-          codeSum = fooCodeSummary2
-          globalVar = var "global1" 8
-          expr = load (add globalVar (const 4 8) 8) 8
-          expected =
-            ( load (add (FuncVar $ Prim.Global globalVar) (const 4 8) 8) 8
-            , HashSet.fromList [Prim.Global globalVar]
-            )
+    -- it "should properly convert global to FuncVar in Expression" $ do
+    --   let params = fooParams
+    --       codeSum = fooCodeSummary2
+    --       globalVar = var "global1" 8
+    --       expr = load (add globalVar (const 4 8) 8) 8
+    --       expected =
+    --         ( load (add (FuncVar $ Prim.Global globalVar) (const 4 8) 8) 8
+    --         , HashSet.fromList [Prim.Global globalVar]
+    --         )
 
-      PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
+    --   PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
 
   context "mkCallablePrimitive" $ do
     it "should create callable primitive with single nested arg and no constraints" $ do
@@ -57,7 +57,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
             [ ("dest", var "global1" 8)
             , ("src", load (add (var "arg1" 8) (const 4 8) 8) 8)
             ]
-          expected = fooCallablePrimitive3
+          expected = Right fooCallablePrimitive3
           
       PShow (mkCallablePrimitive func codeSum prim varMap locationMap path) `shouldBe` PShow expected
 

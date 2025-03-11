@@ -77,8 +77,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
   --       sort nodeCounts `shouldBe` expected
 
   context "PLT Thunk Cfg" $ do
-    imp <- runIO $ G.getImporter "/home/teddy/kudu/haskell/blaze-platform/flint/res/test_bins/dirty_benchmark/dirty_benchmark"
-    -- imp <- runIO $ G.getImporter "res/test_bins/plt_thunk/libplt_thunk.so"
+    imp <- runIO $ G.getImporter "res/test_bins/plt_thunk/libplt_thunk.so"
     funcs <- fmap sort . runIO $ getFunctions imp
     let simpleFunc x = (x ^. #name, x ^. #address)
     funcsCfgs <- runIO . forM funcs

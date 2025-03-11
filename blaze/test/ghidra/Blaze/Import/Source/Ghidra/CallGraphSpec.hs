@@ -4,6 +4,8 @@ import Blaze.Prelude
 
 import Blaze.Import.CallGraph (CallGraphImporter (getFunction))
 import qualified Blaze.Import.Source.Ghidra as G
+import qualified Blaze.Types.Function as Func
+
 import Test.Hspec
 
 
@@ -19,5 +21,16 @@ spec = describe "Blaze.Import.Source.Ghidra.CallGraph" $ do
       mFunc ^? _Just . #name `shouldBe` Just "cgc_SetParam"
 
     let func = fromJust mFunc
+        params = func ^. #params
+
     it "should get the correct number of params" $ do
       length (func ^. #params) `shouldBe` 3
+    
+    it "should name the params correctly" $ do
+      let getParamName (Func.FuncParamInfo p) = Just $ p ^. #name
+          getParamName _ = Nothing
+          paramNames :: Maybe [Text]
+          paramNames = traverse getParamName params
+          expected = Just ["paramName", "param", "len"]
+
+      paramNames `shouldBe` expected

@@ -45,10 +45,11 @@ getFuncVarFromPilVar
   -> HashSet PilVar
   -> PilVar
   -> Maybe FuncVar
-getFuncVarFromPilVar params inputs pv = asParam <|> asGlobalVar <|> Nothing
+getFuncVarFromPilVar params _inputs pv = asParam <|> asGlobalVar <|> Nothing
   where
     asParam = Arg <$> getParamIndex params pv
-    asGlobalVar = bool Nothing (Just . Global $ wrapVar pv) $ HashSet.member pv inputs
+    asGlobalVar = Nothing
+    -- asGlobalVar = bool Nothing (Just . Global $ wrapVar pv) $ HashSet.member pv inputs
   
 -- | If the expr is an arg, ret expr, or a global, convert to a FuncVar
 getFuncVar
@@ -93,35 +94,41 @@ mkCallablePrimitive
   -> HashMap (Symbol Pil.Expression) Pil.Expression
   -> HashMap (Symbol Address) (HashSet Address)
   -> [Stmt] -- whole path
-  -> CallablePrimitive
-mkCallablePrimitive func codeSum primType boundExprs boundLocations path = CallablePrimitive
-  { prim = primType
-  , func = func
-  , callDest = MFunc.FuncName $ func ^. #name
-  , varMapping = varMapping'
-  -- TODO: derive from path.
-  -- could get all constraints out of path, or just up until last boundLocation is reached
-  , constraints = funcVarExprConstraints
-  , locations = boundLocations
-  , linkedVars =
-      foldMap snd funcVarExprConstraints
-      <>
-      (foldMap snd . HashMap.elems $ varMapping')
-  }
-  where
-    funcVarExprConstraints = toFuncVarExpr' <$> allConstraints
-    allConstraints = mapMaybe extractConstraint path
+  -> Either MkCallablePrimitiveError CallablePrimitive
+mkCallablePrimitive func codeSum primType boundExprs boundLocations path = do
+  let keySet = HashSet.fromList . HashMap.keys
+      missingVarKeys = HashSet.difference (primType ^. #vars) $ keySet boundExprs
+      missingLocationKeys = HashSet.difference (primType ^. #locations) $ keySet boundLocations
+  case not (HashSet.null missingVarKeys) || not (HashSet.null missingLocationKeys) of
+    True -> Left $ MkCallablePrimitiveError missingVarKeys missingLocationKeys
+    False -> Right $ CallablePrimitive
+      { prim = primType
+      , func = func
+      , callDest = MFunc.FuncName $ func ^. #name
+      , varMapping = varMapping'
+      -- TODO: derive from path.
+      -- could get all constraints out of path, or just up until last boundLocation is reached
+      , constraints = funcVarExprConstraints
+      , locations = boundLocations
+      , linkedVars =
+        foldMap snd funcVarExprConstraints
+        <>
+        (foldMap snd . HashMap.elems $ varMapping')
+      }
+      where
+        funcVarExprConstraints = toFuncVarExpr' <$> allConstraints
+        allConstraints = mapMaybe extractConstraint path
     
-    extractConstraint :: Stmt -> Maybe Pil.Expression
-    extractConstraint stmt = case stmt ^. #statement of
-      (Pil.Constraint (Pil.ConstraintOp x)) -> Just x
-      (Pil.BranchCond (Pil.BranchCondOp x)) -> Just x
-      _ -> Nothing
+        extractConstraint :: Stmt -> Maybe Pil.Expression
+        extractConstraint stmt = case stmt ^. #statement of
+          (Pil.Constraint (Pil.ConstraintOp x)) -> Just x
+          (Pil.BranchCond (Pil.BranchCondOp x)) -> Just x
+          _ -> Nothing
 
-    params = func ^. #params
-    toFuncVarExpr' = toFuncVarExpr params codeSum
-    varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
-    varMapping' = toFuncVarExpr' <$> boundExprs
+        params = func ^. #params
+        toFuncVarExpr' = toFuncVarExpr params codeSum
+        varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
+        varMapping' = toFuncVarExpr' <$> boundExprs
 
 
 fromStdLibPrimitive :: StdLibPrimitive -> Function -> CallablePrimitive

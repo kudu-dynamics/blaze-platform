@@ -17,7 +17,7 @@ import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive, getInitialPrimitives)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, StdLibPrimitive, PrimType)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, MkCallablePrimitiveError, StdLibPrimitive, PrimType)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
@@ -872,7 +872,7 @@ checkPathForPrim_
   -> Function
   -> CodeSummary
   -> Prim
-  -> m (Maybe CallablePrimitive)
+  -> m (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
 checkPathForPrim_ mstate func codeSummary prim = do
   M.match_  mstate (prim ^. #stmtPattern) >>= \case
     (_, M.NoMatch) -> return Nothing
@@ -891,7 +891,7 @@ checkPathForPrim
   -> PathPrep
   -> CodeSummary
   -> Prim
-  -> IO (Maybe CallablePrimitive)
+  -> IO (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
 checkPathForPrim solver func prep codeSummary prim = do
   M.match solver (prim ^. #stmtPattern) prep >>= \case
     (_, M.NoMatch) -> return Nothing
@@ -921,7 +921,11 @@ checkFuncForPrims actuallySolve store q prims streamResults func = flip catch re
     forConcurrently_ prims $ \prim -> do
       checkPathForPrim solver func pathPrep codeSum prim >>= \case
         Nothing -> return ()
-        Just cprim -> do
+        Just (Left cprimError) -> do
+          -- TODO: make this log a warning properly
+          putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+          return ()
+        Just (Right cprim) -> do
           let matchingPrim = MatchingPrim
                 { func = func
                 , callablePrim = cprim
@@ -957,7 +961,11 @@ checkFuncForPrims' actuallySolve store q prims func = do
     fmap catMaybes . forConcurrently prims $ \prim -> do
       checkPathForPrim solver func pathPrep codeSum prim >>= \case
         Nothing -> return Nothing
-        Just cprim -> do
+        Just (Left cprimError) -> do
+          -- TODO: make this log a warning properly
+          putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+          return Nothing
+        Just (Right cprim) -> do
           let matchingPrim = MatchingPrim
                 { func = func
                 , callablePrim = cprim
@@ -1012,7 +1020,7 @@ onionSampleBasedOnFuncSize exponator store func = CfgStore.getFuncCfgInfo store 
   Just cfgInfo -> do
     let numSamples = max 1 . floor $ fromIntegral (HashSet.size $ cfgInfo ^. #nodes) ** exponator
         q = QueryExpandAll $ QueryExpandAllOpts
-            { callExpandDepthLimit = 1
+            { callExpandDepthLimit = 0
             , numSamples = numSamples
             }
     paths <- nub <$> samplesFromQuery store func q
@@ -1026,7 +1034,7 @@ matchAndReturnCallablePrim
   -> Function
   -> PathPrep
   -> Prim
-  -> IO (Maybe CallablePrimitive)
+  -> IO (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
 matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
   let mstate = M.mkMatcherState solver pprep
                & #callablePrimitives .~ callablePrimSnapshot
@@ -1045,7 +1053,11 @@ onionCheckPathForPrim
 onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
   matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
     Nothing -> return ()
-    Just cprim -> CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
+    Just (Left cprimError) -> do
+      -- TODO: make this log a warning properly
+      putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+      return ()
+    Just (Right cprim) -> CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
 
 -- | Gets cached paths for function, and checks them for each prim.
 -- Adds instances found of CallablePrimitives back into CfgStore
