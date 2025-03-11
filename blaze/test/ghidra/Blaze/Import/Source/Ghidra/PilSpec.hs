@@ -30,6 +30,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     -- stmt1: var_14#4@10 = var_14#2@10
     -- stmt2: unique_1d00#1@10 = esp_4#1@10 + offset 0xffffffac
     -- stmt3: unique_1d00#2@10 = esp_4#1@10 + offset 0xffffffac
+    let stmt00 = stmts !! 0
     let stmt0 = stmts !! 5
     let stmt1 = stmts !! 12
     let stmt2 = stmts !! 15
@@ -42,6 +43,11 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let pv2 = stmt2 ^? #statement . #_Def . #var
     let pv2_val_l = stmt2 ^? #statement . #_Def . #value . #op . #_FIELD_ADDR . #baseAddr . #op . #_VAR . #src
     let pv3 = stmt3 ^? #statement . #_Def . #var
+
+    let pv_param = stmt00 ^? #statement . #_Def . #value . #op . #_VAR . #src
+    
+    runIO $ do
+      pprint $ pv_param
     
     it "should use register names for symbols" $ do
       pv2_val_l ^? _Just . #symbol `shouldBe` Just "esp_4#1"
@@ -53,3 +59,9 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     it "should have separate number labels for assignments to the same unique var" $ do
       pv2 ^? _Just . #symbol `shouldBe` Just "unique_1d00#1"
       pv3 ^? _Just . #symbol `shouldBe` Just "unique_1d00#2"
+    
+    it "should not include version #1 on param names" $ do
+      pv_param ^? _Just . #symbol `shouldBe` Just "param"
+
+    it "param should be labelled as a param" $ do
+      pv_param ^? _Just . #isParam `shouldBe` Just True

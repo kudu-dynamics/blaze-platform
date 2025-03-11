@@ -162,8 +162,8 @@ controlledFormatStringPrim = PrimType
   }
 
 
-globalFuncVar :: FuncVar
-globalFuncVar = Prim.Global $ var "global1" 8
+globalVar :: FuncVarExpr
+globalVar = var "global1" 8
 
 fooCallablePrimitive3 :: CallablePrimitive
 fooCallablePrimitive3 = Prim.CallablePrimitive
@@ -177,8 +177,8 @@ fooCallablePrimitive3 = Prim.CallablePrimitive
         )
       )
     , ("dest"
-      , ( FuncVar globalFuncVar
-        , HashSet.fromList [globalFuncVar]
+      , ( globalVar
+        , HashSet.empty
         )
       )
     ]
@@ -193,7 +193,6 @@ fooCallablePrimitive3 = Prim.CallablePrimitive
   , linkedVars = HashSet.fromList
                  [ Prim.Arg 0
                  , Prim.Arg 1
-                 , globalFuncVar
                  ]
   }
 

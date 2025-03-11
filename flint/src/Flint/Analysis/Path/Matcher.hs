@@ -366,6 +366,9 @@ matchExpr pat expr = case pat of
     Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
       insist $ Text.isPrefixOf (cs prefixOfName) symb
     _ -> bad
+  Param -> case expr ^. #op of
+    Pil.VAR (Pil.VarOp pv) -> insist $ pv ^. #isParam
+    _ -> bad
   Immediate -> maybe bad (const good) $ evalPilArithmeticExpr expr
   Contains xpat -> do
     backtrackOnError (matchExpr xpat expr)
@@ -622,7 +625,7 @@ resolveFuncVar argExprs mRetExpr = \case
     $ op
   (Prim.FuncVar fv) -> case fv of
     Prim.Ret -> mRetExpr
-    (Prim.Global x) -> Just x -- TODO: probably remove this "Global" constructor
+    -- (Prim.Global x) -> Just x -- TODO: probably remove this "Global" constructor
     (Prim.Arg n) -> argExprs ^? ix (fromIntegral n)
 
 matchNextStmt :: Monad m => StmtPattern -> MatcherT m ()

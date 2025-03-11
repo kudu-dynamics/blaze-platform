@@ -64,6 +64,15 @@ init mDbFilePath imp = do
     <*> atomically (CM.create HashSet.empty)
 
   allFuncCfgs <- getFuncsWithCfgs imp
+  -- let internalFuncs = fst <$> allFuncCfgs
+  --     funcCfgsMapping = HashMap.fromList allFuncCfgs
+  --     callNodesMapping = getCallNodesMapping allFuncCfgs
+  --     internalCallDests :: HashMap Function (HashSet Function)
+  --     internalCallDests = fmap ( HashSet.fromList
+  --                               . mapMaybe getConcreteFuncCallDest)
+  --                         callNodesMapping
+      
+
   let funcCfgsSansPltThunks = purgeInternalPltThunks allFuncCfgs
       funcCfgsMapping = HashMap.fromList funcCfgsSansPltThunks
       callNodesMapping = getCallNodesMapping funcCfgsSansPltThunks
@@ -72,7 +81,7 @@ init mDbFilePath imp = do
                                 . mapMaybe getConcreteFuncCallDest)
                           callNodesMapping
       internalFuncs = fst <$> funcCfgsSansPltThunks
-
+  
   CC.setCalc () (store ^. #funcs) $ return internalFuncs
   CC.setCalc () (store ^. #callGraphCache) $ do
     let getCG = return $ calcCallGraphFromInternalCallDests internalCallDests

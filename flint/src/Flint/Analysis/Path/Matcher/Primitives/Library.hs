@@ -50,11 +50,8 @@ controlledFormatStringPrim :: Prim
 controlledFormatStringPrim = Prim
   { primType = controlledFormatString
   , stmtPattern =
-      [ Primitive controlledFormatString $ HashMap.fromList
-        -- TODO: change to isInput after isInput works
-        -- Notice that we have to bind "fmt" because it's a primtype var and
-        -- to make a callable primitive, all the primtype vars must be bound.
-        [ ("fmt", Bind "fmt" (Contains isArg)) ] 
+      [ Location "call" . Primitive controlledFormatString $ HashMap.fromList
+        [ ("fmt", Bind "fmt" (Contains Param)) ] 
       ]
   }
 -------------------------------------

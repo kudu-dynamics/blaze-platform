@@ -17,6 +17,7 @@ import qualified Ghidra.Types.Variable as GVar
 
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Cfg (CodeReference)
+import qualified Blaze.Types.Function as Func
 
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil
@@ -93,6 +94,7 @@ data ConverterState = ConverterState
     -- | A mapping of varnodes to their SSA versions
   , varnodeVersions :: HashMap SSAType (HashMap Int64 Int)
   , ghidraState :: GhidraState
+  , paramNames :: HashSet Symbol
   }
   deriving (Eq, Ord, Show, Generic)
 
@@ -105,8 +107,12 @@ mkConverterState gs ctx = ConverterState
   , sourceVars = HashMap.empty
   , varnodeVersions = HashMap.empty
   , ghidraState = gs
+  , paramNames = HashSet.fromList $ getParamName <$> ctx ^. #func . #params
   }
-
+  where
+    getParamName (Func.FuncParamInfo p) = p ^. #name
+    getParamName (Func.FuncVarArgInfo p) = p ^. #name
+    
 -- TODO: Why doesn't this Converter stack include ExceptT?
 -- TODO: Add map of PilVars to original vars to the state being tracked
 newtype Converter a = Converter { _runConverter :: StateT ConverterState IO a}
@@ -297,6 +303,7 @@ internVarnode s (Just pcAddress) = do
 varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Either PilVar Expression)
 varNodeToReference v = do
   ctx' <- use #ctx
+  paramNames <- use #paramNames
   let pv = C.pilVar__ (fromByteBased size) $ Just ctx'
       size :: Bytes = getSize v
       operSize :: Size Expression = Pil.widthToSize $ toBits size
@@ -304,17 +311,27 @@ varNodeToReference v = do
     VReg{offset, pcAddress} -> do
       prg <- use $ #ghidraState . #program
       reg <- liftIO . runGhidraOrError $ getRegister prg offset (fromIntegral size)
-      let name = fromMaybe (getRegisterName offset size reg) specialName
       version <- lift $ internVarnode (SSAReg offset) pcAddress
-      pure . Left . pv (maybe name (\ver -> name <> "#" <> show ver) version) False $ Pil.Register name
+      let regName = getRegisterName offset size reg
+      let name = case specialName of
+            Nothing -> maybe regName (\ver -> regName <> "#" <> show ver) version
+            Just name' -> case version of
+              Nothing -> name'
+              Just 1 -> name' -- ignore version in name (for sake of params)
+              Just ver -> name' <> "#" <> show ver
+      -- let name = fromMaybe (getRegisterName offset size reg) specialName
+      -- version <- lift $ internVarnode (SSAReg offset) pcAddress
+      pure . Left . pv name (HashSet.member name paramNames) $ Pil.Register regName
     VStack{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAStack offset) pcAddress
-      let baseName = fromMaybe (stackVarName offset) specialName
-          name = maybe
-                 baseName
-                 (\ver -> baseName <> "#" <> show ver)
-                 version
-      pure . Left . pv name False $ Pil.StackMemory offset
+      let stackName = stackVarName offset
+      let name = case specialName of
+            Nothing -> maybe stackName (\ver -> stackName <> "#" <> show ver) version
+            Just name' -> case version of
+              Nothing -> name'
+              Just 1 -> name' -- ignore version in name (for sake of params)
+              Just ver -> name' <> "#" <> show ver              
+      pure . Left . pv name (HashSet.member name paramNames) $ Pil.StackMemory offset
     VUnique{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
       let baseName = fromMaybe ("unique_" <> showHex offset) specialName

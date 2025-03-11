@@ -126,6 +126,9 @@ data ExprPattern
   -- Also matches against ConstFuncPtrs that a name.
   | Var (Symbol Pil.Expression)
 
+  -- | Matches on vars that are parameters to the func
+  | Param
+
   -- | Matches if its an immediate, like a const int, ptr, float, etc.
   | Immediate
 
