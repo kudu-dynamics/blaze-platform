@@ -18,9 +18,6 @@ import Flint.Types.Cfg.Store (CfgStore)
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Source.Ghidra (GhidraImporter)
-import Blaze.Pretty (prettyStmts')
-import Blaze.Types.Function (Function(Function))
-import qualified Blaze.Types.Graph as G
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -64,15 +61,8 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
           action = do
             funcs <- Store.getFuncs $ tctx ^. #dirtyStore
-            -- funcs' <- CG.getFunctions $ tctx ^. #dirtyImp
-            -- funcs'' <- fmap (fmap fst) . Store.getFuncsWithCfgs $ tctx ^. #dirtyImp
-            -- pprint . sort $ simpleFunc <$> funcs'
-            -- pprint . sort $ simpleFunc <$> funcs''
             let cprims = getInitialPrimitives stdLibPrims funcs
-            pprint cprims
 
-            -- Store.populateInitialPrimitives stdLibPrims $ tctx ^. #dirtyStore
-            -- cprims <- CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
             return $ do
               (s :: HashSet CallablePrimitive) <- HashMap.lookup PrimLib.controlledFormatString cprims
               return
@@ -86,40 +76,26 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
       action `shouldReturn` expected
 
     it "should find fmt string prim in func with direct format string prim" $ \tctx -> do
-      -- TODO: matchAndReturnCallablePrim for single path
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
-          prim = PrimLib.controlledFormatStringPrim
           action = do
             funcs <- Store.getFuncs $ tctx ^. #dirtyStore
-            -- printfThunk <- fromJust <$> CG.getFunction (tctx ^. #dirtyImp) 0x0101270
             func <- fromJust <$> CG.getFunction (tctx ^. #dirtyImp) 0x0101d88
             let q = QueryExpandAll $ QueryExpandAllOpts
                   { callExpandDepthLimit = 0
                   , numSamples = 1
                   }
-            -- [printfThunkPath] <- samplesFromQuery (tctx ^. #dirtyStore) printfThunk q
             [path] <- samplesFromQuery (tctx ^. #dirtyStore) func q
             let initialCallablePrims = getInitialPrimitives stdLibPrims funcs
-                -- printfThumPrep = mkPathPrep [] printfThunkPath
                 pprep = mkPathPrep [] path
 
-            putText "+++++ initialCallablePrims"
-            pprint initialCallablePrims 
-            prettyStmts' $ pprep ^. #stmts
-            pprint $ pprep ^. #stmts
-
             r <- matchAndReturnCallablePrim (chooseSolver False) initialCallablePrims func pprep PrimLib.controlledFormatStringPrim
-            putText "|||||||||||||"
-            pprint r
             return r
           expected = Just . Right $ PrimLib.controlledFormatString
 
-      ((fmap (fmap $ view #prim)) <$> action) `shouldReturn` expected
+      (fmap (fmap $ view #prim) <$> action) `shouldReturn` expected
 
       
     it "dirty_benchmark" $ \tctx -> do
-      
-      -- TODO: matchAndReturnCallablePrim for single path
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
           prims = [PrimLib.controlledFormatStringPrim]
           action = do
