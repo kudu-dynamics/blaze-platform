@@ -21,7 +21,7 @@ import Control.Concurrent.STM.TMVar (newEmptyTMVarIO, putTMVar, readTMVar)
 import Data.ByteString qualified as BS
 import System.IO.Memoize (once)
 import System.Directory (canonicalizePath, doesFileExist)
-
+import qualified Language.Java as Java
 import Data.IORef
 
 newtype JVMException = JVMException Text
@@ -115,6 +115,7 @@ stopJVMIfRunning = do
         -- JVM is started, destroy it
         Just jvm -> do
           JNI.attachCurrentThreadAsDaemon
+          () <- Java.callStatic "java.lang.System" "exit" (0 :: Int32)
           JNI.destroyJVM jvm
           -- Only the jvms ref is cleared, the jvmStartedEver ref is not cleared
           -- be cause we cannot re-start a JVM, this flag must remain set.
