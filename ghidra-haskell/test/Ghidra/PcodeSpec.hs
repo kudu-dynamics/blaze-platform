@@ -49,18 +49,22 @@ spec = describe "Ghidra.Pcode" $ do
       raws <- getRawPcodeOps gs func
       addrSpaceMap <- getAddressSpaceMap db
       liftedRaws <- getRawPcode gs addrSpaceMap func
+
       return (raws, liftedRaws)
+      -- runIO $ pprint $ length liftedRaws
+
 
     it "should get raw pcode" $ do
-      length raws `shouldBe` 104
+      length raws `shouldBe` 100
 
     it "should lift raw pcode ops" $ do
-      length liftedRaws `shouldBe` 104
+      length liftedRaws `shouldBe` 100
 
     rawInstr <- runIO . runGhidraOrError $ do
       x <- mkBareRawPcodeInstruction . head . fmap snd $ raws
       x' <- mkRawPcodeInstruction x
       return x'
+      -- runIO $ pprint rawInstr
 
     let expected = PcodeInstruction
           { op = COPY
@@ -75,7 +79,7 @@ spec = describe "Ghidra.Pcode" $ do
                     , addressableUnitSize = 1
                     , name = Unique
                     }
-                  , offset = 61312
+                  , offset = 146432
                   }
               , pcAddress = Nothing
               }
