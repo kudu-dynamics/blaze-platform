@@ -49,10 +49,8 @@ spec = describe "Ghidra.Pcode" $ do
       raws <- getRawPcodeOps gs func
       addrSpaceMap <- getAddressSpaceMap db
       liftedRaws <- getRawPcode gs addrSpaceMap func
-      
       return (raws, liftedRaws)
-    -- runIO $ pprint $ length liftedRaws
-
+      -- runIO $ pprint $ length liftedRaws
 
     it "should get raw pcode" $ do
       length raws `shouldBe` 100
