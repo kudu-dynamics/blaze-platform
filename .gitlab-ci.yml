@@ -47,8 +47,8 @@ stages:
       '
   after_script:
     # See https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
-    #- docker buildx stop || true
-    #- docker buildx rm -f || true
+    - docker buildx stop || true
+    - docker buildx rm -f || true
   # Grr, we randomly get weird docker/buildx/buildkit/gitlab container registry issues
   retry: 2
 
