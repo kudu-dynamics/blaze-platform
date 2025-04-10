@@ -25,6 +25,7 @@ stages:
 .docker:
   image:
     name: docker:dind
+    entrypoint: [""]
     command: ["--insecure-registry=registry.gitlab.pd.kududyn.com"]
   tags:
     - dind
