@@ -24,6 +24,7 @@ stages:
 .docker:
   image:
     name: docker:cli
+    command: ["--insecure-registry=registry."]
   tags:
     - dind
   before_script:
