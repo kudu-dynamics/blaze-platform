@@ -32,6 +32,9 @@ stages:
     - df -h
     - apk add curl
     - if [[ $CI_SERVER_HOST == code.* ]]; then docker system prune -af; fi
+    - echo ${CI_REGISTRY_USER}
+    - echo ${CI_JOB_TOKEN}
+    - echo ${CI_REGISTRY}
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
     # --oci-worker-gc=false: see https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
     - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --use
