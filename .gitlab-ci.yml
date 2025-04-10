@@ -1,7 +1,6 @@
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   HASKELL_OPTIM: "-O0"
-  DOCKER_TLS_CERTDIR: ""  # Disable cert dir for dind
   
 workflow:
   rules:
@@ -25,8 +24,6 @@ stages:
 .docker:
   image:
     name: docker:dind
-    entrypoint: [""]
-    command: ["--insecure-registry=registry.gitlab.pd.kududyn.com"]
   tags:
     - dind
   before_script:
