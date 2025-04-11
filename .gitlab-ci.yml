@@ -2,7 +2,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   HASKELL_OPTIM: "-O0"
   DOCKER_OPTS: "--insecure-registry=registry.gitlab.pd.kududyn.com"
-  DOCKER_TLS_CERTDIR: ""
+  DOCKER_TLS_CERTDIR: "/certs"
 
 workflow:
   rules:
@@ -26,6 +26,9 @@ stages:
 .docker:
   image:
     name: docker:dind
+    volumes:
+      - /certs/client
+      - $REGISTRY_CA_CERT:/etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt:ro
   tags:
     - dind
   before_script:
