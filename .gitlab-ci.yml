@@ -24,6 +24,10 @@ stages:
 .docker:
   image:
     name: docker:dind
+    services:
+    - name: docker:dind
+      command: ["--insecure-registry=registry.gitlab.pd.kududyn.com"]
+      alias: docker
   tags:
     - dind
   before_script:    
