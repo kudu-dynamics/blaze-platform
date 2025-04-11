@@ -19,7 +19,7 @@ stages:
   - build
   - test
   - push
-  - submit 
+  - submit
 
 .docker:
   image:
@@ -38,7 +38,7 @@ stages:
     - if [[ $CI_SERVER_HOST == code.* ]]; then docker system prune -af; fi
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
     # --oci-worker-gc=false: see https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
-    - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false --allow-insecure-entitlement network.host,security.insecure' --use
+    - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --use
     - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
     - '
       curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
@@ -64,7 +64,6 @@ base-images:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow security.insecure
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
@@ -83,7 +82,6 @@ just-deps:
     - docker buildx build --push
         --pull
         --provenance=false
-        ---allow security.insecure
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
@@ -132,7 +130,6 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow security.insecure
         --target builder
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
@@ -143,7 +140,6 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow security.insecure
         --target builder-binaryninja
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
@@ -156,7 +152,6 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow security.insecure
         --target deliver
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":latest
@@ -166,7 +161,6 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow security.insecure
         --target deliver-binaryninja
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:latest
