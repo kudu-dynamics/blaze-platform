@@ -19,7 +19,7 @@ stages:
   - build
   - test
   - push
-  - submit
+  - submit 
 
 .docker:
   image:
