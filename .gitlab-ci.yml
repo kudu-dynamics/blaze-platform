@@ -2,8 +2,8 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   HASKELL_OPTIM: "-O0"
   DOCKER_OPTS: "--insecure-registry=registry."
-  DOCKER_TLS_CERTDIR: "/certs"
-  DOCKER_TLS_VERIFY: "1"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_TLS_VERIFY: "0"
 
 workflow:
   rules:
@@ -29,14 +29,7 @@ stages:
     name: docker:dind
   tags:
     - dind
-  before_script:
-        # Configure Docker client to use generated TLS certificates
-    - mkdir -p ~/.docker
-    - cp /certs/client/ca.pem ~/.docker/ca.pem
-    - cp /certs/client/cert.pem ~/.docker/cert.pem
-    - cp /certs/client/key.pem ~/.docker/key.pem
-    - chmod 600 ~/.docker/*.pem
-    
+  before_script:    
     - mkdir -p /etc/docker/certs.d/registry.
     - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry./ca.crt
     - cat /etc/docker/certs.d/registry./ca.crt
