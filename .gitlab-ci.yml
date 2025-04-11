@@ -31,6 +31,7 @@ stages:
   before_script:
     - mkdir -p /etc/docker/certs.d/registry.gitlab.pd.kududyn.com
     - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
+    - cat /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
     - env
     - docker context list
     - df -h
