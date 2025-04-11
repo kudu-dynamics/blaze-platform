@@ -2,6 +2,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   HASKELL_OPTIM: "-O0"
   DOCKER_OPTS: "--insecure-registry=registry.gitlab.pd.kududyn.com"
+  DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
   DOCKER_TLS_VERIFY: "0"
 
