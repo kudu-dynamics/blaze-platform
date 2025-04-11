@@ -32,13 +32,16 @@ stages:
     - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
     - cat /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
     - env
+      # Setup BuildKit cert trust
+    - mkdir -p /etc/buildkit/certs/
+    - cp $REGISTRY_CA_CERT /etc/buildkit/certs/ca.crt
     - docker context list
     - df -h
     - apk add curl
     - if [[ $CI_SERVER_HOST == code.* ]]; then docker system prune -af; fi
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
     # --oci-worker-gc=false: see https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
-    - docker buildx create --name blaze-platform-builder --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --use
+    - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --config .docker/buildkit.toml --use
     - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
     - '
       curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
@@ -140,7 +143,6 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow security.insecure
         --target builder-binaryninja
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
