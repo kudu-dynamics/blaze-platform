@@ -1,9 +1,9 @@
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   HASKELL_OPTIM: "-O0"
-  DOCKER_OPTS: "--insecure-registry=my.private.registry.com"
+  DOCKER_OPTS: "--insecure-registry=registry."
   DOCKER_TLS_CERTDIR: ""
-  
+
 workflow:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
