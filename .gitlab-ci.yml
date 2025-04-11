@@ -3,6 +3,7 @@ variables:
   HASKELL_OPTIM: "-O0"
   DOCKER_OPTS: "--insecure-registry=registry.gitlab.pd.kududyn.com"
   DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: "1"
 
 workflow:
   rules:
@@ -32,6 +33,7 @@ stages:
     - mkdir -p /etc/docker/certs.d/registry.gitlab.pd.kududyn.com
     - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
     - cat /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
+    - docker ps
     - env
     - docker context list
     - df -h
