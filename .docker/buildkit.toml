@@ -1,0 +1,2 @@
+[registry."registry.gitlab.pd.kududyn.com"]
+  ca = ["/etc/buildkit/certs/ca.crt"]
