@@ -64,7 +64,7 @@ base-images:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow insecure=registry.gitlab.pd.kududyn.com
+        --allow security.insecure
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/haskell:cache
@@ -83,7 +83,7 @@ just-deps:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow insecure=registry.gitlab.pd.kududyn.com
+        ---allow security.insecure
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:latest
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
@@ -132,7 +132,7 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow insecure=registry.gitlab.pd.kududyn.com
+        --allow security.insecure
         --target builder
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
@@ -143,7 +143,7 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow insecure=registry.gitlab.pd.kududyn.com
+        --allow security.insecure
         --target builder-binaryninja
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
@@ -156,7 +156,7 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow insecure=registry.gitlab.pd.kududyn.com
+        --allow security.insecure
         --target deliver
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}":latest
@@ -166,7 +166,7 @@ build:
     - docker buildx build --push
         --pull
         --provenance=false
-        --allow insecure=registry.gitlab.pd.kududyn.com
+        --allow security.insecure
         --target deliver-binaryninja
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
         --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:latest
