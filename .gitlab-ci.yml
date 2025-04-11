@@ -26,12 +26,11 @@ stages:
 .docker:
   image:
     name: docker:dind
-    volumes:
-      - /certs/client
-      - $REGISTRY_CA_CERT:/etc/docker/certs.d/registry./ca.crt:ro
   tags:
     - dind
   before_script:
+    - mkdir -p /etc/docker/certs.d/registry.
+    - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry./ca.crt
     - env
     - docker context list
     - df -h
