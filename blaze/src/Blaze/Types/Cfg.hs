@@ -25,7 +25,6 @@ import Blaze.Types.Pil qualified as Pil
 import Blaze.Util (getMemoized)
 
 import Control.Arrow ((&&&))
-import Control.Lens (ix)
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet

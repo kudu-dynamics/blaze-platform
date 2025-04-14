@@ -1,3 +1,13 @@
+### special side-directions for MacOS
+
+- Install the build-essentials stuff from x tools. OSX doesn't have the build-essential package in their repository, but it should automatically prompt the equivalent when trying to download build-essential
+- Get Haskell via the install_notes.txt instructions
+- Get Homebrew and install openjdk@21. Do not get the oracle version or any other version, if you do you have to remove it
+- get the blaze repo
+- run getGhidraJar.sh on the ghidra-haskell directory (so your terminal would be ghidra-haskell > ./scripts/getGhidraJar.sh
+- run `stack build` and `stack test` in the ghidra-haskell library
+
+
 ### install for Debian
 
 sudo apt-get install build-essential curl libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev libncurses6 libtinfo6 pkg-config git cmake z3
@@ -12,10 +22,10 @@ ghcup install stack
 
 
 ### java ####
-sudo apt-get install openjdk-17-jdk openjdk-17-jre
+sudo apt-get install openjdk-21-jdk openjdk-21-jre
 
 # add this to .bashrc or env:
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 export LD_LIBRARY_PATH=$JAVA_HOME/lib/server:$LD_LIBRARY_PATH
 
 source ~/.bashrc

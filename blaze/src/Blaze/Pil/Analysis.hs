@@ -8,6 +8,7 @@ module Blaze.Pil.Analysis
 import qualified Blaze.Pil.Construct as C
 import Blaze.Prelude hiding
   ( Symbol,
+    ix,
     group,
     pi,
     trace,
