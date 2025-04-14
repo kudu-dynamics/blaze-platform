@@ -3,7 +3,7 @@ module Ghidra.State where
 import Ghidra.Prelude hiding (force, get)
 
 import qualified Language.Java as Java
-import Ghidra.Util (iteratorToList, maybeNullCall, suppressOut, tryJVM, getDomainObject)
+import Ghidra.Util (iteratorToList, maybeNullCall, suppressOut, tryJVM, getDomainObject, maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Data.BinaryAnalysis as BA
@@ -166,11 +166,39 @@ mkAddressBased gs addr = do
   runIO $ Java.call baseAddr "add" (fromIntegral addr :: Int64)
 
 -- | Makes a new address
-mkAddress :: GhidraState -> BA.Address -> Ghidra J.Address
-mkAddress gs addr = do
+mkAddress_ :: GhidraState -> Int64 -> Ghidra J.Address
+mkAddress_ gs addr = do
   prg <- getProgram gs
   baseAddr :: J.Address <- runIO $ Java.call prg "getImageBase" >>= JNI.newGlobalRef
-  runIO $ Java.call baseAddr "getNewAddress" (fromIntegral addr :: Int64)
+  runIO $ Java.call baseAddr "getNewAddress" addr
+
+-- | Makes a new address
+mkAddress :: GhidraState -> BA.Address -> Ghidra J.Address
+mkAddress gs addr = do
+  mkAddress_ gs (fromIntegral addr :: Int64)
+
+getMemoryMap :: GhidraState -> Ghidra J.MemoryMapDB
+getMemoryMap gs = do
+  prg <- getProgram gs
+  runIO $ Java.call prg "getMemory"  >>= JNI.newGlobalRef
+
+getMemoryBlockAtAddress :: GhidraState -> Int64 -> Ghidra (Maybe J.MemoryBlock)
+getMemoryBlockAtAddress gs addr = do
+  mm :: J.MemoryMapDB <- getMemoryMap gs
+  anAddr <- mkAddress_ gs addr
+  maybeNull <$> runIO ( Java.call mm "getBlock" anAddr  >>= JNI.newGlobalRef)
+  
+getSegmentBlockName :: J.MemoryBlock -> Ghidra Text
+getSegmentBlockName memBlock = do
+  runIO $ Java.call memBlock "getName" >>=  Java.reify
+
+getSegmentBlockFromAddress :: GhidraState -> Int64 -> Ghidra (Maybe Text)
+getSegmentBlockFromAddress gs addr = do
+  mblock <- getMemoryBlockAtAddress gs addr
+  case mblock of
+    Nothing -> return Nothing
+    Just block -> do
+      Just <$> getSegmentBlockName block
 
 saveDatabase :: GhidraState -> FilePath -> Ghidra ()
 saveDatabase gs fp = runIO $ do

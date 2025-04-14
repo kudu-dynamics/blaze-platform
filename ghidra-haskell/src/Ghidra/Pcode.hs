@@ -129,7 +129,7 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
   BRANCHIND -> L.BRANCHIND <$> input 0
   CALL -> L.CALL (Output <$> x ^. #output) <$> inputDest 0 <*> inputList 1
   CALLIND -> L.CALLIND (Output <$> x ^. #output) <$> input 0 <*> inputList 1
-  CALLOTHER -> unknown "CALLOTHER" -- L.CALLOTHER <$> input 0 <*> inputList 1
+  CALLOTHER -> L.CALLOTHER <$> input 0 <*> inputList 1
   CAST -> unOp L.CAST
   CBRANCH -> L.CBRANCH <$> inputDest 0 <*> input 1
   COPY -> unOp L.COPY

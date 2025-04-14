@@ -49,3 +49,9 @@ spec = describe "Ghidra.Address" $ do
 
     it "should get all address spaces" $ do
       sort names `shouldBe` sort expectedNames
+
+  context "getSegment" $ do
+    seg <- runIO . runGhidraOrError $ State.getSegmentBlockFromAddress gs 0x010403c
+
+    it "should get proper segment" $ do
+      seg `shouldBe` Just ".bss"

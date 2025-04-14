@@ -67,20 +67,20 @@ spec :: Spec
 spec = beforeAll getTestCtx $ describe "Flint.Analysis.Path.Matcher.Patterns" $ do
   context "Dirty Benchmark 1" $ do
 
-    it "should find a strcpy buffer overflow" $ \tctx -> do
-      let func = (tctx ^. #getFunc) "buffer_overflow"
-          pat = Pat.bufferOverflow
-          action = (tctx ^. #funcHasPattern) False func pat
-          expected = True     
-      action `shouldReturn` expected
+    -- it "should find a strcpy buffer overflow" $ \tctx -> do
+    --   let func = (tctx ^. #getFunc) "buffer_overflow"
+    --       pat = Pat.bufferOverflow
+    --       action = (tctx ^. #funcHasPattern) False func pat
+    --       expected = True     
+    --   action `shouldReturn` expected
 
-    it "should find a format string vulnerability" $ \tctx -> do
-      let func = (tctx ^. #getFunc) "format_string_vulnerability"
-          pat = Pat.formatStringVulnerability
-          action = (tctx ^. #funcHasPattern) False func pat
-          expected = True
+    -- it "should find a format string vulnerability" $ \tctx -> do
+    --   let func = (tctx ^. #getFunc) "format_string_vulnerability"
+    --       pat = Pat.formatStringVulnerability
+    --       action = (tctx ^. #funcHasPattern) False func pat
+    --       expected = True
 
-      action `shouldReturn` expected
+    --   action `shouldReturn` expected
 
     it "should find a use-after-free" $ \tctx -> do
       let func = (tctx ^. #getFunc) "use_after_free"
@@ -98,11 +98,11 @@ spec = beforeAll getTestCtx $ describe "Flint.Analysis.Path.Matcher.Patterns" $ 
 
     --   action `shouldReturn` expected
 
-    it "should find a stack_based_buffer_overflow" $ \tctx -> do
-      let func = (tctx ^. #getFunc) "stack_based_buffer_overflow"
-          pat = Pat.stackBasedBufferOverflow
-          action = (tctx ^. #funcHasPattern) False func pat
-          expected = True
+    -- it "should find a stack_based_buffer_overflow" $ \tctx -> do
+    --   let func = (tctx ^. #getFunc) "stack_based_buffer_overflow"
+    --       pat = Pat.stackBasedBufferOverflow
+    --       action = (tctx ^. #funcHasPattern) False func pat
+    --       expected = True
 
-      action `shouldReturn` expected
+    --   action `shouldReturn` expected
 

@@ -9,7 +9,7 @@ module Blaze.Pil.Solver
   , module Exports
   ) where
 
-import Blaze.Prelude hiding (error, zero, natVal, isSigned)
+import Blaze.Prelude hiding (error, ix, zero, natVal, isSigned)
 import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil ( Expression
