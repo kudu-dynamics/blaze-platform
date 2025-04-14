@@ -1,6 +1,6 @@
 module Main where
 
-import Blaze.Prelude
+import Blaze.Prelude hiding (ix)
 
 import Blaze.Import.Source.BinaryNinja.MLIL (getInstructionsWithOpByName)
 import qualified Data.Text as Text
