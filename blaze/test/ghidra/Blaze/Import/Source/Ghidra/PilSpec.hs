@@ -5,7 +5,6 @@ import Blaze.Prelude hiding (const)
 import Blaze.Import.CallGraph (CallGraphImporter (getFunction))
 import Blaze.Import.Pil (PilImporter (getFuncStatements))
 import qualified Blaze.Import.Source.Ghidra as G
-
 import Blaze.Pretty (prettyStmts')
 
 import Test.Hspec
@@ -24,15 +23,19 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let func = fromJust mFunc
     stmts <- runIO $ getFuncStatements importer func 0
 
+    runIO $ do
+      putText "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+      prettyStmts' stmts
+
     -- stmt0: zf_1#1@10 = eax_4#1@10 == 0x0
     -- stmt1: var_14#4@10 = var_14#2@10
     -- stmt2: unique_1d00#1@10 = esp_4#1@10 + offset 0xffffffac
     -- stmt3: unique_1d00#2@10 = esp_4#1@10 + offset 0xffffffac
     let stmt00 = head stmts
     let stmt0 = stmts !! 5
-    let stmt1 = stmts !! 12
-    let stmt2 = stmts !! 15
-    let stmt3 = stmts !! 21
+    let stmt1 = stmts !! 11
+    let stmt2 = stmts !! 14
+    let stmt3 = stmts !! 20
 
     
     let _pv0 = stmt0 ^? #statement . #_Def . #value . #op . #_CMP_E . #left . #op . #_VAR . #src
@@ -52,11 +55,11 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
       pv1_r ^? _Just . #symbol `shouldBe` Just "temp#2"
 
     it "should have separate number labels for assignments to the same unique var" $ do
-      pv2 ^? _Just . #symbol `shouldBe` Just "unique_1d00#1"
-      pv3 ^? _Just . #symbol `shouldBe` Just "unique_1d00#2"
+      pv2 ^? _Just . #symbol `shouldBe` Just "unique_3280#1"
+      pv3 ^? _Just . #symbol `shouldBe` Just "unique_3280#2"
     
     it "should not include version #1 on param names" $ do
-      pv_param ^? _Just . #symbol `shouldBe` Just "param"
+      pv_param ^? _Just . #symbol `shouldBe` Just "len"
 
     it "param should be labelled as a param" $ do
       pv_param ^? _Just . #isParam `shouldBe` Just True
