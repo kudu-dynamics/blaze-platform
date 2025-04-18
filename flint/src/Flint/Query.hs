@@ -47,7 +47,6 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 
 import Data.List (nub)
-import Data.List.NonEmpty ((<|))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE

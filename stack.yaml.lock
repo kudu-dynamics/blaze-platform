@@ -42,7 +42,7 @@ packages:
     git: https://github.com/kudu-dynamics/inline-java.git
     subdir: jvm
 - completed:
-    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    commit: ecb3321f9cca116f658590f35a5e85fa0c6dd929
     git: https://github.com/kudu-dynamics/selda.git
     name: selda
     pantry-tree:
@@ -51,25 +51,25 @@ packages:
     subdir: selda
     version: 0.5.2.1
   original:
-    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    commit: ecb3321f9cca116f658590f35a5e85fa0c6dd929
     git: https://github.com/kudu-dynamics/selda.git
     subdir: selda
 - completed:
-    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    commit: ecb3321f9cca116f658590f35a5e85fa0c6dd929
     git: https://github.com/kudu-dynamics/selda.git
     name: selda-sqlite
     pantry-tree:
-      sha256: 2e546e059aa264aa04ccdda75c6f394f7b52f75e2ea2739ba222f72b683395db
+      sha256: 6cb8a0752738c24b5ae9cd2978a2e28c1af5018dd5fbe852a93ecf4a8553ce47
       size: 305
     subdir: selda-sqlite
     version: 0.1.7.2
   original:
-    commit: efde67c131deea943e1d76e26449aa8da46c2d01
+    commit: ecb3321f9cca116f658590f35a5e85fa0c6dd929
     git: https://github.com/kudu-dynamics/selda.git
     subdir: selda-sqlite
 snapshots:
 - completed:
-    sha256: 2fdd7d3e54540062ef75ca0a73ca3a804c527dbf8a4cadafabf340e66ac4af40
-    size: 712469
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/22/11.yaml
-  original: lts-22.11
+    sha256: d133abe75e408a407cce3f032c96ac1bbadf474a93b5156ebf4135b53382d56b
+    size: 683827
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/23/18.yaml
+  original: lts-23.18

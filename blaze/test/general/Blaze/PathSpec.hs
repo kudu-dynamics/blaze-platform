@@ -484,13 +484,13 @@ spec = describe "Blaze.Path" $ do
       let graph = graphMultiPath :: TextGraph
           requiredNodes = HashSet.empty
           dmap = graphMultiPathDmap
-          expected = Right . mkTextPath <$>
+          expected = fmap mkTextPath
                      [ start "a" -| 1 |- "b" -| 2 |- "c" -| 7 |- "fin"
                      , start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d" -| 4 |- "fin"
+                     , start "a" -| 1 |- "b" -| 5 |- "e" -| 6 |- "fin"
                      ]
           action = sampleRandomPath_ returnLowest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
-      result <- action
-      result `shouldSatisfy` (`elem` expected)
+      fmap (`elem` expected) <$> action `shouldReturn` Right True
 
     it "should get path using rigged lowest-of-range random generator with required node" $ do
       let graph = graphMultiPath :: TextGraph
@@ -505,10 +505,13 @@ spec = describe "Blaze.Path" $ do
       let graph = graphMultiPath :: TextGraph
           requiredNodes = HashSet.empty
           dmap = graphMultiPathDmap
-          expected = Right . mkTextPath
-            $ start "a" -| 1 |- "b" -| 5 |- "e" -| 6 |- "fin"
+          expected = fmap mkTextPath
+                     [ start "a" -| 1 |- "b" -| 2 |- "c" -| 7 |- "fin"
+                     , start "a" -| 1 |- "b" -| 2 |- "c" -| 3 |- "d" -| 4 |- "fin"
+                     , start "a" -| 1 |- "b" -| 5 |- "e" -| 6 |- "fin"
+                     ]
           action = sampleRandomPath_ returnHighest dmap noRevisit 0 "a" graph requiredNodes :: IO (Either (SampleRandomPathError' Text) TextPath)
-      action `shouldReturn` expected
+      fmap (`elem` expected) <$> action `shouldReturn` Right True
 
   context "samplePath_ sequence" $ do
     it "should return Left error if graph is empty" $ do

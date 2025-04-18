@@ -117,7 +117,7 @@ openDatabase' opts fp = do
       -- Presently, this object implementing the `Program` interface is always
       -- a `ProgramDB` class instance.
       prgs :: [J.Program] <- traverse getDomainObject loadedProgs
-      let prg = head prgs
+      prg <- maybe (error "Couldn't find any J.Program for Ghidra db") return $ headMay prgs
       flatApi :: J.FlatProgramAPI <- runIO $ Java.new prg >>= JNI.newGlobalRef
       flatDecApi :: J.FlatDecompilerAPI <- runIO $ Java.new flatApi >>= JNI.newGlobalRef
       return $ GhidraState tm (coerce prg :: J.ProgramDB) flatApi flatDecApi

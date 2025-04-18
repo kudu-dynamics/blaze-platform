@@ -6,7 +6,7 @@ where
 
 import Blaze.Prelude
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Graph as Exports hiding (edge, label, src, dst)
+import Blaze.Types.Graph as Exports
 import qualified Blaze.Types.Graph.EdgeGraph as Eg
 import Blaze.Types.Graph.EdgeGraph (EdgeGraphNode (NodeNode, EdgeNode))
 import qualified Data.HashSet as HashSet

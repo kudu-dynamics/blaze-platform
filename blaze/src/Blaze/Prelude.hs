@@ -25,6 +25,7 @@ module Blaze.Prelude
   , truncateMiddle
   , twaddleUUID
   , unfoldWhileJustM
+  , unsafeHead
   , unsafeFromRight
   , ByteBased(toBytes_, fromBytes_)
   , fromByteBased
@@ -97,10 +98,10 @@ import Data.Generics.Product.Fields as Exports (HasField(field), HasField'(field
 import Data.Generics.Sum as Exports (_Ctor)
 import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
-
+import Data.List.NonEmpty as Exports ((<|))
 import Data.Maybe as Exports (fromJust)
 import Data.SBV.Internals (SBV (SBV, unSBV), SVal)
-import Data.SBV.Tools.Overflow (ArithOverflow (bvAddO, bvDivO, bvMulO, bvMulOFast, bvNegO, bvSubO))
+import Data.SBV.Tools.Overflow (ArithOverflow (bvAddO, bvDivO, bvMulO, bvNegO, bvSubO))
 import Data.SBV.Trans (SBool, SInt, SWord)
 import Data.String.Conversions as Exports (cs)
 import qualified Data.Text.Lazy as LT (Text)
@@ -190,14 +191,13 @@ unfoldWhileJustM p = do
     _ -> return []
 --------------
 
-l2 :: (SVal -> SVal -> (SBool, SBool)) -> SBV a -> SBV a -> (SBool, SBool)
+l2 :: (SVal -> SVal -> SBool) -> SBV a -> SBV a -> SBool
 l2 f (SBV a) (SBV b) = f a b
 
 instance ArithOverflow (SWord 128) where
   bvAddO = l2 bvAddO
   bvSubO = l2 bvSubO
   bvMulO = l2 bvMulO
-  bvMulOFast = l2 bvMulOFast
   bvDivO = l2 bvDivO
   bvNegO = bvNegO . unSBV
 
@@ -205,7 +205,6 @@ instance ArithOverflow (SInt 128) where
   bvAddO = l2 bvAddO
   bvSubO = l2 bvSubO
   bvMulO = l2 bvMulO
-  bvMulOFast = l2 bvMulOFast
   bvDivO = l2 bvDivO
   bvNegO = bvNegO . unSBV
 
@@ -215,6 +214,10 @@ newtype PShow a = PShow a
 
 instance Show a => Show (PShow a) where
   show (PShow x) = cs $ pshow x
+
+unsafeHead :: [a] -> a
+unsafeHead [] = error "unsafeHead: got empty list"
+unsafeHead (x:_) = x
 
 unsafeFromRight :: forall e a. Show e => Either e a -> a
 unsafeFromRight = \case

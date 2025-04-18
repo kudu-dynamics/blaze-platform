@@ -50,7 +50,7 @@ import Blaze.Types.Pil (Ctx, Expression, PilVar, FuncVar, Stmt, AddressableState
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
-import Blaze.Types.Pil.Checker hiding (stmtIndex)
+import Blaze.Types.Pil.Checker
 import Blaze.Pil.Checker.Constraints (addStmtTypeConstraints)
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Analysis ( originMapToGroupMap )

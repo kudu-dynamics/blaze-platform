@@ -9,8 +9,6 @@ module Binja.C.Enums where
 
 import Binja.Prelude hiding (from, to)
 
-import Prelude (error)
-
 #include <binaryninjacore.h>
 
 {#context lib="binaryninjacore" #}

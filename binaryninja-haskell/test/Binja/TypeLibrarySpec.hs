@@ -6,7 +6,6 @@ import qualified Binja.Core as BN
 import Binja.Core (BNBinaryView)
 import Test.Hspec
 import qualified Binja.TypeLibrary as BT
-import Prelude (error)
 import Data.Text (unpack)
 
 typeLibTestBin :: FilePath
@@ -32,7 +31,7 @@ spec = describe "Binja.TypeLibrary" $ do
     it "should find a type library for TypeLibTest bin" $ do
       length tlibs `shouldBe` 1
 
-    xs <- runIO $ BT.getFunctionTypes (head tlibs)
+    xs <- runIO $ BT.getFunctionTypes (unsafeHead tlibs)
 
     it "should load some type lib FunctionTypes" $ do
       null xs `shouldBe` False

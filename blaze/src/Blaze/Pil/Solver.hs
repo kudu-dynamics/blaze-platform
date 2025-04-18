@@ -615,10 +615,10 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.ADD x -> integralBinOpMatchSecondArgToFirst x svPlus
 
   Pil.ADD_WILL_CARRY x ->
-    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO (svUnsign a) (svUnsign b)
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ bvAddO (svUnsign a) (svUnsign b)
 
   Pil.ADD_WILL_OVERFLOW x ->
-    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvAddO (svSign a) (svSign b)
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ bvAddO (svSign a) (svSign b)
 
   Pil.ARRAY_ADDR x -> do
     base <- solveExprRec (x ^. #base)
@@ -851,7 +851,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.SUB x -> integralBinOpMatchSecondArgToFirst x svMinus
 
   Pil.SUB_WILL_OVERFLOW x ->
-    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ uncurry (.||) $ bvSubO (svSign a) (svSign b)
+    integralBinOpMatchSecondArgToFirst x $ \a b -> unSBV $ bvSubO (svSign a) (svSign b)
 
   Pil.SX x -> bitVectorUnOp x (signExtend sz)
 

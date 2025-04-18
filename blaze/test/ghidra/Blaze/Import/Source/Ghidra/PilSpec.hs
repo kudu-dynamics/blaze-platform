@@ -5,7 +5,6 @@ import Blaze.Prelude hiding (const)
 import Blaze.Import.CallGraph (CallGraphImporter (getFunction))
 import Blaze.Import.Pil (PilImporter (getFuncStatements))
 import qualified Blaze.Import.Source.Ghidra as G
-import Blaze.Pretty (prettyStmts')
 
 import Test.Hspec
 
@@ -23,15 +22,11 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let func = fromJust mFunc
     stmts <- runIO $ getFuncStatements importer func 0
 
-    runIO $ do
-      putText "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
-      prettyStmts' stmts
-
     -- stmt0: zf_1#1@10 = eax_4#1@10 == 0x0
     -- stmt1: var_14#4@10 = var_14#2@10
     -- stmt2: unique_1d00#1@10 = esp_4#1@10 + offset 0xffffffac
     -- stmt3: unique_1d00#2@10 = esp_4#1@10 + offset 0xffffffac
-    let stmt00 = head stmts
+    let stmt00 = unsafeHead stmts
     let stmt0 = stmts !! 5
     let stmt1 = stmts !! 11
     let stmt2 = stmts !! 14

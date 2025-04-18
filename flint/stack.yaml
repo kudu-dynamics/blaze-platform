@@ -1,7 +1,7 @@
-resolver: lts-22.11
+resolver: lts-23.18
 # Always keep `compiler` explicit because it's used by the Dockerfile to
 # optimize both build time and intermediate image size
-compiler: ghc-9.6.4
+compiler: ghc-9.8.4
 
 packages:
   - .
@@ -21,7 +21,7 @@ extra-deps:
       - jni
       - jvm
   - git: https://github.com/kudu-dynamics/selda.git
-    commit : efde67c131deea943e1d76e26449aa8da46c2d01
+    commit : ecb3321f9cca116f658590f35a5e85fa0c6dd929
     subdirs:
       - selda
       - selda-sqlite
