@@ -226,7 +226,7 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
             concatMap (\case (Sym 0, SType (TPointer _ pt)) -> [pt]; _ -> []) (fst res)
 
       length pointeeCandidates `shouldBe` 1
-      let pointee = head pointeeCandidates
+      let pointee = unsafeHead pointeeCandidates
           cxs' =
             [ (Sym 0, SVar (Sym 1))
             , (Sym 0, SType (TPointer (Just 64) pointee))

@@ -59,7 +59,7 @@ spec = describe "Ghidra.Pcode" $ do
       length liftedRaws `shouldBe` 100
 
     rawInstr <- runIO . runGhidraOrError $ do
-      x <- mkBareRawPcodeInstruction . head . fmap snd $ raws
+      x <- mkBareRawPcodeInstruction . unsafeHead . fmap snd $ raws
       x' <- mkRawPcodeInstruction x
       return x'
     -- runIO $ pprint rawInstr

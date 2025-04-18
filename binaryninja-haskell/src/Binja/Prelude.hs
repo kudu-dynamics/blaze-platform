@@ -8,6 +8,7 @@ module Binja.Prelude
   , liftMaybeTIO
   , pshow
   , pprint
+  , unsafeHead
   )
 where
 
@@ -62,6 +63,7 @@ import Protolude as Exports hiding
 import Text.Pretty.Simple as PP
 import Prelude as Exports
   ( String
+  , error
   , head
   , id
   , (!!)
@@ -103,3 +105,7 @@ pprint = PP.pPrintOpt PP.NoCheckColorTty ppOptions
 -- fromRight :: Either e a -> a
 -- fromRight (Right x) = x
 -- fromRight (Left _) = P.error "You called fromRight on a Left"
+
+unsafeHead :: [a] -> a
+unsafeHead [] = error "unsafeHead: got empty list"
+unsafeHead (x:_) = x

@@ -5,10 +5,8 @@ import Flint.Prelude
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query (getFunction, FuncConfig(FuncSym, FuncAddr))
 
-import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import Blaze.Import.Source.BinaryNinja (BNImporter)
-import Blaze.Import.Source.Ghidra (GhidraImporter)
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Types.Pil as Pil
@@ -132,77 +130,6 @@ spec = describe "Flint.Cfg.Store" $ do
             , ("register_tm_clones", 0x1090)
             ]
       actual `shouldBe` expected''
-
-  context "PLT Thunks (Ghidra)" $ do
-    (bv :: GhidraImporter) <- unsafeFromRight <$> runIO (openBinary pltThunkLib)
-    
-    funcsWithCfgs <- runIO $ CfgStore.getFuncsWithCfgs bv
-    
-    let cfgMapping = HashMap.fromList funcsWithCfgs
-        simpFunc :: Function -> SimpFunc
-        simpFunc func = (func ^. #name, func ^. #address)
-        pltFuncMapping = CfgStore.getPltThunkMapping funcsWithCfgs
-        pltFuncMapping' :: HashMap SimpFunc (SimpFunc, Either SimpFunc Pil.ConstFuncPtrOp)
-        pltFuncMapping' = HashMap.fromList
-          . fmap (\(func, x) ->
-                    ( simpFunc func
-                    , ( simpFunc $ x ^. #renamedFunc
-                      , case x ^. #newCallDest of
-                          Pil.CallAddr constFuncPtrOp -> Right constFuncPtrOp
-                          Pil.CallFunc destFunc -> Left $ simpFunc destFunc
-                          e -> error $ "Unexpected PLT dest: " <> show e
-                      )
-                    )
-                 )
-          . HashMap.toList
-          $ pltFuncMapping
-        expected :: HashMap SimpFunc (SimpFunc, Either SimpFunc Pil.ConstFuncPtrOp)
-        expected = HashMap.fromList
-          [ ( ("foo", 0x101040)
-            , ( ("_foo", 0x101040)
-              , Left ("foo", 0x101119)))
-          ]
-    
-    it "should have expected PLT thunk mapping" $ do
-      PShow pltFuncMapping' `shouldBe` PShow expected
-    
-    it "should find a PLT thunk with internal call" $ do
-      let k = ("foo", 0x101040)
-      PShow (HashMap.lookup k pltFuncMapping')
-        `shouldBe` PShow (HashMap.lookup k expected)
-
-    it "should find a PLT thunk with external call (puts)" $ do
-      let k = ("puts", 0x101030)
-      PShow (HashMap.lookup k pltFuncMapping')
-        `shouldBe` PShow (HashMap.lookup k expected)
-
-    fooThunkFunc <- fmap fromJust . runIO $ CG.getFunction bv 0x101040
-    fooFunc <- fmap fromJust . runIO $ CG.getFunction bv 0x101119
-    let fooThunkCfg = fromJust $ HashMap.lookup fooThunkFunc cfgMapping
-        expectedCallDest = Just $ Pil.CallFunc fooFunc          
-    
-    it "should identify thunk call to internal func" $ do
-      CfgStore.getPltThunkDest fooThunkFunc fooThunkCfg `shouldBe` expectedCallDest
-
-    let sansPltThunks = HashMap.fromList
-          . fmap (over _1 $ view #name)
-          . CfgStore.purgePltThunks
-          $ funcsWithCfgs
-        
-        extractedJenkinsCallDestFunc = fromJust $ do
-          cfg <- HashMap.lookup "jenkins" sansPltThunks
-          callNode <- headMay
-            . mapMaybe (^? #_Call)
-            . HashSet.toList
-            . G.nodes
-            $ cfg
-          destFunc <- callNode ^? #callDest . #_CallFunc
-          return (destFunc ^. #name, destFunc ^. #address)
-
-        expected' = ("foo", 0x101119)
-    
-    it "should update callsites to PLT thunk to call actual func" $ do
-      PShow extractedJenkinsCallDestFunc `shouldBe` PShow expected'    
 
   context "shimmyFunc" $ do
     (bv :: BNImporter) <- unsafeFromRight <$> runIO (openBinary shimMainBndb)

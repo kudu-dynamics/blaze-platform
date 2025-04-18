@@ -20,7 +20,7 @@ import qualified Data.Text as Text
 import qualified Prelude as P
 
 import Blaze.Pil.Function (mkCallTarget)
-import Blaze.Types.Pil.Checker hiding (params, ret)
+import Blaze.Types.Pil.Checker
 
 
 constrainStandardFunc
