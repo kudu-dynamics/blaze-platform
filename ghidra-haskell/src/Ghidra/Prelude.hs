@@ -19,6 +19,7 @@ module Ghidra.Prelude
   , hdebug
   , toSnd
   , unfoldWhileJustM
+  , unsafeHead
   , unsafeFromRight
   , (>>!)
   ) where
@@ -170,6 +171,10 @@ unsafeFromRight :: forall e a. Show e => Either e a -> a
 unsafeFromRight = \case
   Left e -> P.error $ "unsafeFromRight: got " ++ show (Left e :: Either e ())
   Right x -> x
+
+unsafeHead :: [a] -> a
+unsafeHead [] = error "unsafeHead: got empty list"
+unsafeHead (x:_) = x
 
 -- taken from Relude
 toSnd :: (a -> b) -> a -> (a, b)

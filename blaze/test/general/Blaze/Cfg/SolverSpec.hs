@@ -20,7 +20,7 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (mkUuid1)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Cfg.Checker
-import Blaze.Types.Pil.Checker hiding (signed, len, ret)
+import Blaze.Types.Pil.Checker
 import Blaze.Pil.Construct
 import Test.Hspec
 

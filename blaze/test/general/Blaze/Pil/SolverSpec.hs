@@ -16,7 +16,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
 import Data.SBV.Dynamic hiding (Solver)
-import Blaze.Types.Pil.Checker as Ch hiding (signed)
+import Blaze.Types.Pil.Checker as Ch
 import Blaze.Pil.Checker (checkStmts)
 import Data.SBV.Trans ( (.>=)
                       , (.<)
@@ -237,7 +237,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
         r `shouldBe` Right ( Sat $ HashMap.fromList rvars
                            , errs )
 
-    let helper op (inw, l, r) (outw, outv) = do
+    let helper op (inw, l, r) outr = do
           let tenv = []
               -- arg1 :: DSTExpression
               -- arg1 = Ch.InfoExpression (Ch.SymInfo 8 $ Sym 1)
@@ -248,107 +248,107 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
               arg2 :: DSTExpression
               arg2 = Ch.InfoExpression (Ch.SymInfo inw $ Sym 1, Just (bitVec $ Just inw))
                      . Pil.CONST . Pil.ConstOp $ r
-              expr = Ch.InfoExpression (Ch.SymInfo outw $ Sym 0, Just (bitVec $ Just outw))
+              expr = Ch.InfoExpression (Ch.SymInfo 1 $ Sym 0, Just (Ch.DSType Ch.TBool))
                      $ op arg1 arg2
 
               cmd = do
                 res <- solveExpr expr
-                constrain $ res `svEqual` constWord outw outv
+                constrain $ res `svEqual` outr
 
               rvars = []
               errs = []
 
           res <- runIO $ runSolveCmd tenv cmd
           let hex n = "0x" <> showHex n ""
-          it (hex l <> " " <> hex r <> " ~> " <> hex outv) $ do
+          it (hex l <> " " <> hex r <> " ~> " <> show outr) $ do
             res `shouldBe` Right (Sat $ HashMap.fromList rvars, errs)
       in do
         context "ADD_WILL_CARRY" $ do
           context "two constants of the same size" $ do
             let helper' = helper (\l r -> Pil.ADD_WILL_CARRY $ Pil.AddWillCarryOp l r)
-            helper' (32, 0x00000000, 0x00000000) (1, 0)
-            helper' (32, 0x00000000, 0x00000001) (1, 0)
-            helper' (32, 0x00000000, 0xffffffff) (1, 0)
-            helper' (32, 0x7fffffff, 0x00000000) (1, 0)
-            helper' (32, 0x7fffffff, 0x00000001) (1, 0)
-            helper' (32, 0x7fffffff, 0xffffffff) (1, 1)
-            helper' (32, 0x80000000, 0x00000000) (1, 0)
-            helper' (32, 0x80000000, 0x00000001) (1, 0)
-            helper' (32, 0x80000000, 0xffffffff) (1, 1)
-            helper' (32, 0xffffffff, 0x00000000) (1, 0)
-            helper' (32, 0xffffffff, 0x00000001) (1, 1)
-            helper' (32, 0xffffffff, 0xffffffff) (1, 1)
+            helper' (32, 0x00000000, 0x00000000) svFalse
+            helper' (32, 0x00000000, 0x00000001) svFalse
+            helper' (32, 0x00000000, 0xffffffff) svFalse
+            helper' (32, 0x7fffffff, 0x00000000) svFalse
+            helper' (32, 0x7fffffff, 0x00000001) svFalse
+            helper' (32, 0x7fffffff, 0xffffffff) svTrue
+            helper' (32, 0x80000000, 0x00000000) svFalse
+            helper' (32, 0x80000000, 0x00000001) svFalse
+            helper' (32, 0x80000000, 0xffffffff) svTrue
+            helper' (32, 0xffffffff, 0x00000000) svFalse
+            helper' (32, 0xffffffff, 0x00000001) svTrue
+            helper' (32, 0xffffffff, 0xffffffff) svTrue
 
-            helper' (8, 0x00, 0x00) (1, 0)
-            helper' (8, 0x00, 0x01) (1, 0)
-            helper' (8, 0x00, 0xff) (1, 0)
-            helper' (8, 0x7f, 0x00) (1, 0)
-            helper' (8, 0x7f, 0x01) (1, 0)
-            helper' (8, 0x7f, 0xff) (1, 1)
-            helper' (8, 0x80, 0x00) (1, 0)
-            helper' (8, 0x80, 0x01) (1, 0)
-            helper' (8, 0x80, 0xff) (1, 1)
-            helper' (8, 0xff, 0x00) (1, 0)
-            helper' (8, 0xff, 0x01) (1, 1)
-            helper' (8, 0xff, 0xff) (1, 1)
+            helper' (8, 0x00, 0x00) svFalse
+            helper' (8, 0x00, 0x01) svFalse
+            helper' (8, 0x00, 0xff) svFalse
+            helper' (8, 0x7f, 0x00) svFalse
+            helper' (8, 0x7f, 0x01) svFalse
+            helper' (8, 0x7f, 0xff) svTrue
+            helper' (8, 0x80, 0x00) svFalse
+            helper' (8, 0x80, 0x01) svFalse
+            helper' (8, 0x80, 0xff) svTrue
+            helper' (8, 0xff, 0x00) svFalse
+            helper' (8, 0xff, 0x01) svTrue
+            helper' (8, 0xff, 0xff) svTrue
 
         context "ADD_WILL_OVERFLOW" $ do
           context "two constants of the same size" $ do
             let helper' = helper (\l r -> Pil.ADD_WILL_OVERFLOW $ Pil.AddWillOverflowOp l r)
-            helper' (32, 0x00000000, 0x00000000) (1, 0)
-            helper' (32, 0x00000000, 0x00000001) (1, 0)
-            helper' (32, 0x00000000, 0xffffffff) (1, 0)
-            helper' (32, 0x7fffffff, 0x00000000) (1, 0)
-            helper' (32, 0x7fffffff, 0x00000001) (1, 1)
-            helper' (32, 0x7fffffff, 0xffffffff) (1, 0)
-            helper' (32, 0x80000000, 0x00000000) (1, 0)
-            helper' (32, 0x80000000, 0x00000001) (1, 0)
-            helper' (32, 0x80000000, 0xffffffff) (1, 1)
-            helper' (32, 0xffffffff, 0x00000000) (1, 0)
-            helper' (32, 0xffffffff, 0x00000001) (1, 0)
-            helper' (32, 0xffffffff, 0xffffffff) (1, 0)
+            helper' (32, 0x00000000, 0x00000000) svFalse
+            helper' (32, 0x00000000, 0x00000001) svFalse
+            helper' (32, 0x00000000, 0xffffffff) svFalse
+            helper' (32, 0x7fffffff, 0x00000000) svFalse
+            helper' (32, 0x7fffffff, 0x00000001) svTrue
+            helper' (32, 0x7fffffff, 0xffffffff) svFalse
+            helper' (32, 0x80000000, 0x00000000) svFalse
+            helper' (32, 0x80000000, 0x00000001) svFalse
+            helper' (32, 0x80000000, 0xffffffff) svTrue
+            helper' (32, 0xffffffff, 0x00000000) svFalse
+            helper' (32, 0xffffffff, 0x00000001) svFalse
+            helper' (32, 0xffffffff, 0xffffffff) svFalse
 
-            helper' (8, 0x00, 0x00) (1, 0)
-            helper' (8, 0x00, 0x01) (1, 0)
-            helper' (8, 0x00, 0xff) (1, 0)
-            helper' (8, 0x7f, 0x00) (1, 0)
-            helper' (8, 0x7f, 0x01) (1, 1)
-            helper' (8, 0x7f, 0xff) (1, 0)
-            helper' (8, 0x80, 0x00) (1, 0)
-            helper' (8, 0x80, 0x01) (1, 0)
-            helper' (8, 0x80, 0xff) (1, 1)
-            helper' (8, 0xff, 0x00) (1, 0)
-            helper' (8, 0xff, 0x01) (1, 0)
-            helper' (8, 0xff, 0xff) (1, 0)
+            helper' (8, 0x00, 0x00) svFalse
+            helper' (8, 0x00, 0x01) svFalse
+            helper' (8, 0x00, 0xff) svFalse
+            helper' (8, 0x7f, 0x00) svFalse
+            helper' (8, 0x7f, 0x01) svTrue
+            helper' (8, 0x7f, 0xff) svFalse
+            helper' (8, 0x80, 0x00) svFalse
+            helper' (8, 0x80, 0x01) svFalse
+            helper' (8, 0x80, 0xff) svTrue
+            helper' (8, 0xff, 0x00) svFalse
+            helper' (8, 0xff, 0x01) svFalse
+            helper' (8, 0xff, 0xff) svFalse
 
         context "SUB_WILL_OVERFLOW" $ do
           context "two constants of the same size" $ do
             let helper' = helper (\l r -> Pil.SUB_WILL_OVERFLOW $ Pil.SubWillOverflowOp l r)
-            helper' (32, 0x00000000, 0x00000000) (1, 0)
-            helper' (32, 0x00000000, 0x00000001) (1, 0)
-            helper' (32, 0x00000000, 0xffffffff) (1, 0)
-            helper' (32, 0x7fffffff, 0x00000000) (1, 0)
-            helper' (32, 0x7fffffff, 0x00000001) (1, 0)
-            helper' (32, 0x7fffffff, 0xffffffff) (1, 1)
-            helper' (32, 0x80000000, 0x00000000) (1, 0)
-            helper' (32, 0x80000000, 0x00000001) (1, 1)
-            helper' (32, 0x80000000, 0xffffffff) (1, 0)
-            helper' (32, 0xffffffff, 0x00000000) (1, 0)
-            helper' (32, 0xffffffff, 0x00000001) (1, 0)
-            helper' (32, 0xffffffff, 0xffffffff) (1, 0)
+            helper' (32, 0x00000000, 0x00000000) svFalse
+            helper' (32, 0x00000000, 0x00000001) svFalse
+            helper' (32, 0x00000000, 0xffffffff) svFalse
+            helper' (32, 0x7fffffff, 0x00000000) svFalse
+            helper' (32, 0x7fffffff, 0x00000001) svFalse
+            helper' (32, 0x7fffffff, 0xffffffff) svTrue
+            helper' (32, 0x80000000, 0x00000000) svFalse
+            helper' (32, 0x80000000, 0x00000001) svTrue
+            helper' (32, 0x80000000, 0xffffffff) svFalse
+            helper' (32, 0xffffffff, 0x00000000) svFalse
+            helper' (32, 0xffffffff, 0x00000001) svFalse
+            helper' (32, 0xffffffff, 0xffffffff) svFalse
 
-            helper' (8, 0x00, 0x00) (1, 0)
-            helper' (8, 0x00, 0x01) (1, 0)
-            helper' (8, 0x00, 0xff) (1, 0)
-            helper' (8, 0x7f, 0x00) (1, 0)
-            helper' (8, 0x7f, 0x01) (1, 0)
-            helper' (8, 0x7f, 0xff) (1, 1)
-            helper' (8, 0x80, 0x00) (1, 0)
-            helper' (8, 0x80, 0x01) (1, 1)
-            helper' (8, 0x80, 0xff) (1, 0)
-            helper' (8, 0xff, 0x00) (1, 0)
-            helper' (8, 0xff, 0x01) (1, 0)
-            helper' (8, 0xff, 0xff) (1, 0)
+            helper' (8, 0x00, 0x00) svFalse
+            helper' (8, 0x00, 0x01) svFalse
+            helper' (8, 0x00, 0xff) svFalse
+            helper' (8, 0x7f, 0x00) svFalse
+            helper' (8, 0x7f, 0x01) svFalse
+            helper' (8, 0x7f, 0xff) svTrue
+            helper' (8, 0x80, 0x00) svFalse
+            helper' (8, 0x80, 0x01) svTrue
+            helper' (8, 0x80, 0xff) svFalse
+            helper' (8, 0xff, 0x00) svFalse
+            helper' (8, 0xff, 0x01) svFalse
+            helper' (8, 0xff, 0xff) svFalse
 
     let helper (baseW, base) (indexW, index) stride (outw, outv) = do
           let tenv = []
@@ -378,7 +378,6 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
             helper (64, base) (32, 5) 16 (64, res)
             helper (64, base) ( 8, 5) 16 (64, res)
             helper (64, base) ( 3, 5) 16 (64, res)
-
 
     context "solveExpr: VAR" $ do
       let tenv = [(pilVar "a", char)]

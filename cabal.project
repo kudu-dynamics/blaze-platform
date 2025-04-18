@@ -29,11 +29,11 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/kudu-dynamics/selda.git
-  tag: efde67c131deea943e1d76e26449aa8da46c2d01
+  tag: ecb3321f9cca116f658590f35a5e85fa0c6dd929
   subdir: selda
 
 source-repository-package
   type: git
   location: https://github.com/kudu-dynamics/selda.git
-  tag: efde67c131deea943e1d76e26449aa8da46c2d01
+  tag: ecb3321f9cca116f658590f35a5e85fa0c6dd929
   subdir: selda-sqlite

@@ -116,14 +116,14 @@ main = do
 
 stringArrayDemoFails :: Symbolic ()
 stringArrayDemoFails = do
-  a <- newArray "a" Nothing :: Symbolic (SArray String String)
+  a <- sArray "a" :: Symbolic (SArray String String)
   let a' = writeArray a "0" "dummy"
   constrain $ readArray a' "0" .== "test"
   return ()
 
 stringArrayDemo :: Symbolic ()
 stringArrayDemo = do
-  a <- newArray "a" Nothing :: Symbolic (SArray String String)
+  a <- sArray "a" :: Symbolic (SArray String String)
   dummy <- sString "dummyVar"
   let a' = writeArray a "0" dummy
   constrain $ readArray a' "0" .== "dummy"
@@ -132,7 +132,7 @@ stringArrayDemo = do
 
 stringArrayDemo2 :: Symbolic ()
 stringArrayDemo2 = do
-  a <- newArray "a" Nothing :: Symbolic (SArray String String)
+  a <- sArray "a" :: Symbolic (SArray String String)
   dummy <- sString "dummyVar"
   test2 <- sString "test2"
   constrain $ S.isInfixOf "Contains?" test2
