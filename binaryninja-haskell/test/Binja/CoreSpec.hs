@@ -15,7 +15,6 @@ import qualified Binja.Function as Func
 import qualified Data.Map as Map
 import Crypto.Hash (MD5, hash)
 import Test.Hspec
-import Prelude (error)
 import Data.Text (unpack)
 
 diveBin :: FilePath

@@ -7,7 +7,7 @@ import Blaze.Prelude hiding (Type, sym, bitSize, Constraint, const)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.BinaryAnalysis as BA
 import Blaze.Pil.Checker
-import Blaze.Types.Pil.Checker hiding (signed, len)
+import Blaze.Types.Pil.Checker
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Ctx(Ctx))
 import Blaze.Types.Function (Function(Function))

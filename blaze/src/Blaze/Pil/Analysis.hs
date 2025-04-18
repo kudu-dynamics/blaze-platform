@@ -55,6 +55,7 @@ import qualified Blaze.Types.Pil.Analysis as A
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 import Data.List (nub)
+import qualified Data.List.NonEmpty as NE
 import Data.Sequence
   ( mapWithIndex,
     update,
@@ -563,7 +564,7 @@ mkMemStorage addr width =
 --
 --  NB: Assumes all memory statements refer to the given memory address.
 findMemEquivGroupsForStorage :: MemStorage -> [MemStmt] -> [MemEquivGroup]
-findMemEquivGroupsForStorage storage (x : xs) = reverse groups
+findMemEquivGroupsForStorage storage (x : xs) = reverse $ NE.toList groups
   where
     initGroup :: MemEquivGroup
     initGroup = case x of
@@ -573,20 +574,20 @@ findMemEquivGroupsForStorage storage (x : xs) = reverse groups
         mkMemEquivGroup Nothing storage [s] []
       MemLoadStmt s ->
         mkMemEquivGroup Nothing storage [] [s]
-    groups :: [MemEquivGroup]
-    groups = foldl' f [initGroup] xs
-    f :: [MemEquivGroup] -> MemStmt -> [MemEquivGroup]
+    groups :: NonEmpty MemEquivGroup
+    groups = foldl' f (initGroup :| []) xs
+    f :: NonEmpty MemEquivGroup -> MemStmt -> NonEmpty MemEquivGroup
     f gs stmt = case stmt of
-      MemStoreStmt s -> g : gs
+      MemStoreStmt s -> g <| gs
         where
           g = mkMemEquivGroup (Just s) storage [] []
-      MemDefLoadStmt s -> updatedGroup : tailSafe gs
+      MemDefLoadStmt s -> updatedGroup :| NE.tail gs
         where
-          currGroup = head gs
+          currGroup = NE.head gs
           updatedGroup = currGroup & #defLoads %~ (s :)
-      MemLoadStmt s -> updatedGroup : tailSafe gs
+      MemLoadStmt s -> updatedGroup :| NE.tail gs
         where
-          currGroup = head gs
+          currGroup = NE.head gs
           updatedGroup = currGroup & #loads %~ (s :)
 findMemEquivGroupsForStorage _ [] = []
 

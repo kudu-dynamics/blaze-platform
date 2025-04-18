@@ -2,7 +2,7 @@ module Blaze.Types.Graph.Alga where
 
 import Blaze.Prelude hiding (pred)
 
-import Blaze.Types.Graph hiding (edge, label, src, dst)
+import Blaze.Types.Graph
 import Blaze.Util (getMemoized)
 
 import qualified Algebra.Graph.AdjacencyMap as G
