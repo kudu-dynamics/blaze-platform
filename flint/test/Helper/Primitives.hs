@@ -163,7 +163,7 @@ controlledFormatStringPrim = PrimType
 
 
 globalVar :: FuncVarExpr
-globalVar = var "global1" 8
+globalVar = var' (pilVar 8 "global1") $ ConstSize 8
 
 fooCallablePrimitive3 :: CallablePrimitive
 fooCallablePrimitive3 = Prim.CallablePrimitive
@@ -172,7 +172,7 @@ fooCallablePrimitive3 = Prim.CallablePrimitive
   , callDest = M.FuncName "foo"
   , varMapping = HashMap.fromList
     [ ( "src"
-      , ( load (add (FuncVar $ Prim.Arg 0) (const 4 8) 8) 8
+      , ( load (add (FuncVar $ Prim.Arg 0) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)
         , HashSet.fromList [Prim.Arg 0]
         )
       )
@@ -183,7 +183,7 @@ fooCallablePrimitive3 = Prim.CallablePrimitive
       )
     ]
   , constraints =
-      [ ( cmpNE (FuncVar $ Prim.Arg 1) (const 0 8) 8
+      [ ( cmpNE (FuncVar $ Prim.Arg 1) (const 0 (ConstSize 8)) (ConstSize 8)
         , HashSet.fromList [Prim.Arg 1]
         )
       ]

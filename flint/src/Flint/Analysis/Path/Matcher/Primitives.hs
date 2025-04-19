@@ -81,7 +81,7 @@ toFuncVarExpr params codeSum expr' = runState (f expr') HashSet.empty
     f :: Pil.Expression -> State (HashSet FuncVar) FuncVarExpr
     f expr@(Pil.Expression sz exprOp) =
       case getFuncVar params codeSum expr of
-        Nothing -> FuncVarExpr sz <$> traverse f exprOp
+        Nothing -> FuncVarExpr (ConstSize sz) <$> traverse f exprOp
         Just fvar -> do
           addFuncVar fvar
           return $ FuncVar fvar
