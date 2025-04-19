@@ -10,6 +10,7 @@ import Blaze.Prelude hiding
   ( Symbol,
     ix,
     group,
+    ix,
     pi,
     trace,
   )
