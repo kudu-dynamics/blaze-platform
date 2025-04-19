@@ -10,7 +10,7 @@ import Blaze.Pil.Construct (ExprConstructor(mkExpr))
 import Blaze.Pretty (tt, tokenize)
 import qualified Blaze.Pretty as Pretty
 import Blaze.Types.Function (Function)
-import Blaze.Types.Pil (Size)
+import Blaze.Types.Pil (Size(Size))
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashSet as HashSet
@@ -38,26 +38,33 @@ instance Pretty.Tokenizable FuncVar where
   -- tokenize (Global x) = tt "GLOBAL(" <++> tokenize x <++> tt ")"
   tokenize Ret = return [tt "RET"]
 
+data FuncVarExprSize
+  = ConstSize (Size Pil.Expression)
+  | SizeOf FuncVar  -- looks up symbol to get size of expr
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+
 -- | This is like a BoundExpr, except it can refer to FuncVars
 data FuncVarExpr
   = FuncVar FuncVar
-  | FuncVarExpr (Size Pil.Expression) (Pil.ExprOp FuncVarExpr)
+  | FuncVarExpr FuncVarExprSize (Pil.ExprOp FuncVarExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 extractFuncVars :: FuncVarExpr -> HashSet FuncVar
 extractFuncVars (FuncVar v) = HashSet.singleton v
 extractFuncVars (FuncVarExpr _ op) = foldMap extractFuncVars op
-
+  
 instance Disp.NeedsParens FuncVarExpr where
   needsParens (FuncVar _) = False
   needsParens (FuncVarExpr _ op) = Disp.needsParens op
 
 instance Pretty.Tokenizable FuncVarExpr where
   tokenize (FuncVar v) = tokenize v
-  tokenize (FuncVarExpr sz op) = Pretty.tokenizeExprOp Nothing op sz
+  tokenize (FuncVarExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
+  tokenize (FuncVarExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
 
-instance ExprConstructor (Size Pil.Expression) FuncVarExpr where
-  mkExpr =  FuncVarExpr
+instance ExprConstructor FuncVarExprSize FuncVarExpr where
+  mkExpr = FuncVarExpr
 
 data MkCallablePrimitiveError
   = MkCallablePrimitiveError

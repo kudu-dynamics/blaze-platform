@@ -31,7 +31,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Text.Regex.TDFA ((=~))
-
+import qualified Data.Vector as V
 
 
 -- | Transitive closure of a 'HashSet Taint'
@@ -615,14 +615,21 @@ exprToBoundExpr :: Pil.Expression -> BoundExpr
 exprToBoundExpr (Pil.Expression sz op) = BoundExpr (ConstSize sz) $ exprToBoundExpr <$> op
 
 resolveFuncVar
-  :: [Pil.Expression]
+  :: Vector Pil.Expression
   -> Maybe Pil.Expression
   -> FuncVarExpr
   -> Maybe Pil.Expression
 resolveFuncVar argExprs mRetExpr = \case
-  (Prim.FuncVarExpr sz op) -> fmap (Pil.Expression sz)
-    . traverse (resolveFuncVar argExprs mRetExpr)
-    $ op
+  (Prim.FuncVarExpr sz op) -> do
+    sz' <- case sz of
+      Prim.ConstSize n -> return n
+      Prim.SizeOf fv -> case fv of
+        Prim.Ret -> view #size <$> mRetExpr
+        Prim.Arg n -> argExprs ^? ix (fromIntegral n) . #size
+    fmap (Pil.Expression sz')
+      . traverse (resolveFuncVar argExprs mRetExpr)
+      $ op
+          
   (Prim.FuncVar fv) -> case fv of
     Prim.Ret -> mRetExpr
     -- (Prim.Global x) -> Just x -- TODO: probably remove this "Global" constructor
@@ -722,7 +729,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
           Just callStmt -> do
             let mRetExpr = (\pv -> Pil.Expression (fromIntegral $ pv ^. #size) (Pil.VAR $ Pil.VarOp pv))
                            <$> (callStmt ^. #resultVar)
-                resolveFuncVar' = resolveFuncVar (callStmt ^. #args) mRetExpr
+                resolveFuncVar' = resolveFuncVar (V.fromList $ callStmt ^. #args) mRetExpr
             -- TODO: We are recreating these every single stmt we check for a Primitive.
             --       Instead, we could cache them in the MatcherState
             let callablePats = toSnd mkStmtPatternFromCallablePrimitive <$> HashSet.toList s :: [(CallablePrimitive, StmtPattern)]

@@ -26,7 +26,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           codeSum = fooCodeSummary1
           expr = load (add (var "arg1" 8) (const 4 8) 8) 8
           expected =
-            ( load (add (FuncVar $ Prim.Arg 0) (const 4 8) 8) 8
+            ( load (add (FuncVar $ Prim.Arg 0) (const 4 (ConstSize 8)) (ConstSize 8)) (ConstSize 8)
             , HashSet.fromList [Prim.Arg 0]
             )
           
