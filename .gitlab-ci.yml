@@ -217,7 +217,6 @@ push:latest:
 
 push:tag:
   stage: push
-  extends: .docker
   rules:
     - if: $CI_SERVER_HOST =~ /.*kududyn.*/ && $CI_COMMIT_TAG
   needs:
@@ -226,6 +225,7 @@ push:tag:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
   script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
     - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/hlint ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
     - |-
       set -euxo pipefail
@@ -239,7 +239,6 @@ cleanup:
   rules:
     - if: $CI_SERVER_HOST =~ /.*kududyn.*/
   stage: .post
-  extends: .docker
   when: always
   variables:
     GIT_STRATEGY: none
