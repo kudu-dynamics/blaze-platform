@@ -204,6 +204,7 @@ push:latest:
   variables:
     GIT_STRATEGY: none
     GIT_CLEAN_FLAGS: none
+  image: docker:dind  # if you still need docker CLI
   script:
     - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}/builder-binaryninja ${CI_REGISTRY_IMAGE}"
     - |-
