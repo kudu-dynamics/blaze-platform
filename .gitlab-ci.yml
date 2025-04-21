@@ -197,7 +197,6 @@ test-binaryninja:
 
 push:latest:
   stage: push
-  extends: .docker
   rules:
     - if: $CI_SERVER_HOST =~ /.*kududyn.*/ && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
