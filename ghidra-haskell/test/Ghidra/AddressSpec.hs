@@ -8,6 +8,7 @@ import Ghidra.Core
 import Ghidra.Program
 import qualified Ghidra.State as State
 import qualified Ghidra.Types.Address as Addr
+import Ghidra.Address (mkAddress)
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -55,3 +56,9 @@ spec = describe "Ghidra.Address" $ do
 
     it "should get proper segment" $ do
       seg `shouldBe` Just ".bss"
+
+  context "getAddressBase" $ do
+    baseAddr <- runIO . runGhidraOrError $ State.getImageBase gs >>= mkAddress
+    
+    it "should get proper base address" $ do
+      baseAddr ^. #offset `shouldBe` 0x0100000
