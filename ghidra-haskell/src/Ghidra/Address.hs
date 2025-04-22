@@ -50,6 +50,7 @@ mkAddress addr = do
   addrSpace <- runIO (Java.call addr "getAddressSpace") >>= mkAddressSpace
   offset :: Int64 <- runIO $ Java.call addr "getOffset"
   return $ Address addrSpace (fromIntegral offset)
+  -- return $ Address addrSpace (Just ".txt") (fromIntegral offset)
 
 getAddress :: J.AddressFactory -> Int32 -> Int64 -> Ghidra J.Address
 getAddress af space offset = runIO $ 

@@ -40,9 +40,11 @@ getLang :: Text -> Ghidra (Maybe J.Language)
 getLang lang = do
   langProvider :: J.SleighLanguageProvider <- runIO $ Java.new >>= JNI.newGlobalRef
   maybeNullCall (runIO $ Java.reflect lang >>= Java.new >>= JNI.newGlobalRef) >>= \case
-    Nothing -> return Nothing
+    Nothing -> do
+      return Nothing
     Just (langId :: J.LanguageID) -> do
-      maybeNullCall . runIO $ Java.call langProvider "getLanguage" langId >>= JNI.newGlobalRef
+      r <- maybeNullCall . runIO $ Java.call langProvider "getLanguage" langId >>= JNI.newGlobalRef
+      return $ r >>= maybeNull
 
 getCSpec :: J.Language -> Maybe Text -> Ghidra J.CompilerSpec
 getCSpec lang Nothing = runIO $ Java.call lang "getDefaultCompilerSpec"
@@ -161,15 +163,18 @@ getListing gs = do
 -- Only use this with PIE binaries.
 mkAddressBased :: GhidraState -> BA.Address -> Ghidra J.Address
 mkAddressBased gs addr = do
-  prg <- getProgram gs
-  baseAddr :: J.Address <- runIO $ Java.call prg "getImageBase" >>= JNI.newGlobalRef
+  baseAddr <- getImageBase gs
   runIO $ Java.call baseAddr "add" (fromIntegral addr :: Int64)
+
+getImageBase :: GhidraState -> Ghidra J.Address
+getImageBase gs = do
+  prg <- getProgram gs
+  runIO $ Java.call prg "getImageBase" >>= JNI.newGlobalRef
 
 -- | Makes a new address
 mkAddress_ :: GhidraState -> Int64 -> Ghidra J.Address
 mkAddress_ gs addr = do
-  prg <- getProgram gs
-  baseAddr :: J.Address <- runIO $ Java.call prg "getImageBase" >>= JNI.newGlobalRef
+  baseAddr <- getImageBase gs
   runIO $ Java.call baseAddr "getNewAddress" addr
 
 -- | Makes a new address
