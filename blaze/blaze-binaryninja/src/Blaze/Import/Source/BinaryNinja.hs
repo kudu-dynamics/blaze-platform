@@ -62,6 +62,11 @@ instance BinaryImporter BNImporter where
         Bn.updateAnalysisAndWait bv'
         return $ BNImporter bv'
 
+  -- TODO: figure out how to get real base
+  getBase bv = do
+    putText "Warning: `getBase` for the BinaryNinja backend is not full implemented and may be incorrect"
+    getStart bv
+
   getStart (BNImporter bv) = Bn.getStartOffset bv
 
   getEnd (BNImporter bv) = Bn.getEndOffset bv

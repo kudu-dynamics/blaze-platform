@@ -15,6 +15,7 @@ class BinaryImporter a where
   -- so be sure to check before adding an extension.
   saveToDb :: FilePath -> a -> IO (Either Text FilePath)
   rebaseBinary :: a -> Address -> IO a
+  getBase :: a -> IO Address
   getStart :: a -> IO Address
   getEnd :: a -> IO Address
   getOriginalBinaryPath :: a -> IO FilePath

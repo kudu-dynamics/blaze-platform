@@ -14,6 +14,7 @@ import Ghidra.Core (runGhidraOrError, stopJVMIfRunning)
 import Ghidra.Program qualified as GProg
 import Ghidra.State (GhidraState)
 import Ghidra.State qualified as GState
+import Ghidra.Address qualified as GAddr
 
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
@@ -56,6 +57,9 @@ instance BinaryImporter GhidraImporter where
       GProg.setImageBase (gs ^. #program) (fromIntegral off) True
       GState.analyze gs
     return $ GhidraImporter gs
+
+  getBase (GhidraImporter gs) = runGhidraOrError $ do
+    fmap convertAddress $ GState.getImageBase gs >>= GAddr.mkAddress
 
   getStart (GhidraImporter gs) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
 
