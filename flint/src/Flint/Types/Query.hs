@@ -14,13 +14,14 @@ import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (PilNode)
-import Blaze.Pretty (Tokenizable(tokenize), tt, (<++>), PStmts(PStmts))
+import Blaze.Pretty (Tokenizable(tokenize), pretty', tt, (<++>), PStmts(PStmts))
 import Blaze.Types.Cfg.Path (PilPath)
 import Blaze.Types.Function (Function)
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Types.Pil as Pil
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as Text
@@ -84,6 +85,33 @@ data MatchingPrimBlob = MatchingPrimBlob
   , constraints :: [Text]
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
+
+data CallablePrimitiveBlob = CallablePrimitiveBlob
+  { func :: (Text, Address)
+  , primName :: Text
+  , vars :: HashMap Text Text
+  , locations :: HashMap Text (HashSet Address)
+  , constraints :: [Text]
+  , linkedVars :: [Text]
+  } deriving (Eq, Ord, Show, Generic, ToJSON)
+
+toCallablePrimitiveBlob :: CallablePrimitive -> CallablePrimitiveBlob
+toCallablePrimitiveBlob cprim = blob
+  where
+    func = cprim ^. #func
+    name = func ^. #name
+    addr = func ^. #address
+    blob = CallablePrimitiveBlob
+      { func = (name, addr)
+      , primName = cprim ^. #prim . #name
+      , vars = HashMap.fromList
+               . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
+               . HashMap.toList
+               $ cprim ^. #varMapping
+      , locations = HashMap.mapKeys pretty' $ cprim ^. #locations
+      , constraints = fmap (pretty' . fst) $ cprim ^. #constraints
+      , linkedVars = fmap pretty' . HashSet.toList $ cprim ^. #linkedVars
+      }
 
 data QueryConfig func = QueryConfig
   { startFunc :: func

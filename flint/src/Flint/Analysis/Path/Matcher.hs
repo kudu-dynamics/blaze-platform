@@ -111,15 +111,16 @@ class MkPathPrep a where
   mkPathPrep :: [TaintPropagator] -> a -> PathPrep
 
 instance MkPathPrep [Pil.Stmt] where
-  mkPathPrep props stmts = PathPrep stmts (mkTaintSet props stmts) codeSummary
+  mkPathPrep props stmts = PathPrep stmts stmts (mkTaintSet props stmts) codeSummary
     where
       codeSummary = Summary.fromStmts stmts
 
 instance MkPathPrep PilPath where
-  mkPathPrep mprops = mkPathPrep mprops
-    . resolveCalls
-    . PA.aggressiveExpand
-    . Path.toStmts
+  mkPathPrep mprops p = PathPrep stmts stmts' (mkTaintSet mprops stmts) codeSummary
+    where
+      stmts = Path.toStmts p
+      stmts' = resolveCalls . PA.aggressiveExpand $ stmts
+      codeSummary = Summary.fromStmts stmts'
 
 mkMatcherState :: StmtSolver m -> PathPrep -> MatcherState m
 mkMatcherState solver pathPrep = MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] (pathPrep ^. #taintSet) solver Nothing HashMap.empty HashMap.empty

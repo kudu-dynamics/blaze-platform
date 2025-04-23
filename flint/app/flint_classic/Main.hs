@@ -5,15 +5,14 @@ module Main where
 import Flint.Prelude
 
 import Flint.Types.Analysis.Path.Matcher (Prim)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, PrimType)
+import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
-import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
 import Flint.Util (sequentialPutText)
-import qualified Flint.Types.CachedMap as CM
 
+import Blaze.Function (Function)
 import Blaze.Pretty (pretty')
 
 import Control.Monad.Logger (LogLevel(LevelInfo))
@@ -24,14 +23,15 @@ import Data.Aeson (ToJSON(toJSON))
 import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Options.Applicative
+import System.IO (hSetBuffering, BufferMode(..))
 
--- Flint: the onion version
 
 data Options = Options
   { backend :: Maybe Backend
   , outputJSON :: Bool
   , doNotUseSolver :: Bool
-  , onionDepth :: Word64
+  , maxSamplesPerFunc :: Word64
+  , expandCallDepth :: Word64
   , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
   , logLevel :: LogLevel
@@ -68,16 +68,22 @@ parseJSONOption = switch $
   long "outputJSON"
   <> help "output in a JSON format"
 
-parseOnionDepth :: Parser Word64
-parseOnionDepth = option auto $
-  long "onionDepth"
-  <> metavar "ONION_DEPTH"
-  <> help "number of layers to bubble up primitives thru callsites"
-
 parseIsKernelModule :: Parser Bool
 parseIsKernelModule = switch $
   long "isKernelModule"
   <> help "do lifecyle check for kernel modules"
+
+parseMaxSamplesPerFunc :: Parser Word64
+parseMaxSamplesPerFunc = option auto $
+  long "maxSamplesPerFunc"
+  <> metavar "MAX_SAMPLES_PER_FUNC"
+  <> help "max number of path samples to take per function"
+
+parseExpandCallDepth :: Parser Word64
+parseExpandCallDepth = option auto $
+  long "expandCallDepth"
+  <> metavar "EXPAND_CALL_DEPTH"
+  <> help "depth of calls to expand"
 
 parseInputFile :: Parser FilePath
 parseInputFile = argument str $
@@ -94,7 +100,8 @@ optionsParser = Options
   <$> optional parseBackend
   <*> (parseJSONOption <|> pure False)
   <*> (parseDoNotUseSolver <|> pure False)
-  <*> (parseOnionDepth <|> pure 3)
+  <*> (parseMaxSamplesPerFunc <|> pure 15)
+  <*> (parseExpandCallDepth <|> pure 0)
   <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
   <*> (parseLogLevel <|> pure LevelInfo)
@@ -102,8 +109,9 @@ optionsParser = Options
 
 main :: IO ()
 main = do
+  hSetBuffering stdout LineBuffering
   opts <- execParser optsParser
-  runLoggerT (opts ^. #logLevel) $ onionCheck opts
+  runLoggerT (opts ^. #logLevel) $ primCheck opts
   where
     optsParser = info (optionsParser <**> helper)
       ( fullDesc
@@ -143,7 +151,6 @@ toMatchingPrimBlob res = blob
       , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
       }
 
-
 printMatchingPrimJSON :: MatchingPrim -> IO ()
 printMatchingPrimJSON res = do
   let func = res ^. #func
@@ -163,28 +170,58 @@ printMatchingPrimJSON res = do
         }
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
-printCallablePrimsJSON :: (PrimType, HashSet CallablePrimitive) -> IO ()
-printCallablePrimsJSON (primtype, cprims) = do
-  let blob = ( primtype ^. #name
-             , fmap toCallablePrimitiveBlob
-               . HashSet.toList
-               $ cprims
-             )
-  sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
-
--- | Checks for bugs using the onion
-onionCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
-onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+-- | Checks for bugs by blindly sampling paths from every function
+defaultCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
+defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-  let stdLibPrims = allStdLibPrims
+  funcs <- Store.getFuncs store
+  
+  let q :: Query Function
+      q = QueryExpandAll $ QueryExpandAllOpts
+          { callExpandDepthLimit = opts ^. #expandCallDepth
+          -- TODO: At some point, we should base the # samples on the size of func
+          , numSamples = opts ^. #maxSamplesPerFunc
+          }
+      bms :: [BugMatch]
+      bms = Pat.allPatterns
+      output = if opts ^. #outputJSON then printJSON else sequentialPutText . pretty'
+
+  when (opts ^. #isKernelModule)
+    $ checkKernelLifecycle
+      (not $ opts ^. #doNotUseSolver)
+      store
+      (opts ^. #maxSamplesPerFunc)
+      (opts ^. #expandCallDepth)
+      output
+      
+  checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output . HashSet.fromList $ funcs
+
+-- | Checks for bugs by blindly sampling paths from every function
+primCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
+primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+  store <- Store.init (opts ^. #analysisDb) imp
+  funcs <- Store.getFuncs store
+  
+  let q :: Query Function
+      q = QueryExpandAll $ QueryExpandAllOpts
+          { callExpandDepthLimit = opts ^. #expandCallDepth
+          -- TODO: At some point, we should base the # samples on the size of func
+          , numSamples = opts ^. #maxSamplesPerFunc
+          }
       prims :: [Prim]
-      prims = PrimLib.allPrims
-        -- [ PrimLib.controlledFormatStringPrim
-        -- ]
+      prims =
+        [ PrimLib.writeToKernelGlobal
+        , PrimLib.controlledIndirectCall
+        , PrimLib.integerOverflowPrim
+        ]
 
-  onionFlow (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
-  cprims <- fmap HashMap.toList . CM.getSnapshot $ store ^. #callablePrims
-  forM_ cprims printCallablePrimsJSON
-  putText "dun"
-
-
+  kernelResults <- case opts ^. #isKernelModule of
+    False -> return []
+    True -> checkKernelLifecycleForPrims'
+      (not $ opts ^. #doNotUseSolver)
+      store
+      (opts ^. #maxSamplesPerFunc)
+      (opts ^. #expandCallDepth)
+      
+  r <- checkFuncsForPrims' (not $ opts ^. #doNotUseSolver) store q prims . HashSet.fromList $ funcs
+  putText . Text.pack . unpack . encodePretty . toJSON . fmap toMatchingPrimBlob $ r <> kernelResults
