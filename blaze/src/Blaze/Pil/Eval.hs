@@ -17,6 +17,7 @@ evalPilArithmeticExpr expr@(Expression sz op) = case op of
   ConstStr _ -> unchanged
   ConstFuncPtr _ -> unchanged
   CONST_BOOL _ -> unchanged
+  IMPORT _ -> unchanged
   ADD (AddOp a b) -> binIntOp (+) a b
   SUB (SubOp a b) -> binIntOp (-) a b
   _ -> Nothing

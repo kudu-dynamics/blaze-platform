@@ -1,16 +1,18 @@
-resolver: lts-23.18
+resolver: lts-22.11
 # Always keep `compiler` explicit because it's used by the Dockerfile to
 # optimize both build time and intermediate image size
-compiler: ghc-9.8.4
+compiler: ghc-9.6.4
 
 packages:
-  - .
+  - binaryninja-haskell
+  - binaryninja-haskell/binja-header-cleaner
+  - ghidra-haskell
+  - blaze
+  - blaze/blaze-binaryninja
+  - flint
+  - flint/flint-binaryninja
 
 extra-deps:
-  - blaze-binaryninja
-  - ../binaryninja-haskell
-  - ../binaryninja-haskell/binja-header-cleaner
-  - ../ghidra-haskell
   - git: https://github.com/kudu-dynamics/binary-analysis
     commit: 421057ba848999f0b1ffec303eb6936e18e673cd
   - git: https://github.com/kudu-dynamics/inline-java.git
@@ -19,7 +21,7 @@ extra-deps:
       - jni
       - jvm
   - git: https://github.com/kudu-dynamics/selda.git
-    commit : ecb3321f9cca116f658590f35a5e85fa0c6dd929
+    commit : efde67c131deea943e1d76e26449aa8da46c2d01
     subdirs:
       - selda
       - selda-sqlite
@@ -28,4 +30,3 @@ rebuild-ghc-options: true
 ghc-options:
   "$locals": -j -O0
   "prettyprinter": -Wno-deprecations
-  

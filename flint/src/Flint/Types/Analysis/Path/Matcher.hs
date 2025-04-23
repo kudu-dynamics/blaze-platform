@@ -255,7 +255,8 @@ data MatcherResult
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data PathPrep = PathPrep
-  { stmts :: [Pil.Stmt]
+  { untouchedStmts :: [Pil.Stmt]
+  , stmts :: [Pil.Stmt]
   , taintSet :: HashSet Taint
   , codeSummary :: CodeSummary
   } deriving (Eq, Ord, Show, Generic)

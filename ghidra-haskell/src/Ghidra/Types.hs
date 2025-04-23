@@ -91,6 +91,7 @@ type SequenceNumber = J ('Java.Class "ghidra.program.model.pcode.SequenceNumber"
 type SimpleBlockModel = J ('Java.Class "ghidra.program.model.block.SimpleBlockModel")
 type SleighLanguageProvider = J ('Java.Class "ghidra.app.plugin.processors.sleigh.SleighLanguageProvider")
 type String = J ('Java.Class "java.lang.String")
+type System = J ('Java.Class "java.lang.System")
 type TaskMonitor = J ('Java.Class "ghidra.util.task.TaskMonitor")
 type VarNode = J ('Java.Class "ghidra.program.model.pcode.Varnode")
 type VarNodeAST = J ('Java.Class "ghidra.program.model.pcode.VarnodeAST")

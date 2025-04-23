@@ -118,6 +118,31 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
+    it "should match on a const ptr immediate" $ do
+      let loadPtrExpr = Pil.Expression
+                { size = 8
+                , op = Pil.CONST_PTR $ Pil.ConstPtrOp 1052800
+                }
+          stmts = [def "b" loadPtrExpr]
+          pats = [Stmt $ Def Wild Immediate]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match on a const ptr immediate contained in a load" $ do
+      let loadPtrExpr = Pil.Expression
+                { size = 8
+                , op = Pil.LOAD
+                       . Pil.LoadOp
+                       $ Pil.Expression
+                         { size = 8
+                         , op = Pil.CONST_PTR $ Pil.ConstPtrOp 1052800
+                         }
+                }
+          stmts = [def "b" loadPtrExpr]
+          pats = [Stmt $ Def Wild (Contains Immediate)]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
     it "should match .== for integral CmpE" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
@@ -192,6 +217,18 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     it "should match an expression that Contains a variable" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match an expression that Contains an Immediate" $ do
+      let stmts = [def "b" (load (const 83483834 8) 8)]
+          pats = [Stmt $ Def Wild (Contains Immediate)]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should match an expression that Contains an Immediate2" $ do
+      let stmts = [def "b" (load (constPtr 83483834 8) 8)]
+          pats = [Stmt $ Def Wild (Contains Immediate)]
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 

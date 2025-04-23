@@ -23,7 +23,7 @@ import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
-import Flint.Util (sequentialWarn)
+import Flint.Util (sequentialWarn, sequentialPutText)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
@@ -641,7 +641,6 @@ checkPathsForBugMatch actuallySolve tps stubs bugMatch fpaths = do
   forM_ matches $ \(func, path, (ms, mr)) -> do
     case mr of
       M.NoMatch -> do
-        putText "No match"
         -- let stmts = PA.aggressiveExpand . CfgPath.toStmts $ path
 
         -- putText "\n--- These Bad ---\n"
@@ -675,7 +674,6 @@ checkFuncs
   -> IO ()
 checkFuncs actuallySolve store q bugMatches streamResults funcs = do
   mapConcurrently_ (checkFunc actuallySolve store q bugMatches streamResults) . HashSet.toList $ funcs
-  putText "Finished"
   
 checkFunc
   :: Bool                   -- actually use SMT solver?
@@ -892,9 +890,15 @@ checkPathForPrim
   -> Prim
   -> IO (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
 checkPathForPrim solver func prep codeSummary prim = do
+  when (func ^. #name == "int_inc_ioctl") $ do
+      -- sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts . filter ((== 0x100130) . view #addr) $ prep ^. #stmts
+      sequentialPutText . cs . pshow . filter ((== 0x100263) . view #addr) $ prep ^. #untouchedStmts
+      sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ prep ^. #untouchedStmts
+
   M.match solver (prim ^. #stmtPattern) prep >>= \case
     (_, M.NoMatch) -> return Nothing
     (ms, M.Match stmtsWithAssertions) -> do
+      -- putText "MAAAAATCHED!!!!"
       return . Just $ mkCallablePrimitive
         func
         codeSummary
@@ -1035,6 +1039,14 @@ matchAndReturnCallablePrim
   -> Prim
   -> IO (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
 matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
+  -- when (func ^. #name == "int_inc_ioctl") $ do
+  --   let solver' = const . return $ Solver.Sat HashMap.empty
+  --   r <- checkPathForPrim solver' func pprep (pprep ^. #codeSummary) prim
+  --   case r of
+  --     Just (Right _) -> putText "Match city"
+  --     Just (Left _) -> putText "match error"
+  --     Nothing -> putText "no match :("
+  
   let mstate = M.mkMatcherState solver pprep
                & #callablePrimitives .~ callablePrimSnapshot
   checkPathForPrim_ mstate func (pprep ^. #codeSummary) prim 
@@ -1050,13 +1062,27 @@ onionCheckPathForPrim
   -> Prim
   -> IO ()
 onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
+  -- when (func ^. #name == "int_inc_ioctl") $ do
+  --     putText $ prim ^. #primType . #name
+  --     putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+
+  -- checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
+  --   Nothing -> putText "|| NO MATCH ||"
+  --   Just (Left _) -> putText "|| err ||"
+  --   Just (Right _) -> putText "|| MATCH!!! ||"
   matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
-    Nothing -> return ()
+    Nothing -> do
+      -- when (func ^. #name == "int_inc_ioctl") $ do
+      --   putText $ "Found nothing"
+      return ()
     Just (Left cprimError) -> do
       -- TODO: make this log a warning properly
       putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
       return ()
-    Just (Right cprim) -> CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
+    Just (Right cprim) -> do
+      -- when (func ^. #name == "int_inc_ioctl") $ do
+      --   putText $ "MATCH!"
+      CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
 
 -- | Gets cached paths for function, and checks them for each prim.
 -- Adds instances found of CallablePrimitives back into CfgStore
@@ -1068,8 +1094,9 @@ onionCheckFunc
   -> Function
   -> IO ()
 onionCheckFunc solver store callablePrimSnapshot prims func = do
-  paths <- CM.get func $ store ^. #pathSamples
+  paths <- CM.get func $ store ^. #pathSamples      
   let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
+  -- TODO: use mapConcurrently
   forM_ pathPrimCombos $ \(pprep, prim) -> do
     onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
 
@@ -1104,6 +1131,10 @@ onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
   forM_ funcs $ \func -> do
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
     let pathPreps = M.mkPathPrep [] <$> paths
+    -- when (func ^. #name == "int_inc_ioctl") $ do
+    --   forM_ pathPreps $ \pathPrep ->
+    --     sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ pathPrep ^. #stmts
+
     CM.set func pathPreps $ store ^. #pathSamples
   let initialPrims = getInitialPrimitives stdLibPrims funcs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
