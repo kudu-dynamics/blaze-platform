@@ -22,7 +22,7 @@ data PrimType = PrimType
   { name :: Text
   , vars :: HashSet (Symbol Pil.Expression)
   -- | important locations in the primitive
-  , locations :: HashSet (Symbol Address) 
+  , locations :: HashSet (Symbol Address)
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 -- | The primitive vars bound in CallablePrimitive will be written in terms of these

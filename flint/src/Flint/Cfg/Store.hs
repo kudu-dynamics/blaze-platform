@@ -20,6 +20,8 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Graph (calcDescendantsMap, calcStrictDescendantsMap, DescendantsMap(DescendantsMap), StrictDescendantsMap(StrictDescendantsMap))
 import qualified Blaze.Types.Pil as Pil
 
+import Blaze.Import.Binary (BinaryImporter)
+import qualified Blaze.Import.Binary as Binary
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.Cfg as ImpCfg
@@ -45,6 +47,7 @@ import qualified Data.HashMap.Strict as HashMap
 init
   :: ( CallGraphImporter imp
      , NodeDataType imp ~ PilNode
+     , BinaryImporter imp
      , CfgImporter imp
      )
   => Maybe FilePath -> imp -> IO CfgStore
@@ -62,6 +65,7 @@ init mDbFilePath imp = do
     <*> atomically CC.create
     <*> atomically (CM.create [])
     <*> atomically (CM.create HashSet.empty)
+    <*> Binary.getBase imp
 
   allFuncCfgs <- getFuncsWithCfgs imp
   -- let internalFuncs = fst <$> allFuncCfgs

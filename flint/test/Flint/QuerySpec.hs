@@ -29,7 +29,7 @@ libatm2 :: FilePath
 libatm2 = "res/test_bins/onion_atm/libatm2.so"
 
 dirtyBenchmark :: FilePath
-dirtyBenchmark = "res/test_bins/dirty_benchmark/dirty_benchmark"
+dirtyBenchmark = "res/test_bins/dirty_benchmark/dirty_benchmark.gzf"
 
 data TestCtx = TestCtx
   { atmImp :: GhidraImporter
@@ -94,17 +94,31 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
 
       (fmap (fmap $ view #prim) <$> action) `shouldReturn` expected
 
-      
-    it "dirty_benchmark" $ \tctx -> do
-      let stdLibPrims = StdLibPrims.controlledFormatStringPrims
-          prims = [PrimLib.controlledFormatStringPrim]
-          action = do
-            onionFlow False 3 (tctx ^. #dirtyStore) stdLibPrims prims
-            m <- CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
-            return $ do
-              s <- HashMap.lookup PrimLib.controlledFormatString m
-              return $ HashSet.map (view #name . view #func) s
-          expected = Just $ HashSet.fromList
-            [ "printf", "sprintf", "call_format_string_vulnerability", "format_string_vulnerability" ]
+    context "onion primitives" $ do
+      it "should find controlled format string in dirty" $ \tctx -> do
+        let stdLibPrims = StdLibPrims.controlledFormatStringPrims
+            prims = [PrimLib.controlledFormatStringPrim]
+            action = do
+              onionFlow False 3 (tctx ^. #dirtyStore) stdLibPrims prims
+              m <- CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
+              return $ do
+                s <- HashMap.lookup PrimLib.controlledFormatString m
+                return $ HashSet.map (view #name . view #func) s
+            expected = Just $ HashSet.fromList
+              [ "printf", "sprintf", "call_format_string_vulnerability", "format_string_vulnerability" ]
 
-      action `shouldReturn` expected
+        action `shouldReturn` expected
+
+      it "should find heap frees in atm2" $ \tctx -> do
+        let stdLibPrims = StdLibPrims.freeHeapPrims
+            prims = [PrimLib.freeHeapPrim]
+            action = do
+              onionFlow False 3 (tctx ^. #atmStore) stdLibPrims prims
+              m <- CM.getSnapshot $ tctx ^. #atmStore . #callablePrims
+              return $ do
+                s <- HashMap.lookup PrimLib.freeHeap m
+                return $ HashSet.map (view #name . view #func) s
+            expected = Just $ HashSet.fromList
+              [ "eventLoop", "clearHistory", "removeCardUser", "free", "clearCards", "removeCardAdmin" ]
+
+        action `shouldReturn` expected
