@@ -19,9 +19,9 @@ import Ghidra.Types.Internal as Exports (Ghidra)
 import Control.Concurrent.STM.TChan (TChan, newTChanIO, writeTChan, readTChan)
 import Control.Concurrent.STM.TMVar (newEmptyTMVarIO, putTMVar, readTMVar)
 import Data.ByteString qualified as BS
+import qualified Language.Java as Java
 import System.IO.Memoize (once)
 import System.Directory (canonicalizePath, doesFileExist)
-import qualified Language.Java as Java
 import Data.IORef
 
 newtype JVMException = JVMException Text

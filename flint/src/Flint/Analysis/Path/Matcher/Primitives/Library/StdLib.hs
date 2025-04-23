@@ -5,9 +5,61 @@ import Flint.Prelude hiding (Location)
 import Flint.Types.Analysis.Path.Matcher.Primitives
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimsLib
 
+import Blaze.Pil.Construct
+
 import qualified Data.HashMap.Strict as HashMap
 
+
+allStdLibPrims :: [StdLibPrimitive]
+allStdLibPrims =
+     controlledFormatStringPrims
+  <> freeHeapPrims
+
 -----------------------------------
+
+freeHeapPrims :: [StdLibPrimitive]
+freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
+  StdLibPrimitive
+    { prim = PrimsLib.freeHeap
+    , funcName = funcName
+    , varMapping = HashMap.fromList
+      [ ("ptr", FuncVar $ Arg argNo)
+      ]
+    , constraints = []
+    }
+  where
+    freeFuncs =
+      [ ("free", 0)
+      , ("cfree", 0)      -- legacy, but still does heap stuff
+      , ("kfree", 0)      -- kernel free
+      , ("realloc", 0)    -- when called with a freed pointer, boom! TODO: look into
+      , ("g_free", 0)     -- GLib wrapper around free()
+      , ("sqlite3_free", 0) -- SQLite-managed heap, sometimes same as system free()
+      , ("XFree", 0)      -- X11 heap-ish, platform-allocator dependent
+      , ("xmlFree", 0)    -- if xmlMalloc == malloc, then same danger
+      ]
+
+allocHeapPrims :: [StdLibPrimitive]
+allocHeapPrims =
+  [ StdLibPrimitive
+    { prim = PrimsLib.allocHeap
+    , funcName = "malloc"
+    , varMapping = HashMap.fromList
+      [ ("ptr", FuncVar Ret)
+      , ("size", FuncVar $ Arg 0)
+      ]
+    , constraints = []
+    }
+  , StdLibPrimitive
+    { prim = PrimsLib.allocHeap
+    , funcName = "calloc"
+    , varMapping = HashMap.fromList
+      [ ("ptr", FuncVar Ret)
+      , ("size", mul (FuncVar $ Arg 0) (FuncVar $ Arg 1) (SizeOf $ Arg 0))
+      ]
+    , constraints = []
+    }
+  ]
 
 controlledFormatStringPrims :: [StdLibPrimitive]
 controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $

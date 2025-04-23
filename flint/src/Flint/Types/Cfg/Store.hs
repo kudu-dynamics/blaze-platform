@@ -44,4 +44,5 @@ data CfgStore = CfgStore
   -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
   -- , planMakerCtx :: CachedCalc () (PlanMakerCtx Function PilNode)
   -- -- | All nodes in all Cfgs. Getting this causes all CfgInfos to be calc'd
+  , baseOffset :: Address
   } deriving (Generic)

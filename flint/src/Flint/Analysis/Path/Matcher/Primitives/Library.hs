@@ -11,12 +11,41 @@ import Blaze.Pil.Construct hiding (not)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
+allPrims :: [Prim]
+allPrims =
+  [ controlledFormatStringPrim
+  , integerOverflowPrim
+  , freeHeapPrim
+  , allocHeapPrim
+  , doubleFreePrim
+  ]
 
 copyPrim :: PrimType
 copyPrim = PrimType
   { name = "copy"
   , vars = HashSet.fromList ["dest", "src", "len"]
   , locations = HashSet.fromList ["write"]
+  }
+
+freeHeap :: PrimType
+freeHeap = PrimType
+  { name = "freeHeap"
+  , vars = HashSet.fromList ["ptr"]
+  , locations = HashSet.fromList ["free"]
+  }
+
+allocHeap :: PrimType
+allocHeap = PrimType
+  { name = "allocHeap"
+  , vars = HashSet.fromList ["ptr", "size"]
+  , locations = HashSet.fromList ["alloc"]
+  }
+
+doubleFree :: PrimType
+doubleFree = PrimType
+  { name = "doubleFree"
+  , vars = HashSet.fromList ["ptr"]
+  , locations = HashSet.fromList ["free1", "free2"]
   }
 
 controlledFormatString :: PrimType
@@ -28,32 +57,135 @@ controlledFormatString = PrimType
     [ "call" ]
   }
 
+-- | [x] = [x] + 1
+-- without previously checking [x]
+integerOverflow :: PrimType
+integerOverflow = PrimType
+  { name = "IntegerOverflow"
+  , vars = HashSet.fromList
+    [ "ptr" -- overflowed ptr
+    , "n"
+    ]
+  , locations = HashSet.fromList
+    [ "increment store" ]
+  }
+
 ---------------------------
 
 
 isArg :: ExprPattern
-isArg = Var "arg"
+isArg = Param
 
 -- | This is supposed to restrict expr to func args and globals, but I don't know how
 -- to do that yet, really this just accepts everything for now (b/c the Wild)
 isInput :: ExprPattern
-isInput = Var "arg" .|| Var "param"
-  -- TODO: need to figue out how to restrict to inputs
-  .|| Wild
+isInput = Param
+  -- TODO: somehow identify global ptr so we don't get confused with offsets
+  .|| Immediate
 
 -- | This indicates the expr is tainted by function input (args/globals)
 -- TODO: maybe we can use CodeSummary when matching
 fromInput :: ExprPattern
 fromInput = Wild
 
+
+------------------------
+
 controlledFormatStringPrim :: Prim
 controlledFormatStringPrim = Prim
   { primType = controlledFormatString
   , stmtPattern =
       [ Location "call" . Primitive controlledFormatString $ HashMap.fromList
-        [ ("fmt", Bind "fmt" (Contains Param)) ] 
+        [ ("fmt", Bind "fmt" (Contains Param)) ]
       ]
   }
+
+freeHeapPrim :: Prim
+freeHeapPrim = Prim
+  { primType = freeHeap
+  , stmtPattern =
+      [ Location "free" . Primitive freeHeap $ HashMap.fromList
+        [ ("ptr", Bind "ptr" (Contains isInput)) ]
+      ]
+  }
+
+allocHeapPrim :: Prim
+allocHeapPrim = Prim
+  { primType = allocHeap
+  , stmtPattern =
+      [ Location "alloc" . Primitive allocHeap $ HashMap.fromList
+        [ ("ptr", Bind "ptr" (Contains isInput))
+        , ("size", Bind "size" Wild)
+        ]
+      ]
+  }
+
+doubleFreePrim :: Prim
+doubleFreePrim = Prim
+  { primType = doubleFree
+  , stmtPattern =
+      [ AnyOne
+        [ Location "free1" . Location "free2" . Primitive doubleFree $ HashMap.fromList
+          [ ("ptr", Bind "ptr" (Contains isInput)) ]
+        , Ordered
+          [ Location "free1" . Primitive freeHeap $ HashMap.fromList
+            [ ("ptr", Bind "ptr" (Contains isInput)) ]
+          , AvoidUntil $ AvoidSpec
+            { avoid = Primitive allocHeap $ HashMap.fromList
+                      [("ptr", Bind "ptr" Wild)]
+            , until =
+              Location "free2" . Primitive freeHeap $ HashMap.fromList
+              [ ("ptr", Bind "ptr" Wild) ]
+            }         
+          ]
+        ]
+      ]
+  }
+
+integerOverflowPrim :: Prim
+integerOverflowPrim = Prim
+  { primType = integerOverflow
+  -- , stmtPattern =
+  --     [ AvoidUntil $ AvoidSpec
+  --       { avoid = Stmt . Constraint
+  --                 $   (Contains (load (Bind "ptr" Wild) ()) .< Wild)
+  --                 .|| (Contains (load (Bind "ptr" Wild) ()) .<= Wild)
+  --                 .|| (Contains (load (Bind "ptr" Wild) ()) .> Wild)
+  --                 .|| (Contains (load (Bind "ptr" Wild) ()) .>= Wild)
+  --                 .|| (Contains (load (Bind "ptr" Wild) ()) .== Wild)
+  --                 .|| (Contains (load (Bind "ptr" Wild) ()) ./= Wild)
+  --       , until = Ordered
+  --         [ Location "increment store" . Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+  --         ]
+  --       }
+  --     ]
+  , stmtPattern =
+      [ AnyOne
+        [ Location "increment store" . Primitive integerOverflow $ HashMap.fromList
+          [ ("ptr", Bind "ptr" Wild )
+          , ("increment_by", Bind "increment_by" Wild)
+          ]
+        , AvoidUntil $ AvoidSpec
+          { avoid = Stmt . Constraint
+                    $   (Contains (load (Bind "ptr" Wild) ()) .< Wild)
+                    .|| (Contains (load (Bind "ptr" Wild) ()) .<= Wild)
+                    .|| (Contains (load (Bind "ptr" Wild) ()) .> Wild)
+                    .|| (Contains (load (Bind "ptr" Wild) ()) .>= Wild)
+                    .|| (Contains (load (Bind "ptr" Wild) ()) .== Wild)
+                    .|| (Contains (load (Bind "ptr" Wild) ()) ./= Wild)
+          , until = Ordered
+                    [ Location "increment store"
+                      . Stmt $ Store
+                               (Bind "ptr" Wild)
+                               (add (load (Bind "ptr" Wild) ())
+                                (Bind "increment_by" Wild) ())
+                    ]
+          }
+        ]
+      ]
+  }
+    
+
 -------------------------------------
 
 writeToKernelGlobal :: Prim
@@ -68,14 +200,14 @@ writeToKernelGlobal = Prim
   , stmtPattern =
       [ Location "write" . Stmt $ Call Nothing (CallFunc $ FuncName "_copy_from_user")
         [ Bind "dest" isGlobal
-        , Bind "src" (isGlobal .|| isArg)
+        , Bind "src" (Contains $ Param .|| Immediate)
         , Bind "len" Wild
         ]
       ]
   }
   where
-    -- TODO: pass in global from CodeSummary?
-    isGlobal = Immediate
+    -- TODO: pass in global from CodeSummary
+    isGlobal = Contains Immediate
 
 ---------------
 
@@ -89,12 +221,9 @@ controlledIndirectCall = Prim
                  [ "call" ]
                }
   , stmtPattern =
-      [ Location "call" . Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" (Contains inputDest)) []
+      [ Location "call" . Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" (Contains isInput)) []
       ]
   }
-  where
-    isGlobal = Immediate -- lame
-    inputDest = Contains isArg .|| load isGlobal ()
 
 
 ----------------

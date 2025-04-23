@@ -31,6 +31,7 @@ tryPlt
   :: ( CallGraphImporter imp
      , NodeDataType imp ~ PilNode
      , CfgImporter imp
+     , BinaryImporter imp
      )
   => imp
   -> IO ()

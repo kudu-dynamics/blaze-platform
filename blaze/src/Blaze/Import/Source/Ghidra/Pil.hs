@@ -315,10 +315,16 @@ varNodeToReference v = do
       let regName = getRegisterName offset size reg
       let name = case specialName of
             Nothing -> maybe regName (\ver -> regName <> "#" <> show ver) version
-            Just name' -> case version of
-              Nothing -> name'
-              Just 1 -> name' -- ignore version in name (for sake of params)
-              Just ver -> name' <> "#" <> show ver
+            Just name' -> case HashSet.member name' paramNames of
+              True -> name'
+              False -> case version of
+                Nothing -> name'
+                Just ver -> name' <> "#" <> show ver
+
+          -- case version of
+          --     Nothing -> name'
+          --     Just 1 -> name' -- ignore version in name (for sake of params)
+          --     Just ver -> name' <> "#" <> show ver
       -- let name = fromMaybe (getRegisterName offset size reg) specialName
       -- version <- lift $ internVarnode (SSAReg offset) pcAddress
       pure . Left . pv name (HashSet.member name paramNames) $ Pil.Register regName
@@ -327,10 +333,15 @@ varNodeToReference v = do
       let stackName = stackVarName offset
       let name = case specialName of
             Nothing -> maybe stackName (\ver -> stackName <> "#" <> show ver) version
-            Just name' -> case version of
-              Nothing -> name'
-              Just 1 -> name' -- ignore version in name (for sake of params)
-              Just ver -> name' <> "#" <> show ver              
+            Just name' -> case HashSet.member name' paramNames of
+              True -> name'
+              False -> case version of
+                Nothing -> name'
+                Just ver -> name' <> "#" <> show ver
+              -- case version of
+              -- Nothing -> name'
+              -- Just 1 -> name' -- ignore version in name (for sake of params)
+              -- Just ver -> name' <> "#" <> show ver              
       pure . Left . pv name (HashSet.member name paramNames) $ Pil.StackMemory offset
     VUnique{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
