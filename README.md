@@ -24,10 +24,36 @@ As simple as `docker build --platform=linux/amd64 .` or `docker-compose build`.
 See the comments about `DOCKER_REGISTRY` in the [Running > Using Docker](#using-docker) section.
 You can increase the GHC optimization level with `--build-arg OPTIM=-O2` for example (the default is `-O0`).
 
-For now, Blaze has a hard dependency on both ghidra-haskell as well as binaryninja-haskell, even if you only plan on using one or the other at run-time.
-We have plans to make these soft dependencies, but what this means is, for now, you need to have both Binary Ninja and Ghidra available.
-Luckily, Ghidra is a FOSS project, and we can just grab it while building the Docker image.
-Unfortunately, there isn't any way to download Binary Ninja headlessly[^download-binary-ninja-headlessly], so you'll need to provide your own.
+#### Blaze with Ghidra
+
+The following commands build the blaze tooling with ghidra.
+Ghidra is a FOSS project, and we can just grab it while building the Docker images.
+
+##### Ghidra Blaze with Unit Tests
+
+`docker build -t blaze .`
+(This works since it is the last image in the Dockerfile)
+
+OR
+
+`docker build -t blaze --target deliver-tests .`
+
+##### Ghidra Blaze without Unit Tests
+
+`docker build -t blaze --target deliver .`
+
+
+#### Blaze with Binary Ninja
+
+##### Binary Ninja Blaze with Unit Tests
+
+`docker build -t blaze_binja --target deliver-binaryninja .`
+
+##### Binary Ninja Blaze without Unit Tests
+
+`docker build -t blaze_binja --target deliver-binaryninja-tests .`
+
+There isn't any way to download Binary Ninja headlessly[^download-binary-ninja-headlessly], so you'll need to provide your own.
 Simply copy `BinaryNinja.zip` and `license.dat` (commercial or headless license) into this directory before running any `docker build` or `docker-compose build`/`docker-compose up` commands.
 The version of `BinaryNinja.zip` doesn't matter, only that it's a linux build.
 
