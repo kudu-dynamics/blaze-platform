@@ -70,3 +70,9 @@ The version of `BinaryNinja.zip` doesn't matter, only that it's a linux build.
 ### From source
 
 For the most part, `stack build { TARGET }`, but see each package's `README.md` for more information.
+
+## Running Flint Using Docker
+
+```
+docker run --rm -v /your/local/path/:/whatever:ro blaze /out/bin/flint_classic --doNotUseSolver /whatever/somebinary
+```
