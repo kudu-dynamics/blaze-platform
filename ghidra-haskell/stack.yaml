@@ -1,7 +1,7 @@
-resolver: lts-22.11
+resolver: lts-23.18
 # Always keep `compiler` explicit because it's used by the Dockerfile to
 # optimize both build time and intermediate image size
-compiler: ghc-9.6.4
+compiler: ghc-9.8.4
 
 packages:
   - .
