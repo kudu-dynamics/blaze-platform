@@ -19,7 +19,7 @@ void calls_free2(void *ptr) {
 }
 
 __attribute__((noinline))
-void double_free1(void *ptr) {
+void double_free1(void *ptr) {  
   free1(ptr);
   calls_free2(ptr);
 }
