@@ -130,6 +130,8 @@ doubleFreePrim = Prim
         , Ordered
           [ Location "free1" . Primitive freeHeap $ HashMap.fromList
             [ ("ptr", Bind "ptr" (Contains isInput)) ]
+          -- , Location "free2" . Primitive freeHeap $ HashMap.fromList
+          --   [ ("ptr", Bind "ptr" Wild) ]
           , AvoidUntil $ AvoidSpec
             { avoid = Primitive allocHeap $ HashMap.fromList
                       [("ptr", Bind "ptr" Wild)]
