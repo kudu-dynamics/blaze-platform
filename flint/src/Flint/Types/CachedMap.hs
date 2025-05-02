@@ -33,7 +33,12 @@ set k v (CachedMap _ cc) = atomically $ do
 get_ :: Hashable k => k -> CachedMap k v -> STM (TVar v)
 get_ k (CachedMap defV cc) = do
   m <- readTVar cc
-  maybe (newTVar defV) return $ HashMap.lookup k m
+  case HashMap.lookup k m of
+    Just tv -> return tv
+    Nothing -> do
+      tv <- newTVar defV
+      writeTVar cc $ HashMap.insert k tv m
+      return tv
 
 get :: Hashable k => k -> CachedMap k v -> IO v
 get k cc = atomically $ get_ k cc >>= readTVar
@@ -88,7 +93,6 @@ getSnapshot :: forall k v. Hashable k => CachedMap k v -> IO (HashMap k v)
 getSnapshot fullCc@(CachedMap _ cc) = do
   keys <- HashMap.keys <$> readTVarIO cc
   fmap HashMap.fromList . mapConcurrently getVal $ keys
-  -- fmap HashMap.fromList . mapMaybeM getVal $ keys
   where
     getVal :: k -> IO (k, v)
     getVal k = (k,) <$> get k fullCc

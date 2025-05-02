@@ -14,6 +14,7 @@ allStdLibPrims :: [StdLibPrimitive]
 allStdLibPrims =
      controlledFormatStringPrims
   <> freeHeapPrims
+  <> allocHeapPrims
 
 -----------------------------------
 
