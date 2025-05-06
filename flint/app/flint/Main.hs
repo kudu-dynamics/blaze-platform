@@ -14,6 +14,7 @@ import Flint.Query
 import Flint.Util (sequentialPutText)
 import qualified Flint.Types.CachedMap as CM
 
+import Blaze.Import.Binary (getBase)
 import Blaze.Pretty (pretty')
 
 import Control.Monad.Logger (LogLevel(LevelInfo))
@@ -172,10 +173,23 @@ printCallablePrimsJSON (primtype, cprims) = do
              )
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
+printResult :: FlintResult -> IO ()
+printResult = sequentialPutText . Text.pack . unpack . encodePretty . toJSON
+
+toFlintResult
+  :: Address
+  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> FlintResult
+toFlintResult baseOffset
+  = FlintResult baseOffset
+  . fmap (\(pt, s) -> (pt ^. #name, fmap toCallablePrimitiveBlob . HashSet.toList $ s))
+  . HashMap.toList
+
 -- | Checks for bugs using the onion
 onionCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
 onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
+  base <- getBase imp
   let stdLibPrims = allStdLibPrims
       prims :: [Prim]
       prims = PrimLib.allPrims
@@ -183,8 +197,9 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
         -- ]
 
   onionFlow (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
-  cprims <- fmap HashMap.toList . CM.getSnapshot $ store ^. #callablePrims
-  forM_ cprims printCallablePrimsJSON
-  putText "dun"
+  cprims <- CM.getSnapshot $ store ^. #callablePrims
+  printResult . toFlintResult base $ cprims
+  -- forM_ cprims printCallablePrimsJSON
+  -- putText "dun"
 
 

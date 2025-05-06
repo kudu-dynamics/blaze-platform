@@ -201,7 +201,7 @@ primCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
 primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   funcs <- Store.getFuncs store
-  
+
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
           { callExpandDepthLimit = opts ^. #expandCallDepth
