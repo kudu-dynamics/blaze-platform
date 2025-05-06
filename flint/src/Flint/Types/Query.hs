@@ -95,6 +95,11 @@ data CallablePrimitiveBlob = CallablePrimitiveBlob
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 
+data FlintResult = FlintResult
+  { baseAddress :: Address
+  , callableWMIs :: [(Text, [CallablePrimitiveBlob])] -- [("prim name", [prims])]
+  } deriving (Eq, Ord, Show, Generic, ToJSON)
+
 toCallablePrimitiveBlob :: CallablePrimitive -> CallablePrimitiveBlob
 toCallablePrimitiveBlob cprim = blob
   where
