@@ -4,7 +4,7 @@ module Flint.Cfg.Store where
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher.Primitives (getInitialPrimitives)
+import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (StdLibPrimitive)
 import Flint.Types.Cfg.Store
 import qualified Flint.Types.CachedCalc as CC
@@ -621,4 +621,4 @@ populateInitialPrimitives
   -> IO ()
 populateInitialPrimitives sprims store = do
   funcs <- getFuncs store
-  CM.putSnapshot (getInitialPrimitives sprims funcs) $ store ^. #callablePrims
+  CM.putSnapshot (getInitialWMIs sprims funcs) $ store ^. #callablePrims

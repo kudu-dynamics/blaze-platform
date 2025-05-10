@@ -3,6 +3,7 @@ module Flint.Analysis.Path.Matcher.Primitives.Library where
 import Flint.Prelude hiding (Location)
 
 import Flint.Analysis.Path.Matcher
+import Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.Primitives
 
@@ -20,58 +21,7 @@ allPrims =
   , doubleFreePrim
   ]
 
-copyPrim :: PrimType
-copyPrim = PrimType
-  { name = "copy"
-  , vars = HashSet.fromList ["dest", "src", "len"]
-  , locations = HashSet.fromList ["write"]
-  }
-
-freeHeap :: PrimType
-freeHeap = PrimType
-  { name = "freeHeap"
-  , vars = HashSet.fromList ["ptr"]
-  , locations = HashSet.fromList ["free"]
-  }
-
-allocHeap :: PrimType
-allocHeap = PrimType
-  { name = "allocHeap"
-  , vars = HashSet.fromList ["ptr", "size"]
-  , locations = HashSet.fromList ["alloc"]
-  }
-
-doubleFree :: PrimType
-doubleFree = PrimType
-  { name = "doubleFree"
-  , vars = HashSet.fromList ["ptr"]
-  , locations = HashSet.fromList ["free1", "free2"]
-  }
-
-controlledFormatString :: PrimType
-controlledFormatString = PrimType
-  { name = "ControlledFormatString"
-  , vars = HashSet.fromList
-    [ "fmt" ]
-  , locations = HashSet.fromList
-    [ "call" ]
-  }
-
--- | [x] = [x] + 1
--- without previously checking [x]
-integerOverflow :: PrimType
-integerOverflow = PrimType
-  { name = "IntegerOverflow"
-  , vars = HashSet.fromList
-    [ "ptr" -- overflowed ptr
-    , "n"
-    ]
-  , locations = HashSet.fromList
-    [ "increment store" ]
-  }
-
 ---------------------------
-
 
 isArg :: ExprPattern
 isArg = Param
@@ -191,7 +141,7 @@ integerOverflowPrim = Prim
 
 writeToKernelGlobal :: Prim
 writeToKernelGlobal = Prim
-  { primType = PrimType
+  { primType = PrimSpec
                { name = "WriteToKernelGlobal"
                , vars = HashSet.fromList
                  [ "src", "dest", "len" ]
@@ -214,7 +164,7 @@ writeToKernelGlobal = Prim
 
 controlledIndirectCall :: Prim
 controlledIndirectCall = Prim
-  { primType = PrimType
+  { primType = PrimSpec
                { name = "ControlledIndirectCall"
                , vars = HashSet.fromList
                  [ "callTarget" ]
@@ -270,7 +220,7 @@ argAt n x = replicate (fromIntegral n) Wild <> [x]
 failedToUnregister :: [Prim]
 failedToUnregister = fmap f thingsYouShouldUnregister
   where
-    primType = PrimType
+    primType = PrimSpec
       { name = "FailedToUnregisterKernelHandler"
       , vars = HashSet.fromList ["handler"]
       , locations = HashSet.fromList ["registerHandlerCall"]

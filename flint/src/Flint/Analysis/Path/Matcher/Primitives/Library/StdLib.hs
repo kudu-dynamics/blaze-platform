@@ -3,7 +3,7 @@ module Flint.Analysis.Path.Matcher.Primitives.Library.StdLib where
 import Flint.Prelude hiding (Location)
 
 import Flint.Types.Analysis.Path.Matcher.Primitives
-import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimsLib
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec as PrimSpec
 
 import Blaze.Pil.Construct
 
@@ -21,7 +21,7 @@ allStdLibPrims =
 freeHeapPrims :: [StdLibPrimitive]
 freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
   StdLibPrimitive
-    { prim = PrimsLib.freeHeap
+    { prim = PrimSpec.freeHeap
     , funcName = funcName
     , varMapping = HashMap.fromList
       [ ("ptr", FuncVar $ Arg argNo)
@@ -43,7 +43,7 @@ freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
 allocHeapPrims :: [StdLibPrimitive]
 allocHeapPrims =
   [ StdLibPrimitive
-    { prim = PrimsLib.allocHeap
+    { prim = PrimSpec.allocHeap
     , funcName = "malloc"
     , varMapping = HashMap.fromList
       [ ("ptr", FuncVar Ret)
@@ -52,7 +52,7 @@ allocHeapPrims =
     , constraints = []
     }
   , StdLibPrimitive
-    { prim = PrimsLib.allocHeap
+    { prim = PrimSpec.allocHeap
     , funcName = "calloc"
     , varMapping = HashMap.fromList
       [ ("ptr", FuncVar Ret)
@@ -65,7 +65,7 @@ allocHeapPrims =
 controlledFormatStringPrims :: [StdLibPrimitive]
 controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $
   StdLibPrimitive
-    { prim = PrimsLib.controlledFormatString
+    { prim = PrimSpec.controlledFormatString
     , funcName = funcName
     , varMapping = HashMap.fromList
       [ ("fmt", FuncVar $ Arg argNo)
