@@ -5,7 +5,7 @@ module Flint.Analysis.Path.Matcher.Primitives
 
 import Flint.Prelude hiding (Location)
 
-import Flint.Types.Analysis.Path.Matcher (addCallablePrimitive_)
+import Flint.Types.Analysis.Path.Matcher (addCallableWMI_)
 import qualified Flint.Types.Analysis.Path.Matcher.Func as MFunc
 import Flint.Types.Analysis.Path.Matcher.Primitives
 import Flint.Types.Symbol (Symbol)
@@ -86,23 +86,23 @@ toFuncVarExpr params codeSum expr' = runState (f expr') HashSet.empty
           addFuncVar fvar
           return $ FuncVar fvar
 
--- | Makes a CallablePrimitive from a path that goes through a func in the binary.
+-- | Makes a CallableWMI from a path that goes through a func in the binary.
 -- TODO: maybe we need to check to see if all parts of primitive are controllable here?
-mkCallablePrimitive
+mkCallableWMI
   :: Function
   -> CodeSummary
-  -> PrimType
+  -> PrimSpec
   -> HashMap (Symbol Pil.Expression) Pil.Expression
   -> HashMap (Symbol Address) (HashSet Address)
   -> [Stmt] -- whole path
-  -> Either MkCallablePrimitiveError CallablePrimitive
-mkCallablePrimitive func codeSum primType boundExprs boundLocations path = do
+  -> Either MkCallableWMIError CallableWMI
+mkCallableWMI func codeSum primType boundExprs boundLocations path = do
   let keySet = HashSet.fromList . HashMap.keys
       missingVarKeys = HashSet.difference (primType ^. #vars) $ keySet boundExprs
       missingLocationKeys = HashSet.difference (primType ^. #locations) $ keySet boundLocations
   case not (HashSet.null missingVarKeys) || not (HashSet.null missingLocationKeys) of
-    True -> Left $ MkCallablePrimitiveError missingVarKeys missingLocationKeys
-    False -> Right $ CallablePrimitive
+    True -> Left $ MkCallableWMIError missingVarKeys missingLocationKeys
+    False -> Right $ CallableWMI
       { prim = primType
       , func = func
       , callDest = MFunc.FuncName $ func ^. #name
@@ -132,8 +132,8 @@ mkCallablePrimitive func codeSum primType boundExprs boundLocations path = do
         varMapping' = toFuncVarExpr' <$> boundExprs
 
 
-fromStdLibPrimitive :: StdLibPrimitive -> Function -> CallablePrimitive
-fromStdLibPrimitive x func = CallablePrimitive
+fromStdLibPrimitive :: StdLibPrimitive -> Function -> CallableWMI
+fromStdLibPrimitive x func = CallableWMI
   { prim = x ^. #prim
   , func = func
   , callDest = MFunc.FuncName $ func ^. #name
@@ -152,17 +152,17 @@ fromStdLibPrimitive x func = CallablePrimitive
     constraints' = toSnd extractFuncVars <$> x ^. #constraints
 
 
-getInitialPrimitivesForFunc :: Function -> [StdLibPrimitive] -> [CallablePrimitive]
-getInitialPrimitivesForFunc func = mapMaybe f
+getInitialWMIsForFunc :: Function -> [StdLibPrimitive] -> [CallableWMI]
+getInitialWMIsForFunc func = mapMaybe f
   where
     f sprim = if func ^. #name == sprim ^. #funcName
       then Just $ fromStdLibPrimitive sprim func
       else Nothing
       
-getInitialPrimitives
+getInitialWMIs
   :: [StdLibPrimitive]
   -> [Function]
-  -> HashMap PrimType (HashSet CallablePrimitive)
-getInitialPrimitives sprims
-  = foldr addCallablePrimitive_ HashMap.empty
-  . foldMap (`getInitialPrimitivesForFunc` sprims)
+  -> HashMap PrimSpec (HashSet CallableWMI)
+getInitialWMIs sprims
+  = foldr addCallableWMI_ HashMap.empty
+  . foldMap (`getInitialWMIsForFunc` sprims)

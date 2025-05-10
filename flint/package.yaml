@@ -120,6 +120,7 @@ library:
   - Flint.Analysis.Path.Matcher.Primitives
   - Flint.Analysis.Path.Matcher.Primitives.Library
   - Flint.Analysis.Path.Matcher.Primitives.Library.StdLib
+  - Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec
   - Flint.Analysis.Path.Matcher.Stub
   - Flint.Analysis.Uefi
   - Flint.App
@@ -136,6 +137,7 @@ library:
   - Flint.Types.CachedCalc
   - Flint.Types.Cfg.Store
   - Flint.Types.Query
+  - Flint.Types.Symbol
   - Flint.Util
 
 executables:
@@ -235,6 +237,18 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - flint
+  gen_primspec:
+    main: Main.hs
+    source-dirs: app/gen_primspec
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - tomland
+    - flint
+    - optparse-applicative
 
 tests:
   # Flint tests that don't depend on a concrete importer

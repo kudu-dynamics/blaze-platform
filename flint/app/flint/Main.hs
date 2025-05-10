@@ -5,7 +5,7 @@ module Main where
 import Flint.Prelude
 
 import Flint.Types.Analysis.Path.Matcher (Prim)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, PrimType)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
 import Flint.App (withBackend, Backend)
@@ -164,10 +164,10 @@ printMatchingPrimJSON res = do
         }
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
-printCallablePrimsJSON :: (PrimType, HashSet CallablePrimitive) -> IO ()
+printCallablePrimsJSON :: (PrimSpec, HashSet CallableWMI) -> IO ()
 printCallablePrimsJSON (primtype, cprims) = do
   let blob = ( primtype ^. #name
-             , fmap toCallablePrimitiveBlob
+             , fmap toCallableWMIBlob
                . HashSet.toList
                $ cprims
              )
@@ -178,11 +178,11 @@ printResult = sequentialPutText . Text.pack . unpack . encodePretty . toJSON
 
 toFlintResult
   :: Address
-  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> HashMap PrimSpec (HashSet CallableWMI)
   -> FlintResult
 toFlintResult baseOffset
   = FlintResult baseOffset
-  . fmap (\(pt, s) -> (pt ^. #name, fmap toCallablePrimitiveBlob . HashSet.toList $ s))
+  . fmap (\(pt, s) -> (pt ^. #name, fmap toCallableWMIBlob . HashSet.toList $ s))
   . HashMap.toList
 
 -- | Checks for bugs using the onion

@@ -147,15 +147,15 @@ fooCodeSummary2 = Summary.fromStmts fooPath2
 fooCodeSummary3 :: CodeSummary
 fooCodeSummary3 = Summary.fromStmts fooPath3
 
-copyPrim :: PrimType
-copyPrim = PrimType
+copyPrim :: PrimSpec
+copyPrim = PrimSpec
   { name = "copy"
   , vars = HashSet.fromList ["dest", "src"]
   , locations = HashSet.fromList ["write"]
   }
 
-controlledFormatStringPrim :: PrimType
-controlledFormatStringPrim = PrimType
+controlledFormatStringPrim :: PrimSpec
+controlledFormatStringPrim = PrimSpec
   { name = "controlledFormatString"
   , vars = HashSet.fromList ["fmt"]
   , locations = HashSet.fromList ["usage"]
@@ -165,8 +165,8 @@ controlledFormatStringPrim = PrimType
 globalVar :: FuncVarExpr
 globalVar = var' (pilVar 8 "global1") $ ConstSize 8
 
-fooCallablePrimitive3 :: CallablePrimitive
-fooCallablePrimitive3 = Prim.CallablePrimitive
+fooCallableWMI3 :: CallableWMI
+fooCallableWMI3 = Prim.CallableWMI
   { prim = copyPrim
   , func = foo
   , callDest = M.FuncName "foo"

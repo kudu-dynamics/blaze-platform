@@ -18,14 +18,14 @@ import qualified Data.HashSet as HashSet
 -- | The type of primitive and names for input and output vars.
 -- These are any vars both input and output, that will be
 -- bound to args/globals/ret-vars/immediates during a concrete pattern match
-data PrimType = PrimType
+data PrimSpec = PrimSpec
   { name :: Text
   , vars :: HashSet (Symbol Pil.Expression)
   -- | important locations in the primitive
   , locations :: HashSet (Symbol Address)
-  } deriving (Eq, Ord, Show, Hashable, Generic)
+  } deriving (Eq, Ord, Show, Hashable, Generic, ToJSON, FromJSON)
 
--- | The primitive vars bound in CallablePrimitive will be written in terms of these
+-- | The primitive vars bound in CallableWMI will be written in terms of these
 data FuncVar
   = Arg Word64
   | Ret
@@ -66,19 +66,19 @@ instance Pretty.Tokenizable FuncVarExpr where
 instance ExprConstructor FuncVarExprSize FuncVarExpr where
   mkExpr = FuncVarExpr
 
-data MkCallablePrimitiveError
-  = MkCallablePrimitiveError
+data MkCallableWMIError
+  = MkCallableWMIError
   { missingVars :: HashSet (Symbol Pil.Expression)
   , missingLocations :: HashSet (Symbol Address)
   } deriving (Eq, Ord, Show, Generic)
 
 -- | This represents a concrete primitive, callable through a function,
 -- where the prim inputs are accessible through function inputs.
--- The point of this is so we can match on PrimTypes in the Matcher
+-- The point of this is so we can match on PrimSpecs in the Matcher
 -- and have it link up the correct concrete arg inputs and output exprs to
--- the Syms in the PrimType, which can be referred to in a pattern.
-data CallablePrimitive = CallablePrimitive
-  { prim :: PrimType
+-- the Syms in the PrimSpec, which can be referred to in a pattern.
+data CallableWMI = CallableWMI
+  { prim :: PrimSpec
   , func :: Function
   , callDest :: Func -- func pattern
   , varMapping :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
@@ -90,11 +90,11 @@ data CallablePrimitive = CallablePrimitive
   , linkedVars :: HashSet FuncVar
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
--- | This is a reduced version of CallablePrimitive used to describe primitives
+-- | This is a reduced version of CallableWMI used to describe primitives
 -- in standard lib functions. We can combine this with the real plt stdlib func
--- in the binary to create a CallablePrimitive
+-- in the binary to create a CallableWMI
 data StdLibPrimitive = StdLibPrimitive
-  { prim :: PrimType
+  { prim :: PrimSpec
   , funcName :: Text
   , varMapping :: HashMap (Symbol Pil.Expression) FuncVarExpr
   , constraints :: [FuncVarExpr]
