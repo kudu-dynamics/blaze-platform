@@ -5,7 +5,7 @@ module Flint.Types.Analysis.Path.Matcher where
 import Flint.Prelude hiding (sym, negate)
 import Flint.Types.Analysis (Taint(..))
 import Flint.Types.Analysis.Path.Matcher.Func (Func(..))
-import Flint.Types.Analysis.Path.Matcher.Primitives (PrimType, CallablePrimitive)
+import Flint.Types.Analysis.Path.Matcher.Primitives (PrimSpec, CallableWMI)
 import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
@@ -69,7 +69,7 @@ data StmtPattern
   | EndOfPath
   | Location (Symbol Address) StmtPattern
   -- | Primitive <prefix for bound vars> <primtype>
-  | Primitive PrimType (HashMap (Symbol Pil.Expression) ExprPattern)
+  | Primitive PrimSpec (HashMap (Symbol Pil.Expression) ExprPattern)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExprSize
@@ -211,14 +211,14 @@ data MatcherState m = MatcherState
   , solutions :: Maybe (HashMap Text CV)
   , locations :: HashMap (Symbol Address) (HashSet Address)
   -- TODO: this doesn't really belong here because it won't be modified
-  , callablePrimitives :: HashMap PrimType (HashSet CallablePrimitive)
+  , callablePrimitives :: HashMap PrimSpec (HashSet CallableWMI)
   } deriving Generic
 
-addCallablePrimitive_
-  :: CallablePrimitive
-  -> HashMap PrimType (HashSet CallablePrimitive)
-  -> HashMap PrimType (HashSet CallablePrimitive)
-addCallablePrimitive_ cprim = HashMap.alter f primType
+addCallableWMI_
+  :: CallableWMI
+  -> HashMap PrimSpec (HashSet CallableWMI)
+  -> HashMap PrimSpec (HashSet CallableWMI)
+addCallableWMI_ cprim = HashMap.alter f primType
   where
     primType = cprim ^. #prim
     f Nothing = Just $ HashSet.singleton cprim
@@ -265,6 +265,6 @@ data PathPrep = PathPrep
 --------- Primitives
 
 data Prim = Prim
-  { primType :: PrimType
+  { primType :: PrimSpec
   , stmtPattern :: [StmtPattern]
   } deriving (Eq, Ord, Show, Hashable, Generic)

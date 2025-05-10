@@ -44,7 +44,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
 
     --   PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
 
-  context "mkCallablePrimitive" $ do
+  context "mkCallableWMI" $ do
     it "should create callable primitive with single nested arg and no constraints" $ do
       let func = foo
           prim = copyPrim
@@ -57,16 +57,16 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
             [ ("dest", var "global1" 8)
             , ("src", load (add (var "arg1" 8) (const 4 8) 8) 8)
             ]
-          expected = Right fooCallablePrimitive3
+          expected = Right fooCallableWMI3
           
-      PShow (mkCallablePrimitive func codeSum prim varMap locationMap path) `shouldBe` PShow expected
+      PShow (mkCallableWMI func codeSum prim varMap locationMap path) `shouldBe` PShow expected
 
-    it "should create CallablePrimitives from StdLibPrimites" $ do
+    it "should create CallableWMIs from StdLibPrimites" $ do
       let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
           allFuncs = [memcpy, sscanf, printf, foo, bar]
-          initialCPrims = getInitialPrimitives stdLibPrims allFuncs
+          initialCPrims = getInitialWMIs stdLibPrims allFuncs
           memcpyCPrim
-            = CallablePrimitive
+            = CallableWMI
               { prim = copyPrim
               , func = memcpy
               , callDest = FuncName "memcpy"
@@ -83,7 +83,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
               , linkedVars = HashSet.fromList [ Arg 0, Arg 1 ]
               }
           sscanfCPrim
-            = CallablePrimitive
+            = CallableWMI
               { prim = controlledFormatStringPrim
               , func = sscanf
               , callDest = FuncName "sscanf"
@@ -99,7 +99,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
               }
 
           printfCPrim
-            = CallablePrimitive
+            = CallableWMI
               { prim = controlledFormatStringPrim
               , func = printf
               , callDest = FuncName "printf"

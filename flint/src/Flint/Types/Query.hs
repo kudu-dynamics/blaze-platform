@@ -6,7 +6,7 @@ module Flint.Types.Query
 import Flint.Prelude
 
 import Flint.Analysis.Path.Matcher (StmtPattern, BoundText)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI)
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as Store
 
@@ -71,7 +71,7 @@ data MatchingResultBlob = MatchingResultBlob
 -- | A path that matches a bug pattern
 data MatchingPrim = MatchingPrim
   { func :: Function
-  , callablePrim :: CallablePrimitive
+  , callablePrim :: CallableWMI
   , path :: [Pil.Stmt]
   } deriving (Eq, Ord, Show, Generic)
 
@@ -86,7 +86,7 @@ data MatchingPrimBlob = MatchingPrimBlob
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 
-data CallablePrimitiveBlob = CallablePrimitiveBlob
+data CallableWMIBlob = CallableWMIBlob
   { func :: (Text, Address)
   , primName :: Text
   , vars :: HashMap Text Text
@@ -97,16 +97,16 @@ data CallablePrimitiveBlob = CallablePrimitiveBlob
 
 data FlintResult = FlintResult
   { baseAddress :: Address
-  , callableWMIs :: [(Text, [CallablePrimitiveBlob])] -- [("prim name", [prims])]
+  , callableWMIs :: [(Text, [CallableWMIBlob])] -- [("prim name", [prims])]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 
-toCallablePrimitiveBlob :: CallablePrimitive -> CallablePrimitiveBlob
-toCallablePrimitiveBlob cprim = blob
+toCallableWMIBlob :: CallableWMI -> CallableWMIBlob
+toCallableWMIBlob cprim = blob
   where
     func = cprim ^. #func
     name = func ^. #name
     addr = func ^. #address
-    blob = CallablePrimitiveBlob
+    blob = CallableWMIBlob
       { func = (name, addr)
       , primName = cprim ^. #prim . #name
       , vars = HashMap.fromList
