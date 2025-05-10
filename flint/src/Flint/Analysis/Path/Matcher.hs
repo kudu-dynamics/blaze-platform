@@ -7,7 +7,7 @@ module Flint.Analysis.Path.Matcher
 
 import Flint.Prelude hiding (sym, negate, Location)
 import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, FuncVarExpr)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, FuncVarExpr)
 import Flint.Analysis.Uefi ( resolveCalls )
 import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import Flint.Types.Analysis.Path.Matcher
@@ -551,10 +551,10 @@ getArgName prefix n = prefix <> "arg" <> show n
 getRetName :: Symbol Pil.Expression -> Symbol Pil.Expression
 getRetName prefix = prefix <> "ret"
 
-mkStmtPatternFromCallablePrimitive
-  :: CallablePrimitive
+mkStmtPatternFromCallableWMI
+  :: CallableWMI
   -> StmtPattern
-mkStmtPatternFromCallablePrimitive x = Stmt
+mkStmtPatternFromCallableWMI x = Stmt
   $ Call retPattern (CallFunc $ x ^. #callDest) []
   where
     retPattern = case HashSet.member Prim.Ret $ x ^. #linkedVars of
@@ -733,7 +733,7 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
                 resolveFuncVar' = resolveFuncVar (V.fromList $ callStmt ^. #args) mRetExpr
             -- TODO: We are recreating these every single stmt we check for a Primitive.
             --       Instead, we could cache them in the MatcherState
-            let callablePats = toSnd mkStmtPatternFromCallablePrimitive <$> HashSet.toList s :: [(CallablePrimitive, StmtPattern)]
+            let callablePats = toSnd mkStmtPatternFromCallableWMI <$> HashSet.toList s :: [(CallableWMI, StmtPattern)]
             asum $ flip fmap callablePats $ \(cprim, cpat) -> backtrackOnError $ do
               matchNextStmt_ False cpat
               let mPrimVars = traverse (traverse (resolveFuncVar' . fst))

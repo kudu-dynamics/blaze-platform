@@ -11,7 +11,7 @@ import Helper.Primitives
 import Flint.Analysis.Path.Matcher
 import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Types.Analysis.Path.Matcher.Func
-import Flint.Analysis.Path.Matcher.Primitives (getInitialPrimitives)
+import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
 
 import Blaze.Pil.Construct
 import Blaze.Pil.Solver (solveStmtsWithZ3)
@@ -1016,7 +1016,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     context "Primitives" $ do
       let pureMatchStmts_ ms = runIdentity . match_ ms
       it "should match callable primitive" $ do
-        let callablePrim = fooCallablePrimitive3
+        let callablePrim = fooCallableWMI3
             -- outerFunc = bar
             outerPath = barPath3
             prim = copyPrim
@@ -1070,7 +1070,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         
         let stdLibPrims = memcpyPrims <> sscanfPrims <> strdupPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
-            initialCPrims = getInitialPrimitives stdLibPrims allFuncs
+            initialCPrims = getInitialWMIs stdLibPrims allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity
@@ -1083,10 +1083,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
         is #_Match r `shouldBe` True
 
-      it "should create CallablePrimitive from StdLibPrimites, then use them to match Primitive pattern" $ do
+      it "should create CallableWMI from StdLibPrimites, then use them to match Primitive pattern" $ do
         let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
-            initialCPrims = getInitialPrimitives stdLibPrims allFuncs
+            initialCPrims = getInitialWMIs stdLibPrims allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity

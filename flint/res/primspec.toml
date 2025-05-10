@@ -1,0 +1,32 @@
+[[prim]]
+  name = "copy"
+  locations = ["write"]
+  vars = [ "len"
+         , "src"
+         , "dest"
+         ]
+
+[[prim]]
+  name = "freeHeap"
+  locations = ["free"]
+  vars = ["ptr"]
+
+[[prim]]
+  name = "allocHeap"
+  locations = ["alloc"]
+  vars = ["size", "ptr"]
+
+[[prim]]
+  name = "doubleFree"
+  locations = ["free1", "free2"]
+  vars = ["ptr"]
+
+[[prim]]
+  name = "ControlledFormatString"
+  locations = ["call"]
+  vars = ["fmt"]
+
+[[prim]]
+  name = "IntegerOverflow"
+  locations = ["increment store"]
+  vars = ["n", "ptr"]

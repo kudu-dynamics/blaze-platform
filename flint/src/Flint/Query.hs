@@ -16,8 +16,8 @@ import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRout
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
-import Flint.Analysis.Path.Matcher.Primitives (mkCallablePrimitive, getInitialPrimitives)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallablePrimitive, MkCallablePrimitiveError, StdLibPrimitive, PrimType)
+import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, StdLibPrimitive, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
@@ -869,12 +869,12 @@ checkPathForPrim_
   -> Function
   -> CodeSummary
   -> Prim
-  -> m (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
+  -> m (Maybe (Either MkCallableWMIError CallableWMI))
 checkPathForPrim_ mstate func codeSummary prim = do
   M.match_  mstate (prim ^. #stmtPattern) >>= \case
     (_, M.NoMatch) -> return Nothing
     (ms, M.Match stmtsWithAssertions) -> do
-      return . Just $ mkCallablePrimitive
+      return . Just $ mkCallableWMI
         func
         codeSummary
         (prim ^. #primType)
@@ -888,7 +888,7 @@ checkPathForPrim
   -> PathPrep
   -> CodeSummary
   -> Prim
-  -> IO (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
+  -> IO (Maybe (Either MkCallableWMIError CallableWMI))
 checkPathForPrim solver func prep codeSummary prim = do
   when (func ^. #name == "int_inc_ioctl") $ do
       -- sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts . filter ((== 0x100130) . view #addr) $ prep ^. #stmts
@@ -899,7 +899,7 @@ checkPathForPrim solver func prep codeSummary prim = do
     (_, M.NoMatch) -> return Nothing
     (ms, M.Match stmtsWithAssertions) -> do
       -- putText "MAAAAATCHED!!!!"
-      return . Just $ mkCallablePrimitive
+      return . Just $ mkCallableWMI
         func
         codeSummary
         (prim ^. #primType)
@@ -1033,11 +1033,11 @@ onionSampleBasedOnFuncSize exponator store func = CfgStore.getFuncCfgInfo store 
 -- and if it matches one, returns it
 matchAndReturnCallablePrim
   :: StmtSolver IO
-  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> HashMap PrimSpec (HashSet CallableWMI)
   -> Function
   -> PathPrep
   -> Prim
-  -> IO (Maybe (Either MkCallablePrimitiveError CallablePrimitive))
+  -> IO (Maybe (Either MkCallableWMIError CallableWMI))
 matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
   -- when (func ^. #name == "int_inc_ioctl") $ do
   --   let solver' = const . return $ Solver.Sat HashMap.empty
@@ -1056,7 +1056,7 @@ matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
 onionCheckPathForPrim
   :: StmtSolver IO
   -> CfgStore
-  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> HashMap PrimSpec (HashSet CallableWMI)
   -> Function
   -> PathPrep
   -> Prim
@@ -1085,11 +1085,11 @@ onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
       CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
 
 -- | Gets cached paths for function, and checks them for each prim.
--- Adds instances found of CallablePrimitives back into CfgStore
+-- Adds instances found of CallableWMIs back into CfgStore
 onionCheckFunc
   :: StmtSolver IO
   -> CfgStore
-  -> HashMap PrimType (HashSet CallablePrimitive)
+  -> HashMap PrimSpec (HashSet CallableWMI)
   -> [Prim]
   -> Function
   -> IO ()
@@ -1101,7 +1101,7 @@ onionCheckFunc solver store callablePrimSnapshot prims func = do
     onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
 
 -- | Does a single pass over all the funcs.
--- Adds instances found of CallablePrimitives back into CfgStore
+-- Adds instances found of CallableWMIs back into CfgStore
 onionSinglePass
   :: StmtSolver IO
   -> CfgStore
@@ -1136,7 +1136,7 @@ onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
     --     sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ pathPrep ^. #stmts
 
     CM.set func pathPreps $ store ^. #pathSamples
-  let initialPrims = getInitialPrimitives stdLibPrims funcs
+  let initialPrims = getInitialWMIs stdLibPrims funcs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
   replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs
   where
