@@ -21,6 +21,7 @@ import Control.Monad.Logger (LogLevel(LevelInfo))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.Aeson (ToJSON(toJSON))
 import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -30,7 +31,7 @@ import Options.Applicative
 
 data Options = Options
   { backend :: Maybe Backend
-  , outputJSON :: Bool
+  , outputToFile :: Maybe FilePath
   , doNotUseSolver :: Bool
   , onionDepth :: Word64
   , isKernelModule :: Bool
@@ -52,6 +53,13 @@ parseBackend = option auto $
          <> "Ghidra)"
      )
 
+parseOutputToFile :: Parser FilePath
+parseOutputToFile = strOption $
+  long "outputToFile"
+  <> short 'o'
+  <> metavar "OUTPUT_TO_FILE"
+  <> help "Output results to file"
+
 parseLogLevel :: Parser LogLevel
 parseLogLevel = option auto $
   long "logLevel"
@@ -63,11 +71,6 @@ parseAnalysisDb = strOption $
   long "analysisDb"
   <> metavar "ANALYSIS_DB"
   <> help "DB to save a load analysis data"
-
-parseJSONOption :: Parser Bool 
-parseJSONOption = switch $
-  long "outputJSON"
-  <> help "output in a JSON format"
 
 parseOnionDepth :: Parser Word64
 parseOnionDepth = option auto $
@@ -93,7 +96,7 @@ parseDoNotUseSolver = switch $
 optionsParser :: Parser Options
 optionsParser = Options
   <$> optional parseBackend
-  <*> (parseJSONOption <|> pure False)
+  <*> optional parseOutputToFile
   <*> (parseDoNotUseSolver <|> pure False)
   <*> (parseOnionDepth <|> pure 3)
   <*> (parseIsKernelModule <|> pure False)
@@ -173,8 +176,14 @@ printCallablePrimsJSON (primtype, cprims) = do
              )
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
+resultToJSON :: FlintResult -> Text
+resultToJSON = Text.pack . unpack . encodePretty . toJSON
+
 printResult :: FlintResult -> IO ()
-printResult = sequentialPutText . Text.pack . unpack . encodePretty . toJSON
+printResult = sequentialPutText . resultToJSON
+
+writeResult :: FilePath -> FlintResult -> IO ()
+writeResult fp = TextIO.writeFile fp . resultToJSON
 
 toFlintResult
   :: Address
@@ -198,8 +207,11 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
 
   onionFlow (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
   cprims <- CM.getSnapshot $ store ^. #callablePrims
-  printResult . toFlintResult base $ cprims
-  -- forM_ cprims printCallablePrimsJSON
-  -- putText "dun"
+  let flintResult = toFlintResult base cprims
+  case opts ^. #outputToFile of
+    Nothing -> printResult flintResult
+    Just outputFilePath -> do
+      writeResult outputFilePath flintResult
+      putText $ "Wrote results to " <> show outputFilePath
 
 
