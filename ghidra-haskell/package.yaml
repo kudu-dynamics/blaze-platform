@@ -30,6 +30,7 @@ dependencies:
   - extra
   - generic-lens
   - io-memoize
+  - deepseq
   - jni
   - jvm
   - lens
@@ -80,6 +81,7 @@ library:
     - Ghidra.Core
     - Ghidra.ExternalLocation
     - Ghidra.Function
+    - Ghidra.Clang
     - Ghidra.Instruction
     - Ghidra.Pcode
     - Ghidra.PcodeBlock
