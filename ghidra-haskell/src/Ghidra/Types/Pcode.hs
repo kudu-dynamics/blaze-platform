@@ -95,4 +95,4 @@ data BarePcodeOp
   | STORE
   | SUBPIECE
   | UNIMPLEMENTED
-  deriving (Eq, Ord, Read, Show, Generic)
+  deriving (Eq, Ord, Read, Show, Generic, Hashable)
