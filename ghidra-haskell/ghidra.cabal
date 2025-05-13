@@ -30,6 +30,7 @@ library
       Ghidra.Core
       Ghidra.ExternalLocation
       Ghidra.Function
+      Ghidra.Clang
       Ghidra.Instruction
       Ghidra.Pcode
       Ghidra.PcodeBlock
@@ -71,6 +72,7 @@ library
     , binary-analysis
     , bytestring
     , containers
+    , deepseq
     , directory
     , envy
     , errors
@@ -119,6 +121,7 @@ executable create-ghidra-db
     , binary-analysis
     , bytestring
     , containers
+    , deepseq
     , directory
     , envy
     , errors
@@ -150,6 +153,7 @@ test-suite ghidra-test
   other-modules:
       Ghidra.AddressSpec
       Ghidra.BasicBlockSpec
+      Ghidra.ClangDecompSpec
       Ghidra.CoreSpec
       Ghidra.FunctionSpec
       Ghidra.InstructionSpec
@@ -184,6 +188,7 @@ test-suite ghidra-test
     , binary-analysis
     , bytestring
     , containers
+    , deepseq
     , directory
     , envy
     , errors
