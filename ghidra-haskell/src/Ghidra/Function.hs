@@ -15,6 +15,7 @@ import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
 import qualified Foreign.JNI.String as JString
+import Ghidra.Clang (buildClangAST, ClangAST, ClangNode)
 
 
 fromAddr :: GhidraState -> J.Address -> Ghidra (Maybe J.Function)
@@ -102,6 +103,17 @@ getFunctions' opts gs = do
 getFunctions :: GhidraState -> Ghidra [J.Function]
 getFunctions = getFunctions' defaultGetFunctionsOptions
 
+getClangAST :: GhidraState -> J.Function -> Ghidra (ClangAST ClangNode)
+getClangAST gs fn = do
+  flatDecAPI <- State.getFlatDecompilerAPI gs
+  _ :: () <- runIO $ Java.call flatDecAPI "initialize"
+  ifc :: J.DecompInterface <- runIO $ Java.call flatDecAPI "getDecompiler"
+  mon <- State.getTaskMonitor gs
+  res :: J.DecompilerResults <- runIO $ Java.call ifc "decompileFunction" fn (0 :: Int32) mon >>= JNI.newGlobalRef
+  tokenGroup :: J.ClangTokenGroup <- runIO $ Java.call res "getCCodeMarkup"
+  let rootNode :: J.ClangNode = coerce tokenGroup
+  buildClangAST rootNode
+
 -- | This is expensive and should be performed only once per function.
 decompileFunction :: GhidraState -> J.Function -> Ghidra J.DecompilerResults
 decompileFunction gs fn = do
@@ -110,6 +122,7 @@ decompileFunction gs fn = do
   ifc :: J.DecompInterface <- runIO $ Java.call flatDecAPI "getDecompiler"
   mon <- State.getTaskMonitor gs
   res :: J.DecompilerResults <- runIO $ Java.call ifc "decompileFunction" fn (0 :: Int32) mon >>= JNI.newGlobalRef
+
   finished <- runIO $ Java.call res "decompileCompleted"
   if finished
     then return res

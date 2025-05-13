@@ -96,6 +96,23 @@ type TaskMonitor = J ('Java.Class "ghidra.util.task.TaskMonitor")
 type VarNode = J ('Java.Class "ghidra.program.model.pcode.Varnode")
 type VarNodeAST = J ('Java.Class "ghidra.program.model.pcode.VarnodeAST")
 
+type ClangNode = J ('Java.Iface "ghidra.app.decompiler.ClangNode")
+type ClangTokenGroup = J ('Java.Class "ghidra.app.decompiler.ClangTokenGroup")
+type ClangToken = J ('Java.Class "ghidra.app.decompiler.ClangToken")
+type ClangBreak = J ('Java.Class "ghidra.app.decompiler.ClangBreak")
+type ClangOpToken = J ('Java.Class "ghidra.app.decompiler.ClangOpToken")
+type ClangReturnType = J ('Java.Class "ghidra.app.decompiler.ClangReturnType")
+type ClangStatement = J ('Java.Class "ghidra.app.decompiler.ClangStatement")
+type ClangSyntaxToken = J ('Java.Class "ghidra.app.decompiler.ClangSyntaxToken")
+type ClangTypeToken = J ('Java.Class "ghidra.app.decompiler.ClangTypeToken")
+type ClangVariableDecl = J ('Java.Class "ghidra.app.decompiler.ClangVariableDecl")
+type ClangVariableToken = J ('Java.Class "ghidra.app.decompiler.ClangVariableToken")
+type ClangLabelToken = J ('Java.Class "ghidra.app.decompiler.ClangLabelToken")
+type ClangFieldToken = J ('Java.Class "ghidra.app.decompiler.ClangFieldToken")
+type ClangFuncNameToken = J ('Java.Class "ghidra.app.decompiler.ClangFuncNameToken")
+type ClangCaseToken = J ('Java.Class "ghidra.app.decompiler.ClangCaseToken")
+type ClangCommentToken = J ('Java.Class "ghidra.app.decompiler.ClangCommentToken")
+
 
 class Addressable a where
   toAddr :: a -> Ghidra Address
