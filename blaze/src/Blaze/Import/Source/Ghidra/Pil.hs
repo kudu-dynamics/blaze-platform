@@ -131,6 +131,9 @@ class IsVariable a where
   -- | The special name is like "param_1" or a user defined name
   getSpecialName :: a -> Maybe Symbol
 
+showVariable :: IsVariable a => a -> Text
+showVariable v = "(" <> show (getVarType v) <> ", " <> show (getSize v) <> ", " <> show (getSpecialName v) <> ")"
+
 instance IsVariable HighVarNode where
   getSize = view #size
   getVarType = view #varType
@@ -155,9 +158,9 @@ data VarNodeType
   = VUnique {offset :: Int64, pcAddress :: Maybe Int64}
   | VReg {offset :: Int64, pcAddress :: Maybe Int64}
   | VStack {offset :: Int64, pcAddress :: Maybe Int64}
-  | VRam Int64
+  | VRam {offset :: Int64, ptrSize :: Bytes}
   -- | VConstAddr Int64
-  | VExtern Int64
+  | VExtern {offset :: Int64, ptrSize :: Bytes}
   | VImmediate Int64
   | VOther Text Int64
   deriving (Eq, Ord, Read, Show, Generic, Hashable)
@@ -175,15 +178,16 @@ getVarNodeType :: IsVariable a => a -> VarNodeType
 getVarNodeType v = case getVarType v of
   GVar.Const n -> VImmediate n
   GVar.Addr{location, pcAddress} -> case location ^. #space . #name of
-    GAddr.EXTERNAL -> VExtern off
+    GAddr.EXTERNAL -> VExtern{offset = off, ptrSize = ptrSize}
     GAddr.HASH -> VOther "HASH" off
     GAddr.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
-    GAddr.Ram -> VRam off
+    GAddr.Ram -> VRam{offset = off, ptrSize = ptrSize}
     GAddr.Register -> VReg{offset = off, pcAddress = pcAddressOffset}
     GAddr.Stack -> VStack{offset = off, pcAddress = pcAddressOffset}
     GAddr.Unique -> VUnique{offset = off, pcAddress = pcAddressOffset}
     GAddr.Other t -> VOther t off
     where
+      ptrSize = location ^. #space . #ptrSize
       off = location ^. #offset
       pcAddressOffset = view #offset <$> pcAddress
 
@@ -209,13 +213,13 @@ getConstIntExpr v = case getVarNodeType v of
 getConstPtrExpr :: IsVariable a => a -> Maybe Expression
 getConstPtrExpr v = case getVarNodeType v of
   VImmediate n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
-  VRam n -> return . mkExpr v . Pil.CONST_PTR . Pil.ConstPtrOp $ n
+  VRam n ptrSize -> return . Expression (fromIntegral ptrSize) . Pil.CONST_PTR . Pil.ConstPtrOp $ n
   _ -> Nothing
 
 getExternPtrExpr :: IsVariable a => a -> Maybe Expression
 getExternPtrExpr v = case getVarNodeType v of
   -- TODO: figure out what to put for address and offset of ExternPtrOp
-  VExtern n -> return . mkExpr v . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing
+  VExtern n ptrSize -> return . Expression (fromIntegral ptrSize) . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing
   _ -> Nothing
 
 getPtrExpr :: IsVariable a => a -> Maybe Expression
@@ -306,7 +310,6 @@ varNodeToReference v = do
   paramNames <- use #paramNames
   let pv = C.pilVar__ (fromByteBased size) $ Just ctx'
       size :: Bytes = getSize v
-      operSize :: Size Expression = Pil.widthToSize $ toBits size
   case getVarNodeType v of
     VReg{offset, pcAddress} -> do
       prg <- use $ #ghidraState . #program
@@ -351,8 +354,8 @@ varNodeToReference v = do
                  (\ver -> baseName <> "#" <> show ver)
                  version
       pure . Left . pv name False $ Pil.Code offset
-    VRam n -> pure . Right $ C.constPtr (fromIntegral n :: Word64) operSize
-    VExtern n -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing operSize
+    VRam n ptrSize -> pure . Right $ C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrSize)
+    VExtern n ptrSize -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrSize)
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
       | t == "VARIABLE" -> do
@@ -398,8 +401,8 @@ varNodeToValueExpr v = do
     VUnique{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
-    VRam n -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (Pil.widthToSize (64 :: Bits))) operSize
-    VExtern n -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (Pil.widthToSize (64 :: Bits))) operSize
+    VRam n ptrWidth -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrWidth)) operSize
+    VExtern n ptrWidth -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrWidth)) operSize
     VImmediate n -> pure $ C.const n operSize
     VOther _ _ -> do
       pv <- varNodeToPilVar v
@@ -441,8 +444,7 @@ convertPcodeOpToPilStatement = \case
     cond <- varNodeToValueExpr $ in0 ^. #value
     -- Ignore the dest for now, as it gets encoded in the CFG edges.
     pure . (: []) . Pil.BranchCond . Pil.BranchCondOp $ cond
-  P.COPY out in0 ->
-    (: []) <$> (varNodeToAssignment out <*> varNodeToValueExpr (in0 ^. #value))
+  P.COPY out in0 -> (: []) <$> (varNodeToAssignment out <*> varNodeToValueExpr (in0 ^. #value))
   P.CPOOLREF _out _in0 _in1 _inputs -> pure [Pil.UnimplInstr "CPOOLREF"]
   P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
     srcExpr <- varNodeToValueExpr in0
@@ -561,6 +563,7 @@ convertPcodeOpToPilStatement = \case
   P.STORE addrSpace destOffset in1 -> do
     if addrSpace ^. #value . #ptrSize == 1 || addrSpace ^. #value . #addressableUnitSize == 1 then do
       destOffset' <- varNodeToValueExpr destOffset
+      -- pprint destOffset'
       in1' <- varNodeToValueExpr in1
       pure [Pil.Store $ Pil.StoreOp destOffset' in1']
       -- TODO we need to make use of the address space during the Store. How?
