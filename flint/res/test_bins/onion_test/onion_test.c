@@ -34,8 +34,39 @@ void *calloc1(size_t n, size_t m) {
   return calloc(n, m);
 }
 
+void use_after_free(){
+  char *data = (char *)malloc(20 * sizeof(char));
+  strcpy(data, "hello world");
+  free(data);
+  data[4] = 'z';
+}
+
+void a_write(char *data){
+  data[3] = 0x41;
+}
+
+void use_after_free2(){
+  char *data = (char *)malloc(20 * sizeof(char));
+  strcpy(data, "hello world");
+  free(data);
+  a_write(data);
+}
+
+int new_user_id = 0;
+
+void int_overflow_func() { 
+  new_user_id++;
+}
+
+void not_int_overflow_func() {
+  if (new_user_id < 1024)
+    new_user_id++; 
+}
+
+
 void main() {
   void *ptr = malloc1(30);
+  a_write((char *)ptr);
   double_free1(ptr);
 
   void *ptr2 = calloc1(8, 10);
@@ -44,6 +75,11 @@ void main() {
   void *ptr3 = malloc1(10);
   free2(ptr3);
 
+  use_after_free();
+  use_after_free2();
 
+  int_overflow_func();
+  not_int_overflow_func();
+  
   return;
 }
