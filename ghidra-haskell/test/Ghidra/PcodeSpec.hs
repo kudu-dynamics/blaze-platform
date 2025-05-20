@@ -6,7 +6,7 @@ import qualified Data.BinaryAnalysis as BA
 import Ghidra.Address (mkAddress)
 import Ghidra.Core
 import qualified Ghidra.Function as Function
-import Ghidra.Pcode
+import Ghidra.Pcode hiding (Register)
 import Ghidra.Program (getAddressSpaceMap)
 import qualified Ghidra.State as State
 import qualified Ghidra.Types as J

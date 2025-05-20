@@ -12,10 +12,12 @@ import Ghidra.Util (iteratorToList, maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Function (Function(Function), HighParameter(HighParameter), Parameter(Parameter))
 import Ghidra.Types.Internal (Ghidra, runIO)
+import Ghidra.Types.Pcode (SimplificationStyle(Decompile))
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
 import qualified Foreign.JNI.String as JString
 import Ghidra.Clang (buildClangAST, ClangAST, ClangNode)
+import qualified Data.Text as Text
 
 
 fromAddr :: GhidraState -> J.Address -> Ghidra (Maybe J.Function)
@@ -30,7 +32,7 @@ getFuncs_ :: JString.String -> GhidraState -> Ghidra [J.Function]
 getFuncs_ methodName gs = do
   listing <- State.getListing gs
   runIO (Java.call listing methodName) >>= functionIteratorToList
-  
+
 getExternalFunctions :: GhidraState -> Ghidra [J.Function]
 getExternalFunctions gs = do
   listing <- State.getListing gs
@@ -114,12 +116,17 @@ getClangAST gs fn = do
   let rootNode :: J.ClangNode = coerce tokenGroup
   buildClangAST rootNode
 
+simplStyleStr :: SimplificationStyle -> Text
+simplStyleStr = Text.toLower . Text.pack . show
+
 -- | This is expensive and should be performed only once per function.
-decompileFunction :: GhidraState -> J.Function -> Ghidra J.DecompilerResults
-decompileFunction gs fn = do
+decompileFunction_ :: GhidraState -> J.Function -> SimplificationStyle -> Ghidra J.DecompilerResults
+decompileFunction_ gs fn st = do
   flatDecAPI <- State.getFlatDecompilerAPI gs
   _ :: () <- runIO $ Java.call flatDecAPI "initialize"
   ifc :: J.DecompInterface <- runIO $ Java.call flatDecAPI "getDecompiler"
+  let simpStyle = simplStyleStr st
+  _ :: Bool <- runIO $ Java.call ifc "setSimplificationStyle" =<< Java.reflect simpStyle
   mon <- State.getTaskMonitor gs
   res :: J.DecompilerResults <- runIO $ Java.call ifc "decompileFunction" fn (0 :: Int32) mon >>= JNI.newGlobalRef
 
@@ -127,6 +134,9 @@ decompileFunction gs fn = do
   if finished
     then return res
     else error "Could not decompile function"
+
+decompileFunction :: GhidraState -> J.Function -> Ghidra J.DecompilerResults
+decompileFunction gs fn = decompileFunction_ gs fn Decompile
 
 -- | Gets the High version of the function, based off of decompilation analysis.
 -- This is expensive.
