@@ -6,6 +6,13 @@ import Ghidra.Prelude hiding (toList)
 import qualified Ghidra.Types as J
 import Ghidra.Variable (HighVarNode, VarNode)
 
+data SimplificationStyle
+  = Decompile
+  | Normalize
+  | FirstPass
+  | Register
+  | Paramid
+  deriving (Eq, Ord, Show, Generic)
 
 data PcodeInstruction a = PcodeInstruction
   { op :: BarePcodeOp
