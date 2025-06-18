@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Blaze.Import.Source.Ghidra (
   module Blaze.Import.Source.Ghidra,
   module Exports,
@@ -12,100 +14,93 @@ import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
 import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
 import Ghidra.Core (runGhidraOrError, stopJVMIfRunning)
 import Ghidra.Program qualified as GProg
-import Ghidra.State (GhidraState)
 import Ghidra.State qualified as GState
 import Ghidra.Address qualified as GAddr
 
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (PilNode)
+import Blaze.Types.CachedMap qualified as CM
 import Ghidra.Types.Variable (VarNode)
 import Text.Pretty.Simple (pHPrint)
 
-newtype GhidraImporter = GhidraImporter
-  { ghidraState :: GhidraState
-  }
-  deriving (Eq, Ord, Show, Generic)
 
 getImporter :: FilePath -> IO GhidraImporter
-getImporter fp =
+getImporter fp = do
+  highFnCache <- atomically $ CM.create Nothing
   runGhidraOrError $
     GState.openDatabase fp >>= \case
       Left err -> error $ "Could not open binary: " <> show err
       Right gs -> do
         GState.analyze gs
-        return $ GhidraImporter gs
+        return $ GhidraImporter gs highFnCache
 
 instance BinaryImporter GhidraImporter where
-  openBinary fp =
+  openBinary fp = do
+    highFnCache <- atomically $ CM.create Nothing
     runGhidraOrError $
       GState.openDatabase fp >>= \case
         Left err -> return . error $ "Could not open binary: " <> show err
         Right gs -> do
           GState.analyze gs
-          return . Right $ GhidraImporter gs
+          return . Right $ GhidraImporter gs highFnCache
 
   shutdown = stopJVMIfRunning
 
-  saveToDb fp (GhidraImporter gs) = do
+  saveToDb fp (GhidraImporter gs _) = do
     let fp' = fp <> if ".gzf" `isSuffixOf` fp then "" else ".gzf"
     runGhidraOrError $ GState.saveDatabase gs fp'
     return $ Right fp'
 
-  rebaseBinary (GhidraImporter gs) off = runGhidraOrError $ do
+  -- uh, won't this invalidate the cache??
+  rebaseBinary (GhidraImporter gs fc) off = runGhidraOrError $ do
     GProg.withTransaction (gs ^. #program) "BinaryImporter: Set Image Base" $ do
       GProg.setImageBase (gs ^. #program) (fromIntegral off) True
       GState.analyze gs
-    return $ GhidraImporter gs
+    return $ GhidraImporter gs fc
 
-  getBase (GhidraImporter gs) = runGhidraOrError $ do
+  getBase (GhidraImporter gs _) = runGhidraOrError $ do
     fmap convertAddress $ GState.getImageBase gs >>= GAddr.mkAddress
 
-  getStart (GhidraImporter gs) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
+  getStart (GhidraImporter gs _) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
 
-  getEnd (GhidraImporter gs) = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
+  getEnd (GhidraImporter gs _) = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
 
-  getOriginalBinaryPath (GhidraImporter gs) = do
+  getOriginalBinaryPath (GhidraImporter gs _) = do
     binPath <- runGhidraOrError $ GProg.getExecutablePath (gs ^. #program)
     return $ cs binPath
 
 instance CallGraphImporter GhidraImporter where
-  getFunction imp = CallGraph.getFunction (imp ^. #ghidraState)
+  getFunction = CallGraph.getFunction
 
-  getFunctions = CallGraph.getFunctions . view #ghidraState
+  getFunctions = CallGraph.getFunctions
 
-  getCallSites imp = CallGraph.getCallSites (imp ^. #ghidraState)
+  getCallSites = CallGraph.getCallSites
 
 instance CfgImporter GhidraImporter where
   type NodeDataType GhidraImporter = PilNode
   type NodeMapType GhidraImporter = PilPcodeMap VarNode
-  getCfg imp = Cfg.getPilCfgFromHighPcode (imp ^. #ghidraState)
+  getCfg = Cfg.getPilCfgFromHighPcode
 
 instance PilImporter GhidraImporter where
   type IndexType GhidraImporter = Address
   getFuncStatements imp f ctx = do
-    (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode st f ctx
+    (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode imp f ctx
     unless (null errors) $ do
       hPutStrLn @String stderr "Errors during conversion:"
       traverse_ (pHPrint stderr) errors
     pure . fmap (view #stmt) $ stmts
-    where
-      st = imp ^. #ghidraState
 
   getMappedStatements imp f ctx = do
-    (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode st f ctx
+    (errors, stmts) <- partitionEithers <$> PilImp.getFuncStatementsFromHighPcode imp f ctx
     unless (null errors) $ do
       hPutStrLn @String stderr "Errors during conversion:"
       traverse_ (pHPrint stderr) errors
     pure stmts
-    where
-      st = imp ^. #ghidraState
 
   getCodeRefStatements imp ctx ref = do
-    (errors, stmts) <- partitionEithers <$> PilImp.getCodeRefStatementsFromHighPcode st ctx ref
+    (errors, stmts) <- partitionEithers <$> PilImp.getCodeRefStatementsFromHighPcode imp ctx ref
     unless (null errors) $ do
       putStrLn @String "Errors during conversion:"
       traverse_ pprint errors
     pure . fmap (view #stmt) $ stmts
-    where
-      st = imp ^. #ghidraState

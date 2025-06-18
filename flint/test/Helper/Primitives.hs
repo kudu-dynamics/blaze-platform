@@ -168,7 +168,7 @@ globalVar = var' (pilVar 8 "global1") $ ConstSize 8
 fooCallableWMI3 :: CallableWMI
 fooCallableWMI3 = Prim.CallableWMI
   { prim = copyPrim
-  , func = foo
+  , func = Func.Internal foo
   , callDest = M.FuncName "foo"
   , varMapping = HashMap.fromList
     [ ( "src"
@@ -188,7 +188,7 @@ fooCallableWMI3 = Prim.CallableWMI
         )
       ]
   , locations = HashMap.fromList
-                [ ("write", HashSet.singleton 0x1234) ]
+                [ ("write", Right 0x1234) ]
 
   , linkedVars = HashSet.fromList
                  [ Prim.Arg 0

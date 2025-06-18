@@ -5,7 +5,6 @@ import qualified Prelude as P
 import Ghidra.Core (runGhidraOrError)
 import qualified Ghidra.BasicBlock as BB
 import Ghidra.State (GhidraState)
-import qualified Ghidra.Function as GFunc
 import qualified Ghidra.Pcode as Pcode
 import qualified Ghidra.PcodeBlock as PB
 import Ghidra.Types.Pcode.Lifted (PcodeOp)
@@ -22,7 +21,6 @@ import qualified Ghidra.Types as J
 import qualified Blaze.Import.Source.Ghidra.CallGraph as CGI
 import Blaze.Import.Source.Ghidra.Types
 import Blaze.Import.Source.Ghidra.Pil (IsVariable)
-import qualified Blaze.Pil.Construct as C
 import Blaze.Prelude hiding (Symbol, succ, pred)
 import Blaze.Types.Cfg (
   BasicBlockNode (..),
@@ -42,7 +40,6 @@ import Blaze.Types.Pil (CtxId, Ctx(Ctx), PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Import.Source.Ghidra.Pil as PilConv
 
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import qualified Data.List.NonEmpty as NEList
 
@@ -59,8 +56,8 @@ newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (State
   deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
 
-getRawPcodeForBasicBlock :: GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
-getRawPcodeForBasicBlock gs bb = do
+getRawPcodeForBasicBlock :: GhidraImporter -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
+getRawPcodeForBasicBlock (GhidraImporter gs _) bb = do
   xs <- runGhidraOrError $ do
     addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
     Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
@@ -144,37 +141,33 @@ type ThunkDestFunc = J.Function
 
 getPcodeCfg
   :: (Show a, Hashable a)
-  => (J.Function -> GhidraState -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
-  -> GhidraState
+  => (J.Function -> GhidraImporter -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
+  -> GhidraImporter
   -> Function
   -> CtxId
-  -> IO (Maybe (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)]))))
-getPcodeCfg getPcode gs fn ctxId = do
+  -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp a)])))
+getPcodeCfg getPcode imp@(GhidraImporter gs _) fn ctxId = do
   jfunc <- CGI.toGhidraFunction gs fn
-  runGhidraOrError (GFunc.isThunk jfunc) >>= \case
-    True -> do
-      Just . Left <$> runGhidraOrError (GFunc.unsafeGetThunkedFunction True jfunc)
-    False -> do
-      bbGraph <- runGhidraOrError (BB.getBasicBlockGraph gs jfunc)
-      let ctx = Ctx fn ctxId
-      bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc gs) ctx bb)
-        $ bbGraph ^. #nodes
-      let bbCfNodeMap = Map.fromList bbCfNodeTuples
-          edgeSets = getEdgeSets bbGraph
-          cfEdges = concatMap (mkCfEdgesFromEdgeSet fn bbCfNodeMap) . Map.toList $ edgeSets
-      case mkCfgFindRoot ctxId (snd <$> bbCfNodeTuples) cfEdges of
-        Left err -> case err of
-          ZeroRootNodes -> do
-            warn $ "Cfg for '" <> show (fn ^. #name) <> "' has no root node"
-            return Nothing
-          MultipleRootNodes -> error "Cfg has more than one root node"
-        Right cfg -> return . Just . Right $ cfg
+  bbGraph <- runGhidraOrError (BB.getBasicBlockGraph gs jfunc)
+  let ctx = Ctx fn ctxId
+  bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc imp) ctx bb)
+    $ bbGraph ^. #nodes
+  let bbCfNodeMap = Map.fromList bbCfNodeTuples
+      edgeSets = getEdgeSets bbGraph
+      cfEdges = concatMap (mkCfEdgesFromEdgeSet fn bbCfNodeMap) . Map.toList $ edgeSets
+  case mkCfgFindRoot ctxId (snd <$> bbCfNodeTuples) cfEdges of
+    Left err -> case err of
+      ZeroRootNodes -> do
+        warn $ "Cfg for '" <> show (fn ^. #name) <> "' has no root node"
+        return Nothing
+      MultipleRootNodes -> error "Cfg has more than one root node"
+    Right cfg -> return . Just $ cfg
 
 getRawPcodeCfg
-  :: GhidraState
+  :: GhidraImporter
   -> Function
   -> CtxId
-  -> IO (Maybe (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp VarNode)]))))
+  -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp VarNode)])))
 getRawPcodeCfg = getPcodeCfg $ const getRawPcodeForBasicBlock
 
 
@@ -205,13 +198,14 @@ mkCfEdgeFromPcodeBlockEdge (bt, edges) = Cfg.fromTupleEdge $ case bt of
   _ -> (Cfg.UnconditionalBranch, edges)
 
 getHighPcodeCfg
-  :: GhidraState
+  :: GhidraImporter
   -> Function
   -> CtxId
-  -> IO (Maybe (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp HighVarNode)]))))
-getHighPcodeCfg gs fn ctxId = do
+  -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp HighVarNode)])))
+getHighPcodeCfg imp@(GhidraImporter gs _) fn ctxId = do
   jfunc <- CGI.toGhidraFunction gs fn
-  hfunc <- runGhidraOrError $ GFunc.getHighFunction gs jfunc -- TODO: cache this
+  let addr = fn ^. #address
+  hfunc <- CGI.getHighFunction imp addr jfunc
   bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
   let ctx = Ctx fn ctxId
   nodePcodeTuples <- traverse
@@ -227,15 +221,8 @@ getHighPcodeCfg gs fn ctxId = do
         warn $ "Cfg for '" <> show (fn ^. #name) <> "' has no root node"
         return Nothing
       MultipleRootNodes -> error "Cfg has more than one root node"
-    Right cfg -> runGhidraOrError (GFunc.isThunk jfunc) >>= \case
-      True -> case isJust $ Cfg.getRootNode cfg ^? #_BasicBlock . #nodeData . ix 0 . _2 . #_RETURN of
-        -- | It's a really uneccessary thunk
-        True -> Just . Left <$> runGhidraOrError (GFunc.unsafeGetThunkedFunction True jfunc)
-        -- | It's probably a thunk that points to an extern
-        -- This gets processed later.
-        False -> return . Just . Right $ cfg
-      False -> return . Just . Right $ cfg
-  
+    Right cfg -> return . Just $ cfg
+
 
 
 -------------- Convert Pcode CFG to PIL CFG --------------
@@ -243,19 +230,17 @@ getHighPcodeCfg gs fn ctxId = do
 -- | Converts a Pcode CFG to a PIL CFG.
 convertToPilCfg
   :: (IsVariable a, Show a)
-  => GhidraState
+  => GhidraImporter
   -> Ctx
   -> Cfg (CfNode [(Address, PcodeOp a)])
   -> IO (HashMap PilVar VarNode, [PilConv.PCodeOpToPilStmtConversionError], Cfg (CfNode [Pil.Stmt]))
-convertToPilCfg gs ctx cfg = do
-  let convState = PilConv.mkConverterState gs ctx
-
+convertToPilCfg imp ctx cfg = do
+  let convState = PilConv.mkConverterState imp ctx
   (r, cstate) <- flip PilConv.runConverter convState $ do
     traverse (traverse (fmap split . traverse (runExceptT . convertIndexedPcodeOpToPilStmt ctx))) cfg
   let pcfg = fmap snd <$> r
       errs = fold $ foldMap (toList . fmap fst) r
   return (cstate ^. #sourceVars, errs, pcfg)
-
   where
     split :: [Either a [b]] -> ([a], [b])
     split = second concat . partitionEithers
@@ -354,54 +339,17 @@ splitNodeOnCalls ctx' cnode = do
 
 getPilCfg
   :: (IsVariable a, Show a)
-  => (GhidraState -> Function -> CtxId -> IO (Maybe (Either ThunkDestFunc (Cfg (CfNode [(Address, PcodeOp a)])))))
-  -> GhidraState
+  => (GhidraImporter -> Function -> CtxId -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp a)]))))
+  -> GhidraImporter
   -> Function
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
-getPilCfg pcodeCfgGetter gs func ctxId = do
+getPilCfg pcodeCfgGetter imp func ctxId = do
   let ctx = Ctx func ctxId
-  pcodeCfgGetter gs func ctxId >>= \case
+  pcodeCfgGetter imp func ctxId >>= \case
     Nothing -> return Nothing
-    Just (Left thunkedDest) -> do
-      destName <- runGhidraOrError $ GFunc.getName thunkedDest
-      runGhidraOrError (GFunc.isExternal thunkedDest) >>= \case
-        True -> return Nothing
-        False -> do
-          callDest <- fmap Pil.CallFunc
-            $ runGhidraOrError (GFunc.mkFunction thunkedDest)
-            >>= CGI.toBlazeFunction gs
-          (callNodeUuid, retNodeUuid) <- (,) <$> randomIO <*> randomIO
-          let ctx' = Pil.Ctx func ctxId
-              defaultRetSize = 8
-              retVar = C.pilVar_ defaultRetSize (Just ctx) "rax"
-              callNode = Cfg.Call $ Cfg.CallNode
-                { ctx = ctx'
-                , start = func ^. #address
-                , callDest = callDest
-                , uuid = callNodeUuid
-                , nodeData =
-                  [ Pil.Def
-                    (Pil.DefOp retVar
-                     (Pil.Expression defaultRetSize
-                      (Pil.CALL (Pil.CallOp callDest (Just destName) []))))
-                  ]
-                }
-              retNode = Cfg.BasicBlock $ Cfg.BasicBlockNode
-                { ctx = ctx'
-                , start = func ^. #address
-                , end = func ^. #address
-                , uuid = retNodeUuid
-                , nodeData =
-                  [ Pil.Ret . Pil.RetOp $ C.var' retVar defaultRetSize ]
-                }
-          let thunkCfg = Cfg.mkCfg ctxId callNode [callNode, retNode]
-                [ Cfg.CfEdge callNode retNode Cfg.UnconditionalBranch ]
-              indexedThunkCfg = fmap (fmap (Pil.Stmt $ func ^. #address)) <$> thunkCfg
-      
-          return . Just $ ImportResult ctx (PilPcodeMap HashMap.empty) indexedThunkCfg
-    Just (Right pcodeCfg) -> do
-      (varMapping, errs, pilCfg) <- convertToPilCfg gs ctx pcodeCfg
+    Just pcodeCfg -> do
+      (varMapping, errs, pilCfg) <- convertToPilCfg imp ctx pcodeCfg
       unless (null errs) $ do
         putText $ "Warning: getPilCfg encountered errors for function: " <> show func
         traverse_ pprint errs
@@ -412,14 +360,14 @@ removeStmtAddrs :: Cfg (CfNode [(Address, a)]) -> Cfg (CfNode [a])
 removeStmtAddrs = fmap (fmap (fmap snd))
 
 getPilCfgFromRawPcode
-  :: GhidraState
+  :: GhidraImporter
   -> Function
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfgFromRawPcode = getPilCfg getRawPcodeCfg
 
 getPilCfgFromHighPcode
-  :: GhidraState
+  :: GhidraImporter
   -> Function
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))

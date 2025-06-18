@@ -165,31 +165,31 @@ matchCallDest pat cdest = case pat of
             || func ^? #symbol . #_Just . #_symbolName == Just name
     (FuncName name, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
       insist $ Just name == mSym
-    (FuncName name, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
-      insist $ Just name == mSym
+    (FuncName name, Pil.CallExtern extFunc) ->
+      insist $ name == extFunc ^. #name
 
     (FuncNames names, Pil.CallFunc func) ->
       insist $ HashSet.member (func ^. #name) names
             || maybe False (`HashSet.member` names) (func ^? #symbol . #_Just . #_symbolName)
     (FuncNames names, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
       insist $ maybe False (`HashSet.member` names) mSym
-    (FuncNames names, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
-      insist $ maybe False (`HashSet.member` names) mSym
-
+    (FuncNames names, Pil.CallExtern extFunc) ->
+      insist $ HashSet.member (extFunc ^. #name) names
+            || maybe False (`HashSet.member` names) (extFunc ^? #symbol . #_Just . #_symbolName)
     (FuncAddr addr, Pil.CallFunc func) ->
       insist $ addr == func ^. #address
     (FuncAddr addr, Pil.CallAddr (Pil.ConstFuncPtrOp addr' _)) ->
       insist $ addr == addr'
-    (FuncAddr addr, Pil.CallExtern (Pil.ExternPtrOp addr' _off _mSym)) ->
-      insist $ addr == addr'
+    (FuncAddr _, Pil.CallExtern _) -> bad
 
     (FuncNameRegex rpat, Pil.CallFunc func) ->
       insist $ regexIsIn rpat (func ^. #name)
             || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
     (FuncNameRegex rpat, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
       insist $ (regexIsIn rpat <$> mSym) == Just True
-    (FuncNameRegex rpat, Pil.CallExtern (Pil.ExternPtrOp _addr _off mSym)) ->
-      insist $ (regexIsIn rpat <$> mSym) == Just True
+    (FuncNameRegex rpat, Pil.CallExtern extFunc) ->
+      insist $ regexIsIn rpat (extFunc ^. #name)
+            || (regexIsIn rpat <$> extFunc ^? #symbol . #_Just . #_symbolName) == Just True
 
     _ -> bad
 
@@ -538,11 +538,8 @@ addConstraint x = do
 storeAsParsed :: Monad m => Pil.Stmt -> MatcherT m ()
 storeAsParsed x = #parsedStmtsWithAssertions %= (x :)
 
-addLocation :: Monad m => Symbol Address -> Address -> MatcherT m ()
-addLocation lbl addr = #locations %= HashMap.alter addOrCreate lbl
-  where
-    addOrCreate Nothing = Just $ HashSet.singleton addr
-    addOrCreate (Just s) = Just $ HashSet.insert addr s
+setLocation :: Monad m => Symbol Address -> Address -> MatcherT m ()
+setLocation lbl addr = #locations %= HashMap.insert lbl (Right addr)
 
 -- TODO: What about ghidra param_n?
 getArgName :: Symbol Pil.Expression -> Word64 -> Symbol Pil.Expression
@@ -710,15 +707,16 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
       matchNecessarily subPat boundExprs
     EndOfPath -> perhapsRecur
     Location lbl p -> do
-      parsedStmtsLen <- length <$> use #parsedStmtsWithAssertions
+      -- parsedStmtsLen <- length <$> use #parsedStmtsWithAssertions
       ( tryError . backtrackOnError $ do
           matchNextStmt_ False p
         ) >>= \case
         Right _ -> do
-          addLocation lbl $ stmt ^. #addr
-          parsedStmts' <- use #parsedStmtsWithAssertions
-          let newlyParsedStmts = take (length parsedStmts' - parsedStmtsLen) parsedStmts'
-          mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
+          setLocation lbl $ stmt ^. #addr
+          -- TODO: maybe add this back so it's potentially a set of locations
+          -- parsedStmts' <- use #parsedStmtsWithAssertions
+          -- let newlyParsedStmts = take (length parsedStmts' - parsedStmtsLen) parsedStmts'
+          -- mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
           good
         Left _ -> perhapsRecur
     Primitive pt varPats -> do

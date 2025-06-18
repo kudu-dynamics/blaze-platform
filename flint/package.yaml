@@ -197,29 +197,9 @@ executables:
     dependencies:
     - flint
     - optparse-applicative
-  ev1smm:
-    main: Main.hs
-    source-dirs: demo/ev1smm
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - flint
   divelogger:
     main: Main.hs
     source-dirs: demo/Dive_Logger
-    ghc-options:
-    - -Wall
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - flint
-  plt_thunk:
-    main: Main.hs
-    source-dirs: demo/plt_thunk
     ghc-options:
     - -Wall
     - -threaded

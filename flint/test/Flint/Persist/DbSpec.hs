@@ -12,7 +12,7 @@ import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Binary (openBinary)
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import qualified Blaze.Persist.Db as Db
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Func, _name)
 import qualified Blaze.Types.Graph as G
 
 import qualified Data.HashSet as HashSet
@@ -26,7 +26,7 @@ diveLogger = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 data TestCtx = TestCtx
   { bv :: GhidraImporter
   , store :: CfgStore
-  , allFuncs :: [Function]
+  , allFuncs :: [Func]
   , cg :: CallGraph
   } deriving (Generic)
 
@@ -46,7 +46,7 @@ getTestCtx = do
 spec :: Spec
 spec = beforeAll getTestCtx . describe "Flint.Persist.Db" $ do
   context "CallGraph" $ do
-    let reduceGraph g = ( sort . fmap (view #name) . HashSet.toList $ G.nodes g
+    let reduceGraph g = ( sort . fmap (view _name) . HashSet.toList $ G.nodes g
                         , sort $ G.edges g
                         )
 

@@ -11,6 +11,7 @@ import Blaze.Types.Persist.Db as Db
 
 import qualified Blaze.Types.CallGraph as CG
 import qualified Blaze.Types.Graph as G
+import Blaze.Types.Function (Func(Internal, External))
 import qualified Blaze.Types.Function as Func
 
 import qualified Data.HashMap.Strict as HashMap
@@ -34,15 +35,33 @@ insertCallGraph conn cg = do
     insert_ functionTable funcs
     insert_ callGraphEdgeTable edges
   where
-    toCGFunc :: Func.Function -> Db.Function
-    toCGFunc func = Db.Function
-      (func ^. #address)
-      (func ^. #name)
-      (Blob <$> func ^. #symbol)
-      (Blob $ func ^. #params)
+    toCGFunc :: Func -> Db.Function
+    toCGFunc (Internal func) = Db.Function
+      { address = func ^. #address
+      , name = func ^. #name
+      , symbol = Blob <$> func ^. #symbol
+      , library = Nothing
+      , isExtern = False
+      , params = Blob $ func ^. #params
+      }
+    toCGFunc (External func) = Db.Function
+      { address = fromIntegral $ func ^. #address . #externalIndex
+      , name = func ^. #name
+      , symbol = Blob <$> func ^. #symbol
+      , library = func ^. #library
+      , isExtern = True
+      , params = Blob $ func ^. #params
+      }
 
-    toCGEdge :: (Func.Function, Func.Function) -> CallGraphEdge
-    toCGEdge (a, b) = CallGraphEdge def (a ^. #address) (b ^. #address)
+    toCGEdge (a, b) = CallGraphEdge def (getAddr a) (isExtern a) (getAddr b) (isExtern b) 
+
+    getAddr (External func) = fromIntegral $ func ^. #address . #externalIndex
+    getAddr (Internal func) = func ^. #address
+
+    isExtern (External _) = True
+    isExtern (Internal _) = False
+
+type IsExtern = Bool
 
 loadCallGraph :: Conn -> IO (Maybe CG.CallGraph)
 loadCallGraph conn = do
@@ -57,18 +76,31 @@ loadCallGraph conn = do
     Nothing -> return Nothing
     Just (dbFuncs, edges) -> do
       let funcs = toFunc <$> dbFuncs
-          funcMap :: HashMap Address Func.Function
-          funcMap = HashMap.fromList . fmap (\fn -> (fn ^. #address, fn)) $ funcs
-          getFunc :: Address -> Func.Function
+          getFullAddress :: Func -> (IsExtern, Address)
+          getFullAddress (Internal func) = (False, func ^. #address)
+          getFullAddress (External func) = (True, fromIntegral $ func ^. #address . #externalIndex)
+          funcMap :: HashMap (IsExtern, Address) Func
+          funcMap = HashMap.fromList . fmap (\fn -> (getFullAddress fn, fn)) $ funcs
+          getFunc :: (IsExtern, Address) -> Func
           getFunc = fromJust . flip HashMap.lookup funcMap
-          ledges = (\e -> G.fromTupleLEdge ((), ( getFunc $ e ^. #srcFunc
-                                                , getFunc $ e ^. #destFunc
+          ledges = (\e -> G.fromTupleLEdge ((), ( getFunc (e ^. #srcFuncIsExtern, e ^. #srcFunc)
+                                                , getFunc (e ^. #destFuncIsExtern, e ^. #destFunc)
                                                 )))
                    <$> edges
       return . Just . G.addNodes funcs $ G.fromEdges ledges
   where
-    toFunc dbFunc = Func.Function
-      (unBlob <$> dbFunc ^. #symbol)
-      (dbFunc ^. #name)
-      (dbFunc ^. #address)
-      (unBlob $ dbFunc ^. #params)    
+    toFunc :: Function -> Func
+    toFunc dbFunc
+      | dbFunc ^. #isExtern = External $ Func.ExternFunction
+        { symbol = unBlob <$> dbFunc ^. #symbol
+        , name = dbFunc ^. #name
+        , library = dbFunc ^. #library
+        , address = Func.ExternAddress . fromIntegral $ dbFunc ^. #address
+        , params = unBlob $ dbFunc ^. #params
+        }
+      | otherwise = Internal $ Func.Function
+        { symbol = unBlob <$> dbFunc ^. #symbol
+        , name = dbFunc ^. #name
+        , address = dbFunc ^. #address
+        , params = unBlob $ dbFunc ^. #params
+        }

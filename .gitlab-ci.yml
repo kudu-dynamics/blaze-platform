@@ -44,13 +44,13 @@ stages:
     - pwd
     - ls -alF
     - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --config .docker/buildkit.toml --use
-    - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
-    - '
-      curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
-        --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
-        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/binaryninja-distribution/3.5.4526/BinaryNinja.zip"
-      || { ls -l BinaryNinja.zip >&2; head -c1000 BinaryNinja.zip >&2; exit 1; }
-      '
+    # - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
+    # - '
+    #   curl >BinaryNinja.zip -fsSL --proto "=https" --tlsv1.2
+    #     --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+    #     "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/binaryninja-distribution/3.5.4526/BinaryNinja.zip"
+    #   || { ls -l BinaryNinja.zip >&2; head -c1000 BinaryNinja.zip >&2; exit 1; }
+    #   '
   after_script:
     # See https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
     - docker buildx stop || true
@@ -87,12 +87,18 @@ just-deps:
     - docker buildx build --push
         --pull
         --provenance=false
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:latest
-        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
-        --target just-deps-binaryninja
-        -t "${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:pipeline-"${CI_PIPELINE_ID}"
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
+        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:latest
+        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps:cache
+        --target just-deps
+        -t "${CI_REGISTRY_IMAGE}"/just-deps:pipeline-"${CI_PIPELINE_ID}"
         .
+        # --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
+        # --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:latest
+        # --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:cache
+        # --target just-deps-binaryninja
+        # -t "${CI_REGISTRY_IMAGE}"/just-deps-binaryninja:pipeline-"${CI_PIPELINE_ID}"
+        # .
 
 # stage: check
 include:
@@ -118,7 +124,7 @@ ghc-warnings:
   stage: check
   needs:
     - just-deps
-  image: ${CI_REGISTRY_IMAGE}/just-deps-binaryninja:pipeline-${CI_PIPELINE_ID}
+  image: ${CI_REGISTRY_IMAGE}/just-deps:pipeline-${CI_PIPELINE_ID}
   script:
     - stack clean
     - stack --color always build --test --no-run-tests --pedantic --fast
@@ -142,18 +148,18 @@ build:
         --build-arg OPTIM=${HASKELL_OPTIM}
         -t "${CI_REGISTRY_IMAGE}"/builder:pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker buildx build --push
-        --pull
-        --provenance=false
-        --target builder-binaryninja
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:cache
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:latest
-        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:cache
-        --build-arg OPTIM=${HASKELL_OPTIM}
-        -t "${CI_REGISTRY_IMAGE}"/builder-binaryninja:pipeline-"${CI_PIPELINE_ID}"
-        .
+    # - docker buildx build --push
+    #     --pull
+    #     --provenance=false
+    #     --target builder-binaryninja
+    #     --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:cache
+    #     --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder:latest
+    #     --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:cache
+    #     --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:latest
+    #     --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/builder-binaryninja:cache
+    #     --build-arg OPTIM=${HASKELL_OPTIM}
+    #     -t "${CI_REGISTRY_IMAGE}"/builder-binaryninja:pipeline-"${CI_PIPELINE_ID}"
+    #     .
     - docker buildx build --push
         --pull
         --provenance=false
@@ -163,15 +169,15 @@ build:
         --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}":cache
         -t "${CI_REGISTRY_IMAGE}":pipeline-"${CI_PIPELINE_ID}"
         .
-    - docker buildx build --push
-        --pull
-        --provenance=false
-        --target deliver-binaryninja
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
-        --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:latest
-        --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
-        -t "${CI_REGISTRY_IMAGE}"/with-binaryninja:pipeline-"${CI_PIPELINE_ID}"
-        .
+    # - docker buildx build --push
+    #     --pull
+    #     --provenance=false
+    #     --target deliver-binaryninja
+    #     --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
+    #     --cache-from type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:latest
+    #     --cache-to   type=registry,ref="${CI_REGISTRY_IMAGE}"/with-binaryninja:cache
+    #     -t "${CI_REGISTRY_IMAGE}"/with-binaryninja:pipeline-"${CI_PIPELINE_ID}"
+    #     .
 
 test:
   rules:
@@ -183,17 +189,17 @@ test:
   script:
     - /out/run-tests --color
 
-test-binaryninja:
-  rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
-  stage: test
-  needs:
-    - build
-  image: ${CI_REGISTRY_IMAGE}/builder-binaryninja:pipeline-${CI_PIPELINE_ID}
-  script:
-    - mkdir -p /root/.binaryninja
-    - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
-    - /out/run-tests --color
+# test-binaryninja:
+#   rules:
+#     - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+#   stage: test
+#   needs:
+#     - build
+#   image: ${CI_REGISTRY_IMAGE}/builder-binaryninja:pipeline-${CI_PIPELINE_ID}
+#   script:
+#     - mkdir -p /root/.binaryninja
+#     - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
+#     - /out/run-tests --color
 
 push:latest:
   stage: push
@@ -206,7 +212,8 @@ push:latest:
     GIT_CLEAN_FLAGS: none
   script:
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_JOB_TOKEN}" "${CI_REGISTRY}"
-    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}/builder-binaryninja ${CI_REGISTRY_IMAGE}"
+    # - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}/builder-binaryninja ${CI_REGISTRY_IMAGE}"
+    - images="${CI_REGISTRY_IMAGE}/haskell ${CI_REGISTRY_IMAGE}/builder ${CI_REGISTRY_IMAGE}"
     - |-
       set -euxo pipefail
       for image in ${images}; do
@@ -308,8 +315,8 @@ test-submit:
     # - 'curl -fsSL -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/target-artifacts/2024.10.25/rootfs.tar.gz" >rootfs.tar.gz'
     # - tar -xf rootfs.tar.gz
     - cpio_hash="$(cat cpio.sha256)"
-    - mkdir -p /root/.binaryninja
-    - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
+    # - mkdir -p /root/.binaryninja
+    # - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     # - mkdir zips
     - python3 -u .docker/submit-findings.py "${CI_COMMIT_SHORT_SHA}" "${cpio_hash}" rootfs "${API_URL}" /test "${GITLAB_USER_NAME}" /out/bin/flint
 
@@ -330,7 +337,7 @@ submit:
     # - 'curl -fsSL -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/target-artifacts/2024.10.25/rootfs.tar.gz" >rootfs.tar.gz'
     # - tar -xf rootfs.tar.gz
     - cpio_hash="$(cat cpio.sha256)"
-    - mkdir -p /root/.binaryninja
-    - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
+    # - mkdir -p /root/.binaryninja
+    # - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
     # - mkdir zips
     - python3 -u .docker/submit-findings.py "${CI_COMMIT_SHORT_SHA}" "${cpio_hash}" rootfs "${API_URL}" /submit "${GITLAB_USER_NAME}" /out/bin/flint

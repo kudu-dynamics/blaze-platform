@@ -4,6 +4,7 @@ module Flint.Prelude
   , constrName
   , hoistMaybeM
   , mapMaybeConcurrently
+  , mapMaybeHashSet
   , removeNth
   , tryError
   , runLoggerT
@@ -11,11 +12,11 @@ module Flint.Prelude
 
 import Blaze.Prelude as Exports hiding (Symbol)
 
-import Control.Monad.Extra as Exports (mapMaybeM)
 import Control.Monad.Logger.CallStack as Exports (logDebug, logInfo, logWarn, logOther, MonadLogger, runStdoutLoggingT)
 import qualified Control.Monad.Logger.CallStack as Logger
 import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrently, forConcurrently_, mapConcurrently_)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import Data.Vector as Exports (Vector)
 
 
@@ -58,6 +59,9 @@ catHashMapMaybes = HashMap.fromList . mapMaybe f . HashMap.toList
   where
     f (_, Nothing) = Nothing
     f (k, Just v) = Just (k, v)
+
+mapMaybeHashSet :: Hashable b => (a -> Maybe b) -> HashSet a -> HashSet b
+mapMaybeHashSet f = HashSet.fromList . mapMaybe f . HashSet.toList
 
 runLoggerT :: MonadIO m => Logger.LogLevel -> Logger.LoggingT m a -> m a 
 runLoggerT lvl m = runStdoutLoggingT $ Logger.filterLogger (const (== lvl)) m

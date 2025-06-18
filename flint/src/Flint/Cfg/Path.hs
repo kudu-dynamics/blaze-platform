@@ -210,7 +210,7 @@ mkExpandToTargetsStrategy pickFromRange expandDepthLimit store targets = do
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
-      ancestors <- CfgStore.getAncestors store func >>= \case
+      ancestors <- CfgStore.getAncestors' store func >>= \case
         Nothing -> error $ "Could not find func ancestors for " <> show func
         Just ancestors -> return ancestors
       return . HashSet.insert func $ HashSet.union ancestors s
@@ -236,7 +236,7 @@ mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
-      ancestors <- CfgStore.getAncestors store func >>= \case
+      ancestors <- CfgStore.getAncestors' store func >>= \case
         Nothing -> error $ "Could not find func ancestors for " <> show func
         Just ancestors -> return ancestors
       return . HashSet.insert func $ HashSet.union ancestors s
@@ -264,7 +264,7 @@ mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
-      ancestors <- CfgStore.getAncestors store func >>= \case
+      ancestors <- CfgStore.getAncestors' store func >>= \case
         Nothing -> error $ "Could not find func ancestors for " <> show func
         Just ancestors -> return ancestors
       return . HashSet.insert func $ HashSet.union ancestors s

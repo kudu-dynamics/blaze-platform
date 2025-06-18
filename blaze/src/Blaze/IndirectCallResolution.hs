@@ -5,7 +5,7 @@ import Blaze.Prelude
 -- import Binja.Core (BNBinaryView)
 -- import Binja.Function qualified as BnFunc
 import Blaze.CallGraph qualified as Cg
-import Blaze.Function qualified as Func
+import qualified Blaze.Function as Func
 import Blaze.Graph qualified as G
 import Blaze.Import.CallGraph (CallGraphImporter)
 import Blaze.Import.CallGraph qualified as Cgi
@@ -46,7 +46,7 @@ getUndirectedCg imp = do
   cg <- Cgi.getFunctions imp >>= Cg.getCallGraph imp
   return $ Cg.getUndirectedCallGraph cg
 
-getEdgeList :: Cg.CallGraph -> [(Func.Function, Func.Function)]
+getEdgeList :: Cg.CallGraph -> [(Func.Func, Func.Func)]
 getEdgeList g = G.toTupleEdge . view #edge <$> G.edges g
 
 extractFuncsFromConstructors :: [ClassConstructor] -> [Func.Function]

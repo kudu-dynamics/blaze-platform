@@ -11,6 +11,7 @@ import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
 import Flint.Analysis.Path.Matcher.Primitives
 
 import Blaze.Pil.Construct
+import qualified Blaze.Types.Function as Func
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -46,10 +47,10 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
 
   context "mkCallableWMI" $ do
     it "should create callable primitive with single nested arg and no constraints" $ do
-      let func = foo
+      let func = Func.Internal foo
           prim = copyPrim
           locationMap = HashMap.fromList
-            [ ("write", HashSet.singleton 0x1234) ]
+            [ ("write", Right 0x1234) ]
 
           path = fooPath3
           codeSum = fooCodeSummary3
@@ -61,14 +62,15 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           
       PShow (mkCallableWMI func codeSum prim varMap locationMap path) `shouldBe` PShow expected
 
+    -- TODO: change these to use ExternFunction type
     it "should create CallableWMIs from StdLibPrimites" $ do
       let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
           allFuncs = [memcpy, sscanf, printf, foo, bar]
-          initialCPrims = getInitialWMIs stdLibPrims allFuncs
+          initialCPrims = getInitialWMIs stdLibPrims  . fmap Func.Internal $ allFuncs
           memcpyCPrim
             = CallableWMI
               { prim = copyPrim
-              , func = memcpy
+              , func = Func.Internal memcpy
               , callDest = FuncName "memcpy"
               , varMapping = HashMap.fromList
                 [ ("dest", (FuncVar $ Arg 0, HashSet.fromList [Arg 0]))
@@ -77,7 +79,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
               , constraints = []
               , locations = HashMap.fromList
                 [ ( "write"
-                  , HashSet.singleton $ memcpy ^. #address
+                  , Right $ memcpy ^. #address
                   )
                 ]
               , linkedVars = HashSet.fromList [ Arg 0, Arg 1 ]
@@ -85,14 +87,14 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           sscanfCPrim
             = CallableWMI
               { prim = controlledFormatStringPrim
-              , func = sscanf
+              , func = Func.Internal sscanf
               , callDest = FuncName "sscanf"
               , varMapping = HashMap.fromList
                 [ ("fmt", (FuncVar $ Arg 1, HashSet.fromList [Arg 1])) ]
               , constraints = []
               , locations = HashMap.fromList
                 [ ( "usage"
-                  , HashSet.singleton $ sscanf ^. #address
+                  , Right $ sscanf ^. #address
                   )
                 ]
               , linkedVars = HashSet.fromList [ Arg 1 ]
@@ -101,14 +103,14 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           printfCPrim
             = CallableWMI
               { prim = controlledFormatStringPrim
-              , func = printf
+              , func = Func.Internal printf
               , callDest = FuncName "printf"
               , varMapping = HashMap.fromList
                 [ ("fmt", (FuncVar $ Arg 0, HashSet.fromList [Arg 0])) ]
               , constraints = []
               , locations = HashMap.fromList
                 [ ( "usage"
-                  , HashSet.singleton $ printf ^. #address
+                  , Right $ printf ^. #address
                   )
                 ]
               , linkedVars = HashSet.fromList [ Arg 0 ]

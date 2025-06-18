@@ -3,12 +3,13 @@ module Blaze.Pil.Display where
 
 import qualified Data.HashMap.Strict as HMap
 import Blaze.Prelude hiding (Symbol, const, sym, bracket)
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (ExternFunction, Function)
 import Blaze.Types.Pil (Size)
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.Text as Text
 import Text.Printf
 import Blaze.Types.Pil.Checker (InfoExpression)
+
 
 type Symbol = Text
 
@@ -379,6 +380,11 @@ instance Disp Function where
       name = f ^. #name
       start :: Text
       start = show $ f ^. #address
+
+instance Disp ExternFunction where
+  disp f = Text.pack $ printf "externFunc \"%s\"" name
+    where
+      name = f ^. #name
 
 instance Disp ByteOffset where
   disp (ByteOffset x) = "byteOffset " <> show x

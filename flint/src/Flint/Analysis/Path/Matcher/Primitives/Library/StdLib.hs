@@ -21,7 +21,7 @@ allStdLibPrims =
 freeHeapPrims :: [StdLibPrimitive]
 freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
   StdLibPrimitive
-    { prim = PrimSpec.freeHeap
+    { prim = PrimSpec.freeHeapSpec
     , funcName = funcName
     , varMapping = HashMap.fromList
       [ ("ptr", FuncVar $ Arg argNo)
@@ -43,7 +43,7 @@ freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
 allocHeapPrims :: [StdLibPrimitive]
 allocHeapPrims =
   [ StdLibPrimitive
-    { prim = PrimSpec.allocHeap
+    { prim = PrimSpec.allocHeapSpec
     , funcName = "malloc"
     , varMapping = HashMap.fromList
       [ ("ptr", FuncVar Ret)
@@ -52,7 +52,7 @@ allocHeapPrims =
     , constraints = []
     }
   , StdLibPrimitive
-    { prim = PrimSpec.allocHeap
+    { prim = PrimSpec.allocHeapSpec
     , funcName = "calloc"
     , varMapping = HashMap.fromList
       [ ("ptr", FuncVar Ret)
@@ -65,7 +65,7 @@ allocHeapPrims =
 controlledFormatStringPrims :: [StdLibPrimitive]
 controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $
   StdLibPrimitive
-    { prim = PrimSpec.controlledFormatString
+    { prim = PrimSpec.controlledFormatStringSpec
     , funcName = funcName
     , varMapping = HashMap.fromList
       [ ("fmt", FuncVar $ Arg argNo)
@@ -91,3 +91,4 @@ controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $
       , ("snprintf", 2)
       , ("vsnprintf", 2)
       ]
+

@@ -10,6 +10,7 @@ import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import qualified Blaze.Pretty as Pretty
+import Blaze.Types.Function (ExternFunction)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Size(Size))
 import Blaze.Types.Pil.Summary (CodeSummary)
@@ -209,7 +210,7 @@ data MatcherState m = MatcherState
   , solveStmts :: StmtSolver m
   -- | If the path has been checked with the solver, this holds possible solutions
   , solutions :: Maybe (HashMap Text CV)
-  , locations :: HashMap (Symbol Address) (HashSet Address)
+  , locations :: HashMap (Symbol Address) (Either ExternFunction Address)
   -- TODO: this doesn't really belong here because it won't be modified
   , callablePrimitives :: HashMap PrimSpec (HashSet CallableWMI)
   } deriving Generic

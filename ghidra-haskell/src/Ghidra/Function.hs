@@ -5,6 +5,7 @@ module Ghidra.Function
 
 import Ghidra.Prelude hiding (toList)
 
+import qualified Ghidra.Program as Program
 import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Language.Java as Java
@@ -24,6 +25,12 @@ fromAddr :: GhidraState -> J.Address -> Ghidra (Maybe J.Function)
 fromAddr gs addr = do
   listing <- State.getListing gs
   maybeNull <$> runIO (Java.call listing "getFunctionContaining" addr)
+
+getFunctionAt :: GhidraState -> J.Address -> Ghidra (Maybe J.Function)
+getFunctionAt gs addr = do
+  prg <- State.getProgram gs
+  fm <- Program.getFunctionManager prg
+  maybeNull <$> runIO (Java.call fm "getFunctionAt" addr)
 
 functionIteratorToList :: J.FunctionIterator -> Ghidra [J.Function]
 functionIteratorToList = iteratorToList . coerce
@@ -59,7 +66,7 @@ resolveThunk :: J.Function -> Ghidra J.Function
 resolveThunk func = do
   isThunk func >>= \case
     False -> return func
-    True -> runIO $ Java.call func "getThunkedFunction" >>= JNI.newGlobalRef
+    True -> runIO $ Java.call func "getThunkedFunction" True >>= JNI.newGlobalRef
 
 hasDefaultName :: J.Function -> Ghidra Bool
 hasDefaultName func = do
@@ -171,6 +178,9 @@ isVarArg proto = runIO $ Java.call proto "isVarArg"
 
 isExternal :: J.Function -> Ghidra Bool
 isExternal fn = runIO $ Java.call fn "isExternal"
+
+getLibraryName :: J.ExternalLocationDB -> Ghidra (Maybe Text)
+getLibraryName eloc = runIO $ traverse Java.reify . maybeNull =<< Java.call eloc "getLibraryName"
 
 mkFunction :: J.Function -> Ghidra Function
 mkFunction fn = Function fn <$> getAddress fn

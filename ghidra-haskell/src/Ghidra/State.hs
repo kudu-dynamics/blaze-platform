@@ -3,9 +3,13 @@ module Ghidra.State where
 import Ghidra.Prelude hiding (force, get)
 
 import qualified Language.Java as Java
+
+import qualified Ghidra.Program as Program
+import qualified Ghidra.Address as Address
 import Ghidra.Util (iteratorToList, maybeNullCall, suppressOut, tryJVM, getDomainObject, maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
+
 import qualified Data.BinaryAnalysis as BA
 import qualified Foreign.JNI as JNI
 import qualified Data.Text as Text
@@ -165,6 +169,14 @@ mkAddressBased :: GhidraState -> BA.Address -> Ghidra J.Address
 mkAddressBased gs addr = do
   baseAddr <- getImageBase gs
   runIO $ Java.call baseAddr "add" (fromIntegral addr :: Int64)
+
+mkExternalAddress :: GhidraState -> Int64 -> Ghidra J.Address
+mkExternalAddress gs offset = do
+  prg <- getProgram gs
+  af <- Program.getAddressFactory prg
+  externSpace <- fromJust <$> Address.getAddressSpace af (Address.showAddressSpaceName Address.EXTERNAL)
+  externSpaceID <- Address.getSpaceID externSpace
+  Address.getAddress af externSpaceID offset
 
 getImageBase :: GhidraState -> Ghidra J.Address
 getImageBase gs = do
