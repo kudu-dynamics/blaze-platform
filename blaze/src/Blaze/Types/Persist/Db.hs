@@ -44,6 +44,8 @@ data Function = Function
   { address :: Address
   , name :: Text
   , symbol :: Maybe (Blob Symbol)
+  , library :: Maybe Text
+  , isExtern :: Bool
   , params :: Blob [FuncParamInfo]
   } deriving (Generic, SqlRow)
 
@@ -57,7 +59,9 @@ data CallSite = CallSite
 data CallGraphEdge = CallGraphEdge
   { pid :: ID CallGraphEdge
   , srcFunc :: Address
+  , srcFuncIsExtern :: Bool
   , destFunc :: Address
+  , destFuncIsExtern :: Bool
   } deriving (Generic, SqlRow)
 
 functionTable :: Table Function

@@ -6,7 +6,6 @@ import Flint.Prelude
 
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
-import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
@@ -138,6 +137,7 @@ toMatchingPrimBlob res = blob
     func = res ^. #func
     name = func ^. #name
     addr = func ^. #address
+    wmi = toCallableWMIBlob $ res ^. #callablePrim
     blob = MatchingPrimBlob
       { func = (name, addr)
       , path = pretty' <$> res ^. #path -- TODO: get path with assertions
@@ -146,7 +146,7 @@ toMatchingPrimBlob res = blob
                . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
                . HashMap.toList
                $ res ^. #callablePrim . #varMapping
-      , locations = HashMap.mapKeys pretty' $ res ^. #callablePrim . #locations
+      , locations = wmi ^. #locations
       , constraints = fmap (pretty' . fst) $ res ^. #callablePrim . #constraints
       , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
       }
@@ -156,6 +156,7 @@ printMatchingPrimJSON res = do
   let func = res ^. #func
       name = func ^. #name
       addr = func ^. #address
+      wmi = toCallableWMIBlob $ res ^. #callablePrim
       blob = MatchingPrimBlob
         { func = (name, addr)
         , path = pretty' <$> res ^. #path -- TODO: get path with assertions
@@ -164,7 +165,7 @@ printMatchingPrimJSON res = do
                  . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
                  . HashMap.toList
                  $ res ^. #callablePrim . #varMapping
-        , locations = HashMap.mapKeys pretty' $ res ^. #callablePrim . #locations
+        , locations = wmi ^. #locations
         , constraints = pretty' <$> res ^. #callablePrim . #constraints
         , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
         }
@@ -174,7 +175,7 @@ printMatchingPrimJSON res = do
 defaultCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-  funcs <- Store.getFuncs store
+  funcs <- Store.getInternalFuncs store
   
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -200,7 +201,7 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
 primCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
 primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-  funcs <- Store.getFuncs store
+  funcs <- Store.getInternalFuncs store
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -209,11 +210,7 @@ primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> d
           , numSamples = opts ^. #maxSamplesPerFunc
           }
       prims :: [Prim]
-      prims =
-        [ PrimLib.writeToKernelGlobal
-        , PrimLib.controlledIndirectCall
-        , PrimLib.integerOverflowPrim
-        ]
+      prims = []
 
   kernelResults <- case opts ^. #isKernelModule of
     False -> return []

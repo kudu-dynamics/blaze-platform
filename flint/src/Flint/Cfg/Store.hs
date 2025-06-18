@@ -16,7 +16,8 @@ import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Graph (RouteMakerCtx(RouteMakerCtx))
 import qualified Blaze.Graph as G
 import qualified Blaze.Persist.Db as Db
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Function, Func)
+import qualified Blaze.Types.Function as Func
 import Blaze.Types.Graph (calcDescendantsMap, calcStrictDescendantsMap, DescendantsMap(DescendantsMap), StrictDescendantsMap(StrictDescendantsMap))
 import qualified Blaze.Types.Pil as Pil
 
@@ -63,32 +64,27 @@ init mDbFilePath imp = do
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
+    <*> atomically CC.create
     <*> atomically (CM.create [])
     <*> atomically (CM.create HashSet.empty)
     <*> Binary.getBase imp
 
-  allFuncCfgs <- getFuncsWithCfgs imp
-  -- let internalFuncs = fst <$> allFuncCfgs
-  --     funcCfgsMapping = HashMap.fromList allFuncCfgs
-  --     callNodesMapping = getCallNodesMapping allFuncCfgs
-  --     internalCallDests :: HashMap Function (HashSet Function)
-  --     internalCallDests = fmap ( HashSet.fromList
-  --                               . mapMaybe getConcreteFuncCallDest)
-  --                         callNodesMapping
-      
-
-  let funcCfgsSansPltThunks = purgeInternalPltThunks allFuncCfgs
-      funcCfgsMapping = HashMap.fromList funcCfgsSansPltThunks
-      callNodesMapping = getCallNodesMapping funcCfgsSansPltThunks
-      internalCallDests :: HashMap Function (HashSet Function)
-      internalCallDests = fmap ( HashSet.fromList
-                                . mapMaybe getConcreteFuncCallDest)
-                          callNodesMapping
-      internalFuncs = fst <$> funcCfgsSansPltThunks
+  allFuncs <- CG.getFunctions imp
   
-  CC.setCalc () (store ^. #funcs) $ return internalFuncs
+  let internalFuncs :: [Function]
+      internalFuncs = mapMaybe (^? #_Internal) allFuncs
+
+  functionCfgs :: [(Function, PilCfg)] <- getFuncsWithCfgs imp internalFuncs
+
+  let functionCfgMapping :: HashMap Function PilCfg
+      functionCfgMapping = HashMap.fromList functionCfgs
+      callNodesMapping :: HashMap Function [Cfg.CallNode [Pil.Stmt]]
+      callNodesMapping = getCallNodesMapping functionCfgs
+    
+  CC.setCalc () (store ^. #funcs) $ return allFuncs
+  CC.setCalc () (store ^. #internalFuncs) $ return internalFuncs
   CC.setCalc () (store ^. #callGraphCache) $ do
-    let getCG = return $ calcCallGraphFromInternalCallDests internalCallDests
+    let getCG = CG.getCallGraph imp allFuncs
     case mDb of
       Nothing -> getCG
       Just db -> Db.loadCallGraph db >>= \case
@@ -104,36 +100,39 @@ init mDbFilePath imp = do
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg
-  initialFuncs <- CC.get_ $ store ^. #funcs
   -- Set up calcs for ancestors
-  forM_ initialFuncs $ \func -> do
+  forM_ allFuncs $ \func -> do
     CC.setCalc func (store ^. #ancestorsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
       return $ G.getStrictDescendants func cg
     CC.setCalc func (store ^. #descendantsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #callGraphCache)
       return $ G.getStrictDescendants func cg
+  forM_ internalFuncs $ \func -> do
     CC.setCalc func (store ^. #callSitesCache) $ do
       case HashMap.lookup func callNodesMapping of
         Nothing -> return []
         Just dests -> return $ mapMaybe toCallSite dests
           where
             toCallSite n = case n ^. #callDest of
-              Pil.CallFunc destFunc -> Just
-                $ CG.CallSite func (n ^. #start) (CG.DestFunc destFunc)
-              _ -> Nothing
-    addFunc' store func $ HashMap.lookup func funcCfgsMapping
+                Pil.CallFunc destFunc -> Just
+                  $ CG.CallSite func (n ^. #start) (Func.Internal destFunc)
+                Pil.CallExtern destExtern -> Just
+                  $ CG.CallSite func (n ^. #start) (Func.External destExtern)
+                _ -> Nothing
+    addFunc' store func $ HashMap.lookup func functionCfgMapping
+
   return store
 
 -- | Returns a list of all the functions in the binary that we can make a Cfg for.
 getFuncsWithCfgs
-  :: ( CallGraphImporter a
-     , CfgImporter a
+  :: ( CfgImporter a
      , NodeDataType a ~ PilNode
      )
-  => a -> IO [(Function, PilCfg)]
-getFuncsWithCfgs imp = do
-  funcs <- CG.getFunctions imp
+  => a
+  -> [Function]
+  -> IO [(Function, PilCfg)]
+getFuncsWithCfgs imp funcs = do
   fmap catMaybes . forM funcs $ \func -> fmap (func,) <$> ImpCfg.getCfg_ imp func 0
 
 data PltThunkMapping = PltThunkMapping
@@ -213,14 +212,6 @@ getCallNodesMapping = HashMap.fromList . fmap (over _2 getCallNodes)
 
 getConcreteFuncCallDest :: Cfg.CallNode [Pil.Stmt] -> Maybe Function
 getConcreteFuncCallDest = (^? #callDest . #_CallFunc)
-
-getExternalFuncCallDest :: Cfg.CallNode [Pil.Stmt] -> Maybe Pil.ConstFuncPtrOp
-getExternalFuncCallDest cnode = do
-  case cnode ^. #callDest of
-    Pil.CallAddr x -> Just x
-    Pil.CallExtern x -> Just $ Pil.ConstFuncPtrOp (x ^. #address) (x ^. #symbol)
-    _ -> Nothing
-
 
 -- | Replaces any calls to PLT thunks in Cfgs with direct calls.
 -- Renames PLT thunks in function list (prepends `_`).
@@ -320,17 +311,6 @@ purgeInternalPltThunks allFuncCfgs = replaceCallSitesAndRenameThunks <$> allFunc
     pltMap :: HashMap Function PltThunkMapping
     pltMap = getPltThunkMapping allFuncCfgs
 
-calcCallGraphFromInternalCallDests :: HashMap Function (HashSet Function) -> CallGraph
-calcCallGraphFromInternalCallDests = G.fromEdges
-  . concatMap getEdges
-  . HashMap.toList
-  where
-    getEdges :: (Function, HashSet Function) -> [G.LEdge () Function]
-    getEdges (bfunc, s) = do
-      dest <- HashSet.toList s
-      return . G.LEdge () $ G.Edge bfunc dest
-
-
 getNewUuid :: UUID -> StateT (HashMap UUID UUID) IO UUID
 getNewUuid old = do
   m <- get
@@ -412,8 +392,23 @@ getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
 getFuncCfgInfo store func = join <$> CC.get func (store ^. #cfgCache)
 
-getAncestors :: CfgStore -> Function -> IO (Maybe (HashSet Function))
+getAncestors :: CfgStore -> Func -> IO (Maybe (HashSet Func))
 getAncestors store func = CC.get func $ store ^. #ancestorsCache
+
+-- | Temporary convenience function for functions that still work with Function instead of Func
+getAncestors' :: CfgStore -> Function -> IO (Maybe (HashSet Function))
+getAncestors' store func = mapMaybeHashSet (^? #_Internal)
+  <<$>> getAncestors store (Func.Internal func)
+
+
+getDescendants :: CfgStore -> Func -> IO (Maybe (HashSet Func))
+getDescendants store func = CC.get func $ store ^. #descendantsCache
+
+-- | Temporary convenience function for functions that still work with Function instead of Func
+getDescendants' :: CfgStore -> Function -> IO (Maybe (HashSet Function))
+getDescendants' store func = mapMaybeHashSet (^? #_Internal)
+  <<$>> getDescendants store (Func.Internal func)
+
 
 getFuncCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
 getFuncCfg store func = fmap (view #cfg) <$> getFuncCfgInfo store func
@@ -421,8 +416,11 @@ getFuncCfg store func = fmap (view #cfg) <$> getFuncCfgInfo store func
 getCallGraph :: CfgStore -> IO CallGraph
 getCallGraph store = fromJust <$> CC.get () (store ^. #callGraphCache)
 
-getFuncs :: CfgStore -> IO [Function]
+getFuncs :: CfgStore -> IO [Func]
 getFuncs store = fromJust <$> CC.get () (store ^. #funcs)
+
+getInternalFuncs :: CfgStore -> IO [Function]
+getInternalFuncs = fmap (mapMaybe (^? #_Internal)) . getFuncs
 
 getTransposedCallGraph :: CfgStore -> IO CallGraph
 getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
@@ -488,11 +486,14 @@ getRouteMakerCtx'
         , HashSet PilNode
         )
 getRouteMakerCtx' maxCallSearchDepth store = do
-  cfgInfos <- fmap catHashMapMaybes . CC.getSnapshot $ store ^. #cfgCache
+  cfgInfos :: HashMap Function CfgInfo <- fmap catHashMapMaybes
+                                          . CC.getSnapshot
+                                          $ store ^. #cfgCache
   let funcInnerNodes = view #nodes <$> cfgInfos
       startNodes = Cfg.getRootNode . view #cfg <$> cfgInfos
       dmaps = view #strictDescendantsMap <$> cfgInfos
-  callAncestors <- CC.getSnapshot $ store ^. #ancestorsCache
+  callAncestors <- fmap toFunctionAncestorMap . CC.getSnapshot $ store ^. #ancestorsCache
+  
   let outerNodeDescendants = G.calcOuterNodeDescendants (fromMaybe HashSet.empty . flip HashMap.lookup funcInnerNodes) callAncestors
 
       ctx = RouteMakerCtx
@@ -508,6 +509,16 @@ getRouteMakerCtx' maxCallSearchDepth store = do
   return (ctx, funcInnerNodes, allNodes)
 
   where
+    toFunction = (^? #_Internal)
+    toFunctionAncestorMap :: HashMap Func (HashSet Func) -> HashMap Function (HashSet Function)
+    toFunctionAncestorMap = HashMap.fromList
+      . mapMaybe (\(func, s) -> func ^? #_Internal >>= \function ->
+                     return ( function
+                            , HashSet.fromList
+                              . mapMaybe toFunction
+                              . HashSet.toList
+                              $ s))
+      . HashMap.toList
     getCallTargetFunc :: PilNode -> Maybe Function
     getCallTargetFunc (Cfg.Call n) = CfgI.getTargetFunc n
     getCallTargetFunc _ = Nothing
@@ -521,95 +532,98 @@ getFuncNameMapping
   . CC.getKeys
   . view #cfgCache
 
--- | Replaces the CfgInfo of the old func with that of the new func.
--- This can be used to shimmy in cfgs from other binaries/libraries.
--- Any functions used in call nodes in the new Cfg that have the same name
--- as functions in the CfgStore will be replaced by the funcs in the CfgStore.
--- IMPORTANT: Shimmy in functions before calculating things like the RouteMakerCtx
--- TODO: figure out how to deal with instruction addresses inside new func cfg.
---       i.e. they might be in an overlapping range between the two binaries
--- TODO: handle case where you want to shimmy funcs that might not be in store yet.
---       New funcs are added for each call a shimmied func makes.
-shimmyFunc
-  :: ( CfgImporter a
-     , NodeDataType a ~ PilNode)
-  => a
-  -> CfgStore
-  -> Function -- Func1, whose CfgInfo to replace
-  -> Function -- Func2, whose CfgInfo will replace func1
-  -> IO ()
-shimmyFunc imp store func1 func2 = do
-  -- We don't calculate this lazily because the inner calls need to immediately update
-  -- the call graph and the functions list.
-  fmap (view #result) <$> ImpCfg.getCfg imp func2 0 >>= \case
-    Nothing -> return ()
-    Just cfg -> do
-      funcNameMapping <- getFuncNameMapping store
-      let callNodes = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfg
-          (funcDests, callNodeSubsts, newFuncs) = foldl' (f funcNameMapping) (HashSet.empty, [], HashSet.empty) callNodes
-          cfg' = foldl' (\g (a, b) -> G.updateNode (const $ Cfg.Call b) (Cfg.Call a) g) cfg callNodeSubsts
-      -- TODO: maybe add newFuncs to store ^. #funcs (which right now is immutable)
 
-      -- Add new call dests for func1
-      -- TODO: remove old call dests?
-      CC.modifyCalc (addNewFuncDests funcDests) () (store ^. #callGraphCache)
+-- TODO: get shiffyFunc to work with new Extern/internal Func type
 
-      -- Reset transposed call graph to be based on current call graph
-      -- TODO: this is inefficent if you are shimming multiple funcs
-      CC.setCalc () (store ^. #transposedCallGraphCache) $ do
-        cg <- getCallGraph store
-        return $ G.transpose cg
+-- -- | Replaces the CfgInfo of the old func with that of the new func.
+-- -- This can be used to shimmy in cfgs from other binaries/libraries.
+-- -- Any functions used in call nodes in the new Cfg that have the same name
+-- -- as functions in the CfgStore will be replaced by the funcs in the CfgStore.
+-- -- IMPORTANT: Shimmy in functions before calculating things like the RouteMakerCtx
+-- -- TODO: figure out how to deal with instruction addresses inside new func cfg.
+-- --       i.e. they might be in an overlapping range between the two binaries
+-- -- TODO: handle case where you want to shimmy funcs that might not be in store yet.
+-- --       New funcs are added for each call a shimmied func makes.
+-- shimmyFunc
+--   :: ( CfgImporter a
+--      , NodeDataType a ~ PilNode)
+--   => a
+--   -> CfgStore
+--   -> Function -- Func1, whose CfgInfo to replace
+--   -> Function -- Func2, whose CfgInfo will replace func1
+--   -> IO ()
+-- shimmyFunc imp store func1 func2 = do
+--   -- We don't calculate this lazily because the inner calls need to immediately update
+--   -- the call graph and the functions list.
+--   fmap (view #result) <$> ImpCfg.getCfg imp func2 0 >>= \case
+--     Nothing -> return ()
+--     Just cfg -> do
+--       funcNameMapping <- getFuncNameMapping store
+--       let callNodes = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfg
+--           (funcDests, callNodeSubsts, newFuncs) = foldl' (f funcNameMapping) (HashSet.empty, [], HashSet.empty) callNodes
+--           cfg' = foldl' (\g (a, b) -> G.updateNode (const $ Cfg.Call b) (Cfg.Call a) g) cfg callNodeSubsts
+--       -- TODO: maybe add newFuncs to store ^. #funcs (which right now is immutable)
 
-      -- Set CfgInfo for func1 to new Cfg
-      CC.setCalc func1 (store ^. #cfgCache) . return . Just . calcCfgInfo $ cfg'
+--       -- Add new call dests for func1
+--       -- TODO: remove old call dests?
+--       CC.modifyCalc (addNewFuncDests funcDests) () (store ^. #callGraphCache)
 
-      -- Add Nothing cfg info for new funcs, just in case they get looked up
-      forM_ (HashSet.toList newFuncs) $ \newFunc -> do
-        CC.setCalc newFunc (store ^. #cfgCache) $ return Nothing        
-  where    
-    addNewFuncDests :: HashSet Function -> Maybe CallGraph -> IO CallGraph
-    addNewFuncDests _ Nothing = error "call graph must already be loaded"
-    addNewFuncDests dests (Just cg) = do
-      return
-        . foldl' (flip G.addEdge) cg
-        . fmap (G.LEdge () . G.Edge func1)
-        . HashSet.toList
-        $ dests
+--       -- Reset transposed call graph to be based on current call graph
+--       -- TODO: this is inefficent if you are shimming multiple funcs
+--       CC.setCalc () (store ^. #transposedCallGraphCache) $ do
+--         cg <- getCallGraph store
+--         return $ G.transpose cg
 
-    f :: HashMap Text Function
-      -> ( HashSet Function
-         , [(Cfg.CallNode a, Cfg.CallNode a)]
-         , HashSet Function
-         )
-      -> Cfg.CallNode a
-      -> ( HashSet Function
-         , [(Cfg.CallNode a, Cfg.CallNode a)]
-         , HashSet Function
-         )
-    f funcNameMapping asIs@(destFuncs, callNodeSubsts, newFuncs) n = case CfgI.getCallTargetFunction $ n ^. #callDest of
-      Nothing -> asIs
-      Just func -> case HashMap.lookup (func ^. #name) funcNameMapping of
-        -- No function with this name exists in store
-        Nothing -> (HashSet.insert func destFuncs, callNodeSubsts, HashSet.insert func newFuncs)
-        Just existingFunc ->
-          ( HashSet.insert existingFunc destFuncs
-          , (n, n & #callDest .~ Pil.CallFunc existingFunc) : callNodeSubsts
-          , newFuncs
-          )
+--       -- Set CfgInfo for func1 to new Cfg
+--       CC.setCalc func1 (store ^. #cfgCache) . return . Just . calcCfgInfo $ cfg'
+
+--       -- Add Nothing cfg info for new funcs, just in case they get looked up
+--       forM_ (HashSet.toList newFuncs) $ \newFunc -> do
+--         CC.setCalc newFunc (store ^. #cfgCache) $ return Nothing        
+--   where    
+--     addNewFuncDests :: HashSet Function -> Maybe CallGraph -> IO CallGraph
+--     addNewFuncDests _ Nothing = error "call graph must already be loaded"
+--     addNewFuncDests dests (Just cg) = do
+--       return
+--         . foldl' (flip G.addEdge) cg
+--         . fmap (G.LEdge () . G.Edge func1)
+--         . HashSet.toList
+--         $ dests
+
+--     f :: HashMap Text Function
+--       -> ( HashSet Function
+--          , [(Cfg.CallNode a, Cfg.CallNode a)]
+--          , HashSet Function
+--          )
+--       -> Cfg.CallNode a
+--       -> ( HashSet Function
+--          , [(Cfg.CallNode a, Cfg.CallNode a)]
+--          , HashSet Function
+--          )
+--     f funcNameMapping asIs@(destFuncs, callNodeSubsts, newFuncs) n = case CfgI.getCallTargetFunction $ n ^. #callDest of
+--       Nothing -> asIs
+--       Just func -> case HashMap.lookup (func ^. #name) funcNameMapping of
+--         -- No function with this name exists in store
+--         Nothing -> (HashSet.insert func destFuncs, callNodeSubsts, HashSet.insert func newFuncs)
+--         Just existingFunc ->
+--           ( HashSet.insert existingFunc destFuncs
+--           , (n, n & #callDest .~ Pil.CallFunc existingFunc) : callNodeSubsts
+--           , newFuncs
+--           )
         
-shimmyFuncByName
-  :: ( CfgImporter a
-     , NodeDataType a ~ PilNode)
-  => a
-  -> CfgStore
-  -> Text -- Name of Func1, whose CfgInfo to replace
-  -> Function -- Func2, whose CfgInfo will replace func1
-  -> IO ()
-shimmyFuncByName imp store func1name func2 = do
-  m <- getFuncNameMapping store
-  case HashMap.lookup func1name m of
-    Nothing -> error $ "Couldn't find func " <> cs func1name <> " in store"
-    Just func1 -> shimmyFunc imp store func1 func2
+-- shimmyFuncByName
+--   :: ( CfgImporter a
+--      , NodeDataType a ~ PilNode)
+--   => a
+--   -> CfgStore
+--   -> Text -- Name of Func1, whose CfgInfo to replace
+--   -> Function -- Func2, whose CfgInfo will replace func1
+--   -> IO ()
+-- shimmyFuncByName imp store func1name func2 = do
+--   m <- getFuncNameMapping store
+--   case HashMap.lookup func1name m of
+--     Nothing -> error $ "Couldn't find func " <> cs func1name <> " in store"
+--     Just func1 -> shimmyFunc imp store func1 func2
 
 
 -- | Looks through all funcs to which which StdLibPrimitives are in play,

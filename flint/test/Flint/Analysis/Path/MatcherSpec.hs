@@ -18,6 +18,7 @@ import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
 import Blaze.Pretty (PStmts(PStmts), PrettyShow'(PrettyShow'))
 import Blaze.Types.Function (Function(Function))
+import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashMap.Strict as HashMap
@@ -674,7 +675,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [loc 0x888 $ def "b" (load (var "arg4" 4) 4)]
             pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
             expected = HashMap.fromList
-              [("varPlace", HashSet.fromList [0x888])]
+              [("varPlace", Right 0x888)]
         (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
 
       it "should ignore unmatched statements preceeding matched location" $ do
@@ -683,22 +684,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     ]
             pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
             expected = HashMap.fromList
-              [("varPlace", HashSet.fromList [0x888])]
-        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
-
-      it "should match range of Ordered statements for location of pattern that consumes multiple statements" $ do
-        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
-                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
-                    , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
-                    , loc 0x999 $ def "d" (load (var "arg6" 4) 4)
-                    ]
-            pats = [ Location "varPlace" $ Ordered
-                     [ Stmt $ Def (Var "b") Wild
-                     , Stmt $ Def (Var "c") Wild
-                     ]
-                   ]
-            expected = HashMap.fromList
-              [("varPlace", HashSet.fromList [0x888, 0x999])]
+              [("varPlace", Right 0x888)]
         (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
 
       it "should get location of AnyOne statement" $ do
@@ -712,7 +698,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                      ]
                    ]
             expected = HashMap.fromList
-              [("varPlace", HashSet.fromList [0x888])]
+              [("varPlace", Right 0x888)]
         (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
 
 
@@ -1070,7 +1056,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         
         let stdLibPrims = memcpyPrims <> sscanfPrims <> strdupPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
-            initialCPrims = getInitialWMIs stdLibPrims allFuncs
+            initialCPrims = getInitialWMIs stdLibPrims . fmap Func.Internal $ allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity
@@ -1086,7 +1072,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       it "should create CallableWMI from StdLibPrimites, then use them to match Primitive pattern" $ do
         let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
-            initialCPrims = getInitialWMIs stdLibPrims allFuncs
+            initialCPrims = getInitialWMIs stdLibPrims . fmap Func.Internal $ allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver Identity

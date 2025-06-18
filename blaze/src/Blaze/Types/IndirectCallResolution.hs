@@ -5,6 +5,7 @@ import Blaze.Types.Function (Function)
 import Blaze.Types.Pil (Stmt, CallStmt)
 import Blaze.Types.VTable (VTable)
 
+
 data ClassConstructor = ClassConstructor
     { function :: Function
     , vptrStore :: Stmt

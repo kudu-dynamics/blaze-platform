@@ -2,14 +2,14 @@ module Flint.Types.Analysis.Path.Matcher.Primitives where
 
 import Flint.Prelude hiding (Location, sym)
 
-import Flint.Types.Analysis.Path.Matcher.Func (Func)
+import qualified Flint.Types.Analysis.Path.Matcher.Func as M
 import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Construct (ExprConstructor(mkExpr))
 import Blaze.Pretty (tt, tokenize)
 import qualified Blaze.Pretty as Pretty
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (ExternFunction, Func)
 import Blaze.Types.Pil (Size(Size))
 import qualified Blaze.Types.Pil as Pil
 
@@ -68,7 +68,8 @@ instance ExprConstructor FuncVarExprSize FuncVarExpr where
 
 data MkCallableWMIError
   = MkCallableWMIError
-  { missingVars :: HashSet (Symbol Pil.Expression)
+  { primSpec :: PrimSpec
+  , missingVars :: HashSet (Symbol Pil.Expression)
   , missingLocations :: HashSet (Symbol Address)
   } deriving (Eq, Ord, Show, Generic)
 
@@ -79,12 +80,12 @@ data MkCallableWMIError
 -- the Syms in the PrimSpec, which can be referred to in a pattern.
 data CallableWMI = CallableWMI
   { prim :: PrimSpec
-  , func :: Function
-  , callDest :: Func -- func pattern
+  , func :: Func
+  , callDest :: M.Func -- func pattern
   , varMapping :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
   -- |constraints to reach prim, and constraints on outputs
   , constraints :: [(FuncVarExpr, HashSet FuncVar)]
-  , locations :: HashMap (Symbol Address) (HashSet Address)
+  , locations :: HashMap (Symbol Address) (Either ExternFunction Address)
   -- | Vars that need to link up to the outside (used inside varMapping and constraints)
   -- if you can't control them, maybe the primitive isn't useful
   , linkedVars :: HashSet FuncVar

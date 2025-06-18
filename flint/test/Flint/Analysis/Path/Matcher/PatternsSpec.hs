@@ -37,7 +37,7 @@ getTestCtx :: IO TestCtx
 getTestCtx = do
   (bv :: GhidraImporter) <- unsafeFromRight <$> openBinary dirtyBenchmark
   store <- CfgStore.init Nothing bv
-  allFuncs <- CG.getFunctions bv
+  allFuncs <- mapMaybe (^? #_Internal) <$> CG.getFunctions bv
   let funcMapping = HashMap.fromList . fmap (\func -> (func ^. #name, func)) $ allFuncs
       getFunc = fromJust . flip HashMap.lookup funcMapping
 

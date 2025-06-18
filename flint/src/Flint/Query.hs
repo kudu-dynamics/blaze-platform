@@ -150,7 +150,7 @@ getCallSeqPreps store restrictStartFuncs g = do
           lastCall_ = NE.last callSeq
           callSet_ = HashSet.fromList . NE.toList $ callSeq
       callersOfFirstCall <-
-        CC.get firstCall_ (store ^. #ancestorsCache) >>= \case
+        CfgStore.getAncestors' store firstCall_ >>= \case
           Nothing -> return ([] :: [Function])
           Just s -> return
             . maybe identity (\sfuncs -> filter (`HashSet.member` sfuncs)) restrictStartFuncs
@@ -159,7 +159,7 @@ getCallSeqPreps store restrictStartFuncs g = do
       -- enable diagnostic output would be preferable. - Hazmat
       -- putText $ "Callers of first call: " <> show (length callersOfFirstCall)
       (reachList :: [Maybe Function]) <- forConcurrently callersOfFirstCall $ \func -> do
-        CC.get (func :: Function) (store ^. #descendantsCache) >>= \case
+        CfgStore.getDescendants' store (func :: Function) >>= \case
           Nothing -> return Nothing
           Just descs -> case callSet_ `HashSet.isSubsetOf` descs of
             False -> return Nothing
@@ -723,7 +723,7 @@ checkKernelLifecycle
   -> (MatchingResult -> IO ())
   -> IO ()
 checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth streamResults = do
-  funcs <- CfgStore.getFuncs store
+  funcs <- CfgStore.getInternalFuncs store
   case (findFuncByName funcs "init_module", findFuncByName funcs "cleanup_module") of
     (Just initFunc, Just cleanupFunc) -> do
       uuidInit <- randomIO
@@ -798,8 +798,9 @@ checkKernelLifecycleForPrims'
   -> Word64
   -> IO [MatchingPrim]
 checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCallDepth = do
-  funcs <- CfgStore.getFuncs store
-  case (findFuncByName funcs "init_module", findFuncByName funcs "cleanup_module") of
+  funcs <- CfgStore.getInternalFuncs store
+  case ( findFuncByName funcs $ HashSet.fromList ["_init_module", "init_module", "__pfx_init_module"]
+       , findFuncByName funcs $ HashSet.fromList ["_cleanup_module", "cleanup_module", "__pfx_cleanup_module"]) of
     (Just initFunc, Just cleanupFunc) -> do
       uuidInit <- randomIO
       uuidClean <- randomIO
@@ -861,7 +862,8 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
       -- TODO: WARN
       return []
   where
-    findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
+    findFuncByName :: [Function] -> HashSet Text -> Maybe Function
+    findFuncByName funcs s = headMay . filter (\func -> HashSet.member (func ^. #name) s) $ funcs  
 
 checkPathForPrim_
   :: Monad m
@@ -875,7 +877,7 @@ checkPathForPrim_ mstate func codeSummary prim = do
     (_, M.NoMatch) -> return Nothing
     (ms, M.Match stmtsWithAssertions) -> do
       return . Just $ mkCallableWMI
-        func
+        (Func.Internal func)
         codeSummary
         (prim ^. #primType)
         (ms ^. #boundSyms)
@@ -900,7 +902,7 @@ checkPathForPrim solver func prep codeSummary prim = do
     (ms, M.Match stmtsWithAssertions) -> do
       -- putText "MAAAAATCHED!!!!"
       return . Just $ mkCallableWMI
-        func
+        (Func.Internal func)
         codeSummary
         (prim ^. #primType)
         (ms ^. #boundSyms)
@@ -1018,10 +1020,10 @@ onionSampleBasedOnFuncSize
   -> CfgStore
   -> Function
   -> IO (Maybe [PilPath])
-onionSampleBasedOnFuncSize exponator store func = CfgStore.getFuncCfgInfo store func >>= \case
+onionSampleBasedOnFuncSize multiplier store func = CfgStore.getFuncCfgInfo store func >>= \case
   Nothing -> return Nothing
   Just cfgInfo -> do
-    let numSamples = max 1 . floor $ fromIntegral (HashSet.size $ cfgInfo ^. #nodes) ** exponator
+    let numSamples = max 1 . floor $ fromIntegral (HashSet.size $ cfgInfo ^. #nodes) * multiplier
         q = QueryExpandAll $ QueryExpandAllOpts
             { callExpandDepthLimit = 0
             , numSamples = numSamples
@@ -1062,26 +1064,34 @@ onionCheckPathForPrim
   -> Prim
   -> IO ()
 onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
-  -- when (func ^. #name == "int_inc_ioctl") $ do
-  --     putText $ prim ^. #primType . #name
-  --     putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+  -- | Because so many things can go wrong with patterns, this little section allows
+  -- you to choose a func and primitive to print out debug info for.
+  let debuggingOn = True
+      debugFuncName = "moodpot_read"
+      debugPrimName = "EscapedVarFromLock"
+      debugMode = debuggingOn
+        && func ^. #name == debugFuncName
+        && prim ^. #primType . #name == debugPrimName
+  when debugMode $ do
+      putText $ prim ^. #primType . #name
+      putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+      -- pprint $ take 2 (pprep ^. #untouchedStmts)
 
-  -- checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
-  --   Nothing -> putText "|| NO MATCH ||"
-  --   Just (Left _) -> putText "|| err ||"
-  --   Just (Right _) -> putText "|| MATCH!!! ||"
+  when debugMode $ do
+    checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
+      Nothing -> putText "|| NO MATCH ||"
+      Just (Left _) -> putText "|| err ||"
+      Just (Right _) -> putText "|| MATCH!!! ||"
   matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
     Nothing -> do
-      -- when (func ^. #name == "int_inc_ioctl") $ do
-      --   putText $ "Found nothing"
-      return ()
+      when debugMode $ do
+        putText "Found nothing"
     Just (Left cprimError) -> do
       -- TODO: make this log a warning properly
       putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
-      return ()
     Just (Right cprim) -> do
-      -- when (func ^. #name == "int_inc_ioctl") $ do
-      --   putText $ "MATCH!"
+      when debugMode $ do
+        putText "MATCH!"
       CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
 
 -- | Gets cached paths for function, and checks them for each prim.
@@ -1097,7 +1107,7 @@ onionCheckFunc solver store callablePrimSnapshot prims func = do
   paths <- CM.get func $ store ^. #pathSamples      
   let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
   -- TODO: use mapConcurrently
-  forM_ pathPrimCombos $ \(pprep, prim) -> do
+  forConcurrently_ pathPrimCombos $ \(pprep, prim) -> do
     onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
 
 -- | Does a single pass over all the funcs.
@@ -1127,7 +1137,8 @@ onionFlow
   -> [Prim]             -- checks all on each path
   -> IO ()              -- it writes results into CfgStore and hopefully DB
 onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
-  funcs <- CfgStore.getFuncs store
+  allFuncs <- CfgStore.getFuncs store
+  funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
     let pathPreps = M.mkPathPrep [] <$> paths
@@ -1136,7 +1147,7 @@ onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
     --     sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ pathPrep ^. #stmts
 
     CM.set func pathPreps $ store ^. #pathSamples
-  let initialPrims = getInitialWMIs stdLibPrims funcs
+  let initialPrims = getInitialWMIs stdLibPrims allFuncs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
   replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs
   where

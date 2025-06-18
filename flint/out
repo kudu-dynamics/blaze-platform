@@ -1,0 +1,1639 @@
+==================================
+[ "_init"
+, "FUN_00401020"
+, "free"
+, "printf"
+, "calloc"
+, "FUN_004010a0"
+, "_start"
+, "_dl_relocate_static_pie"
+, "deregister_tm_clones"
+, "register_tm_clones"
+, "__do_global_dtors_aux"
+, "frame_dummy"
+, "free1"
+, "free2"
+, "calls_free2"
+, "double_free1"
+, "malloc1"
+, "calloc1"
+, "use_after_free"
+, "a_write"
+, "use_after_free2"
+, "int_overflow_func"
+, "not_int_overflow_func"
+, "controlled_indirect_call"
+, "_copy_from_user"
+, "unbounded_copy_from_user1"
+, "unbounded_copy_from_user2"
+, "main"
+, "_fini"
+]
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+ControlledIndirectCall
+
++++
+0x401074: unique_10000009#1@0 = [0x403548]
+0x401074: Nop
+0x401074: call unique_10000009#1@0()
+0x401074: [0x403548].64 = [0x403548]
+0x401074: return ()
+[ Stmt
+  { addr = Address 0x401074
+  , statement = Def
+    ( DefOp
+      { var = PilVar
+        { size = Size
+          ( Bytes 8 )
+        , ctx = Just
+          ( Ctx
+            { func = Function
+              { symbol = Nothing
+              , name = "free"
+              , address = Address 0x401070
+              , params =
+                [ FuncParamInfo
+                  ( ParamInfo
+                    { name = "__ptr"
+                    , access = Unknown
+                    }
+                  )
+                ]
+              }
+            , ctxId = CtxId 0
+            }
+          )
+        , symbol = "unique_10000009#1"
+        , isParam = False
+        , location = Code 268435465
+        }
+      , value = Expression
+        { size = Size
+          ( Bytes 8 )
+        , op = LOAD
+          ( LoadOp
+            { src = Expression
+              { size = Size
+                ( Bytes 8 )
+              , op = CONST_PTR
+                ( ConstPtrOp
+                  { constant = 4207944 }
+                )
+              }
+            }
+          )
+        }
+      }
+    )
+  }
+, Stmt
+  { addr = Address 0x401074
+  , statement = Nop
+  }
+]
+|| MATCH!!! ||
+MATCH!
+{
+    "baseAddress": 4194304,
+    "callableWMIs": [
+        [
+            "ControlledFormatString",
+            [
+                {
+                    "constraints": [],
+                    "func": [
+                        "printf",
+                        4198528
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "call": [
+                            4198528
+                        ]
+                    },
+                    "primName": "ControlledFormatString",
+                    "vars": {
+                        "fmt": "ARG_1"
+                    }
+                }
+            ]
+        ],
+        [
+            "IntegerOverflow",
+            [
+                {
+                    "constraints": [],
+                    "func": [
+                        "int_overflow_func",
+                        4199192
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "increment store": [
+                            4199209
+                        ]
+                    },
+                    "primName": "IntegerOverflow",
+                    "vars": {
+                        "increment_by": "0x1",
+                        "ptr": "0x40357c"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "main",
+                        4199443
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "increment store": [
+                            4199575
+                        ]
+                    },
+                    "primName": "IntegerOverflow",
+                    "vars": {
+                        "increment_by": "0x1",
+                        "ptr": "0x40357c"
+                    }
+                }
+            ]
+        ],
+        [
+            "ControlledIndirectCall",
+            [
+                {
+                    "constraints": [],
+                    "func": [
+                        "main",
+                        4199443
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4199460
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "use_after_free",
+                        4199013
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4199030
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "malloc1",
+                        4198942
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198965
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calloc1",
+                        4198972
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4199006
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403558]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free",
+                        4198512
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198516
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free1",
+                        4198806
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198829
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "use_after_free2",
+                        4199115
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4199132
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [
+                        "[0x403528] != 0x0"
+                    ],
+                    "func": [
+                        "_init",
+                        4198400
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198420
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403528]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "printf",
+                        4198528
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198532
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403550]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "FUN_004010a0",
+                        4198560
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198564
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "FUN_00401020",
+                        4198432
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198438
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403540]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "controlled_indirect_call",
+                        4199257
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "callsite": [
+                            4199281
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[ARG_1 + offset 0x20]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "main",
+                        4199443
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4199622
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [
+                        "0x5 u< ARG_2"
+                    ],
+                    "func": [
+                        "unbounded_copy_from_user1",
+                        4199313
+                    ],
+                    "linkedVars": [
+                        "ARG_2"
+                    ],
+                    "locations": {
+                        "callsite": [
+                            4199355
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403550]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free2",
+                        4198837
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198860
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "double_free1",
+                        4198899
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198922
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calloc",
+                        4198544
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198548
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403558]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calls_free2",
+                        4198868
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "callsite": [
+                            4198891
+                        ]
+                    },
+                    "primName": "ControlledIndirectCall",
+                    "vars": {
+                        "call_dest": "[0x403548]"
+                    }
+                }
+            ]
+        ],
+        [
+            "Write",
+            [
+                {
+                    "constraints": [
+                        "[0x403578] == 0x0"
+                    ],
+                    "func": [
+                        "__do_global_dtors_aux",
+                        4198752
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198774
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403578",
+                        "value": "0x1"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free2",
+                        4198837
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198860
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403548",
+                        "value": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [
+                        "0x5 u< ARG_2"
+                    ],
+                    "func": [
+                        "unbounded_copy_from_user1",
+                        4199313
+                    ],
+                    "linkedVars": [
+                        "ARG_2"
+                    ],
+                    "locations": {
+                        "write": [
+                            4199355
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403550",
+                        "value": "[0x403550]"
+                    }
+                },
+                {
+                    "constraints": [
+                        "[0x40357c] < 0x400"
+                    ],
+                    "func": [
+                        "not_int_overflow_func",
+                        4199218
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199256
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x40357c",
+                        "value": "[0x40357c]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calloc",
+                        4198544
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198548
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403558",
+                        "value": "[0x403558]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "double_free1",
+                        4198899
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198922
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403548",
+                        "value": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [
+                        "not ([0x403528] != 0x0)"
+                    ],
+                    "func": [
+                        "_init",
+                        4198400
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198426
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403528",
+                        "value": "[0x403528]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "use_after_free",
+                        4199013
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199056
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "(unique_1000003a#1@0)0x1[ slots of 0x8bytes]",
+                        "value": "0x646c72"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "int_overflow_func",
+                        4199192
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199209
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x40357c",
+                        "value": "[0x40357c] + 0x1"
+                    }
+                },
+                {
+                    "constraints": [
+                        "[0x403528] != 0x0"
+                    ],
+                    "func": [
+                        "_init",
+                        4198400
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198426
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403528",
+                        "value": "[0x403528]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calloc1",
+                        4198972
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199006
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403558",
+                        "value": "[0x403558]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "FUN_004010a0",
+                        4198560
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198564
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403560",
+                        "value": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free",
+                        4198512
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198516
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403548",
+                        "value": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "main",
+                        4199443
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199476
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "(unique_10000117#1@0)0x3[ slots of 0x1bytes]",
+                        "value": "0x41"
+                    }
+                },
+                {
+                    "constraints": [
+                        "not ([0x403578] == 0x0)"
+                    ],
+                    "func": [
+                        "__do_global_dtors_aux",
+                        4198752
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198784
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403578",
+                        "value": "[0x403578]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "a_write",
+                        4199089
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "write": [
+                            4199109
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "(ARG_1)0x3[ slots of 0x1bytes]",
+                        "value": "0x41"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free1",
+                        4198806
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198829
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403548",
+                        "value": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "use_after_free",
+                        4199013
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199030
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403560",
+                        "value": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calls_free2",
+                        4198868
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198891
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403548",
+                        "value": "[0x403548]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "malloc1",
+                        4198942
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198965
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403560",
+                        "value": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "FUN_00401020",
+                        4198432
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198438
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403538",
+                        "value": "[0x403538]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "use_after_free2",
+                        4199115
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199132
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403560",
+                        "value": "[0x403560]"
+                    }
+                },
+                {
+                    "constraints": [
+                        "not ([0x40357c] < 0x400)"
+                    ],
+                    "func": [
+                        "not_int_overflow_func",
+                        4199218
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199256
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x40357c",
+                        "value": "[0x40357c]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "printf",
+                        4198528
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4198532
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403550",
+                        "value": "[0x403550]"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "main",
+                        4199443
+                    ],
+                    "linkedVars": [],
+                    "locations": {
+                        "write": [
+                            4199460
+                        ]
+                    },
+                    "primName": "Write",
+                    "vars": {
+                        "ptr": "0x403560",
+                        "value": "[0x403560]"
+                    }
+                }
+            ]
+        ],
+        [
+            "allocHeap",
+            [
+                {
+                    "constraints": [],
+                    "func": [
+                        "calloc",
+                        4198544
+                    ],
+                    "linkedVars": [
+                        "ARG_1",
+                        "ARG_2",
+                        "RET"
+                    ],
+                    "locations": {
+                        "alloc": [
+                            4198544
+                        ]
+                    },
+                    "primName": "allocHeap",
+                    "vars": {
+                        "ptr": "RET",
+                        "size": "ARG_1 * ARG_2"
+                    }
+                }
+            ]
+        ],
+        [
+            "UnboundedCopyFromUser",
+            [
+                {
+                    "constraints": [
+                        "0x5 u< ARG_2"
+                    ],
+                    "func": [
+                        "unbounded_copy_from_user1",
+                        4199313
+                    ],
+                    "linkedVars": [
+                        "ARG_1",
+                        "ARG_2"
+                    ],
+                    "locations": {
+                        "copy": [
+                            4199376
+                        ]
+                    },
+                    "primName": "UnboundedCopyFromUser",
+                    "vars": {
+                        "dst": "0x0",
+                        "size": "ARG_2",
+                        "src": "ARG_1"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "_copy_from_user",
+                        4199286
+                    ],
+                    "linkedVars": [
+                        "ARG_1",
+                        "ARG_2",
+                        "ARG_3"
+                    ],
+                    "locations": {
+                        "copy": [
+                            4199286
+                        ]
+                    },
+                    "primName": "UnboundedCopyFromUser",
+                    "vars": {
+                        "dst": "ARG_1",
+                        "size": "ARG_3",
+                        "src": "ARG_2"
+                    }
+                }
+            ]
+        ],
+        [
+            "doubleFree",
+            [
+                {
+                    "constraints": [],
+                    "func": [
+                        "double_free1",
+                        4198899
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "free1": [
+                            4198922
+                        ],
+                        "free2": [
+                            4198934
+                        ]
+                    },
+                    "primName": "doubleFree",
+                    "vars": {
+                        "ptr": "ARG_1"
+                    }
+                }
+            ]
+        ],
+        [
+            "freeHeap",
+            [
+                {
+                    "constraints": [],
+                    "func": [
+                        "free1",
+                        4198806
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "free": [
+                            4198829
+                        ]
+                    },
+                    "primName": "freeHeap",
+                    "vars": {
+                        "ptr": "ARG_1"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "double_free1",
+                        4198899
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "free": [
+                            4198922
+                        ]
+                    },
+                    "primName": "freeHeap",
+                    "vars": {
+                        "ptr": "ARG_1"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "free",
+                        4198512
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "free": [
+                            4198512
+                        ]
+                    },
+                    "primName": "freeHeap",
+                    "vars": {
+                        "ptr": "ARG_1"
+                    }
+                },
+                {
+                    "constraints": [],
+                    "func": [
+                        "calls_free2",
+                        4198868
+                    ],
+                    "linkedVars": [
+                        "ARG_1"
+                    ],
+                    "locations": {
+                        "free": [
+                            4198891
+                        ]
+                    },
+         

@@ -19,6 +19,7 @@ import Flint.Types.Cfg.Store (CfgStore)
 import Blaze.Import.Binary (BinaryImporter(openBinary))
 import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.Source.Ghidra (GhidraImporter)
+import Blaze.Types.Function (_name)
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -57,7 +58,6 @@ getTestCtx = do
 spec :: Spec
 spec = beforeAll getTestCtx . describe "Flint.Query" $ do
   context "onionFlow" $ do
-    let simpleFunc x = (x ^. #name, x ^. #address)
     it "should find initial callable prims for controlled format string prim" $ \tctx -> do
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
           action = do
@@ -65,14 +65,14 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
             let cprims = getInitialWMIs stdLibPrims funcs
 
             return $ do
-              (s :: HashSet CallableWMI) <- HashMap.lookup PrimSpec.controlledFormatString cprims
+              (s :: HashSet CallableWMI) <- HashMap.lookup PrimSpec.controlledFormatStringSpec cprims
               return
                 . HashSet.fromList
-                . fmap (simpleFunc . view #func)
+                . fmap (view $ #func . _name)
                 . HashSet.toList
                 $ s
           expected = Just $ HashSet.fromList
-            [("sprintf",Address 0x101350),("printf",Address 0x101270)]
+            ["sprintf","printf"]
 
       action `shouldReturn` expected
 
@@ -80,7 +80,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
           action = do
             funcs <- Store.getFuncs $ tctx ^. #dirtyStore
-            func <- fromJust <$> CG.getFunction (tctx ^. #dirtyImp) 0x0101d88
+            func <- (^?! _Just . #_Internal) <$> CG.getFunction (tctx ^. #dirtyImp) 0x0101d88
             let q = QueryExpandAll $ QueryExpandAllOpts
                   { callExpandDepthLimit = 0
                   , numSamples = 1
@@ -91,7 +91,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
 
             r <- matchAndReturnCallablePrim (chooseSolver False) initialCallablePrims func pprep PrimLib.controlledFormatStringPrim
             return r
-          expected = Just . Right $ PrimSpec.controlledFormatString
+          expected = Just . Right $ PrimSpec.controlledFormatStringSpec
 
       (fmap (fmap $ view #prim) <$> action) `shouldReturn` expected
 
@@ -103,8 +103,8 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
               onionFlow False 3 (tctx ^. #dirtyStore) stdLibPrims prims
               m <- CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
               return $ do
-                s <- HashMap.lookup PrimSpec.controlledFormatString m
-                return $ HashSet.map (view #name . view #func) s
+                s <- HashMap.lookup PrimSpec.controlledFormatStringSpec m
+                return $ HashSet.map (view $ #func . _name) s
             expected = Just $ HashSet.fromList
               [ "printf", "sprintf", "call_format_string_vulnerability", "format_string_vulnerability" ]
 
@@ -117,8 +117,8 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
               onionFlow False 3 (tctx ^. #atmStore) stdLibPrims prims
               m <- CM.getSnapshot $ tctx ^. #atmStore . #callablePrims
               return $ do
-                s <- HashMap.lookup PrimSpec.freeHeap m
-                return $ HashSet.map (view #name . view #func) s
+                s <- HashMap.lookup PrimSpec.freeHeapSpec m
+                return $ HashSet.map (view $ #func . _name) s
             expected = HashSet.fromList
               ["clearHistory", "removeCardUser", "free", "clearCards", "removeCardAdmin" ]
 

@@ -9,6 +9,7 @@ import Ghidra.Prelude hiding (toList, Const)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Address as Exports
 import Ghidra.Types.Internal (Ghidra, runIO)
+import Ghidra.Util (maybeNull)
 
 import qualified Language.Java as Java
 import qualified Foreign.JNI as JNI
@@ -25,6 +26,10 @@ readAddressSpaceName t = case t of
   "unique" -> Unique
   _ -> Other t
 
+showAddressSpaceName :: AddressSpaceName -> Text
+showAddressSpaceName (Other t) = t
+showAddressSpaceName x = show x
+
 mkAddressSpace :: J.AddressSpace -> Ghidra AddressSpace
 mkAddressSpace x = runIO $ do
   spaceId :: Int32 <- Java.call x "getSpaceID"
@@ -37,6 +42,13 @@ mkAddressSpace x = runIO $ do
       (fromIntegral ptrSize)
       (fromIntegral addressableUnitSize)
       (readAddressSpaceName name)
+
+getAddressSpace :: J.AddressFactory -> Text -> Ghidra (Maybe J.AddressSpace)
+getAddressSpace af spaceName = do
+  maybeNull <$> runIO (Java.reflect spaceName >>= Java.call af "getAddressSpace" >>= JNI.newGlobalRef)
+
+getSpaceID :: J.AddressSpace -> Ghidra Int32
+getSpaceID aspace = runIO $ Java.call aspace "getSpaceID"
 
 --- | Returns the register `AddressSpace`.
 getRegisterSpace :: J.AddressFactory -> Ghidra AddressSpace
@@ -52,8 +64,15 @@ mkAddress addr = do
   return $ Address addrSpace (fromIntegral offset)
   -- return $ Address addrSpace (Just ".txt") (fromIntegral offset)
 
+-- getExternalAddress :: GhidraState -> Int64 -> Ghidra J.Address
+-- getExternalAddress gs offset = do
+--   prg <- State.getProgram gs
+--   af <- Program.getAddressFactory prg
+  
+
 getAddress :: J.AddressFactory -> Int32 -> Int64 -> Ghidra J.Address
-getAddress af space offset = runIO $ 
-  Java.call af "getAddress" space offset
+getAddress af spaceID offset = runIO $ 
+  Java.call af "getAddress" spaceID offset
   >>= JNI.newGlobalRef
   >>= Java.reify
+

@@ -49,6 +49,52 @@ getAddressRange node = do
     minAddr <- mkAddress minAddrPointer
     return $ Just AddrRange { maxAddr = maxAddr, minAddr = minAddr }
 
+getOpToken :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra OpToken
+getOpToken node = do
+  tokStr :: Text <- runIO $ Java.call node "getText" >>= Java.reify
+  let tok = matchToken tokStr
+  if tok == Unimplemented then do
+    runIO $ pprint tokStr
+    return tok
+  else return tok
+  --return $ matchToken tokStr
+
+
+
+matchToken :: Text -> OpToken
+matchToken t
+  | t == "if"     = If
+  | t == "=="     = Equal
+  | t == "!="     = Neq
+  | t == "+"      = Plus
+  | t == "*"      = Mult
+  | t == "switch" = Switch
+  | t == "return" = Return
+  | t == "while"  = While
+  | t == "case"   = Case
+  | t == "for"    = For
+  | t == "||"     = Or
+  | t == "="      = Assignment
+  | otherwise     = Unimplemented
+
+data OpToken
+  = If
+  | Equal
+  | Neq 
+  | Plus
+  | Mult
+  | Switch
+  | Return
+  | While
+  | Case
+  | For
+  | Or
+  | Assignment
+  | Unimplemented
+  deriving(Eq, Ord, Show, Generic, Hashable)
+  
+
+
 -- gets the number of indent levels following this line break
 getIndent :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra Int32
 getIndent node = runIO $ Java.call node "getIndent"
@@ -155,6 +201,8 @@ constructClangNode node = do
       return $ ClangBreak ClangBreakOpts { indent = indent }
     "ClangCaseToken"      ->  do
       let node' :: J.ClangCaseToken = coerce node
+      opTok :: OpToken <- getOpToken node'
+      _ <- runIO $ pprint opTok
       highSymbol    <- fromJust <$> getHighSymbol'  node'
       highVariable  <- fromJust <$> getHighVariable node'
       pcodeOp       <- fromJust <$> getPcodeOp      node'
@@ -193,7 +241,9 @@ constructClangNode node = do
     "ClangOpToken"        ->  do
       let node' :: J.ClangOpToken = coerce node
       pcodeOp       <- getPcodeOp      node'
-      return $ ClangOpToken ClangOpTokenOpts { addrRange = addrRange, pcodeOp = pcodeOp }
+      tok :: OpToken <- getOpToken node'
+      --runIO $ pprint tok
+      return $ ClangOpToken ClangOpTokenOpts { addrRange = addrRange, pcodeOp = pcodeOp, opToken = tok }
     "ClangReturnType"     ->  do
       let node' :: J.ClangReturnType = coerce node
       dt <- getDataType node'
@@ -307,6 +357,7 @@ data ClangLabelTokenOpts = ClangLabelTokenOpts
 data ClangOpTokenOpts = ClangOpTokenOpts
   { addrRange :: Maybe AddrRange
   , pcodeOp   :: Maybe BarePcodeOp
+  , opToken     :: OpToken
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ClangReturnTypeOpts = ClangReturnTypeOpts
@@ -380,3 +431,46 @@ data ClangNode
   | ClangVariableToken  ClangVariableTokenOpts
     deriving (Eq, Ord, Show, Generic, Hashable)
 
+{-
+newtype Statement = Statement ClangStatementOpts
+
+data SwitchOpts = SwitchOpts
+  { condition :: Statement
+  , cases     :: [CaseOpts] 
+  }
+
+data CaseOpts = CaseOpts
+  { condition :: Statement
+  , body      :: Statement
+  }
+
+data IfOpts = IfOpts
+  { condition :: Statement
+  , body      :: Statement
+  }
+
+
+data ElseIFOpts = ElseIfOpts
+  { condition :: Statement
+  , body      :: Statement
+  }
+
+data ForOpts = ForOpts
+  { init      :: Statement
+  , loopCond  :: Statement
+  , incCond   :: Statement
+  , body      :: Statement
+  }
+
+data While = WhileOpts
+  { loopCond  :: Statement
+  , body      :: Statement
+  }
+
+data ASTNode
+  = For'    ForOpts
+  | Switch' SwitchOpts
+  | If'     IfOpts
+  | ElseIf' ElseIfOpts
+
+-}

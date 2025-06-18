@@ -101,26 +101,26 @@ EOF
 # Caveats:
 #   - Run `ln -s $outpath/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so`
 #     and `ln -s $outpath/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1`
-# FROM --platform=linux/amd64 before-base-deps as binaryninja-builder
-# ARG BINARYNINJA_CHANNEL
-# ARG BINARYNINJA_VERSION
-#
-# RUN <<EOF
-#     set -euxo pipefail
-#     apt update -yq
-#     packages=(
-#         unzip    # Extracting BinaryNinja.zip
-#         python3  # Updating Binary Ninja
-#     )
-#     apt install -yq --no-install-recommends "${packages[@]}"
-# EOF
-#
-# RUN mkdir -p /out
-# RUN --mount=type=bind,source=BinaryNinja.zip,target=/BinaryNinja.zip \
-#     unzip /BinaryNinja.zip 'binaryninja/*' -d /out
-# RUN --mount=type=bind,source=license.dat,target=/root/.binaryninja/license.dat \
-#     --mount=type=bind,source=.docker/binary_ninja_updater.py,target=/binary_ninja_updater.py \
-#     PYTHONPATH=/out/binaryninja/python python3 -u /binary_ninja_updater.py "${BINARYNINJA_CHANNEL}" "${BINARYNINJA_VERSION}"
+FROM --platform=linux/amd64 before-base-deps as binaryninja-builder
+ARG BINARYNINJA_CHANNEL
+ARG BINARYNINJA_VERSION
+
+RUN <<EOF
+    set -euxo pipefail
+    apt update -yq
+    packages=(
+        unzip    # Extracting BinaryNinja.zip
+        python3  # Updating Binary Ninja
+    )
+    apt install -yq --no-install-recommends "${packages[@]}"
+EOF
+
+RUN mkdir -p /out
+RUN --mount=type=bind,source=BinaryNinja.zip,target=/BinaryNinja.zip \
+    unzip /BinaryNinja.zip 'binaryninja/*' -d /out
+RUN --mount=type=bind,source=license.dat,target=/root/.binaryninja/license.dat \
+    --mount=type=bind,source=.docker/binary_ninja_updater.py,target=/binary_ninja_updater.py \
+    PYTHONPATH=/out/binaryninja/python python3 -u /binary_ninja_updater.py "${BINARYNINJA_CHANNEL}" "${BINARYNINJA_VERSION}"
 
 #######################################################################################################
 
@@ -216,37 +216,37 @@ WORKDIR /build
 # Copy stack.yaml and package.yaml files so we can build dependencies in a
 # cached layer
 COPY stack.yaml stack.yaml
-# COPY binaryninja-haskell/package.yaml \
-#      binaryninja-haskell/package.yaml
-# COPY binaryninja-haskell/binja-header-cleaner/package.yaml \
-#      binaryninja-haskell/binja-header-cleaner/package.yaml
+COPY binaryninja-haskell/package.yaml \
+     binaryninja-haskell/package.yaml
+COPY binaryninja-haskell/binja-header-cleaner/package.yaml \
+     binaryninja-haskell/binja-header-cleaner/package.yaml
 COPY ghidra-haskell/package.yaml \
      ghidra-haskell/package.yaml
 COPY blaze/package.yaml \
      blaze/package.yaml
-# COPY blaze/blaze-binaryninja/package.yaml \
-#      blaze/blaze-binaryninja/package.yaml
+COPY blaze/blaze-binaryninja/package.yaml \
+     blaze/blaze-binaryninja/package.yaml
 COPY flint/package.yaml \
      flint/package.yaml
-# COPY flint/flint-binaryninja/package.yaml \
-#      flint/flint-binaryninja/package.yaml
+COPY flint/flint-binaryninja/package.yaml \
+     flint/flint-binaryninja/package.yaml
 
 # Separated to narrow down intermitten error
-# RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binaryninja
-# RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binja-header-cleaner
+RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binaryninja
+RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binja-header-cleaner
 RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies ghidra
 RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies blaze
-# RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies blaze/blaze-binaryninja
+RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies blaze/blaze-binaryninja
 RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies flint
-# RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies flint/flint-binaryninja
+RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies flint/flint-binaryninja
 
 #######################################################################################################
 
-# FROM just-deps as just-deps-binaryninja
-# COPY --from=binaryninja-builder /out/binaryninja /binaryninja
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
-# ENV BINJA_PLUGINS=/binaryninja/plugins
+FROM just-deps as just-deps-binaryninja
+COPY --from=binaryninja-builder /out/binaryninja /binaryninja
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
+ENV BINJA_PLUGINS=/binaryninja/plugins
 
 #######################################################################################################
 
@@ -293,14 +293,14 @@ EOF
 #   - /out/bin/*
 #   - /out/test/*
 #   - /out/run-tests
-# FROM builder as builder-binaryninja
-# COPY --from=binaryninja-builder /out/binaryninja /binaryninja
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
-# ENV BINJA_PLUGINS=/binaryninja/plugins
+FROM builder as builder-binaryninja
+COPY --from=binaryninja-builder /out/binaryninja /binaryninja
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
+ENV BINJA_PLUGINS=/binaryninja/plugins
 # Build the rest of the packages that were not built in `builder`
-RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins
-#     --flag flint:binaryninja
+RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins \
+    --flag flint:binaryninja
 RUN <<EOF
     set -euxo pipefail
 
@@ -313,11 +313,11 @@ RUN <<EOF
         echo "( cd $1 && /build/.docker/run_test.py /out/test/$1/$2 \"\$@\" )" >>/out/run-tests
         echo "( cd /out/test/$1 && ./$2 )" >> /out/run-binary-tests
     }
-    # copytest binaryninja-haskell binja-test
-    # copytest binaryninja-haskell/binja-header-cleaner binja-header-cleaner-test
-    # copytest blaze/blaze-binaryninja blaze-binja-test
-    # copytest blaze/blaze-binaryninja blaze-binaryninja-importer-test
-    # copytest flint/flint-binaryninja flint-binaryninja-test
+    copytest binaryninja-haskell binja-test
+    copytest binaryninja-haskell/binja-header-cleaner binja-header-cleaner-test
+    copytest blaze/blaze-binaryninja blaze-binja-test
+    copytest blaze/blaze-binaryninja blaze-binaryninja-importer-test
+    copytest flint/flint-binaryninja flint-binaryninja-test
 EOF
 
 #######################################################################################################
@@ -330,21 +330,21 @@ WORKDIR /out
 
 #######################################################################################################
 
-# FROM deliver as deliver-binaryninja
-# COPY --from=builder-binaryninja /out/bin /out/bin
-# COPY --from=builder-binaryninja /out/res /out/res
-# COPY --from=builder-binaryninja /binaryninja /binaryninja
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
-# RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
-# ENV BINJA_PLUGINS=/binaryninja/plugins
-# WORKDIR /out
+FROM deliver as deliver-binaryninja
+COPY --from=builder-binaryninja /out/bin /out/bin
+COPY --from=builder-binaryninja /out/res /out/res
+COPY --from=builder-binaryninja /binaryninja /binaryninja
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so
+RUN ln -s /binaryninja/libbinaryninjacore.so.1 /usr/lib/libbinaryninjacore.so.1
+ENV BINJA_PLUGINS=/binaryninja/plugins
+WORKDIR /out
 
 #######################################################################################################
 
-# FROM deliver-binaryninja as deliver-binaryninja-tests
-# COPY --from=builder-binaryninja /out/test /out/test
-# COPY --from=builder-binaryninja /out/run-binary-tests /out/run-binary-tests
-# WORKDIR /out
+FROM deliver-binaryninja as deliver-binaryninja-tests
+COPY --from=builder-binaryninja /out/test /out/test
+COPY --from=builder-binaryninja /out/run-binary-tests /out/run-binary-tests
+WORKDIR /out
 
 #######################################################################################################
 

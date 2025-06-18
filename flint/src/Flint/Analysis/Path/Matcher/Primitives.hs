@@ -10,7 +10,7 @@ import qualified Flint.Types.Analysis.Path.Matcher.Func as MFunc
 import Flint.Types.Analysis.Path.Matcher.Primitives
 import Flint.Types.Symbol (Symbol)
 
-import Blaze.Types.Function (Function, FuncParamInfo)
+import Blaze.Types.Function (ExternFunction, FuncParamInfo, Func, _name, _params)
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Pil (PilVar, Stmt)
 import qualified Blaze.Types.Pil as Pil
@@ -18,6 +18,7 @@ import Blaze.Types.Pil.Summary (CodeSummary)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 
 
 -- | Function to check if var is argument of hosting func
@@ -89,23 +90,23 @@ toFuncVarExpr params codeSum expr' = runState (f expr') HashSet.empty
 -- | Makes a CallableWMI from a path that goes through a func in the binary.
 -- TODO: maybe we need to check to see if all parts of primitive are controllable here?
 mkCallableWMI
-  :: Function
+  :: Func
   -> CodeSummary
   -> PrimSpec
   -> HashMap (Symbol Pil.Expression) Pil.Expression
-  -> HashMap (Symbol Address) (HashSet Address)
+  -> HashMap (Symbol Address) (Either ExternFunction Address)
   -> [Stmt] -- whole path
   -> Either MkCallableWMIError CallableWMI
-mkCallableWMI func codeSum primType boundExprs boundLocations path = do
+mkCallableWMI func codeSum primSpec boundExprs boundLocations path = do
   let keySet = HashSet.fromList . HashMap.keys
-      missingVarKeys = HashSet.difference (primType ^. #vars) $ keySet boundExprs
-      missingLocationKeys = HashSet.difference (primType ^. #locations) $ keySet boundLocations
+      missingVarKeys = HashSet.difference (primSpec ^. #vars) $ keySet boundExprs
+      missingLocationKeys = HashSet.difference (primSpec ^. #locations) $ keySet boundLocations
   case not (HashSet.null missingVarKeys) || not (HashSet.null missingLocationKeys) of
-    True -> Left $ MkCallableWMIError missingVarKeys missingLocationKeys
+    True -> Left $ MkCallableWMIError primSpec missingVarKeys missingLocationKeys
     False -> Right $ CallableWMI
-      { prim = primType
+      { prim = primSpec
       , func = func
-      , callDest = MFunc.FuncName $ func ^. #name
+      , callDest = MFunc.FuncName $ func ^. _name
       , varMapping = varMapping'
       -- TODO: derive from path.
       -- could get all constraints out of path, or just up until last boundLocation is reached
@@ -126,21 +127,24 @@ mkCallableWMI func codeSum primType boundExprs boundLocations path = do
           (Pil.BranchCond (Pil.BranchCondOp x)) -> Just x
           _ -> Nothing
 
-        params = func ^. #params
+        params = func ^. _params
         toFuncVarExpr' = toFuncVarExpr params codeSum
         varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
         varMapping' = toFuncVarExpr' <$> boundExprs
 
+locationFromFunc :: Func -> Either ExternFunction Address
+locationFromFunc (Func.External x) = Left x
+locationFromFunc (Func.Internal x) = Right $ x ^. #address
 
-fromStdLibPrimitive :: StdLibPrimitive -> Function -> CallableWMI
+fromStdLibPrimitive :: StdLibPrimitive -> Func -> CallableWMI
 fromStdLibPrimitive x func = CallableWMI
   { prim = x ^. #prim
   , func = func
-  , callDest = MFunc.FuncName $ func ^. #name
+  , callDest = MFunc.FuncName $ func ^. _name
   , varMapping = varMapping'
   , constraints = constraints'
   , locations = HashMap.fromList
-                . fmap (toSnd . const . HashSet.singleton $ func ^. #address)
+                . fmap (toSnd . const . locationFromFunc $ func)
                 . HashSet.toList
                 $ x ^. #prim . #locations
   , linkedVars = HashSet.unions
@@ -152,16 +156,20 @@ fromStdLibPrimitive x func = CallableWMI
     constraints' = toSnd extractFuncVars <$> x ^. #constraints
 
 
-getInitialWMIsForFunc :: Function -> [StdLibPrimitive] -> [CallableWMI]
+getInitialWMIsForFunc :: Func -> [StdLibPrimitive] -> [CallableWMI]
 getInitialWMIsForFunc func = mapMaybe f
   where
-    f sprim = if func ^. #name == sprim ^. #funcName
+    f sprim = if cleanFuncName (func ^. _name) == sprim ^. #funcName
       then Just $ fromStdLibPrimitive sprim func
       else Nothing
-      
+
+cleanFuncName :: Text -> Text
+cleanFuncName = Text.dropWhile (== '_')
+
+
 getInitialWMIs
   :: [StdLibPrimitive]
-  -> [Function]
+  -> [Func]
   -> HashMap PrimSpec (HashSet CallableWMI)
 getInitialWMIs sprims
   = foldr addCallableWMI_ HashMap.empty

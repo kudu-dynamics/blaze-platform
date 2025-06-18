@@ -2,7 +2,7 @@ module Blaze.Types.Cfg.Analysis where
 
 import Blaze.Prelude
 import Blaze.Types.Graph (DescendantsDistanceMap)
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Func)
 import Blaze.CallGraph (CallGraph)
 
 
@@ -22,10 +22,10 @@ data CallNodeRating
 
 data CallNodeRatingCtx = CallNodeRatingCtx
   { callGraph :: !CallGraph
-  , descendantsDistanceMap :: !(DescendantsDistanceMap Function)
+  , descendantsDistanceMap :: !(DescendantsDistanceMap Func)
   } deriving (Eq, Ord, Show, Generic)
 
 data Target = Target
-  { function :: Function
+  { function :: Func
   , address :: Address
   } deriving (Eq, Ord, Show, Generic, Hashable)
