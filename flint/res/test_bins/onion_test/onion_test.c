@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define BUFFER_SIZE 32
 
 __attribute__((noinline))
 void free1(void *ptr) {
@@ -63,6 +64,38 @@ void not_int_overflow_func() {
     new_user_id++; 
 }
 
+typedef struct conn_thang {
+  char data[BUFFER_SIZE];
+  void (*callback)(void);  
+} conn_thang;
+
+void controlled_indirect_call(conn_thang *conn) {
+  conn->callback();
+}
+
+unsigned long _copy_from_user(void * dst, void * src, unsigned long size) {
+  return 0;
+}
+
+void unbounded_copy_from_user1(void * src, unsigned long size) {
+
+  if (size > 5) {
+    printf("Yah!");
+  }
+
+  int x = _copy_from_user(NULL, src, size);
+
+}
+
+void unbounded_copy_from_user2(void * src, unsigned long size) {
+
+  if (size > 5) {
+    return;
+  }
+
+  int x = _copy_from_user(NULL, src, size);
+
+}
 
 void main() {
   void *ptr = malloc1(30);
@@ -80,6 +113,16 @@ void main() {
 
   int_overflow_func();
   not_int_overflow_func();
-  
+
+  struct conn_thang c1;
+  c1.data[0] = 'a';
+  c1.callback = &int_overflow_func;
+  controlled_indirect_call(&c1);
+ 
+  void * t = malloc(64);
+  unbounded_copy_from_user1(t, 10);  
+  unbounded_copy_from_user2(t, 10);
+
   return;
 }
+

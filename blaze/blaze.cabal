@@ -96,6 +96,7 @@ library
       Blaze.VTable
   other-modules:
       Blaze.Pil.Solver.List
+      Blaze.Types.CachedMap
       Blaze.Types.Pil.Common
       Blaze.Types.Pil.Op.AdcOp
       Blaze.Types.Pil.Op.AddOp

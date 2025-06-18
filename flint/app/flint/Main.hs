@@ -16,6 +16,7 @@ import qualified Flint.Types.CachedMap as CM
 
 import Blaze.Import.Binary (getBase)
 import Blaze.Pretty (pretty')
+-- import qualified Blaze.Types.Function as Func
 
 import Control.Monad.Logger (LogLevel(LevelInfo))
 import qualified Data.HashMap.Strict as HashMap
@@ -134,6 +135,7 @@ toMatchingPrimBlob res = blob
     func = res ^. #func
     name = func ^. #name
     addr = func ^. #address
+    wmi = toCallableWMIBlob $ res ^. #callablePrim
     blob = MatchingPrimBlob
       { func = (name, addr)
       , path = pretty' <$> res ^. #path -- TODO: get path with assertions
@@ -142,7 +144,7 @@ toMatchingPrimBlob res = blob
                . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
                . HashMap.toList
                $ res ^. #callablePrim . #varMapping
-      , locations = HashMap.mapKeys pretty' $ res ^. #callablePrim . #locations
+      , locations = wmi ^. #locations
       , constraints = fmap (pretty' . fst) $ res ^. #callablePrim . #constraints
       , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
       }
@@ -153,6 +155,7 @@ printMatchingPrimJSON res = do
   let func = res ^. #func
       name = func ^. #name
       addr = func ^. #address
+      wmi = toCallableWMIBlob $ res ^. #callablePrim
       blob = MatchingPrimBlob
         { func = (name, addr)
         , path = pretty' <$> res ^. #path -- TODO: get path with assertions
@@ -161,7 +164,7 @@ printMatchingPrimJSON res = do
                  . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
                  . HashMap.toList
                  $ res ^. #callablePrim . #varMapping
-        , locations = HashMap.mapKeys pretty' $ res ^. #callablePrim . #locations
+        , locations = wmi ^. #locations
         , constraints = pretty' <$> res ^. #callablePrim . #constraints
         , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
         }
@@ -202,8 +205,6 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
   let stdLibPrims = allStdLibPrims
       prims :: [Prim]
       prims = PrimLib.allPrims
-        -- [ PrimLib.controlledFormatStringPrim
-        -- ]
 
   onionFlow (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
   cprims <- CM.getSnapshot $ store ^. #callablePrims

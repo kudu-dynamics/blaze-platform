@@ -89,7 +89,7 @@ showPrimSpecDef x = Text.unlines
   , "  }"
   ]
   where
-    defName = lowerFirst $ x ^. #name
+    defName = lowerFirst $ x ^. #name <> "Spec"
     symbolList :: forall a. HashSet (Symbol a) -> Text
     symbolList syms
       = "["

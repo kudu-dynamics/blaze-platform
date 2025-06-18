@@ -8,9 +8,11 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Pil.Analysis (ConstPropState, CopyPropState)
 import Blaze.Types.Pil.Analysis (DataDependenceGraph)
 import qualified Blaze.Pil.Analysis as PA
-import Blaze.Prelude hiding (to, succ)
+import Blaze.Prelude hiding (succ)
 import Blaze.Types.Cfg (CfNode (BasicBlock, Call, EnterFunc, LeaveFunc, Grouping), PilCfg, PilNode, PilEdge, BranchNode, CallNode, CfEdge(CfEdge), Cfg, BranchType)
 -- import Blaze.Types.Cfg.Interprocedural (InterCfg (InterCfg, unInterCfg), unInterCfg, liftInter)
+import qualified Blaze.Types.Function as Func
+import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Stmt, PilVar)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -19,7 +21,7 @@ import Blaze.Graph (Edge)
 import Blaze.Import.CallGraph (CallGraphImporter, getFunctions)
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Types.Cfg.Analysis
-import Control.Lens (to, _last)
+import Control.Lens (_last)
 
 
 transformStmts :: ([Stmt] -> [Stmt]) -> PilCfg -> PilCfg
@@ -300,7 +302,11 @@ getCallNodeDistances ctx tgt =
   HashMap.fromList
     . mapMaybe
         (\callNode ->
-            callNode ^? #callDest . #_CallFunc . to (\src -> (callNode, shortestPath src)))
+           case callNode ^. #callDest of
+             Pil.CallFunc fn -> Just (callNode, shortestPath $ Func.Internal fn)
+             Pil.CallExtern fn -> Just (callNode, shortestPath $ Func.External fn)
+             _ -> Nothing
+        )
   where
     dstFunc = tgt ^. #function
     shortestPath src = G.getDescendantDistance (ctx ^. #descendantsDistanceMap) src dstFunc

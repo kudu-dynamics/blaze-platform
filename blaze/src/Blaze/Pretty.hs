@@ -897,8 +897,9 @@ showAsInt :: (Integral a, StringConv String b) => a -> b
 showAsInt n = show (fromIntegral n :: Integer)
 
 --- CallGraph
-instance Tokenizable Cg.CallDest where
-  tokenize (Cg.DestFunc x) = tokenize x
+instance Tokenizable Func.Func where
+  tokenize (Func.Internal x) = tokenize x
+  tokenize (Func.External x) = tokenize x
 
 instance Tokenizable Cg.CallSite where
   tokenize x =
@@ -914,6 +915,23 @@ instance Tokenizable Func.Function where
           { tokenType = CodeSymbolToken
           , text = name
           , value = toInteger addr
+          , size = 0
+          , operand = 0xffffffff
+          , context = NoTokenContext
+          , address = 0
+          , typeSym = Nothing
+          }
+      ]
+
+--- ExternFunction
+instance Tokenizable Func.ExternFunction where
+  tokenize x =
+    pure
+      [ tt "Extern"
+      , Token
+          { tokenType = CodeSymbolToken
+          , text = x ^. #name
+          , value = fromIntegral $ x ^. #address . #externalIndex
           , size = 0
           , operand = 0xffffffff
           , context = NoTokenContext

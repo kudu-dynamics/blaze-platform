@@ -5,6 +5,7 @@ import Ghidra.Prelude
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
 import Ghidra.Types (Function)
+import qualified Ghidra.Types.Address as Addr
 import Ghidra.Core
 
 import Test.Hspec
@@ -96,4 +97,49 @@ spec = describe "Ghidra.Function" $ do
  
     it "should identify dest of dest of puts thunk's thunk as not a thunk" $
       bname `shouldBe` "puts"
-   
+
+  context "externs" $ do
+    let putsThunkAddr = 0x1030
+    
+    putsExternFunc <- runIO . runGhidraOrError $ do
+      faddr <- State.mkAddressBased gs putsThunkAddr
+      putsThunk <- fromJust <$> Function.fromAddr gs faddr
+      Function.resolveThunk putsThunk
+      
+    putsIsExtern <- runIO . runGhidraOrError $ Function.isExternal putsExternFunc
+
+    it "should identify resolved 'puts' as an extern" $
+      putsIsExtern `shouldBe` True
+
+    mPutsLibraryName <- runIO . runGhidraOrError $ do
+      putsExLoc <- Function.getExternalLocation putsExternFunc
+      Function.getLibraryName putsExLoc
+
+    it "should sort-of know 'puts' library name" $
+      mPutsLibraryName `shouldBe` Just "<EXTERNAL>"
+
+    putsAddress <- runIO . runGhidraOrError $ Function.getAddress putsExternFunc
+
+    it "should know that 'puts' address space is external" $
+      putsAddress ^. #space . #name  `shouldBe` Addr.EXTERNAL
+
+    putsParams <- runIO . runGhidraOrError $ Function.getLowParams putsExternFunc
+
+    it "should know that 'puts' takes one param" $
+      length putsParams `shouldBe` 1
+
+    it "should know the name of the first param of 'puts'" $
+      (view #name <$> headMay putsParams) `shouldBe` Just "__s"
+
+    mfunc <- runIO . runGhidraOrError $ do
+      addr <- State.mkExternalAddress gs $ putsAddress ^. #offset
+      Function.getFunctionAt gs addr
+
+    it "should be able to use getFunctionAt to refind extern at extern's address" $ do
+      isJust mfunc `shouldBe` True
+
+    funcName <- runIO . runGhidraOrError $ do
+      Function.getName (fromJust mfunc)
+
+    it "should have found the puts extern function with getFunctionAt" $ do
+      funcName `shouldBe` "puts"

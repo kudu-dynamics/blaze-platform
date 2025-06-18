@@ -5,7 +5,7 @@ import Flint.Prelude
 import Flint.Types.Analysis.Path.Matcher (PathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Function, Func)
 
 import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (PilCfg, PilNode, CallNode)
@@ -28,14 +28,14 @@ data CfgInfo = CfgInfo
 -- TODO: make this into sqlite db
 data CfgStore = CfgStore
   { cfgCache :: CachedCalc Function (Maybe CfgInfo)
-  , ancestorsCache :: CachedCalc Function (HashSet Function)
-  , descendantsCache :: CachedCalc Function (HashSet Function)
-  , funcs :: CachedCalc () [Function] -- result of `getFunctions` from CallGraph importer
-  -- a dirty trick to use the CC machinery to get CG on demand
+  , ancestorsCache :: CachedCalc Func (HashSet Func)
+  , descendantsCache :: CachedCalc Func (HashSet Func)
+  , funcs :: CachedCalc () [Func] -- result of `getFunctions` from CallGraph importer
+  , internalFuncs :: CachedCalc () [Function]
   , callGraphCache :: CachedCalc () CallGraph
   -- CallGraph, but all the edges are reversed. Useful for getting ancestors
   , transposedCallGraphCache :: CachedCalc () CallGraph
-  -- Mapping of call sites that call Function
+  -- Functions and the callsites they contain
   , callSitesCache :: CachedCalc Function [CallSite]
 
   , pathSamples :: CachedMap Function [PathPrep]
