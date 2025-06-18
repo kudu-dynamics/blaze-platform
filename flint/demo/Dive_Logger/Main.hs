@@ -174,7 +174,7 @@ divelogger = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
-  funcs <- CC.get_ $ store' ^. #funcs
+  funcs <- Store.getInternalFuncs store'
   let funcMapping = mkFuncMapping funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
@@ -250,7 +250,7 @@ electronictrading = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/demo/cb/electronictrading.gzf"
   putText "Loaded electronictrading.gzf"
   store' <- Store.init Nothing imp
-  funcs <- CC.get_ $ store' ^. #funcs
+  funcs <- Store.getInternalFuncs store'
   let funcMapping = mkFuncMapping funcs
       isUserlandFunc = (== Just True)
         . fmap isUpper
@@ -288,7 +288,7 @@ diveloggerPlanner = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
-  funcs <- CC.get_ $ store' ^. #funcs
+  funcs <- Store.getInternalFuncs store'
   (ctx, _innerNodes, allNodes) <- Store.getRouteMakerCtx' 5 store'
 
   let funcNameMapping = mkFuncNameMapping funcs
@@ -390,7 +390,7 @@ spamDiveLogger = do
   (Right (imp :: GhidraImporter)) <- openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
-  funcs <- CC.get_ $ store' ^. #funcs
+  funcs <- Store.getInternalFuncs store'
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts

@@ -9,6 +9,7 @@ import qualified Blaze.Persist.Db as Db
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Import.Binary (openBinary)
 import Blaze.Import.CallGraph (getFunctions)
+import Blaze.Function (_name)
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import qualified Blaze.Types.Graph as G
 
@@ -29,7 +30,7 @@ spec = describe "Blaze.Persist.Db" $ do
       Db.insertCallGraph conn cg
       Db.loadCallGraph conn
 
-    let reduceGraph g = ( sort . fmap (view #name) . HashSet.toList $ G.nodes g
+    let reduceGraph g = ( sort . fmap (view _name) . HashSet.toList $ G.nodes g
                         , sort $ G.edges g
                         )
 

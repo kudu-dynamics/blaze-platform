@@ -1,3 +1,5 @@
+# use `stack run gen_primspecs` in `flint/` to generate module
+
 [[prim]]
   name = "copy"
   locations = ["write"]
@@ -29,4 +31,50 @@
 [[prim]]
   name = "IntegerOverflow"
   locations = ["increment store"]
-  vars = ["n", "ptr"]
+  vars = [ "increment_by"   # overflow increment
+         , "ptr" # overflowed pointer
+         ]
+
+[[prim]]
+  name = "Write"
+  locations = ["write"]
+  vars = ["ptr", "value"]
+
+[[prim]]
+  name = "Read"
+  locations = ["read"]
+  vars = ["ptr"]
+
+[[prim]]
+  name = "UnboundedCopyFromUser"
+  locations = ["copy"]
+  vars = ["src", "dst", "size"]
+
+
+[[prim]]
+  name = "UseAfterFree"
+  locations = [ "address access"
+              , "free"
+              ]
+  vars = [ "ptr" # Base address of heap and structure reference
+         ]
+
+[[prim]]
+  name = "ControlledIndirectCall"
+  locations = ["callsite"]
+  vars = ["call_dest"]
+
+[[prim]]
+  name = "WriteToKernelGlobal"
+  locations = ["copy"]
+  vars = ["dest","src","len"]
+
+[[prim]]
+  name = "WriteWhatWhere"
+  locations = ["write"]
+  vars = ["dest","src"]
+
+[[prim]]
+  name = "EscapedDataFromLock"
+  locations = ["lock", "unlock", "bind"]
+  vars = ["ptr_containing_escaped_data"]

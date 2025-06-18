@@ -14,9 +14,7 @@ import Flint.Cfg.Path (samplesFromQuery)
 
 import Blaze.Types.Function (Function)
 
-import Blaze.Import.Binary (BinaryImporter, openBinary)
 import Blaze.Import.CallGraph (CallGraphImporter)
-import qualified Blaze.Import.CallGraph as Cg
 import qualified Blaze.Import.Cfg as ImpCfg
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 
@@ -190,22 +188,6 @@ reifyQuery
   -> IO (Query Function)
 reifyQuery imp = traverse (getFunction imp)
 
--- TODO: Remove because the CfgStore loads func Cfgs lazily.
-storeFromBinarySearchConfig
-  :: ( CfgImporter imp
-     , CallGraphImporter imp
-     , NodeDataType imp ~ PilNode
-     )
-  => imp
-  -> BinarySearchConfig imp Function
-  -> CfgStore
-  -> IO ()
-storeFromBinarySearchConfig imp bconfig store = do
-  let excludes = HashSet.fromList $ bconfig ^. #excludeFuncsFromStore
-  allFuncs <- Cg.getFunctions imp
-  let funcs = filter (\func -> not $ HashSet.member func excludes) allFuncs
-  addCfgStoreForBinary imp funcs store
-
 showQueryHeader :: Function -> Query Function -> Text
 showQueryHeader startFunc = \case
   QueryTarget opts -> (startFunc ^. #name) <> " ==> " <> showTargets (opts ^. #mustReachSome)
@@ -234,22 +216,3 @@ showQuerySummaries tps store startFunc q bugMatchers = do
                       )
                   )
   showPathsWithMatches (showQueryHeader startFunc q) withMatches
-
-summariesOfInterest
-  :: forall imp func.
-     ( BinaryImporter imp
-     , CallGraphImporter imp
-     , CfgImporter imp
-     , NodeDataType imp ~ PilNode
-     , GetFunction func
-     )
-  => [TaintPropagator]
-  -> BinarySearchConfig imp func
-  -> IO ()
-summariesOfInterest tps bconfig = do
-  imp <- openBinary (bconfig ^. #binaryPath) >>= either (error . cs) return
-  bconfig' <- traverse (getFunction imp) bconfig
-  cfgStore <- CfgStore.init Nothing imp
-  storeFromBinarySearchConfig imp bconfig' cfgStore
-  mapM_ (\x -> showQuerySummaries tps cfgStore (x ^. #startFunc) (x ^. #query) (x ^. #bugMatches))
-    $ bconfig' ^. #queryConfigs

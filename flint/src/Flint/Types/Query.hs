@@ -16,7 +16,8 @@ import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (PilNode)
 import Blaze.Pretty (Tokenizable(tokenize), pretty', tt, (<++>), PStmts(PStmts))
 import Blaze.Types.Cfg.Path (PilPath)
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Func, Function, _name)
+import qualified Blaze.Types.Function as Func
 import Blaze.Types.Graph.Alga (AlgaGraph)
 import qualified Blaze.Types.Graph as G
 import qualified Blaze.Types.Pil as Pil
@@ -81,16 +82,20 @@ data MatchingPrimBlob = MatchingPrimBlob
   , path :: [Text]
   , primName :: Text
   , vars :: HashMap Text Text
-  , locations :: HashMap Text (HashSet Address)
+  , locations :: HashMap Text (Either ExternFunc Address)
   , constraints :: [Text]
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
+
+newtype ExternFunc = ExternFunc { name :: Text }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (ToJSON)
 
 data CallableWMIBlob = CallableWMIBlob
   { func :: (Text, Address)
   , primName :: Text
   , vars :: HashMap Text Text
-  , locations :: HashMap Text (HashSet Address)
+  , locations :: HashMap Text (Either ExternFunc Address)
   , constraints :: [Text]
   , linkedVars :: [Text]
   } deriving (Eq, Ord, Show, Generic, ToJSON)
@@ -104,8 +109,8 @@ toCallableWMIBlob :: CallableWMI -> CallableWMIBlob
 toCallableWMIBlob cprim = blob
   where
     func = cprim ^. #func
-    name = func ^. #name
-    addr = func ^. #address
+    name = func ^. _name
+    addr = fromMaybe 0 $ func ^? #_Internal . #address
     blob = CallableWMIBlob
       { func = (name, addr)
       , primName = cprim ^. #prim . #name
@@ -113,7 +118,9 @@ toCallableWMIBlob cprim = blob
                . fmap (\(k, v) -> (pretty' k, pretty' $ fst v))
                . HashMap.toList
                $ cprim ^. #varMapping
-      , locations = HashMap.mapKeys pretty' $ cprim ^. #locations
+      , locations = HashMap.map (bimap (ExternFunc . view #name) identity)
+                    . HashMap.mapKeys pretty'
+                    $ cprim ^. #locations
       , constraints = fmap (pretty' . fst) $ cprim ^. #constraints
       , linkedVars = fmap pretty' . HashSet.toList $ cprim ^. #linkedVars
       }
@@ -177,14 +184,18 @@ class GetFunction x where
 instance GetFunction Function where
   getFunction _ = return
 
+toInternal :: Func -> Function
+toInternal (Func.External x) = error $ "Expecting Internal Function, got: " <> show x
+toInternal (Func.Internal func) = func
+
 instance GetFunction Address where
   getFunction imp addr = Cg.getFunction imp addr >>= \case
     Nothing -> error $ "Could not find function at " <> show addr
-    Just func -> return func
+    Just func -> return $ toInternal func
 
 instance GetFunction Text where
   getFunction imp name = do
-    funcs <- Cg.getFunctions imp
+    funcs <- toInternal <<$>> Cg.getFunctions imp
     case filter (\fn -> fn ^. #name == name) funcs of
       [] -> error $ "Could not find a function named " <> show name
       [x] -> return x

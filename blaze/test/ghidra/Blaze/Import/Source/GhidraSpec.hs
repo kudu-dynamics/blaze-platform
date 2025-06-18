@@ -5,7 +5,7 @@
 module Blaze.Import.Source.GhidraSpec where
 
 import Blaze.CallGraph (getCallGraph)
-import Blaze.Function (Function)
+import Blaze.Function (Func, _name)
 import Blaze.Import.Binary (BinaryImporter (getEnd, getStart, openBinary, rebaseBinary))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
 import Blaze.Import.Source.Ghidra (GhidraImporter)
@@ -19,8 +19,8 @@ import Test.Hspec
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
-findFunc :: Text -> [Function] -> Maybe Function
-findFunc funcName = find ((== funcName) . (^. #name))
+findFunc :: Text -> [Func] -> Maybe Func
+findFunc funcName = find ((== funcName) . (^. _name))
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra" $ do
@@ -45,7 +45,7 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
     importer <- runIO $ G.getImporter diveBin
     funcs <- fmap sort . runIO $ getFunctions importer
     it "should import all functions" $ do
-      length funcs `shouldBe` 106
+      length funcs `shouldBe` 94
 
     let changeDiveFunc = fromJust $ findFunc "cgc_ChangeDive" funcs
     changeDiveCalls <- runIO $ getCallSites importer changeDiveFunc

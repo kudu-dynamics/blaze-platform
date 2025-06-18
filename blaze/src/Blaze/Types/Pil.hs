@@ -4,7 +4,7 @@ module Blaze.Types.Pil
   ) where
 
 import Blaze.Prelude hiding (Symbol, Type)
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Function, ExternFunction)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
 
@@ -484,7 +484,7 @@ data CallDest expr = CallAddr ConstFuncPtrOp
                    | CallFunc Function
                    | CallExpr expr
                    | CallExprs [expr]
-                   | CallExtern ExternPtrOp
+                   | CallExtern ExternFunction
                    | CallUnk
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 

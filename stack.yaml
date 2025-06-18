@@ -4,13 +4,9 @@ resolver: lts-23.18
 compiler: ghc-9.8.4
 
 packages:
-  - binaryninja-haskell
-  - binaryninja-haskell/binja-header-cleaner
   - ghidra-haskell
   - blaze
-  - blaze/blaze-binaryninja
   - flint
-  - flint/flint-binaryninja
   
 extra-deps:
   - git: https://github.com/kudu-dynamics/binary-analysis
