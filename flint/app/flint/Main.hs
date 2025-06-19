@@ -5,6 +5,7 @@ module Main where
 import Flint.Prelude
 
 import Flint.Types.Analysis.Path.Matcher (Prim)
+import qualified Flint.Types.Analysis.Path.Matcher as M
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
@@ -208,7 +209,8 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
 
   onionFlow (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
   cprims <- CM.getSnapshot $ store ^. #callablePrims
-  let flintResult = toFlintResult base cprims
+  let cprims' = M.asOldCallableWMIsMap cprims
+  let flintResult = toFlintResult base cprims'
   case opts ^. #outputToFile of
     Nothing -> printResult flintResult
     Just outputFilePath -> do

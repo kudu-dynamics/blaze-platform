@@ -1015,7 +1015,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             solver :: StmtSolver Identity
             solver _ = return $ Solver.Sat HashMap.empty
             callablePrims = HashMap.fromList
-              [( copyPrim, HashSet.singleton callablePrim )]
+              [( (copyPrim, callablePrim ^. #func), HashSet.singleton callablePrim )]
             initMs = mkMatcherState solver pprep
                      & #callablePrimitives .~ callablePrims
 

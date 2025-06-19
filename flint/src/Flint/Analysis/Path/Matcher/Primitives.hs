@@ -166,11 +166,10 @@ getInitialWMIsForFunc func = mapMaybe f
 cleanFuncName :: Text -> Text
 cleanFuncName = Text.dropWhile (== '_')
 
-
 getInitialWMIs
   :: [StdLibPrimitive]
   -> [Func]
-  -> HashMap PrimSpec (HashSet CallableWMI)
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
 getInitialWMIs sprims
   = foldr addCallableWMI_ HashMap.empty
   . foldMap (`getInitialWMIsForFunc` sprims)
