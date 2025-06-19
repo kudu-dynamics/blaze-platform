@@ -38,7 +38,7 @@ import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import Blaze.Types.Cfg (PilNode, PilCfg)
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Function, Func)
 import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge))
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Path as Path
@@ -1035,7 +1035,7 @@ onionSampleBasedOnFuncSize multiplier store func = CfgStore.getFuncCfgInfo store
 -- and if it matches one, returns it
 matchAndReturnCallablePrim
   :: StmtSolver IO
-  -> HashMap PrimSpec (HashSet CallableWMI)
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> Function
   -> PathPrep
   -> Prim
@@ -1051,14 +1051,14 @@ matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
   
   let mstate = M.mkMatcherState solver pprep
                & #callablePrimitives .~ callablePrimSnapshot
-  checkPathForPrim_ mstate func (pprep ^. #codeSummary) prim 
+  checkPathForPrim_ mstate func (pprep ^. #codeSummary) prim
 
 -- | Checks path for prim and updates the callable primitives if the path
 -- is an instance of that callable primitive
 onionCheckPathForPrim
   :: StmtSolver IO
   -> CfgStore
-  -> HashMap PrimSpec (HashSet CallableWMI)
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> Function
   -> PathPrep
   -> Prim
@@ -1092,14 +1092,14 @@ onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
     Just (Right cprim) -> do
       when debugMode $ do
         putText "MATCH!"
-      CM.modify_ (HashSet.insert cprim) (prim ^. #primType) $ store ^. #callablePrims
+      CM.modify_ (HashSet.insert cprim) (prim ^. #primType, cprim ^. #func) $ store ^. #callablePrims
 
 -- | Gets cached paths for function, and checks them for each prim.
 -- Adds instances found of CallableWMIs back into CfgStore
 onionCheckFunc
   :: StmtSolver IO
   -> CfgStore
-  -> HashMap PrimSpec (HashSet CallableWMI)
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> [Prim]
   -> Function
   -> IO ()
