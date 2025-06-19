@@ -63,9 +63,10 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
           action = do
             funcs <- Store.getFuncs $ tctx ^. #dirtyStore
             let cprims = getInitialWMIs stdLibPrims funcs
+                cprims' = asOldCallableWMIsMap cprims
 
             return $ do
-              (s :: HashSet CallableWMI) <- HashMap.lookup PrimSpec.controlledFormatStringSpec cprims
+              (s :: HashSet CallableWMI) <- HashMap.lookup PrimSpec.controlledFormatStringSpec cprims'
               return
                 . HashSet.fromList
                 . fmap (view $ #func . _name)
@@ -101,7 +102,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
             prims = [PrimLib.controlledFormatStringPrim]
             action = do
               onionFlow False 3 (tctx ^. #dirtyStore) stdLibPrims prims
-              m <- CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
+              m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
               return $ do
                 s <- HashMap.lookup PrimSpec.controlledFormatStringSpec m
                 return $ HashSet.map (view $ #func . _name) s
@@ -115,7 +116,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
             prims = [PrimLib.freeHeapPrim]
             action = do
               onionFlow False 3 (tctx ^. #atmStore) stdLibPrims prims
-              m <- CM.getSnapshot $ tctx ^. #atmStore . #callablePrims
+              m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ tctx ^. #atmStore . #callablePrims
               return $ do
                 s <- HashMap.lookup PrimSpec.freeHeapSpec m
                 return $ HashSet.map (view $ #func . _name) s

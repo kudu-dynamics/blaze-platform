@@ -39,7 +39,7 @@ data CfgStore = CfgStore
   , callSitesCache :: CachedCalc Function [CallSite]
 
   , pathSamples :: CachedMap Function [PathPrep]
-  , callablePrims :: CachedMap PrimSpec (HashSet CallableWMI)
+  , callablePrims :: CachedMap (PrimSpec, Func) (HashSet CallableWMI)
   -- -- If this is too slow or uses too much memory, we could do just calls or landmarks
   -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
   -- , planMakerCtx :: CachedCalc () (PlanMakerCtx Function PilNode)

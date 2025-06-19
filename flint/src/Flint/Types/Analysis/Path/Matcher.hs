@@ -4,13 +4,13 @@ module Flint.Types.Analysis.Path.Matcher where
 
 import Flint.Prelude hiding (sym, negate)
 import Flint.Types.Analysis (Taint(..))
-import Flint.Types.Analysis.Path.Matcher.Func (Func(..))
+import qualified Flint.Types.Analysis.Path.Matcher.Func as M
 import Flint.Types.Analysis.Path.Matcher.Primitives (PrimSpec, CallableWMI)
 import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import qualified Blaze.Pretty as Pretty
-import Blaze.Types.Function (ExternFunction)
+import Blaze.Types.Function (ExternFunction, Func)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Size(Size))
 import Blaze.Types.Pil.Summary (CodeSummary)
@@ -25,7 +25,7 @@ import Data.String (IsString(fromString))
 
 
 data CallDest expr
-  = CallFunc Func
+  = CallFunc M.Func
   | CallIndirect expr
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -52,7 +52,7 @@ data Statement expr
 data CtxPattern
   = AnyCtx
   | BindCtx (Symbol Pil.Ctx) CtxPattern
-  | Ctx (Maybe Func) (Maybe Pil.CtxId)
+  | Ctx (Maybe M.Func) (Maybe Pil.CtxId)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data StmtPattern
@@ -212,18 +212,57 @@ data MatcherState m = MatcherState
   , solutions :: Maybe (HashMap Text CV)
   , locations :: HashMap (Symbol Address) (Either ExternFunction Address)
   -- TODO: this doesn't really belong here because it won't be modified
-  , callablePrimitives :: HashMap PrimSpec (HashSet CallableWMI)
+  , callablePrimitives :: HashMap (PrimSpec, Func) (HashSet CallableWMI)
   } deriving Generic
 
 addCallableWMI_
   :: CallableWMI
-  -> HashMap PrimSpec (HashSet CallableWMI)
-  -> HashMap PrimSpec (HashSet CallableWMI)
-addCallableWMI_ cprim = HashMap.alter f primType
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+addCallableWMI_ cprim = HashMap.alter f (primType, cprim ^. #func)
   where
     primType = cprim ^. #prim
+
+    f :: Maybe (HashSet CallableWMI) -> Maybe (HashSet CallableWMI)
     f Nothing = Just $ HashSet.singleton cprim
     f (Just s) = Just $ HashSet.insert cprim s
+
+getCallableWMIs_
+  :: PrimSpec
+  -> Func
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+  -> Maybe (HashSet CallableWMI)
+getCallableWMIs_ prim fn = HashMap.lookup (prim, fn)
+
+getCallableWMIs :: Monad m => PrimSpec -> Func -> MatcherT m (Maybe (HashSet CallableWMI))
+getCallableWMIs prim fn = do
+  cprimMap <- use #callablePrimitives
+  return $ getCallableWMIs_ prim fn cprimMap
+
+-- | For converting callableWMIs map to nested version, so you can just look up all the findings
+-- for a particular primspec.
+asNestedMap
+  :: forall a b c. (Hashable a, Hashable b)
+  => HashMap (a, b) c
+  -> HashMap a (HashMap b c)
+asNestedMap
+  = foldr (\ ((a, b), c) m -> HashMap.alter (addInnerMap b c) a m) HashMap.empty
+  . HashMap.toList
+  where
+    addInnerMap :: b -> c -> Maybe (HashMap b c) -> Maybe (HashMap b c)
+    addInnerMap b c (Just m) = Just $ HashMap.insert b c m
+    addInnerMap b c Nothing = Just $ HashMap.singleton b c
+
+-- | Converts to old version of the map that didn't inclde a Func in key.
+-- Useful for test compatibility.
+asOldCallableWMIsMap
+  :: (Eq c, Hashable a, Hashable b)
+  => HashMap (a, b) (HashSet c)
+  -> HashMap a (HashSet c)
+asOldCallableWMIsMap = HashMap.fromList
+  . fmap (second $ HashSet.unions . HashMap.elems)
+  . HashMap.toList
+  . asNestedMap
 
 -- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
 -- and solver errors
@@ -261,7 +300,6 @@ data PathPrep = PathPrep
   , taintSet :: HashSet Taint
   , codeSummary :: CodeSummary
   } deriving (Eq, Ord, Show, Generic)
-
 
 --------- Primitives
 

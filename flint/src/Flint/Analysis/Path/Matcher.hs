@@ -419,7 +419,6 @@ matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
   $ regexIsIn rpat (func ^. #name)
   || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
 
-
 matchStmt :: Monad m => Statement ExprPattern -> Pil.Stmt -> MatcherT m ()
 matchStmt sPat stmt@(Pil.Stmt _ statement) = case (sPat, statement) of
   (Def destPat srcPat, Pil.Def (Pil.DefOp pv expr)) -> do
@@ -719,38 +718,43 @@ matchNextStmt_ tryNextStmtOnFailure pat = peekNextStmt >>= \case
           -- mapM_ (addLocation lbl) . fmap (view #addr) $ newlyParsedStmts
           good
         Left _ -> perhapsRecur
-    Primitive pt varPats -> do
-      callables <- use #callablePrimitives
-      case HashMap.lookup pt callables of
-        Nothing -> perhapsRecur
-        Just s -> case Pil.mkCallStatement stmt of
+    Primitive pt varPats -> case Pil.mkCallStatement stmt of
+      Nothing -> perhapsRecur
+      Just callStmt -> do
+        let mdestFunc = case callStmt ^. #callOp . #dest of
+              Pil.CallFunc ifunc -> Just $ BFunc.Internal ifunc
+              Pil.CallExtern efunc -> Just $ BFunc.External efunc
+              _ -> Nothing
+        case mdestFunc of
           Nothing -> perhapsRecur
-          Just callStmt -> do
-            let mRetExpr = (\pv -> Pil.Expression (fromIntegral $ pv ^. #size) (Pil.VAR $ Pil.VarOp pv))
-                           <$> (callStmt ^. #resultVar)
-                resolveFuncVar' = resolveFuncVar (V.fromList $ callStmt ^. #args) mRetExpr
-            -- TODO: We are recreating these every single stmt we check for a Primitive.
-            --       Instead, we could cache them in the MatcherState
-            let callablePats = toSnd mkStmtPatternFromCallableWMI <$> HashSet.toList s :: [(CallableWMI, StmtPattern)]
-            asum $ flip fmap callablePats $ \(cprim, cpat) -> backtrackOnError $ do
-              matchNextStmt_ False cpat
-              let mPrimVars = traverse (traverse (resolveFuncVar' . fst))
-                    . HashMap.toList
-                    $ cprim ^. #varMapping
-                    :: Maybe [(Symbol Pil.Expression, Pil.Expression)]
-              case mPrimVars of
-                Nothing -> bad
-                Just primVars -> do
-                  forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
-                    Nothing -> good
-                    Just vpat -> matchExpr vpat vexpr
+          Just destFunc -> getCallableWMIs pt destFunc >>= \case
+            Nothing -> perhapsRecur
+            Just wmis -> do
+              let mRetExpr = (\pv -> Pil.Expression (fromIntegral $ pv ^. #size) (Pil.VAR $ Pil.VarOp pv))
+                             <$> (callStmt ^. #resultVar)
+                  resolveFuncVar' = resolveFuncVar (V.fromList $ callStmt ^. #args) mRetExpr
+              -- TODO: We are recreating these every single stmt we check for a Primitive.
+              --       Instead, we could cache them in the MatcherState
+              let callablePats = toSnd mkStmtPatternFromCallableWMI <$> HashSet.toList wmis :: [(CallableWMI, StmtPattern)]
+              asum $ flip fmap callablePats $ \(cprim, cpat) -> backtrackOnError $ do
+                matchNextStmt_ False cpat
+                let mPrimVars = traverse (traverse (resolveFuncVar' . fst))
+                      . HashMap.toList
+                      $ cprim ^. #varMapping
+                      :: Maybe [(Symbol Pil.Expression, Pil.Expression)]
+                case mPrimVars of
+                  Nothing -> bad
+                  Just primVars -> do
+                    forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
+                      Nothing -> good
+                      Just vpat -> matchExpr vpat vexpr
               
-                  -- add constraints to stmts
-                  forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
-                    case resolveFuncVar' fvExpr of
-                      Nothing -> bad
-                      Just resolvedExpr -> do
-                        #parsedStmtsWithAssertions %= (C.constraint resolvedExpr :)
+                    -- add constraints to stmts
+                    forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
+                      case resolveFuncVar' fvExpr of
+                        Nothing -> bad
+                        Just resolvedExpr -> do
+                          #parsedStmtsWithAssertions %= (C.constraint resolvedExpr :)
       -- check linkedVars for # of args
       -- match on call to callDest Func with same # of args
       -- 

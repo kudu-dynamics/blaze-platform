@@ -7,6 +7,7 @@ import Flint.Prelude hiding (const)
 import Helper.Primitives
 
 import Flint.Types.Analysis.Path.Matcher.Func
+import qualified Flint.Types.Analysis.Path.Matcher as M
 import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
 import Flint.Analysis.Path.Matcher.Primitives
 
@@ -124,4 +125,4 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
               , HashSet.fromList
                 [ sscanfCPrim, printfCPrim ] )
             ]
-      initialCPrims `shouldBe` expected
+      M.asOldCallableWMIsMap initialCPrims `shouldBe` expected
