@@ -26,7 +26,7 @@ import Blaze.Types.Cfg.Grouping (
   unfoldGroups,
  )
 import Blaze.Types.Pil (Ctx (Ctx))
-import Blaze.Util (prettyShouldBe)
+import Blaze.Spec.Util (prettyShouldBe)
 import Blaze.Util.Spec (mkUuid2)
 import qualified Data.HashSet as HashSet
 import Test.Hspec

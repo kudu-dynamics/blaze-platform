@@ -1055,6 +1055,7 @@ matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
 
 -- | Checks path for prim and updates the callable primitives if the path
 -- is an instance of that callable primitive
+{-# SCC onionCheckPathForPrim #-}
 onionCheckPathForPrim
   :: StmtSolver IO
   -> CfgStore
@@ -1064,18 +1065,21 @@ onionCheckPathForPrim
   -> Prim
   -> IO ()
 onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
+  -- putText $ func ^. #name <> ": " <> prim ^. #primType . #name
   -- | Because so many things can go wrong with patterns, this little section allows
   -- you to choose a func and primitive to print out debug info for.
-  let debuggingOn = True
-      debugFuncName = "moodpot_read"
-      debugPrimName = "EscapedVarFromLock"
+  let debuggingOn = False
+      debugFuncName = "clearHistory"
+      debugPrimName = "freeHeap"
       debugMode = debuggingOn
         && func ^. #name == debugFuncName
         && prim ^. #primType . #name == debugPrimName
   when debugMode $ do
-      putText $ prim ^. #primType . #name
-      putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
-      -- pprint $ take 2 (pprep ^. #untouchedStmts)
+    putText $ prim ^. #primType . #name
+    -- putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
+    -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
+    putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+    -- pprint $ take 2 (pprep ^. #untouchedStmts)
 
   when debugMode $ do
     checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
@@ -1106,7 +1110,6 @@ onionCheckFunc
 onionCheckFunc solver store callablePrimSnapshot prims func = do
   paths <- CM.get func $ store ^. #pathSamples      
   let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
-  -- TODO: use mapConcurrently
   forConcurrently_ pathPrimCombos $ \(pprep, prim) -> do
     onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
 
@@ -1140,13 +1143,13 @@ onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
+    -- putText $ "Getting paths for: " <> show (func ^. #name)
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
+    -- putText $ "Got " <> show (length paths) <> " paths."
     let pathPreps = M.mkPathPrep [] <$> paths
-    -- when (func ^. #name == "int_inc_ioctl") $ do
-    --   forM_ pathPreps $ \pathPrep ->
-    --     sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ pathPrep ^. #stmts
 
     CM.set func pathPreps $ store ^. #pathSamples
+  -- putText $ "Finished sampling paths"
   let initialPrims = getInitialWMIs stdLibPrims allFuncs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
   replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs

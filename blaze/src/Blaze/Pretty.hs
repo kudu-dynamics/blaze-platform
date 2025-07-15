@@ -486,7 +486,7 @@ tokenizeExprOp ::
   Pil.ExprOp a ->
   Pil.Size b ->
   Tokenizer [Token]
-tokenizeExprOp msym exprOp _size = case exprOp of
+tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.ADC op) -> tokenizeBinop msym "adc" op
   (Pil.ADD op) -> tokenizeBinopInfix msym "+" op
   (Pil.ADD_WILL_CARRY op) -> tokenizeBinop msym "addOF" op
@@ -546,7 +546,10 @@ tokenizeExprOp msym exprOp _size = case exprOp of
   (Pil.FTRUNC op) -> tokenizeUnop msym "ftrunc" op
   (Pil.IMPORT op) -> pure [addressToken Nothing $ fromIntegral (op ^. #constant)]
   (Pil.INT_TO_FLOAT op) -> tokenizeUnop msym "intToFloat" op
-  (Pil.LOAD op) -> bracket <$> tokenize (op ^. #src)
+  (Pil.LOAD op) -> (bracket <$> tokenize (op ^. #src))
+    <++> tt "."
+    <++> decimalToken (Pil.sizeToWidth size)
+
   -- TODO: add memory versions for all SSA ops
   (Pil.LOW_PART op) -> tokenizeUnop msym "lowPart" op
   (Pil.LSL op) -> tokenizeBinop msym "lsl" op
@@ -927,7 +930,7 @@ instance Tokenizable Func.Function where
 instance Tokenizable Func.ExternFunction where
   tokenize x =
     pure
-      [ tt "Extern"
+      [ tt "Extern "
       , Token
           { tokenType = CodeSymbolToken
           , text = x ^. #name
