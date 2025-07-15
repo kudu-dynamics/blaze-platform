@@ -79,7 +79,7 @@ library
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wpartial-fields -Wmissing-home-modules -Wall -threaded -rtsopts -with-rtsopts=-N -O2 -funfolding-use-threshold=16 -fspecialise-aggressively
   build-depends:
       aeson
     , aeson-pretty
@@ -319,7 +319,7 @@ executable flint
       OverloadedStrings
       TypeFamilies
       ViewPatterns
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -O2 -funfolding-use-threshold=16 -fspecialise-aggressively
   build-depends:
       aeson
     , aeson-pretty

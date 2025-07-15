@@ -123,4 +123,4 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
             expected = HashSet.fromList
               ["clearHistory", "removeCardUser", "free", "clearCards", "removeCardAdmin" ]
 
-        (fmap (expected `HashSet.isSubsetOf`) <$> action) `shouldReturn` Just True
+        (HashSet.delete "eventLoop" <<$>> action) `shouldReturn` Just expected
