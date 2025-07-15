@@ -158,6 +158,10 @@ data ExprPattern
 instance ExprConstructor () ExprPattern where
   mkExpr _ = Expr
 
+(.||) :: ExprPattern -> ExprPattern -> ExprPattern
+(.||) = OrPattern
+infixr 3 .||
+
 data CmpType
   = CmpE
   | CmpNE

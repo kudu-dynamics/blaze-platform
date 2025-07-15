@@ -121,11 +121,12 @@ writeWhatWherePrim = Prim
       [ AnyOne
         [ Location "write" . Primitive writeWhatWhereSpec $ HashMap.fromList
           [ ("src", Bind "src" (Contains isInput))
-          , ("dest", Bind "dest" (Contains isInput))
+          -- TODO: probably can't refer to previously bound var here -- fix!
+          , ("dest", Bind "dest" (NotPattern $ Bind "src" (Contains isInput)))
           ]
         , Location "write" . Stmt
           $ Store (Bind "dest" (Contains isInput))
-                  (load (Bind "src" (Contains isInput)) ())
+                  (load (Bind "src" (NotPattern $ Bind "dest" (Contains isInput))) ())
         ]
       ]
   }

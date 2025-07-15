@@ -399,10 +399,6 @@ matchExpr pat expr = case pat of
             Pil.CALL _ -> False
             op -> any (doesTaint taintSet src) $ toList op
 
-(.||) :: ExprPattern -> ExprPattern -> ExprPattern
-(.||) = OrPattern
-infixr 3 .||
-
 -- | Succeeds if any one of the patterns succeeds. Tries them left to right.
 anyExpr :: NonEmpty ExprPattern -> ExprPattern
 anyExpr (pat :| []) = pat
