@@ -110,6 +110,13 @@ library:
   - -Wredundant-constraints
   - -Wpartial-fields
   - -Wmissing-home-modules
+  - -Wall
+  - -threaded
+  - -rtsopts
+  - -with-rtsopts=-N
+  - -O2
+  - -funfolding-use-threshold=16
+  - -fspecialise-aggressively
   source-dirs:
   - src
   exposed-modules:
@@ -149,6 +156,9 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -O2
+    - -funfolding-use-threshold=16
+    - -fspecialise-aggressively
     dependencies:
     - flint
     - optparse-applicative

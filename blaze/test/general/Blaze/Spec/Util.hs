@@ -1,5 +1,5 @@
 -- | Utility functions for tests
-module Blaze.Util where
+module Blaze.Spec.Util where
 
 import Blaze.Prelude hiding (show)
 

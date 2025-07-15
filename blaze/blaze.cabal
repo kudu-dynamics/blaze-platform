@@ -340,10 +340,10 @@ test-suite blaze-general-test
       Blaze.Pil.SummarySpec
       Blaze.PilSpec
       Blaze.SearchSpec
+      Blaze.Spec.Util
       Blaze.Types.Cfg.GroupingSpec
       Blaze.Types.GraphSpec
       Blaze.Types.PathSpec
-      Blaze.Util
       Paths_blaze
   autogen-modules:
       Paths_blaze

@@ -133,11 +133,18 @@ writeWhatWherePrim = Prim
 integerOverflowPrim :: Prim
 integerOverflowPrim = Prim
   { primType = integerOverflowSpec
-  , stmtPattern =
+  , stmtPattern =    
       [ AnyOne
         [ Location "increment store" . Primitive integerOverflowSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild )
           , ("increment_by", Bind "increment_by" Wild)
+          ]
+        , Ordered
+          [ Location "increment store"
+            . Stmt $ Store
+            (Bind "ptr" Wild)
+            (add (load (Bind "ptr" Wild) ())
+              (Bind "increment_by" Wild) ())
           ]
         , AvoidUntil $ AvoidSpec
           { avoid = Stmt . Constraint

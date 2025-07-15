@@ -4,10 +4,11 @@ module Blaze.Pil.Analysis.PathSpec where
 
 import Blaze.Prelude hiding (const, sym)
 
-import Blaze.Pil.Analysis.Path (expandVars)
+import Blaze.Pil.Analysis.Path (expandVars, aggressiveExpand)
 import Blaze.Pil.Construct
 import Blaze.Types.Pil (Stmt)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Util (readAsJSON)
 
 import Test.Hspec
 
@@ -88,3 +89,9 @@ spec = describe "Blaze.Pil.Analysis" $ do
           result = expandVars stmts
           expected = stmts
       result `shouldBe` expected
+
+  context "aggressiveExpand" $ do
+    stmts <- runIO $ readAsJSON "res/json/dive_logger_aggressive_expand_failure_path.json"
+    it ("should aggressive expand without looping forever (" <> show (length stmts) <> ")") $ do
+      let result = aggressiveExpand stmts
+      (length result < length stmts) `shouldBe` True
