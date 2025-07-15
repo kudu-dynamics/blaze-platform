@@ -245,6 +245,39 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = Match stmts
       pureMatchStmts' [] pats stmts `shouldBe` expected
 
+    it "should match a NotPattern" $ do
+      let stmts = [def "b" (load (var "arg4" 4) 4)]
+          pats = [Stmt $ Def (NotPattern $ Var "c") Wild]
+          expected = Match stmts
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should use NotPattern to fail to bind if two things are equal" $ do
+      let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
+          pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
+          expected = NoMatch
+      pureMatchStmts' [] pats stmts `shouldBe` expected
+
+    it "should use NotPattern to bind if two things are not equal" $ do
+      let stmts = [store (var "a" 8) (load (var "b" 8) 8)]
+          pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
+          expected = ( HashMap.fromList
+                       [ ("dest", var "a" 8)
+                       , ("src", var "b" 8)
+                       ]
+                         
+                     , Match stmts
+                     )
+      first (view #boundSyms) (pureMatchStmts [] pats stmts) `shouldBe` expected
+
+    it "should use NotPattern to avoid binding if two things are equal" $ do
+      let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
+          pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
+          expected = ( HashMap.fromList []                         
+                     , NoMatch
+                     )
+      first (view #boundSyms) (pureMatchStmts [] pats stmts) `shouldBe` expected
+
+
     it "should match a more complex expression that Contains a variable" $ do
       let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
