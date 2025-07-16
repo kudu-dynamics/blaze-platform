@@ -8,8 +8,8 @@ import qualified Flint.Types.CachedCalc as CC
 
 import qualified Blaze.Persist.Db as Db
 
-import Control.Monad.Logger (LogLevel(LevelDebug))
-import Options.Applicative
+import Options.Applicative hiding (info)
+import qualified Options.Applicative as OA
 import System.Directory (removeFile)
 import System.Posix.Signals (killProcess, raiseSignal)
 
@@ -49,7 +49,7 @@ optionsParser = Options
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  runLoggerT LevelDebug $ withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
+  withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
     store <- Store.init Nothing imp
     (Just cg) <- CC.get () $ store ^. #callGraphCache
     catch (removeFile $ opts ^. #outputFlintDbFilePath) $ \(_ :: SomeException) -> return ()
@@ -58,7 +58,7 @@ main = do
     putText $ "Wrote Flint db to: " <> show (opts ^. #outputFlintDbFilePath)
     raiseSignal killProcess
   where
-    optsParser = info (optionsParser <**> helper)
+    optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
         <> progDesc "Generates a Flint analysis db for a binary"
         <> header "gen_flint_db" )

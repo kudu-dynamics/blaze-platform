@@ -23,7 +23,6 @@ import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
-import Flint.Util (sequentialWarn, sequentialPutText)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
@@ -218,7 +217,7 @@ queryForBugMatch_ actuallySolve maxCallDepthLimit maxSamples store funcMapping r
       getCallSeqPreps store restrictToStartFuncs callSequenceGraph >>= \case
         [] -> do
           -- TODO: pick random functions for starts and use ExploreDeep strategy
-          putText "No functions found in BugMatch. See TODO."
+          warn "No functions found in BugMatch. See TODO."
           return ()
         (x:xs) -> do
           tryPrepsUntilExhausted HashSet.empty 0 $ x :| xs
@@ -600,11 +599,11 @@ queryForBugMatchUsingRoutes
   -> IO ()
 queryForBugMatchUsingRoutes actuallySolve imp store routeMakerCtx sampleRoutePrep allNodes mLimitStartFuncs maxSamplesPerRoute taints stubs routeSeq bugMatch = do
   let combos = matchNodesFulfillingSeq taints allNodes routeSeq
-  putText $ "Matching combos: " <> show (HashSet.size <$> combos)
+  debug $ "Matching combos: " <> show (HashSet.size <$> combos)
   let allRoutes = flattenRoutes
         $ getAllRoutesForAllSeqCombos routeMakerCtx mLimitStartFuncs combos
-  putText $ "Found " <> show (length allRoutes) <> " routes."
-  putText $ "Sampling " <> show maxSamplesPerRoute <> " per route."
+  info $ "Found " <> show (length allRoutes) <> " routes."
+  info $ "Sampling " <> show maxSamplesPerRoute <> " per route."
   routePaths <- flattenSampleRoutesResult
     <$> sampleRoutes imp store sampleRoutePrep maxSamplesPerRoute allRoutes
   matches <- traverse getMatch routePaths
@@ -713,7 +712,7 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
                 <> show (startFunc ^. #name)
                 <> "\n"
                 <> show e
-      sequentialWarn msg
+      warn msg
 
 checkKernelLifecycle
   :: Bool
@@ -919,7 +918,7 @@ checkFuncForPrims
   -> IO ()
 checkFuncForPrims actuallySolve store q prims streamResults func = flip catch reportError $ do
   paths <- samplesFromQuery store func q
-  -- putText $ "Got Some paths: " <> show (length paths)
+  debug $ "Got Some paths: " <> show (length paths)
   forConcurrently_ paths $ \path -> do
     let pathPrep = M.mkPathPrep [] path
         codeSum = Summary.fromStmts $ pathPrep ^. #stmts
@@ -928,7 +927,7 @@ checkFuncForPrims actuallySolve store q prims streamResults func = flip catch re
         Nothing -> return ()
         Just (Left cprimError) -> do
           -- TODO: make this log a warning properly
-          putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+          warn $ "Error constructing callable Primitive:\n" <> show cprimError
           return ()
         Just (Right cprim) -> do
           let matchingPrim = MatchingPrim
@@ -948,7 +947,7 @@ checkFuncForPrims actuallySolve store q prims streamResults func = flip catch re
                 <> show (func ^. #name)
                 <> "\n"
                 <> show e
-      sequentialWarn msg
+      warn msg
 
 checkFuncForPrims'
   :: Bool                   -- actually use SMT solver?
@@ -968,7 +967,7 @@ checkFuncForPrims' actuallySolve store q prims func = do
         Nothing -> return Nothing
         Just (Left cprimError) -> do
           -- TODO: make this log a warning properly
-          putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+          warn $ "Error constructing callable Primitive:\n" <> show cprimError
           return Nothing
         Just (Right cprim) -> do
           let matchingPrim = MatchingPrim
@@ -993,7 +992,7 @@ checkFuncsForPrims
   -> IO ()
 checkFuncsForPrims actuallySolve store q prims streamResults funcs = do
   mapConcurrently_ (checkFuncForPrims actuallySolve store q prims streamResults) . HashSet.toList $ funcs
-  --putText "Finished"
+  debug "Finished checkFuncsForPrims"
 
 -- | Convenient function to query multiple functions and check for callable primitives
 checkFuncsForPrims'
@@ -1007,8 +1006,8 @@ checkFuncsForPrims' actuallySolve store q prims funcs = do
   r <- mapConcurrently (checkFuncForPrims' actuallySolve store q prims)
     . HashSet.toList
     $ funcs
+  debug "Finished checkFuncsForPrims'"
   return $ concat r
-  --putText "Finished"
 
 -- | This is a flat sample that doesn't expand calls.
 -- The number of samples is based on the complexity of the func
@@ -1075,27 +1074,27 @@ onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
         && func ^. #name == debugFuncName
         && prim ^. #primType . #name == debugPrimName
   when debugMode $ do
-    putText $ prim ^. #primType . #name
+    debug $ prim ^. #primType . #name
     -- putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
     -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
-    putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+    debug . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
     -- pprint $ take 2 (pprep ^. #untouchedStmts)
 
   when debugMode $ do
     checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
-      Nothing -> putText "|| NO MATCH ||"
-      Just (Left _) -> putText "|| err ||"
-      Just (Right _) -> putText "|| MATCH!!! ||"
+      Nothing -> debug "|| NO MATCH ||"
+      Just (Left _) -> debug "|| err ||"
+      Just (Right _) -> debug "|| MATCH!!! ||"
   matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
     Nothing -> do
       when debugMode $ do
-        putText "Found nothing"
+        debug "Found nothing"
     Just (Left cprimError) -> do
       -- TODO: make this log a warning properly
-      putText $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+      warn $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
     Just (Right cprim) -> do
       when debugMode $ do
-        putText "MATCH!"
+        debug "MATCH!"
       CM.modify_ (HashSet.insert cprim) (prim ^. #primType, cprim ^. #func) $ store ^. #callablePrims
 
 -- | Gets cached paths for function, and checks them for each prim.
@@ -1143,13 +1142,13 @@ onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
-    -- putText $ "Getting paths for: " <> show (func ^. #name)
+    debug $ "Getting paths for: " <> show (func ^. #name)
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
-    -- putText $ "Got " <> show (length paths) <> " paths."
+    debug $ "Got " <> show (length paths) <> " paths."
     let pathPreps = M.mkPathPrep [] <$> paths
 
     CM.set func pathPreps $ store ^. #pathSamples
-  -- putText $ "Finished sampling paths"
+  debug "Finished sampling paths"
   let initialPrims = getInitialWMIs stdLibPrims allFuncs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
   replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs

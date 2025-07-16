@@ -351,7 +351,7 @@ getPilCfg pcodeCfgGetter imp func ctxId = do
     Just pcodeCfg -> do
       (varMapping, errs, pilCfg) <- convertToPilCfg imp ctx pcodeCfg
       unless (null errs) $ do
-        putText $ "Warning: getPilCfg encountered errors for function: " <> show func
+        warn $ "getPilCfg encountered errors for function: " <> show func
         traverse_ pprint errs
       splitPilCfg <- splitCallsInCfg ctx pilCfg
       return . Just $ ImportResult ctx (PilPcodeMap varMapping) splitPilCfg

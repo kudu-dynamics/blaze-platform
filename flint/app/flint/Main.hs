@@ -12,14 +12,12 @@ import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
-import Flint.Util (sequentialPutText)
 import qualified Flint.Types.CachedMap as CM
 
 import Blaze.Import.Binary (getBase)
 import Blaze.Pretty (pretty')
 -- import qualified Blaze.Types.Function as Func
 
-import Control.Monad.Logger (LogLevel(LevelInfo))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -27,7 +25,10 @@ import qualified Data.Text.IO as TextIO
 import Data.Aeson (ToJSON(toJSON))
 import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Options.Applicative
+import Options.Applicative hiding (info)
+import qualified Options.Applicative as OA
+
+data VerbosityLevel = Info | Warn | Debug deriving (Eq, Ord, Read, Show, Generic)
 
 -- Flint: the onion version
 
@@ -38,7 +39,7 @@ data Options = Options
   , onionDepth :: Word64
   , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
-  , logLevel :: LogLevel
+  , verbosity :: VerbosityLevel
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -62,11 +63,11 @@ parseOutputToFile = strOption $
   <> metavar "OUTPUT_TO_FILE"
   <> help "Output results to file"
 
-parseLogLevel :: Parser LogLevel
-parseLogLevel = option auto $
-  long "logLevel"
-  <> metavar "LOGLEVEL"
-  <> help "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"
+parseVerbosity :: Parser VerbosityLevel
+parseVerbosity = option auto $
+  long "verbosity"
+  <> metavar "VERBOSITY"
+  <> help "verbosity (Info | Warn | Debug)"
 
 parseAnalysisDb :: Parser FilePath
 parseAnalysisDb = strOption $
@@ -103,15 +104,19 @@ optionsParser = Options
   <*> (parseOnionDepth <|> pure 3)
   <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
-  <*> (parseLogLevel <|> pure LevelInfo)
+  <*> (parseVerbosity <|> pure Info)
   <*> parseInputFile
 
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  runLoggerT (opts ^. #logLevel) $ onionCheck opts
+  setVerbosity $ case opts ^. #verbosity of
+    Info -> VInfo
+    Warn -> VWarn
+    Debug -> VDebug
+  onionCheck opts
   where
-    optsParser = info (optionsParser <**> helper)
+    optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
      <> progDesc "Static path-based analysis to find bugs."
      <> header "Flint" )
@@ -199,7 +204,7 @@ toFlintResult baseOffset
   . HashMap.toList
 
 -- | Checks for bugs using the onion
-onionCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
+onionCheck :: MonadIO m => Options -> m ()
 onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   base <- getBase imp
