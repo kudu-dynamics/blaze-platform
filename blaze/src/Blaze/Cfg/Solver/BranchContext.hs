@@ -297,7 +297,7 @@ unsatBranches ddg cfg = do
 
       case er of
         Left sr -> do
-          putText $ "General constraints are not sat: " <> show sr
+          warn $ "General constraints are not sat: " <> show sr
           return []
         Right xs -> return xs
  where

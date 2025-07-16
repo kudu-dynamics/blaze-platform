@@ -10,16 +10,15 @@ import Blaze.Cfg (nodeContainsAddress)
 import Blaze.Pretty (pretty', prettyPrint')
 import Blaze.Types.Cfg (PilNode)
 
-import Control.Monad.Logger (LogLevel(LevelInfo))
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
 import Numeric (readHex)
-import Options.Applicative
+import Options.Applicative hiding (info)
+import qualified Options.Applicative as OA
 
 
 data Options = Options
   { backend :: Maybe Backend
-  , logLevel :: LogLevel
   , maxCallDepth :: Maybe Word64
   , inputFile :: FilePath
   , startAddress :: Address
@@ -35,12 +34,6 @@ parseBackend = option auto $
   long "backend"
   <> metavar "BACKEND"
   <> help "preferred backend (BinaryNinja or Ghidra)"
-
-parseLogLevel :: Parser LogLevel
-parseLogLevel = option auto $
-  long "logLevel"
-  <> metavar "LOGLEVEL"
-  <> help "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"
 
 parseMaxCallDepth :: Parser Word64
 parseMaxCallDepth = option auto $
@@ -75,7 +68,6 @@ parseWaypoints = NE.fromList <$> some (argument hexReader $ metavar "WAYPOINTS")
 optionsParser :: Parser Options
 optionsParser = Options
   <$> optional parseBackend
-  <*> (parseLogLevel <|> pure LevelInfo)
   <*> optional parseMaxCallDepth
   <*> parseInputFile
   <*> parseStartAddress
@@ -84,9 +76,9 @@ optionsParser = Options
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  runLoggerT (opts ^. #logLevel) $ findRoutes opts
+  findRoutes opts
   where
-    optsParser = info (optionsParser <**> helper)
+    optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
         <> progDesc "Finds high level routes in a binary that hit waypoints"
         <> header "Routes" )
@@ -110,8 +102,7 @@ getNodeSequenceContainingAddrs
   -> Either GetNodesContainingAddrError [HashSet PilNode]
 getNodeSequenceContainingAddrs allNodes = traverse $ getNodesContainingAddr allNodes
 
--- | Checks for bugs by blindly sampling paths from every function
-findRoutes :: (MonadIO m, MonadLogger m) => Options -> m ()
+findRoutes :: MonadIO m => Options -> m ()
 findRoutes opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init Nothing imp
   (ctx, _innerNodes, allNodes) <-

@@ -8,7 +8,8 @@ import Flint.Types.Symbol
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Options.Applicative
+import Options.Applicative hiding (info)
+import qualified Options.Applicative as OA
 import Toml (TomlCodec, (.=))
 import qualified Toml
 
@@ -118,7 +119,7 @@ main = do
       TextIO.writeFile outputModule $ showPrimSpecModule prims
   return ()
   where
-    optsParser = info (optionsParser <**> helper)
+    optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
         <> progDesc "Creates the PrimSpec.hs Haskell module from a primspec.yaml file"
         <> header "gen_primspecn" )

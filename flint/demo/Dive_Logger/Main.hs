@@ -18,7 +18,6 @@ import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Query
 import Flint.Query
-import Flint.Util (sequentialPutText)
 
 import qualified Blaze.Cfg.Path as Path
 import qualified Blaze.Graph as G

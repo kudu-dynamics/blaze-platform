@@ -52,7 +52,6 @@ dependencies:
   - lens
   - list-t
   - megaparsec
-  - monad-logger
   - mtl
   - newtype
   - parser-combinators

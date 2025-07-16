@@ -106,7 +106,6 @@ library
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , parser-combinators
@@ -186,7 +185,6 @@ executable binaryToGhidra
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , optparse-applicative
@@ -267,7 +265,6 @@ executable divelogger
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , parser-combinators
@@ -347,7 +344,6 @@ executable flint
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , optparse-applicative
@@ -428,7 +424,6 @@ executable flint_classic
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , optparse-applicative
@@ -509,7 +504,6 @@ executable gen_flint_db
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , optparse-applicative
@@ -590,7 +584,6 @@ executable gen_primspec
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , optparse-applicative
@@ -672,7 +665,6 @@ executable kernel
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , parser-combinators
@@ -752,7 +744,6 @@ executable routes
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , optparse-applicative
@@ -846,7 +837,6 @@ test-suite flint-general-test
     , lens
     , list-t
     , megaparsec
-    , monad-logger
     , mtl
     , newtype
     , parser-combinators

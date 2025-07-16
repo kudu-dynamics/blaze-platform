@@ -526,7 +526,7 @@ bitsToOperationSize :: forall a. Bits -> Pil.Size a
 bitsToOperationSize = Pil.Size . (`div` 8) . fromIntegral
 
 dstToExpr :: DSTExpression -> Expression
-dstToExpr (Ch.InfoExpression (info, _) op) = Pil.Expression (bitsToOperationSize $ info ^. #size) $ dstToExpr <$> op
+dstToExpr (Ch.InfoExpression (info', _) op) = Pil.Expression (bitsToOperationSize $ info' ^. #size) $ dstToExpr <$> op
 
 catchAndWarnStmtDef :: a -> Solver a -> Solver a
 catchAndWarnStmtDef def m = catchError m $ \e -> do
