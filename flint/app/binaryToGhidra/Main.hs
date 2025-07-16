@@ -6,7 +6,8 @@ import qualified Blaze.Import.Binary as BinImp
 import Blaze.Import.Binary (openBinary, shutdown)
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 
-import Options.Applicative
+import Options.Applicative hiding (info)
+import qualified Options.Applicative as OA
 
 
 data Options = Options
@@ -49,7 +50,7 @@ main = do
         Right fp -> putText $ "Saved to: " <> show fp
       shutdown @GhidraImporter
   where
-    optsParser = info (optionsParser <**> helper)
+    optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
         <> progDesc "Converts a binary to a Ghidra gzf project file."
         <> header "binaryToGhidra" )
