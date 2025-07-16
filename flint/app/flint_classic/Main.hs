@@ -9,21 +9,22 @@ import qualified Flint.Analysis.Path.Matcher.Patterns as Pat
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
-import Flint.Util (sequentialPutText)
 
 import Blaze.Function (Function)
 import Blaze.Pretty (pretty')
 
-import Control.Monad.Logger (LogLevel(LevelInfo))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 import Data.Aeson (ToJSON(toJSON))
 import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Options.Applicative
+import Options.Applicative hiding (info)
+import qualified Options.Applicative as OA
 import System.IO (hSetBuffering, BufferMode(..))
 
+
+data VerbosityLevel = Info | Warn | Debug deriving (Eq, Ord, Read, Show, Generic)
 
 data Options = Options
   { backend :: Maybe Backend
@@ -33,7 +34,7 @@ data Options = Options
   , expandCallDepth :: Word64
   , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
-  , logLevel :: LogLevel
+  , verbosity :: VerbosityLevel
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -50,11 +51,11 @@ parseBackend = option auto $
          <> "Ghidra)"
      )
 
-parseLogLevel :: Parser LogLevel
-parseLogLevel = option auto $
-  long "logLevel"
-  <> metavar "LOGLEVEL"
-  <> help "log level (LevelDebug | LevelInfo | LevelWarn | LevelError)"
+parseVerbosity :: Parser VerbosityLevel
+parseVerbosity = option auto $
+  long "verbosity"
+  <> metavar "VERBOSITY"
+  <> help "verbosity (Info | Warn | Debug)"
 
 parseAnalysisDb :: Parser FilePath
 parseAnalysisDb = strOption $
@@ -103,16 +104,20 @@ optionsParser = Options
   <*> (parseExpandCallDepth <|> pure 0)
   <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
-  <*> (parseLogLevel <|> pure LevelInfo)
+  <*> (parseVerbosity <|> pure Info)
   <*> parseInputFile
 
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   opts <- execParser optsParser
-  runLoggerT (opts ^. #logLevel) $ primCheck opts
+  setVerbosity $ case opts ^. #verbosity of
+    Info -> VInfo
+    Warn -> VWarn
+    Debug -> VDebug
+  primCheck opts
   where
-    optsParser = info (optionsParser <**> helper)
+    optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
      <> progDesc "Static path-based analysis to find bugs."
      <> header "Flint" )
@@ -172,7 +177,7 @@ printMatchingPrimJSON res = do
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
 -- | Checks for bugs by blindly sampling paths from every function
-defaultCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
+defaultCheck :: MonadIO m => Options -> m ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   funcs <- Store.getInternalFuncs store
@@ -198,7 +203,7 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
   checkFuncs (not $ opts ^. #doNotUseSolver) store q bms output . HashSet.fromList $ funcs
 
 -- | Checks for bugs by blindly sampling paths from every function
-primCheck :: (MonadIO m, MonadLogger m) => Options -> m ()
+primCheck :: MonadIO m => Options -> m ()
 primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   funcs <- Store.getInternalFuncs store

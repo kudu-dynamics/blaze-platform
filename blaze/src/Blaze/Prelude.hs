@@ -29,7 +29,13 @@ module Blaze.Prelude
   , unsafeFromRight
   , ByteBased(toBytes_, fromBytes_)
   , fromByteBased
+  , Verbosity(..)
+  , getVerbosity
+  , setVerbosity
+  , debug
   , warn
+  , info
+  , sequentialPutText
   ) where
 
 import qualified Prelude as P
@@ -39,6 +45,7 @@ import Data.Type.Equality as Exports (type (~))
 import Control.Concurrent.Async as Exports (mapConcurrently)
 import Control.Concurrent.STM.TVar as Exports (TVar)
 import Control.Concurrent.STM.TMVar as Exports (TMVar)
+import Control.Concurrent.STM.TChan (TChan, newTChanIO, writeTChan, readTChan)
 import Control.Lens as Exports
   ( (%=),
     (%~),
@@ -98,6 +105,7 @@ import Data.Generics.Product.Fields as Exports (HasField(field), HasField'(field
 import Data.Generics.Sum as Exports (_Ctor)
 import Data.HashMap.Strict as Exports (HashMap)
 import Data.HashSet as Exports (HashSet)
+import Data.IORef
 import Data.List.NonEmpty as Exports ((<|))
 import Data.Maybe as Exports (fromJust)
 import Data.SBV.Internals (SBV (SBV, unSBV), SVal)
@@ -261,5 +269,51 @@ instance ByteBased Bytes
 instance ByteBased ByteOffset
 instance ByteBased Address
 
-warn :: Text -> IO ()
-warn = hPutStrLn stderr
+data Verbosity
+  = VInfo   -- | only show normal stuff and errors
+  | VWarn  -- | show warnings + normal
+  | VDebug    -- | show all
+  deriving (Eq, Ord, Read, Show, Generic)
+
+{-# NOINLINE verbosity #-}
+verbosity :: IORef Verbosity
+verbosity = unsafePerformIO $ newIORef VInfo
+
+setVerbosity :: Verbosity -> IO ()
+setVerbosity = writeIORef verbosity
+
+getVerbosity :: IO Verbosity
+getVerbosity = readIORef verbosity
+
+log_ :: MonadIO m => Verbosity -> Text -> m ()
+log_ necessaryLevel t = liftIO $ do
+  currentLevel <- readIORef verbosity
+  bool (return ()) (sequentialPutTextTo stderr t)
+    $ currentLevel >= necessaryLevel
+
+debug :: MonadIO m => Text -> m ()
+debug = log_ VDebug . (<> "[DEBUG] ")
+
+warn :: MonadIO m => Text -> m ()
+warn = log_ VWarn . (<> "[WARNING] ")
+
+info :: MonadIO m => Text -> m ()
+info = log_ VInfo . (<> "[INFO] ")
+
+
+-- | Prints out text to a handle in a single thread to ensure messages aren't jumbled.
+-- This is good for printing within concurrent tasks.
+{-# NOINLINE sequentialPutTextTo #-}
+sequentialPutTextTo :: Handle -> Text -> IO ()
+sequentialPutTextTo = unsafePerformIO $ do
+  tchan <- newTChanIO :: IO (TChan (Handle, Text))
+  void . forkOS $ do
+    forever $ atomically (readTChan tchan) >>= uncurry hPutStrLn
+  return $ runnerFunc tchan
+  where
+    runnerFunc :: TChan (Handle, Text) -> Handle -> Text -> IO ()
+    runnerFunc tchan h t = atomically $ writeTChan tchan (h, t)
+
+sequentialPutText :: Text -> IO ()
+sequentialPutText = sequentialPutTextTo stdout
+

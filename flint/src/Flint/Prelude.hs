@@ -7,13 +7,10 @@ module Flint.Prelude
   , mapMaybeHashSet
   , removeNth
   , tryError
-  , runLoggerT
   ) where
 
 import Blaze.Prelude as Exports hiding (Symbol)
 
-import Control.Monad.Logger.CallStack as Exports (logDebug, logInfo, logWarn, logOther, MonadLogger, runStdoutLoggingT)
-import qualified Control.Monad.Logger.CallStack as Logger
 import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrently, forConcurrently_, mapConcurrently_)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -62,9 +59,3 @@ catHashMapMaybes = HashMap.fromList . mapMaybe f . HashMap.toList
 
 mapMaybeHashSet :: Hashable b => (a -> Maybe b) -> HashSet a -> HashSet b
 mapMaybeHashSet f = HashSet.fromList . mapMaybe f . HashSet.toList
-
-runLoggerT :: MonadIO m => Logger.LogLevel -> Logger.LoggingT m a -> m a 
-runLoggerT lvl m = runStdoutLoggingT $ Logger.filterLogger (const (== lvl)) m
-
-data Foo = Bar Int | Baz Int Int | Jackson deriving (Show, Generic)
-
