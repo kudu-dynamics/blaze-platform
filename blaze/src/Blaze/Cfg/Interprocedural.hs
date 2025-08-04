@@ -18,7 +18,7 @@ import Blaze.Types.Pil (
   DefOp (DefOp),
   DefPhiOp (DefPhiOp),
   Expression,
-  PilVar (PilVar),
+  PilVar,
   Statement (Def, DefPhi),
   Stmt,
   Symbol,
@@ -26,6 +26,7 @@ import Blaze.Types.Pil (
  )
 import qualified Data.HashSet as HashSet
 import qualified Blaze.Graph as G
+import qualified Blaze.Pil.Construct as C
 
 
 getCallTargetFunction :: CallDest a -> Maybe Function
@@ -51,8 +52,8 @@ mkEnterFuncNode uuid' outerCtx calleeCtx callStmt =
     callStmtAddr = callStmt ^. #stmt . #addr
     mkParamVar :: (FuncParamInfo, Expression) -> (PilVar, Expression)
     mkParamVar (pinfo, x) =
-      ( PilVar (fromByteBased $ x ^. #size) (Just calleeCtx) (getParamSym pinfo) False Pil.UnknownLocation
-      , x )
+      ( C.pilVar_ (fromByteBased $ x ^. #size) (Just calleeCtx) (getParamSym pinfo)
+      , x)
     paramVarsWithExpressions :: [(PilVar, Expression)]
     paramVarsWithExpressions = mkParamVar
       <$> zip (calleeCtx ^. #func . #params) (callStmt ^. #args)
@@ -87,7 +88,7 @@ mkLeaveFuncNode uuid' outerCtx calleeCtx callStmt retExprs =
 
 generateVars :: Ctx -> Text -> Int -> [Expression] -> [(PilVar, Expression)]
 generateVars ctx baseName id (expr : rest)
-  = (PilVar (fromByteBased $ expr ^. #size) (Just ctx) (baseName <> show id) False Pil.UnknownLocation , expr)
+  = (C.pilVar_ (fromByteBased $ expr ^. #size) (Just ctx) (baseName <> show id), expr)
   : generateVars ctx baseName (id + 1) rest
 generateVars _ _ _ [] = []
 

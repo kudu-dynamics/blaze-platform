@@ -3,12 +3,15 @@ module Blaze.Pil.Construct where
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Function (Function(Function))
+import Data.Text as T hiding (index)
+import Data.Text.Read (decimal)
 import Blaze.Types.Pil
   ( AddressableStatement(Stmt),
     ExprOp,
     Expression (Expression),
     Size,
     PilVar (PilVar),
+    SSAVersion,
     Statement,
     Symbol,
   )
@@ -32,20 +35,23 @@ instance GetExprSize (Size Expression) where
 getPilVarSize :: GetExprSize a => a -> Size PilVar
 getPilVarSize = fromByteBased . getExprSize
 
-pilVar__ :: Size PilVar -> Maybe Pil.Ctx -> Symbol -> Bool -> Pil.VarLocation -> PilVar
-pilVar__ size ctx symbol aParam location = PilVar
+pilVar__ :: Size PilVar -> Maybe Pil.Ctx -> Maybe SSAVersion -> Symbol -> Bool -> Pil.VarLocation -> PilVar
+pilVar__ size ctx version symbol aParam location = PilVar
   { size = size
   , ctx = ctx
+  , version = version
   , symbol = symbol
   , isParam = aParam
   , location = location
   }
 
 pilVar_ :: Size PilVar -> Maybe Pil.Ctx -> Symbol -> PilVar
-pilVar_ size ctx symbol = PilVar size ctx symbol False Pil.UnknownLocation
+pilVar_ size ctx symbol = 
+  let (sym, ver) = parseVer symbol
+  in PilVar size ctx ver sym False Pil.UnknownLocation
 
 pilVar' :: Size PilVar -> Pil.Ctx -> Symbol -> PilVar
-pilVar' sz = pilVar_ sz . Just
+pilVar' sz ctx = pilVar_ sz (Just ctx)
 
 pilVar :: Size PilVar -> Symbol -> PilVar
 pilVar sz = pilVar_ sz Nothing
@@ -188,12 +194,13 @@ load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
 
 varField
   :: (ExprConstructor attrs expr, GetExprSize attrs)
-  => Pil.Symbol
+  => Maybe SSAVersion
+  -> Pil.Symbol
   -> ByteOffset
   -> attrs
   -> expr
-varField sym offset attrs =
-  mkExpr attrs (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar (getPilVarSize attrs) sym) offset)
+varField version sym offset attrs =
+  mkExpr attrs (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar__ (getPilVarSize attrs) Nothing version sym False Pil.UnknownLocation) offset)
 
 fieldAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
 fieldAddr base offset size =
@@ -212,7 +219,7 @@ mkStmt_ :: Statement expr -> AddressableStatement expr
 mkStmt_ = Stmt 0
 
 def :: GetExprSize expr => Symbol -> expr -> AddressableStatement expr
-def sym expr = def' (pilVar_ (getPilVarSize expr) Nothing sym) expr
+def sym expr = def' (pilVar (getPilVarSize expr) sym) expr
 
 -- | Constructs a 'Pil.Def' that assigns 'val' to 'pv'
 def' :: PilVar -> expr -> AddressableStatement expr
@@ -245,7 +252,7 @@ defCall
   -> [expr]
   -> attrs
   -> AddressableStatement expr
-defCall sym cdest args attrs = defCall' (pilVar (getPilVarSize attrs) sym) cdest args attrs
+defCall sym cdest args attrs = defCall' (pilVar_ (getPilVarSize attrs) Nothing sym) cdest args attrs
 
 defPhi :: Size PilVar -> Symbol -> [Symbol] -> AddressableStatement expr
 defPhi sz sym = mkStmt_ . Pil.DefPhi . Pil.DefPhiOp (pilVar sz sym) . fmap (pilVar sz)
@@ -282,3 +289,19 @@ callStmt dest args = mkStmt_ . Pil.Call $ Pil.CallOp dest mname args
     mname = case dest of
       Pil.CallFunc (Function _ nm _ _) -> Just nm
       _ -> Nothing
+
+{- ex: var#3 --> (var, Just 3) -}
+parseVer :: Symbol -> (Symbol, Maybe SSAVersion)
+parseVer symWithVer =
+  let (sym, ver) = T.break (== '#') symWithVer
+      ver' = if T.null ver then Nothing else (Just . parseSymToInt . T.drop 1) ver
+  in  (sym, ver')
+  where
+    parseSymToInt :: Symbol -> Int
+    parseSymToInt symbol =
+      case decimal symbol of
+        Left  _         -> error errorMsgLeft
+        Right (int, _) -> int
+        --Right (int, str) -> if T.null str then int else error errorMsgRight
+    errorMsgLeft = "incorrect usage: <var_name> or <var_name>#<ver_num>"
+    --errorMsgRight = "incorrect usage: ver_num in <var_name>#<ver_num> must only contain numbers"
