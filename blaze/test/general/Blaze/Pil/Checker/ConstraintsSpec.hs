@@ -72,7 +72,7 @@ constrainExpr nextSymNum cxTuples pilvarTuples expr =
       )
 
 pv :: Text -> Bool -> Pil.VarLocation -> PilVar
-pv = Pil.PilVar defaultSize Nothing
+pv = Pil.PilVar defaultSize Nothing Nothing
 
 spec :: Spec
 spec = describe "Blaze.Pil.Checker.Constraints" $ do

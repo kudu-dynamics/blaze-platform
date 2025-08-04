@@ -440,7 +440,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
               mkDefLoadStmt_ 4 (def "z" (load (var "a" 8) 8))
             ]
       let group = A.MemEquivGroup Nothing (mkMemStorage (var "a" 8) 64) loads []
-      let stmts = resolveMemGroup group "xyz" (DSeq.fromList testMemEquivStmts)
+      let stmts = resolveMemGroup group Nothing "xyz" (DSeq.fromList testMemEquivStmts)
       stmts
         `shouldBe` DSeq.fromList
           [ def "x" (var "xyz" 8),
@@ -472,7 +472,7 @@ spec = describe "Blaze.Pil.Analysis" $ do
               loads
               []
 
-      let stmts = resolveMemGroup group "yyzz" (DSeq.fromList testMemEquivStmts)
+      let stmts = resolveMemGroup group Nothing "yyzz" (DSeq.fromList testMemEquivStmts)
       stmts
         `shouldBe` DSeq.fromList
           [ def "x" (load (var "a" 8) 8),

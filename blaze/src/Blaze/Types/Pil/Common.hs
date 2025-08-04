@@ -42,6 +42,8 @@ data VarLocation
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
+type SSAVersion = Int
+
 -- Maybe is used to wrap _func and _ctxId since
 -- contextual information may not be available or desirable
 -- when introducing "synthetic" variables. (I.e., variables
@@ -56,6 +58,7 @@ data PilVar = PilVar
     --       Related to this is having Blaze.Pil.Construct functions
     --       play nice with context management.
   , ctx :: Maybe Ctx
+  , version :: Maybe SSAVersion
   , symbol :: Symbol
   , isParam :: Bool
   , location :: VarLocation
