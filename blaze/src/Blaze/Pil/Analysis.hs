@@ -21,6 +21,7 @@ import Blaze.Types.Pil
     ExprOp,
     Size,
     PilVar,
+    SSAVersion,
     Statement (Def),
     Stmt,
     Symbol,
@@ -517,7 +518,7 @@ loadExprToLoadStmt :: Index -> Stmt -> LoadExpr -> Maybe LoadStmt
 loadExprToLoadStmt idx s x = case x ^. #expr . #op of
   Pil.LOAD (Pil.LoadOp src') -> Just $ LoadStmt s x mem idx
     where
-      mem = MemStorage src' . fromIntegral . (* 8) $ x ^. #expr . #size
+      mem = MemStorage src' . fromIntegral . (* 8) $ (x ^. #expr . #size :: Size Expression)
   _ -> Nothing
 
 -- | A statement that is not a DefLoad statement, but has nested loads.
@@ -621,22 +622,25 @@ allMemEquivGroupLoads g =
 --  the possible Store statement has been replaced with a Def and all Loads
 --  now refer to a new PilVar. If the MemEquivGroup does not include a Store,
 --  no Def will be emitted but the Loads will still refer to a common, new PilVar
-resolveMemGroup :: MemEquivGroup -> Symbol -> Seq Stmt -> Seq Stmt
-resolveMemGroup group name xs =
+resolveMemGroup :: MemEquivGroup -> Maybe SSAVersion -> Symbol -> Seq Stmt -> Seq Stmt
+resolveMemGroup group version name xs =
   case group ^. #store of
     Nothing ->
       mapWithIndex (updateStmt loadIdxs) xs
     Just storeStmt ->
       mapWithIndex (updateStmt loadIdxs) xs'
       where
-        xs' = replaceStore storeStmt name xs
+        xs' = replaceStore storeStmt version name xs
   where
     allLoads :: [LoadStmt]
     allLoads = allMemEquivGroupLoads group
     loadIdxs :: HashSet Index
     loadIdxs = HSet.fromList . fmap (^. #index) $ allLoads
+    attr = Pil.widthToSize (group ^. (#storage . #width))
+    sz = C.getPilVarSize attr
     varExpr :: Expression
-    varExpr = C.var name $ Pil.widthToSize (group ^. (#storage . #width))
+    varExpr = C.var' (C.pilVar__ sz Nothing version name False Pil.UnknownLocation) attr 
+    --varExpr = C.var' (pilVar_ version name $ Pil.widthToSize (group ^. (#storage . #width))
     loadExprMap :: HashMap Expression Expression
     loadExprMap =
       HMap.fromList $
@@ -653,15 +657,18 @@ resolveMemGroups groups stmts = toList result
   where
     stmts' :: Seq Stmt
     stmts' = DSeq.fromList stmts
+
     names :: [Symbol]
     names = symbolGenerator $ getAllSyms stmts
+
     result :: Seq Stmt
     result = foldr f stmts' (zip groups names)
-    f :: (MemEquivGroup, Symbol) -> Seq Stmt -> Seq Stmt
-    f (group, symbol) = resolveMemGroup group symbol
 
-replaceStore :: StoreStmt -> Symbol -> Seq Stmt -> Seq Stmt
-replaceStore store symbol = update storeIdx $ store ^. #stmt & #statement .~ varDef
+    f :: (MemEquivGroup, Symbol) -> Seq Stmt -> Seq Stmt
+    f (group, symbol) = resolveMemGroup group Nothing symbol
+
+replaceStore :: StoreStmt -> Maybe SSAVersion -> Symbol -> Seq Stmt -> Seq Stmt
+replaceStore store version symbol = update storeIdx $ store ^. #stmt & #statement .~ varDef
   where
     storeIdx = store ^. #index
     storedVal = store ^. (#op . #value)
@@ -669,7 +676,7 @@ replaceStore store symbol = update storeIdx $ store ^. #stmt & #statement .~ var
     varDef =
       Pil.Def
         (Pil.DefOp
-           { var = Pil.PilVar (fromByteBased $ storedVal ^. #size) ctx symbol False Pil.UnknownLocation
+           { var = Pil.PilVar (fromByteBased $ storedVal ^. #size) ctx version symbol False Pil.UnknownLocation
            , value = storedVal
            })
 

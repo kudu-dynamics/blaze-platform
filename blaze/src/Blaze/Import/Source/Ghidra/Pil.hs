@@ -285,7 +285,7 @@ callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
         Just (Func.External externFunc) ->
           return $ Pil.CallExtern externFunc 
 
-internVarnode :: SSAType -> Maybe Int64 -> Converter (Maybe Int)
+internVarnode :: SSAType -> Maybe Int64 -> Converter (Maybe Pil.SSAVersion)
 internVarnode _ Nothing = pure Nothing
 internVarnode s (Just pcAddress) = do
   subMap <-
@@ -314,7 +314,7 @@ varNodeToReference :: IsVariable a => a -> ExceptT ConverterError Converter (Eit
 varNodeToReference v = do
   ctx' <- use #ctx
   paramNames <- use #paramNames
-  let pv = C.pilVar__ (fromByteBased size) $ Just ctx'
+  let pv = C.pilVar__ (fromByteBased size) (Just ctx')
       size :: Bytes = getSize v
   case getVarNodeType v of
     VReg{offset, pcAddress} -> do
@@ -322,51 +322,24 @@ varNodeToReference v = do
       reg <- liftIO . runGhidraOrError $ getRegister prg offset (fromIntegral size)
       version <- lift $ internVarnode (SSAReg offset) pcAddress
       let regName = getRegisterName offset size reg
-      let name = case specialName of
-            Nothing -> maybe regName (\ver -> regName <> "#" <> show ver) version
-            Just name' -> case HashSet.member name' paramNames of
-              True -> name'
-              False -> case version of
-                Nothing -> name'
-                Just ver -> name' <> "#" <> show ver
-
-          -- case version of
-          --     Nothing -> name'
-          --     Just 1 -> name' -- ignore version in name (for sake of params)
-          --     Just ver -> name' <> "#" <> show ver
-      -- let name = fromMaybe (getRegisterName offset size reg) specialName
-      -- version <- lift $ internVarnode (SSAReg offset) pcAddress
-      pure . Left . pv name (HashSet.member name paramNames) $ Pil.Register regName
+      let name = fromMaybe regName specialName
+      pure . Left . pv version name (HashSet.member name paramNames) $ Pil.Register regName
     VStack{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAStack offset) pcAddress
       let stackName = stackVarName offset
-      let name = case specialName of
-            Nothing -> maybe stackName (\ver -> stackName <> "#" <> show ver) version
-            Just name' -> case HashSet.member name' paramNames of
-              True -> name'
-              False -> case version of
-                Nothing -> name'
-                Just ver -> name' <> "#" <> show ver
-              -- case version of
-              -- Nothing -> name'
-              -- Just 1 -> name' -- ignore version in name (for sake of params)
-              -- Just ver -> name' <> "#" <> show ver              
-      pure . Left . pv name (HashSet.member name paramNames) $ Pil.StackMemory offset
+      let name = fromMaybe stackName specialName
+      pure . Left . pv version name (HashSet.member name paramNames) $ Pil.StackMemory offset
     VUnique{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
       let baseName = fromMaybe ("unique_" <> showHex offset) specialName
-          name = maybe
-                 baseName
-                 (\ver -> baseName <> "#" <> show ver)
-                 version
-      pure . Left . pv name False $ Pil.Code offset
+      pure . Left . pv version baseName False $ Pil.Code offset
     VRam n ptrSize -> pure . Right $ C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrSize)
     VExtern n ptrSize -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrSize)
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
       | t == "VARIABLE" -> do
           let name = fromMaybe ("ghidravar_" <> showHex off) specialName
-          pure . Left . pv name False $ Pil.Code off
+          pure . Left . pv Nothing name False $ Pil.Code off
       | otherwise -> throwError $ UnsupportedAddressSpace t
   where
     specialName = getSpecialName v

@@ -144,8 +144,6 @@ runAnalysis_ = flip evalState s . _runAnalysis
   where
     s = emptyAnalysisState
 
-
-
 -- TODO: Make this better.
 -- | Generate variable names.
 symbolGenerator :: HashSet Symbol -> [Symbol]
