@@ -163,10 +163,9 @@ data CallSite = CallSite
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 getSymbol :: Int -> Variable -> Symbol
-getSymbol version var =
+getSymbol var =
   var ^. BNVar.name
     -- TODO: Permanently remove the encoding of storage information in symbol
     --       once PilVar's gain a storage field to help determine uniqueness.
     <> ":" <> show (fromEnum (var ^. BNVar.sourceType))
     <> "_" <> show (toInteger (var ^. BNVar.storage))
-    <> "#" <> show version

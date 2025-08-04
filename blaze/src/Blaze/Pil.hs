@@ -3,6 +3,7 @@ module Blaze.Pil
   , module Blaze.Types.Pil
   ) where
 
+import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Analysis (getAllSyms)
 import Blaze.Types.Pil.Analysis (symbolGenerator)
 import Blaze.Prelude hiding
@@ -60,7 +61,7 @@ genCallOutputStores paramInfos params =
           argExpr
           (Expression (argExpr ^. #size) (VAR (VarOp pv)))
       where
-        pv = PilVar (fromByteBased $ argExpr ^. #size) Nothing freeVarSym False UnknownLocation
+        pv = C.pilVar_ (fromByteBased $ argExpr ^. #size) Nothing freeVarSym
     -- TODO: Need to actually find the used defined vars and exclude them
     exprSyms :: [Symbol]
     exprSyms = symbolGenerator (getAllSyms [])

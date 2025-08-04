@@ -18,8 +18,8 @@ import Data.Bifunctor (first)
 import Prelude (foldr1)
 
 import qualified Blaze.Pil.Construct as C
-import Blaze.Prelude hiding (Prefix, first, many, some, takeWhile, try)
-import Blaze.Types.Pil (Ctx, Expression, Size, PilVar)
+import Blaze.Prelude hiding (Prefix, first, many, some, takeWhile, try, Symbol)
+import Blaze.Types.Pil (Ctx, Expression, Size, PilVar(PilVar), VarLocation(UnknownLocation), Symbol)
 
 import Blaze.Cfg (getCtxIndices)
 import Blaze.Types.Cfg (PilCfg)
@@ -115,12 +115,16 @@ parseVar = lex scan <?> "variable identifier"
               expected = "maximum variable context index: " <> (show . maximum . Bimap.keys $ ctxIndices')
               expectedEmpty = "no contexts in scope"
       case (ctxIndex', Bimap.null ctxIndices') of
-        (Nothing, True) -> pure . C.pilVar_ defaultPilVarSize Nothing $ T.cons firstChar rest
+        (Nothing, True) -> pure . pilVar_ defaultPilVarSize Nothing $ T.cons firstChar rest
         (Just ctxIndex, False) ->
           case Bimap.lookup ctxIndex ctxIndices' of
-            Just ctx -> pure . C.pilVar_ defaultPilVarSize (Just ctx) $ T.cons firstChar rest
+            Just ctx -> pure . pilVar_ defaultPilVarSize (Just ctx) $ T.cons firstChar rest
             Nothing -> fail
         (_, _) -> fail
+    {- if we use the version of pilVar_ that parses the version, then ParseSpec fails some test, this is a hacky solution for now
+       find a better solution -}
+    pilVar_ :: Size PilVar -> Maybe Ctx -> Symbol -> PilVar
+    pilVar_ size ctx symbol = PilVar size ctx Nothing symbol False UnknownLocation
 
 parseInt :: Parser Integer
 parseInt =

@@ -400,8 +400,9 @@ convertToPilVar v = do
     Nothing -> fromByteBased . toBytes <$> use #defaultVarSize
     Just vt -> return . typeWidthToSize $ vt ^. BNVar.width
   let sourceVar = SSAVariableRef v bnfunc (ctx' ^. #ctxId)
-      vsym = getSymbol (v ^. MLIL.version) (v ^. MLIL.var)
-      pilVar = PilVar varSize (Just ctx') vsym False Pil.UnknownLocation
+      vsym = getSymbol (v ^. MLIL.var)
+      ver = v ^. MLIL.version
+      pilVar = PilVar varSize (Just ctx') (Just ver) vsym False Pil.UnknownLocation
   #sourceVars %= HMap.insert pilVar sourceVar
   return pilVar
 
