@@ -27,7 +27,8 @@ import Blaze.Types.Pil
     PilVar,
     MappedStmt,
     MappedStatement(MappedStatement),
-    Symbol
+    Symbol,
+    CallDest(CallFunc, CallExtern)
   )
 
 import Data.Binary.IEEE754 (wordToDouble)
@@ -401,7 +402,12 @@ convertPcodeOpToPilStatement = \case
   P.CALL mOut dest inputs -> do
     cdest <- lift $ callDestFromDest $ dest ^. #value
     params <-  mapM varNodeToValueExpr . fmap (view #value) $ inputs
-    let callOp = Pil.CallOp cdest Nothing params
+    -- a prism might be appropriate here
+    let name = case cdest of
+          CallFunc f -> Just $ f ^. #name
+          CallExtern f -> Just $ f ^. #name
+          _ -> Nothing
+        callOp = Pil.CallOp cdest name params
     case mOut of
       Nothing -> pure [Pil.Call callOp]
       Just out ->
