@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 struct test {
     int num;
@@ -116,6 +117,70 @@ int general_test_2() {
   return res;
 }
 
+void swap(int* xp, int* yp){
+    int temp = *xp;
+    *xp = *yp;
+    *yp = temp;
+}
+
+void sort_array(int arr[25], int n) {
+    int i, j;
+    int swapped;
+    for (i = 0; i < n - 1; i++) {
+        swapped = 0;
+        for (j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                swap(&arr[j], &arr[j + 1]);
+                swapped = 1;
+            }
+        }
+        
+        if (swapped == 0)
+            break;
+    }
+}
+
+void progressive_sum(int arr[25], int n) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < i; j++) {
+            arr[i] += j;
+        }
+    }
+}
+
+void printArray(int arr[], int size) {
+    for (int i = 0; i < size; i++)
+        printf("%d ", arr[i]);
+}
+
+void printString(char str[]) {
+    printf("%s",str);
+}
+
+void func1(int arr[], int size) {
+    for (int i = size - 1; i >= 0; i--) {
+        for (int j = 0; j < i; j++) {
+           arr[i] += arr[j]; 
+        }
+    }
+}
+
+void func2(int arr[], int size) {
+    for (int i = size - 1; i >= 0; i--) {
+        for (int j = 0; j < i; j++) {
+           arr[i] *= arr[j]; 
+        }
+    }
+}
+
+void func3(int arr[], int size) {
+    for (int i = size - 1; i >= 0; i--) {
+        for (int j = 0; j < i; j++) {
+           arr[i] -= arr[j]; 
+        }
+    }
+}
+
 int main() {
     int num;
     
@@ -132,4 +197,48 @@ int main() {
     num = general_test_2();
     printf("%d", num);
 
+    const int prime_arr_len = 25;
+    int prime_arr[prime_arr_len] = { 43, 61, 17, 2, 97, 47, 13, 71, 23, 79, 41, 7, 53, 29, 73, 5, 59, 19, 67, 89, 31, 11, 83, 37, 3 };
+    sort_array(prime_arr, prime_arr_len);
+    printArray(prime_arr, prime_arr_len);
+
+    int magic_num = 123234;
+    const int dyn_arr_len = 35;
+    int *dyn_arr = malloc(dyn_arr_len * sizeof(int));
+    for (int i = 0; i < dyn_arr_len; i++) {
+        dyn_arr[i] = i * i * magic_num;
+    }
+
+    // test to see if ghidra understands that the array contains integers
+    for (int i = prime_arr_len - 1; i >= 0; i--) {
+        for (int j = 0; j < i; j++) {
+           prime_arr[i] += prime_arr[j]; 
+        }
+    }
+
+    void (*fptr)(int *, int);
+
+    if (prime_arr[0] < 0) {
+        fptr = &func1;
+    } else if (prime_arr[0] == 0) {
+        fptr = &func2;
+    } else {
+        fptr = &func3;
+    }
+
+    fptr(prime_arr, prime_arr_len);
+    printArray(prime_arr,prime_arr_len);
+
+    
+
+    sort_array(dyn_arr,dyn_arr_len);
+    printArray(dyn_arr,dyn_arr_len);
+
+    //const int str_len = 32 + 1;
+    char str[] = "What's up my dudes and dudettes!";
+    printString(str);
+
+    return 0;
+
 }
+
