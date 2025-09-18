@@ -82,6 +82,7 @@ library:
     - Ghidra.ExternalLocation
     - Ghidra.Function
     - Ghidra.Clang
+    - Ghidra.DataTypes
     - Ghidra.Instruction
     - Ghidra.Pcode
     - Ghidra.PcodeBlock
@@ -91,6 +92,7 @@ library:
     - Ghidra.Register
     - Ghidra.State
     - Ghidra.Types
+    - Ghidra.Types.DataTypes
     - Ghidra.Types.Address
     - Ghidra.Types.BasicBlock
     - Ghidra.Types.Function
