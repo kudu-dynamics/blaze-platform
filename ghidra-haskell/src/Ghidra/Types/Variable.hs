@@ -4,6 +4,7 @@ module Ghidra.Types.Variable where
 import Ghidra.Prelude hiding (DataType)
 
 import Ghidra.Types.Address (Address)
+import Ghidra.Types.DataTypes (DataType)
 
 
 data VarType
@@ -28,10 +29,6 @@ data HighVariableType
   | HighParam Slot
   | HighOther
   deriving (Eq, Ord, Show, Generic, Hashable)
-
-newtype DataType = DataType { name :: Text }
-  deriving (Eq, Ord, Show, Generic)
-  deriving newtype (Hashable)
 
 data HighSymbol = HighSymbol
   { name :: Maybe Text

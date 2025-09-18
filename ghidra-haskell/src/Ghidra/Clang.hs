@@ -12,13 +12,16 @@ import Ghidra.Types.Internal (Ghidra, runIO)
 import Foreign.JNI.Types (JClass)
 import Ghidra.Pcode (getBarePcodeOp)
 import Ghidra.Types.Pcode (BarePcodeOp)
-import Ghidra.Types.Variable (DataType(..), VarNode(..), HighVariable(..), HighSymbol(..))
+--import Ghidra.Types.Variable (DataType(..), VarNode(..), HighVariable(..), HighSymbol(..))
+import Ghidra.Types.Variable (VarNode(..), HighVariable(..), HighSymbol(..))
 import Ghidra.Variable (mkVarNode, mkHighVariable, getHighSymbol)
 import Ghidra.Types.Address (Address)
 import Ghidra.Address (mkAddress)
 import Language.Java (J)
 import Ghidra.Util (isJNull)
 import Data.Type.Equality
+import Ghidra.DataTypes as D
+import Ghidra.Types.DataTypes as DT
 
 getClassName :: J.ClangNode -> Ghidra Text
 getClassName node = do
@@ -54,12 +57,8 @@ getOpToken node = do
   tokStr :: Text <- runIO $ Java.call node "getText" >>= Java.reify
   let tok = matchToken tokStr
   if tok == Unimplemented then do
-    runIO $ pprint tokStr
     return tok
   else return tok
-  --return $ matchToken tokStr
-
-
 
 matchToken :: Text -> OpToken
 matchToken t
@@ -108,15 +107,14 @@ getIsVarRef :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coerc
 getIsVarRef node = do
   runIO $ Java.call node "isVariableRef"
 
--- gets the structure datatype associated with this field token
-getDataType :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe DataType)
+getDataType :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe DT.DataType)
 getDataType node = do
   dt :: J.DataType <- runIO $ Java.call node "getDataType"
   if isJNull dt then
     return Nothing
   else do
-    name :: Text <- runIO $ Java.call dt "getName" >>= Java.reify
-    return $ Just DataType { name = name }
+    dt' <- D.parseDataType dt
+    return $ Just dt' 
 
 getVarNode :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe VarNode)
 getVarNode node = do
@@ -201,8 +199,6 @@ constructClangNode node = do
       return $ ClangBreak ClangBreakOpts { indent = indent }
     "ClangCaseToken"      ->  do
       let node' :: J.ClangCaseToken = coerce node
-      opTok :: OpToken <- getOpToken node'
-      _ <- runIO $ pprint opTok
       highSymbol    <- fromJust <$> getHighSymbol'  node'
       highVariable  <- fromJust <$> getHighVariable node'
       pcodeOp       <- fromJust <$> getPcodeOp      node'
@@ -242,7 +238,6 @@ constructClangNode node = do
       let node' :: J.ClangOpToken = coerce node
       pcodeOp       <- getPcodeOp      node'
       tok :: OpToken <- getOpToken node'
-      --runIO $ pprint tok
       return $ ClangOpToken ClangOpTokenOpts { addrRange = addrRange, pcodeOp = pcodeOp, opToken = tok }
     "ClangReturnType"     ->  do
       let node' :: J.ClangReturnType = coerce node
@@ -325,7 +320,7 @@ data ClangCommentTokenOpts = ClangCommentTokenOpts
 -- not tested (add more information from ClangToken when testing)
 data ClangFieldTokenOpts = ClangFieldTokenOpts
   { addrRange :: Maybe AddrRange
-  , datatype  :: DataType
+  , datatype  :: DT.DataType
   , offset    :: Int32
   , pcodeOp   :: BarePcodeOp
   } deriving (Eq, Ord, Show, Generic, Hashable)
@@ -361,7 +356,7 @@ data ClangOpTokenOpts = ClangOpTokenOpts
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ClangReturnTypeOpts = ClangReturnTypeOpts
-  { datatype  :: Maybe DataType
+  { datatype  :: Maybe DT.DataType
   , varnode   :: Maybe VarNode
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
@@ -388,12 +383,12 @@ newtype ClangTokenGroupOpts = ClangTokenGroupOpts
 
 -- haven't tested the ClangToken aspect, but if it's like ClangOpTokenOpts, then it won't have a lot of information
 data ClangTypeTokenOpts = ClangTypeTokenOpts
-  { datatype :: DataType
+  { datatype :: DT.DataType
   , isVarRef :: Bool
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ClangVariableDeclOpts = ClangVariableDeclOpts
-  { datatype      :: DataType
+  { datatype      :: DT.DataType
   , highSymbol    :: Maybe HighSymbol
   , highVariable  :: Maybe HighVariable
   } deriving (Eq, Ord, Show, Generic, Hashable)

@@ -114,6 +114,22 @@ type ClangFuncNameToken = J ('Java.Class "ghidra.app.decompiler.ClangFuncNameTok
 type ClangCaseToken = J ('Java.Class "ghidra.app.decompiler.ClangCaseToken")
 type ClangCommentToken = J ('Java.Class "ghidra.app.decompiler.ClangCommentToken")
 
+type DataTypeComponent = J ('Java.Class "ghidra.program.model.data.DataTypeComponent")
+type Variable = J ('Java.Class "ghidra.program.model.listing.Variable")
+
+type StringDataType = J ('Java.Class "ghidra.program.model.data.StringDataType")
+type ArrayDataType = J ('Java.Class "ghidra.program.model.data.ArrayDataType")
+type BadDataType = J ('Java.Class "ghidra.program.model.data.BadDataType")
+type BooleanDataType = J ('Java.Class "ghidra.program.model.data.BooleanDataType")
+type CharDataType = J ('Java.Class "ghidra.program.model.data.CharDataType")
+type EnumDataType = J ('Java.Class "ghidra.program.model.data.EnumDataType")
+type StructureDataType = J ('Java.Class "ghidra.program.model.data.StructureDataType")
+type UnionDataType = J ('Java.Class "ghidra.program.model.data.UnionDataType")
+type AbstractIntegerDataType = J ('Java.Class "ghidra.program.model.data.AbstractIntegerDataType")
+type PointerDataType = J ('Java.Class "ghidra.program.model.data.PointerDataType")
+type FunctionDefinitionDataType = J ('Java.Class "ghidra.program.model.data.PointerDataType")
+type ParameterDefinition = J('Java.Iface "ghidra.program.model.data.ParameterDefinition")
+
 
 class Addressable a where
   toAddr :: a -> Ghidra Address
