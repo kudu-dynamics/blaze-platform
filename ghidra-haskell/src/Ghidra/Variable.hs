@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 module Ghidra.Variable
   ( module Ghidra.Variable
-  , DataType
   , HighVarNode
   , HighVariable
   , HighVariableType
@@ -20,6 +19,8 @@ import Ghidra.Address (Address, mkAddress)
 import Ghidra.Util (maybeNullCall, maybeNull)
 import qualified Data.Text as Text
 import qualified Foreign.JNI as JNI
+import Ghidra.Types.DataTypes (DataType)
+import Ghidra.DataTypes (parseDataType)
 
 
 mkVarType :: Either J.VarNode J.VarNodeAST -> Ghidra VarType
@@ -75,9 +76,9 @@ mkHighVariableType hv = do
       other -> error $ "Invalid class name: " <> cs other
 
 mkDataType :: J.HighVariable -> Ghidra DataType
-mkDataType hv = runIO $ do
-  dt :: J.DataType <- Java.call hv "getDataType" >>= JNI.newGlobalRef
-  DataType <$> (Java.call dt "getName" >>= Java.reify)
+mkDataType hv = do
+  dt :: J.DataType <- runIO $ Java.call hv "getDataType"
+  parseDataType dt
 
 getHighSymbol :: J.HighVariable -> Ghidra (Maybe HighSymbol)
 getHighSymbol hv = do
