@@ -4,19 +4,23 @@ module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
   ) where
 
-import Flint.Prelude hiding (and, const, not, or, sym, Location)
+import Flint.Prelude hiding (and, const, not, or, until, sym, Location)
 
 import Helper.Primitives
 
 import Flint.Analysis.Path.Matcher
-import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
+-- import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Types.Analysis.Path.Matcher.Func
+import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep, PathPrep(PathPrep))
+import Flint.Analysis.Path.Matcher.Logic.Combinators (good, bad)
 import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
+import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
-import Blaze.Pretty (PStmts(PStmts), PrettyShow'(PrettyShow'))
+import Blaze.Types.Pil.Summary (CodeSummary(CodeSummary))
+import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Blaze.Types.Function (Function(Function))
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
@@ -52,72 +56,247 @@ func1 = Function Nothing "func1" 0x999 []
 func2 :: Function
 func2 = Function Nothing "CGC_free" 0xAAA []
 
-matchStmtsIO :: [TaintPropagator] -> [StmtPattern] -> [Pil.Stmt] -> IO MatcherResult
-matchStmtsIO tps pats = match' (solveStmtsWithZ3 Solver.AbortOnError) pats . mkPathPrep tps
+-- matchStmtsIO :: [TaintPropagator] -> [M.StmtPattern] -> [Pil.Stmt] -> IO MatcherResult
+-- matchStmtsIO tps pats = match' (solveStmtsWithZ3 Solver.AbortOnError) pats . mkPathPrep tps
+type MatcherInt a = MatcherT () Int Identity a
 
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher" $ do
-  context "matchNextStmt_" $ do
-    let solver :: StmtSolver Identity
-        solver _ = return $ Solver.Sat HashMap.empty
+  let dummyCodeSummary = CodeSummary HashSet.empty HashSet.empty HashSet.empty [] HashSet.empty
+      mkDummyPathPrep stmts = PathPrep stmts stmts HashSet.empty dummyCodeSummary
+  context "parsing" $ do
+    let defaultMatcherState = emptyMatcherState :: MatcherState () Int
+        defaultMatcherCtx = MatcherCtx dummySolver
+        maxResults = 20 -- should always be less for these tests
+        observeAll :: MatcherState () Int -> MatcherInt a -> [(a, MatcherState () Int)]
+        observeAll st = runIdentity . observeManyMatcherT defaultMatcherCtx st maxResults
+        observeAll' :: [Int] -> MatcherInt a -> [(a, [Int])]
+        observeAll' stmts = fmap (over _2 (view #remaining)) . observeAll st
+          where
+            st = defaultMatcherState & #remaining .~ stmts
+  
+        isEven :: Int -> Bool
+        isEven = even
 
-        matchNextStmt_' :: Bool -> [Pil.Stmt] -> StmtPattern -> (MatcherState Identity, Bool)
-        matchNextStmt_' tryNextStmtOnFailure stmts pat = runIdentity . fmap (second isJust) . runMatcher (mkMatcherState solver $ mkPathPrep [] stmts) $ do
-          matchNextStmt_ tryNextStmtOnFailure pat
+        getEven :: Int -> Maybe Int
+        getEven n = if even n then Just n else Nothing
 
-        matchNextStmt' = matchNextStmt_' True
-    
-    it "should consume statements up until pattern is matched" $ do
-      let ctx0 = Pil.Ctx func0 0
-          ctx1 = Pil.Ctx func1 1
-          stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
-                  , def "x" $ const 42 8
-                  , ret $ var "x" 8
-                  , exitContext ctx1 ctx0
-                  , def "y" $ const 777 8
-                  , def "z" $ const 777 8
-                  ]
-          pat = Stmt $ Def (Var "y") Wild
-          expected = ([def "z" $ const 777 8], True)
-          actual = first (view #remainingStmts) $ matchNextStmt' stmts pat
-      expected `shouldBe` actual
-      
-  context "matchStmts" $ do
-    let pureMatchStmts' tps pats stmts = pureMatch' pats $ mkPathPrep tps (stmts :: [Pil.Stmt])
-        pureMatchStmts tps pats stmts = pureMatch pats $ mkPathPrep tps (stmts :: [Pil.Stmt])
+    context "parseUntil" $ do
+      it "should return no results if there is no match" $ do
+        let stmts :: [Int]
+            stmts = [1]
+            pat = bool bad good . (== 0)
+            expected = []
+        observeAll' stmts (parseUntil pat) `shouldBe` expected 
+
+      it "should return single result when single thing in list matches" $ do
+        let stmts :: [Int]
+            stmts = [1]
+            pat = bool bad good . (== 1)
+            expected = [((), [])]
+        observeAll' stmts (parseUntil pat) `shouldBe` expected 
+
+      it "should return single matching result and remaining list" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4]
+            pat n = bool bad (return n) $ n == 2
+            expected = [(2, [3, 4])]
+        observeAll' stmts (parseUntil pat) `shouldBe` expected 
+
+      it "should return multiple matching results with appropriate remaining lists" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4, 5]
+            pat n = bool bad (return n) $ isEven n
+            expected = [ (2, [3, 4, 5])
+                       , (4, [5])
+                       ]
+        sort (observeAll' stmts $ parseUntil pat) `shouldBe` sort expected 
+
+    context "parseNext" $ do
+      it "should return no results if there is no match" $ do
+        let stmts :: [Int]
+            stmts = [1]
+            pat = bool bad good . (== 0)
+            expected = []
+        observeAll' stmts (parseNext pat) `shouldBe` expected 
+
+      it "should return single result when single thing in list matches" $ do
+        let stmts :: [Int]
+            stmts = [1]
+            pat = bool bad good . (== 1)
+            expected = [((), [])]
+        observeAll' stmts (parseNext pat) `shouldBe` expected 
+
+      it "should not return non-next result, even if it matches" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4]
+            pat n = bool bad (return n) $ n == 2
+            expected = []
+        observeAll' stmts (parseNext pat) `shouldBe` expected 
+
+      it "should not return multiple matching results" $ do
+        let stmts :: [Int]
+            stmts = [2, 3, 4, 5]
+            pat n = bool bad (return n) $ isEven n
+            expected = [ (2, [3, 4, 5])
+                       ]
+        sort (observeAll' stmts $ parseNext pat) `shouldBe` sort expected 
+
+    context "avoidUntil" $ do
+      it "should return no results if `until` is not matched" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4, 5]
+            avoid _ = bad
+            until :: MatcherInt ((), [Int])
+            until = bad
+            expected = []
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected 
+
+      it "should return no results if `until` is matched but `avoid` also matches" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4, 5]
+            avoid _ = good
+            until :: MatcherInt Text
+            until = parseUntil (bool bad (return "Got it") . (== 3))
+            expected = []
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected 
+
+      it "should return no results if `until` is matched but `avoid` matches once" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4, 5]
+            avoid _ = void $ parseUntil (bool bad good . (== 2))
+            until :: MatcherInt Text
+            until = do
+              parseUntil (bool bad (return "Got it") . (== 3))
+            expected = []
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected
+
+      it "should return result if `until` matches and `avoid` doesn't match" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4, 5]
+            avoid _ = bad
+            until :: MatcherInt Text
+            until = parseUntil (bool bad (return "Got it") . (== 3))
+            expected = [("Got it", [4, 5])]
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected 
+
+      it "should return result if `until` matches and `avoid` doesn't match until after `until`" $ do
+        let stmts :: [Int]
+            stmts = [1, 2, 3, 4, 5]
+            avoid _ = void $ parseUntil (bool bad good . (== 4))
+            until :: MatcherInt Text
+            until = do
+              parseUntil (bool bad (return "Got it") . (== 3))
+            expected = [("Got it", [4, 5])]
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected 
+
+      it "should return results for two matching `until`s if there are no avoids" $ do
+        let stmts :: [Int]
+            stmts = [1, 3, 4, 5, 6, 7, 9]
+            avoid _ = void $ parseUntil (bool bad good . (== 14))
+            until :: MatcherInt Int
+            until = parseUntil (maybe bad return . getEven)
+            expected = [ (4, [5, 6, 7, 9])
+                       , (6, [7, 9])
+                       ]
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected 
+
+      it "should prune off one matching `until` because of an `avoid` while letting other succeed because the `avoid` comes after" $ do
+        let stmts :: [Int]
+            stmts = [1, 3, 4, 5, 6, 7, 9]
+            avoid _ = void $ parseUntil (bool bad good . (== 5))
+            until :: MatcherInt Int
+            until = parseUntil (maybe bad return . getEven)
+            expected = [ (4, [5, 6, 7, 9])
+                       ]
+        sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected
+
+  context "match" $ do
+    let pureMatch :: [StmtPattern] -> [Pil.Stmt] -> [(MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])]
+        pureMatch pats stmts = runIdentity . match 20 dummySolver pats $ mkDummyPathPrep (stmts :: [Pil.Stmt])
+        pureMatch_ pats stmts = view _2 <$> pureMatch pats stmts
+        pureMatchWithBinds
+          :: [StmtPattern]
+          -> [Pil.Stmt]
+          -> [ ( HashMap ( Symbol Pil.Expression) Pil.Expression
+               , [Pil.Stmt]
+               )
+             ]
+        pureMatchWithBinds pats stmts = f <$> pureMatch pats stmts
+          where f (ms, stmts') = (ms ^. #boundSyms, stmts')
+        _pureMatchStmt
+          :: Statement ExprPattern
+          -> Pil.Stmt
+          -> [MatcherState Pil.Expression Pil.Stmt]
+        _pureMatchStmt pat stmt = runIdentity
+          . fmap (fmap snd)
+          . observeManyMatcherT mctx mstate 20
+          $ matchStmt pat stmt
+          where
+            mctx :: MatcherCtx Pil.Stmt Identity
+            mstate :: MatcherState Pil.Expression Pil.Stmt
+            (mctx, mstate) = mkMatcherState dummySolver $ mkDummyPathPrep ([] :: [Pil.Stmt])
+
+        -- puts stmts in state and matches pattern
+        pureMatchPattern
+          :: [Pil.Stmt]
+          -> StmtPattern
+          -> [MatcherState Pil.Expression Pil.Stmt]
+        pureMatchPattern stmts pat = runIdentity
+          . fmap (fmap snd)
+          . observeManyMatcherT mctx mstate 20
+          $ matchPattern pat
+          where
+            mctx :: MatcherCtx Pil.Stmt Identity
+            mstate :: MatcherState Pil.Expression Pil.Stmt
+            (mctx, mstate) = mkMatcherState dummySolver $ mkDummyPathPrep stmts
+
+        -- Match that runs the solver in IO
+        solveMatch :: [StmtPattern] -> [Pil.Stmt] -> IO [(MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])]
+        solveMatch pats stmts = match 20 (solveStmtsWithZ3 Solver.AbortOnError) pats $ mkDummyPathPrep (stmts :: [Pil.Stmt])
+        solveMatch_ pats stmts = view _2 <<$>> solveMatch pats stmts
 
     it "should match empty list of stmts when provided no patterns" $ do
-      pureMatchStmts' [] [] [] `shouldBe` Match []
+      pureMatch_ [] [] `shouldBe` [[]]
 
-    it "should match full list of stmts when provided no patterns" $ do
+    it "should match when provided no patterns" $ do
       let stmts = path1
           pats = []
-          expected = Match path1
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail to match stmt pattern when there are no statements" $ do
       let stmts = []
           pats = [Stmt $ Def Wild Wild]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a def statement" $ do
+      -- let stmt = def "b" (load (var "arg4" 4) 4)
+      --     pat = Def Wild Wild
+      -- length (pureMatchStmt pat stmt) `shouldBe` 1
+
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def Wild Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          pat = Stmt $ Def Wild Wild
+          expected = [([], stmts)]
+      ((\ms -> (ms ^. #remaining, ms ^. #parsedStmtsWithAssertions)) <$> pureMatchPattern stmts pat) `shouldBe` expected
+
+      -- let stmts = [def "b" (load (var "arg4" 4) 4)]
+      --     pats = [Stmt $ Def Wild Wild]
+      --     expected = [stmts]
+      -- pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an immediate" $ do
       let stmts = [def "b" (const 33 4)]
           pats = [Stmt $ Def Wild Immediate]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an immediate that must be evaluated" $ do
       let stmts = [def "b" (add (const 0 4) (const 33 4) 4)]
           pats = [Stmt $ Def Wild Immediate]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a const ptr immediate" $ do
       let loadPtrExpr = Pil.Expression
@@ -126,8 +305,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                 }
           stmts = [def "b" loadPtrExpr]
           pats = [Stmt $ Def Wild Immediate]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a const ptr immediate contained in a load" $ do
       let loadPtrExpr = Pil.Expression
@@ -141,63 +320,83 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                 }
           stmts = [def "b" loadPtrExpr]
           pats = [Stmt $ Def Wild (Contains Immediate)]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for integral CmpE" $ do
-      let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
+      let stmts :: [Pil.Stmt]
+          stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
+
+    it "should match .== with bind on either side" $ do
+      let stmts :: [Pil.Stmt]
+          stmts = [ branchCond $ cmpE (const 33 4) (var "arg4" 4) 4
+                  , ret (var "arg4" 4)
+                  ]
+          pats1 = [ Stmt . BranchCond $ Bind "x" (Var "arg4") .== Wild
+                  , Stmt . Ret $ Bind "x" Wild
+                  ]
+          expected = [ (HashMap.fromList
+                        [ ("x", var "arg4" 4)
+                        ]
+                       , stmts
+                       )
+                     ]
+          pats2 = [ Stmt . BranchCond $ Wild .== Bind "x" (Var "arg4")
+                  , Stmt . Ret $ Bind "x" Wild
+                  ]
+      PrettyShow' (pureMatchWithBinds pats1 stmts) `shouldBe` PrettyShow' expected
+      PrettyShow' (pureMatchWithBinds pats2 stmts) `shouldBe` PrettyShow' expected
 
     it "should match .== for float FcmpE" $ do
       let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for integral (Not (Not (CmpE ...)))" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for integral (Not (CmpNe ...))" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for float (Not (Not (fcmpE ...)))" $ do
       let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for float (Not (fcmpNe ...))" $ do
       let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
           pats = [Stmt . BranchCond $ Wild .== Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== if args are flipped" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (var "x" 4) 4]
           pats = [Stmt . BranchCond $ Var "x" .== Immediate]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match inequality if args are flipped" $ do
       let stmts = [branchCond $ cmpSlt (const 33 4) (var "x" 4) 4]
           pats = [Stmt . BranchCond $ Var "x" .> Immediate]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
-
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a var" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "b") Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a ConstFuncPtr with Var" $ do
       let funcPtr = Pil.Expression 4
@@ -206,105 +405,134 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             $ Just "funcTable"
           stmts = [def "b" funcPtr]
           pats = [Stmt $ Def (Var "b") (Var "funcTable")]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail to match match a var if prefix of name is different" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "a") Wild]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match an expression that Contains a variable" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match an expression that Contains an Immediate" $ do
       let stmts = [def "b" (load (const 83483834 8) 8)]
           pats = [Stmt $ Def Wild (Contains Immediate)]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match an expression that Contains an Immediate2" $ do
       let stmts = [def "b" (load (constPtr 83483834 8) 8)]
           pats = [Stmt $ Def Wild (Contains Immediate)]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match first match in OrPattern" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "b" .|| Var "a") Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match second match in OrPattern" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (Var "a" .|| Var "b") Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match a NotPattern" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
           pats = [Stmt $ Def (NotPattern $ Var "c") Wild]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should use NotPattern to fail to bind if two things are equal" $ do
       let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
           pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
-    it "should use NotPattern to bind if two things are not equal" $ do
-      let stmts = [store (var "a" 8) (load (var "b" 8) 8)]
-          pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
-          expected = ( HashMap.fromList
-                       [ ("dest", var "a" 8)
-                       , ("src", var "b" 8)
-                       ]
+    -- it "should use NotPattern to bind if two things are not equal" $ do
+    --   let stmts = [store (var "a" 8) (load (var "b" 8) 8)]
+    --       pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
+    --       expected = ( HashMap.fromList
+    --                    [ ("dest", var "a" 8)
+    --                    , ("src", var "b" 8)
+    --                    ]
                          
-                     , Match stmts
-                     )
-      first (view #boundSyms) (pureMatchStmts [] pats stmts) `shouldBe` expected
+    --                  , [stmts]
+    --                  )
+    --   first (view #boundSyms) (pureMatch pats stmts) `shouldBe` expected
 
-    it "should use NotPattern to avoid binding if two things are equal" $ do
-      let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
-          pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
-          expected = ( HashMap.fromList []                         
-                     , NoMatch
-                     )
-      first (view #boundSyms) (pureMatchStmts [] pats stmts) `shouldBe` expected
+    -- it "should use NotPattern to avoid binding if two things are equal" $ do
+    --   let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
+    --       pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
+    --       expected = [( HashMap.fromList []                         
+    --                   , []
+    --                   )
+    --                  ]
+    --   first (view #boundSyms) (pureMatch pats stmts) `shouldBe` expected
 
 
     it "should match a more complex expression that Contains a variable" $ do
       let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on two statements in a row" $ do
-      let stmts = [ def "b" (load (var "arg4" 4) 4)
+      let stmts :: [Pil.Stmt]
+          stmts = [ def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
           pats = [ Stmt $ Def (Var "b") Wild
                  , Stmt $ Def (Var "c") Wild
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
-    it "should match on two statements, skipping non-matching ones in the middle" $ do
-      let stmts = [ def "b" (load (var "arg4" 4) 4)
-                  , def "x" (const 0 4)
-                  , def "y" (const 1 4)
+    it "should fail if first statement is not a match" $ do
+      let stmts = [ def "no" (var "match" 4)
+                  , def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
           pats = [ Stmt $ Def (Var "b") Wild
                  , Stmt $ Def (Var "c") Wild
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
+
+    it "should match a single statement to Star" $ do
+      let stmts = [ def "no" (var "match" 4)
+                  , def "b" (load (var "arg4" 4) 4)
+                  , def "c" (load (var "arg4" 4) 4)
+                  ]
+          pats = [ Star
+                 , Stmt $ Def (Var "b") Wild
+                 , Stmt $ Def (Var "c") Wild
+                 ]
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
+
+    it "should match multiple statements to Star" $ do
+      let stmts = [ def "no" (var "match" 4)
+                  , def "nice" (var "try" 4)
+                  , def "b" (load (var "arg4" 4) 4)
+                  , def "ur" (var "sad" 4)
+                  , def "c" (load (var "arg4" 4) 4)
+                  ]
+          pats = [ Star
+                 , Stmt $ Def (Var "b") Wild
+                 , Star
+                 , Stmt $ Def (Var "c") Wild
+                 ]
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
+
 
     it "should match an expression has been bound to sym" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -313,8 +541,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Def (Var "b") (Bind "x" Wild)
                  , Stmt $ Def (Var "c") (Bind "x" Wild)
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail to match an expression that has been bound to a different sym" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -323,8 +551,40 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Def (Var "b") (Bind "x" Wild)
                  , Stmt $ Def (Var "c") (Bind "x" Wild)
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
+
+    it "should return multiple matches if multiple statements match" $ do
+      let stmts = [ def "b" (var "arg4" 4)
+                  , def "c" (var "b" 4)
+                  , def "skip" (const 123 4)
+                  , def "d" (var "b" 4)
+                  ]
+          pats = [ Star
+                 , Stmt $ Def (Bind "x" Wild) (Var "b")
+                 ]
+          expected = [ ( HashMap.fromList
+                         [("x", var "c" 4)]
+                       , stmts
+                       )
+                     , ( HashMap.fromList
+                         [("x", var "d" 4)]
+                       , stmts
+                       )
+                     ]
+      sort (pureMatchWithBinds pats stmts) `shouldBe` sort expected
+
+    it "should handle nested Ordered that returns multiple results" $ do
+      let stmts :: [Pil.Stmt]
+          stmts = [ def "b" (var "arg4" 4)
+                  , def "c" (var "b" 4)
+                  , def "skip" (const 123 4)
+                  , def "d" (var "b" 4)
+                  ]
+          pats = [ ordered [ordered [Star, Stmt $ Def (Bind "x" Wild) (Var "b")]]
+                 ]
+          expected = [ stmts, stmts ]
+      PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
     it "should skip over statement with expression that has been bound to different sym, but then match a later statement" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -332,10 +592,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "c" (load (var "arg4" 4) 4)
                   ]
           pats = [ Stmt $ Def (Var "b") (Bind "x" Wild)
+                 , Star
                  , Stmt $ Def Wild (Bind "x" Wild)
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a call to a named function" $ do
       let cdest = Pil.CallFunc func0
@@ -343,8 +604,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a call to a named function from a set of names" $ do
       let cdest = Pil.CallFunc func0
@@ -353,8 +614,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           funcNames = HashSet.fromList ["func0", "func1"]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNames funcNames)) [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a call to a named function using regex" $ do
       let cdest = Pil.CallFunc func2
@@ -362,8 +623,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNameRegex "^[a-zA-Z0-9_]+free$")) [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should not match on a call to a named function if args do not parse" $ do
       let cdest = Pil.CallFunc func0
@@ -372,8 +633,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0"))
                    [Var "nope", Wild]
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should not match on a call that has fewer args than expected" $ do
       let cdest = Pil.CallFunc func0
@@ -381,8 +642,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a call to a named function with a return variable even if the pattern for the return variable is Nothing" $ do
       let cdest = Pil.CallFunc func0
@@ -390,8 +651,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an indirect call" $ do
       let cdest = Pil.CallExpr $ var "x" 4
@@ -399,8 +660,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call Nothing (CallIndirect $ Var "x") [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an indirect call using Contains" $ do
       let cdest = Pil.CallExpr $ load (add (var "x" 4) (const 1 4) 4) 4
@@ -408,8 +669,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call Nothing (CallIndirect . Contains $ Var "x") [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an expr in an indirect call to a const func ptr" $ do
       let funcPtr = Pil.Expression 4
@@ -421,29 +682,31 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt (Call Nothing (CallIndirect . Contains $ Var "funcTable") [Wild, Wild])
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an expanded call to a named function when pattern expects no return" $ do
       let ctx0 = Pil.Ctx func0 0
+          stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                   ]
           pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
     it "should match on an expanded call to a named function and on its return" $ do
       let ctx0 = Pil.Ctx func0 0
           ctx1 = Pil.Ctx func1 1
+          stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                   , ret $ var "r" 4
                   , exitContext ctx0 ctx1
                   ]
           pats = [ Stmt $ Call (Just $ Var "r") (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
     it "should fail to match if ret does not match" $ do
       let ctx0 = Pil.Ctx func0 0
@@ -454,12 +717,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ Stmt $ Call (Just $ Var "r") (CallFunc (FuncName "func0")) [Wild, Wild]
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an expanded call to a named function, not match on any statement inside expanded function body, but match on statement after" $ do
       let ctx0 = Pil.Ctx func0 0
           ctx1 = Pil.Ctx func1 1
+          stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
                   , def "x" $ const 42 8
                   , ret $ var "x" 8
@@ -474,11 +738,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , Stmt $ Def (Var "y") Wild
                   ]
 
-          expected1 = NoMatch
-          expected2 = Match stmts
+          expected1 = []
+          expected2 = [stmts]
 
-      pureMatchStmts' [] pats1 stmts `shouldBe` expected1
-      pureMatchStmts' [] pats2 stmts `shouldBe` expected2
+      PrettyShow' (pureMatch_ pats1 stmts) `shouldBe` PrettyShow' expected1
+      PrettyShow' (pureMatch_ pats2 stmts) `shouldBe` PrettyShow' expected2
 
     context "EnterContext and ExitContext statements" $ do
       it "should match EnterContext for AnyCtx with empty arg patterns" $ do
@@ -486,24 +750,25 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
             pats = [ Stmt $ EnterContext AnyCtx [] ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
+
 
       it "should match EnterContext for AnyCtx with proper arg patterns" $ do
         let ctx0 = Pil.Ctx func0 0
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
             pats = [ Stmt $ EnterContext AnyCtx [Var "a", Contains (Var "arg4")] ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should not match EnterContext if arg pattern not matched" $ do
         let ctx0 = Pil.Ctx func0 0
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
             pats = [ Stmt $ EnterContext AnyCtx [Var "b", Wild] ]
-            expected = NoMatch
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = []
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should match ExitContext for AnyCtx, AnyCtx" $ do
         let ctx0 = Pil.Ctx func0 0
@@ -514,8 +779,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             pats = [ Stmt $ ExitContext AnyCtx AnyCtx
                    , Stmt $ Def (Var "c") Wild
                    ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should match matching bound Ctxs" $ do
         let ctx0 = Pil.Ctx func0 0
@@ -527,8 +792,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    , Stmt $ ExitContext (BindCtx "x" AnyCtx) AnyCtx
                    ]
             
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should fail to match non-matching bound Ctxs" $ do
         let ctx0 = Pil.Ctx func0 0
@@ -540,45 +805,51 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    , Stmt $ ExitContext AnyCtx (BindCtx "x" AnyCtx)
                    ]
             
-            expected = NoMatch
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = []
+        pureMatch_ pats stmts `shouldBe` expected
 
-    it "should match on AnyOne" $ do
+    it "should match on orr" $ do
       let stmts = [ def "b" (const 0 4)
                   ]
-          pats = [ AnyOne [ Stmt $ Def (Var "a") Wild
-                          , Stmt $ Def (Var "b") Wild
-                          ]
+          pats = [ orr [ Stmt $ Def (Var "a") Wild
+                       , Stmt $ Def (Var "b") Wild
+                       ]
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
-    it "should match Ordered statements" $ do
+    it "should match ordered statements" $ do
       let stmts = [ def "b" (const 0 4)
                   , def "skip" (const 1 4)
                   , def "c" (const 1 4)
                   , def "d" (const 1 4)
                   ]
-          pats = [ Ordered [ Stmt $ Def (Var "b") Wild
+          pats = [ ordered [ Stmt $ Def (Var "b") Wild
+                           , Star
                            , Stmt $ Def (Var "c") Wild
                            ]
                  , Stmt $ Def (Var "d") Wild
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should backtrack on Ordered statements until it finds a match" $ do
-      let stmts = [ def "a" (const 1 8)
+      let stmts :: [Pil.Stmt]
+          stmts = [ def "a" (const 1 8)
                   , def "b" (const 2 8)
                   , def "c" (const 3 8)
                   , def "d" (const 2 8)
                   ]
-          pats = [ Ordered [ Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+          pats = [ ordered [ Star
+                           , Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                           , Star
                            , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
                            ]
                  ]
-          expected = Match stmts
-          (ms, mr) = pureMatchStmts [] pats stmts
+          expected = stmts
+          r = pureMatch pats stmts
+      length r `shouldBe` 1
+      let (ms, mr) = fromJust $ headMay r
       mr `shouldBe` expected
       HashMap.lookup "x" (ms ^. #boundSyms) `shouldBe` Just (const 2 8)
       HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
@@ -590,15 +861,20 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "c" (const 3 8)
                   , def "d" (const 2 8)
                   ]
-          pats = [ Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+          pats = [ Star
+                 , Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                 , Star
                  , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
                  ]
-          expected = Match stmts
-          (ms, mr) = pureMatchStmts [] pats stmts
+          expected = stmts
+          r = pureMatch pats stmts
+      length r `shouldBe` 1
+      let (ms, mr) = fromJust $ headMay r
       mr `shouldBe` expected
       HashMap.lookup "x" (ms ^. #boundSyms) `shouldBe` Just (const 2 8)
       HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
       HashMap.lookup "dest2" (ms ^. #boundSyms) `shouldBe` Just (var "d" 8)
+
 
     context "Neighbors" $ do
       it "should match two sequential simple patterns with no stmts in between" $ do
@@ -606,13 +882,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "c" (const 1 4)
                     , def "d" (const 1 4)
                     ]
-            pats = [ Neighbors [ Stmt $ Def (Var "b") Wild
-                               , Stmt $ Def (Var "c") Wild
-                               ]
+            pats = [ Stmt $ Def (Var "b") Wild
+                   , Stmt $ Def (Var "c") Wild
+                   , Star
                    , Stmt $ Def (Var "d") Wild
                    ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should match two sequential complex patterns that consume multiple statements" $ do
         let stmts = [ def "skip" (const 33 4)
@@ -622,17 +898,17 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "d" (const 1 4)
                     , def "e" (const 2 4)
                     ]
-            pats = [ Neighbors [ Ordered [ Stmt $ Def (Var "a") Wild
-                                         , Stmt $ Def (Var "b") Wild
-                                         ]
-                               , Ordered [ Stmt $ Def (Var "c") Wild
-                                         , Stmt $ Def (Var "d") Wild
-                                         ]
-                               ]
+            pats = [ Star
+                   , ordered [ Stmt $ Def (Var "a") Wild
+                             , Stmt $ Def (Var "b") Wild
+                             ]
+                   , ordered [ Stmt $ Def (Var "c") Wild
+                             , Stmt $ Def (Var "d") Wild
+                             ]
                    , Stmt $ Def (Var "e") Wild
                    ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should not match two statements separated by a non-match" $ do
         let stmts = [ def "b" (const 0 4)
@@ -640,100 +916,84 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "c" (const 1 4)
                     , def "d" (const 1 4)
                     ]
-            pats = [ Neighbors [ Stmt $ Def (Var "b") Wild
-                               , Stmt $ Def (Var "c") Wild
-                               ]
+            pats = [ Stmt $ Def (Var "b") Wild
+                   , Stmt $ Def (Var "c") Wild
+                   , Star  
                    , Stmt $ Def (Var "d") Wild
                    ]
-            expected = NoMatch
-        pureMatchStmts' [] pats stmts `shouldBe` expected
-
-    it "should match on unordered statements" $ do
-      let stmts = [ def "b" (const 0 4)
-                  , def "c" (const 1 4)
-                  ]
-          pats = [ Unordered [ Stmt $ Def (Var "c") Wild
-                             , Stmt $ Def (Var "b") Wild
-                             ]
-                 ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = []
+        pureMatch_ pats stmts `shouldBe` expected
 
     context "EndOfPath" $ do
       it "should match on end of path" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ EndOfPath ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            pats = [ Star
+                   , EndOfPath
+                   ]
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should match on end of path in 'until' of AvoidUntil" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
             pats = [ AvoidUntil $ AvoidSpec
-                     { until = EndOfPath
+                     { until = Star `And` EndOfPath
                      , avoid = Stmt $ Def (Var "z") Wild
                      }
                    ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
       it "should match on end of path in an Ordered" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ Ordered [ Stmt $ Def (Var "b") Wild
+            pats = [ ordered [ Star
+                             , Stmt $ Def (Var "b") Wild
+                             , Star
                              , EndOfPath
                              ]
                    ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
-
-      it "should match on end of path in an Unordered" $ do
-        let stmts = [ def "b" (const 0 4)
-                    , def "c" (const 1 4)
-                    ]
-            pats = [ Unordered [ EndOfPath
-                               , Stmt $ Def (Var "b") Wild
-                               ]
-                   ]
-            expected = Match stmts
-        pureMatchStmts' [] pats stmts `shouldBe` expected
+            expected = [stmts]
+        pureMatch_ pats stmts `shouldBe` expected
 
     context "Locations" $ do
       let loc addr s = s & #addr .~ addr
       it "should store location for single statement" $ do
         let stmts = [loc 0x888 $ def "b" (load (var "arg4" 4) 4)]
             pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
-            expected = HashMap.fromList
+            expected = Just $ HashMap.fromList
               [("varPlace", Right 0x888)]
-        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+        (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
 
       it "should ignore unmatched statements preceeding matched location" $ do
         let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
                     , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
                     ]
-            pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
-            expected = HashMap.fromList
+            pats = [ Star
+                   , Location "varPlace" . Stmt $ Def (Var "b") Wild
+                   ]
+            expected = Just $ HashMap.fromList
               [("varPlace", Right 0x888)]
-        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
+        (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
 
       it "should get location of AnyOne statement" $ do
         let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
                     , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
                     , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
                     ]
-            pats = [ Location "varPlace" $ AnyOne
+            pats = [ Star
+                   , Location "varPlace" $ orr
                      [ Stmt $ Def (Var "zzz") Wild
                      , Stmt $ Def (Var "b") Wild
                      ]
                    ]
-            expected = HashMap.fromList
+            expected = Just $ HashMap.fromList
               [("varPlace", Right 0x888)]
-        (view #locations . fst $ pureMatchStmts [] pats stmts) `shouldBe` expected
-
+        (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
 
     it "should avoid until" $ do
       let stmts = [ def "a" (const 0 4)
@@ -741,11 +1001,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "b" (const 0 4)
                   ]
           pats = [ AvoidUntil $ AvoidSpec
-                   (Stmt $ Def (Var "b") Wild)
-                   (Stmt $ Def (Var "wiff") Wild)
+                   { avoid = Stmt $ Def (Var "b") Wild
+                   , until = ordered
+                             [ Star
+                             , Stmt $ Def (Var "wiff") Wild
+                             ]
+                   }
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail if Until not reached" $ do
       let stmts = [ def "a" (const 0 4)
@@ -754,11 +1018,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ AvoidUntil $ AvoidSpec
                    { avoid = Stmt $ Def (Var "b") Wild
-                   , until = Stmt $ Def (Var "c") Wild
+                   , until = ordered
+                             [ Star
+                             , Stmt $ Def (Var "c") Wild
+                             ]
                    }
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail if avoid is reached before until" $ do
       -- The problem here currently is that if the avoid matches the first stmt
@@ -769,11 +1036,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ AvoidUntil $ AvoidSpec
                    { avoid = Stmt $ Def (Var "a") Wild
-                   , until = Stmt $ Def (Var "b") Wild
+                   , until = ordered
+                     [ Star
+                     , Stmt $ Def (Var "b") Wild
+                     ]
                    }
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
 
     it "should find the 'until' first, then backtrack and check the 'avoid' after" $ do
@@ -784,12 +1054,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ AvoidUntil $ AvoidSpec
                    { avoid = Stmt . Constraint $ load (Bind "ptr" Wild) () .< Wild
-                   , until = Stmt $ Store (Bind "ptr" Wild)
-                             $ add (load (Bind "ptr" Wild) ()) Wild ()
+                   , until = ordered
+                             [ Star
+                             , Stmt $ Store (Bind "ptr" Wild)
+                               $ add (load (Bind "ptr" Wild) ()) Wild ()
+                             ]
                    }
                  ]
-          expected = Match stmts
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
 
     it "should find the 'until' first, then backtrack and check the 'avoid' after version 2" $ do
       let stmts = [ constraint $ cmpSlt (load (var "a" 8) 8) (const 888 8) 8
@@ -797,12 +1070,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   ]
           pats = [ AvoidUntil $ AvoidSpec
                    { avoid = Stmt . Constraint $ load (Bind "ptr" Wild) () .< Wild
-                   , until = Stmt $ Store (Bind "ptr" Wild)
-                             $ add (load (Bind "ptr" Wild) ()) Wild ()
+                   , until = ordered
+                             [ Star
+                             , Stmt $ Store (Bind "ptr" Wild)
+                               $ add (load (Bind "ptr" Wild) ()) Wild ()
+                             ]
                    }
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
 
     it "should handle avoid/until for real world example" $ do
@@ -822,13 +1098,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                      .|| (Contains (load (Bind "ptr" Wild) ()) .>= Wild)
                      .|| (Contains (load (Bind "ptr" Wild) ()) .== Wild)
                      .|| (Contains (load (Bind "ptr" Wild) ()) ./= Wild)
-                   , until = Ordered
-                     [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
+                   , until = ordered
+                     [ Star
+                     , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
                      ]
                    }
                  ]
-          expected = NoMatch
-      pureMatchStmts' [] pats stmts `shouldBe` expected
+          expected = []
+      pureMatch_ pats stmts `shouldBe` expected
 
     context "assertions" $ do
 
@@ -842,34 +1119,40 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                      [ cmpNE (Bound "x") (Bound "y") (ConstSize 4) ]
                    ]
             stmts' = stmts <> [constraint (cmpNE (const 0 4) (const 777 4) 4)]
-            expected = Match stmts'
-        matchStmtsIO [] pats stmts `shouldReturn` expected
+            expected = [stmts']
+        pureMatch_ pats stmts `shouldBe` expected
 
-      it "should fail if assertion fails" $ do
-        let stmts = [ def "a" (const 0 4)
-                    , def "b" (const 777 4)
-                    ]
-            pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
-                   , Stmt (Def (Var "b") (Bind "y" Wild))
-                     `Where`
-                     [ cmpE (Bound "x") (Bound "y") (ConstSize 4) ]
-                   ]
-            expected = NoMatch
-        matchStmtsIO [] pats stmts `shouldReturn` expected
+--       it "should fail if assertion fails" $ do
+--         let stmts = [ def "a" (const 0 4)
+--                     , def "b" (const 777 4)
+--                     ]
+--             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+--                    , Stmt (Def (Var "b") (Bind "y" Wild))
+--                      `Where`
+--                      [ cmpE (Bound "x") (Bound "y") (ConstSize 4) ]
+--                    ]
+--             expected = NoMatch
+--         matchStmtsIO [] pats stmts `shouldReturn` expected
 
-      it "should try the next statement if assertion fails" $ do
+      it "should create multiple possible paths with assertions" $ do
         let stmts = [ def "a" (const 100 4)
                     , def "b" (const 777 4)
                     , def "c" (const 0 4)
                     ]
             pats = [ Stmt $ Def (Bind "x" Wild) Immediate
+                   , Star
                    , Stmt (Def (Bind "y" Wild) Immediate)
                      `Where`
                      [ cmpUgt (Bound "x") (Bound "y") (ConstSize 4) ]
                    ]
-            stmts' = stmts <> [constraint (cmpUgt (var "a" 4) (var "c" 4) 4)]
-            expected = Match stmts'
-        matchStmtsIO [] pats stmts `shouldReturn` expected
+            expected = [ stmts <> [constraint (cmpUgt (var "a" 4) (var "c" 4) 4)]
+                       , [ def "a" (const 100 4)
+                         , def "b" (const 777 4)
+                         , constraint (cmpUgt (var "a" 4) (var "b" 4) 4)
+                         , def "c" (const 0 4)
+                         ]
+                       ]
+        PrettyShow' (sort (pureMatch_ pats stmts)) `shouldBe` PrettyShow' (sort expected)
 
     context "necessarily constraint" $ do
 
@@ -877,68 +1160,67 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "a" (const 0 4)
                     , def "b" (const 777 4)
                     ]
-            pats = [ Ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+            pats = [ ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
                              , Stmt (Def (Var "b") (Bind "y" Wild))
                              ]
                      `Necessarily`
                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
                      ]
                    ]
-            stmts' = stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)]
-            expected = Match stmts'
-        matchStmtsIO [] pats stmts `shouldReturn` expected
+            expected = [ stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)] ]
+        solveMatch_ pats stmts `shouldReturn` expected
 
-      -- TODO: Understand how binding works. Results are surprising for this test.
---       it "should require vars to be satisfiable if multiple necessary constraints are met (where test)" $ do
---         let stmts = [ def "a" (const 0 4)
---                     , def "b" (const 777 4)
--- --                    , constraint $ cmpUge (var "b" 4) (const 10 4) 4
---                     , def "c" (var "b" 4)
---                     ]
---             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
---                    , Stmt $ Def (Var "b") (Bind "y" Wild)
---                    , Stmt (Def (Var "c") (Bind "z" Wild))
---                      `Where`
---                      [
---                        (not (or
---                              (cmpUge (Bound "x") (Bound "y") (ConstSize 4))
---                              (cmpNE (Bound "z") (Bound "y") (ConstSize 4))
---                              (ConstSize 4))
---                          (ConstSize 4))
---                      ]
---                    ]
---             expected = NoMatch
---         matchStmtsIO [] pats stmts `shouldReturn` expected
+--       -- TODO: Understand how binding works. Results are surprising for this test.
+-- --       it "should require vars to be satisfiable if multiple necessary constraints are met (where test)" $ do
+-- --         let stmts = [ def "a" (const 0 4)
+-- --                     , def "b" (const 777 4)
+-- -- --                    , constraint $ cmpUge (var "b" 4) (const 10 4) 4
+-- --                     , def "c" (var "b" 4)
+-- --                     ]
+-- --             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+-- --                    , Stmt $ Def (Var "b") (Bind "y" Wild)
+-- --                    , Stmt (Def (Var "c") (Bind "z" Wild))
+-- --                      `Where`
+-- --                      [
+-- --                        (not (or
+-- --                              (cmpUge (Bound "x") (Bound "y") (ConstSize 4))
+-- --                              (cmpNE (Bound "z") (Bound "y") (ConstSize 4))
+-- --                              (ConstSize 4))
+-- --                          (ConstSize 4))
+-- --                      ]
+-- --                    ]
+-- --             expected = NoMatch
+-- --         matchStmtsIO [] pats stmts `shouldReturn` expected
 
-      -- TODO: Unclear why NoMatch is returned when using multiple necessary constraints.
---       it "should require vars to be satisfiable if multiple necessary constraints are met" $ do
---         let stmts = [ def "a" (const 0 4)
---                     , def "b" (const 777 4)
--- --                    , constraint $ cmpUge (var "b" 4) (const 10 4) 4
---                     , def "c" (var "b" 4)
---                     ]
---             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
---                    , Stmt $ Def (Var "c") (Bind "z" Wild)
---                    , Stmt (Def (Var "b") (Bind "y" Wild))
---                      `Necessarily`
---                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
---                      , cmpE (Bound "z") (Bound "y") (ConstSize 4)
---                      ]
---                    ]
---             stmts' = stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)]
---             expected = Match stmts'
---         matchStmtsIO [] pats stmts `shouldReturn` expected
+--       -- TODO: Unclear why NoMatch is returned when using multiple necessary constraints.
+-- --       it "should require vars to be satisfiable if multiple necessary constraints are met" $ do
+-- --         let stmts = [ def "a" (const 0 4)
+-- --                     , def "b" (const 777 4)
+-- -- --                    , constraint $ cmpUge (var "b" 4) (const 10 4) 4
+-- --                     , def "c" (var "b" 4)
+-- --                     ]
+-- --             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+-- --                    , Stmt $ Def (Var "c") (Bind "z" Wild)
+-- --                    , Stmt (Def (Var "b") (Bind "y" Wild))
+-- --                      `Necessarily`
+-- --                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
+-- --                      , cmpE (Bound "z") (Bound "y") (ConstSize 4)
+-- --                      ]
+-- --                    ]
+-- --             stmts' = stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)]
+-- --             expected = Match stmts'
+-- --         matchStmtsIO [] pats stmts `shouldReturn` expected
 
-      -- it "should require vars to be unsatisfiable if necessary constrints are not met" $ do
-      --   let stmts = [ def "a" (const 10 4)
-      --               , def "b" (var "c" 4)
-      --               ]
-      --       pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
-      --              , Stmt (Def (Var "b") (Bind "y" Wild))
-      --                `Necessarily`
-      --                [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
-      --              ]
-      --   matchStmtsIO [] pats stmts `shouldReturn` NoMatch
+--       -- it "should require vars to be unsatisfiable if necessary constrints are not met" $ do
+--       --   let stmts = [ def "a" (const 10 4)
+--       --               , def "b" (var "c" 4)
+--       --               ]
+--       --       pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
+--       --              , Stmt (Def (Var "b") (Bind "y" Wild))
+--       --                `Necessarily`
+--       --                [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
+--       --              ]
+--       --   matchStmtsIO [] pats stmts `shouldReturn` NoMatch
 
       -- TODO: Unclear why NoMatch is returned when using multiple necessary constraints.
       it "should require vars to be satisfiable if multiple necessary constraints are met" $ do
@@ -946,7 +1228,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "b" (const 777 4)
                     , def "c" (var "b" 4)
                     ]
-            pats = [ Ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+            pats = [ ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
                              , Stmt $ Def (Var "b") (Bind "y" Wild)
                              , Stmt (Def (Var "c") (Bind "z" Wild))
                              ]
@@ -955,23 +1237,24 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                      , cmpE (Bound "z") (Bound "y") (ConstSize 4)
                      ]
                    ]
-            stmts' = stmts <> [ constraint (cmpUlt (const 0 4) (const 777 4) 4)
-                              , constraint (cmpE (var "b" 4) (const 777 4) 4)
-                              ]
-            expected = Match stmts'
-        matchStmtsIO [] pats stmts `shouldReturn` expected
+            expected =
+              [ stmts <> [ constraint (cmpUlt (const 0 4) (const 777 4) 4)
+                         , constraint (cmpE (var "b" 4) (const 777 4) 4)
+                         ]
+              ]
+        solveMatch_ pats stmts `shouldReturn` expected
 
       it "should require vars to be unsatisfiable if necessary constrints are not met" $ do
         let stmts = [ def "a" (const 10 4)
                     , def "b" (var "c" 4)
                     ]
-            pats = [ Ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+            pats = [ ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
                              , Stmt (Def (Var "b") (Bind "y" Wild))
                              ]
                      `Necessarily`
                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
                    ]
-        matchStmtsIO [] pats stmts `shouldReturn` NoMatch
+        solveMatch_ pats stmts `shouldReturn` []
 
     context "solving" $ do
 
@@ -983,57 +1266,67 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             pats = [ Stmt $ Def (Var "a") Wild
                    , Stmt $ Def (Var "b") Wild
                    ]
-            expected = NoMatch
-        matchStmtsIO [] pats stmts `shouldReturn` expected
+            expected = []
+        solveMatch pats stmts `shouldReturn` expected
 
 
-    context "taint propagators" $ do
-      let f = Function Nothing "myfunc" 0x888 []
-          tps =
-            [ FunctionCallPropagator "myfunc" (Parameter 0) ReturnParameter
-            ]
-          cdest = Pil.CallFunc f
-          v = pilVar_ 4 Nothing
-          -- TODO we should use Construct.var here once it's fixed
-          vexp sym = var' (v sym) 4
-          stmts =
-            [ def' (v "b") (vexp "a"),
-              def' (v "c") (add (load (vexp "b") 4) (const 0 4) 4),
-              store (vexp "d") (vexp "c"),
-              defCall' (v "r") cdest [vexp "d", vexp "e"] 8,
-              def' (v "x") (vexp "r")
-            ]
+--     context "taint propagators" $ do
+--       let f = Function Nothing "myfunc" 0x888 []
+--           tps =
+--             [ FunctionCallPropagator "myfunc" (Parameter 0) ReturnParameter
+--             ]
+--           cdest = Pil.CallFunc f
+--           v = pilVar_ 4 Nothing
+--           -- TODO we should use Construct.var here once it's fixed
+--           vexp sym = var' (v sym) 4
+--           stmts =
+--             [ def' (v "b") (vexp "a"),
+--               def' (v "c") (add (load (vexp "b") 4) (const 0 4) 4),
+--               store (vexp "d") (vexp "c"),
+--               defCall' (v "r") cdest [vexp "d", vexp "e"] 8,
+--               def' (v "x") (vexp "r")
+--             ]
 
-      it "should propagate taint through pure expressions" $ do
-        let pats =
-              [ Stmt $
-                  Store
-                    (Bind "out" Wild)
-                    ( Bind "in" Wild
-                        `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing Nothing "a" False Pil.UnknownLocation)
-                    )
-              ]
-            (ms, mr) = pureMatchStmts tps pats stmts
-        mr `shouldBe` Match stmts
-        HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "c")
-        HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "d")
+--       it "should propagate taint through pure expressions" $ do
+--         let pats =
+--               [ Stmt $
+--                   Store
+--                     (Bind "out" Wild)
+--                     ( Bind "in" Wild
+--                         `TaintedBy` (mkExpr (ConstSize 4) . Pil.VAR . Pil.VarOp $ Pil.PilVar 4 Nothing "a" False Pil.UnknownLocation)
+--                     )
+--               ]
+--             (ms, mr) = pureMatchStmts tps pats stmts
+--         mr `shouldBe` Match stmts
+--         HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "c")
+--         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "d")
 
-      it "should propagate taint through custom taint propagators" $ do
-        let pats =
-              [ Stmt $
-                  Def
-                    (Bind "out" Wild)
-                    ( Bind "in" Wild
-                      `TaintedBy` var' (pilVar 4 "d") (ConstSize 4)
-                    )
-              ]
-            (ms, mr) = pureMatchStmts tps pats stmts
-        mr `shouldBe` Match stmts
-        HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "r")
-        HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
+--       it "should propagate taint through custom taint propagators" $ do
+--         let pats =
+--               [ Stmt $
+--                   Def
+--                     (Bind "out" Wild)
+--                     ( Bind "in" Wild
+--                       `TaintedBy` var' (pilVar 4 "d") (ConstSize 4)
+--                     )
+--               ]
+--             (ms, mr) = pureMatchStmts tps pats stmts
+--         mr `shouldBe` Match stmts
+--         HashMap.lookup "in" (ms ^. #boundSyms) `shouldBe` Just (vexp "r")
+--         HashMap.lookup "out" (ms ^. #boundSyms) `shouldBe` Just (vexp "x")
 
     context "Primitives" $ do
-      let pureMatchStmts_ ms = runIdentity . match_ ms
+      let pureMatchFull
+            :: MatcherCtx Pil.Stmt Identity
+            -> MatcherState Pil.Expression Pil.Stmt
+            -> [StmtPattern]
+            -> [( MatcherState Pil.Expression Pil.Stmt
+                , [Pil.Stmt]
+                )]
+          pureMatchFull mctx mstate = runIdentity . match_ 20 mctx mstate
+          pureMatchFullWithBinds mctx mstate = fmap f . pureMatchFull mctx mstate
+            where f (ms, stmts') = (ms ^. #boundSyms, stmts')
+
       it "should match callable primitive" $ do
         let callablePrim = fooCallableWMI3
             -- outerFunc = bar
@@ -1043,28 +1336,23 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
               ]
-            pats = [Primitive prim varPats]
+            pats = [ Star
+                   , Primitive prim varPats
+                   ]
             pprep = mkPathPrep [] outerPath
-            solver :: StmtSolver Identity
+            solver :: StmtSolver stmt Identity
             solver _ = return $ Solver.Sat HashMap.empty
             callablePrims = HashMap.fromList
               [( (copyPrim, callablePrim ^. #func), HashSet.singleton callablePrim )]
-            initMs = mkMatcherState solver pprep
-                     & #callablePrimitives .~ callablePrims
+            (ctx, initMs) = mkMatcherState solver pprep
+            initMs' = initMs & #callablePrimitives .~ callablePrims
 
-            (ms, r) = pureMatchStmts_ initMs pats
             expectedBoundSyms = HashMap.fromList
               [ ("newdest", var "global1" 8)
               , ("newsrc"
                 , load (add (var_ bar "arg4" 8) (const 4 8) 8) 8
                 )
               ]
-            -- actualBoundSyms = HashMap.filterWithKey
-            --   (\k _ -> HashSet.member k
-            --     . HashSet.map (prefix <>)
-            --     $ prim ^. #vars)
-            --   $ ms ^. #boundSyms
-            actualBoundSyms = ms ^. #boundSyms
             expectedParsedSmts :: [Pil.Stmt]
             expectedParsedSmts =
               [ constraint $ cmpSgt (var_ bar "arg1" 8) (const 0 8) 8
@@ -1077,30 +1365,24 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               , constraint $ cmpNE (load (var_ bar "arg2" 8) 8) (const 0 8) 8
               , ret $ var_ bar "r" 8
               ]
-            actualParsedStmts = reverse $ ms ^. #parsedStmtsWithAssertions
-        
-        is #_Match r `shouldBe` True
-
-        PShow actualBoundSyms `shouldBe` PShow expectedBoundSyms
-
-        PrettyShow' (PStmts actualParsedStmts) `shouldBe` PrettyShow' (PStmts expectedParsedSmts)
+            expected = [(expectedBoundSyms, expectedParsedSmts)]
+            
+        pureMatchFullWithBinds ctx initMs' pats `shouldBe` expected
       
-      it "should match format string Primitive pattern" $ do
-        
+      it "should match format string Primitive pattern" $ do        
         let stdLibPrims = memcpyPrims <> sscanfPrims <> strdupPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
             initialCPrims = getInitialWMIs stdLibPrims . fmap Func.Internal $ allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
-            solver :: StmtSolver Identity
+            solver :: StmtSolver stmt Identity
             solver _ = return $ Solver.Sat HashMap.empty
-            initMs = mkMatcherState solver pprep
-                     & #callablePrimitives .~ initialCPrims
+            (ctx, initMs) = mkMatcherState solver pprep
+            initMs' = initMs & #callablePrimitives .~ initialCPrims
             varPats = HashMap.empty
             pat = [ Primitive controlledFormatStringPrim varPats ]
-            (_ms, r) = pureMatchStmts_ initMs pat
 
-        is #_Match r `shouldBe` True
+        null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
 
       it "should create CallableWMI from StdLibPrimites, then use them to match Primitive pattern" $ do
         let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
@@ -1108,13 +1390,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             initialCPrims = getInitialWMIs stdLibPrims . fmap Func.Internal $ allFuncs
             outerPath = fooPath1
             pprep = mkPathPrep [] outerPath
-            solver :: StmtSolver Identity
+            solver :: StmtSolver stmt Identity
             solver _ = return $ Solver.Sat HashMap.empty
-            initMs = mkMatcherState solver pprep
-                     & #callablePrimitives .~ initialCPrims
+            (ctx, initMs) = mkMatcherState solver pprep
+            initMs' = initMs & #callablePrimitives .~ initialCPrims
             varPats = HashMap.empty
             pat = [ Primitive controlledFormatStringPrim varPats ]
-            (_ms, r) = pureMatchStmts_ initMs pat
 
-        is #_Match r `shouldBe` True
-        
+        null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False

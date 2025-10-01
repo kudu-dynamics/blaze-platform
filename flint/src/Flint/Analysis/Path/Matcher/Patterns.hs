@@ -74,6 +74,7 @@ failedToUnregister = fmap f thingsYouShouldUnregister
     f ((regName, regArg), (unregName, unregArg)) = BugMatch
       { pathPattern =
           [ Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg $ Bind "handler" Wild
+          , Star
           , AvoidUntil $ AvoidSpec
             { avoid = Stmt . Call Nothing (CallFunc $ FuncName unregName)
                       . argAt unregArg $ Bind "handler" Wild
@@ -97,7 +98,7 @@ incrementWithoutCheck = BugMatch
                   .|| (Contains (load (Bind "ptr" Wild) ()) .>= Wild)
                   .|| (Contains (load (Bind "ptr" Wild) ()) .== Wild)
                   .|| (Contains (load (Bind "ptr" Wild) ()) ./= Wild)
-        , until = Ordered
+        , until = ordered
           [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
           ]
         }
@@ -142,7 +143,7 @@ inputDataCopiedToStack = BugMatch
   { pathPattern =
       [ AvoidUntil $ AvoidSpec
         { avoid = Stmt $ Call (Just $ Bind "stackVar" Wild) (CallFunc $ FuncNameRegex "alloc") []
-        , until = AnyOne
+        , until = orr
           [ Stmt $ Call Nothing (CallFunc $ FuncName "memcpy")
             [ Bind "stackVar" stackVar
             , Bind "src" (isGlobal .|| isArg)
@@ -162,7 +163,7 @@ inputDataCopiedToStack = BugMatch
 inputControlledIndirectCall :: BugMatch
 inputControlledIndirectCall = BugMatch
   { pathPattern =
-      [ AnyOne
+      [ orr
         [ Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" inputDest) []
         ]
       ]
@@ -214,7 +215,7 @@ overFlowCopyingFunc
   -> Symbol Pil.Expression
   -> ExprPattern
   -> StmtPattern
-overFlowCopyingFunc destArgBindName srcArgBindName srcArgCheck = AnyOne
+overFlowCopyingFunc destArgBindName srcArgBindName srcArgCheck = orr
   [ Stmt $ Call Nothing (CallFunc $ FuncName "strcpy")
     [ Bind destArgBindName Wild, Bind srcArgBindName srcArgCheck ] 
   , Stmt $ Call Nothing (CallFunc $ FuncName "strcat")
@@ -235,7 +236,7 @@ bufferOverflow = BugMatch
   }
 
 formatStringCallPattern :: Symbol Pil.Expression -> ExprPattern -> StmtPattern
-formatStringCallPattern formatStringArgBindName formatStringArgCheck = AnyOne
+formatStringCallPattern formatStringArgBindName formatStringArgCheck = orr
   . fmap (\(name, args) -> Stmt $ Call Nothing (CallFunc $ FuncName name) args)
   $ [ ("printf"   , firstArg)
     , ("fprintf"  , secondArg)
@@ -261,7 +262,7 @@ formatStringCallPattern formatStringArgBindName formatStringArgCheck = AnyOne
     thirdArg = [Wild, Wild, arg]
 
 formatStringCallPattern' :: StmtPattern
-formatStringCallPattern' = AnyOne
+formatStringCallPattern' = orr
   . fmap (\(name, args) -> Stmt $ Call Nothing (CallFunc $ FuncName name) args)
   $ [ ("printf"   , firstArg)
     , ("fprintf"  , secondArg)
@@ -287,7 +288,7 @@ formatStringCallPattern' = AnyOne
     thirdArg = [Wild, Wild, arg]
 
 formatStringCallPattern'' :: ExprPattern -> StmtPattern
-formatStringCallPattern'' argPat = AnyOne
+formatStringCallPattern'' argPat = orr
   [ Stmt $ Call Nothing (CallFunc $ FuncNames firstArgFuncs) firstArg
   , Stmt $ Call Nothing (CallFunc $ FuncNames secondArgFuncs) secondArg
   , Stmt $ Call Nothing (CallFunc $ FuncNames thirdArgFuncs) thirdArg
@@ -338,7 +339,7 @@ formatStringVulnerability = BugMatch
 -- This is really stupid...
 -- We have no way to match "any arg" at the moment
 anyArg :: ExprPattern -> ([ExprPattern] -> Statement ExprPattern) -> StmtPattern
-anyArg argPat mkCallDest = AnyOne
+anyArg argPat mkCallDest = orr
   [ stmt [argPat]
   , stmt [Wild, argPat]
   , stmt [Wild, Wild, argPat]
@@ -356,7 +357,7 @@ anyArg argPat mkCallDest = AnyOne
 -- will produce some false positives until we have a way to ensure it's
 -- not passing in &ptr instead of just ptr.
 memIsUsed :: ExprPattern -> StmtPattern
-memIsUsed memPat = AnyOne
+memIsUsed memPat = orr
   [ anyArg v $ Call Nothing (CallFunc $ FuncNameRegex ".*")
   , anyArg v $ EnterContext AnyCtx
   , Stmt $ Store v Wild
@@ -374,7 +375,7 @@ memIsUsed memPat = AnyOne
     v' = Contains $ load v ()
 
 pointerAssigned :: ExprPattern -> StmtPattern
-pointerAssigned ptrPat = AnyOne
+pointerAssigned ptrPat = orr
   [ Stmt $ Def ptrPat Wild
   
   -- TODO: handle these calls that take **ptr and set it to newly allocated mem:
@@ -403,7 +404,7 @@ useAfterFree = BugMatch
   }
 
 shouldn'tGetPassedNullPtr :: ExprPattern -> StmtPattern
-shouldn'tGetPassedNullPtr argPat = AnyOne
+shouldn'tGetPassedNullPtr argPat = orr
   . fmap (\(name, args) -> Stmt $ Call Nothing (CallFunc $ FuncName name) args)
   $ [ ("strcpy", firstArg)
     , ("strcpy", secondArg)
@@ -480,12 +481,12 @@ nullPtr = const 0 () .|| constPtr 0 ()
 nullPointerDereference :: BugMatch
 nullPointerDereference = BugMatch
   { pathPattern =
-      [ AnyOne
-        [ Ordered
+      [ orr
+        [ ordered
           [ Stmt $ Def (Bind "ptr" Wild) nullPtr
           , AvoidUntil $ AvoidSpec
             { avoid = pointerAssigned $ Bind "ptr" Wild
-            , until = AnyOne
+            , until = orr
                       [ shouldn'tGetPassedNullPtr (Bind "ptr" Wild) ]
             }
           ]

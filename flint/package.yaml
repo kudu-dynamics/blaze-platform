@@ -51,6 +51,7 @@ dependencies:
   - hashable
   - lens
   - list-t
+  - logict
   - megaparsec
   - mtl
   - newtype
@@ -127,6 +128,7 @@ library:
   - Flint.Analysis.Path.Matcher.Primitives.Library
   - Flint.Analysis.Path.Matcher.Primitives.Library.StdLib
   - Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec
+  - Flint.Analysis.Path.Matcher.Logic.Combinators
   - Flint.Analysis.Path.Matcher.Stub
   - Flint.Analysis.Uefi
   - Flint.App
@@ -138,6 +140,7 @@ library:
   - Flint.Types.Analysis
   - Flint.Types.Analysis.Path.Matcher
   - Flint.Types.Analysis.Path.Matcher.Func
+  - Flint.Types.Analysis.Path.Matcher.PathPrep
   - Flint.Types.Analysis.Path.Matcher.Primitives
   - Flint.Types.CachedMap
   - Flint.Types.CachedCalc

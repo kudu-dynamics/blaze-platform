@@ -5,9 +5,9 @@ module Flint.Query
 
 import Flint.Prelude
 
-import Flint.Analysis (showPathsWithMatches)
 import qualified Flint.Analysis as FA
-import Flint.Analysis.Path.Matcher (StmtPattern, PathPrep, StmtSolver)
+import Flint.Analysis.Path.Matcher (StmtPattern, StmtSolver)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
 import qualified Flint.Types.Analysis.Path.Matcher.Func as M
@@ -18,7 +18,6 @@ import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, StdLibPrimitive, PrimSpec)
-import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
@@ -79,25 +78,30 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
       -- pattern where it's only not ok to call the func under certain contexts.
       -- So this just has to be handled during pattern matching.
       M.AvoidUntil s -> go (parents, g) $ s ^. #until
-      M.AnyOne pats -> foldM f ([], g) pats
+
+      -- TODO: This used to be for `AnyOne pats`. I don't remember what this does,
+      --       so to get it to compile, I just put pat1 and pat2 in a list
+      M.Or pat1 pat2 -> foldM f ([], g) [pat1, pat2]
         where
           f (allEndNodes, g') pat = do
             (endNodes, g'') <- go (parents, g') pat
             return (endNodes <> allEndNodes, g'')
-      M.Unordered pats -> foldM go (parents, g) pats
+
         -- Below is the correct way, but could get expensive if len(pats) > 4.
         -- Currently, the path sampler that uses the CallSequenceGraph doesn't
         -- look at function call ordering, so for now we can just treat unordered
         -- like an ordered.
-        -- go (parents, g) . M.AnyOne . fmap M.Ordered $ permutations pats
-
-      M.Ordered pats -> foldM go (parents, g) pats
-      M.Neighbors pats -> foldM go (parents, g) pats
+        -- go (parents, g) . M.orr . fmap M.Ordered $ permutations pats
+ 
+      M.And pat1 pat2 -> foldM go (parents, g) [pat1, pat2]
       M.Where pat _ -> go (parents, g) pat
       M.Necessarily pat _ -> go (parents, g) pat
       M.EndOfPath -> return (parents, g)
       M.Location _ pat -> go (parents, g) pat
       M.Primitive _ _ -> return (parents, g)
+      M.Star -> return (parents, g)
+      M.Good -> return (parents, g)
+      M.Bad -> return (parents, g)
 
 getCallSequenceGraph :: [StmtPattern] -> CallSequenceGraph M.Func
 getCallSequenceGraph pats = snd $ evalState (getCallSequenceGraph_ pats) 0
@@ -225,7 +229,8 @@ queryForBugMatch_ actuallySolve maxCallDepthLimit maxSamples store funcMapping r
     solver = if actuallySolve
       then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
       else const . return $ Solver.Sat HashMap.empty
-    getMatch path = (path',) <$> M.match solver (bm ^. #pathPattern) (M.mkPathPrep [] path')
+    -- TODO: make this use regular `match` that can return multiple results
+    getMatch path = (path',) <$> M.singleMatch solver (bm ^. #pathPattern) (mkPathPrep [] path')
       where
         path' = stubPath stubs path
     tryPrepsUntilExhausted prevSamples numSamples preps
@@ -241,15 +246,15 @@ queryForBugMatch_ actuallySolve maxCallDepthLimit maxSamples store funcMapping r
               -- let newPaths = filter (not . (`HashSet.member` prevSamples)) paths
               let newPaths = paths
               matches <- traverse getMatch newPaths
-              forM_ matches $ \(path, (ms, mr)) -> do
+              forM_ matches $ \(path, mr) -> do
                 case mr of
-                  M.NoMatch -> return ()
-                  M.Match _stmts -> do
+                  Nothing -> return ()
+                  Just r -> do
                     -- putText "--- These Bad ---"
                     -- prettyStmts' _stmts
                     -- putText "--- mm hum --"
                     -- pprint $ ms ^. #solutions
-                    showPathsWithMatches (func ^. #name) [(path, [((ms, mr), bm)])]
+                    FA.showPathsWithMatches (func ^. #name) [(path, [(r, bm)])]
               return newPaths
               -- write them to file
           -- let prevSamples' = prevSamples <> HashSet.fromList newPaths
@@ -294,9 +299,9 @@ matchNodesFulfillingSeq tps allNodes = fmap getAllMatches
     
     matchesPat :: StmtPattern -> (PilNode, [Pil.Stmt]) -> Maybe PilNode
     matchesPat pat (node, nodeData) =
-      case M.pureMatch' [pat] $ M.mkPathPrep tps nodeData of
-        M.Match _ -> Just node
-        M.NoMatch -> Nothing
+      case M.singlePureMatch [pat] (mkPathPrep tps nodeData :: PathPrep Pil.Stmt) of
+        Just _ -> Just node
+        Nothing -> Nothing
 
 getAllSeqCombos :: [HashSet a] -> [[a]]
 getAllSeqCombos [] = []
@@ -607,21 +612,21 @@ queryForBugMatchUsingRoutes actuallySolve imp store routeMakerCtx sampleRoutePre
   routePaths <- flattenSampleRoutesResult
     <$> sampleRoutes imp store sampleRoutePrep maxSamplesPerRoute allRoutes
   matches <- traverse getMatch routePaths
-  forM_ matches $ \(func, path, (ms, mr)) -> do
+  forM_ matches $ \(func, path, mr) -> do
     case mr of
-      M.NoMatch -> return ()
-      M.Match _stmts -> do
+      Just r -> do
         -- putText "--- These Bad ---"
         -- prettyStmts' _stmts
         -- putText "--- mm hum --"
         -- pprint $ ms ^. #solutions
-        showPathsWithMatches (func ^. #name) [(path, [((ms, mr), bugMatch)])]
+        FA.showPathsWithMatches (func ^. #name) [(path, [(r, bugMatch)])]
+      Nothing -> return ()
   where
     solver = if actuallySolve
       then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
       else const . return $ Solver.Sat HashMap.empty
     getMatch ((func, _route), path)
-      = (func, path',) <$> M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep taints path')
+      = (func, path',) <$> M.singleMatch solver (bugMatch ^. #pathPattern) (mkPathPrep taints path')
       where
         path' = stubPath stubs path
 
@@ -637,9 +642,9 @@ checkPathsForBugMatch
   -> IO ()
 checkPathsForBugMatch actuallySolve tps stubs bugMatch fpaths = do
   matches <- traverse getMatch fpaths
-  forM_ matches $ \(func, path, (ms, mr)) -> do
+  forM_ matches $ \(func, path, mr) -> do
     case mr of
-      M.NoMatch -> do
+      Nothing -> do
         -- let stmts = PA.aggressiveExpand . CfgPath.toStmts $ path
 
         -- putText "\n--- These Bad ---\n"
@@ -647,18 +652,18 @@ checkPathsForBugMatch actuallySolve tps stubs bugMatch fpaths = do
         -- putText "--- mm hum --"
         -- pprint $ ms ^. #solutions
         return ()
-      M.Match _stmts -> do
+      Just r -> do
         -- putText "--- These Bad ---"
         -- prettyStmts' _stmts
         -- putText "--- mm hum --"
         -- pprint $ ms ^. #solutions
-        showPathsWithMatches (func ^. #name) [(path, [((ms, mr), bugMatch)])]
+        FA.showPathsWithMatches (func ^. #name) [(path, [(r, bugMatch)])]
   where
     solver = case actuallySolve of
       False -> const . return $ Solver.Sat HashMap.empty
       True -> solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
     getMatch (func, path)
-      = (func, path',) <$> M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep tps path')
+      = (func, path',) <$> M.singleMatch solver (bugMatch ^. #pathPattern) (mkPathPrep tps path')
       where
         path' = stubPath stubs path
 
@@ -687,9 +692,9 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
   -- putText $ "Got Some paths: " <> show (length paths)
   forConcurrently_ paths $ \path -> do
     forConcurrently_ bugMatches $ \bugMatch -> do
-      M.match solver (bugMatch ^. #pathPattern) (M.mkPathPrep [] path) >>= \case
-        (_, M.NoMatch) -> return ()
-        (ms, M.Match stmtsWithAssertions) -> do
+      M.singleMatch solver (bugMatch ^. #pathPattern) (mkPathPrep [] path) >>= \case
+        Nothing -> return ()
+        Just (ms, stmtsWithAssertions) -> do
           streamResults $ MatchingResult
             { func = startFunc
             , path = path
@@ -848,7 +853,8 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
               , numSamples = maxSamplesPerFunc
               }
           prims :: [Prim]
-          prims = PrimLib.kernelModulePrims
+          --- TODO: add these kernel prims back in
+          prims = [] -- PrimLib.kernelModulePrims
 
       checkFuncForPrims'
         actuallyUseSolver
@@ -864,29 +870,53 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
     findFuncByName :: [Function] -> HashSet Text -> Maybe Function
     findFuncByName funcs s = headMay . filter (\func -> HashSet.member (func ^. #name) s) $ funcs  
 
+-- checkPathForPrim_
+--   :: Monad m
+--   => M.MatcherCtx Pil.Stmt m
+--   -> M.MatcherState Pil.Expression Pil.Stmt
+--   -> Function
+--   -> CodeSummary
+--   -> Prim
+--   -> m (Maybe (Either MkCallableWMIError CallableWMI))
+-- checkPathForPrim_ mctx mstate func codeSummary prim = do
+--   M.singleMatch_  mctx mstate (prim ^. #stmtPattern) >>= \case
+--     Nothing -> return Nothing
+--     Just (ms, stmtsWithAssertions, _) -> do
+--       return . Just $ mkCallableWMI
+--         (Func.Internal func)
+--         codeSummary
+--         (prim ^. #primType)
+--         (ms ^. #boundSyms)
+--         (ms ^. #locations)
+--         stmtsWithAssertions
+
 checkPathForPrim_
   :: Monad m
-  => M.MatcherState m
+  => Word64
+  -> M.MatcherCtx Pil.Stmt m
+  -> M.MatcherState Pil.Expression Pil.Stmt
   -> Function
   -> CodeSummary
   -> Prim
-  -> m (Maybe (Either MkCallableWMIError CallableWMI))
-checkPathForPrim_ mstate func codeSummary prim = do
-  M.match_  mstate (prim ^. #stmtPattern) >>= \case
-    (_, M.NoMatch) -> return Nothing
-    (ms, M.Match stmtsWithAssertions) -> do
-      return . Just $ mkCallableWMI
-        (Func.Internal func)
-        codeSummary
-        (prim ^. #primType)
-        (ms ^. #boundSyms)
-        (ms ^. #locations)
-        stmtsWithAssertions
+  -> m [CallableWMI]
+checkPathForPrim_ maxResultsPerPath mctx mstate func codeSummary prim = do
+  mapMaybe f <$> M.match_ (fromIntegral maxResultsPerPath) mctx mstate (prim ^. #stmtPattern)
+    where
+      f :: (M.MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])
+        -> Maybe CallableWMI
+      f (ms, stmtsWithAssertions) =
+        either (const Nothing) Just $ mkCallableWMI
+          (Func.Internal func)
+          codeSummary
+          (prim ^. #primType)
+          (ms ^. #boundSyms)
+          (ms ^. #locations)
+          stmtsWithAssertions
 
 checkPathForPrim
-  :: StmtSolver IO
+  :: StmtSolver Pil.Stmt IO
   -> Function
-  -> PathPrep
+  -> PathPrep Pil.Stmt
   -> CodeSummary
   -> Prim
   -> IO (Maybe (Either MkCallableWMIError CallableWMI))
@@ -896,9 +926,9 @@ checkPathForPrim solver func prep codeSummary prim = do
       sequentialPutText . cs . pshow . filter ((== 0x100263) . view #addr) $ prep ^. #untouchedStmts
       sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ prep ^. #untouchedStmts
 
-  M.match solver (prim ^. #stmtPattern) prep >>= \case
-    (_, M.NoMatch) -> return Nothing
-    (ms, M.Match stmtsWithAssertions) -> do
+  M.singleMatch solver (prim ^. #stmtPattern) prep >>= \case
+    Nothing -> return Nothing
+    Just (ms, stmtsWithAssertions) -> do
       -- putText "MAAAAATCHED!!!!"
       return . Just $ mkCallableWMI
         (Func.Internal func)
@@ -920,7 +950,7 @@ checkFuncForPrims actuallySolve store q prims streamResults func = flip catch re
   paths <- samplesFromQuery store func q
   debug $ "Got Some paths: " <> show (length paths)
   forConcurrently_ paths $ \path -> do
-    let pathPrep = M.mkPathPrep [] path
+    let pathPrep = mkPathPrep [] path
         codeSum = Summary.fromStmts $ pathPrep ^. #stmts
     forConcurrently_ prims $ \prim -> do
       checkPathForPrim solver func pathPrep codeSum prim >>= \case
@@ -960,7 +990,7 @@ checkFuncForPrims' actuallySolve store q prims func = do
   paths <- nub <$> samplesFromQuery store func q
   -- putText $ "Got Some paths: " <> show (length paths)
   fmap concat . forConcurrently paths $ \path -> do
-    let pathPrep = M.mkPathPrep [] path
+    let pathPrep = mkPathPrep [] path
         codeSum = Summary.fromStmts $ pathPrep ^. #stmts
     fmap catMaybes . forConcurrently prims $ \prim -> do
       checkPathForPrim solver func pathPrep codeSum prim >>= \case
@@ -1033,13 +1063,14 @@ onionSampleBasedOnFuncSize multiplier store func = CfgStore.getFuncCfgInfo store
 -- | Looks for prims with the current set of CallablePrims
 -- and if it matches one, returns it
 matchAndReturnCallablePrim
-  :: StmtSolver IO
+  :: Word64
+  -> StmtSolver Pil.Stmt IO
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> Function
-  -> PathPrep
+  -> PathPrep Pil.Stmt
   -> Prim
-  -> IO (Maybe (Either MkCallableWMIError CallableWMI))
-matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
+  -> IO [CallableWMI]
+matchAndReturnCallablePrim maxResultsPerPath solver callablePrimSnapshot func pprep prim = do
   -- when (func ^. #name == "int_inc_ioctl") $ do
   --   let solver' = const . return $ Solver.Sat HashMap.empty
   --   r <- checkPathForPrim solver' func pprep (pprep ^. #codeSummary) prim
@@ -1048,22 +1079,24 @@ matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim = do
   --     Just (Left _) -> putText "match error"
   --     Nothing -> putText "no match :("
   
-  let mstate = M.mkMatcherState solver pprep
-               & #callablePrimitives .~ callablePrimSnapshot
-  checkPathForPrim_ mstate func (pprep ^. #codeSummary) prim
+  let (mctx, mstate) = M.mkMatcherState solver pprep
+      mstate' = mstate & #callablePrimitives .~ callablePrimSnapshot
+      
+  checkPathForPrim_ maxResultsPerPath mctx mstate' func (pprep ^. #codeSummary) prim
 
 -- | Checks path for prim and updates the callable primitives if the path
 -- is an instance of that callable primitive
 {-# SCC onionCheckPathForPrim #-}
 onionCheckPathForPrim
-  :: StmtSolver IO
+  :: Word64
+  -> StmtSolver Pil.Stmt IO
   -> CfgStore
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> Function
-  -> PathPrep
+  -> PathPrep Pil.Stmt
   -> Prim
   -> IO ()
-onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
+onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func pprep prim = do
   -- putText $ func ^. #name <> ": " <> prim ^. #primType . #name
   -- | Because so many things can go wrong with patterns, this little section allows
   -- you to choose a func and primitive to print out debug info for.
@@ -1080,77 +1113,171 @@ onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
     debug . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
     -- pprint $ take 2 (pprep ^. #untouchedStmts)
 
-  when debugMode $ do
-    checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
-      Nothing -> debug "|| NO MATCH ||"
-      Just (Left _) -> debug "|| err ||"
-      Just (Right _) -> debug "|| MATCH!!! ||"
-  matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
-    Nothing -> do
+  -- when debugMode $ do
+  --   checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
+  --     Nothing -> debug "|| NO MATCH ||"
+  --     Just (Left _) -> debug "|| err ||"
+  --     Just (Right _) -> debug "|| MATCH!!! ||"
+  matchAndReturnCallablePrim maxResultsPerPath solver callablePrimSnapshot func pprep prim >>= \case
+    [] -> do
       when debugMode $ do
         debug "Found nothing"
-    Just (Left cprimError) -> do
-      -- TODO: make this log a warning properly
-      warn $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
-    Just (Right cprim) -> do
+    cprims -> do
       when debugMode $ do
-        debug "MATCH!"
-      CM.modify_ (HashSet.insert cprim) (prim ^. #primType, cprim ^. #func) $ store ^. #callablePrims
+        debug $ "MATCHED " <> show (length cprims) <> " prims"
+      CM.modify_ (HashSet.union (HashSet.fromList cprims)) (prim ^. #primType, Func.Internal func) $ store ^. #callablePrims
+
+
+-- onionCheckPathForPrim
+--   :: StmtSolver Pil.Stmt IO
+--   -> CfgStore
+--   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+--   -> Function
+--   -> PathPrep Pil.Stmt
+--   -> Prim
+--   -> IO ()
+-- onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
+--   -- putText $ func ^. #name <> ": " <> prim ^. #primType . #name
+--   -- | Because so many things can go wrong with patterns, this little section allows
+--   -- you to choose a func and primitive to print out debug info for.
+--   let debuggingOn = False
+--       debugFuncName = "clearHistory"
+--       debugPrimName = "freeHeap"
+--       debugMode = debuggingOn
+--         && func ^. #name == debugFuncName
+--         && prim ^. #primType . #name == debugPrimName
+--   when debugMode $ do
+--     debug $ prim ^. #primType . #name
+--     -- putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
+--     -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
+--     debug . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+--     -- pprint $ take 2 (pprep ^. #untouchedStmts)
+
+--   when debugMode $ do
+--     checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
+--       Nothing -> debug "|| NO MATCH ||"
+--       Just (Left _) -> debug "|| err ||"
+--       Just (Right _) -> debug "|| MATCH!!! ||"
+--   matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
+--     Nothing -> do
+--       when debugMode $ do
+--         debug "Found nothing"
+--     Just (Left cprimError) -> do
+--       -- TODO: make this log a warning properly
+--       warn $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
+--     Just (Right cprim) -> do
+--       when debugMode $ do
+--         debug "MATCH!"
+--       CM.modify_ (HashSet.insert cprim) (prim ^. #primType, cprim ^. #func) $ store ^. #callablePrims
+
 
 -- | Gets cached paths for function, and checks them for each prim.
 -- Adds instances found of CallableWMIs back into CfgStore
 onionCheckFunc
-  :: StmtSolver IO
+  :: Word64
+  -> StmtSolver Pil.Stmt IO
   -> CfgStore
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> [Prim]
   -> Function
   -> IO ()
-onionCheckFunc solver store callablePrimSnapshot prims func = do
-  paths <- CM.get func $ store ^. #pathSamples      
+onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims func = do
+  paths <- CM.get func $ store ^. #pathSamples
   let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
   forConcurrently_ pathPrimCombos $ \(pprep, prim) -> do
-    onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
+    onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func pprep prim
+
+-- onionCheckFunc
+--   :: StmtSolver Pil.Stmt IO
+--   -> CfgStore
+--   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+--   -> [Prim]
+--   -> Function
+--   -> IO ()
+-- onionCheckFunc solver store callablePrimSnapshot prims func = do
+--   paths <- CM.get func $ store ^. #pathSamples
+--   when (func ^. #name == "malloc1") $ do
+--     putText "This getting crzzzzy!"
+--   let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
+--   forConcurrently_ pathPrimCombos $ \(pprep, prim) -> do
+--     onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
 
 -- | Does a single pass over all the funcs.
 -- Adds instances found of CallableWMIs back into CfgStore
 onionSinglePass
-  :: StmtSolver IO
+  :: Word64
+  -> StmtSolver Pil.Stmt IO
   -> CfgStore
   -> [Prim]
   -> [Function]
   -> IO ()
-onionSinglePass solver store prims funcs = do
+onionSinglePass maxResultsPerPath solver store prims funcs = do
   -- Get a fresh snapshot every time
   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
-  mapM_ (onionCheckFunc solver store cprimsSnapshot prims) funcs
+  mapM_ (onionCheckFunc maxResultsPerPath solver store cprimsSnapshot prims) funcs
+
+-- onionSinglePass
+--   :: StmtSolver Pil.Stmt IO
+--   -> CfgStore
+--   -> [Prim]
+--   -> [Function]
+--   -> IO ()
+-- onionSinglePass solver store prims funcs = do
+--   -- Get a fresh snapshot every time
+--   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
+--   mapM_ (onionCheckFunc solver store cprimsSnapshot prims) funcs
 
 chooseSolver
   :: Bool -- actually solve?
-  -> StmtSolver IO
+  -> StmtSolver Pil.Stmt IO
 chooseSolver True = solveStmtsWithZ3 Solver.AbortOnError
 chooseSolver False = const . return $ Solver.Sat HashMap.empty
 
 onionFlow
-  :: Bool               -- actually use SMT solver?
+  :: Word64
+  -> Bool               -- actually use SMT solver?
   -> Word64             -- max times to iterate checking whole binary
   -> CfgStore
   -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations store stdLibPrims prims = do
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
     debug $ "Getting paths for: " <> show (func ^. #name)
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
     debug $ "Got " <> show (length paths) <> " paths."
-    let pathPreps = M.mkPathPrep [] <$> paths
+    let pathPreps = mkPathPrep [] <$> paths
 
     CM.set func pathPreps $ store ^. #pathSamples
   debug "Finished sampling paths"
   let initialPrims = getInitialWMIs stdLibPrims allFuncs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
-  replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs
+  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims funcs
   where
     solver = chooseSolver actuallyUseSolver
+
+-- onionFlow
+--   :: Bool               -- actually use SMT solver?
+--   -> Word64             -- max times to iterate checking whole binary
+--   -> CfgStore
+--   -> [StdLibPrimitive]
+--   -> [Prim]             -- checks all on each path
+--   -> IO ()              -- it writes results into CfgStore and hopefully DB
+-- onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
+--   allFuncs <- CfgStore.getFuncs store
+--   funcs <- CfgStore.getInternalFuncs store
+--   forM_ funcs $ \func -> do
+--     debug $ "Getting paths for: " <> show (func ^. #name)
+--     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
+--     debug $ "Got " <> show (length paths) <> " paths."
+--     let pathPreps = mkPathPrep [] <$> paths
+
+--     CM.set func pathPreps $ store ^. #pathSamples
+--   debug "Finished sampling paths"
+--   let initialPrims = getInitialWMIs stdLibPrims allFuncs
+--   CM.putSnapshot initialPrims $ store ^. #callablePrims
+--   replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs
+--   where
+--     solver = chooseSolver actuallyUseSolver

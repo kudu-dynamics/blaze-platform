@@ -97,7 +97,7 @@ data DeepSymType
   | DSRecursive Sym (PilType DeepSymType)
   | DSType (PilType DeepSymType)
   deriving (Eq, Ord, Read, Show, Generic, Hashable, FromJSON, ToJSON)
-
+  
 data Constraint = Constraint
   { stmtOrigin :: Int -- probably need (func, instructionIndex) eventually
   , sym :: Sym

@@ -3,6 +3,7 @@ module Flint.Analysis.Path.Matcher.Stub where
 import Flint.Prelude hiding (sym)
 
 import Flint.Analysis.Path.Matcher
+import Flint.Types.Analysis.Path.Matcher.PathPrep (MkPathPrep(mkPathPrep))
 import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct (ExprConstructor(..))
@@ -36,25 +37,31 @@ newtype StubMatcherState = StubMatcherState
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable)
 
-type StubMatcher a = MatcherT (State StubMatcherState) a
+type StubMatcher expr stmt a = MatcherT expr stmt (State StubMatcherState) a
 
 runStubMatcher_
-  :: StubMatcher a
+  :: forall expr stmt a.
+     ( MkPathPrep stmt [stmt]
+     )
+  => StubMatcher expr stmt a
   -> StubMatcherState
-  -> ((Either () a, MatcherState (State StubMatcherState)), StubMatcherState)
-runStubMatcher_ m s = flip runState s . flip runMatcher_ mstate $ m
+  -> (Maybe (a, MatcherState expr stmt), StubMatcherState)
+runStubMatcher_ m s = flip runState s . observeMatcherT mctx mstate $ m
   where
     solver _ = return $ Sat HashMap.empty
-    mstate = mkMatcherState solver $ mkPathPrep [] ([] :: [Pil.Stmt])
+    (mctx, mstate) = mkMatcherState solver $ mkPathPrep [] ([] :: [stmt])
   
-resolveStubBoundExpr :: StubBoundExpr -> StubMatcher Pil.Expression
+resolveStubBoundExpr
+  :: IsExpression expr
+  => StubBoundExpr
+  -> StubMatcher expr stmt expr
 resolveStubBoundExpr (StubBound sym) = lookupBound sym
 resolveStubBoundExpr (StubBoundExpr bsize op) = do
-  Pil.Expression <$> resolveBoundExprSize bsize <*> traverse resolveStubBoundExpr op
+  mkExprWithSize <$> resolveBoundExprSize bsize <*> traverse resolveStubBoundExpr op
 resolveStubBoundExpr (StubNewVar sym sz) = do
   sz' <- resolveBoundExprSize sz
   vid <- lift $ use #nextNewVarId
-  let v = C.var (cs sym <> "_" <> show vid) sz'
+  let v = liftVar . C.pilVar (coerce sz') $ cs sym <> "_" <> show vid
   #boundSyms %= HashMap.insert sym v
   lift $ #nextNewVarId %= (+1)
   return v
@@ -65,21 +72,32 @@ resolveStubBoundExpr (StubNewVar sym sz) = do
 data StubSpec = StubSpec
   { stmtToStub :: Statement ExprPattern
   , removeOriginalStmt :: Bool
-  , stubs :: [Pil.AddressableStatement StubBoundExpr]
+  , stubs :: [Pil.Statement StubBoundExpr]
   } deriving (Eq, Ord, Show, Hashable, Generic)
+
+
 
 -- | Replaces a matching statement with stubbed statements.
 -- nextVarId is passed in and returned in first arg of tuple
 -- and is used to ensure NewVars are unique.
-stubStmt :: StubMatcherState -> StubSpec -> Pil.Stmt -> Maybe (StubMatcherState, [Pil.Stmt])
+stubStmt
+  :: ( HasAddress stmt
+     , IsStatement expr stmt
+     , IsExpression expr
+     , MkPathPrep stmt [stmt]
+     )
+  => StubMatcherState
+  -> StubSpec
+  -> stmt
+  -> Maybe (StubMatcherState, [stmt])
 stubStmt st sspec stmt = case matcherResult of
-  ((Left _, _), _) -> Nothing
-  ((Right stmts, _), st') -> Just (st', stmts)
+  (Nothing, _) -> Nothing
+  (Just ( stmts, _), st') -> Just (st', stmts)
   where
     matcherResult = flip runStubMatcher_ st $ do
       matchStmt (sspec ^. #stmtToStub) stmt
       resolvedStmts <- traverse (traverse resolveStubBoundExpr) $ sspec ^. #stubs
-      return $ bool [stmt] [] (sspec ^. #removeOriginalStmt) <> resolvedStmts
+      return $ bool [stmt] [] (sspec ^. #removeOriginalStmt) <> (mkStmtLike stmt <$> resolvedStmts)
 
 stubStmts :: [StubSpec] -> [Pil.Stmt] -> [Pil.Stmt]
 stubStmts specs = go (StubMatcherState 0)
