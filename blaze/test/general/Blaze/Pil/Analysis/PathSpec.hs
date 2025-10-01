@@ -91,7 +91,22 @@ spec = describe "Blaze.Pil.Analysis" $ do
       result `shouldBe` expected
 
   context "aggressiveExpand" $ do
-    stmts <- runIO $ readAsJSON "res/json/dive_logger_aggressive_expand_failure_path.json"
-    it ("should aggressive expand without looping forever (" <> show (length stmts) <> ")") $ do
+
+    it "should aggressive expand a long set of stmts without looping forever" $ do
+      stmts <- readAsJSON "res/json/dive_logger_aggressive_expand_failure_path.json"
       let result = aggressiveExpand stmts
       (length result < length stmts) `shouldBe` True
+
+    it "should use a previously used var for phi" $ do
+      let stmts =
+            [ defCall "y" Pil.CallUnk [var "x" 8] 8
+            , defPhi 8 "z" ["m", "n", "x"]
+            , ret $ var "z" 8
+            ]
+          expected =
+            [ defCall "y" Pil.CallUnk [var "x" 8] 8
+            , ret $ var "x" 8
+            ]
+          result = aggressiveExpand stmts
+      result `shouldBe` expected
+

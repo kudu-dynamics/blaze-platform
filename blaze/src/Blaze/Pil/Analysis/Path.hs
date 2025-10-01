@@ -8,12 +8,15 @@ import Blaze.Prelude
 
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Pil (Stmt, Expression, PilVar)
+import qualified Blaze.Pil.Construct as C
 import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Analysis (untilFixedPoint)
 
+import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
+import System.IO.Unsafe (unsafePerformIO)
 
 
 -- | Helper for simplifyVars
@@ -124,10 +127,11 @@ expandVars = expandVars_ HashMap.empty
 -- The goal is eliminate non-arg vars and non-global mem accesses.
 -- Don't use this on partial paths through a funcion and expect to
 -- later append other paths to it, because var def elimination might ruin linking.
+-- Because this substitutes loads, we might erase possible TOCTOU patterns
 -- TODO: once we know which mem addresses are global, we can eliminate the internal
 --       store stmts.
 aggressiveExpand :: [Stmt] -> [Stmt]
-aggressiveExpand = view _3 . aggressiveExpand'
+aggressiveExpand = view #processed . aggressiveExpand'
 
 type Addr = Expression
 
@@ -140,43 +144,59 @@ showVarSubstMap
   . fmap (\(pv, (i, expr)) -> show (pretty' pv, (show i :: Text, pretty' expr)))
   . HashMap.toList
 
+data AggressiveExpandState = AggressiveExpandState
+  { usedVars :: HashSet PilVar -- | Vars in stmts that have not been eliminated
+  , varSubstMap :: HashMap PilVar (StmtIndex, Expression)
+  , memSubstMap :: HashMap Addr Expression
+  , processed :: [Stmt]
+  } deriving (Eq, Ord, Show, Generic)
+
 aggressiveExpand'
   :: [Stmt]
-  -> ( HashMap PilVar (StmtIndex, Expression)
-     , HashMap Addr Expression
-     , [Stmt] )
-aggressiveExpand' = over _3 reverse . foldl' (flip aggressiveExpand'_) (HashMap.empty, HashMap.empty, []) . zip [0..]
+  -> AggressiveExpandState
+aggressiveExpand' = over #processed reverse . foldl' (flip aggressiveExpand'_) (AggressiveExpandState HashSet.empty HashMap.empty HashMap.empty []) . zip [0..]
 
 -- | version meant to be used with foldr
 aggressiveExpand'_
   :: (StmtIndex, Stmt)
-  -> ( HashMap PilVar (StmtIndex, Expression)
-     , HashMap Addr Expression
-     , [Stmt] )
-  -> ( HashMap PilVar (StmtIndex, Expression)
-     , HashMap Addr Expression
-     , [Stmt] )
-aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) (varSubstMap, memSubstMap, processed) = case Pil.mkCallStatement stmt of
+  -> AggressiveExpandState
+  -> AggressiveExpandState
+aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExpandState{usedVars, varSubstMap, memSubstMap, processed} = case Pil.mkCallStatement stmt of
   -- | If it's a call statement, remove args from mem subst map because the call
   -- could affect them.
   -- Also, don't add anything to varSubstMap because function calls aren't necessarily pure
   -- so we can't subst the calls in multiple places.
-  Just call -> (varSubstMap, removeFromMemSubstMap args, stmt':processed)
+  Just call -> AggressiveExpandState
+               usedVars'
+               varSubstMap
+               (removeFromMemSubstMap args)
+               (stmt':processed)
       where
+        usedVars' = addUsedFromStmt stmt'
         args = substAll <$> call ^. #args
         stmt' = substAll <$> stmt
 
   -- | Handle the non-call statements.
   Nothing ->  case statement of
-    Pil.Def (Pil.DefOp pv expr) -> (varSubstMap', memSubstMap, processed)
+    Pil.Def (Pil.DefOp pv expr) -> AggressiveExpandState
+              usedVars'
+              varSubstMap'
+              memSubstMap
+              processed
       where
+        usedVars' = HashSet.insert pv $ addUsedFromExpr expr'
         expr' = substAll expr
         varSubstMap' = HashMap.insert pv (stmtIndex, expr') varSubstMap
 
     Pil.Constraint _ -> defaultProp
 
-    Pil.Store (Pil.StoreOp addr expr) -> (varSubstMap, memSubstMap', stmt':processed)
+    Pil.Store (Pil.StoreOp addr expr) -> AggressiveExpandState
+              usedVars'
+              varSubstMap
+              memSubstMap'
+              (stmt':processed)
       where
+        usedVars' = addUsedFromStmt stmt'
         stmt' = Pil.Stmt stmtAddr $ Pil.Store (Pil.StoreOp addr' expr')
         addr' = substAll addr
         expr' = substAll expr
@@ -185,8 +205,13 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) (varSubstMap,
     Pil.UnimplInstr _ -> defaultProp
 
     -- Removes mem from subst map because we don't know what the unimpl instr did to it
-    Pil.UnimplMem (Pil.UnimplMemOp addr) -> (varSubstMap, removeFromMemSubstMap [addr'], stmt':processed)
+    Pil.UnimplMem (Pil.UnimplMemOp addr) -> AggressiveExpandState
+      usedVars'
+      varSubstMap
+      (removeFromMemSubstMap [addr'])
+      (stmt':processed)
       where
+        usedVars' = addUsedFromStmt stmt'
         stmt' = Pil.Stmt stmtAddr $ Pil.UnimplMem (Pil.UnimplMemOp addr')
         addr' = substAll addr
 
@@ -199,12 +224,22 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) (varSubstMap,
     Pil.Call _ -> error "This stmt should have been caught by mkCallStatement"
 
     Pil.DefPhi (Pil.DefPhiOp dest src) -> case mapMaybe (\v -> (v,) <$> isPreviouslyDefined v) src of
-      [] -> (varSubstMap, memSubstMap, processed)
-      [(_v, (_si, expr))] ->
-        ( HashMap.insert dest (stmtIndex, expr) varSubstMap
-        , memSubstMap
-        , processed )
-      varExprs -> (varSubstMap', memSubstMap, processed)
+      [] -> case mapMaybe (\v -> bool Nothing (Just v) $ HashSet.member v usedVars) src of
+        [] -> AggressiveExpandState usedVars varSubstMap memSubstMap processed
+        [v] -> handleSingleVar v
+        -- TODO: does this ever happen? make it warning instead
+        (v:_) -> unsafePerformIO $ do
+          warn $ "Path has PHI where multiple src vars have been used already in path: " <> show (pretty' stmt)
+          return $ handleSingleVar v
+        where
+          handleSingleVar v = AggressiveExpandState usedVars varSubstMap' memSubstMap processed
+            where
+              expr = C.var' v . fromByteBased $ v ^. #size
+              varSubstMap' = HashMap.insert dest (stmtIndex, expr) varSubstMap
+      [(_v, (_si, expr))] -> AggressiveExpandState usedVars varSubstMap' memSubstMap processed
+        where
+          varSubstMap' = HashMap.insert dest (stmtIndex, expr) varSubstMap
+      varExprs -> AggressiveExpandState usedVars varSubstMap' memSubstMap processed
         where
           (_latestVar, (_si, expr)) = maximumBy (\a b-> compare (fst a) (fst b)) varExprs
           varSubstMap' = HashMap.insert dest (stmtIndex, expr) varSubstMap
@@ -216,14 +251,18 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) (varSubstMap,
 
     Pil.DefMemPhi _ -> defaultProp
     Pil.BranchCond _ -> defaultProp
-    Pil.Jump _  -> defaultProp
-    Pil.JumpTo _  -> defaultProp
+    Pil.Jump _  -> simplyDrop
+    Pil.JumpTo _  -> simplyDrop
     Pil.Ret _ -> defaultProp
     Pil.NoRet -> defaultProp
     Pil.Exit -> defaultProp
     Pil.TailCall _ -> error "This stmt should have been caught by mkCallStatement"
   where
-    defaultProp = (varSubstMap, memSubstMap, (substAll <$> stmt):processed)
+    simplyDrop = AggressiveExpandState usedVars varSubstMap memSubstMap processed
+    defaultProp = let stmt' = substAll <$> stmt
+                      usedVars' = addUsedFromStmt stmt'
+                  in
+                    AggressiveExpandState usedVars' varSubstMap memSubstMap (stmt':processed)
 
     substAll :: Expression -> Expression
     substAll = substMem . substVars
@@ -260,3 +299,6 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) (varSubstMap,
 
     removeFromMemSubstMap :: [Expression] -> HashMap Addr Expression
     removeFromMemSubstMap = foldl' (flip HashMap.delete) memSubstMap
+
+    addUsedFromStmt = HashSet.union usedVars . PA.getVarsFromStmt
+    addUsedFromExpr = HashSet.union usedVars . PA.getVarsFromExpr

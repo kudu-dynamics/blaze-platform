@@ -3,6 +3,7 @@ module Flint.Analysis.Path.Matcher.Primitives.Library where
 import Flint.Prelude hiding (Location)
 
 import Flint.Analysis.Path.Matcher
+import qualified Flint.Analysis.Path.Matcher as M
 import Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.Primitives
@@ -26,6 +27,7 @@ allPrims =
   , writeWhatWherePrim
   -- , escapedDataFromLock
   -- , writePrim
+  , returnsFreedPointerPrim
   ]
 
 ---------------------------
@@ -170,6 +172,24 @@ integerOverflowPrim = Prim
           }
         ]
       ]
+  }
+
+returnsFreedPointerPrim :: Prim
+returnsFreedPointerPrim = Prim
+  { primType = returnsFreedPointerSpec
+  , stmtPattern =
+    [ Star
+    , orr
+      [ Location "free" . Primitive freeHeapSpec $ HashMap.fromList
+        [ ("ptr", Bind "ptr" Wild) ]
+      , Location "free" . Primitive returnsFreedPointerSpec $ HashMap.fromList
+        [ ("ptr", Bind "ptr" Wild) ]
+      ]
+    , Star
+      -- Location "free" . Stmt $ Call Nothing (CallFunc (FuncName "free")) [Bind "ptr" Wild]
+    -- TODO: Avoid any resetting of the pointer to something else between free and ret
+    , Location "return" . Stmt . M.Ret . Contains $ Bind "ptr" Wild
+    ]
   }
 
 -------------------------------------

@@ -790,6 +790,7 @@ test-suite flint-general-test
   main-is: Spec.hs
   other-modules:
       Flint.Analysis.Path.Matcher.Logic.CombinatorsSpec
+      Flint.Analysis.Path.Matcher.Primitives.LibrarySpec
       Flint.Analysis.Path.Matcher.PrimitivesSpec
       Flint.Analysis.Path.Matcher.StubSpec
       Flint.Analysis.Path.MatcherSpec
