@@ -91,4 +91,3 @@ controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $
       , ("snprintf", 2)
       , ("vsnprintf", 2)
       ]
-

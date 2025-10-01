@@ -2,7 +2,7 @@ module Flint.Types.Cfg.Store where
 
 import Flint.Prelude
 
-import Flint.Types.Analysis.Path.Matcher (PathPrep)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 
 import Blaze.Types.Function (Function, Func)
@@ -38,7 +38,7 @@ data CfgStore = CfgStore
   -- Functions and the callsites they contain
   , callSitesCache :: CachedCalc Function [CallSite]
 
-  , pathSamples :: CachedMap Function [PathPrep]
+  , pathSamples :: CachedMap Function [PathPrep Stmt]
   , callablePrims :: CachedMap (PrimSpec, Func) (HashSet CallableWMI)
   -- -- If this is too slow or uses too much memory, we could do just calls or landmarks
   -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
