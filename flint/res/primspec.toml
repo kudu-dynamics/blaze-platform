@@ -78,3 +78,8 @@
   name = "EscapedDataFromLock"
   locations = ["lock", "unlock", "bind"]
   vars = ["ptr_containing_escaped_data"]
+
+[[prim]]
+  name = "ReturnsFreedPointer"
+  locations = ["free", "return"]
+  vars = ["ptr"]
