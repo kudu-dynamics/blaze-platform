@@ -96,7 +96,7 @@ incrementWithoutCheck = BugMatch
                   .|| (Contains $ (load (Bind "ptr" Wild) ()) .<= Wild)
                   .|| (Contains $ (load (Bind "ptr" Wild) ()) .== Wild)
                   .|| (Contains $ (load (Bind "ptr" Wild) ()) ./= Wild)
-        , until = Ordered
+        , until = ordered
           [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
           ]
         }
@@ -237,10 +237,11 @@ allocStub :: Text -> StubSpec
 allocStub allocName = StubSpec
   { Stub.stmtToStub = Call (Just $ Bind "ptr" Wild) (CallFunc $ FuncName allocName) [Bind "sz" Wild]
   , Stub.removeOriginalStmt = False
-  , Stub.stubs = [ store (bound "ptr") (Stub.newVar "freeVar" (SizeOf "ptr"))
-            , constraint $ cmpNE (bound "freeVar") (const 0 (SizeOf "freeVar"))
-              (ConstSize 8)
-            ]
+  , Stub.stubs = view #statement <$>
+    [ store (bound "ptr") (Stub.newVar "freeVar" (SizeOf "ptr"))
+    , constraint $ cmpNE (bound "freeVar") (const 0 (SizeOf "freeVar"))
+      (ConstSize 8)
+    ]
   }
 
 electronictrading :: IO ()

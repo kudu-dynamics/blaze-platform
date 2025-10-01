@@ -34,6 +34,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Stub" $ do
             , removeOriginalStmt = True
             , stubs = []
             }
+          stmt :: Pil.Stmt
           stmt = def "x" (const 50 8)
           expected = Nothing
       stubStmt nextVarId sspec stmt  `shouldBe` expected
@@ -43,8 +44,9 @@ spec = describe "Flint.Analysis.Path.Matcher.Stub" $ do
           sspec = StubSpec
             { stmtToStub = Call Nothing (CallFunc $ FuncName "foo") [Bind "x" Wild, Wild]
             , removeOriginalStmt = True
-            , stubs = [store (bound "x") (const 0 (SizeOf "x"))]
+            , stubs = view #statement <$> [store (bound "x") (const 0 (SizeOf "x"))]
             }
+          stmt :: Pil.Stmt
           stmt = defCall "r" (Pil.CallFunc foo) [var "a" 4, load (var "arg4" 4) 4] 8
           expected = Just (nextVarId, [store (var "a" 4) (const 0 4)])
 
@@ -55,20 +57,21 @@ spec = describe "Flint.Analysis.Path.Matcher.Stub" $ do
           [ StubSpec
             { stmtToStub = Call Nothing (CallFunc $ FuncName "foo") [Bind "x" Wild, Wild]
             , removeOriginalStmt = True
-            , stubs = [store (bound "x") (const 0 (SizeOf "x"))]
+            , stubs = view #statement <$> [store (bound "x") (const 0 (SizeOf "x"))]
             }
           , StubSpec
             { stmtToStub = Call Nothing (CallFunc $ FuncName "bar") [Bind "x" Wild, Bind "y" Wild]
             , removeOriginalStmt = False
-            , stubs = [constraint $ cmpUlt (bound "x") (bound "y") (ConstSize 8)]
+            , stubs = view #statement <$> [constraint $ cmpUlt (bound "x") (bound "y") (ConstSize 8)]
             }
           , StubSpec
             { stmtToStub = Call Nothing (CallFunc $ FuncName "alloc") [Bind "x" Wild, Wild]
             , removeOriginalStmt = True
-            , stubs = [ store (bound "x") (newVar "free" (SizeOf "x"))
-                      , constraint $ cmpNE (bound "free") (const 0 (SizeOf "free"))
-                        (ConstSize 8)
-                      ]
+            , stubs = view #statement <$>
+              [ store (bound "x") (newVar "free" (SizeOf "x"))
+              , constraint $ cmpNE (bound "free") (const 0 (SizeOf "free"))
+                (ConstSize 8)
+              ]
             }
           ]
 
