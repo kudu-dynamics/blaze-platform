@@ -1101,17 +1101,17 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
   -- | Because so many things can go wrong with patterns, this little section allows
   -- you to choose a func and primitive to print out debug info for.
   let debuggingOn = False
-      debugFuncName = "clearHistory"
-      debugPrimName = "freeHeap"
+      debugFuncName = "helperBad"
+      debugPrimName = "ReturnsFreedPointer"
       debugMode = debuggingOn
         && func ^. #name == debugFuncName
         && prim ^. #primType . #name == debugPrimName
   when debugMode $ do
-    debug $ prim ^. #primType . #name
-    -- putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
+    putText $ prim ^. #primType . #name
+    putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
     -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
-    debug . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
-    -- pprint $ take 2 (pprep ^. #untouchedStmts)
+    putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
+    pprint $ take 2 (drop (length (pprep ^. #stmts) - 2) $ pprep ^. #stmts)
 
   -- when debugMode $ do
   --   checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
@@ -1187,20 +1187,6 @@ onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims func = 
   forConcurrently_ pathPrimCombos $ \(pprep, prim) -> do
     onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func pprep prim
 
--- onionCheckFunc
---   :: StmtSolver Pil.Stmt IO
---   -> CfgStore
---   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
---   -> [Prim]
---   -> Function
---   -> IO ()
--- onionCheckFunc solver store callablePrimSnapshot prims func = do
---   paths <- CM.get func $ store ^. #pathSamples
---   when (func ^. #name == "malloc1") $ do
---     putText "This getting crzzzzy!"
---   let pathPrimCombos = (,) <$> paths <*> prims -- uses list monad
---   forConcurrently_ pathPrimCombos $ \(pprep, prim) -> do
---     onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim
 
 -- | Does a single pass over all the funcs.
 -- Adds instances found of CallableWMIs back into CfgStore

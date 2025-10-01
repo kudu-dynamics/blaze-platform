@@ -105,3 +105,10 @@ escapedDataFromLockSpec = PrimSpec
   , vars = fromList ["ptr_containing_escaped_data"]
   , locations = fromList ["bind", "lock", "unlock"]
   }
+
+returnsFreedPointerSpec :: PrimSpec
+returnsFreedPointerSpec = PrimSpec
+  { name = "ReturnsFreedPointer"
+  , vars = fromList ["ptr"]
+  , locations = fromList ["return", "free"]
+  }
