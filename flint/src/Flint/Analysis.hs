@@ -4,13 +4,11 @@ module Flint.Analysis
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher ( pureMatch, MkPathPrep(mkPathPrep), MatcherResult, MatcherState )
+import Flint.Analysis.Path.Matcher (MatcherState, IsExpression)
 import qualified Flint.Analysis.Path.Matcher as Matcher
 import Flint.Analysis.Uefi ( resolveCalls )
-import Flint.Types.Analysis
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore)
-import Flint.Cfg.Path (samplesFromQuery)
 
 import Blaze.Types.Function (Function)
 
@@ -133,16 +131,17 @@ showPaths title paths = do
     showCodeSummary summary
     putText "--------------------\n"
 
-showPathsWithMatches :: Text -> [(PilPath, [((MatcherState a, MatcherResult), BugMatch)])] -> IO ()
+showPathsWithMatches
+  :: IsExpression expr
+  => Text
+  -> [(PilPath, [((MatcherState expr stmt, [stmt]), BugMatch)])]
+  -> IO ()
 showPathsWithMatches title paths = do
   putText $ "\n\n=========================\n" <> title <> "\n===============================\n"
   forM_ paths $ \(p, matches) -> do
-    let matchMatch ((_, Matcher.Match _), _) = True
-        matchMatch _ = False
-        containsAnyMatches = any matchMatch matches
-    case containsAnyMatches of
-      False -> putText "no matches"
-      True -> do
+    case matches of
+      [] -> putText "no matches"
+      _ -> do
         let ps = Path.toStmts p
             ps' = simplify ps
         putText "---------------------"
@@ -155,16 +154,16 @@ showPathsWithMatches title paths = do
         putText "Bug Matches:"
         traverse_ showBugMatch matches
 
-showBugMatch :: ((MatcherState a, MatcherResult), BugMatch) -> IO ()
-showBugMatch ((ms, r), bm) = do
+showBugMatch
+  :: IsExpression expr
+  => ((MatcherState expr stmt, [stmt]), BugMatch)
+  -> IO ()
+showBugMatch ((ms, _stmts), bm) = do
   putText $ bm ^. #bugName <> ":"
-  case r of
-    Matcher.NoMatch -> putText "No match."
-    Matcher.Match _stmts -> do
-      putText "Found Primitive:"
-      putText $ resolveText $ bm ^. #bugDescription
-      putText "\nSuggested Mitigation:"
-      putText $ resolveText $ bm ^. #mitigationAdvice      
+  putText "Found Primitive:"
+  putText $ resolveText $ bm ^. #bugDescription
+  putText "\nSuggested Mitigation:"
+  putText $ resolveText $ bm ^. #mitigationAdvice      
   where
     resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
 
@@ -201,18 +200,18 @@ showQueryHeader startFunc = \case
     showTarget :: (Function, Address) -> Text
     showTarget (func, addr) = pretty' addr <> func ^. #name
 
-showQuerySummaries :: [TaintPropagator] -> CfgStore -> Function -> Query Function -> [BugMatch] -> IO ()
-showQuerySummaries tps store startFunc q bugMatchers = do
-  paths <- samplesFromQuery store startFunc q
-  let okPaths = paths -- filterOkPaths paths
-      withMatches = flip fmap okPaths
-        $ \p -> let pathPrep = mkPathPrep tps p in
-                  ( p
-                  , flip fmap bugMatchers $ \bm ->
-                      -- TODO: use IO version `matchPath.
-                      -- But first we need to fix solver (issue #436)
-                      ( pureMatch (bm ^. #pathPattern) pathPrep
-                      , bm
-                      )
-                  )
-  showPathsWithMatches (showQueryHeader startFunc q) withMatches
+-- showQuerySummaries :: [TaintPropagator] -> CfgStore -> Function -> Query Function -> [BugMatch] -> IO ()
+-- showQuerySummaries tps store startFunc q bugMatchers = do
+--   paths <- samplesFromQuery store startFunc q
+--   let okPaths = paths -- filterOkPaths paths
+--       withMatches = flip fmap okPaths
+--         $ \p -> let pathPrep = mkPathPrep tps p in
+--                   ( p
+--                   , flip fmap bugMatchers $ \bm ->
+--                       -- TODO: use IO version `matchPath.
+--                       -- But first we need to fix solver (issue #436)
+--                       ( pureMatch (bm ^. #pathPattern) pathPrep
+--                       , bm
+--                       )
+--                   )
+--   showPathsWithMatches (showQueryHeader startFunc q) withMatches

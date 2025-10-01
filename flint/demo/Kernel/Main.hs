@@ -21,7 +21,7 @@ import Data.Time.Clock (getCurrentTime, diffUTCTime)
 doubleFreeBug :: BugMatch
 doubleFreeBug = BugMatch
   { pathPattern =    
-    [ Ordered
+    [ ordered
       [ Stmt $ Call Nothing (CallFunc (FuncName "free")) [ Bind "ptr" Wild ]
       , Stmt $ Call Nothing (CallFunc (FuncName "free")) [ Bind "ptr" Wild ]
       ]
@@ -35,7 +35,7 @@ doubleFreeBug = BugMatch
 memAllocatedWithMallocFreedWithKfreeBug :: BugMatch
 memAllocatedWithMallocFreedWithKfreeBug = BugMatch
   { pathPattern =    
-    [ Ordered
+    [ ordered
       [ Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc (FuncName "malloc")) [ Wild ]
       , Stmt $ Call Nothing (CallFunc (FuncName "kfree")) [ Bind "ptr" Wild ]
       ]

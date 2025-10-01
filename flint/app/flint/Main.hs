@@ -212,7 +212,9 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
       prims :: [Prim]
       prims = PrimLib.allPrims
 
-  onionFlow (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
+  -- TODO: make maxResultsPerPath an option
+  let maxResultsPerPath = 10 -- max WMIs found per path
+  onionFlow maxResultsPerPath (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
   cprims <- CM.getSnapshot $ store ^. #callablePrims
   let cprims' = M.asOldCallableWMIsMap cprims
   let flintResult = toFlintResult base cprims'

@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -fno-warn-partial-fields #-}
+{- HLINT ignore "Use newtype instead of data" -}
 
 module Flint.Types.Analysis.Path.Matcher where
 
 import Flint.Prelude hiding (sym, negate)
-import Flint.Types.Analysis (Taint(..))
 import qualified Flint.Types.Analysis.Path.Matcher.Func as M
 import Flint.Types.Analysis.Path.Matcher.Primitives (PrimSpec, CallableWMI)
 import Flint.Types.Symbol (Symbol)
@@ -12,12 +12,15 @@ import qualified Blaze.Pil.Display as Disp
 import qualified Blaze.Pretty as Pretty
 import Blaze.Types.Function (ExternFunction, Func)
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil (Size(Size))
-import Blaze.Types.Pil.Summary (CodeSummary)
 import Blaze.Pil.Construct (ExprConstructor)
 import qualified Blaze.Pil.Construct as C
-import Blaze.Types.Pil.Solver (SolverResult)
+import Blaze.Types.Pil (AddressableStatement, Size(Size))
+import Blaze.Types.Pil.Checker (SymInfo, DeepSymType, InfoExpression)
+import Blaze.Types.Pil.Solver (SolverResult(Sat))
 
+import Control.Monad.Logic.Class
+import Control.Monad.Logic (LogicT, runLogicT, observeManyT)
+import qualified Control.Monad.Logic as L
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.SBV.Dynamic as Exports (CV)
@@ -57,13 +60,11 @@ data CtxPattern
 
 data StmtPattern
   = Stmt (Statement ExprPattern)
-  -- | Eventually StmtPattern
-  -- | Avoid StmtPattern
+  -- | Tries to find "until" first, then makes sure "avoid" pattern doesn't
+  -- occur on any of the statement that lead up to the "until"
+  -- We must do it in this order so you can refer to exprs bound in the "until"
+  -- when checking the "avoid"
   | AvoidUntil AvoidSpec
-  | AnyOne [StmtPattern]  -- One match succeeds. [] immediately succeeeds.
-  | Unordered [StmtPattern] -- matches all, but in no particular order.
-  | Ordered [StmtPattern] -- matches all. Good for grouping and scoping Where bounds.
-  | Neighbors [StmtPattern] -- sequential neighbors with no unmatching stmts between
   -- | Once StmtPattern has matched, BoundExprs will be checked with the solver
   | Where StmtPattern [BoundExpr]
   | Necessarily StmtPattern [BoundExpr]
@@ -71,7 +72,25 @@ data StmtPattern
   | Location (Symbol Address) StmtPattern
   -- | Primitive <prefix for bound vars> <primtype>
   | Primitive PrimSpec (HashMap (Symbol Pil.Expression) ExprPattern)
+  | Star -- | Kleene star. Consumes any statements until next match
+  | And StmtPattern StmtPattern -- | conjunction of two sequential patterns
+  | Or StmtPattern StmtPattern -- | disjunction of two patterns
+  | Good -- | stop trying to match, pattern is done
+  | Bad
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+
+-- | Conjunction of sequential StmtPatterns. [] is assumed to be successful
+ordered :: [StmtPattern] -> StmtPattern
+ordered [] = Good
+ordered [x] = x
+ordered (x:xs) = x `And` ordered xs
+
+orr :: [StmtPattern] -> StmtPattern
+orr [] = Bad
+orr [x] = x
+orr (x:xs) = x `Or` orr xs
+
 
 data BoundExprSize
   = ConstSize (Size Pil.Expression)
@@ -200,49 +219,6 @@ data AvoidSpec = AvoidSpec
   , until :: StmtPattern
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
-type StmtSolver m = [Pil.Stmt] -> m SolverResult
-
-data MatcherState m = MatcherState
-  { remainingStmts :: [Pil.Stmt]
-  , boundSyms :: HashMap (Symbol Pil.Expression) Pil.Expression
-  , boundCtxSyms :: HashMap (Symbol Pil.Ctx) Pil.Ctx
-  , avoids :: HashMap AvoidSpec [Pil.Stmt]
-  -- The successfully parsed stmts, stored in reverse order
-  -- possibly interleaved with user-made Assertions
-  , parsedStmtsWithAssertions :: [Pil.Stmt]
-  , taintSet :: HashSet Taint
-  , solveStmts :: StmtSolver m
-  -- | If the path has been checked with the solver, this holds possible solutions
-  , solutions :: Maybe (HashMap Text CV)
-  , locations :: HashMap (Symbol Address) (Either ExternFunction Address)
-  -- TODO: this doesn't really belong here because it won't be modified
-  , callablePrimitives :: HashMap (PrimSpec, Func) (HashSet CallableWMI)
-  } deriving Generic
-
-addCallableWMI_
-  :: CallableWMI
-  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
-  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
-addCallableWMI_ cprim = HashMap.alter f (primType, cprim ^. #func)
-  where
-    primType = cprim ^. #prim
-
-    f :: Maybe (HashSet CallableWMI) -> Maybe (HashSet CallableWMI)
-    f Nothing = Just $ HashSet.singleton cprim
-    f (Just s) = Just $ HashSet.insert cprim s
-
-getCallableWMIs_
-  :: PrimSpec
-  -> Func
-  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
-  -> Maybe (HashSet CallableWMI)
-getCallableWMIs_ prim fn = HashMap.lookup (prim, fn)
-
-getCallableWMIs :: Monad m => PrimSpec -> Func -> MatcherT m (Maybe (HashSet CallableWMI))
-getCallableWMIs prim fn = do
-  cprimMap <- use #callablePrimitives
-  return $ getCallableWMIs_ prim fn cprimMap
-
 -- | For converting callableWMIs map to nested version, so you can just look up all the findings
 -- for a particular primspec.
 asNestedMap
@@ -268,42 +244,6 @@ asOldCallableWMIsMap = HashMap.fromList
   . HashMap.toList
   . asNestedMap
 
--- TODO: probably should make a useful error that can pass up bad BoundExpr conversions
--- and solver errors
-newtype MatcherT m a = MatcherT {
-  _runMatcherT :: ExceptT () (StateT (MatcherState m) m) a
-  }
-  deriving newtype
-    ( Functor
-    , Applicative
-    , Monad
-    , MonadError ()
-    , MonadIO
-    , MonadState (MatcherState m)
-    , Alternative
-    )
-
-instance MonadTrans MatcherT where
-  lift = MatcherT . lift . lift
-
-runMatcher_ :: MatcherT m a -> MatcherState m -> m (Either () a, MatcherState m)
-runMatcher_ action s
-  = flip runStateT s
-  . runExceptT
-  . _runMatcherT
-  $ action
-
-data MatcherResult
-  = Match [Pil.Stmt]
-  | NoMatch
-  deriving (Eq, Ord, Show, Hashable, Generic)
-
-data PathPrep = PathPrep
-  { untouchedStmts :: [Pil.Stmt]
-  , stmts :: [Pil.Stmt]
-  , taintSet :: HashSet Taint
-  , codeSummary :: CodeSummary
-  } deriving (Eq, Ord, Show, Generic)
 
 --------- Primitives
 
@@ -311,3 +251,153 @@ data Prim = Prim
   { primType :: PrimSpec
   , stmtPattern :: [StmtPattern]
   } deriving (Eq, Ord, Show, Hashable, Generic)
+
+
+--- Matcher monad
+
+type TypedExpr = InfoExpression (SymInfo, Maybe DeepSymType)
+type TypedStmt = AddressableStatement (InfoExpression (SymInfo, Maybe DeepSymType))
+
+class HasAddress a where
+  getAddress :: a -> Address
+
+instance HasAddress Pil.Stmt where
+  getAddress = view #addr
+
+class HasDeepSymType a where
+  getDeepSymType :: a -> Maybe DeepSymType
+
+class IsStatement expr stmt | stmt -> expr where
+  getStatement :: stmt -> Pil.Statement expr
+  -- | Make a stmt that might just have default info for things like address
+  mkDefStmt :: Pil.Statement expr -> stmt
+  -- | Makes a stmt with same attrs (like address) as stmt
+  mkStmtLike :: stmt -> Pil.Statement expr -> stmt
+  asStmt :: stmt -> Pil.Stmt
+
+instance IsStatement Pil.Expression Pil.Stmt where
+  getStatement = view #statement
+  mkDefStmt = Pil.Stmt 0x0
+  mkStmtLike aStmt statement' = aStmt & #statement .~ statement'
+  asStmt = identity
+
+-- | This is a lot of trouble, but it's all so we can use the
+-- same stuff to match regular Pil Expressions and ones with types
+-- or ones with other info
+-- Unfortunately, mkExpr requires using defaults for extra info
+class Eq expr => IsExpression expr where
+  getExprOp :: expr -> Pil.ExprOp expr
+  getExprSize :: expr -> Pil.Size Pil.Expression
+  asExpression :: expr -> Pil.Expression
+  -- | Makes a new expr with the new expr op, but with all the
+  -- other attributes of the old expr (like size, type, etc)
+  mkExprLike :: expr -> Pil.ExprOp expr -> expr
+  mkExprWithSize :: Pil.Size Pil.Expression -> Pil.ExprOp expr -> expr
+  liftVar :: Pil.PilVar -> expr
+
+instance IsExpression Pil.Expression where
+  getExprOp = view #op
+  getExprSize = view #size
+  asExpression = identity
+  mkExprLike x op = x & #op .~ op
+  mkExprWithSize = Pil.Expression
+  liftVar pv = Pil.Expression sz . Pil.VAR . Pil.VarOp $ pv
+    where
+      sz = coerce $ pv ^. #size
+
+type StmtSolver stmt m = [stmt] -> m SolverResult
+
+dummySolver :: Applicative m => StmtSolver stmt m
+dummySolver _ = pure $ Sat HashMap.empty
+
+data MatcherCtx stmt m = MatcherCtx
+  { pathSolver :: StmtSolver stmt m
+  -- , taintSet :: HashSet Taint
+  -- , callablePrimitives :: HashMap (PrimSpec, Func) (HashSet CallableWMI)
+  } deriving (Generic)
+  
+data MatcherState expr stmt = MatcherState
+  { remaining :: [stmt]
+  , boundSyms :: HashMap (Symbol Pil.Expression) expr
+  , boundCtxSyms :: HashMap (Symbol Pil.Ctx) Pil.Ctx
+    -- The successfully parsed stmts, stored in reverse order
+    -- possibly interleaved with user-made Assertions
+  , parsedStmtsWithAssertions :: [stmt]
+    -- | If the path has been checked with the solver,
+    -- this holds possible solutions
+  , solutions :: Maybe (HashMap Text CV)
+  
+  -- | Locations can be for an actual statement, or also for extern funcs
+  -- like in the case of stdlib funcs
+  , locations :: HashMap (Symbol Address) (Either ExternFunction Address)
+  , callablePrimitives :: HashMap (PrimSpec, Func) (HashSet CallableWMI)
+  } deriving (Eq, Ord, Show, Generic)
+
+getCallableWMIs_
+  :: PrimSpec
+  -> Func
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+  -> Maybe (HashSet CallableWMI)
+getCallableWMIs_ prim fn = HashMap.lookup (prim, fn)
+
+getCallableWMIs :: PrimSpec -> Func -> MatcherT expr stmt m (Maybe (HashSet CallableWMI))
+getCallableWMIs prim fn = do
+  cprimMap <- use #callablePrimitives
+  return $ getCallableWMIs_ prim fn cprimMap
+
+emptyMatcherState :: MatcherState expr stmt
+emptyMatcherState = MatcherState [] HashMap.empty HashMap.empty [] Nothing HashMap.empty HashMap.empty
+
+dropStmt :: MatcherT expr stmt m ()
+dropStmt = #remaining %= drop 1
+  
+newtype MatcherT expr stmt m a = MatcherT {
+  _runMatcherT :: StateT (MatcherState expr stmt) (ReaderT (MatcherCtx stmt m) (LogicT m)) a
+  }
+  deriving newtype
+    ( Functor
+    , Applicative
+    , Monad
+    , MonadFail
+    , MonadIO
+    , Alternative
+    , MonadLogic
+    , MonadPlus
+    , MonadState (MatcherState expr stmt)
+    , MonadReader (MatcherCtx stmt m)
+    )
+
+instance MonadTrans (MatcherT expr stmt) where
+  lift = MatcherT . lift . lift . lift
+
+observeTMaybe :: Monad m => LogicT m a -> m (Maybe a)
+observeTMaybe m = runLogicT m (\a _ -> return (Just a)) (return Nothing)
+
+observeMatcherT
+  :: Monad m
+  => MatcherCtx stmt m
+  -> MatcherState expr stmt
+  -> MatcherT expr stmt m a
+  -> m (Maybe (a, MatcherState expr stmt))
+observeMatcherT ctx s (MatcherT m) = observeTMaybe . (`runReaderT` ctx) $ runStateT m s
+
+observeManyMatcherT
+  :: Monad m
+  => MatcherCtx stmt m
+  -> MatcherState expr stmt
+  -> Int
+  -> MatcherT expr stmt m a
+  -> m [(a, MatcherState expr stmt)]
+observeManyMatcherT ctx s maxResults (MatcherT m) = observeManyT maxResults . (`runReaderT` ctx) $ runStateT m s
+
+addCallableWMI_
+  :: CallableWMI
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+  -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
+addCallableWMI_ cprim = HashMap.alter f (primType, cprim ^. #func)
+  where
+    primType = cprim ^. #prim
+
+    f :: Maybe (HashSet CallableWMI) -> Maybe (HashSet CallableWMI)
+    f Nothing = Just $ HashSet.singleton cprim
+    f (Just s) = Just $ HashSet.insert cprim s

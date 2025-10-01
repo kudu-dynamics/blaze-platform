@@ -12,6 +12,7 @@ import qualified Flint.Analysis.Path.Matcher.Primitives.Library.StdLib as StdLib
 import Flint.Cfg.Path (samplesFromQuery)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
+import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Types.Cfg.Store (CfgStore)
@@ -90,18 +91,18 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
             let initialCallablePrims = getInitialWMIs stdLibPrims funcs
                 pprep = mkPathPrep [] path
 
-            r <- matchAndReturnCallablePrim (chooseSolver False) initialCallablePrims func pprep PrimLib.controlledFormatStringPrim
+            r <- matchAndReturnCallablePrim 1 (chooseSolver False) initialCallablePrims func pprep PrimLib.controlledFormatStringPrim
             return r
-          expected = Just . Right $ PrimSpec.controlledFormatStringSpec
+          expected = [PrimSpec.controlledFormatStringSpec]
 
-      (fmap (fmap $ view #prim) <$> action) `shouldReturn` expected
+      (fmap (view #prim) <$> action) `shouldReturn` expected
 
     context "onion primitives" $ do
       it "should find controlled format string in dirty" $ \tctx -> do
         let stdLibPrims = StdLibPrims.controlledFormatStringPrims
             prims = [PrimLib.controlledFormatStringPrim]
             action = do
-              onionFlow False 3 (tctx ^. #dirtyStore) stdLibPrims prims
+              onionFlow 1 False 3 (tctx ^. #dirtyStore) stdLibPrims prims
               m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ tctx ^. #dirtyStore . #callablePrims
               return $ do
                 s <- HashMap.lookup PrimSpec.controlledFormatStringSpec m
@@ -115,7 +116,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
         let stdLibPrims = StdLibPrims.freeHeapPrims
             prims = [PrimLib.freeHeapPrim]
             action = do
-              onionFlow False 3 (tctx ^. #atmStore) stdLibPrims prims
+              onionFlow 20 False 3 (tctx ^. #atmStore) stdLibPrims prims
               m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ tctx ^. #atmStore . #callablePrims
               return $ do
                 s <- HashMap.lookup PrimSpec.freeHeapSpec m

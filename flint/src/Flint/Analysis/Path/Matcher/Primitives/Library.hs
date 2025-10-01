@@ -12,6 +12,7 @@ import Blaze.Pil.Construct hiding (not)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
+
 allPrims :: [Prim]
 allPrims =
   [ controlledFormatStringPrim
@@ -51,7 +52,8 @@ controlledFormatStringPrim :: Prim
 controlledFormatStringPrim = Prim
   { primType = controlledFormatStringSpec
   , stmtPattern =
-      [ Location "call" . Primitive controlledFormatStringSpec $ HashMap.fromList
+      [ Star
+      , Location "call" . Primitive controlledFormatStringSpec $ HashMap.fromList
         [ ("fmt", Bind "fmt" (Contains Param)) ]
       ]
   }
@@ -60,7 +62,8 @@ freeHeapPrim :: Prim
 freeHeapPrim = Prim
   { primType = freeHeapSpec
   , stmtPattern =
-      [ Location "free" . Primitive freeHeapSpec $ HashMap.fromList
+      [ Star
+      , Location "free" . Primitive freeHeapSpec $ HashMap.fromList
         [ ("ptr", Bind "ptr" (Contains isInput)) ]
       ]
   }
@@ -69,7 +72,8 @@ allocHeapPrim :: Prim
 allocHeapPrim = Prim
   { primType = allocHeapSpec
   , stmtPattern =
-      [ Location "alloc" . Primitive allocHeapSpec $ HashMap.fromList
+      [ Star
+      , Location "alloc" . Primitive allocHeapSpec $ HashMap.fromList
         [ ("ptr", Bind "ptr" (Contains isInput))
         , ("size", Bind "size" Wild)
         ]
@@ -80,12 +84,14 @@ doubleFreePrim :: Prim
 doubleFreePrim = Prim
   { primType = doubleFreeSpec
   , stmtPattern =
-      [ AnyOne
+      [ Star
+      , orr
         [ Location "free1" . Location "free2" . Primitive doubleFreeSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" (Contains isInput)) ]
-        , Ordered
+        , ordered
           [ Location "free1" . Primitive freeHeapSpec $ HashMap.fromList
             [ ("ptr", Bind "ptr" (Contains isInput)) ]
+          , Star
           -- , Location "free2" . Primitive freeHeap $ HashMap.fromList
           --   [ ("ptr", Bind "ptr" Wild) ]
           , AvoidUntil $ AvoidSpec
@@ -94,7 +100,7 @@ doubleFreePrim = Prim
             , until =
               Location "free2" . Primitive freeHeapSpec $ HashMap.fromList
               [ ("ptr", Bind "ptr" Wild) ]
-            }         
+            }
           ]
         ]
       ]
@@ -104,7 +110,8 @@ writePrim :: Prim
 writePrim = Prim
   { primType = writeSpec
   , stmtPattern =
-      [ AnyOne
+      [ Star
+      , orr
         [ Location "write" . Primitive writeSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" (Contains isInput)) 
           , ("value", Bind "value" Wild)
@@ -118,7 +125,8 @@ writeWhatWherePrim :: Prim
 writeWhatWherePrim = Prim
   { primType = writeWhatWhereSpec
   , stmtPattern =
-      [ AnyOne
+      [ Star
+      , orr
         [ Location "write" . Primitive writeWhatWhereSpec $ HashMap.fromList
           [ ("src", Bind "src" (Contains isInput))
           -- TODO: probably can't refer to previously bound var here -- fix!
@@ -135,18 +143,17 @@ integerOverflowPrim :: Prim
 integerOverflowPrim = Prim
   { primType = integerOverflowSpec
   , stmtPattern =    
-      [ AnyOne
+      [ Star
+      , orr
         [ Location "increment store" . Primitive integerOverflowSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild )
           , ("increment_by", Bind "increment_by" Wild)
           ]
-        , Ordered
-          [ Location "increment store"
-            . Stmt $ Store
-            (Bind "ptr" Wild)
-            (add (load (Bind "ptr" Wild) ())
-              (Bind "increment_by" Wild) ())
-          ]
+        , Location "increment store"
+          . Stmt $ Store
+          (Bind "ptr" Wild)
+          (add (load (Bind "ptr" Wild) ())
+            (Bind "increment_by" Wild) ())
         , AvoidUntil $ AvoidSpec
           { avoid = Stmt . Constraint
                     $   (Contains (load (Bind "ptr" Wild) ()) .< Wild)
@@ -155,13 +162,11 @@ integerOverflowPrim = Prim
                     .|| (Contains (load (Bind "ptr" Wild) ()) .>= Wild)
                     .|| (Contains (load (Bind "ptr" Wild) ()) .== Wild)
                     .|| (Contains (load (Bind "ptr" Wild) ()) ./= Wild)
-          , until = Ordered
-                    [ Location "increment store"
-                      . Stmt $ Store
-                               (Bind "ptr" Wild)
-                               (add (load (Bind "ptr" Wild) ())
-                                (Bind "increment_by" Wild) ())
-                    ]
+          , until = Location "increment store"
+                    . Stmt $ Store
+                           (Bind "ptr" Wild)
+                           (add (load (Bind "ptr" Wild) ())
+                            (Bind "increment_by" Wild) ())
           }
         ]
       ]
@@ -173,7 +178,8 @@ writeToKernelGlobalPrim :: Prim
 writeToKernelGlobalPrim = Prim
   { primType = writeToKernelGlobalSpec
   , stmtPattern =
-      [ Location "copy" $ AnyOne
+      [ Star
+      , Location "copy" $ orr
         [ Stmt $ Call Nothing (CallFunc
                                 . FuncNames
                                 . HashSet.fromList
@@ -200,7 +206,8 @@ controlledIndirectCallPrim :: Prim
 controlledIndirectCallPrim = Prim
   { primType = controlledIndirectCallSpec
   , stmtPattern =
-      [ AnyOne
+      [ Star
+      , orr
         [
           Location "callsite" . Primitive controlledIndirectCallSpec $ HashMap.fromList
           [ ("call_dest", Bind "call_dest" (Contains isInput))
@@ -278,11 +285,12 @@ unboundedCopyFromUserPrim :: Prim
 unboundedCopyFromUserPrim = Prim
   { primType = unboundedCopyFromUserSpec
   , stmtPattern =
-      [ AvoidUntil $ AvoidSpec
+      [ Star
+      , AvoidUntil $ AvoidSpec
         { avoid = Stmt . Constraint 
                   $   (Contains (Bind "size" Wild) .< Wild)
                   .|| (Contains (Bind "size" Wild) .<= Wild)
-        , until = Location "copy" $ AnyOne
+        , until = Location "copy" $ orr
                   [ Stmt $ Call Nothing (CallFunc
                                          . FuncNames
                                          . HashSet.fromList
@@ -306,7 +314,7 @@ escapedDataFromLock = Prim
   { primType = escapedDataFromLockSpec
   , stmtPattern =
       [ Location "lock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_lock") [Wild]
-      , Location "bind" $ AnyOne
+      , Location "bind" $ orr
         [ Stmt $ Call Nothing (CallFunc $ FuncName "_copy_to_user")
           [ Bind "ptr_containing_escaped_data" (Contains isInput)
           , Wild
@@ -317,4 +325,3 @@ escapedDataFromLock = Prim
       , Location "unlock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_unlock") [Wild]
       ]
   }
-
