@@ -82,7 +82,6 @@ library
       Blaze.Types.Path
       Blaze.Types.Path.Alga
       Blaze.Types.Persist.Db
-      Blaze.Types.Persist.Db.Address
       Blaze.Types.Pil
       Blaze.Types.Pil.Analysis
       Blaze.Types.Pil.Analysis.Subst

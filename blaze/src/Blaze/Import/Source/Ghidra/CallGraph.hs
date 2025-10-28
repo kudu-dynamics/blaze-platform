@@ -28,6 +28,7 @@ import qualified Ghidra.Types as J
 import qualified Ghidra.Reference as GRef
 
 import Data.List (nub)
+import qualified Data.BinaryAnalysis as BA
 
 
 getFuncAddr :: G.Function -> Address
@@ -102,11 +103,19 @@ mkExternFunc jfunc = do
   name <- G.getName jfunc -- hopefully will always have name
   mLibraryName <- G.getExternalLocation jfunc >>= G.getLibraryName
   params <- G.getLowParams jfunc
+  let addr = Address
+        { BA.space = AddressSpace
+          { ptrSize = Bytes 8
+          , addressableUnitSize = Bytes 1
+          , name = BA.EXTERNAL
+          }
+        , BA.offset = fromIntegral $ gaddr ^. #offset
+        }
   return $ BFunc.ExternFunction
     { symbol = Nothing
     , name = name
     , library = mLibraryName
-    , address = BFunc.ExternAddress . fromIntegral $ gaddr ^. #offset
+    , address = addr
     , params = convertRawParam <$> params
     }
 
@@ -130,12 +139,19 @@ getCallSites imp@(GhidraImporter gs _) fn = do
     BFunc.Internal func -> do
       startAddr <- runGhidraOrError . State.mkAddress gs $ func ^. #address
       runGhidraOrError (G.fromAddr gs startAddr)
+    -- Rudy TODO: clarify what's going on here. mkExternalAddress says it takes an offset,
+    -- but what does that actually mean for an external address in Ghidra
     BFunc.External func -> do
       externAddr <- runGhidraOrError
         . State.mkExternalAddress gs
         . fromIntegral
-        $ func ^. #address . #externalIndex
+        $ func ^. #address . #offset
       runGhidraOrError (G.getFunctionAt gs externAddr)
+      -- externAddr <- runGhidraOrError
+      --   . State.mkExternalAddress gs
+      --   . fromIntegral
+      --   $ func ^. #address . #externalIndex
+      -- runGhidraOrError (G.getFunctionAt gs externAddr)
 
   case mgfunc of
     Nothing -> error $ "Could not find callee function for func: " <> show fn

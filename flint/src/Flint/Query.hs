@@ -733,14 +733,14 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
       uuidInit <- randomIO
       uuidClean <- randomIO
       uuidBbEnd <- randomIO
-      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" 0 []
+      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" (intToAddr 0) []
           lifeCtx = Pil.Ctx lifecycleFunc 0
           initDest = Pil.CallFunc initFunc
           cleanDest = Pil.CallFunc cleanupFunc
           callNodeInit
             = Cfg.Call $ Cfg.CallNode
               lifeCtx
-              0
+              (intToAddr 0)
               initDest
               uuidInit
               [ C.defCall "r1" initDest [] 8 ]
@@ -748,15 +748,15 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
           callNodeCleanup
             = Cfg.Call $ Cfg.CallNode
               lifeCtx
-              8
+              (intToAddr 8)
               cleanDest
               uuidClean
               [ C.defCall "r1" cleanDest [] 8 ]
 
           bbEnd = Cfg.BasicBlock $ Cfg.BasicBlockNode
                   lifeCtx
-                  0x10
-                  0x12
+                  (intToAddr 0x10)
+                  (intToAddr 0x12)
                   uuidBbEnd
                   [ C.ret $ C.var "r1" 8 ]
                   
@@ -809,14 +809,14 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
       uuidInit <- randomIO
       uuidClean <- randomIO
       uuidBbEnd <- randomIO
-      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" 0 []
+      let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" (intToAddr 0) []
           lifeCtx = Pil.Ctx lifecycleFunc 0
           initDest = Pil.CallFunc initFunc
           cleanDest = Pil.CallFunc cleanupFunc
           callNodeInit
             = Cfg.Call $ Cfg.CallNode
               lifeCtx
-              0
+              (intToAddr 0)
               initDest
               uuidInit
               [ C.defCall "r1" initDest [] 8 ]
@@ -824,15 +824,15 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
           callNodeCleanup
             = Cfg.Call $ Cfg.CallNode
               lifeCtx
-              8
+              (intToAddr 8)
               cleanDest
               uuidClean
               [ C.defCall "r1" cleanDest [] 8 ]
 
           bbEnd = Cfg.BasicBlock $ Cfg.BasicBlockNode
                   lifeCtx
-                  0x10
-                  0x12
+                  (intToAddr 0x10)
+                  (intToAddr 0x12)
                   uuidBbEnd
                   [ C.ret $ C.var "r1" 8 ]
                   
@@ -923,7 +923,7 @@ checkPathForPrim
 checkPathForPrim solver func prep codeSummary prim = do
   when (func ^. #name == "int_inc_ioctl") $ do
       -- sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts . filter ((== 0x100130) . view #addr) $ prep ^. #stmts
-      sequentialPutText . cs . pshow . filter ((== 0x100263) . view #addr) $ prep ^. #untouchedStmts
+      sequentialPutText . cs . pshow . filter ((== intToAddr 0x100263) . view #addr) $ prep ^. #untouchedStmts
       sequentialPutText . ("\n----\n" <>) . pretty' . P.PStmts $ prep ^. #untouchedStmts
 
   M.singleMatch solver (prim ^. #stmtPattern) prep >>= \case

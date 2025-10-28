@@ -223,7 +223,7 @@ plainToken typ t =
     , size = 0
     , operand = 0xffffffff
     , context = NoTokenContext
-    , address = 0
+    , address = intToAddr 0
     , typeSym = Nothing
     }
 
@@ -236,7 +236,7 @@ integerToken n =
     , size = 0
     , operand = 0xffffffff
     , context = NoTokenContext
-    , address = 0
+    , address = intToAddr 0
     , typeSym = Nothing
     }
   where
@@ -251,7 +251,7 @@ decimalToken n =
     , size = 0
     , operand = 0xffffffff
     , context = NoTokenContext
-    , address = 0
+    , address = intToAddr 0
     , typeSym = Nothing
     }
   where
@@ -270,7 +270,7 @@ varToken mTypeSym t =
     , size = 0
     , operand = 0
     , context = LocalVariableTokenContext
-    , address = 0
+    , address = intToAddr 0
     , typeSym = mTypeSym
     }
 
@@ -278,12 +278,12 @@ addressToken :: Maybe Text -> Address -> Token
 addressToken t addr =
   Token
     { tokenType = PossibleAddressToken
-    , text = fromMaybe (showHex addr) t
-    , value = toInteger addr
+    , text = fromMaybe (showHex $ addrToInt addr) t
+    , value = fromIntegral $ addrToInt addr
     , size = 0
     , operand = 0xffffffff
     , context = InstructionAddressTokenContext
-    , address = 0
+    , address = intToAddr 0
     , typeSym = Nothing
     }
 
@@ -515,7 +515,7 @@ tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.CMP_ULE op) -> tokenizeBinopInfix msym "u<=" op
   (Pil.CMP_ULT op) -> tokenizeBinopInfix msym "u<" op
   (Pil.CONST op) -> pure [setSym msym $ integerToken (op ^. #constant)]
-  (Pil.CONST_PTR op) -> pure [setSym msym . addressToken Nothing $ fromIntegral (op ^. #constant)]
+  (Pil.CONST_PTR op) -> pure [setSym msym . addressToken Nothing $ intToAddr (op ^. #constant)]
   (Pil.DIVS op) -> tokenizeBinopInfix msym "/" op
   (Pil.DIVS_DP op) -> tokenizeBinop msym "divsDP" op
   (Pil.DIVU op) -> tokenizeBinopInfix msym "u/" op
@@ -544,7 +544,7 @@ tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.FSQRT op) -> tokenizeUnop msym "fsqrt" op
   (Pil.FSUB op) -> tokenizeBinopInfix msym "f-" op
   (Pil.FTRUNC op) -> tokenizeUnop msym "ftrunc" op
-  (Pil.IMPORT op) -> pure [addressToken Nothing $ fromIntegral (op ^. #constant)]
+  (Pil.IMPORT op) -> pure [addressToken Nothing $ intToAddr (op ^. #constant)]
   (Pil.INT_TO_FLOAT op) -> tokenizeUnop msym "intToFloat" op
   (Pil.LOAD op) -> (bracket <$> tokenize (op ^. #src))
     <++> tt "."
@@ -838,7 +838,7 @@ instance Tokenizable Bytes where
   tokenize (Bytes n) = pure [integerToken n]
 
 instance Tokenizable Address where
-  tokenize (Address n) = pure [integerToken n]
+  tokenize addr = pure [integerToken $ addrToInt addr]
 
 instance Tokenizable Int64 where
   tokenize n = pure [integerToken n]
@@ -917,11 +917,11 @@ instance Tokenizable Func.Function where
       [ Token
           { tokenType = CodeSymbolToken
           , text = name
-          , value = toInteger addr
+          , value = fromIntegral $ addrToInt addr
           , size = 0
           , operand = 0xffffffff
           , context = NoTokenContext
-          , address = 0
+          , address = intToAddr 0
           , typeSym = Nothing
           }
       ]
@@ -934,11 +934,11 @@ instance Tokenizable Func.ExternFunction where
       , Token
           { tokenType = CodeSymbolToken
           , text = x ^. #name
-          , value = fromIntegral $ x ^. #address . #externalIndex
+          , value = fromIntegral $ x ^. #address . #offset
           , size = 0
           , operand = 0xffffffff
           , context = NoTokenContext
-          , address = 0
+          , address = intToAddr 0
           , typeSym = Nothing
           }
       ]

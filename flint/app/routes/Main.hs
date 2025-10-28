@@ -47,10 +47,10 @@ parseInputFile = argument str $
   <> help "input file"
 
 
-hexReader :: Integral a => ReadM a
+hexReader :: ReadM Address
 hexReader = eitherReader $ \s ->
   case readHex $ stripHexPrefix s of
-    [(n, "")] -> Right $ fromIntegral (n :: Integer)
+    [(n, "")] -> Right . intToAddr $ fromIntegral (n :: Integer)
     _ -> Left $ "Invalid hex address: " <> s
 
 stripHexPrefix :: String -> String

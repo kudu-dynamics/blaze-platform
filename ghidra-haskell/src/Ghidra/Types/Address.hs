@@ -13,19 +13,8 @@ newtype AddressSpaceId = AddressSpaceId Int32
 -- TODO: Figure out why this doesn't work when in a deriving clause
 instance Wrapped AddressSpaceId
 
-data AddressSpaceName
-  = EXTERNAL
-  | HASH
-  | Const
-  | Ram
-  | Register
-  | Stack
-  | Unique
-  | Other Text
-  deriving (Eq, Ord, Read, Show, Generic, Hashable)
-
 data AddressSpace = AddressSpace
-  { id :: AddressSpaceId
+  { spaceId :: AddressSpaceId
   , ptrSize :: Bytes
   , addressableUnitSize :: Bytes
   , name :: AddressSpaceName

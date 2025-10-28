@@ -23,7 +23,7 @@ fooCurrentCtxId = 0
 fooCtx :: Ctx
 fooCtx = Ctx func fooCurrentCtxId
   where
-    func = Function Nothing "foo" 0x00 []
+    func = Function Nothing "foo" (intToAddr 0) []
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Analysis" $ do
@@ -34,7 +34,7 @@ spec = describe "Blaze.Cfg.Analysis" $ do
         bbnn :: Text -> Int -> CfNode [()]
         bbnn name unitsLength = bb fooCtx x x $ units unitsLength
           where
-            x = fromIntegral $ hash name
+            x = intToAddr . fromIntegral . hash $ name
 
     it "should remove single empty node" $ do
       let input = mkCfg 0
@@ -143,20 +143,20 @@ spec = describe "Blaze.Cfg.Analysis" $ do
 
   context "removeUnusedPhi" $ do
     it "should remove DefPhi statements where defined variable is unused" $ do
-      let root = bb fooCtx 0 1 [def "x" (const 42 4)]
+      let root = bb fooCtx (intToAddr 0) (intToAddr 1) [def "x" (const 42 4)]
           mid =
             bb
               fooCtx
-              1
-              2
+              (intToAddr 1)
+              (intToAddr 2)
               [ def "y" (add (var "x" 4) (const 10 4) 4)
               , defPhi 4 "unusedVar" ["a", "b", "c"]
               ]
           end =
             bb
               fooCtx
-              2
-              3
+              (intToAddr 2)
+              (intToAddr 3)
               [ def "z" (add (var "x" 4) (var "y" 4) 4)
               , def "zz" (const 6 4)
               ]
@@ -181,52 +181,52 @@ spec = describe "Blaze.Cfg.Analysis" $ do
       let root =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ def "x" (var "w" 4)
               , branchCond $ cmpNE (var "x" 4) (const 0 4) 4
               ]
           midLeft =
             bb
               fooCtx
-              1
-              2
+              (intToAddr 1)
+              (intToAddr 2)
               [ def "y#1" (add (var "x" 4) (const 10 4) 4)
               ]
           midRight =
             bb
               fooCtx
-              3
-              4
+              (intToAddr 3)
+              (intToAddr 4)
               [ def "y#2" (add (var "x" 4) (const 5000 4) 4)
               ]
           end =
             bb
               fooCtx
-              5
-              6
+              (intToAddr 5)
+              (intToAddr 6)
               [ defPhi 4 "r" ["y#1", "y#2"]
               , ret $ var "r" 4
               ]
           root' =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ branchCond $ cmpNE (var "w" 4) (const 0 4) 4
               ]
           midLeft' =
             bb
               fooCtx
-              1
-              2
+              (intToAddr 1)
+              (intToAddr 2)
               [ def "y#1" (add (var "w" 4) (const 10 4) 4)
               ]
           end' =
             bb
               fooCtx
-              5
-              6
+              (intToAddr 5)
+              (intToAddr 6)
               [ret $ var "y#1" 4]
           input =
             mkCfg 0
@@ -251,21 +251,21 @@ spec = describe "Blaze.Cfg.Analysis" $ do
       let root =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ branchCond $ cmpNE (var "x" 4) (const 0 4) 4 ]
           midLeft =
             bb
               fooCtx
-              1
-              2
+              (intToAddr 1)
+              (intToAddr 2)
               [ def "y" (add (var "x" 4) (const 10 4) 4)
               ]
           end =
             bb
               fooCtx
-              5
-              6
+              (intToAddr 5)
+              (intToAddr 6)
               [ ret $ var "y" 4 ]
           input =
             mkCfg 0
@@ -291,59 +291,59 @@ spec = describe "Blaze.Cfg.Analysis" $ do
       let root =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ def "x" (var "w" 4)
               , branchCond $ cmpNE (var "x" 4) (const 0 4) 4
               ]
           midLeft =
             bb
               fooCtx
-              1
-              2
+              (intToAddr 1)
+              (intToAddr 2)
               [ def "y#1" (add (var "x" 4) (const 10 4) 4)
               ]
           midRight =
             bb
               fooCtx
-              3
-              4
+              (intToAddr 3)
+              (intToAddr 4)
               [ def "y#2" (add (var "x" 4) (const 5000 4) 4)
               ]
           end =
             bb
               fooCtx
-              5
-              6
+              (intToAddr 5)
+              (intToAddr 6)
               [ defPhi 4 "r" ["y#1", "y#2"]
               , ret $ var "r" 4
               ]
           root' =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ branchCond $ cmpNE (var "w" 4) (const 0 4) 4
               ]
           midLeft' =
             bb
               fooCtx
-              1
-              2
+              (intToAddr 1)
+              (intToAddr 2)
               [ def "y#1" (add (var "w" 4) (const 10 4) 4)
               ]
           midRight' =
             bb
               fooCtx
-              3
-              4
+              (intToAddr 3)
+              (intToAddr 4)
               [ def "y#2" (add (var "w" 4) (const 5000 4) 4)
               ]
           end' =
             bb
               fooCtx
-              5
-              6
+              (intToAddr 5)
+              (intToAddr 6)
               [ defPhi 4 "r" ["y#1", "y#2"]
               , ret $ var "r" 4
               ]
@@ -372,23 +372,23 @@ spec = describe "Blaze.Cfg.Analysis" $ do
       let root =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ def "x" (const 0 4)
               ]
           end =
             bb
               fooCtx
-              10
-              11
+              (intToAddr 10)
+              (intToAddr 11)
               [ ret (var "x" 4)
               ]
 
           end' =
             bb
               fooCtx
-              10
-              11
+              (intToAddr 10)
+              (intToAddr 11)
               [ ret (const 0 4)
               ]
 
@@ -411,8 +411,8 @@ spec = describe "Blaze.Cfg.Analysis" $ do
       let root =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ def "arg1" $ const 0 4
               , def "x" $ var "arg1" 4
               , branchCond $ cmpE (var "x" 4) (const 0 4) 4
@@ -420,30 +420,30 @@ spec = describe "Blaze.Cfg.Analysis" $ do
           midTrue =
             bb
               fooCtx
-              2
-              3
+              (intToAddr 2)
+              (intToAddr 3)
               [ nop
               ]
           midFalse =
             bb
               fooCtx
-              4
-              5
+              (intToAddr 4)
+              (intToAddr 5)
               [ nop
               ]
           end =
             bb
               fooCtx
-              6
-              7
+              (intToAddr 6)
+              (intToAddr 7)
               [ ret (var "y" 4)
               ]
 
           root' =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ def "arg1" $ const 0 4
               , branchCond $ cmpE (const 0 4) (const 0 4) 4
               ]
@@ -471,29 +471,29 @@ spec = describe "Blaze.Cfg.Analysis" $ do
       let root =
             bb
               fooCtx
-              0
-              1
+              (intToAddr 0)
+              (intToAddr 1)
               [ branchCond $ cmpE (const 0 4) (const 0 4) 4
               ]
           midTrue =
             bb
               fooCtx
-              2
-              3
+              (intToAddr 2)
+              (intToAddr 3)
               [ def "y#1" (const 10 4)
               ]
           midFalse =
             bb
               fooCtx
-              4
-              5
+              (intToAddr 4)
+              (intToAddr 5)
               [ def "y#2" (const 500 4)
               ]
           end =
             bb
               fooCtx
-              6
-              7
+              (intToAddr 6)
+              (intToAddr 7)
               [ defPhi 4 "y" ["y#1", "y#2"]
               , ret (var "y" 4)
               ]
@@ -501,8 +501,8 @@ spec = describe "Blaze.Cfg.Analysis" $ do
           end' =
             bb
               fooCtx
-              6
-              7
+              (intToAddr 6)
+              (intToAddr 7)
               [ ret $ const 10 4
               ]
 

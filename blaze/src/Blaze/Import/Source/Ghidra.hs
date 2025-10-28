@@ -55,7 +55,7 @@ instance BinaryImporter GhidraImporter where
   -- uh, won't this invalidate the cache??
   rebaseBinary (GhidraImporter gs fc) off = runGhidraOrError $ do
     GProg.withTransaction (gs ^. #program) "BinaryImporter: Set Image Base" $ do
-      GProg.setImageBase (gs ^. #program) (fromIntegral off) True
+      GProg.setImageBase (gs ^. #program) (addrToInt off) True
       GState.analyze gs
     return $ GhidraImporter gs fc
 

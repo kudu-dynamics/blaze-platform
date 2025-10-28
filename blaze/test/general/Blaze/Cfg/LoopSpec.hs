@@ -12,49 +12,52 @@ import qualified Data.HashSet as HS
 import Test.Hspec
 import Blaze.Util.Spec (bb)
 
+ia :: Int64 -> Address
+ia = intToAddr
+
 ctx :: Ctx
 ctx = Ctx func 0
   where
-    func = Function Nothing "foo" 0x00 []
+    func = Function Nothing "foo" (intToAddr 0) []
 
 
 cfgWithSimpleLoop :: Cfg (CfNode ())
 cfgWithSimpleLoop = do
   mkCfg 0
-    (bb ctx 0x00 0x0F ())
-    [ bb ctx 0x10 0x1F ()
-    , bb ctx 0x20 0x2F ()
-    , bb ctx 0x30 0x3F ()
-    , bb ctx 0x40 0x4F ()
-    , bb ctx 0x50 0x5F ()
+    (bb ctx (ia 0x00) (ia 0x0F) ())
+    [ bb ctx (ia 0x10) (ia 0x1F) ()
+    , bb ctx (ia 0x20) (ia 0x2F) ()
+    , bb ctx (ia 0x30) (ia 0x3F) ()
+    , bb ctx (ia 0x40) (ia 0x4F) ()
+    , bb ctx (ia 0x50) (ia 0x5F) ()
     ]
     [ CfEdge
-        (bb ctx 0x00 0x0F ())
-        (bb ctx 0x10 0x1F ())
+        (bb ctx (ia 0x00) (ia 0x0F) ())
+        (bb ctx (ia 0x10) (ia 0x1F) ())
         UnconditionalBranch
     , CfEdge
-        (bb ctx 0x10 0x1F ())
-        (bb ctx 0x20 0x2F ())
+        (bb ctx (ia 0x10) (ia 0x1F) ())
+        (bb ctx (ia 0x20) (ia 0x2F) ())
         TrueBranch
     , CfEdge
-        (bb ctx 0x10 0x1F ())
-        (bb ctx 0x30 0x3F ())
+        (bb ctx (ia 0x10) (ia 0x1F) ())
+        (bb ctx (ia 0x30) (ia 0x3F) ())
         FalseBranch
     , CfEdge
-        (bb ctx 0x20 0x2F ())
-        (bb ctx 0x40 0x4F ())
+        (bb ctx (ia 0x20) (ia 0x2F) ())
+        (bb ctx (ia 0x40) (ia 0x4F) ())
         UnconditionalBranch
     , CfEdge
-        (bb ctx 0x30 0x3F ())
-        (bb ctx 0x40 0x4F ())
+        (bb ctx (ia 0x30) (ia 0x3F) ())
+        (bb ctx (ia 0x40) (ia 0x4F) ())
         UnconditionalBranch
     , CfEdge
-        (bb ctx 0x40 0x4F ())
-        (bb ctx 0x10 0x1F ())
+        (bb ctx (ia 0x40) (ia 0x4F) ())
+        (bb ctx (ia 0x10) (ia 0x1F) ())
         TrueBranch
     , CfEdge
-        (bb ctx 0x40 0x4F ())
-        (bb ctx 0x50 0x5F ())
+        (bb ctx (ia 0x40) (ia 0x4F) ())
+        (bb ctx (ia 0x50) (ia 0x5F) ())
         FalseBranch
     ]
 
@@ -66,8 +69,8 @@ spec = describe "Blaze.Cfg" $ do
             HS.fromList
               [ BackEdge $
                   CfEdge
-                    (bb ctx 0x40 0x4F ())
-                    (bb ctx 0x10 0x1F ())
+                    (bb ctx (ia 0x40) (ia 0x4F) ())
+                    (bb ctx (ia 0x10) (ia 0x1F) ())
                     TrueBranch
               ]
           actual = HS.fromList (getBackEdges cfgWithSimpleLoop)
@@ -78,15 +81,15 @@ spec = describe "Blaze.Cfg" $ do
 
       let expected =
             HS.fromList
-              [ bb ctx 0x20 0x2F ()
-              , bb ctx 0x30 0x3F ()
+              [ bb ctx (ia 0x20) (ia 0x2F) ()
+              , bb ctx (ia 0x30) (ia 0x3F) ()
               ]
           actual =
             getBodyNodes cfgWithSimpleLoop
             . BackEdge
             $ CfEdge
-              (bb ctx 0x40 0x4F ())
-              (bb ctx 0x10 0x1F ())
+              (bb ctx (ia 0x40) (ia 0x4F) ())
+              (bb ctx (ia 0x10) (ia 0x1F) ())
               TrueBranch
 
       PShow actual `shouldBe` PShow expected
@@ -94,47 +97,47 @@ spec = describe "Blaze.Cfg" $ do
     it "should find a loop from a back edge" $ do
       let expected =
             NatLoop
-              (LoopHeader $ bb ctx 0x10 0x1F ())
+              (LoopHeader $ bb ctx (ia 0x10) (ia 0x1F) ())
               ( LoopBody $
                   HS.fromList
-                    [ bb ctx 0x20 0x2F ()
-                    , bb ctx 0x30 0x3F ()
+                    [ bb ctx (ia 0x20) (ia 0x2F) ()
+                    , bb ctx (ia 0x30) (ia 0x3F) ()
                     ]
               )
-              (LoopTail $ bb ctx 0x40 0x4F ())
+              (LoopTail $ bb ctx (ia 0x40) (ia 0x4F) ())
               ( LoopCfg $
                   mkCfg 0
-                    (bb ctx 0x10 0x1F ())
-                    [ bb ctx 0x20 0x2F ()
-                    , bb ctx 0x30 0x3F ()
-                    , bb ctx 0x40 0x4F ()
+                    (bb ctx (ia 0x10) (ia 0x1F) ())
+                    [ bb ctx (ia 0x20) (ia 0x2F) ()
+                    , bb ctx (ia 0x30) (ia 0x3F) ()
+                    , bb ctx (ia 0x40) (ia 0x4F) ()
                     ]
                     [ CfEdge
-                        (bb ctx 0x10 0x1F ())
-                        (bb ctx 0x20 0x2F ())
+                        (bb ctx (ia 0x10) (ia 0x1F) ())
+                        (bb ctx (ia 0x20) (ia 0x2F) ())
                         TrueBranch
                     , CfEdge
-                        (bb ctx 0x20 0x2F ())
-                        (bb ctx 0x40 0x4F ())
+                        (bb ctx (ia 0x20) (ia 0x2F) ())
+                        (bb ctx (ia 0x40) (ia 0x4F) ())
                         UnconditionalBranch
                     , CfEdge
-                        (bb ctx 0x10 0x1F ())
-                        (bb ctx 0x30 0x3F ())
+                        (bb ctx (ia 0x10) (ia 0x1F) ())
+                        (bb ctx (ia 0x30) (ia 0x3F) ())
                         FalseBranch
                     , CfEdge
-                        (bb ctx 0x30 0x3F ())
-                        (bb ctx 0x40 0x4F ())
+                        (bb ctx (ia 0x30) (ia 0x3F) ())
+                        (bb ctx (ia 0x40) (ia 0x4F) ())
                         UnconditionalBranch
                     , CfEdge
-                        (bb ctx 0x40 0x4F ())
-                        (bb ctx 0x10 0x1F ())
+                        (bb ctx (ia 0x40) (ia 0x4F) ())
+                        (bb ctx (ia 0x10) (ia 0x1F) ())
                         TrueBranch
                     ]
               )
               ( BackEdge $
                   CfEdge
-                    (bb ctx 0x40 0x4F ())
-                    (bb ctx 0x10 0x1F ())
+                    (bb ctx (ia 0x40) (ia 0x4F) ())
+                    (bb ctx (ia 0x10) (ia 0x1F) ())
                     TrueBranch
               )
           actual =
@@ -142,8 +145,8 @@ spec = describe "Blaze.Cfg" $ do
               cfgWithSimpleLoop
               ( BackEdge $
                   CfEdge
-                    (bb ctx 0x40 0x4F ())
-                    (bb ctx 0x10 0x1F ())
+                    (bb ctx (ia 0x40) (ia 0x4F) ())
+                    (bb ctx (ia 0x10) (ia 0x1F) ())
                     TrueBranch
               )
       (actual ^. #backEdge) `shouldBe` (expected ^. #backEdge)
