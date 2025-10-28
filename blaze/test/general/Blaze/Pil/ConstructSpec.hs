@@ -29,7 +29,7 @@ spec = describe "Blaze.Pil.Construct" $ do
       let sym = "asdf"
           varExpectedSize = 13
           exprExpectedSize = 25
-          expectedCtx = Ctx (Function Nothing "qwer" 0xdeadbeef []) 17
+          expectedCtx = Ctx (Function Nothing "qwer" (intToAddr 0xdeadbeef) []) 17
           Expression exprSize op = C.var' (PilVar varExpectedSize (Just expectedCtx) Nothing sym False UnknownLocation) exprExpectedSize
       exprSize `shouldBe` exprExpectedSize
       case op ^? #_VAR . #_VarOp of

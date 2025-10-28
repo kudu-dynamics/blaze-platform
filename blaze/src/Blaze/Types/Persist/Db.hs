@@ -4,8 +4,6 @@ module Blaze.Types.Persist.Db where
 
 import Blaze.Prelude hiding ((:*:), Symbol)
 
-import Blaze.Types.Persist.Db.Address ()
-
 import Blaze.Types.Function (FuncParamInfo)
 
 import Data.BinaryAnalysis (Symbol)
@@ -41,7 +39,7 @@ instance (ToJSON a, FromJSON a, Typeable (Blob a)) => SqlType (Blob a) where
 type FuncId = Word64
 
 data Function = Function
-  { address :: Address
+  { address :: Blob Address
   , name :: Text
   , symbol :: Maybe (Blob Symbol)
   , library :: Maybe Text
@@ -51,16 +49,16 @@ data Function = Function
 
 data CallSite = CallSite
   { pid :: ID CallSite
-  , addr :: Address
-  , srcFunc :: Address
-  , destFunc :: Address
+  , addr :: Blob Address
+  , srcFunc :: Blob Address
+  , destFunc :: Blob Address
   } deriving (Generic, SqlRow)
 
 data CallGraphEdge = CallGraphEdge
   { pid :: ID CallGraphEdge
-  , srcFunc :: Address
+  , srcFunc :: Blob Address
   , srcFuncIsExtern :: Bool
-  , destFunc :: Address
+  , destFunc :: Blob Address
   , destFuncIsExtern :: Bool
   } deriving (Generic, SqlRow)
 

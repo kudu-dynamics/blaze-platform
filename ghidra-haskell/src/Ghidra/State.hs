@@ -5,7 +5,7 @@ import Ghidra.Prelude hiding (force, get)
 import qualified Language.Java as Java
 
 import qualified Ghidra.Program as Program
-import qualified Ghidra.Address as Address
+import qualified Ghidra.Address as Addr
 import Ghidra.Util (iteratorToList, maybeNullCall, suppressOut, tryJVM, getDomainObject, maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
@@ -165,18 +165,18 @@ getListing gs = do
 
 -- | Adds address to image base.
 -- Only use this with PIE binaries.
-mkAddressBased :: GhidraState -> BA.Address -> Ghidra J.Address
+mkAddressBased :: GhidraState -> Int64 -> Ghidra J.Address
 mkAddressBased gs addr = do
   baseAddr <- getImageBase gs
-  runIO $ Java.call baseAddr "add" (fromIntegral addr :: Int64)
+  runIO $ Java.call baseAddr "add" addr
 
 mkExternalAddress :: GhidraState -> Int64 -> Ghidra J.Address
 mkExternalAddress gs offset = do
   prg <- getProgram gs
   af <- Program.getAddressFactory prg
-  externSpace <- fromJust <$> Address.getAddressSpace af (Address.showAddressSpaceName Address.EXTERNAL)
-  externSpaceID <- Address.getSpaceID externSpace
-  Address.getAddress af externSpaceID offset
+  externSpace <- fromJust <$> Addr.getAddressSpace af (Addr.showAddressSpaceName BA.EXTERNAL)
+  externSpaceID <- Addr.getSpaceID externSpace
+  Addr.getAddress af externSpaceID offset
 
 getImageBase :: GhidraState -> Ghidra J.Address
 getImageBase gs = do
@@ -192,7 +192,7 @@ mkAddress_ gs addr = do
 -- | Makes a new address
 mkAddress :: GhidraState -> BA.Address -> Ghidra J.Address
 mkAddress gs addr = do
-  mkAddress_ gs (fromIntegral addr :: Int64)
+  mkAddress_ gs (BA.addrToInt addr)
 
 getMemoryMap :: GhidraState -> Ghidra J.MemoryMapDB
 getMemoryMap gs = do

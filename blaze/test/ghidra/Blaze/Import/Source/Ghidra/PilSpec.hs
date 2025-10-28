@@ -37,7 +37,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
 
   context "Import Function" $ do
     importer <- runIO $ G.getImporter diveBin
-    mFunc <- runIO $ getFunction importer 0x804d670 -- cgc_SetParam function
+    mFunc <- runIO $ getFunction importer (intToAddr 0x804d670) -- cgc_SetParam function
     it "should import a function by address" $ do
       mFunc ^? _Just . #_Internal . #name `shouldBe` Just "cgc_SetParam"
 

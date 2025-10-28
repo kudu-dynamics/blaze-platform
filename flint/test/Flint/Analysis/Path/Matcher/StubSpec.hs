@@ -16,13 +16,13 @@ import Test.Hspec
 
 
 foo :: Function
-foo = Function Nothing "foo" 0x999 []
+foo = Function Nothing "foo" (intToAddr 0x999) []
 
 bar :: Function
-bar = Function Nothing "bar" 0x888 []
+bar = Function Nothing "bar" (intToAddr 0x888) []
 
 alloc :: Function
-alloc = Function Nothing "alloc" 0x111 []
+alloc = Function Nothing "alloc" (intToAddr 0x111) []
 
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher.Stub" $ do

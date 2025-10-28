@@ -216,7 +216,7 @@ stackLocalAddr base offset size =
 
 -- | Makes a statement with 0x0 address
 mkStmt_ :: Statement expr -> AddressableStatement expr
-mkStmt_ = Stmt 0
+mkStmt_ = Stmt $ intToAddr 0
 
 def :: GetExprSize expr => Symbol -> expr -> AddressableStatement expr
 def sym expr = def' (pilVar (getPilVarSize expr) sym) expr

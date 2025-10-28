@@ -110,7 +110,7 @@ toCallableWMIBlob cprim = blob
   where
     func = cprim ^. #func
     name = func ^. _name
-    addr = fromMaybe 0 $ func ^? #_Internal . #address
+    addr = fromMaybe (intToAddr 0) $ func ^? #_Internal . #address
     blob = CallableWMIBlob
       { func = (name, addr)
       , primName = cprim ^. #prim . #name

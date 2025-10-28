@@ -10,6 +10,7 @@ import qualified Ghidra.Types as J
 import Ghidra.Types.Address as Exports
 import Ghidra.Types.Internal (Ghidra, runIO)
 import Ghidra.Util (maybeNull)
+import qualified Data.BinaryAnalysis as BA
 
 import qualified Language.Java as Java
 import qualified Foreign.JNI as JNI
@@ -17,17 +18,17 @@ import qualified Foreign.JNI as JNI
 
 readAddressSpaceName :: Text -> AddressSpaceName
 readAddressSpaceName t = case t of
-  "EXTERNAL" -> EXTERNAL
-  "HASH" -> HASH
-  "const" -> Const
-  "ram" -> Ram
-  "register" -> Register
-  "stack" -> Stack
-  "unique" -> Unique
-  _ -> Other t
+  "EXTERNAL" -> BA.EXTERNAL
+  "HASH" -> BA.HASH
+  "const" -> BA.Const
+  "ram" -> BA.Ram
+  "register" -> BA.Register
+  "stack" -> BA.Stack
+  "unique" -> BA.Unique
+  _ -> BA.Other t
 
 showAddressSpaceName :: AddressSpaceName -> Text
-showAddressSpaceName (Other t) = t
+showAddressSpaceName (BA.Other t) = t
 showAddressSpaceName x = show x
 
 mkAddressSpace :: J.AddressSpace -> Ghidra AddressSpace

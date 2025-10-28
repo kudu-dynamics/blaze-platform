@@ -83,7 +83,7 @@ findCopies inputVars retVals stmts = do
     _ -> True
   inputLocation <-
     toList $ case mayYX of
-      Just (_, Expression _ (CONST (ConstOp (fromIntegral -> x :: Address)))) -> Just $ ConcreteInputLocation x
+      Just (_, Expression _ (CONST (ConstOp (intToAddr -> x :: Address)))) -> Just $ ConcreteInputLocation x
       Just (_, Expression _ (VAR (VarOp x))) -> Just $ SymbolicInputLocation x
       Nothing ->
         -- if yExpr is a VAR, skip it, because it should be handled by the other two input types
@@ -93,7 +93,7 @@ findCopies inputVars retVals stmts = do
       _ -> Nothing
   outputLocation <-
     toList $ case mayZ of
-      Just (Expression _ (CONST (ConstOp (fromIntegral -> zAddr :: Address)))) ->
+      Just (Expression _ (CONST (ConstOp (intToAddr -> zAddr :: Address)))) ->
         Just $ ConcreteOutputLocation zAddr
       Just (Expression _ (VAR (VarOp zVar))) | zVar `elem` inputVars ->
         Just $ SymbolicOutputLocation zVar

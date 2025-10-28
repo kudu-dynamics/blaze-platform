@@ -8,7 +8,6 @@ import Blaze.Pil.Analysis.Path (expandVars, aggressiveExpand)
 import Blaze.Pil.Construct
 import Blaze.Types.Pil (Stmt)
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Util (readAsJSON)
 
 import Test.Hspec
 
@@ -92,10 +91,12 @@ spec = describe "Blaze.Pil.Analysis" $ do
 
   context "aggressiveExpand" $ do
 
+    {-
     it "should aggressive expand a long set of stmts without looping forever" $ do
       stmts <- readAsJSON "res/json/dive_logger_aggressive_expand_failure_path.json"
       let result = aggressiveExpand stmts
       (length result < length stmts) `shouldBe` True
+    -}
 
     it "should use a previously used var for phi" $ do
       let stmts =

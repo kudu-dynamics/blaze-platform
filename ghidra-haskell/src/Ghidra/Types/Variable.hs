@@ -2,10 +2,8 @@
 module Ghidra.Types.Variable where
 
 import Ghidra.Prelude hiding (DataType)
-
 import Ghidra.Types.Address (Address)
 import Ghidra.Types.DataTypes (DataType)
-
 
 data VarType
   = Const Int64

@@ -48,13 +48,13 @@ path2 =
   ]
 
 func0 :: Function
-func0 = Function Nothing "func0" 0x888 []
+func0 = Function Nothing "func0" (intToAddr 0x888) []
 
 func1 :: Function
-func1 = Function Nothing "func1" 0x999 []
+func1 = Function Nothing "func1" (intToAddr 0x999) []
 
 func2 :: Function
-func2 = Function Nothing "CGC_free" 0xAAA []
+func2 = Function Nothing "CGC_free" (intToAddr 0xAAA) []
 
 -- matchStmtsIO :: [TaintPropagator] -> [M.StmtPattern] -> [Pil.Stmt] -> IO MatcherResult
 -- matchStmtsIO tps pats = match' (solveStmtsWithZ3 Solver.AbortOnError) pats . mkPathPrep tps
@@ -401,7 +401,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     it "should match on a ConstFuncPtr with Var" $ do
       let funcPtr = Pil.Expression 4
             . Pil.ConstFuncPtr
-            . Pil.ConstFuncPtrOp 0x888
+            . Pil.ConstFuncPtrOp (intToAddr 0x888)
             $ Just "funcTable"
           stmts = [def "b" funcPtr]
           pats = [Stmt $ Def (Var "b") (Var "funcTable")]
@@ -675,7 +675,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     it "should match on an expr in an indirect call to a const func ptr" $ do
       let funcPtr = Pil.Expression 4
             . Pil.ConstFuncPtr
-            . Pil.ConstFuncPtrOp 0x888
+            . Pil.ConstFuncPtrOp (intToAddr 0x888)
             $ Just "funcTable"
           cdest = Pil.CallExpr $ load (add funcPtr (const 0x4e 4) 4) 4
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
@@ -963,27 +963,27 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     context "Locations" $ do
       let loc addr s = s & #addr .~ addr
       it "should store location for single statement" $ do
-        let stmts = [loc 0x888 $ def "b" (load (var "arg4" 4) 4)]
+        let stmts = [loc (intToAddr 0x888) $ def "b" (load (var "arg4" 4) 4)]
             pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
             expected = Just $ HashMap.fromList
-              [("varPlace", Right 0x888)]
+              [("varPlace", Right (intToAddr 0x888))]
         (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
 
       it "should ignore unmatched statements preceeding matched location" $ do
-        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
-                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
+        let stmts = [ loc (intToAddr 0x777) $ def "a" (load (var "arg1" 4) 4)
+                    , loc (intToAddr 0x888) $ def "b" (load (var "arg4" 4) 4)
                     ]
             pats = [ Star
                    , Location "varPlace" . Stmt $ Def (Var "b") Wild
                    ]
             expected = Just $ HashMap.fromList
-              [("varPlace", Right 0x888)]
+              [("varPlace", Right (intToAddr 0x888))]
         (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
 
       it "should get location of AnyOne statement" $ do
-        let stmts = [ loc 0x777 $ def "a" (load (var "arg1" 4) 4)
-                    , loc 0x888 $ def "b" (load (var "arg4" 4) 4)
-                    , loc 0x999 $ def "c" (load (var "arg5" 4) 4)
+        let stmts = [ loc (intToAddr 0x777) $ def "a" (load (var "arg1" 4) 4)
+                    , loc (intToAddr 0x888) $ def "b" (load (var "arg4" 4) 4)
+                    , loc (intToAddr 0x999) $ def "c" (load (var "arg5" 4) 4)
                     ]
             pats = [ Star
                    , Location "varPlace" $ orr
@@ -992,7 +992,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                      ]
                    ]
             expected = Just $ HashMap.fromList
-              [("varPlace", Right 0x888)]
+              [("varPlace", Right (intToAddr 0x888))]
         (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
 
     it "should avoid until" $ do
@@ -1270,22 +1270,24 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         solveMatch pats stmts `shouldReturn` expected
 
 
---     context "taint propagators" $ do
---       let f = Function Nothing "myfunc" 0x888 []
---           tps =
---             [ FunctionCallPropagator "myfunc" (Parameter 0) ReturnParameter
---             ]
---           cdest = Pil.CallFunc f
---           v = pilVar_ 4 Nothing
---           -- TODO we should use Construct.var here once it's fixed
---           vexp sym = var' (v sym) 4
---           stmts =
---             [ def' (v "b") (vexp "a"),
---               def' (v "c") (add (load (vexp "b") 4) (const 0 4) 4),
---               store (vexp "d") (vexp "c"),
---               defCall' (v "r") cdest [vexp "d", vexp "e"] 8,
---               def' (v "x") (vexp "r")
---             ]
+{-
+    context "taint propagators" $ do
+      let f = Function Nothing "myfunc" (intToAddr 0x888) []
+          tps =
+            [ FunctionCallPropagator "myfunc" (Parameter 0) ReturnParameter
+            ]
+          cdest = Pil.CallFunc f
+          v = pilVar_ 4 Nothing
+          -- TODO we should use Construct.var here once it's fixed
+          vexp sym = var' (v sym) 4
+          stmts =
+            [ def' (v "b") (vexp "a"),
+              def' (v "c") (add (load (vexp "b") 4) (const 0 4) 4),
+              store (vexp "d") (vexp "c"),
+              defCall' (v "r") cdest [vexp "d", vexp "e"] 8,
+              def' (v "x") (vexp "r")
+            ]
+-}
 
 --       it "should propagate taint through pure expressions" $ do
 --         let pats =

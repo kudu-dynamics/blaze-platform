@@ -17,7 +17,7 @@ spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra.CallGraph" $ do
   context "Import Function" $ do
     importer <- runIO $ G.getImporter diveBin
-    mFunc <- runIO $ getFunction importer 0x804d670 -- cgc_SetParam function
+    mFunc <- runIO $ getFunction importer (intToAddr 0x804d670) -- cgc_SetParam function
     it "should import a function by address" $ do
       mFunc ^? _Just . _name `shouldBe` Just "cgc_SetParam"
 
