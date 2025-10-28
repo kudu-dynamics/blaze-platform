@@ -277,7 +277,7 @@ class IsStatement expr stmt | stmt -> expr where
 
 instance IsStatement Pil.Expression Pil.Stmt where
   getStatement = view #statement
-  mkDefStmt = Pil.Stmt 0x0
+  mkDefStmt = Pil.Stmt (intToAddr 0x0)
   mkStmtLike aStmt statement' = aStmt & #statement .~ statement'
   asStmt = identity
 

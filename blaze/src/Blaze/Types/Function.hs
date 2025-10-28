@@ -97,26 +97,16 @@ data Function = Function
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, FromJSON, ToJSON)
 
-dummy :: Function
-dummy = Function Nothing "jones" 0x1000 []
-
 instance Identifiable Function Int where
   getNodeId f = NodeId $ hash f
 
--- | Since the External address space doesn't really exist, this is just a
--- way for the backend to uniqely refer to each function.
--- In Ghidra, this would be an Address in EXTERNAL with offset == externalIndex
--- TODO: Add AddressSpace to our Address type and we can just make this Address
-newtype ExternAddress = ExternAddress { externalIndex :: Word64 }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
-
 -- | These are functions externally defined and referred to in a binary
+-- Important note, for Ghidra the offset field in address refers to the externalIndex
 data ExternFunction = ExternFunction
   { symbol :: Maybe Symbol
   , name :: Text
   , library :: Maybe Text
-  , address :: ExternAddress
+  , address :: Address
   , params :: [FuncParamInfo]
   }
   deriving (Eq, Ord, Show, Generic)

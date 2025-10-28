@@ -68,6 +68,7 @@ import Control.Monad.Trans.Class as Exports (MonadTrans)
 import Control.Monad.Trans.Maybe as Exports (MaybeT, runMaybeT)
 import Data.BinaryAnalysis as Exports
   ( AddressWidth (AddressWidth),
+    AddressSpaceName,
     Bits (Bits),
     Bytes (Bytes),
     toBits,

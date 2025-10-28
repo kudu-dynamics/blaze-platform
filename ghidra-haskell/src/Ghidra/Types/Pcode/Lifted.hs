@@ -3,7 +3,7 @@ module Ghidra.Types.Pcode.Lifted where
 
 import Ghidra.Prelude hiding (toList)
 
-import Ghidra.Types.Address (AddressSpaceId, AddressSpace, Address, AddressSpaceMap)
+import Ghidra.Types.Address (Address, AddressSpace, AddressSpaceId, AddressSpaceMap)
 import Ghidra.Types.Pcode (BarePcodeOp)
 
 newtype ParserCtx = ParserCtx

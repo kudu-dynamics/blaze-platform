@@ -8,11 +8,17 @@ import Blaze.Types.CachedMap (CachedMap)
 import Ghidra.State (GhidraState)
 import Ghidra.Types (HighFunction)
 import qualified Ghidra.Types.Address as GAddr
-
+import qualified Data.BinaryAnalysis as BA
 
 convertAddress :: GAddr.Address -> Address
-convertAddress x = fromIntegral
-  $ x ^. #offset * fromIntegral (x ^. #space . #addressableUnitSize)
+convertAddress addr = Address
+  { BA.space = AddressSpace
+    { ptrSize = addr ^. #space . #ptrSize
+    , addressableUnitSize = addr ^. #space . #addressableUnitSize
+    , name = addr ^. #space . #name
+    }
+  , BA.offset = addr ^. #offset
+  }
 
 type PcodeReference = CodeReference GAddr.Address
 

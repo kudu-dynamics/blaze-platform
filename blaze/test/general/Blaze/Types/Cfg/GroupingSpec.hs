@@ -34,7 +34,7 @@ import Test.Hspec
 ctx :: Ctx
 ctx = Ctx func 0
   where
-    func = Function Nothing "foo" 0x00 []
+    func = Function Nothing "foo" (intToAddr 0) []
 
 groupbb :: a -> CfNode a -> Cfg (CfNode a) -> CfNode a
 groupbb ndata end subcfg =
@@ -51,20 +51,20 @@ cbb :: Address -> Address -> a -> CfNode a
 (gbb, cbb) = (go Cfg.BasicBlock, go Cfg.BasicBlock)
   where
     go f startAddr endAddr x = f $ BasicBlockNode
-      { ctx = Ctx (Function Nothing "f" 0 []) 0
+      { ctx = Ctx (Function Nothing "f" (intToAddr 0) []) 0
       , start = startAddr
       , end = endAddr
       , uuid = uuid'
       , nodeData = x
       }
       where
-        uuid' = mkUuid2 startAddr endAddr
+        uuid' = mkUuid2 (addrToInt startAddr) (addrToInt endAddr)
 
 gbbn :: Text -> CfNode [Text]
 cbbn :: Text -> CfNode [Text]
 (gbbn, cbbn) = (go gbb, go cbb)
   where
-    go f n = let x = fromIntegral $ hash n in f x x [n]
+    go f n = let x = intToAddr . fromIntegral . hash $ n in f x x [n]
 
 cbbn' :: Text -> UUID
 cbbn' = getNodeUUID . cbbn

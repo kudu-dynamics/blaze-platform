@@ -13,7 +13,6 @@ import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Ghidra.Types as J
 import qualified Foreign.JNI as JNI
 import qualified Ghidra.Address as Addr
-import Ghidra.Address (Address)
 import Ghidra.Types.Function (Function)
 import qualified Ghidra.Function as Func
 
@@ -45,7 +44,7 @@ getToAddress ref = runIO $ Java.call ref "getToAddress"
 data FuncRef = FuncRef
   { caller :: Function
   , callee :: Function
-  , callerAddr :: Address
+  , callerAddr :: Addr.Address
   } deriving (Eq, Ord, Show, Generic)
 
 toFuncReference :: GhidraState -> J.Reference -> Ghidra (Maybe FuncRef)

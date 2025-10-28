@@ -30,16 +30,16 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
     end <- runIO $ getEnd importer
 
     it "should get start offset" $ do
-      start `shouldBe` 0x8048000
+      addrToInt start `shouldBe` 0x8048000
 
     it "should get end offset" $ do
-      end `shouldBe` 0x5ef
+      addrToInt end `shouldBe` 0x5ef
 
-    rebasedImporter <- runIO $ rebaseBinary importer 0x10000000
+    rebasedImporter <- runIO $ rebaseBinary importer (intToAddr 0x10000000)
     rebasedStart <- runIO $ getStart rebasedImporter
 
     it "should rebase binary" $ do
-      rebasedStart `shouldBe` 0x10000000
+      addrToInt rebasedStart `shouldBe` 0x10000000
 
   context "Importing call graphs" $ do
     importer <- runIO $ G.getImporter diveBin

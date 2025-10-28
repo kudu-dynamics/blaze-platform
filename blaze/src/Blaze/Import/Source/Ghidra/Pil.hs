@@ -43,6 +43,7 @@ import Blaze.Import.Source.Ghidra.Types (
   )
 import Blaze.Types.Function ( Function )
 
+import qualified Data.BinaryAnalysis as BA
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
@@ -180,14 +181,14 @@ getVarNodeType :: IsVariable a => a -> VarNodeType
 getVarNodeType v = case getVarType v of
   GVar.Const n -> VImmediate n
   GVar.Addr{location, pcAddress} -> case location ^. #space . #name of
-    GAddr.EXTERNAL -> VExtern{offset = off, ptrSize = ptrSize}
-    GAddr.HASH -> VOther "HASH" off
-    GAddr.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
-    GAddr.Ram -> VRam{offset = off, ptrSize = ptrSize}
-    GAddr.Register -> VReg{offset = off, pcAddress = pcAddressOffset}
-    GAddr.Stack -> VStack{offset = off, pcAddress = pcAddressOffset}
-    GAddr.Unique -> VUnique{offset = off, pcAddress = pcAddressOffset}
-    GAddr.Other t -> VOther t off
+    BA.EXTERNAL -> VExtern{offset = off, ptrSize = ptrSize}
+    BA.HASH -> VOther "HASH" off
+    BA.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
+    BA.Ram -> VRam{offset = off, ptrSize = ptrSize}
+    BA.Register -> VReg{offset = off, pcAddress = pcAddressOffset}
+    BA.Stack -> VStack{offset = off, pcAddress = pcAddressOffset}
+    BA.Unique -> VUnique{offset = off, pcAddress = pcAddressOffset}
+    BA.Other t -> VOther t off
     where
       ptrSize = location ^. #space . #ptrSize
       off = location ^. #offset
@@ -221,7 +222,7 @@ getConstPtrExpr v = case getVarNodeType v of
 getExternPtrExpr :: IsVariable a => a -> Maybe Expression
 getExternPtrExpr v = case getVarNodeType v of
   -- TODO: figure out what to put for address and offset of ExternPtrOp
-  VExtern n ptrSize -> return . Expression (fromIntegral ptrSize) . Pil.ExternPtr $  Pil.ExternPtrOp 0 (fromIntegral n) Nothing
+  VExtern n ptrSize -> return . Expression (fromIntegral ptrSize) . Pil.ExternPtr $  Pil.ExternPtrOp (intToAddr 0) (fromIntegral n) Nothing
   _ -> Nothing
 
 getPtrExpr :: IsVariable a => a -> Maybe Expression
@@ -269,9 +270,9 @@ callDestFromDest (P.Relative _off) =
   -- so assume it won't happen, even though the docs say its the same as Branch
   error "Got a realative offset. Expected only Absolute calls"
 callDestFromDest (P.Absolute addr) = case addr ^. #space . #name of
-  GAddr.EXTERNAL -> mkFuncDest
-  GAddr.Ram -> mkFuncDest
-  GAddr.Const -> do
+  BA.EXTERNAL -> mkFuncDest
+  BA.Ram -> mkFuncDest
+  BA.Const -> do
     let paddr = convertAddress addr
     return . Pil.CallAddr $ Pil.ConstFuncPtrOp paddr Nothing
   _ -> return . Pil.CallExpr $ mkAddressExpr addr
@@ -335,7 +336,7 @@ varNodeToReference v = do
       let baseName = fromMaybe ("unique_" <> showHex offset) specialName
       pure . Left . pv version baseName False $ Pil.Code offset
     VRam n ptrSize -> pure . Right $ C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrSize)
-    VExtern n ptrSize -> pure . Right $ C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrSize)
+    VExtern n ptrSize -> pure . Right $ C.externPtr (intToAddr 0) (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrSize)
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
       | t == "VARIABLE" -> do
@@ -382,7 +383,7 @@ varNodeToValueExpr v = do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
     VRam n ptrWidth -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrWidth)) operSize
-    VExtern n ptrWidth -> pure $ C.load (C.externPtr 0 (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrWidth)) operSize
+    VExtern n ptrWidth -> pure $ C.load (C.externPtr (intToAddr 0) (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrWidth)) operSize
     VImmediate n -> pure $ C.const n operSize
     VOther _ _ -> do
       pv <- varNodeToPilVar v

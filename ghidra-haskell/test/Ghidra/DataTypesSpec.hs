@@ -5,7 +5,6 @@ import Ghidra.Prelude hiding (DataType)
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
 import Ghidra.Core
-import qualified Data.BinaryAnalysis as BA
 import Ghidra.Clang (ClangAST, ClangNode)
 
 testBin2 :: FilePath
@@ -31,7 +30,7 @@ getBinGhidraState = do
   let gs2 = State.openDatabase_ largeTestBin >>! State.analyze
   return (gs1,gs2)
 
-getClangASTFromState :: Ghidra State.GhidraState -> BA.Address -> Ghidra (ClangAST ClangNode) 
+getClangASTFromState :: Ghidra State.GhidraState -> Int64 -> Ghidra (ClangAST ClangNode) 
 getClangASTFromState gs addr = do
   gs' <- gs
   jaddr' <- State.mkAddressBased gs' addr

@@ -10,7 +10,7 @@ import Ghidra.Pcode hiding (Register)
 import Ghidra.Program (getAddressSpaceMap)
 import qualified Ghidra.State as State
 import qualified Ghidra.Types as J
-import Ghidra.Types.Address hiding (Const)
+import Ghidra.Types.Address
 import qualified Ghidra.Types.Pcode.Lifted as Lifted
 import Ghidra.Types.Pcode.Lifted as Lifted (Destination(..), Input(..), Output(..))
 import Ghidra.Types.Variable
@@ -24,7 +24,7 @@ diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 a1Bin :: FilePath
 a1Bin = "res/test_bins/a1/a1.gzf"
 
-getHighs :: State.GhidraState -> BA.Address -> IO ([(Address, J.PcodeOpAST)], [(Address, Lifted.PcodeOp HighVarNode)])
+getHighs :: State.GhidraState -> Int64 -> IO ([(Address, J.PcodeOpAST)], [(Address, Lifted.PcodeOp HighVarNode)])
 getHighs gs faddr = runGhidraOrError $ do
   faddr' <- State.mkAddressBased gs faddr
   (Just func) <- Function.fromAddr gs faddr'
@@ -72,10 +72,10 @@ spec = describe "Ghidra.Pcode" $ do
               { location =
                   Address
                   { space = AddressSpace
-                    { id = AddressSpaceId 291
+                    { spaceId = AddressSpaceId 291
                     , ptrSize = 4
                     , addressableUnitSize = 1
-                    , name = Unique
+                    , name = BA.Unique
                     }
                   , offset = 146432
                   }
@@ -90,10 +90,10 @@ spec = describe "Ghidra.Pcode" $ do
                     { location =
                         Address
                         { space = AddressSpace
-                                  { id = AddressSpaceId 548
+                                  { spaceId = AddressSpaceId 548
                                   , ptrSize = 4
                                   , addressableUnitSize = 1
-                                  , name = Register
+                                  , name = BA.Register
                                   }
                         , offset = 40
                         }
@@ -130,9 +130,9 @@ spec = describe "Ghidra.Pcode" $ do
           snd (liftedHighs !! 7) `shouldSatisfy` \case
             -- rax <- f(rdi, 80)
             Lifted.CALL
-              (Just (Output HighVarNode{varType=Addr{location=Address{space=AddressSpace{name=Register}, offset=0}}}))
+              (Just (Output HighVarNode{varType=Addr{location=Address{space=AddressSpace{name=BA.Register}, offset=0}}}))
               (Input 0 (Absolute fAddr'))
-              [ Input 1 (HighVarNode{varType=Addr{location=Address{space=AddressSpace{name=Register}, offset = 56}}})
+              [ Input 1 (HighVarNode{varType=Addr{location=Address{space=AddressSpace{name=BA.Register}, offset = 56}}})
               , Input 2 (HighVarNode{varType=Const 80})
               ]
               | fAddr == fAddr' -> True

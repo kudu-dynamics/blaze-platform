@@ -82,7 +82,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
           action = do
             funcs <- Store.getFuncs $ tctx ^. #dirtyStore
-            func <- (^?! _Just . #_Internal) <$> CG.getFunction (tctx ^. #dirtyImp) 0x0101d88
+            func <- (^?! _Just . #_Internal) <$> CG.getFunction (tctx ^. #dirtyImp) (intToAddr 0x0101d88)
             let q = QueryExpandAll $ QueryExpandAllOpts
                   { callExpandDepthLimit = 0
                   , numSamples = 1
