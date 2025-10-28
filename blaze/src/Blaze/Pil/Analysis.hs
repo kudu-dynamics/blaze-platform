@@ -699,7 +699,7 @@ propInfoForMemGroup mg = do
       storageExpr = mg ^. #storage . #start
       storageWidth = fromIntegral . (`div` 8) $ mg ^. #storage . #width
       loadExpr = C.load storageExpr storageWidth
-      defStmtAddr = maybe 0 (view $ #stmt . #addr) $ mg ^. #store
+      defStmtAddr = maybe (intToAddr 0) (view $ #stmt . #addr) $ mg ^. #store
       defStatement = Pil.Def (Pil.DefOp (pv $ fromByteBased storageWidth) loadExpr)
       pvExpr = C.var s $ storageExpr ^. #size
   return $

@@ -1,8 +1,8 @@
 module Ghidra.Types.Function where
 
 import Ghidra.Prelude
-import qualified Ghidra.Types as J
 import Ghidra.Types.Address (Address)
+import qualified Ghidra.Types as J
 
 data Function = Function
   { handle :: J.Function

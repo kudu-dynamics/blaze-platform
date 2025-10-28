@@ -5,8 +5,8 @@ import Ghidra.Prelude
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
 import Ghidra.Types (Function)
-import qualified Ghidra.Types.Address as Addr
 import Ghidra.Core
+import qualified Data.BinaryAnalysis as BA
 
 import Test.Hspec
 
@@ -121,7 +121,7 @@ spec = describe "Ghidra.Function" $ do
     putsAddress <- runIO . runGhidraOrError $ Function.getAddress putsExternFunc
 
     it "should know that 'puts' address space is external" $
-      putsAddress ^. #space . #name  `shouldBe` Addr.EXTERNAL
+      putsAddress ^. #space . #name  `shouldBe` BA.EXTERNAL
 
     putsParams <- runIO . runGhidraOrError $ Function.getLowParams putsExternFunc
 

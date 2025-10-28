@@ -24,7 +24,7 @@ spec = describe "Ghidra.Reference" $ do
   context "getReferencesTo" $ do
     let cgc_printf_addr = 0x804c6e0
     refs <- runIO . runGhidraOrError $ do
-      addr <- State.mkAddress gs cgc_printf_addr
+      addr <- State.mkAddress_ gs cgc_printf_addr
       mfunc <- Function.fromAddr gs addr
       case mfunc of
         Nothing -> error "Couldn't find cgc_printf."
@@ -37,7 +37,7 @@ spec = describe "Ghidra.Reference" $ do
   context "getFunctionRefs" $ do
     let cgc_AddDive_addr = 0x804c7d0
     refs <- runIO . runGhidraOrError $ do
-      addr <- State.mkAddress gs cgc_AddDive_addr
+      addr <- State.mkAddress_ gs cgc_AddDive_addr
       mfunc <- Function.fromAddr gs addr
       case mfunc of
         Nothing -> error "Couldn't find cgc_AddDive."

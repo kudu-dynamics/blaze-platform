@@ -33,8 +33,8 @@ import Test.Hspec
 bbp :: Ctx -> Text -> [Stmt] -> CfNode [Stmt]
 bbp ctx name stmts = BasicBlock $ BasicBlockNode
   { ctx = ctx
-  , start = 0
-  , end = 0
+  , start = intToAddr 0
+  , end = intToAddr 0
   , uuid = uuid'
   , nodeData = stmts
   }
@@ -45,7 +45,7 @@ callerFunc :: Function
 callerFunc = Function
   { symbol = Nothing
   , name = "caller"
-  , address = 0
+  , address = intToAddr 0
   , params = []
   }
 
@@ -53,7 +53,7 @@ targetFunc :: Function
 targetFunc = Function
   { symbol = Nothing
   , name = "targetFunc"
-  , address = 100
+  , address = intToAddr 100
   , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
              , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
              ]

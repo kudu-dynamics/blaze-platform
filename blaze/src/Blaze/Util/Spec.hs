@@ -25,18 +25,18 @@ bb :: Ctx -> Address -> Address -> a -> Cfg.CfNode a
 bb ctx startAddr endAddr x =
   Cfg.BasicBlock $ Cfg.BasicBlockNode ctx startAddr endAddr uuid x
  where
-  uuid = mkUuid2 startAddr endAddr
+  uuid = mkUuid2 (addrToInt startAddr) (addrToInt endAddr)
 
 mkDummyCtx :: Word64 -> Ctx
-mkDummyCtx = Ctx (Function Nothing "dummyCtx" 0x00 []) . fromIntegral
+mkDummyCtx = Ctx (Function Nothing "dummyCtx" (intToAddr 0) []) . fromIntegral
 
 mkDummyTermNode :: Ctx -> a -> Cfg.CfNode a
 mkDummyTermNode ctx nodeData 
   = Cfg.BasicBlock
     $ Cfg.BasicBlockNode
     { ctx = ctx
-    , start = 0
-    , end = 0
+    , start = intToAddr 0
+    , end = intToAddr 0
     , uuid = mkUuid1 (0 :: Int)
     , nodeData = nodeData
     }
@@ -48,7 +48,7 @@ mkCallNode :: Ctx -> Text -> PilVar -> Function -> [Expression] -> (Cfg.CallNode
 mkCallNode ctx name retVar targetFunc' args =
   ( Cfg.CallNode
     { ctx = ctx
-    , start = 0
+    , start = intToAddr 0
     , callDest = Pil.CallFunc targetFunc'
     , uuid = uuid'
     , nodeData = [callStmt']

@@ -13,7 +13,6 @@ import qualified Language.Java as Java
 import qualified Ghidra.Address as Addr
 import qualified Foreign.JNI as JNI
 import qualified Ghidra.Types as J
-import Ghidra.Types.Address (Address)
 import qualified Data.Set as Set
 
 
@@ -56,7 +55,7 @@ getSources gs block = do
   blocks <- runIO (Java.call block "getSources" tm) >>= codeBlockReferenceIteratorToList
   mapM (runIO . JNI.newGlobalRef <=< runIO . (`Java.call` "getSourceBlock")) blocks
 
-getStartAddress :: J.CodeBlock -> Ghidra Address
+getStartAddress :: J.CodeBlock -> Ghidra Addr.Address
 getStartAddress block
   = runIO (Java.call block "getFirstStartAddress") >>= Addr.mkAddress
 
@@ -94,6 +93,6 @@ getBasicBlockGraph gs func = do
   edges <- concatMapM (getEdgesForBlock gs $ Set.fromList blocks) blocks
   return $ BasicBlockGraph blocks edges
 
-getMaxAddress :: BasicBlock -> Ghidra Address
+getMaxAddress :: BasicBlock -> Ghidra Addr.Address
 getMaxAddress bb = runIO (Java.call (coerce (bb ^. #handle) :: J.AddressSetView) "getMaxAddress")
                    >>= Addr.mkAddress

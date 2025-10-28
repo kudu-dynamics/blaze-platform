@@ -361,7 +361,7 @@ mkCallDest :: HasField' "op" expr (ExprOp expr) => expr -> CallDest expr
 mkCallDest x = case x ^. #op of
   (CONST_PTR c) ->
     CallAddr
-      . ConstFuncPtrOp (fromIntegral $ c ^. #constant)
+      . ConstFuncPtrOp (intToAddr $ c ^. #constant)
       $ Nothing
   _ -> CallExpr x
 

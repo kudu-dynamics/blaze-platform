@@ -48,17 +48,17 @@ spec = do
     it "finds copy from global to other global" $ do
       extractCapabilities inputVars [garbageRet] ([loadGlobalStmt, storeGlobalStmt] <> garbageStmts)
         `shouldBe`
-        [ CopyCapability (ConcreteOutputLocation outGlobal) (ConcreteInputLocation inGlobal) ]
+        [ CopyCapability (ConcreteOutputLocation (intToAddr outGlobal)) (ConcreteInputLocation (intToAddr inGlobal)) ]
 
     it "finds copy from global to OUT pointer" $ do
       extractCapabilities inputVars [garbageRet] ([loadGlobalStmt, storePtrStmt] <> garbageStmts)
         `shouldBe`
-        [ CopyCapability (SymbolicOutputLocation outPtrVar) (ConcreteInputLocation inGlobal) ]
+        [ CopyCapability (SymbolicOutputLocation outPtrVar) (ConcreteInputLocation (intToAddr inGlobal)) ]
 
     it "finds copy from global to return value" $ do
       extractCapabilities inputVars [tmp, garbageRet] ([loadGlobalStmt, retStmt] <> garbageStmts)
         `shouldBe`
-        [ CopyCapability Returned (ConcreteInputLocation inGlobal) ]
+        [ CopyCapability Returned (ConcreteInputLocation (intToAddr inGlobal)) ]
 
     it "ignore copy from global to non-returned value" $ do
       extractCapabilities inputVars [garbageRet] ([loadGlobalStmt, retStmt] <> garbageStmts)
@@ -68,7 +68,7 @@ spec = do
     it "finds copy from IN pointer to global" $ do
       extractCapabilities inputVars [garbageRet] ([loadPtrStmt, storeGlobalStmt] <> garbageStmts)
         `shouldBe`
-        [ CopyCapability (ConcreteOutputLocation outGlobal) (SymbolicInputLocation inPtrVar) ]
+        [ CopyCapability (ConcreteOutputLocation (intToAddr outGlobal)) (SymbolicInputLocation inPtrVar) ]
 
     it "finds copy from IN pointer to OUT pointer" $ do
       extractCapabilities inputVars [garbageRet] ([loadPtrStmt, storePtrStmt] <> garbageStmts)
@@ -88,7 +88,7 @@ spec = do
     it "finds copy from pure expression to global" $ do
       extractCapabilities inputVars [garbageRet] ([storeGlobalPureStmt] <> garbageStmts)
         `shouldBe`
-        [ CopyCapability (ConcreteOutputLocation outGlobal) (PureExpression pureVal) ]
+        [ CopyCapability (ConcreteOutputLocation (intToAddr outGlobal)) (PureExpression pureVal) ]
 
     it "finds copy from pure expression to OUT pointer" $ do
       extractCapabilities inputVars [garbageRet] ([storePtrPureStmt] <> garbageStmts)

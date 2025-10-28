@@ -31,7 +31,7 @@ var_ func sym attrs = mkExpr attrs (Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize
     ctx = Pil.Ctx func 0
 
 memcpy :: Function
-memcpy = Function Nothing "memcpy" 0x111
+memcpy = Function Nothing "memcpy" (intToAddr 0x111)
   [ FuncParamInfo $ ParamInfo "dest" Func.Out
   , FuncParamInfo $ ParamInfo "src" Func.In
   , FuncParamInfo $ ParamInfo "n" Func.In
@@ -51,7 +51,7 @@ memcpyPrims =
   ]
 
 sscanf :: Function
-sscanf = Function Nothing "sscanf" 0x222
+sscanf = Function Nothing "sscanf" (intToAddr 0x222)
   [ FuncParamInfo $ ParamInfo "str" Func.In
   , FuncParamInfo $ ParamInfo "format" Func.In
   ]
@@ -82,7 +82,7 @@ strdupPrims =
   ]
 
 printf :: Function
-printf = Function Nothing "printf" 0x8888
+printf = Function Nothing "printf" (intToAddr 0x8888)
   [ FuncParamInfo $ ParamInfo "format" Func.In
   ]
 
@@ -105,7 +105,7 @@ fooParams = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown
             ]
             
 foo :: Function
-foo = Function Nothing "foo" 0x999 fooParams
+foo = Function Nothing "foo" (intToAddr 0x999) fooParams
 
 fooPath1 :: [Stmt]
 fooPath1 =
@@ -188,7 +188,7 @@ fooCallableWMI3 = Prim.CallableWMI
         )
       ]
   , locations = HashMap.fromList
-                [ ("write", Right 0x1234) ]
+                [ ("write", Right (intToAddr 0x1234)) ]
 
   , linkedVars = HashSet.fromList
                  [ Prim.Arg 0
@@ -205,7 +205,7 @@ barParams = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown
             ]
             
 bar :: Function
-bar = Function Nothing "bar" 0x777 barParams
+bar = Function Nothing "bar" (intToAddr 0x777) barParams
 
 barPath3 :: [Stmt]
 barPath3 =

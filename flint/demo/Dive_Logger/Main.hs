@@ -369,8 +369,8 @@ diveloggerSampleRoute = do
 
       -- Hit same node twice in loop
       route = ( FuncSym "cgc_MainMenu"
-              , [ G.InnerNode 0x804cf8a
-                , G.InnerNode 0x804cf8a
+              , [ G.InnerNode (intToAddr 0x804cf8a)
+                , G.InnerNode (intToAddr 0x804cf8a)
                 , G.Finished
                 ]
               )

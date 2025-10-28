@@ -37,7 +37,7 @@ insertCallGraph conn cg = do
   where
     toCGFunc :: Func -> Db.Function
     toCGFunc (Internal func) = Db.Function
-      { address = func ^. #address
+      { address = Blob $ func ^. #address
       , name = func ^. #name
       , symbol = Blob <$> func ^. #symbol
       , library = Nothing
@@ -45,7 +45,8 @@ insertCallGraph conn cg = do
       , params = Blob $ func ^. #params
       }
     toCGFunc (External func) = Db.Function
-      { address = fromIntegral $ func ^. #address . #externalIndex
+      -- Rudy TODO: ask matt about this case and how it plays with External func
+      { address = Blob $ func ^. #address
       , name = func ^. #name
       , symbol = Blob <$> func ^. #symbol
       , library = func ^. #library
@@ -53,10 +54,11 @@ insertCallGraph conn cg = do
       , params = Blob $ func ^. #params
       }
 
-    toCGEdge (a, b) = CallGraphEdge def (getAddr a) (isExtern a) (getAddr b) (isExtern b) 
+    toCGEdge (a, b) = CallGraphEdge def (toBlobAddr a) (isExtern a) (toBlobAddr b) (isExtern b)
 
-    getAddr (External func) = fromIntegral $ func ^. #address . #externalIndex
-    getAddr (Internal func) = func ^. #address
+    -- Rudy TODO: how can i fold these into the same case?
+    toBlobAddr (External func) = Blob $ func ^. #address
+    toBlobAddr (Internal func) = Blob $ func ^. #address
 
     isExtern (External _) = True
     isExtern (Internal _) = False
@@ -78,13 +80,13 @@ loadCallGraph conn = do
       let funcs = toFunc <$> dbFuncs
           getFullAddress :: Func -> (IsExtern, Address)
           getFullAddress (Internal func) = (False, func ^. #address)
-          getFullAddress (External func) = (True, fromIntegral $ func ^. #address . #externalIndex)
+          getFullAddress (External func) = (True, func ^. #address)
           funcMap :: HashMap (IsExtern, Address) Func
           funcMap = HashMap.fromList . fmap (\fn -> (getFullAddress fn, fn)) $ funcs
           getFunc :: (IsExtern, Address) -> Func
           getFunc = fromJust . flip HashMap.lookup funcMap
-          ledges = (\e -> G.fromTupleLEdge ((), ( getFunc (e ^. #srcFuncIsExtern, e ^. #srcFunc)
-                                                , getFunc (e ^. #destFuncIsExtern, e ^. #destFunc)
+          ledges = (\e -> G.fromTupleLEdge ((), ( getFunc (e ^. #srcFuncIsExtern, unBlob $ e ^. #srcFunc)
+                                                , getFunc (e ^. #destFuncIsExtern, unBlob $ e ^. #destFunc)
                                                 )))
                    <$> edges
       return . Just . G.addNodes funcs $ G.fromEdges ledges
@@ -95,12 +97,12 @@ loadCallGraph conn = do
         { symbol = unBlob <$> dbFunc ^. #symbol
         , name = dbFunc ^. #name
         , library = dbFunc ^. #library
-        , address = Func.ExternAddress . fromIntegral $ dbFunc ^. #address
+        , address = unBlob $ dbFunc ^. #address
         , params = unBlob $ dbFunc ^. #params
         }
       | otherwise = Internal $ Func.Function
         { symbol = unBlob <$> dbFunc ^. #symbol
         , name = dbFunc ^. #name
-        , address = dbFunc ^. #address
+        , address = unBlob $ dbFunc ^. #address
         , params = unBlob $ dbFunc ^. #params
         }

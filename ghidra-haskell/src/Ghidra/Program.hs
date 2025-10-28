@@ -31,7 +31,7 @@ getAddressFactory p = runIO $ Java.call p "getAddressFactory" >>= JNI.newGlobalR
 
 -- | Returns an address from the constant space of the program.
 getConstantAddress :: J.AddressFactory -> BA.Address -> Ghidra J.Address
-getConstantAddress gen off = runIO $ Java.call gen "getConstantAddress" (fromIntegral off :: Int64) >>= JNI.newGlobalRef
+getConstantAddress gen addr = runIO $ Java.call gen "getConstantAddress" (BA.addrToInt addr) >>= JNI.newGlobalRef
 
 getMinAddress :: J.ProgramDB -> Ghidra Address
 getMinAddress p = runIO (Java.call p "getMinAddress" >>= JNI.newGlobalRef >>= Java.reify) >>= mkAddress

@@ -365,8 +365,8 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
 
   context "addStmtTypeConstraints" $ do
     it "links call results and call arguments across call sites" $ do
-      let callStmtA = defCall "a" (Pil.CallAddr $ Pil.ConstFuncPtrOp 0x00424242 Nothing) [var "x" 8] 4
-          callStmtB = defCall "b" (Pil.CallAddr $ Pil.ConstFuncPtrOp 0x00424242 Nothing) [var "y" 8] 4
+      let callStmtA = defCall "a" (Pil.CallAddr $ Pil.ConstFuncPtrOp (intToAddr 0x00424242) Nothing) [var "x" 8] 4
+          callStmtB = defCall "b" (Pil.CallAddr $ Pil.ConstFuncPtrOp (intToAddr 0x00424242) Nothing) [var "y" 8] 4
           constraintProg =
             addStmtTypeConstraints callStmtA
               >> addStmtTypeConstraints callStmtB

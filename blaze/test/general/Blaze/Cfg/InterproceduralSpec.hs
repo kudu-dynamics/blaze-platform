@@ -25,8 +25,8 @@ import Test.Hspec
 bbp :: Ctx -> Text -> [Pil.Stmt] -> CfNode [Pil.Stmt]
 bbp ctx name stmts = BasicBlock $ BasicBlockNode
   { ctx = ctx
-  , start = 0
-  , end = 0
+  , start = intToAddr 0
+  , end = intToAddr 0
   , uuid = uuid'
   , nodeData = stmts
   }
@@ -37,7 +37,7 @@ callerFunc :: Function
 callerFunc = Function
   { symbol = Nothing
   , name = "caller"
-  , address = 0
+  , address = intToAddr 0
   , params = []
   }
 
@@ -45,7 +45,7 @@ targetFunc :: Function
 targetFunc = Function
   { symbol = Nothing
   , name = "targetFunc"
-  , address = 100
+  , address = intToAddr 100
   , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
              , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
              ]
@@ -117,14 +117,14 @@ leaveFuncUUID :: UUID
     --------------------
 
     enterFuncNode3 = Cfg.EnterFunc
-      $ Cfg.EnterFuncNode callerCtx targetCtx 0 (callNodeInner1 ^. #uuid)
+      $ Cfg.EnterFuncNode callerCtx targetCtx (intToAddr 0) (callNodeInner1 ^. #uuid)
         [ C.def' arg1 (C.var "a1" 8)
         , C.def' arg2 (C.var "b1" 8)
         ]
 
     leaveFuncUUID' = mkUuid1 (88 :: Int)
     leaveFuncNode3 = Cfg.LeaveFunc
-      $ Cfg.LeaveFuncNode targetCtx callerCtx 0 leaveFuncUUID'
+      $ Cfg.LeaveFuncNode targetCtx callerCtx (intToAddr 0) leaveFuncUUID'
         [ C.def' retVar0 (C.var "r2" 8)
         , C.defPhi' (C.pilVar 8 "funcRet1") [retVar0]
         ]
@@ -166,7 +166,7 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
         expected = Cfg.EnterFuncNode
           { prevCtx = callerCtx
           , nextCtx = targetCtx
-          , callSiteAddress = 0
+          , callSiteAddress = intToAddr 0
           , uuid = uuid'
           , nodeData =
             [ C.def' (pilVar' targetCtx "arg1") (C.var' (pilVar' callerCtx "x") 8)
@@ -198,12 +198,12 @@ spec = describe "Blaze.Cfg.Interprocedural" $ do
         expected = Cfg.LeaveFuncNode
           { prevCtx = targetCtx
           , nextCtx = callerCtx
-          , callSiteAddress = 0
+          , callSiteAddress = intToAddr 0
           , uuid = uuid'
           , nodeData =
             [ C.def' retVar0 (C.var' (pilVar' targetCtx "innerRet1") 8)
             , C.def' retVar1 (C.var' (pilVar' targetCtx "innerRet2") 8)
-            , Pil.Stmt 0
+            , Pil.Stmt (intToAddr 0)
               . Pil.DefPhi
               $ Pil.DefPhiOp (pilVar' callerCtx "outerRet") [retVar0, retVar1]
             ]

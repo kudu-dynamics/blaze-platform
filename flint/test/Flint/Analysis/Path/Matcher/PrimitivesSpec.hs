@@ -51,7 +51,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
       let func = Func.Internal foo
           prim = copyPrim
           locationMap = HashMap.fromList
-            [ ("write", Right 0x1234) ]
+            [ ("write", Right (intToAddr 0x1234)) ]
 
           path = fooPath3
           codeSum = fooCodeSummary3

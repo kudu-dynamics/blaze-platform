@@ -7,9 +7,9 @@ import Test.Hspec
 import Ghidra.Core
 import Ghidra.Program
 import qualified Ghidra.State as State
-import qualified Ghidra.Types.Address as Addr
 import Ghidra.Address (mkAddress)
 
+import qualified Data.BinaryAnalysis as BA
 import qualified Data.HashMap.Strict as HashMap
 
 
@@ -33,19 +33,19 @@ spec = describe "Ghidra.Address" $ do
     spaces <- runIO . runGhidraOrError $ getAddressSpaceMap db
     let names = view (_2 . #name) <$> HashMap.toList spaces
         expectedNames =
-          [ Addr.EXTERNAL
-          , Addr.HASH
-          , Addr.Const
-          , Addr.Ram
-          , Addr.Register
-          , Addr.Stack
-          , Addr.Unique
-          , Addr.Other ".comment"
-          , Addr.Other ".shstrtab"
-          , Addr.Other ".strtab"
-          , Addr.Other ".symtab"
-          , Addr.Other "OTHER"
-          , Addr.Other "_elfSectionHeaders"
+          [ BA.EXTERNAL
+          , BA.HASH
+          , BA.Const
+          , BA.Ram
+          , BA.Register
+          , BA.Stack
+          , BA.Unique
+          , BA.Other ".comment"
+          , BA.Other ".shstrtab"
+          , BA.Other ".strtab"
+          , BA.Other ".symtab"
+          , BA.Other "OTHER"
+          , BA.Other "_elfSectionHeaders"
           ]
 
     it "should get all address spaces" $ do

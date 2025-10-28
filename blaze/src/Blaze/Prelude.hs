@@ -88,6 +88,9 @@ import Control.Monad.Trans.Maybe as Exports (MaybeT (MaybeT), runMaybeT)
 import Data.Aeson as Exports (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
 import Data.BinaryAnalysis as Exports
   ( Address (Address),
+    AddressSpace (AddressSpace),
+    addrToInt,
+    intToAddr,
     AddressWidth (AddressWidth),
     Bits (Bits),
     Bytes (Bytes),
@@ -267,7 +270,7 @@ fromByteBased = fromBytes_ . toBytes_
 
 instance ByteBased Bytes
 instance ByteBased ByteOffset
-instance ByteBased Address
+-- instance ByteBased Address
 
 data Verbosity
   = VInfo   -- | only show normal stuff and errors
