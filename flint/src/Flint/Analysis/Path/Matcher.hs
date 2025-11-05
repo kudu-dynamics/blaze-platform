@@ -285,7 +285,14 @@ matchExpr pat expr = case pat of
     -- src' <- resolveBoundExpr src
     -- insist $ doesTaint taintSet src' expr
   M.Wild -> good
-  M.Expr xop -> matchExprOp xop $ getExprOp expr
+  M.Expr xop -> case (xop, getExprOp expr) of
+    -- the ADD pattern should match FIELD_ADDR since both do addition
+    (Pil.ADD addPat, Pil.FIELD_ADDR fieldOp) -> do
+      matchExpr (addPat ^. #left) (fieldOp ^. #baseAddr)
+      let offsetValue = fromIntegral (fieldOp ^. #offset)
+          offsetExpr = mkExprLike expr (Pil.CONST $ Pil.ConstOp offsetValue)
+      matchExpr (addPat ^. #right) offsetExpr
+    (_, op) -> matchExprOp xop op
   M.Cmp cmpType patA patB -> matchCmp cmpType patA patB expr
   M.OrPattern patA patB -> matchExpr patA expr <|||> matchExpr patB expr
   M.NotPattern patA -> do
