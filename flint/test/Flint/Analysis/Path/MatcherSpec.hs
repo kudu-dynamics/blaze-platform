@@ -17,6 +17,7 @@ import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
 import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct
+import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
 import Blaze.Types.Pil.Summary (CodeSummary(CodeSummary))
@@ -830,6 +831,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                            ]
                  , Stmt $ Def (Var "d") Wild
                  ]
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
+
+    it "should match ADD pattern on FIELD_ADDR expression" $ do
+      let stmts = [def "a" (C.fieldAddr (var "esp" 8) 0x24 8)]
+          pats = [Stmt $ Def (Var "a") (Expr $ Pil.ADD (Pil.AddOp (Var "esp") Immediate))]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
