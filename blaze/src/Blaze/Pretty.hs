@@ -533,7 +533,7 @@ tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.FDIV op) -> tokenizeBinopInfix msym "f/" op
   (Pil.FIELD_ADDR op) ->
     parenExpr (op ^. #baseAddr)
-      <++> [tt " + ", keywordToken "offset", tt " "]
+      <++> [tt ".+"]
       <++> tokenize (op ^. #offset)
   (Pil.CONST_FLOAT op) -> pure [plainToken FloatingPointToken $ show (op ^. #constant)]
   (Pil.FLOAT_CONV op) -> tokenizeUnop msym "floatConv" op
