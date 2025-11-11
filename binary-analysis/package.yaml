@@ -1,0 +1,71 @@
+name:                binary-analysis
+version:             0.1.0
+license:             BSD-2-Clause
+author:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+maintainer:
+  - Matt (drone) Revelle <drone@kududyn.com>
+  - Matt Parker <mp@kududyn.com>
+  - Kevin Orr <kevino@kududyn.com>
+copyright:           "2021 Kudu Dynamics"
+synopsis:            Common data types and utilities for binary analysis.
+category:            Binary Analysis
+description:         Please see the README.
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+default-extensions:
+- DataKinds
+- DeriveAnyClass
+- DeriveDataTypeable
+- DeriveFoldable
+- DeriveFunctor
+- DeriveGeneric
+- DeriveTraversable
+- DerivingStrategies
+- FlexibleInstances
+- GeneralizedNewtypeDeriving
+- MultiParamTypeClasses
+- OverloadedLabels
+- OverloadedStrings
+- ScopedTypeVariables
+- StandaloneDeriving
+
+dependencies:
+- aeson
+- base >= 4.7 && < 5
+- containers
+- generic-deriving
+- generic-lens
+- hashable
+- lens
+- text
+- unordered-containers
+
+library:
+  ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -j
+  - -O2
+  source-dirs: src
+  exposed-modules:
+  - Data.BinaryAnalysis
+
+tests:
+  binary-analysis-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - binary-analysis
