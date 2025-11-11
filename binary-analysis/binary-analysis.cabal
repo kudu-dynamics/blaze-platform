@@ -1,0 +1,101 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           binary-analysis
+version:        0.1.0
+synopsis:       Common data types and utilities for binary analysis.
+description:    Please see the README.
+category:       Binary Analysis
+author:         Matt (drone) Revelle <drone@kududyn.com>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+maintainer:     Matt (drone) Revelle <drone@kududyn.com>,
+                Matt Parker <mp@kududyn.com>,
+                Kevin Orr <kevino@kududyn.com>
+copyright:      2021 Kudu Dynamics
+license:        BSD-2-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+library
+  exposed-modules:
+      Data.BinaryAnalysis
+  other-modules:
+      Paths_binary_analysis
+  autogen-modules:
+      Paths_binary_analysis
+  hs-source-dirs:
+      src
+  default-extensions:
+      DataKinds
+      DeriveAnyClass
+      DeriveDataTypeable
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      OverloadedLabels
+      OverloadedStrings
+      ScopedTypeVariables
+      StandaloneDeriving
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -j -O2
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , containers
+    , generic-deriving
+    , generic-lens
+    , hashable
+    , lens
+    , text
+    , unordered-containers
+  default-language: Haskell2010
+
+test-suite binary-analysis-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_binary_analysis
+  autogen-modules:
+      Paths_binary_analysis
+  hs-source-dirs:
+      test
+  default-extensions:
+      DataKinds
+      DeriveAnyClass
+      DeriveDataTypeable
+      DeriveFoldable
+      DeriveFunctor
+      DeriveGeneric
+      DeriveTraversable
+      DerivingStrategies
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+      MultiParamTypeClasses
+      OverloadedLabels
+      OverloadedStrings
+      ScopedTypeVariables
+      StandaloneDeriving
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , binary-analysis
+    , containers
+    , generic-deriving
+    , generic-lens
+    , hashable
+    , lens
+    , text
+    , unordered-containers
+  default-language: Haskell2010
