@@ -1,2 +1,109 @@
 cradle:
-  cabal:
+  stack:
+    - path: "binaryninja-haskell/src"
+      component: "binaryninja:lib"
+
+    - path: "binaryninja-haskell/test"
+      component: "binaryninja:test:binja-test"
+
+    - path: "binaryninja-haskell/binja-header-cleaner/src"
+      component: "binja-header-cleaner:lib"
+
+    - path: "binaryninja-haskell/binja-header-cleaner/app/clean/Main.hs"
+      component: "binja-header-cleaner:exe:clean-binja-header"
+
+    - path: "binaryninja-haskell/binja-header-cleaner/app/gen-mlil-op-modules/Main.hs"
+      component: "binja-header-cleaner:exe:gen-mlil-op-modules"
+
+    - path: "binaryninja-haskell/binja-header-cleaner/test"
+      component: "binja-header-cleaner:test:binja-header-cleaner-test"
+
+    - path: "blaze/blaze-binaryninja/src"
+      component: "blaze-binaryninja:lib"
+
+    - path: "blaze/blaze-binaryninja/demo/Main.hs"
+      component: "blaze-binaryninja:exe:demo"
+
+    - path: "blaze/blaze-binaryninja/demo/Blaze/LoopChallenge.hs"
+      component: "blaze-binaryninja:exe:demo"
+
+    - path: "blaze/blaze-binaryninja/demo/Blaze/SearchDemo.hs"
+      component: "blaze-binaryninja:exe:demo"
+
+    - path: "blaze/blaze-binaryninja/demo/Blaze/Types/Graph/AlgaDemo.hs"
+      component: "blaze-binaryninja:exe:demo"
+
+    - path: "blaze/blaze-binaryninja/demo/Blaze/Util/MLILDemo.hs"
+      component: "blaze-binaryninja:exe:demo"
+
+    - path: "blaze/blaze-binaryninja/app/find_mlil/Main.hs"
+      component: "blaze-binaryninja:exe:find_mlil_ssa"
+
+    - path: "blaze/blaze-binaryninja/test/blaze-binaryninja-importer"
+      component: "blaze-binaryninja:test:blaze-binaryninja-importer-test"
+
+    - path: "blaze/blaze-binaryninja/test/blaze-binja"
+      component: "blaze-binaryninja:test:blaze-binja-test"
+
+    - path: "blaze/blaze-binaryninja/benchmarks/CallGraph.hs"
+      component: "blaze-binaryninja:bench:call-graph-benchmark"
+
+    - path: "blaze/src"
+      component: "blaze:lib"
+
+    - path: "blaze/app/gen_pil_ops/Main.hs"
+      component: "blaze:exe:gen_pil_ops"
+
+    - path: "blaze/app/gen_pil_ops/Printer.hs"
+      component: "blaze:exe:gen_pil_ops"
+
+    - path: "blaze/test/general"
+      component: "blaze:test:blaze-general-test"
+
+    - path: "blaze/test/ghidra"
+      component: "blaze:test:blaze-ghidra-importer-test"
+
+    - path: "flint/flint-binaryninja/test"
+      component: "flint-binaryninja:test:flint-binaryninja-test"
+
+    - path: "flint/src"
+      component: "flint:lib"
+
+    - path: "flint/app/binaryToGhidra/Main.hs"
+      component: "flint:exe:binaryToGhidra"
+
+    - path: "flint/demo/Dive_Logger/Main.hs"
+      component: "flint:exe:divelogger"
+
+    - path: "flint/demo/ev1smm/Main.hs"
+      component: "flint:exe:ev1smm"
+
+    - path: "flint/app/flint/Main.hs"
+      component: "flint:exe:flint"
+
+    - path: "flint/app/flint_classic/Main.hs"
+      component: "flint:exe:flint_classic"
+
+    - path: "flint/app/gen_flint_db/Main.hs"
+      component: "flint:exe:gen_flint_db"
+
+    - path: "flint/demo/Kernel/Main.hs"
+      component: "flint:exe:kernel"
+
+    - path: "flint/demo/plt_thunk/Main.hs"
+      component: "flint:exe:plt_thunk"
+
+    - path: "flint/app/routes/Main.hs"
+      component: "flint:exe:routes"
+
+    - path: "flint/test"
+      component: "flint:test:flint-general-test"
+
+    - path: "ghidra-haskell/src"
+      component: "ghidra:lib"
+
+    - path: "ghidra-haskell/app/create-ghidra-db/Main.hs"
+      component: "ghidra:exe:create-ghidra-db"
+
+    - path: "ghidra-haskell/test"
+      component: "ghidra:test:ghidra-test"
