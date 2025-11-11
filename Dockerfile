@@ -216,6 +216,8 @@ WORKDIR /build
 # Copy stack.yaml and package.yaml files so we can build dependencies in a
 # cached layer
 COPY stack.yaml stack.yaml
+COPY binary-analysis/package.yaml \
+     binary-analysis/package.yaml
 # COPY binaryninja-haskell/package.yaml \
 #      binaryninja-haskell/package.yaml
 # COPY binaryninja-haskell/binja-header-cleaner/package.yaml \
@@ -232,6 +234,7 @@ COPY flint/package.yaml \
 #      flint/flint-binaryninja/package.yaml
 
 # Separated to narrow down intermitten error
+RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binary-analysis
 # RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binaryninja
 # RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binja-header-cleaner
 RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies ghidra
@@ -262,7 +265,7 @@ RUN ln -s /out/res/ghidra.jar ghidra-haskell/res/ghidra.jar
 RUN mkdir -p /out/bin
 # Build all packages that do not depend on binaryninja
 RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins \
-    ghidra blaze flint
+    binary-analysis ghidra blaze flint
 RUN mkdir -p /out/test
 RUN <<EOF
     set -euxo pipefail
@@ -276,11 +279,12 @@ RUN <<EOF
     function copytest() {
         mkdir -p /out/test/$1/res
         cp -t /out/test/$1 "$1"/"${dist_dir}"/build/"$2"/"$2"
-        cp -r -t /out/test/$1/res $1/res/test_bins
+        cp -r -t /out/test/$1/res $1/res/test_bins || echo "pass"
         if [ ! -f /out/test/$1/res/ghidra.jar ]; then ln -s /out/res/ghidra.jar /out/test/$1/res/ghidra.jar ; fi
         echo "( cd $1 && /build/.docker/run_test.py /out/test/$1/$2 \"\$@\" )" >>/out/run-tests
         echo "( cd /out/test/$1 && ./$2 )" >> /out/run-binary-tests
     }
+    copytest binary-analysis binary-analysis-test
     copytest ghidra-haskell ghidra-test
     copytest blaze blaze-general-test
     copytest blaze blaze-ghidra-importer-test

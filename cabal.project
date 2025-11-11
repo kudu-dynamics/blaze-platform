@@ -8,11 +8,7 @@ packages:
    blaze/blaze-binaryninja
    flint
    flint/flint-binaryninja
-
-source-repository-package
-  type: git
-  location: https://github.com/kudu-dynamics/binary-analysis.git
-  tag: 32d485056c531fe0657558d2554bcb759ad5ab96
+   binary-analysis
 
 source-repository-package
   type: git

@@ -7,8 +7,7 @@ packages:
   - .
 
 extra-deps:
-  - git: https://github.com/kudu-dynamics/binary-analysis
-    commit: 9e977a4ff96d86b0c7cb5db595bf8ef7ef658a14
+  - ../binary-analysis
   - git: https://github.com/kudu-dynamics/inline-java.git
     commit: 9de6cfa65b8d5d692bf7f5de1e4f1b853f2bbef1
     subdirs:
