@@ -36,3 +36,5 @@ cabal.project.local~
 .ghc.environment.*
 ## end https://gitignore.io/api/haskell
 */stack.yaml.lock
+
+*.cabal
