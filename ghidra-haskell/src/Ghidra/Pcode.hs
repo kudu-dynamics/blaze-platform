@@ -8,7 +8,6 @@ where
 import Ghidra.Prelude hiding (toList, getConst)
 
 
-import Ghidra.State (GhidraState)
 import qualified Language.Java as Java
 import Ghidra.Instruction (getInstructions)
 import qualified Ghidra.Instruction as Instr
@@ -29,9 +28,9 @@ import qualified Foreign.JNI as JNI
 getPcode :: J.Instruction -> Ghidra [J.PcodeOp]
 getPcode x = runIO $ Java.call x "getPcode" >>= Java.reify >>= traverse JNI.newGlobalRef
 
-getRawPcodeOps :: J.Addressable a => GhidraState -> a -> Ghidra [(Address, J.PcodeOp)]
-getRawPcodeOps gs x = do
-  instrs <- getInstructions gs x
+getRawPcodeOps :: J.Addressable a => J.ProgramDB -> a -> Ghidra [(Address, J.PcodeOp)]
+getRawPcodeOps prg x = do
+  instrs <- getInstructions prg x
   flip concatMapM instrs $ \instr -> do
     addr <- Instr.getAddress instr >>= mkAddress
     fmap (addr,) <$> getPcode instr
@@ -43,9 +42,9 @@ getPcodeOpAST hfunc instr = do
   iteratorToList iter
 
 -- TODO change this to just use the function's "getPcodeOps" method. Will probably break a bunch of tests
-getHighPcodeOps :: J.Addressable a => GhidraState -> J.HighFunction -> a -> Ghidra [(Address, J.PcodeOpAST)]
-getHighPcodeOps gs hfunc x = do
-  instrs <- getInstructions gs x
+getHighPcodeOps :: J.Addressable a => J.ProgramDB -> J.HighFunction -> a -> Ghidra [(Address, J.PcodeOpAST)]
+getHighPcodeOps prg hfunc x = do
+  instrs <- getInstructions prg x
   flip concatMapM instrs $ \instr -> do
     addr <- Instr.getAddress instr >>= mkAddress
     fmap (addr,) <$> getPcodeOpAST hfunc instr
@@ -242,12 +241,12 @@ liftPcodeInstruction addressSpaceMap x = first (LiftInstructionError (x ^. #op))
 
 getRawPcode
   :: J.Addressable a
-  => GhidraState
+  => J.ProgramDB
   -> AddressSpaceMap
   -> a
   -> Ghidra [(Address, PcodeOp VarNode)]
-getRawPcode gs addressSpaceMap a = do
-  jpcodes <- getRawPcodeOps gs a
+getRawPcode prg addressSpaceMap a = do
+  jpcodes <- getRawPcodeOps prg a
   rawInstrs :: [(Address, RawPcodeInstruction)] <- traverse (traverse $ mkRawPcodeInstruction <=< mkBareRawPcodeInstruction) jpcodes
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> rawInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
@@ -265,13 +264,13 @@ getRawPcode gs addressSpaceMap a = do
 -- issues.
 getHighPcode
   :: J.Addressable a
-  => GhidraState
+  => J.ProgramDB
   -> AddressSpaceMap
   -> J.HighFunction
   -> a
   -> Ghidra [(Address, PcodeOp HighVarNode)]
-getHighPcode gs addressSpaceMap hfn a = do
-  jpcodes <- getHighPcodeOps gs hfn a
+getHighPcode prg addressSpaceMap hfn a = do
+  jpcodes <- getHighPcodeOps prg hfn a
   highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs

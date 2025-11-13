@@ -21,33 +21,32 @@ import Ghidra.Clang (buildClangAST, ClangAST, ClangNode)
 import qualified Data.Text as Text
 
 
-fromAddr :: GhidraState -> J.Address -> Ghidra (Maybe J.Function)
-fromAddr gs addr = do
-  listing <- State.getListing gs
+fromAddr :: J.ProgramDB -> J.Address -> Ghidra (Maybe J.Function)
+fromAddr prg addr = do
+  listing <- State.getListing prg
   maybeNull <$> runIO (Java.call listing "getFunctionContaining" addr)
 
-getFunctionAt :: GhidraState -> J.Address -> Ghidra (Maybe J.Function)
-getFunctionAt gs addr = do
-  prg <- State.getProgram gs
+getFunctionAt :: J.ProgramDB -> J.Address -> Ghidra (Maybe J.Function)
+getFunctionAt prg addr = do
   fm <- Program.getFunctionManager prg
   maybeNull <$> runIO (Java.call fm "getFunctionAt" addr)
 
 functionIteratorToList :: J.FunctionIterator -> Ghidra [J.Function]
 functionIteratorToList = iteratorToList . coerce
 
-getFuncs_ :: JString.String -> GhidraState -> Ghidra [J.Function]
-getFuncs_ methodName gs = do
-  listing <- State.getListing gs
+getFuncs_ :: JString.String -> J.ProgramDB -> Ghidra [J.Function]
+getFuncs_ methodName prg = do
+  listing <- State.getListing prg
   runIO (Java.call listing methodName) >>= functionIteratorToList
 
-getExternalFunctions :: GhidraState -> Ghidra [J.Function]
-getExternalFunctions gs = do
-  listing <- State.getListing gs
+getExternalFunctions :: J.ProgramDB -> Ghidra [J.Function]
+getExternalFunctions prg = do
+  listing <- State.getListing prg
   runIO (Java.call listing "getExternalFunctions") >>= functionIteratorToList
 
-getLocalFunctions :: GhidraState -> Ghidra [J.Function]
-getLocalFunctions gs = do
-  listing <- State.getListing gs
+getLocalFunctions :: J.ProgramDB -> Ghidra [J.Function]
+getLocalFunctions prg = do
+  listing <- State.getListing prg
   runIO (Java.call listing "getFunctions" True) >>= functionIteratorToList
 
 isThunk :: J.Function -> Ghidra Bool
@@ -92,10 +91,10 @@ defaultGetFunctionsOptions = GetFunctionsOptions
   , resolveThunks = False
   }
 
-getFunctions' :: GetFunctionsOptions -> GhidraState -> Ghidra [J.Function]
-getFunctions' opts gs = do
-  externals <- bool (return []) (getExternalFunctions gs) $ opts ^. #includeExternalFuncs
-  locals <- bool (return []) (getLocalFunctions gs) $ opts ^. #includeLocalFuncs
+getFunctions' :: GetFunctionsOptions -> J.ProgramDB -> Ghidra [J.Function]
+getFunctions' opts prg = do
+  externals <- bool (return []) (getExternalFunctions prg) $ opts ^. #includeExternalFuncs
+  locals <- bool (return []) (getLocalFunctions prg) $ opts ^. #includeLocalFuncs
   let allFuncs = externals <> locals
   allFuncs' <-
     if opts ^. #excludeDefaultFuncs then
@@ -109,7 +108,7 @@ getFunctions' opts gs = do
   else
     return allFuncs'
 
-getFunctions :: GhidraState -> Ghidra [J.Function]
+getFunctions :: J.ProgramDB -> Ghidra [J.Function]
 getFunctions = getFunctions' defaultGetFunctionsOptions
 
 getClangAST :: GhidraState -> J.Function -> Ghidra (ClangAST ClangNode)

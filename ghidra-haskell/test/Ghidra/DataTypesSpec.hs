@@ -33,8 +33,9 @@ getBinGhidraState = do
 getClangASTFromState :: Ghidra State.GhidraState -> Int64 -> Ghidra (ClangAST ClangNode) 
 getClangASTFromState gs addr = do
   gs' <- gs
-  jaddr' <- State.mkAddressBased gs' addr
-  (Just jfunc) <- Function.fromAddr gs' jaddr'
+  prg <- State.getProgram gs'
+  jaddr' <- State.mkAddressBased prg addr
+  (Just jfunc) <- Function.fromAddr prg jaddr'
   clangAST <- Function.getClangAST gs' jfunc
   return clangAST
 

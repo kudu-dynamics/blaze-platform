@@ -56,11 +56,11 @@ getCSpec lang (Just compilerName) = runIO $ do
   compSpecId :: J.CompilerSpecID <- Java.reflect compilerName >>= Java.new >>= JNI.newGlobalRef
   Java.call lang "getCompilerSpecByID" compSpecId >>= JNI.newGlobalRef
 
-hasBeenAnalyzed :: GhidraState -> Ghidra Bool
-hasBeenAnalyzed gs = runIO $ do
+hasBeenAnalyzed :: J.ProgramDB -> Ghidra Bool
+hasBeenAnalyzed prg = runIO $ do
   programInfoField :: J.String <- Java.getStaticField "ghidra.program.model.listing.Program" "PROGRAM_INFO" >>= JNI.newGlobalRef
   analyzedField :: J.String <- Java.getStaticField "ghidra.program.model.listing.Program" "ANALYZED_OPTION_NAME" >>= Java.reify >>= JNI.newGlobalRef
-  prgOptions :: J.Options <- Java.call (gs ^. #program) "getOptions" programInfoField >>= JNI.newGlobalRef
+  prgOptions :: J.Options <- Java.call prg "getOptions" programInfoField >>= JNI.newGlobalRef
   Java.call prgOptions "getBoolean" analyzedField False
 
 
@@ -145,10 +145,10 @@ defaultAnalyzeOptions = AnalyzeOptions False True
 
 analyze' :: AnalyzeOptions -> GhidraState -> Ghidra ()
 analyze' opts gs = do
-  alreadyAnalyzed <- hasBeenAnalyzed gs
+  let prg = gs ^. #program
+  alreadyAnalyzed <- hasBeenAnalyzed prg
   when (not alreadyAnalyzed || (opts ^. #force)) $
     bool identity suppressOut (opts ^. #quiet) . runIO $ do
-      let prg = gs ^. #program
       txId :: Int32 <- Java.call prg "startTransaction" =<< Java.reflect ("Analysis" :: Text)
       _ :: () <- Java.call (gs ^. #flatProgramAPI) "analyzeAll" (coerce prg :: J.Program)
       _ :: () <- Java.callStatic "ghidra.program.util.GhidraProgramUtilities" "markProgramAnalyzed" (coerce prg :: J.Program)
@@ -158,60 +158,56 @@ analyze' opts gs = do
 analyze :: GhidraState -> Ghidra ()
 analyze = analyze' defaultAnalyzeOptions
 
-getListing :: GhidraState -> Ghidra J.Listing
-getListing gs = do
-  prg <- getProgram gs
+getListing :: J.ProgramDB -> Ghidra J.Listing
+getListing prg = do
   runIO $ Java.call prg "getListing" >>= JNI.newGlobalRef
 
 -- | Adds address to image base.
 -- Only use this with PIE binaries.
-mkAddressBased :: GhidraState -> Int64 -> Ghidra J.Address
-mkAddressBased gs addr = do
-  baseAddr <- getImageBase gs
+mkAddressBased :: J.ProgramDB -> Int64 -> Ghidra J.Address
+mkAddressBased prg addr = do
+  baseAddr <- getImageBase prg
   runIO $ Java.call baseAddr "add" addr
 
-mkExternalAddress :: GhidraState -> Int64 -> Ghidra J.Address
-mkExternalAddress gs offset = do
-  prg <- getProgram gs
+mkExternalAddress :: J.ProgramDB -> Int64 -> Ghidra J.Address
+mkExternalAddress prg offset = do
   af <- Program.getAddressFactory prg
   externSpace <- fromJust <$> Addr.getAddressSpace af (Addr.showAddressSpaceName BA.EXTERNAL)
   externSpaceID <- Addr.getSpaceID externSpace
   Addr.getAddress af externSpaceID offset
 
-getImageBase :: GhidraState -> Ghidra J.Address
-getImageBase gs = do
-  prg <- getProgram gs
+getImageBase :: J.ProgramDB -> Ghidra J.Address
+getImageBase prg = do
   runIO $ Java.call prg "getImageBase" >>= JNI.newGlobalRef
 
 -- | Makes a new address
-mkAddress_ :: GhidraState -> Int64 -> Ghidra J.Address
-mkAddress_ gs addr = do
-  baseAddr <- getImageBase gs
+mkAddress_ :: J.ProgramDB -> Int64 -> Ghidra J.Address
+mkAddress_ prg addr = do
+  baseAddr <- getImageBase prg
   runIO $ Java.call baseAddr "getNewAddress" addr
 
 -- | Makes a new address
-mkAddress :: GhidraState -> BA.Address -> Ghidra J.Address
-mkAddress gs addr = do
-  mkAddress_ gs (BA.addrToInt addr)
+mkAddress :: J.ProgramDB -> BA.Address -> Ghidra J.Address
+mkAddress prg addr = do
+  mkAddress_ prg (BA.addrToInt addr)
 
-getMemoryMap :: GhidraState -> Ghidra J.MemoryMapDB
-getMemoryMap gs = do
-  prg <- getProgram gs
+getMemoryMap :: J.ProgramDB -> Ghidra J.MemoryMapDB
+getMemoryMap prg = do
   runIO $ Java.call prg "getMemory"  >>= JNI.newGlobalRef
 
-getMemoryBlockAtAddress :: GhidraState -> Int64 -> Ghidra (Maybe J.MemoryBlock)
-getMemoryBlockAtAddress gs addr = do
-  mm :: J.MemoryMapDB <- getMemoryMap gs
-  anAddr <- mkAddress_ gs addr
+getMemoryBlockAtAddress :: J.ProgramDB -> Int64 -> Ghidra (Maybe J.MemoryBlock)
+getMemoryBlockAtAddress prg addr = do
+  mm :: J.MemoryMapDB <- getMemoryMap prg
+  anAddr <- mkAddress_ prg addr
   maybeNull <$> runIO ( Java.call mm "getBlock" anAddr  >>= JNI.newGlobalRef)
   
 getSegmentBlockName :: J.MemoryBlock -> Ghidra Text
 getSegmentBlockName memBlock = do
   runIO $ Java.call memBlock "getName" >>=  Java.reify
 
-getSegmentBlockFromAddress :: GhidraState -> Int64 -> Ghidra (Maybe Text)
-getSegmentBlockFromAddress gs addr = do
-  mblock <- getMemoryBlockAtAddress gs addr
+getSegmentBlockFromAddress :: J.ProgramDB -> Int64 -> Ghidra (Maybe Text)
+getSegmentBlockFromAddress prg addr = do
+  mblock <- getMemoryBlockAtAddress prg addr
   case mblock of
     Nothing -> return Nothing
     Just block -> do
