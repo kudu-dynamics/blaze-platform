@@ -28,7 +28,7 @@ spec = describe "Ghidra.State" $ do
       Left err -> error $ "Failed to open a1 binary: " <> show err
       Right gs -> runIO . runGhidraOrError $ do
         State.analyze gs
-        State.hasBeenAnalyzed gs
+        State.hasBeenAnalyzed $ gs ^. #program
 
     it "should analyze binary" $ do
       hasAnalyzed `shouldBe` True

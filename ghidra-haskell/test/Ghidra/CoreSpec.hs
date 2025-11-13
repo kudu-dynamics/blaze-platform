@@ -21,6 +21,6 @@ spec = describe "Ghidra.Core" $ do
 
   context "concurrency" $ do
     let action = replicateConcurrently_ 10 $ do
-          void . runGhidraOrError $ Function.getFunctions gs
+          void . runGhidraOrError $ Function.getFunctions $ gs ^. #program
     it "should be able to handle concurrent access to same GhidraState" $ do
      action `shouldReturn` ()

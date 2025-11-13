@@ -19,7 +19,6 @@ import Blaze.Types.Function (
 import qualified Blaze.Types.Function as BFunc
 
 import Ghidra.Core (runGhidraOrError)
-import Ghidra.State (GhidraState)
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as G
 import qualified Ghidra.Types.Function as G
@@ -37,15 +36,15 @@ getFuncAddr = convertAddress . view #startAddress
 convertParam :: G.HighParameter -> ParamInfo
 convertParam p = ParamInfo (p ^. #name) BFunc.Unknown
 
-toGhidraFunction :: GhidraState -> Function -> IO J.Function
-toGhidraFunction gs fn = getJFunction gs (fn ^. #address) >>= \case
+toGhidraFunction :: J.ProgramDB -> Function -> IO J.Function
+toGhidraFunction prg fn = getJFunction prg (fn ^. #address) >>= \case
     Nothing -> error $ "Couldn't find function at addr: " <> show (fn ^. #address)
     Just fn' -> return fn'
 
-getJFunction :: GhidraState -> Address -> IO (Maybe J.Function)
-getJFunction gs addr = runGhidraOrError $ do
-  jaddr <- State.mkAddress gs addr
-  G.fromAddr gs jaddr
+getJFunction :: J.ProgramDB -> Address -> IO (Maybe J.Function)
+getJFunction prg addr = runGhidraOrError $ do
+  jaddr <- State.mkAddress prg addr
+  G.fromAddr prg jaddr
 
 getFuncFromJFunction :: GhidraImporter -> J.Function -> IO Func
 getFuncFromJFunction imp jfunc = do
@@ -58,7 +57,7 @@ getFuncFromJFunction imp jfunc = do
     False -> Internal <$> mkInternalFunc imp dethunkedJFunc
 
 getFunction :: GhidraImporter -> Address -> IO (Maybe Func)
-getFunction imp@(GhidraImporter gs _) addr = getJFunction gs addr >>= \case
+getFunction imp@(GhidraImporter gs _) addr = getJFunction (gs ^. #program) addr >>= \case
   Nothing -> return Nothing
   Just jfunc -> Just <$> getFuncFromJFunction imp jfunc
 
@@ -120,7 +119,7 @@ mkExternFunc jfunc = do
     }
 
 getFunctions :: GhidraImporter -> IO [Func]
-getFunctions imp@(GhidraImporter gs _) = fmap nub $ runGhidraOrError (G.getFunctions' opts gs)
+getFunctions imp@(GhidraImporter gs _) = fmap nub $ runGhidraOrError (G.getFunctions' opts $ gs ^. #program)
   >>= traverse (getFuncFromJFunction imp)
   where
     -- Are these sensible options for blaze?
@@ -135,18 +134,19 @@ getFunctions imp@(GhidraImporter gs _) = fmap nub $ runGhidraOrError (G.getFunct
 -- | Gets all callsites that call fn.
 getCallSites :: GhidraImporter -> Func -> IO [CallSite]
 getCallSites imp@(GhidraImporter gs _) fn = do
+  let prg = gs ^. #program
   mgfunc <- case fn of
     BFunc.Internal func -> do
-      startAddr <- runGhidraOrError . State.mkAddress gs $ func ^. #address
-      runGhidraOrError (G.fromAddr gs startAddr)
+      startAddr <- runGhidraOrError . State.mkAddress prg $ func ^. #address
+      runGhidraOrError (G.fromAddr (gs ^. #program) startAddr)
     -- Rudy TODO: clarify what's going on here. mkExternalAddress says it takes an offset,
     -- but what does that actually mean for an external address in Ghidra
     BFunc.External func -> do
       externAddr <- runGhidraOrError
-        . State.mkExternalAddress gs
+        . State.mkExternalAddress prg
         . fromIntegral
         $ func ^. #address . #offset
-      runGhidraOrError (G.getFunctionAt gs externAddr)
+      runGhidraOrError (G.getFunctionAt prg externAddr)
       -- externAddr <- runGhidraOrError
       --   . State.mkExternalAddress gs
       --   . fromIntegral
@@ -155,7 +155,7 @@ getCallSites imp@(GhidraImporter gs _) fn = do
 
   case mgfunc of
     Nothing -> error $ "Could not find callee function for func: " <> show fn
-    Just gfunc -> runGhidraOrError (GRef.getFunctionRefs gs gfunc) >>= mapMaybeM f
+    Just gfunc -> runGhidraOrError (GRef.getFunctionRefs prg gfunc) >>= mapMaybeM f
   where
     f :: GRef.FuncRef -> IO (Maybe CallSite)
     f x = do

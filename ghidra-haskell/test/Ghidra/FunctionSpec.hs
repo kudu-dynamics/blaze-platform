@@ -22,9 +22,10 @@ spec = describe "Ghidra.Function" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
+  let prg = gs ^. #program
 
   context "getFunctions" $ do
-    funcs <- runIO . runGhidraOrError $ Function.getFunctions gs
+    funcs <- runIO . runGhidraOrError $ Function.getFunctions prg
     it "should get all functions for a1 binary" $ do
       length funcs `shouldBe` 37
 
@@ -34,23 +35,23 @@ spec = describe "Ghidra.Function" $ do
                  & #includeExternalFuncs .~ False
                  & #excludeDefaultFuncs .~ True
                  & #excludeThunks .~ False
-      Function.getFunctions' opts gs
+      Function.getFunctions' opts prg
     it "should accept options when getting all functions" $ do
       length funcs' `shouldBe` 29
 
   context "fromAddr" $ do
     let faddr = 0x13ad
     mfunc <- runIO . runGhidraOrError $ do
-      faddr' <- State.mkAddressBased gs faddr
-      Function.fromAddr gs faddr'
+      faddr' <- State.mkAddressBased prg faddr
+      Function.fromAddr prg faddr'
     it "should find func by address" $ do
       void mfunc `shouldBe` Just ()
 
   context "getHighFunction" $ do
     let faddr = 0x13ad
     (fname1, fname2) <- runIO . runGhidraOrError $ do
-      faddr' <- State.mkAddressBased gs faddr
-      (Just func) <- Function.fromAddr gs faddr'
+      faddr' <- State.mkAddressBased prg faddr
+      (Just func) <- Function.fromAddr prg faddr'
       hfunc <- Function.getHighFunction gs func
       -- Don't really know how else to easily check that HighFunc is valid
       func' :: Function <- Function.getLowFunction hfunc
@@ -63,8 +64,8 @@ spec = describe "Ghidra.Function" $ do
     it "should find params for high func" $ do
       let faddr = 0x13ad
       params <- runGhidraOrError $ do
-        faddr' <- State.mkAddressBased gs faddr
-        (Just func) <- Function.fromAddr gs faddr'
+        faddr' <- State.mkAddressBased prg faddr
+        (Just func) <- Function.fromAddr prg faddr'
         hfunc <- Function.getHighFunction gs func
         Function.getHighParams hfunc
       let params' = sortOn fst $ fmap (\p -> (p ^. #ordinalIndex, p ^. #name)) params
@@ -78,8 +79,8 @@ spec = describe "Ghidra.Function" $ do
   context "Thunks" $ do
     let putsThunkAddr = 0x1030
     putsThunkFunc <- fmap fromJust . runIO . runGhidraOrError $ do
-      faddr <- State.mkAddressBased gs putsThunkAddr
-      Function.fromAddr gs faddr
+      faddr <- State.mkAddressBased prg putsThunkAddr
+      Function.fromAddr prg faddr
       
     putsThunkIsThunk <- runIO . runGhidraOrError $ Function.isThunk putsThunkFunc
 
@@ -102,8 +103,8 @@ spec = describe "Ghidra.Function" $ do
     let putsThunkAddr = 0x1030
     
     putsExternFunc <- runIO . runGhidraOrError $ do
-      faddr <- State.mkAddressBased gs putsThunkAddr
-      putsThunk <- fromJust <$> Function.fromAddr gs faddr
+      faddr <- State.mkAddressBased prg putsThunkAddr
+      putsThunk <- fromJust <$> Function.fromAddr prg faddr
       Function.resolveThunk putsThunk
       
     putsIsExtern <- runIO . runGhidraOrError $ Function.isExternal putsExternFunc
@@ -132,8 +133,8 @@ spec = describe "Ghidra.Function" $ do
       (view #name <$> headMay putsParams) `shouldBe` Just "__s"
 
     mfunc <- runIO . runGhidraOrError $ do
-      addr <- State.mkExternalAddress gs $ putsAddress ^. #offset
-      Function.getFunctionAt gs addr
+      addr <- State.mkExternalAddress prg $ putsAddress ^. #offset
+      Function.getFunctionAt prg addr
 
     it "should be able to use getFunctionAt to refind extern at extern's address" $ do
       isJust mfunc `shouldBe` True

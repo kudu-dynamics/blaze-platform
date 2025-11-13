@@ -36,8 +36,7 @@ codeBlockReferenceIteratorToList x = do
 
 getCodeBlocks :: J.Addressable a => GhidraState -> a -> Ghidra [J.CodeBlock]
 getCodeBlocks gs x = do
-  prg <- State.getProgram gs
-  bbModel :: J.BasicBlockModel <- runIO $ Java.new (coerce prg :: J.Program)
+  bbModel :: J.BasicBlockModel <- runIO $ Java.new (coerce $ gs ^. #program :: J.Program)
   
   tm <- State.getTaskMonitor gs
   addrSet :: J.AddressSetView <- coerce $ J.toAddrSet x
@@ -59,17 +58,16 @@ getStartAddress :: J.CodeBlock -> Ghidra Addr.Address
 getStartAddress block
   = runIO (Java.call block "getFirstStartAddress") >>= Addr.mkAddress
 
-getFunction :: GhidraState -> J.CodeBlock -> Ghidra J.Function
-getFunction gs block = do
-  prg <- State.getProgram gs
+getFunction :: J.ProgramDB -> J.CodeBlock -> Ghidra J.Function
+getFunction prg block = do
   listing :: J.Listing <- runIO $ Java.call prg "getListing"
   blockAddr <- J.toAddr block
   runIO $ Java.call listing "getFunctionContaining" blockAddr
 
-shareFunc :: GhidraState -> J.CodeBlock -> J.CodeBlock -> Ghidra Bool
-shareFunc gs a b = do
-  funcA <- getFunction gs a
-  funcB <- getFunction gs b
+shareFunc :: J.ProgramDB -> J.CodeBlock -> J.CodeBlock -> Ghidra Bool
+shareFunc prg a b = do
+  funcA <- getFunction prg a
+  funcB <- getFunction prg b
   return $ funcA == funcB
 
 mkBasicBlock :: J.CodeBlock -> Ghidra BasicBlock
