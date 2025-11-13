@@ -21,16 +21,14 @@ a1Bin = "res/test_bins/a1/a1"
 
 spec :: Spec
 spec = describe "Ghidra.Address" $ do
-  gs <- runIO . runGhidraOrError $ do
+  prg <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     -- b <- isNil' $ gs ^. #unGhidraState
     -- when b $ error "Couldn't open a1"
-    return gs
-
-  let db = gs ^. #program
+    State.getProgram gs
 
   context "getAddressSpaces" $ do
-    spaces <- runIO . runGhidraOrError $ getAddressSpaceMap db
+    spaces <- runIO . runGhidraOrError $ getAddressSpaceMap prg
     let names = view (_2 . #name) <$> HashMap.toList spaces
         expectedNames =
           [ BA.EXTERNAL
@@ -52,13 +50,13 @@ spec = describe "Ghidra.Address" $ do
       sort names `shouldBe` sort expectedNames
 
   context "getSegment" $ do
-    seg <- runIO . runGhidraOrError $ State.getSegmentBlockFromAddress gs 0x010403c
+    seg <- runIO . runGhidraOrError $ State.getSegmentBlockFromAddress prg 0x010403c
 
     it "should get proper segment" $ do
       seg `shouldBe` Just ".bss"
 
   context "getAddressBase" $ do
-    baseAddr <- runIO . runGhidraOrError $ State.getImageBase gs >>= mkAddress
+    baseAddr <- runIO . runGhidraOrError $ State.getImageBase prg >>= mkAddress
     
     it "should get proper base address" $ do
       baseAddr ^. #offset `shouldBe` 0x0100000

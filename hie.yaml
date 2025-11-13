@@ -1,5 +1,11 @@
 cradle:
   stack:
+    - path: "binary-analysis/src"
+      component: "binary-analysis:lib"
+
+    - path: "binary-analysis/test"
+      component: "binary-analysis:test:binary-analysis-test"
+
     - path: "binaryninja-haskell/src"
       component: "binaryninja:lib"
 

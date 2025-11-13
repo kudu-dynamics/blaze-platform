@@ -24,8 +24,9 @@ spec = describe "Ghidra.BasicBlock" $ do
     -- b <- isNil' $ gs ^. #unGhidraState
     -- when b $ error "Couldn't open a1"
     let jaddr = 0x1348
-    jaddr' <- State.mkAddressBased gs jaddr
-    (Just jfunc) <- Function.fromAddr gs jaddr'
+        prg = gs ^. #program
+    jaddr' <- State.mkAddressBased prg jaddr
+    (Just jfunc) <- Function.fromAddr prg jaddr'
     highJfunc <- Function.getHighFunction gs jfunc
     return (gs, jfunc, highJfunc)
 

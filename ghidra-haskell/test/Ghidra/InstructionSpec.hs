@@ -17,19 +17,19 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 spec :: Spec
 spec = describe "Ghidra.Instruction" $ do
-  gs <- runIO . runGhidraOrError $ do
+  prg <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ diveBin >>! State.analyze
-    return gs
-
+    State.getProgram gs
+  
   context "getInstructions" $ do
     let cgc_printf_addr = 0x804c6e0
     refs <- runIO . runGhidraOrError $ do
-      addr <- State.mkAddress_ gs cgc_printf_addr
-      mfunc <- Function.fromAddr gs addr
+      addr <- State.mkAddress_ prg cgc_printf_addr
+      mfunc <- Function.fromAddr prg addr
       case mfunc of
         Nothing -> error "Couldn't find cgc_printf."
         Just func -> do
           -- addr <- Program.mkAddress prg cgc_printf_addr
-          getInstructions gs func
+          getInstructions prg func
     it "should get instructions for cgc_printf" $ do
       length refs `shouldBe` 18

@@ -20,28 +20,29 @@ spec = describe "Ghidra.Reference" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ diveBin >>! State.analyze
     return gs
+  let prg = gs ^. #program
 
   context "getReferencesTo" $ do
     let cgc_printf_addr = 0x804c6e0
     refs <- runIO . runGhidraOrError $ do
-      addr <- State.mkAddress_ gs cgc_printf_addr
-      mfunc <- Function.fromAddr gs addr
+      addr <- State.mkAddress_ prg cgc_printf_addr
+      mfunc <- Function.fromAddr prg addr
       case mfunc of
         Nothing -> error "Couldn't find cgc_printf."
         Just func -> do
           -- startAddr <- J.toAddr func
-          Ref.getReferencesTo gs func -- startAddr
+          Ref.getReferencesTo prg func -- startAddr
     it "should get references to func" $ do
       length refs `shouldBe` 37
 
   context "getFunctionRefs" $ do
     let cgc_AddDive_addr = 0x804c7d0
     refs <- runIO . runGhidraOrError $ do
-      addr <- State.mkAddress_ gs cgc_AddDive_addr
-      mfunc <- Function.fromAddr gs addr
+      addr <- State.mkAddress_ prg cgc_AddDive_addr
+      mfunc <- Function.fromAddr prg addr
       case mfunc of
         Nothing -> error "Couldn't find cgc_AddDive."
-        Just func -> Ref.getFunctionRefs gs func
+        Just func -> Ref.getFunctionRefs prg func
     let refs' = sort $ fmap (\x -> ( x ^. #caller . #startAddress . #offset
                                    , x ^. #callee . #startAddress . #offset ))
                        refs
