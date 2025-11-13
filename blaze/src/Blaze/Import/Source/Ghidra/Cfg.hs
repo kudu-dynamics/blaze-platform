@@ -56,11 +56,11 @@ newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (State
   deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
 
-getRawPcodeForBasicBlock :: GhidraImporter -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
-getRawPcodeForBasicBlock (GhidraImporter gs _) bb = do
+getRawPcodeForBasicBlock :: J.ProgramDB -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
+getRawPcodeForBasicBlock prg bb = do
   xs <- runGhidraOrError $ do
-    addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
-    Pcode.getRawPcode gs addrSpaceMap $ bb ^. #handle
+    addrSpaceMap <- getAddressSpaceMap prg
+    Pcode.getRawPcode prg addrSpaceMap $ bb ^. #handle
   return $ first convertAddress <$> xs
   -- traverse (\(addr, op) -> (,op) . convertAddress <$> addr) xs
 
@@ -141,16 +141,17 @@ type ThunkDestFunc = J.Function
 
 getPcodeCfg
   :: (Show a, Hashable a)
-  => (J.Function -> GhidraImporter -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
-  -> GhidraImporter
+  => (J.Function -> J.ProgramDB -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
+  -> GhidraState
   -> Function
   -> CtxId
   -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp a)])))
-getPcodeCfg getPcode imp@(GhidraImporter gs _) fn ctxId = do
-  jfunc <- CGI.toGhidraFunction gs fn
-  bbGraph <- runGhidraOrError (BB.getBasicBlockGraph gs jfunc)
+getPcodeCfg getPcode gs fn ctxId = do
   let ctx = Ctx fn ctxId
-  bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc imp) ctx bb)
+      prg = gs ^. #program
+  jfunc <- CGI.toGhidraFunction prg fn
+  bbGraph <- runGhidraOrError (BB.getBasicBlockGraph gs jfunc)
+  bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc prg) ctx bb)
     $ bbGraph ^. #nodes
   let bbCfNodeMap = Map.fromList bbCfNodeTuples
       edgeSets = getEdgeSets bbGraph
@@ -164,7 +165,7 @@ getPcodeCfg getPcode imp@(GhidraImporter gs _) fn ctxId = do
     Right cfg -> return . Just $ cfg
 
 getRawPcodeCfg
-  :: GhidraImporter
+  :: GhidraState
   -> Function
   -> CtxId
   -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp VarNode)])))
@@ -203,7 +204,7 @@ getHighPcodeCfg
   -> CtxId
   -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp HighVarNode)])))
 getHighPcodeCfg imp@(GhidraImporter gs _) fn ctxId = do
-  jfunc <- CGI.toGhidraFunction gs fn
+  jfunc <- CGI.toGhidraFunction (gs ^. #program) fn
   let addr = fn ^. #address
   hfunc <- CGI.getHighFunction imp addr jfunc
   bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
@@ -364,7 +365,7 @@ getPilCfgFromRawPcode
   -> Function
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
-getPilCfgFromRawPcode = getPilCfg getRawPcodeCfg
+getPilCfgFromRawPcode = getPilCfg $ \imp func ctxId -> getRawPcodeCfg (imp ^. #ghidraState) func ctxId
 
 getPilCfgFromHighPcode
   :: GhidraImporter

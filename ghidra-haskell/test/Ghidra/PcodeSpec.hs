@@ -26,12 +26,13 @@ a1Bin = "res/test_bins/a1/a1.gzf"
 
 getHighs :: State.GhidraState -> Int64 -> IO ([(Address, J.PcodeOpAST)], [(Address, Lifted.PcodeOp HighVarNode)])
 getHighs gs faddr = runGhidraOrError $ do
-  faddr' <- State.mkAddressBased gs faddr
-  (Just func) <- Function.fromAddr gs faddr'
+  prg <- State.getProgram gs
+  faddr' <- State.mkAddressBased prg faddr
+  (Just func) <- Function.fromAddr prg faddr'
   hfunc <- Function.getHighFunction gs func
-  highs <- getHighPcodeOps gs hfunc func
-  addrSpaceMap <- getAddressSpaceMap (gs ^. #program)
-  liftedHighs <- getHighPcode gs addrSpaceMap hfunc func
+  highs <- getHighPcodeOps prg hfunc func
+  addrSpaceMap <- getAddressSpaceMap prg
+  liftedHighs <- getHighPcode prg addrSpaceMap hfunc func
   return (highs, liftedHighs)
 
 spec :: Spec
@@ -39,16 +40,16 @@ spec = describe "Ghidra.Pcode" $ do
   gs <- runIO . runGhidraOrError $ do
     gs <- State.openDatabase_ a1Bin >>! State.analyze
     return gs
-  let db = gs ^. #program
+  let prg = gs ^. #program
 
   context "getRawPcode" $ do
     let faddr = 0x13ad
     (raws, liftedRaws) <- runIO . runGhidraOrError $ do
-      faddr' <- State.mkAddressBased gs faddr
-      (Just func) <- Function.fromAddr gs faddr'
-      raws <- getRawPcodeOps gs func
-      addrSpaceMap <- getAddressSpaceMap db
-      liftedRaws <- getRawPcode gs addrSpaceMap func
+      faddr' <- State.mkAddressBased prg faddr
+      (Just func) <- Function.fromAddr prg faddr'
+      raws <- getRawPcodeOps prg func
+      addrSpaceMap <- getAddressSpaceMap prg
+      liftedRaws <- getRawPcode prg addrSpaceMap func
       return (raws, liftedRaws)
       -- runIO $ pprint $ length liftedRaws
 
@@ -126,7 +127,7 @@ spec = describe "Ghidra.Pcode" $ do
         it "should lift high pcode ops" $ \(_, liftedHighs) -> do
           -- FIXME: I believe this should be 134 after we change how 'getHighPcodeOps' works
           length liftedHighs `shouldBe` 176
-          fAddr <- runGhidraOrError $ State.mkAddressBased gs 0x1145 >>= mkAddress
+          fAddr <- runGhidraOrError $ State.mkAddressBased prg 0x1145 >>= mkAddress
           snd (liftedHighs !! 7) `shouldSatisfy` \case
             -- rax <- f(rdi, 80)
             Lifted.CALL

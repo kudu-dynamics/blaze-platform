@@ -60,7 +60,8 @@ instance BinaryImporter GhidraImporter where
     return $ GhidraImporter gs fc
 
   getBase (GhidraImporter gs _) = runGhidraOrError $ do
-    fmap convertAddress $ GState.getImageBase gs >>= GAddr.mkAddress
+    prg <- GState.getProgram gs
+    fmap convertAddress $ GState.getImageBase prg >>= GAddr.mkAddress
 
   getStart (GhidraImporter gs _) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
 

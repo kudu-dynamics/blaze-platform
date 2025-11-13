@@ -5,8 +5,6 @@ module Ghidra.Reference
 
 import Ghidra.Prelude
 
-import Ghidra.State (GhidraState)
-import qualified Ghidra.State as State
 import qualified Language.Java as Java
 import Ghidra.Types (Addressable, toAddrs)
 import Ghidra.Types.Internal (Ghidra, runIO)
@@ -26,14 +24,13 @@ referenceIteratorToList x = do
       (ref:) <$> referenceIteratorToList x
     else return []
 
-getReferencesToAddress :: GhidraState -> J.Address -> Ghidra [J.Reference]
-getReferencesToAddress gs addr = do
-  prg <- State.getProgram gs
+getReferencesToAddress :: J.ProgramDB -> J.Address -> Ghidra [J.Reference]
+getReferencesToAddress prg addr = do
   rm :: J.ReferenceManager <- runIO $ Java.call prg "getReferenceManager" >>= JNI.newGlobalRef
   runIO (Java.call rm "getReferencesTo" addr >>= JNI.newGlobalRef) >>= referenceIteratorToList
 
-getReferencesTo :: (Addressable a) => GhidraState -> a -> Ghidra [J.Reference]
-getReferencesTo gs x = toAddrs x >>= concatMapM (getReferencesToAddress gs)
+getReferencesTo :: (Addressable a) => J.ProgramDB -> a -> Ghidra [J.Reference]
+getReferencesTo prg x = toAddrs x >>= concatMapM (getReferencesToAddress prg)
 
 getFromAddress :: J.Reference -> Ghidra J.Address
 getFromAddress ref = runIO $ Java.call ref "getFromAddress"
@@ -47,17 +44,17 @@ data FuncRef = FuncRef
   , callerAddr :: Addr.Address
   } deriving (Eq, Ord, Show, Generic)
 
-toFuncReference :: GhidraState -> J.Reference -> Ghidra (Maybe FuncRef)
-toFuncReference gs ref = do
+toFuncReference :: J.ProgramDB -> J.Reference -> Ghidra (Maybe FuncRef)
+toFuncReference prg ref = do
   callerAddr_ <- getFromAddress ref
   calleeAddr <- getToAddress ref
-  (,) <$> Func.fromAddr gs callerAddr_ <*> Func.fromAddr gs calleeAddr >>= \case
+  (,) <$> Func.fromAddr prg callerAddr_ <*> Func.fromAddr prg calleeAddr >>= \case
     (Just callerFunc, Just calleeFunc) -> fmap Just $
       FuncRef <$> Func.mkFunction callerFunc <*> Func.mkFunction calleeFunc <*> Addr.mkAddress callerAddr_
     _ -> return Nothing
 
-getFunctionRefs :: GhidraState -> J.Function -> Ghidra [FuncRef]
-getFunctionRefs gs fn = do
+getFunctionRefs :: J.ProgramDB -> J.Function -> Ghidra [FuncRef]
+getFunctionRefs prg fn = do
   funcStart <- J.toAddr fn
-  refs <- getReferencesTo gs funcStart
-  catMaybes <$> traverse (toFuncReference gs) refs
+  refs <- getReferencesTo prg funcStart
+  catMaybes <$> traverse (toFuncReference prg) refs
