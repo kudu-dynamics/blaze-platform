@@ -56,6 +56,12 @@ getCSpec lang (Just compilerName) = runIO $ do
   compSpecId :: J.CompilerSpecID <- Java.reflect compilerName >>= Java.new >>= JNI.newGlobalRef
   Java.call lang "getCompilerSpecByID" compSpecId >>= JNI.newGlobalRef
 
+getSP :: J.ProgramDB -> Ghidra J.Register
+getSP prg = do
+  cmps :: J.CompilerSpec <- runIO $ Java.call prg "getCompilerSpec" -- getCSpec?
+  reg :: J.Register <- runIO $ Java.call cmps "getStackPointer"
+  return reg
+
 hasBeenAnalyzed :: J.ProgramDB -> Ghidra Bool
 hasBeenAnalyzed prg = runIO $ do
   programInfoField :: J.String <- Java.getStaticField "ghidra.program.model.listing.Program" "PROGRAM_INFO" >>= JNI.newGlobalRef

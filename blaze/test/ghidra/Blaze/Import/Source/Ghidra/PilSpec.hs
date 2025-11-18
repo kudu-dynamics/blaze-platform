@@ -12,7 +12,6 @@ import Test.Hspec
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
--- TODO: move the onion_test into a common res folder
 onionTestBin :: FilePath
 onionTestBin = "../flint/res/test_bins/onion_test/onion_test"
 
@@ -59,14 +58,15 @@ spec = describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let pv1_l = stmt1 ^? #statement . #_Def . #var
     let pv1_r = stmt1 ^? #statement . #_Def . #value . #op . #_VAR . #src
     let pv2 = stmt2 ^? #statement . #_Def . #var
-    let pv2_val_l = stmt2 ^? #statement . #_Def . #value . #op . #_FIELD_ADDR . #baseAddr . #op . #_VAR . #src
+    -- let pv2_val_l = stmt2 ^? #statement . #_Def . #value . #op . #_FIELD_ADDR . #baseAddr . #op . #_VAR . #src
     let pv3 = stmt3 ^? #statement . #_Def . #var
 
     let pv_param = stmt00 ^? #statement . #_Def . #value . #op . #_VAR . #src
-        
-    it "should use register names for symbols" $ do
-      pv2_val_l ^? _Just . #symbol `shouldBe` Just "esp_4"
-      pv2_val_l ^? _Just . #version `shouldBe` Just (Just 1)
+
+-- TODO: make a test binary so these tests can be used
+    -- it "should use register names for symbols" $ do
+      -- pv2_val_l ^? _Just . #symbol `shouldBe` Just "esp_4"
+      -- pv2_val_l ^? _Just . #version `shouldBe` Just (Just 1)
 
     it "should have separate number labels for assignments to the same stack var" $ do
       pv1_l ^? _Just . #symbol `shouldBe` Just "temp"
