@@ -21,3 +21,6 @@ getBitLength :: J.Register -> Ghidra Bits
 getBitLength reg = do
   size :: Int32 <- runIO $ Java.call reg "getBitLength"
   return (Bits $ fromIntegral size)
+
+getOffset :: J.Register -> Ghidra Int32
+getOffset reg = runIO $ Java.call reg "getOffset" -- :: Ghidra Int32

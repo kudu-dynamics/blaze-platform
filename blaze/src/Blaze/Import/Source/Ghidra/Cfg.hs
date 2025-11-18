@@ -236,7 +236,7 @@ convertToPilCfg
   -> Cfg (CfNode [(Address, PcodeOp a)])
   -> IO (HashMap PilVar VarNode, [PilConv.PCodeOpToPilStmtConversionError], Cfg (CfNode [Pil.Stmt]))
 convertToPilCfg imp ctx cfg = do
-  let convState = PilConv.mkConverterState imp ctx
+  convState <- PilConv.mkConverterState imp ctx
   (r, cstate) <- flip PilConv.runConverter convState $ do
     traverse (traverse (fmap split . traverse (runExceptT . convertIndexedPcodeOpToPilStmt ctx))) cfg
   let pcfg = fmap snd <$> r

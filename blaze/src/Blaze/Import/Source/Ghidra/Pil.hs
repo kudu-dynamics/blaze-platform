@@ -12,6 +12,7 @@ import qualified Ghidra.Types as J
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Address as GAddr
 import qualified Ghidra.Types.Variable as GVar
+import qualified Ghidra.Register as GReg
 
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Cfg (CodeReference)
@@ -35,11 +36,12 @@ import Data.Binary.IEEE754 (wordToDouble)
 import qualified Data.Text as Text
 import qualified Numeric
 
-import Ghidra.Types.Variable (HighVarNode, VarNode, VarType)
+import Ghidra.Types.Variable (HighVarNode, VarNode, VarType(..))
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
 import Blaze.Import.Source.Ghidra.Types (
   convertAddress,
-  GhidraImporter(GhidraImporter)
+  GhidraImporter(GhidraImporter),
+  ghidraState
   )
 import Blaze.Types.Function ( Function )
 
@@ -98,20 +100,23 @@ data ConverterState = ConverterState
   , varnodeVersions :: HashMap SSAType (HashMap Int64 Int)
   , ghidraImporter :: GhidraImporter
   , paramNames :: HashSet Symbol
+  , sp :: Int32
   }
   deriving (Show, Generic)
 
-mkConverterState :: GhidraImporter -> Ctx -> ConverterState
-mkConverterState imp ctx = ConverterState
-  { ctxStack = NE.singleton ctx
-  , ctx = ctx
-  , definedVars = []
-  , usedVars = HashSet.empty
-  , sourceVars = HashMap.empty
-  , varnodeVersions = HashMap.empty
-  , ghidraImporter = imp
-  , paramNames = HashSet.fromList $ getParamName <$> ctx ^. #func . #params
-  }
+mkConverterState :: GhidraImporter -> Ctx -> IO ConverterState
+mkConverterState imp ctx = do
+  stackPointer <- runGhidraOrError $ (GState.getSP . GState.program . ghidraState $ imp) >>= GReg.getOffset
+  return ConverterState { ctxStack = NE.singleton ctx
+                        , ctx = ctx
+                        , definedVars = []
+                        , usedVars = HashSet.empty
+                        , sourceVars = HashMap.empty
+                        , varnodeVersions = HashMap.empty
+                        , ghidraImporter = imp
+                        , paramNames = HashSet.fromList $ getParamName <$> ctx ^. #func . #params
+                        , sp = stackPointer
+                        }
   where
     getParamName (Func.FuncParamInfo p) = p ^. #name
     getParamName (Func.FuncVarArgInfo p) = p ^. #name
@@ -536,12 +541,23 @@ convertPcodeOpToPilStatement = \case
   P.PTRSUB out base offset -> do
     -- out := (void *)base + offset
     base' <- varNodeToValueExpr base
-    case getVarNodeType offset of
-      VImmediate n ->
-        mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)
-      _ -> do
-        offset' <- varNodeToValueExpr offset
-        mkDef out . Pil.ADD $ Pil.AddOp base' offset'
+    sp <- use #sp
+    let isSP = case getVarType base of
+                 Const _ -> False -- when does this happen?
+                 Addr x _ -> case x ^. #space . #name of
+                               BA.Register -> x ^. #offset == fromIntegral sp -- conversion is fine since register space is small
+                               _ -> False
+    ctx <- use #ctx
+    if isSP then
+        requireConst offset >>=
+        mkDef out . Pil.STACK_LOCAL_ADDR . Pil.StackLocalAddrOp . Pil.StackOffset ctx . ByteOffset
+    else
+      case getVarNodeType offset of
+        VImmediate n ->
+          mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)
+        _ -> do
+          offset' <- varNodeToValueExpr offset
+          mkDef out . Pil.ADD $ Pil.AddOp base' offset'
   P.RETURN _ [] -> pure [Pil.Ret . Pil.RetOp $ C.unit 0]
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
@@ -623,7 +639,7 @@ convertPcodeOps
   -> [(Address, P.PcodeOp a)]
   -> IO [Either ConverterError (MappedStmt Address)]
 convertPcodeOps imp ctx pcodeOps = do
-  let cstate = mkConverterState imp ctx
+  cstate <- mkConverterState imp ctx
   runConverter (traverse (\ (addr, op) -> fmap (fmap (fmap (MappedStatement addr . Pil.Stmt addr)))
                            . swallowErrors
                            . convertPcodeOpToPilStatement
