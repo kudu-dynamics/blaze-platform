@@ -19,7 +19,7 @@ import Blaze.Types.Pil.Summary (CodeSummary)
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-
+import Data.List (foldl1')
 
 -- | Function to check if var is argument of hosting func
 type IsFuncArgPred = PilVar -> Bool
@@ -131,6 +131,21 @@ mkCallableWMI func codeSum primSpec boundExprs boundLocations path = do
         toFuncVarExpr' = toFuncVarExpr params codeSum
         varMapping' :: HashMap (Symbol Pil.Expression) (FuncVarExpr, HashSet FuncVar)
         varMapping' = toFuncVarExpr' <$> boundExprs
+
+-- | Squash together CallableWMIs that share the same location and varMapping
+squashCallableWMIs :: HashSet CallableWMI -> HashSet CallableWMI
+squashCallableWMIs wmis = HashSet.fromList . concatMap squashGroup . HashMap.elems $ grouped
+  where
+    grouped = HashMap.fromListWith (++)
+      . fmap (\wmi -> ((wmi ^. #locations, wmi ^. #varMapping), [wmi]))
+      $ HashSet.toList wmis
+
+    squashGroup [] = []
+    squashGroup [x] = [x]
+    squashGroup xs@(firstWMI:_) =
+      let commonConstraints = foldl1' HashSet.intersection
+            $ fmap (HashSet.fromList . view #constraints) xs
+      in [firstWMI & #constraints .~ HashSet.toList commonConstraints]
 
 locationFromFunc :: Func -> Either ExternFunction Address
 locationFromFunc (Func.External x) = Left x
