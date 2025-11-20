@@ -126,3 +126,52 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
                 [ sscanfCPrim, printfCPrim ] )
             ]
       M.asOldCallableWMIsMap initialCPrims `shouldBe` expected
+
+  context "squashCallableWMIs" $ do
+    it "should merge CallableWMIs with the same location/varMapping, and only keep exact constraints" $ do
+      let sameLocation = HashMap.fromList
+            [ ("write", Right (intToAddr 0x1234)) ]
+
+          c1 = (cmpE (FuncVar $ Arg 0) (const 0 (ConstSize 8)) (ConstSize 8), HashSet.fromList [Arg 0])
+          c2 = (cmpE (FuncVar $ Arg 1) (const 0 (ConstSize 8)) (ConstSize 8), HashSet.fromList [Arg 1])
+          c3 = (cmpE (FuncVar $ Arg 2) (const 0 (ConstSize 8)) (ConstSize 8), HashSet.fromList [Arg 2])
+
+          firstWMI
+            = CallableWMI
+              { prim = copyPrim
+              , func = Func.Internal foo
+              , callDest = FuncName "foo"
+              , varMapping = HashMap.fromList
+                [ ("dest", (FuncVar $ Arg 0, HashSet.fromList [Arg 0]))
+                , ("src", (FuncVar $ Arg 1, HashSet.fromList [Arg 1]))
+                ]
+              , constraints = [c1, c2]
+              , locations = sameLocation
+              , linkedVars = HashSet.fromList [ Arg 0, Arg 1 ]
+              }
+          secondWMI
+            = CallableWMI
+              { prim = copyPrim
+              , func = Func.Internal foo
+              , callDest = FuncName "foo"
+              , varMapping = HashMap.fromList
+                [ ("dest", (FuncVar $ Arg 0, HashSet.fromList [Arg 0]))
+                , ("src", (FuncVar $ Arg 1, HashSet.fromList [Arg 1]))
+                ]
+              , constraints = [c2, c3]
+              , locations = sameLocation
+              , linkedVars = HashSet.fromList [ Arg 0, Arg 1, Arg 2 ]
+              }
+
+          result = squashCallableWMIs $ HashSet.fromList [firstWMI, secondWMI]
+          squashedWMI = fromJust . headMay . HashSet.toList $ result
+
+          expected = ( HashSet.fromList [c2]
+                     , HashMap.fromList
+                      [ ("dest", (FuncVar $ Arg 0, HashSet.fromList [Arg 0]))
+                      , ("src", (FuncVar $ Arg 1, HashSet.fromList [Arg 1]))
+                      ]
+                     , sameLocation
+                     )
+
+      ( HashSet.fromList (squashedWMI ^. #constraints), squashedWMI ^. #varMapping, squashedWMI ^. #locations) `shouldBe` expected
