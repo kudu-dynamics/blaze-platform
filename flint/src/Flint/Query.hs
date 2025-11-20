@@ -16,7 +16,7 @@ import Flint.Cfg.Path (CallDepth, samplesFromQuery, pickFromList, sampleFromRout
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
-import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs)
+import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs, squashCallableWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, StdLibPrimitive, PrimSpec)
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
@@ -1199,8 +1199,14 @@ onionSinglePass
   -> IO ()
 onionSinglePass maxResultsPerPath solver store prims funcs = do
   -- Get a fresh snapshot every time
+  debug "Getting callable primitives snapshot"
   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
-  mapM_ (onionCheckFunc maxResultsPerPath solver store cprimsSnapshot prims) funcs
+  let squashedSnapshot = fmap squashCallableWMIs cprimsSnapshot
+  debug "Squashing duplicate CallableWMIs"
+  CM.putSnapshot squashedSnapshot (store ^. #callablePrims)
+  forM_ (zip [1::Int ..] funcs) $ \(idx, func) -> do
+    debug $ "Checking function " <> show idx <> "/" <> show (length funcs) <> ": " <> show (func ^. #name)
+    onionCheckFunc maxResultsPerPath solver store cprimsSnapshot prims func
 
 -- onionSinglePass
 --   :: StmtSolver Pil.Stmt IO
@@ -1241,6 +1247,10 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations store stdLibPrims pr
   let initialPrims = getInitialWMIs stdLibPrims allFuncs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
   replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims funcs
+  debug "Squashing the rest of the duplicate CallableWMIs"
+  snapshot <- CM.getSnapshot (store ^. #callablePrims)
+  squashed <- fmap HashMap.fromList . mapConcurrently (\(k, v) -> pure (k, squashCallableWMIs v)) $ HashMap.toList snapshot
+  CM.putSnapshot squashed $ store ^. #callablePrims
   where
     solver = chooseSolver actuallyUseSolver
 
