@@ -493,13 +493,17 @@ tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.ADD_WILL_OVERFLOW op) -> tokenizeBinop msym "addCF" op
   (Pil.AND op) -> tokenizeBinopInfix msym "&&" op
   (Pil.ARRAY_ADDR op) ->
-    (paren <$> tokenize (op ^. #base))
-      <++> tokenize (op ^. #index)
+    parenExpr (op ^. #base)
       <++> tt "["
-      <++> tt " slots of "
-      <++> tokenize (op ^. #stride)
-      <++> tt "bytes"
-      <++> tt "]"
+      -- hopefully, it is safe to assume 1 byte slots are implied
+      <++> (if stride == 1 then tokenize index <++> tt "]"
+            else
+              parenExpr index
+              <++> tt " slots of "
+              <++> tokenize stride
+              <++> tt " bytes]")
+      where stride = op ^. #stride
+            index = op ^. #index
   (Pil.ASR op) -> tokenizeBinop msym "asr" op
   (Pil.BOOL_TO_INT op) -> tokenizeUnop msym "boolToInt" op
   (Pil.CEIL op) -> tokenizeUnop msym "ceil" op

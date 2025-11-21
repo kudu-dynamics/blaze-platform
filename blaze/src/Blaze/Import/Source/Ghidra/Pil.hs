@@ -435,7 +435,7 @@ convertPcodeOpToPilStatement = \case
     cond <- varNodeToValueExpr $ in0 ^. #value
     -- Ignore the dest for now, as it gets encoded in the CFG edges.
     pure . (: []) . Pil.BranchCond . Pil.BranchCondOp $ cond
-  P.COPY out in0 -> (: []) <$> (varNodeToAssignment out <*> varNodeToValueExpr (in0 ^. #value))
+  P.COPY out in0 -> mkCopy out $ in0 ^. #value
   P.CPOOLREF _out _in0 _in1 _inputs -> pure [Pil.UnimplInstr "CPOOLREF"]
   P.EXTRACT out in0 in1 -> do -- NOT in docs. guessing `Extract dest src offset
     srcExpr <- varNodeToValueExpr in0
@@ -552,12 +552,14 @@ convertPcodeOpToPilStatement = \case
         requireConst offset >>=
         mkDef out . Pil.STACK_LOCAL_ADDR . Pil.StackLocalAddrOp . Pil.StackOffset ctx . ByteOffset
     else
-      case getVarNodeType offset of
-        VImmediate n ->
-          mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)
-        _ -> do
-          offset' <- varNodeToValueExpr offset
-          mkDef out . Pil.ADD $ Pil.AddOp base' offset'
+      case getVarNodeType base of
+        VImmediate 0 -> mkCopy out offset -- we know we are dealing with a global variable
+        _ -> case getVarNodeType offset of
+               VImmediate n ->
+                 mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)
+               _ -> do
+                 offset' <- varNodeToValueExpr offset
+                 mkDef out . Pil.ADD $ Pil.AddOp base' offset'
   P.RETURN _ [] -> pure [Pil.Ret . Pil.RetOp $ C.unit 0]
   P.RETURN _retAddr [result] -> (: []) . Pil.Ret . Pil.RetOp <$> varNodeToValueExpr result
   P.RETURN _ (_:_:_) -> throwError ReturningTooManyResults
@@ -591,6 +593,9 @@ convertPcodeOpToPilStatement = \case
     mkDef v xop = do
       assignment <- varNodeToAssignment v
       return . (: []) . assignment $ Expression (fromIntegral $ getSize v) xop
+
+    mkCopy :: IsVariable b => P.Output a -> b -> ExceptT ConverterError Converter [Pil.Statement Pil.Expression]
+    mkCopy out inVar = (: []) <$> (varNodeToAssignment out <*> varNodeToValueExpr inVar)
 
     unIntOp :: forall b.
                (b -> Pil.ExprOp Expression)
