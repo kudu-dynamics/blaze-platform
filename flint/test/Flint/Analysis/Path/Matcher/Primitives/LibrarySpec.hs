@@ -31,7 +31,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives.Library" $ do
       let stdLibPrims = StdLibPrims.allStdLibPrims
           prims = [PrimLib.returnsFreedPointerPrim]
           action = do
-            onionFlow 20 False 3 store stdLibPrims prims
+            onionFlow 20 False 3 store stdLibPrims prims HashSet.empty
             m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ store ^. #callablePrims
             return $ do
               s <- HashMap.lookup PrimSpec.returnsFreedPointerSpec m

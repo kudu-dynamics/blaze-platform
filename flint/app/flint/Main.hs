@@ -40,6 +40,7 @@ data Options = Options
   , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
   , verbosity :: VerbosityLevel
+  , blacklistFile :: Maybe FilePath
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -96,6 +97,13 @@ parseDoNotUseSolver = switch $
   long "doNotUseSolver"
   <> help "do not verify if paths are satisfiable"
 
+parseBlacklistFile :: Parser FilePath
+parseBlacklistFile = strOption $
+  long "blacklist"
+  <> short 'b'
+  <> metavar "BLACKLIST_FILE"
+  <> help "file containing functions names to skip during analysis"
+
 optionsParser :: Parser Options
 optionsParser = Options
   <$> optional parseBackend
@@ -105,6 +113,7 @@ optionsParser = Options
   <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
   <*> (parseVerbosity <|> pure Info)
+  <*> optional parseBlacklistFile
   <*> parseInputFile
 
 main :: IO ()
@@ -208,13 +217,19 @@ onionCheck :: MonadIO m => Options -> m ()
 onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
   base <- getBase imp
+  let loadBlacklist fp = HashSet.fromList
+        . filter (not . Text.null)
+        . fmap Text.strip
+        . Text.lines
+        <$> liftIO (TextIO.readFile fp)
+  blacklist <- maybe (pure HashSet.empty) loadBlacklist $ opts ^. #blacklistFile
   let stdLibPrims = allStdLibPrims
       prims :: [Prim]
       prims = PrimLib.allPrims
 
   -- TODO: make maxResultsPerPath an option
   let maxResultsPerPath = 10 -- max WMIs found per path
-  onionFlow maxResultsPerPath (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims
+  onionFlow maxResultsPerPath (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims blacklist
   cprims <- CM.getSnapshot $ store ^. #callablePrims
   let cprims' = M.asOldCallableWMIsMap cprims
   let flintResult = toFlintResult base cprims'
