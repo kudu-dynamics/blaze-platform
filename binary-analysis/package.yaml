@@ -69,3 +69,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - binary-analysis
+    - hspec
+    build-tools:
+      - hspec-discover
