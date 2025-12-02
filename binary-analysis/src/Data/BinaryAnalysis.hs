@@ -95,10 +95,12 @@ intToAddr addr = Address
   , offset = addr
   }
 
--- TODO: add addressSpace to this string
 instance Show Address where
-  show addr = showString "Address 0x" . Numeric.showHex (addrToInt addr) $ ""
-  -- show (Address (Bytes x)) = showString "Address 0x" . Numeric.showHex x $ ""
+  show addr = prefix ++ Numeric.showHex (addrToInt addr) ""
+    where
+      prefix = case addr ^. #space . #name of
+        Ram -> "Address 0x"
+        spaceName -> "Address " ++ show spaceName ++ ":0x"
 
 data Symbol
   = Symbol
