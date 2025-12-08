@@ -576,7 +576,8 @@ convertPcodeOpToPilStatement = \case
       in1' <- varNodeToValueExpr in1
       let ptrSize :: Pil.Size Pil.Expression = Pil.widthToSize . toBits $ (addrSpace ^. #value . #ptrSize)
           scale = C.const (fromIntegral (addrSpace ^. #value . #addressableUnitSize :: Bytes)) ptrSize
-      pure [Pil.Store $ Pil.StoreOp (C.mul scale destOffset' ptrSize) in1']
+          scaledOffset = C.mul scale destOffset' ptrSize
+      pure [Pil.Store $ Pil.StoreOp scaledOffset in1']
   P.SUBPIECE out in0 lowOff -> do
     -- out := (in0 >> lowOff) & ((1 << out.size) - 1)
     in0' <- varNodeToValueExpr in0
@@ -595,7 +596,13 @@ convertPcodeOpToPilStatement = \case
       return . (: []) . assignment $ Expression (fromIntegral $ getSize v) xop
 
     mkCopy :: IsVariable b => P.Output a -> b -> ExceptT ConverterError Converter [Pil.Statement Pil.Expression]
-    mkCopy out inVar = (: []) <$> (varNodeToAssignment out <*> varNodeToValueExpr inVar)
+    mkCopy out inVar =  do
+      stmt <- varNodeToAssignment out <*> varNodeToValueExpr inVar
+      pure $ case stmt of
+        -- | remove redundant `[x] = [x]` assignments
+        Pil.Store (Pil.StoreOp a (Pil.Expression _ (Pil.LOAD (Pil.LoadOp b))))
+          -> if a == b then [] else [stmt]
+        _ -> [stmt]
 
     unIntOp :: forall b.
                (b -> Pil.ExprOp Expression)

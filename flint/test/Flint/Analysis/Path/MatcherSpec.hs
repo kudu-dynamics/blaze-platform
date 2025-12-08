@@ -20,6 +20,7 @@ import Blaze.Pil.Construct
 import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
+import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Types.Pil.Summary (CodeSummary(CodeSummary))
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Blaze.Types.Function (Function(Function))
@@ -257,6 +258,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         solveMatch pats stmts = match 20 (solveStmtsWithZ3 Solver.AbortOnError) pats $ mkDummyPathPrep (stmts :: [Pil.Stmt])
         solveMatch_ pats stmts = view _2 <<$>> solveMatch pats stmts
 
+        typedMatch :: [StmtPattern] -> [TypedStmt] -> [(MatcherState TypedExpr TypedStmt, [TypedStmt])]
+        typedMatch pats stmts = runIdentity . match 20 dummySolver pats $ mkDummyPathPrep (stmts :: [TypedStmt])
+        typedMatch_ pats stmts = view _2 <$> typedMatch pats stmts
+
+    
     it "should match empty list of stmts when provided no patterns" $ do
       pureMatch_ [] [] `shouldBe` [[]]
 
@@ -457,28 +463,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
-    -- it "should use NotPattern to bind if two things are not equal" $ do
-    --   let stmts = [store (var "a" 8) (load (var "b" 8) 8)]
-    --       pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
-    --       expected = ( HashMap.fromList
-    --                    [ ("dest", var "a" 8)
-    --                    , ("src", var "b" 8)
-    --                    ]
-                         
-    --                  , [stmts]
-    --                  )
-    --   first (view #boundSyms) (pureMatch pats stmts) `shouldBe` expected
-
-    -- it "should use NotPattern to avoid binding if two things are equal" $ do
-    --   let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
-    --       pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
-    --       expected = [( HashMap.fromList []                         
-    --                   , []
-    --                   )
-    --                  ]
-    --   first (view #boundSyms) (pureMatch pats stmts) `shouldBe` expected
-
-
     it "should match a more complex expression that Contains a variable" $ do
       let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
           pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
@@ -533,7 +517,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
-
 
     it "should match an expression has been bound to sym" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
@@ -745,6 +728,108 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       PrettyShow' (pureMatch_ pats1 stmts) `shouldBe` PrettyShow' expected1
       PrettyShow' (pureMatch_ pats2 stmts) `shouldBe` PrettyShow' expected2
 
+    context "Matching on Types" $ do
+      it "should match on signed int type" $ do
+        let t1 = ( 32
+                 , Just . Ch.DSType $ Ch.TInt (Just 32) (Just True)
+                 )
+                   
+            stmts = [ def "b" (const 0 t1)
+                    ]
+            pats = [ Stmt $ Def (Var "b")
+                     (OfType (PilType $ TInt AnyBitWidth (Just True)) Wild)
+                   ]
+            patsNotSigned
+              = [ Stmt $ Def (Var "b")
+                  (OfType (PilType $ TInt AnyBitWidth (Just False)) Wild)
+                ]
+
+            expected = [stmts]
+        typedMatch_ pats stmts `shouldBe` expected
+        typedMatch_ patsNotSigned stmts `shouldBe` []
+
+      it "should be able to bind on type len and use it in Where clause" $ do
+        let dstInt = Ch.DSType $ Ch.TInt (Just 32) (Just True)
+            tarray
+              = ( 32
+                , Just . Ch.DSType $ Ch.TArray (Just 14) dstInt
+                )
+
+            stmts = [ def "b" (var "a" tarray)
+                    ]
+            pats = [ Stmt (Def (Var "b")
+                       (OfType (PilType $ TArray (BindLenAsExpr "len" AnyLen) AnyType) Wild))
+                     `Where`
+                     [ cmpUlt (Bound "len") (const 37 (SizeOf "len")) (SizeOf "len")]
+                   ]
+            sz = ( 32
+                 , Nothing
+                 )
+            expected = [ stmts
+                         <>
+                         [ constraint $ cmpUlt (const 14 sz) (const 37 sz) sz ]
+                       ]
+        typedMatch_ pats stmts `shouldBe` expected
+
+      it "should be able to match on a record using specific field offsets" $ do
+        let dstInt = Ch.DSType $ Ch.TInt (Just 32) (Just True)
+            dstFloat = Ch.DSType $ Ch.TFloat (Just 32)
+            tlinkedList
+              = ( 32
+                , Just
+                  . Ch.DSType
+                  . Ch.TRecord
+                  $ HashMap.fromList
+                    [ (0, dstInt)
+                    , (0x10, dstFloat)
+                    ]
+                )
+
+            stmts = [ def "b" (var "a" tlinkedList)
+                    ]
+            tIntPat = PilType $ TInt AnyBitWidth (Just True)
+            tFloatPat = PilType $ TFloat AnyBitWidth
+            tRecordPat
+              = PilType $ TRecord
+                [ ( ConstBitWidth 0, tIntPat )
+                , ( ConstBitWidth 0x10, tFloatPat )
+                ]
+                
+            pats = [ Stmt $ Def (Var "b") (OfType tRecordPat Wild)
+                   ]
+            expected = [ stmts
+                       ]
+        typedMatch_ pats stmts `shouldBe` expected
+
+      it "should be able to match on a recursively defined type" $ do
+        let dstInt = Ch.DSType $ Ch.TInt (Just 32) (Just True)
+            linkedListSym = Ch.Sym 7
+            tlinkedList
+              = ( 32
+                , Just
+                  . Ch.DSRecursive linkedListSym
+                  . Ch.TRecord
+                  $ HashMap.fromList
+                    [ (0, dstInt)
+                    , (0x10, Ch.DSVar linkedListSym)
+                    ]
+                )
+
+            stmts = [ def "b" (var "a" tlinkedList)
+                    ]
+            tIntPat = PilType $ TInt AnyBitWidth (Just True)
+            tRecordPat
+              = PilType $ TRecord
+                [ ( AnyBitWidth, tIntPat )
+                , ( AnyBitWidth,
+                    PilType $ TRecord
+                    [ ( AnyBitWidth, tIntPat ) ])
+                ]
+                  
+            pats = [ Stmt $ Def (Var "b") (OfType tRecordPat Wild) ]
+            expected = [ stmts ]
+        typedMatch_ pats stmts `shouldBe` expected
+
     context "EnterContext and ExitContext statements" $ do
       it "should match EnterContext for AnyCtx with empty arg patterns" $ do
         let ctx0 = Pil.Ctx func0 0
@@ -753,7 +838,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             pats = [ Stmt $ EnterContext AnyCtx [] ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
-
 
       it "should match EnterContext for AnyCtx with proper arg patterns" $ do
         let ctx0 = Pil.Ctx func0 0
@@ -881,7 +965,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       HashMap.lookup "x" (ms ^. #boundSyms) `shouldBe` Just (const 2 8)
       HashMap.lookup "dest1" (ms ^. #boundSyms) `shouldBe` Just (var "b" 8)
       HashMap.lookup "dest2" (ms ^. #boundSyms) `shouldBe` Just (var "d" 8)
-
 
     context "Neighbors" $ do
       it "should match two sequential simple patterns with no stmts in between" $ do
@@ -1052,7 +1135,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
-
     it "should find the 'until' first, then backtrack and check the 'avoid' after" $ do
       -- If AvoidUntil is implemented without backtracking, it will bind "ptr" to the var named "x"
       -- Then it will fail because (Bind "ptr" Wild) in the Until part doesn't bind to "x"
@@ -1086,7 +1168,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                  ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
-
 
     it "should handle avoid/until for real world example" $ do
       
@@ -1128,18 +1209,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts' = stmts <> [constraint (cmpNE (const 0 4) (const 777 4) 4)]
             expected = [stmts']
         pureMatch_ pats stmts `shouldBe` expected
-
---       it "should fail if assertion fails" $ do
---         let stmts = [ def "a" (const 0 4)
---                     , def "b" (const 777 4)
---                     ]
---             pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
---                    , Stmt (Def (Var "b") (Bind "y" Wild))
---                      `Where`
---                      [ cmpE (Bound "x") (Bound "y") (ConstSize 4) ]
---                    ]
---             expected = NoMatch
---         matchStmtsIO [] pats stmts `shouldReturn` expected
 
       it "should create multiple possible paths with assertions" $ do
         let stmts = [ def "a" (const 100 4)

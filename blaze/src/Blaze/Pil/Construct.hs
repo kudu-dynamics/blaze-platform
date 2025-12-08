@@ -15,6 +15,8 @@ import Blaze.Types.Pil
     Statement,
     Symbol,
   )
+import Blaze.Types.Pil.Checker (InfoExpression)
+import qualified Blaze.Types.Pil.Checker as Ch
 
 
 class ExprConstructor attrs expr | expr -> attrs where
@@ -23,8 +25,23 @@ class ExprConstructor attrs expr | expr -> attrs where
 instance ExprConstructor (Size Expression) Expression where
   mkExpr = Expression
 
+instance ExprConstructor a (InfoExpression a) where
+  mkExpr = Ch.InfoExpression
+
 class GetExprSize a where
   getExprSize :: a -> Size Expression
+
+instance GetExprSize (Ch.BitWidth, a)  where
+  getExprSize (bw, _) = fromIntegral . toBytes $ bw
+
+instance GetExprSize Ch.SymInfo where
+  getExprSize = fromIntegral . toBytes . view #size
+
+instance GetExprSize (Ch.SymInfo, a) where
+  getExprSize = getExprSize . fst
+  
+instance GetExprSize a => GetExprSize (InfoExpression a) where
+  getExprSize = getExprSize . view #info
 
 instance GetExprSize Expression where
   getExprSize = view #size

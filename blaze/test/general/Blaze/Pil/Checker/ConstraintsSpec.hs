@@ -7,10 +7,12 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Pil.Checker.Constraints
 import Blaze.Types.Pil.Checker
 import Blaze.Pil.Construct (defCall, var)
+import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (PilVar)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Util.Spec (defaultSize)
 
+import qualified Data.HashSet as HashSet
 import Test.Hspec
 
 testConstraintGenState ::
@@ -364,31 +366,74 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
       constrainExpr 100 cxs vars expr `shouldBe` (sort resultCxs, sort resultVars)
 
   context "addStmtTypeConstraints" $ do
+
     it "links call results and call arguments across call sites" $ do
-      let callStmtA = defCall "a" (Pil.CallAddr $ Pil.ConstFuncPtrOp (intToAddr 0x00424242) Nothing) [var "x" 8] 4
-          callStmtB = defCall "b" (Pil.CallAddr $ Pil.ConstFuncPtrOp (intToAddr 0x00424242) Nothing) [var "y" 8] 4
-          constraintProg =
-            addStmtTypeConstraints callStmtA
-              >> addStmtTypeConstraints callStmtB
-          (_, ConstraintGenState _ _ _ _ constraints' _ _) =
-            runConstraintGen_ constraintProg
-      -- s0, s3, s6, s8, and s12 are all related to the call args and are constrained
-      -- to be equal.
-      -- s1, s2, s4, s9, and s10 are all related to the call results and
-      -- are constrained to be equal
-      -- TODO: Make this expected result more obvious. How can we at a glance see
-      --       the appropriate constraints are in place?
-      (sort . fmap cxsTup $ constraints')
-        `shouldBe` [(Sym 0, SVar (Sym 5)),
-                    (Sym 1, SType (TBitVector {bitWidth = Just 32})),
-                    (Sym 2, SVar (Sym 1)),
-                    (Sym 3, SVar (Sym 0)),
-                    (Sym 3, SVar (Sym 6)),
-                    (Sym 4, SVar (Sym 1)),
-                    (Sym 4, SVar (Sym 7)),
-                    (Sym 5, SType (TBitVector {bitWidth = Just 64})),
-                    (Sym 6, SVar (Sym 9)),
-                    (Sym 7, SType (TBitVector {bitWidth = Just 32})),
-                    (Sym 8, SVar (Sym 7)),
-                    (Sym 9, SType (TBitVector {bitWidth = Just 64}))
-                  ]
+      let callTarget = Pil.CallAddr $ Pil.ConstFuncPtrOp (intToAddr 0x00424242) Nothing
+          callStmtA = defCall "a" callTarget [var "x" 8] 4
+          callStmtB = defCall "b" callTarget [var "y" 8] 4
+          constraintProg = (,)
+            <$> addStmtTypeConstraints callStmtA
+            <*> addStmtTypeConstraints callStmtB
+
+          ((callStmtA', callStmtB'), st) = first unsafeFromRight $ runConstraintGen_ constraintProg
+
+          constraints' = st ^. #constraints
+          getVarSym bw varName = case HashMap.lookup (C.pilVar bw varName) $ st ^. #varSymMap of
+            Nothing -> error $ "getVarSym failed!!! " <> show varName
+            Just x -> x
+          retASym = getVarSym 4 "a"
+          retBSym = getVarSym 4 "b"
+          xSym = getVarSym 8 "x"
+          ySym = getVarSym 8 "y"
+
+          funcArg1Sym = fromJust . HashMap.lookup (Pil.FuncParam (Pil.CallTarget callTarget) $ Pil.ParamPosition 1) $ st ^. #funcSymMap
+          funcRetSym = fromJust . HashMap.lookup (Pil.FuncResult $ Pil.CallTarget callTarget) $ st ^. #funcSymMap
+          
+          callArgSymA = callStmtA' ^?! #statement . #_Def . #value . #op . #_CALL . #args . ix 0 . #info . #sym
+          callArgSymB = callStmtB' ^?! #statement . #_Def . #value . #op . #_CALL . #args . ix 0 . #info . #sym
+          callExprA = callStmtA' ^?! #statement . #_Def . #value . #info . #sym
+          callExprB = callStmtB' ^?! #statement . #_Def . #value . #info . #sym
+          
+          expectedConstraints = HashSet.fromList
+            [ Constraint 0 callArgSymA (SVar xSym)
+            , Constraint 0 callArgSymB (SVar ySym)
+            , Constraint 0 funcArg1Sym (SVar callArgSymA)
+            , Constraint 0 funcArg1Sym (SVar callArgSymB)
+            , Constraint 0 retASym (SVar callExprA)
+            , Constraint 0 retBSym (SVar callExprB)
+            , Constraint 0 funcRetSym (SVar callExprA)
+            ]
+
+          _helpfulInfo =
+            ( ("retASym", retASym)
+            , ("retBSym", retBSym)
+            , ("xSym", xSym)
+            , ("ySym", ySym)
+            , ("funcArg1Sym", funcArg1Sym)
+            , ("funcRetSym", funcRetSym)
+            , ("callArgSymA", callArgSymA)
+            , ("callArgSymB", callArgSymB)
+            , ("callExprA", callExprA)
+            , ("callExprB", callExprB)
+            )
+      -- pprint _helpfulInfo
+      PShow (HashSet.difference expectedConstraints $ HashSet.fromList constraints') `shouldBe` PShow HashSet.empty
+      
+    it "generates constraints for call args so vars can link outside of function args" $ do
+      let callStmt = defCall "a" (Pil.CallAddr $ Pil.ConstFuncPtrOp (intToAddr 0x00424242) Nothing) [var "x" 8] 4
+          retStmt = C.ret $ var "x" 8
+          constraintProg = (,)
+            <$> addStmtTypeConstraints callStmt
+            <*> addStmtTypeConstraints retStmt
+            
+          ((callStmt', retStmt'), st) = first unsafeFromRight $ runConstraintGen_ constraintProg
+          constraints' = st ^. #constraints
+          xSym = fromJust . HashMap.lookup (C.pilVar 8 "x") $ st ^. #varSymMap
+          callArgSym = callStmt' ^?! #statement . #_Def . #value . #op . #_CALL . #args . ix 0 . #info . #sym
+          retSym = retStmt' ^?! #statement . #_Ret . #value . #info . #sym
+          expectedConstraints = HashSet.fromList
+            [ Constraint 0 callArgSym (SVar xSym)
+            , Constraint 0 retSym (SVar xSym)
+            ]
+
+      (expectedConstraints `HashSet.isSubsetOf` HashSet.fromList constraints') `shouldBe` True
