@@ -25,6 +25,7 @@ import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Function as BFunc
 import Blaze.Types.Pil (Size)
+import Blaze.Types.Pil.Checker as Ch
 import Blaze.Types.Pil.Solver (SolverResult(Sat, Unsat))
 
 import Control.Monad.Logic.Class (lnot, once)
@@ -93,7 +94,8 @@ bind_ lens' sym x = do
     Just x' -> insist $ x  == x'
     Nothing -> lens' %= HashMap.insert sym x
 
--- or if the sym already exists, it checks to see if it matches.
+-- | Binds a sym to an expression. Or, if the sym already exists,
+-- it checks to see if this expression matches the first.
 bind
   :: (Eq expr, Monad m)
   => Symbol Pil.Expression
@@ -103,6 +105,9 @@ bind = bind_ #boundSyms
 
 bindCtx :: Monad m => Symbol Pil.Ctx -> Pil.Ctx -> MatcherT expr stmt m ()
 bindCtx = bind_ #boundCtxSyms
+
+bindType :: Monad m => Symbol DeepSymType -> DeepSymType -> MatcherT expr stmt m ()
+bindType = bind_ #boundTypes
 
 matchFuncPatWithFunc :: Monad m => Func -> BFunc.Function -> MatcherT expr stmt m ()
 matchFuncPatWithFunc (FuncName name) func = insist
@@ -299,6 +304,168 @@ matchExpr pat expr = case pat of
     st <- get
     lnot $ matchExpr patA expr
     put st
+  M.OfType tpat xpat -> do
+    matchExpr xpat expr
+    -- if there is inferred type, we just fail
+    maybe bad (matchType tpat) $ getType expr
+
+newtype InfinitePilType = InfinitePilType { unInfiniteType :: PilType InfinitePilType }
+  deriving (Eq, Ord, Read, Show, Generic)
+
+-- | Lazily converts a deep sym type to an infinitely nested type.
+toInfiniteType :: DeepSymType -> InfinitePilType
+toInfiniteType = toInfiniteType' HashMap.empty
+
+toInfiniteType' :: HashMap Ch.Sym (Ch.PilType DeepSymType) -> DeepSymType -> InfinitePilType
+toInfiniteType' m = \case
+  Ch.DSVar s -> InfinitePilType
+    . maybe Ch.TUnit (fmap $ toInfiniteType' m)
+    $ HashMap.lookup s m
+  Ch.DSRecursive s pt -> InfinitePilType $ toInfiniteType' (HashMap.insert s pt m) <$> pt
+  Ch.DSType pt -> InfinitePilType $ toInfiniteType' m <$> pt
+
+-- | This attempts to match on the exact inferred type.
+-- We are not matching on things that *could* be the type.
+-- For example, if you want to match TChar, but it's a 1 byte TBitVector,
+-- the match will fail. We could reconsider this later.
+matchType
+  :: ( IsExpression expr
+     , Monad m
+     )
+  => M.TypePattern
+  -> DeepSymType
+  -> MatcherT expr stmt m ()
+matchType = matchType' HashMap.empty
+
+-- | DeepSymTypes can have a recursive self-referential context.
+-- We have to keep track of this so we can properly expand type as we need it.
+matchType'
+  :: ( IsExpression expr
+     , Monad m
+     )
+  => HashMap Ch.Sym (Ch.PilType DeepSymType) -- | recursiveContext
+  -> M.TypePattern
+  -> DeepSymType
+  -> MatcherT expr stmt m ()
+matchType' recCtx tpat dst = case tpat of
+  M.AnyType -> good
+  M.BoundType tsym tpat' -> do
+    matchType' recCtx tpat' dst
+    bindType tsym dst
+  M.PilType ptPat -> case dst of
+    -- | If it's a recursive type var, look it up and run matchType' on it
+    Ch.DSVar s -> maybe bad (matchType' recCtx tpat . Ch.DSType)
+      $ HashMap.lookup s recCtx
+
+    -- | If it is declaring a recursive type, store it in the recCtx,
+    -- then run the type matching pattern on the type.
+    Ch.DSRecursive s pt -> matchType' (HashMap.insert s pt recCtx) tpat
+      $ Ch.DSType pt
+      
+    Ch.DSType pt -> case (ptPat, pt) of
+      (M.TBool, Ch.TBool) -> good
+
+      (M.TChar bwPat, Ch.TChar mbits) -> do
+        matchBitWidth bwPat mbits
+
+      (M.TInt bwPat signPat, Ch.TInt mbits msign) -> do
+        insist $ isNothing signPat || signPat == msign
+        matchBitWidth bwPat mbits
+  
+      (M.TFloat bwPat, Ch.TFloat mbits) -> do
+        matchBitWidth bwPat mbits
+
+      (M.TBitVector bwPat, Ch.TBitVector mbits) -> do
+        matchBitWidth bwPat mbits
+
+      (M.TPointer bwPat pointeePat, Ch.TPointer mbits pointee) -> do
+        matchBitWidth bwPat mbits
+        matchType' recCtx pointeePat pointee
+
+      (M.TCString lenPat, Ch.TCString mlen) -> do
+        matchLen lenPat mlen
+
+      (M.TArray lenPat elemPat, Ch.TArray mlen elemt) -> do
+        matchLen lenPat mlen
+        matchType' recCtx elemPat elemt
+
+      (M.TRecord fieldPats, Ch.TRecord fields) -> do
+        matchRecordFields recCtx fieldPats . HashMap.toList $ fields
+
+      (M.TUnit, Ch.TUnit) -> good
+
+      (M.TFunction retPat paramsPats, Ch.TFunction ret params) -> do
+        matchType' recCtx retPat ret
+        if length paramsPats > length params
+          then bad
+          else forM_ (zip paramsPats params) $ uncurry (matchType' recCtx)
+        
+      (_, _) -> bad
+
+-- | Matches each record field pattern to an actual record field.
+-- Two record field patterns are not allowed to match the same record field.
+-- We return all possible combinations of record field matches.
+matchRecordFields
+  :: forall expr stmt m.
+     ( IsExpression expr
+     , Monad m
+     )
+  => HashMap Ch.Sym (Ch.PilType DeepSymType) -- | recursiveContext
+  -> [(M.BitWidthPattern, M.TypePattern)]
+  -> [(BitOffset, DeepSymType)]
+  -> MatcherT expr stmt m ()
+matchRecordFields recCtx fieldPats fields = C.orr perms
+  where
+    fieldPatsAsParsers :: [(BitOffset, DeepSymType) -> MatcherT expr stmt m ()]
+    fieldPatsAsParsers = foreach fieldPats $ \(bwPat, fieldPat) (bw, fieldType) -> do
+      matchBitWidth bwPat (Just $ fromIntegral bw)
+      matchType' recCtx fieldPat fieldType
+      
+    -- Get all permutations of fieldPats (all different orderings)
+    -- Then check them each against normal list of fields
+    perms = foreach (permutations fieldPatsAsParsers) $ \parsers -> do
+      void $ C.parseThroughList parsers fields
+
+-- | This is the default size to give constructed expressions,
+-- particularly for BindBitWidthAsExpr and BindLenAsExpr.
+-- These exprs might be used in generated PIL to use for SMT,
+-- which means the size might be incompatible with other comparisons.
+-- We need to "repair" step where sizes are extended to be compatible.
+defaultExprSize :: Pil.Size Pil.Expression
+defaultExprSize = 4
+
+matchBitWidth
+  :: ( Monad m
+     , IsExpression expr
+     )
+  => BitWidthPattern
+  -> Maybe Bits
+  -> MatcherT expr stmt m () 
+matchBitWidth bwpat mbits = case bwpat of
+  M.ConstBitWidth n -> maybe bad (insist . (== n)) mbits
+  M.AnyBitWidth -> good
+  M.BindBitWidthAsExpr s pat -> case mbits of
+    Nothing -> bad -- can't bind to expr if we don't know it
+    Just bits -> do
+      matchBitWidth pat mbits
+      bind s . mkExprWithSize defaultExprSize . Pil.CONST . Pil.ConstOp . fromIntegral $ bits
+
+matchLen
+  :: ( Monad m
+     , IsExpression expr
+     , Integral a
+     )
+  => LenPattern
+  -> Maybe a
+  -> MatcherT expr stmt m () 
+matchLen lenPat mlen = case lenPat of
+  M.ConstLen n -> maybe bad (insist . (== n) . fromIntegral) mlen
+  M.AnyLen -> good
+  M.BindLenAsExpr s pat -> case mlen of
+    Nothing -> bad -- can't bind to expr if we don't know it
+    Just len -> do
+      matchLen pat mlen
+      bind s . mkExprWithSize defaultExprSize . Pil.CONST . Pil.ConstOp . fromIntegral $ len
 
 data CallStatement expr stmt = CallStatement
   { stmt :: stmt
@@ -709,7 +876,7 @@ mkMatcherState
   -> (MatcherCtx stmt m, MatcherState expr stmt)
 mkMatcherState solver pathPrep =
   ( MatcherCtx solver
-  , MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty [] Nothing HashMap.empty HashMap.empty
+  , MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] Nothing HashMap.empty HashMap.empty
   )
 
 newtype ResolveBoundExprError = CannotFindBoundVarInState (Symbol Pil.Expression)

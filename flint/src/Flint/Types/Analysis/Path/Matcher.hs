@@ -15,7 +15,8 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Pil.Construct (ExprConstructor)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (AddressableStatement, Size(Size))
-import Blaze.Types.Pil.Checker (SymInfo, DeepSymType, InfoExpression)
+import Blaze.Types.Pil.Checker (BitWidth, DeepSymType, InfoExpression)
+import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Types.Pil.Solver (SolverResult(Sat))
 
 import Control.Monad.Logic.Class
@@ -172,7 +173,64 @@ data ExprPattern
 
   -- | Matches if the expr pattern inside doesn't match
   | NotPattern ExprPattern
+
+  -- | Matches to see if expr is of a certain type
+  | OfType TypePattern ExprPattern
   deriving (Eq, Ord, Show, Hashable, Generic)
+
+data BitWidthPattern
+  = ConstBitWidth Bits
+  | AnyBitWidth
+  | BindBitWidthAsExpr (Symbol Pil.Expression) BitWidthPattern
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+data LenPattern
+  = ConstLen Word64
+  | AnyLen
+  | BindLenAsExpr (Symbol Pil.Expression) LenPattern
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+data PilTypePattern t
+  = TBool
+  | TChar {bitWidth :: BitWidthPattern}
+
+  -- | for signed, Nothing means you don't care
+  | TInt {bitWidth :: BitWidthPattern, signed :: Maybe Bool}
+  | TFloat {bitWidth :: BitWidthPattern}
+  | TBitVector {bitWidth :: BitWidthPattern}
+  | TPointer {bitWidth :: BitWidthPattern, pointeeType :: t}
+  | TCString {strLen :: LenPattern}
+  | TArray {len :: LenPattern, elemType :: t}
+
+  -- | The list in TRecord specifies fields that must match.
+  -- As long as all of them match, it's ok. There can be extra fields
+  -- in the actual type that are not matched.
+  | TRecord [(BitWidthPattern, t)]
+  | TUnit
+  | TBottom
+  | TFunction {retType :: t, params :: [t]}
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+data TypePattern
+  = PilType (PilTypePattern TypePattern)
+  | BoundType (Symbol DeepSymType) TypePattern
+  | AnyType
+  deriving (Eq, Ord, Show, Hashable, Generic)
+
+class HasWildCard a where
+  wild :: a
+
+instance HasWildCard ExprPattern where
+  wild = Wild
+
+instance HasWildCard BitWidthPattern where
+  wild = AnyBitWidth
+
+instance HasWildCard LenPattern where
+  wild = AnyLen
+
+instance HasWildCard TypePattern where
+  wild = AnyType
 
 instance ExprConstructor () ExprPattern where
   mkExpr _ = Expr
@@ -252,16 +310,13 @@ data Prim = Prim
   , stmtPattern :: [StmtPattern]
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
-
---- Matcher monad
-
-type TypedExpr = InfoExpression (SymInfo, Maybe DeepSymType)
-type TypedStmt = AddressableStatement (InfoExpression (SymInfo, Maybe DeepSymType))
+type TypedExpr = InfoExpression (BitWidth, Maybe DeepSymType)
+type TypedStmt = AddressableStatement TypedExpr
 
 class HasAddress a where
   getAddress :: a -> Address
 
-instance HasAddress Pil.Stmt where
+instance HasAddress (Pil.AddressableStatement a) where
   getAddress = view #addr
 
 class HasDeepSymType a where
@@ -275,11 +330,20 @@ class IsStatement expr stmt | stmt -> expr where
   mkStmtLike :: stmt -> Pil.Statement expr -> stmt
   asStmt :: stmt -> Pil.Stmt
 
+asStmts :: (Functor f, IsStatement expr stmt) => f stmt -> f Pil.Stmt
+asStmts = fmap asStmt
+
 instance IsStatement Pil.Expression Pil.Stmt where
   getStatement = view #statement
   mkDefStmt = Pil.Stmt (intToAddr 0x0)
   mkStmtLike aStmt statement' = aStmt & #statement .~ statement'
   asStmt = identity
+
+instance IsStatement (InfoExpression (BitWidth, Maybe DeepSymType)) (Pil.AddressableStatement (InfoExpression (BitWidth, Maybe DeepSymType))) where
+  getStatement = view #statement
+  mkDefStmt = Pil.Stmt (intToAddr 0x0)
+  mkStmtLike aStmt statement' = aStmt & #statement .~ statement'
+  asStmt = over #statement $ fmap asExpression
 
 -- | This is a lot of trouble, but it's all so we can use the
 -- same stuff to match regular Pil Expressions and ones with types
@@ -294,6 +358,7 @@ class Eq expr => IsExpression expr where
   mkExprLike :: expr -> Pil.ExprOp expr -> expr
   mkExprWithSize :: Pil.Size Pil.Expression -> Pil.ExprOp expr -> expr
   liftVar :: Pil.PilVar -> expr
+  getType :: expr -> Maybe DeepSymType
 
 instance IsExpression Pil.Expression where
   getExprOp = view #op
@@ -304,7 +369,17 @@ instance IsExpression Pil.Expression where
   liftVar pv = Pil.Expression sz . Pil.VAR . Pil.VarOp $ pv
     where
       sz = coerce $ pv ^. #size
+  getType = const Nothing
 
+instance IsExpression (InfoExpression (BitWidth, Maybe DeepSymType)) where
+  getExprOp = view #op
+  getExprSize = fromIntegral . toBytes . view (#info . _1)
+  asExpression x = Pil.Expression (getExprSize x) (asExpression <$> x ^. #op)
+  mkExprLike x op = x & #op .~ op
+  mkExprWithSize sz = Ch.InfoExpression (toBits . fromIntegral $ sz, Nothing)
+  liftVar pv = mkExprWithSize (fromIntegral $ pv ^. #size) (Pil.VAR . Pil.VarOp $ pv)
+  getType x = x ^. #info . _2
+  
 type StmtSolver stmt m = [stmt] -> m SolverResult
 
 dummySolver :: Applicative m => StmtSolver stmt m
@@ -320,6 +395,12 @@ data MatcherState expr stmt = MatcherState
   { remaining :: [stmt]
   , boundSyms :: HashMap (Symbol Pil.Expression) expr
   , boundCtxSyms :: HashMap (Symbol Pil.Ctx) Pil.Ctx
+
+  -- TODO: ensure that isomorphic DeepSymTypes are `==`
+  -- The problem is the DSVar syms might not be the same,
+  -- even if the recursive structure is the same
+  , boundTypes :: HashMap (Symbol DeepSymType) DeepSymType
+  
     -- The successfully parsed stmts, stored in reverse order
     -- possibly interleaved with user-made Assertions
   , parsedStmtsWithAssertions :: [stmt]
@@ -346,11 +427,11 @@ getCallableWMIs prim fn = do
   return $ getCallableWMIs_ prim fn cprimMap
 
 emptyMatcherState :: MatcherState expr stmt
-emptyMatcherState = MatcherState [] HashMap.empty HashMap.empty [] Nothing HashMap.empty HashMap.empty
+emptyMatcherState = MatcherState [] HashMap.empty HashMap.empty HashMap.empty [] Nothing HashMap.empty HashMap.empty
 
 dropStmt :: MatcherT expr stmt m ()
 dropStmt = #remaining %= drop 1
-  
+
 newtype MatcherT expr stmt m a = MatcherT {
   _runMatcherT :: StateT (MatcherState expr stmt) (ReaderT (MatcherCtx stmt m) (LogicT m)) a
   }
