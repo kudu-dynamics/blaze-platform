@@ -6,7 +6,7 @@ module Flint.Query
 import Flint.Prelude
 
 import qualified Flint.Analysis as FA
-import Flint.Analysis.Path.Matcher (StmtPattern, StmtSolver)
+import Flint.Analysis.Path.Matcher (StmtPattern, StmtSolver, IsStatement, IsExpression, HasAddress, TypedStmt)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
@@ -45,6 +45,7 @@ import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 
 import Data.List (nub)
+import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.List.NonEmpty as NE
@@ -891,10 +892,15 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
 --         stmtsWithAssertions
 
 checkPathForPrim_
-  :: Monad m
+  :: forall m expr stmt.
+     ( Monad m
+     , HasAddress stmt
+     , IsStatement expr stmt
+     , IsExpression expr
+     )
   => Word64
-  -> M.MatcherCtx Pil.Stmt m
-  -> M.MatcherState Pil.Expression Pil.Stmt
+  -> M.MatcherCtx stmt m
+  -> M.MatcherState expr stmt
   -> Function
   -> CodeSummary
   -> Prim
@@ -902,16 +908,22 @@ checkPathForPrim_
 checkPathForPrim_ maxResultsPerPath mctx mstate func codeSummary prim = do
   mapMaybe f <$> M.match_ (fromIntegral maxResultsPerPath) mctx mstate (prim ^. #stmtPattern)
     where
-      f :: (M.MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])
+      f :: (M.MatcherState expr stmt, [stmt])
         -> Maybe CallableWMI
       f (ms, stmtsWithAssertions) =
         either (const Nothing) Just $ mkCallableWMI
           (Func.Internal func)
           codeSummary
           (prim ^. #primType)
-          (ms ^. #boundSyms)
+          boundSyms'
           (ms ^. #locations)
-          stmtsWithAssertions
+          (M.asStmts stmtsWithAssertions)
+        where
+          boundSyms' = HashMap.fromList
+            . fmap (bimap coerce M.asExpression)
+            . HashMap.toList
+            $ ms ^. #boundSyms
+
 
 checkPathForPrim
   :: StmtSolver Pil.Stmt IO
@@ -1063,11 +1075,15 @@ onionSampleBasedOnFuncSize multiplier store func = CfgStore.getFuncCfgInfo store
 -- | Looks for prims with the current set of CallablePrims
 -- and if it matches one, returns it
 matchAndReturnCallablePrim
-  :: Word64
-  -> StmtSolver Pil.Stmt IO
+  :: ( IsStatement expr stmt
+     , IsExpression expr
+     , HasAddress stmt
+     )
+  => Word64
+  -> StmtSolver stmt IO
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> Function
-  -> PathPrep Pil.Stmt
+  -> PathPrep stmt
   -> Prim
   -> IO [CallableWMI]
 matchAndReturnCallablePrim maxResultsPerPath solver callablePrimSnapshot func pprep prim = do
@@ -1089,11 +1105,11 @@ matchAndReturnCallablePrim maxResultsPerPath solver callablePrimSnapshot func pp
 {-# SCC onionCheckPathForPrim #-}
 onionCheckPathForPrim
   :: Word64
-  -> StmtSolver Pil.Stmt IO
+  -> StmtSolver TypedStmt IO
   -> CfgStore
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> Function
-  -> PathPrep Pil.Stmt
+  -> PathPrep TypedStmt
   -> Prim
   -> IO ()
 onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func pprep prim = do
@@ -1107,11 +1123,17 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
         && func ^. #name == debugFuncName
         && prim ^. #primType . #name == debugPrimName
   when debugMode $ do
-    putText $ prim ^. #primType . #name
-    putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
-    -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
-    putText . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
-    pprint $ take 2 (drop (length (pprep ^. #stmts) - 2) $ pprep ^. #stmts)
+    -- m <- fmap M.asOldCallableWMIsMap . CM.getSnapshot $ store ^. #callablePrims
+    -- info . cs . pshow . HashMap.lookup PrimSpec.freeHeapSpec $ m
+    -- info . cs . pshow $ m
+    -- putText $ prim ^. #primType . #name
+    info $ Text.concat
+      [ -- ("\n---\n" <>) . pretty' . P.PStmts . M.asStmts $ pprep ^. #untouchedStmts
+       -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
+       (<> "\n\n") . ("\n+++\n" <>) . pretty' . P.PStmts . M.asStmts $ pprep ^. #stmts
+      , (<> "\n\n||\n") . cs . pshow $ take 2 (drop (length (pprep ^. #stmts) - 2) $ pprep ^. #stmts)
+      ]
+    -- info . cs . pshow $ take 2 (drop (length (pprep ^. #stmts) - 2) . M.asStmts $ pprep ^. #stmts)
 
   -- when debugMode $ do
   --   checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
@@ -1175,7 +1197,7 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
 -- Adds instances found of CallableWMIs back into CfgStore
 onionCheckFunc
   :: Word64
-  -> StmtSolver Pil.Stmt IO
+  -> StmtSolver TypedStmt IO
   -> CfgStore
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
   -> [Prim]
@@ -1192,7 +1214,7 @@ onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims func = 
 -- Adds instances found of CallableWMIs back into CfgStore
 onionSinglePass
   :: Word64
-  -> StmtSolver Pil.Stmt IO
+  -> StmtSolver TypedStmt IO
   -> CfgStore
   -> [Prim]
   -> [Function]
@@ -1219,11 +1241,18 @@ onionSinglePass maxResultsPerPath solver store prims funcs = do
 --   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
 --   mapM_ (onionCheckFunc solver store cprimsSnapshot prims) funcs
 
+
 chooseSolver
-  :: Bool -- actually solve?
-  -> StmtSolver Pil.Stmt IO
-chooseSolver True = solveStmtsWithZ3 Solver.AbortOnError
+  :: IsStatement expr stmt
+  => Bool -- actually solve?
+  -> StmtSolver stmt IO
+chooseSolver True = solveStmtsWithZ3 Solver.AbortOnError . M.asStmts
 chooseSolver False = const . return $ Solver.Sat HashMap.empty
+-- Tried to make one that uses the types in the TypedStmt, but we're missing
+-- a hashmap of PilVar -> DeepSymType.
+-- chooseSolver True = either (const $ pure Solver.Unk) (return . view #result)
+--   <=< solveTypedStmtsWith z3 Solver.IgnoreErrors . zip [0..]
+
 
 onionFlow
   :: Word64
