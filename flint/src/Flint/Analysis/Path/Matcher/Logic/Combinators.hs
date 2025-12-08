@@ -80,3 +80,23 @@ orr = foldr (<|||>) empty
 choose :: (Foldable t, MonadLogic m) => t a -> m a
 choose = foldr ((<|||>) . pure) empty
 
+-- | Chooses a random element out and returns the rest of the unchosen elements
+chooseAndReduce :: (MonadLogic m) => [a] -> m (a, [a])
+chooseAndReduce = go []
+  where
+    go _ [] = empty
+    go prev (x:xs) = pure (x, prev <> xs) <|||> go (x:prev) xs
+
+-- | Sequentially matches parsers from a list of parsers
+-- with a list of things to parse. If all parsers aren't used,
+-- this fails.
+parseThroughList
+  :: MonadLogic m
+  => [stmt -> m a]
+  -> [stmt] -- remaining
+  -> m ([a], [stmt])
+parseThroughList [] xs = return ([], xs)
+parseThroughList _parsers [] = bad
+parseThroughList (p:ps) xs = do
+  (a, xs') <- parseUntil p xs
+  over _1 (a:) <$> parseThroughList ps xs'

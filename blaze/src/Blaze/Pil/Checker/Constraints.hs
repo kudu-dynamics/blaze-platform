@@ -167,6 +167,7 @@ addCallOpConstraints x = do
         [1..(length $ x ^. #args)]
   argFuncSyms <- traverse lookupFuncSym argFuncVars
   let callArgSyms = view (#info . #sym) <$> x ^. #args
+  mapM_ addExprTypeConstraints $ x ^. #args
   -- Set symbols for call args and function params to be equal
   zipWithM_ equals argFuncSyms callArgSyms
   return callTgt
@@ -253,8 +254,6 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     case mxs of
       Just xs -> addConstraints xs
       Nothing -> addConstraints [(r, CSType $ TBitVector (Just sz))]
-
-    addChildConstraints
 
   Pil.CEIL x -> do
     add $ floatUnOp x
@@ -856,12 +855,10 @@ addStatementTypeConstraints (Pil.DefMemPhi x) = traverse toSymExpression $ Pil.D
 addStatementTypeConstraints (Pil.Call x) = do
   callOp <- traverse toSymExpression x
   void $ addCallOpConstraints callOp
-  traverse_ addExprTypeConstraints callOp
   return $ Pil.Call callOp
 addStatementTypeConstraints (Pil.TailCall x) = do
   tailCallOp <- traverse toSymExpression x
   callTgt <- addCallOpConstraints tailCallOp
-  traverse_ addExprTypeConstraints tailCallOp
   case x ^. #ret of
     Nothing -> return ()
     Just (retVar, _retSize) -> do
@@ -885,7 +882,10 @@ addStatementTypeConstraints (Pil.EnterContext x) = traverse toSymExpression $ Pi
 addStatementTypeConstraints (Pil.ExitContext x) = traverse toSymExpression $ Pil.ExitContext x
 addStatementTypeConstraints (Pil.Jump x) = traverse toSymExpression $ Pil.Jump x
 addStatementTypeConstraints (Pil.JumpTo x) = traverse toSymExpression $ Pil.JumpTo x
-addStatementTypeConstraints (Pil.Ret x) = traverse toSymExpression $ Pil.Ret x
+addStatementTypeConstraints (Pil.Ret (Pil.RetOp x)) = do
+  symExpr <- toSymExpression x
+  addExprTypeConstraints symExpr
+  return . Pil.Ret . Pil.RetOp $ symExpr
 addStatementTypeConstraints Pil.NoRet = return Pil.NoRet
 addStatementTypeConstraints Pil.Exit = return Pil.Exit
 

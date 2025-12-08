@@ -12,7 +12,7 @@ import qualified Flint.Analysis.Path.Matcher.Primitives.Library.StdLib as StdLib
 import Flint.Cfg.Path (samplesFromQuery)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
-import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep, PathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Types.Cfg.Store (CfgStore)
@@ -89,7 +89,7 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
                   }
             [path] <- samplesFromQuery (tctx ^. #dirtyStore) func q
             let initialCallablePrims = getInitialWMIs stdLibPrims funcs
-                pprep = mkPathPrep [] path
+                pprep = mkPathPrep [] path :: PathPrep TypedStmt
 
             r <- matchAndReturnCallablePrim 1 (chooseSolver False) initialCallablePrims func pprep PrimLib.controlledFormatStringPrim
             return r

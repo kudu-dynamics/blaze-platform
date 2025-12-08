@@ -15,13 +15,28 @@ spec = describe "Flint.Analysis.Path.Matcher.Logic.Combinators" $ do
       defaultMatcherCtx = MatcherCtx dummySolver
       maxResults = 20 -- should always be less for these tests
       observeAll :: Matcher a -> [a]
-      observeAll = fmap fst . runIdentity . observeManyMatcherT defaultMatcherCtx defaultMatcherState maxResults
+      observeAll = fmap fst
+        . runIdentity
+        . observeManyMatcherT defaultMatcherCtx defaultMatcherState maxResults
 
       isEven :: Int -> Bool
       isEven = even
 
       getEven :: Int -> Maybe Int
       getEven n = if even n then Just n else Nothing
+
+  context "choose" $ do
+    it "should choose one of each element in a list" $ do
+      let xs :: [Int]
+          xs = [1, 2, 3]
+      sort (observeAll (choose xs)) `shouldBe` xs
+
+  context "chooseAndReduce" $ do
+    it "should choose one of each element in and return remaining list" $ do
+      let xs :: [Int]
+          xs = [1, 2, 3]
+          expected = [(1, [2, 3]), (2, [1, 3]), (3, [1, 2])]
+      sort (over _2 sort <$> observeAll (chooseAndReduce xs)) `shouldBe` expected
 
   context "parseUntil" $ do
     it "should return no results if there is no match" $ do
@@ -188,3 +203,37 @@ spec = describe "Flint.Analysis.Path.Matcher.Logic.Combinators" $ do
                      , (3, [4, 5])
                      ]
       sort (observeAll $ anyOne parsers stmts) `shouldBe` sort expected 
+
+  context "parseThroughList" $ do
+    it "should return no results if pats don't match" $ do
+      let stmts :: [Int]
+          stmts = [1, 2]
+          pats = [bool bad good . (== 0)]
+          expected = []
+      observeAll (parseThroughList pats stmts) `shouldBe` expected
+
+    it "should return empty results and all stmts if parser list empty" $ do
+      let stmts :: [Int]
+          stmts = [1, 2]
+          pats = [] :: [Int -> MatcherT () Int Identity Bool]
+          expected = [([], stmts)]
+      observeAll (parseThroughList pats stmts) `shouldBe` expected
+
+    it "should return single result when single thing in list matches" $ do
+      let stmts :: [Int]
+          stmts = [0, 1, 2, 3, 4, 5]
+          pats = [ bool bad (return ("hey" :: Text)) . (== 1)
+                 , bool bad (return ("there" :: Text)) . (== 3)]
+          expected = [(["hey", "there"], [4, 5])]
+      observeAll (parseThroughList pats stmts) `shouldBe` expected 
+
+    it "should return multiple results that match" $ do
+      let stmts :: [Int]
+          stmts = [0, 1, 2, 3, 4, 5]
+          pats = [ bool bad (return ("hey" :: Text)) . (== 1)
+                 , \n -> bool bad (return $ show n) $ isEven n
+                 ]
+          expected = [ (["hey", "2"], [3, 4, 5])
+                     , (["hey", "4"], [5])
+                     ]
+      observeAll (parseThroughList pats stmts) `shouldBe` expected 

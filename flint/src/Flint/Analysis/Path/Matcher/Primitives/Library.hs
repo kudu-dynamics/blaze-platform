@@ -26,7 +26,7 @@ allPrims =
   , writeToKernelGlobalPrim
   , writeWhatWherePrim
   -- , escapedDataFromLock
-  -- , writePrim
+  , writePrim
   , returnsFreedPointerPrim
   ]
 
@@ -181,14 +181,14 @@ returnsFreedPointerPrim = Prim
     [ Star
     , orr
       [ Location "free" . Primitive freeHeapSpec $ HashMap.fromList
+        -- [ ("ptr", Bind "ptr" Wild) ]
         [ ("ptr", Bind "ptr" Wild) ]
       , Location "free" . Primitive returnsFreedPointerSpec $ HashMap.fromList
         [ ("ptr", Bind "ptr" Wild) ]
       ]
     , Star
-      -- Location "free" . Stmt $ Call Nothing (CallFunc (FuncName "free")) [Bind "ptr" Wild]
-    -- TODO: Avoid any resetting of the pointer to something else between free and ret
-    , Location "return" . Stmt . M.Ret . Contains $ Bind "ptr" Wild
+    -- TODO: Avoid any resetting of the pointer to something else between free and return
+    , Location "return" . Stmt . M.Ret $ Bind "ptr" Wild
     ]
   }
 
