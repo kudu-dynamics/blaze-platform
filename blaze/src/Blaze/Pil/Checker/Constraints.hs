@@ -298,6 +298,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add [(r, CSType $ TBitVector jSz)]
   Pil.CONST_PTR _ -> do
     add =<< mkPointerConstraint
+  Pil.GLOBAL_PTR _ -> do
+    add =<< mkPointerConstraint
 
   -- TODO: Should the length be Text.length + 1, to account for \0 ?
   Pil.ConstStr x -> do

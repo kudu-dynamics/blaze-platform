@@ -39,19 +39,9 @@ wrapVar :: PilVar -> Pil.Expression
 wrapVar pv = Pil.Expression (coerce $ pv ^. #size) (Pil.VAR . Pil.VarOp $ pv)
 
 -- | Returns Arg with index if var is param.
--- otherwise returns Global if var is in inputs set.
 -- otherwise return Nothing.
-getFuncVarFromPilVar
-  :: [FuncParamInfo]
-  -> HashSet PilVar
-  -> PilVar
-  -> Maybe FuncVar
-getFuncVarFromPilVar params _inputs pv = asParam <|> asGlobalVar <|> Nothing
-  where
-    asParam = Arg <$> getParamIndex params pv
-    -- TODO: the "inputs" seems to include more than globals
-    asGlobalVar = Nothing
-    -- asGlobalVar = bool Nothing (Just . Global $ wrapVar pv) $ HashSet.member pv inputs
+getFuncVarFromPilVar :: [FuncParamInfo] -> PilVar -> Maybe FuncVar
+getFuncVarFromPilVar params pv = Arg <$> getParamIndex params pv
   
 -- | If the expr is an arg, ret expr, or a global, convert to a FuncVar
 getFuncVar
@@ -59,12 +49,9 @@ getFuncVar
   -> CodeSummary
   -> Pil.Expression
   -> Maybe FuncVar
-getFuncVar params codeSum _expr@(Pil.Expression _sz exprOp) = case exprOp of
-  (Pil.VAR (Pil.VarOp pv)) -> getFuncVarFromPilVar params (codeSum ^. #inputVars) pv
-  -- (Pil.LOAD (Pil.LoadOp _)) -> case HashSet.member (LoadExpr expr) (codeSum ^. #inputLoads) of
-  --   True -> Just . Global $ expr
-  --   False -> Nothing
-  -- TODO: do something about rets and output stores. Maybe use Effects from CodeSummary
+getFuncVar params _codeSum expr@(Pil.Expression _ exprOp) = case exprOp of
+  (Pil.VAR (Pil.VarOp pv)) -> getFuncVarFromPilVar params pv
+  (Pil.GLOBAL_PTR _) -> Just $ Global expr
   _ -> Nothing
 
 -- | This converts any args from func params, globals, and the return expr (FuncVars)

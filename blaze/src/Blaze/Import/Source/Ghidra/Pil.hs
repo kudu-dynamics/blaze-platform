@@ -310,6 +310,10 @@ internVarnode s (Just pcAddress) = do
       #varnodeVersions . at s . _Just %= HashMap.insert pcAddress newVer
       pure (Just newVer)
 
+-- | Creates a Global Ptr for RAM addresses
+mkGlobalPtr :: Int64 -> Maybe Symbol -> Bytes -> Expression
+mkGlobalPtr addr mSym ptrSize = C.globalPtr (fromIntegral addr) mSym (fromIntegral ptrSize)
+
 -- | Converts a Ghidra VarNode to either a 'PilVar' or 'Expression' that
 -- represents the __abstract location__ that the VarNode specifies. If a
 -- 'PilVar' is returned, then it can be used as the left-hand-side of a 'Def';
@@ -340,7 +344,7 @@ varNodeToReference v = do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
       let baseName = fromMaybe ("unique_" <> showHex offset) specialName
       pure . Left . pv version baseName False $ Pil.Code offset
-    VRam n ptrSize -> pure . Right $ C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrSize)
+    VRam n ptrSize -> pure $ Right $ mkGlobalPtr n (getSpecialName v) ptrSize
     VExtern n ptrSize -> pure . Right $ C.externPtr (intToAddr 0) (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrSize)
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
     VOther t off
@@ -387,7 +391,7 @@ varNodeToValueExpr v = do
     VUnique{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
-    VRam n ptrWidth -> pure $ C.load (C.constPtr (fromIntegral n :: Word64) (fromIntegral ptrWidth)) operSize
+    VRam n ptrWidth -> pure $ C.load (mkGlobalPtr n (getSpecialName v) ptrWidth) operSize
     VExtern n ptrWidth -> pure $ C.load (C.externPtr (intToAddr 0) (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrWidth)) operSize
     VImmediate n -> pure $ C.const n operSize
     VOther _ _ -> do
@@ -553,7 +557,9 @@ convertPcodeOpToPilStatement = \case
         mkDef out . Pil.STACK_LOCAL_ADDR . Pil.StackLocalAddrOp . Pil.StackOffset ctx . ByteOffset
     else
       case getVarNodeType base of
-        VImmediate 0 -> mkCopy out offset -- we know we are dealing with a global variable
+        VImmediate 0 -> case getVarNodeType offset of
+          VImmediate addr -> mkDef out $ mkGlobalPtr addr (getSpecialName offset) (getSize out) ^. #op
+          _ -> mkCopy out offset
         _ -> case getVarNodeType offset of
                VImmediate n ->
                  mkDef out . Pil.FIELD_ADDR $ Pil.FieldAddrOp base' (fromIntegral n)

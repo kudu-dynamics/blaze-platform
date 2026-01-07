@@ -7,7 +7,7 @@ import Flint.Types.Symbol (Symbol)
 
 import qualified Blaze.Pil.Display as Disp
 import Blaze.Pil.Construct (ExprConstructor(mkExpr))
-import Blaze.Pretty (tt, tokenize)
+import Blaze.Pretty (tt, tokenize, showHex)
 import qualified Blaze.Pretty as Pretty
 import Blaze.Types.Function (ExternFunction, Func)
 import Blaze.Types.Pil (Size(Size))
@@ -29,13 +29,16 @@ data PrimSpec = PrimSpec
 data FuncVar
   = Arg Word64
   | Ret
-  -- | Global Pil.Expression -- expr is address of store or load
+  | Global Pil.Expression -- expr is address of store or load
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 instance Pretty.Tokenizable FuncVar where
   -- TODO: MAYBE WE SHOULDN'T 1-index this on the printout and 0-index when using huh??
   tokenize (Arg n) = return [tt $ "ARG_" <> show (n + 1)]
-  -- tokenize (Global x) = tt "GLOBAL(" <++> tokenize x <++> tt ")"
+  tokenize (Global (Pil.Expression _ (Pil.GLOBAL_PTR op))) =
+    return [tt $ "(GLOBAL " <> showHex addr <> maybe "" (" " <>) (op ^. #symbol) <> ")"]
+    where addr = fromIntegral (op ^. #constant) :: Word64
+  tokenize (Global x) = tt "(GLOBAL " Pretty.<++> tokenize x Pretty.<++> tt ")"
   tokenize Ret = return [tt "RET"]
 
 data FuncVarExprSize

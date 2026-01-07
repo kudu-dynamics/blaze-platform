@@ -265,6 +265,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.CONST_BOOL op) -> "constBool" <-> show (op ^. #constant) <-> disp size
   (Pil.CONST_FLOAT op) -> dispConst "float" op size
   (Pil.CONST_PTR op) -> dispConst "constPtr" op size
+  (Pil.GLOBAL_PTR op) -> dispConst "globalPtr" op size
   (Pil.DIVS op) -> dispBinop "divs" op size
   (Pil.DIVS_DP op) -> dispBinop "divsDP" op size
   (Pil.DIVU op) -> dispBinop "divu" op size

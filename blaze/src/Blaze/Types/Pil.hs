@@ -30,6 +30,7 @@ data ExprOp expr
     | CMP_ULT (CmpUltOp expr)
     | CONST (ConstOp expr)
     | CONST_PTR (ConstPtrOp expr)
+    | GLOBAL_PTR (GlobalPtrOp expr)
     | CONST_FLOAT (ConstFloatOp expr)
     | DIVS (DivsOp expr)
     | DIVS_DP (DivsDpOp expr)

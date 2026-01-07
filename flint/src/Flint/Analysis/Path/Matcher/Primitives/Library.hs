@@ -35,12 +35,9 @@ allPrims =
 isArg :: ExprPattern
 isArg = Param
 
--- | This is supposed to restrict expr to func args and globals, but I don't know how
--- to do that yet, really this just accepts everything for now (b/c the Wild)
+-- Matches function input parameters and external global addresses
 isInput :: ExprPattern
-isInput = Param
-  -- TODO: somehow identify global ptr so we don't get confused with offsets
-  .|| Immediate
+isInput= Param .|| GlobalAddr
 
 -- | This indicates the expr is tainted by function input (args/globals)
 -- TODO: maybe we can use CodeSummary when matching
@@ -217,8 +214,7 @@ writeToKernelGlobalPrim = Prim
       ]
   }
   where
-    -- TODO: pass in global from CodeSummary
-    isGlobal = Contains Immediate
+    isGlobal = Contains GlobalAddr
 
 ---------------
 
