@@ -54,6 +54,7 @@ void use_after_free2(){
 }
 
 int new_user_id = 0;
+char global_kernel_buffer[64];
 
 void int_overflow_func() { 
   new_user_id++;
@@ -83,7 +84,7 @@ void unbounded_copy_from_user1(void * src, unsigned long size) {
     printf("Yah!");
   }
 
-  int x = _copy_from_user(NULL, src, size);
+  int x = _copy_from_user(global_kernel_buffer, src, size);
 
 }
 
@@ -93,8 +94,13 @@ void unbounded_copy_from_user2(void * src, unsigned long size) {
     return;
   }
 
-  int x = _copy_from_user(NULL, src, size);
+  int x = _copy_from_user(global_kernel_buffer, src, size);
 
+}
+
+void copy_to_const_addr(void * src, unsigned long size) {
+  // this const should not be flagged as a global variable
+  int x = _copy_from_user((void *)0xDEADBEEF, src, size);
 }
 
 void main() {
@@ -122,6 +128,7 @@ void main() {
   void * t = malloc(64);
   unbounded_copy_from_user1(t, 10);  
   unbounded_copy_from_user2(t, 10);
+  copy_to_const_addr(t, 10);
 
   return;
 }
