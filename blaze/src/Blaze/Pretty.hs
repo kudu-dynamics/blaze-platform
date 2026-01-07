@@ -520,6 +520,7 @@ tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.CMP_ULT op) -> tokenizeBinopInfix msym "u<" op
   (Pil.CONST op) -> pure [setSym msym $ integerToken (op ^. #constant)]
   (Pil.CONST_PTR op) -> pure [setSym msym . addressToken Nothing $ intToAddr (op ^. #constant)]
+  (Pil.GLOBAL_PTR op) -> pure [setSym msym . addressToken (op ^. #symbol) $ intToAddr (op ^. #constant)]
   (Pil.DIVS op) -> tokenizeBinopInfix msym "/" op
   (Pil.DIVS_DP op) -> tokenizeBinop msym "divsDP" op
   (Pil.DIVU op) -> tokenizeBinopInfix msym "u/" op

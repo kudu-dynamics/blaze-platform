@@ -105,6 +105,9 @@ unit attrs = mkExpr attrs Pil.UNIT
 constPtr :: ExprConstructor attrs expr => Word64 -> attrs -> expr
 constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr :: Int64)))
 
+globalPtr :: ExprConstructor attrs expr => Word64 -> Maybe Symbol -> attrs -> expr
+globalPtr addr sym size = mkExpr size (Pil.GLOBAL_PTR (Pil.GlobalPtrOp (fromIntegral addr :: Int64) sym))
+
 externPtr :: ExprConstructor attrs expr => Address -> ByteOffset -> Maybe Symbol -> attrs -> expr
 externPtr addr off sym size = mkExpr size (Pil.ExternPtr (Pil.ExternPtrOp addr off sym))
 

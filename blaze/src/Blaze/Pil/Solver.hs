@@ -685,6 +685,9 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.CONST_PTR x ->
     return . svInteger (KBounded False $ fromIntegral sz)
     . fromIntegral $ x ^. #constant
+  Pil.GLOBAL_PTR x ->
+    return . svInteger (KBounded False $ fromIntegral sz)
+    . fromIntegral $ x ^. #constant
 
   Pil.ConstStr x -> return . unSBV $ SBV.literal (cs $ x ^. #value :: String)
   Pil.ConstFuncPtr x -> return . svInteger (KBounded False $ fromIntegral sz)

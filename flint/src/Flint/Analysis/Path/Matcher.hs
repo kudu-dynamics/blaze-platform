@@ -278,6 +278,9 @@ matchExpr pat expr = case pat of
   M.Param -> case getExprOp expr of
     Pil.VAR (Pil.VarOp pv) -> insist $ pv ^. #isParam
     _ -> bad
+  M.GlobalAddr -> case getExprOp expr of
+    Pil.GLOBAL_PTR _ -> good
+    _ -> bad
   M.Immediate -> maybe bad (const good) . evalPilArithmeticExpr $ asExpression expr
   M.Contains xpat -> do
     matchExpr xpat expr
@@ -804,14 +807,18 @@ resolveFuncVar argExprs mRetExpr = \case
       Prim.SizeOf fv -> case fv of
         Prim.Ret -> getExprSize <$> mRetExpr
         Prim.Arg n -> getExprSize <$> argExprs ^? ix (fromIntegral n)
+        Prim.Global _ -> Nothing
     fmap (mkExprWithSize sz')
       . traverse (resolveFuncVar argExprs mRetExpr)
       $ op
           
   (Prim.FuncVar fv) -> case fv of
     Prim.Ret -> mRetExpr
-    -- (Prim.Global x) -> Just x -- TODO: probably remove this "Global" constructor
+    (Prim.Global x) -> Just $ liftExpression x
     (Prim.Arg n) -> argExprs ^? ix (fromIntegral n)
+  where
+    liftExpression :: IsExpression expr => Pil.Expression -> expr
+    liftExpression (Pil.Expression sz op) = mkExprWithSize sz (fmap liftExpression op)
 
 mkStmtPatternFromCallableWMI
   :: CallableWMI
