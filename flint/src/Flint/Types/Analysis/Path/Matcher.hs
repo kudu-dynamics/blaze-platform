@@ -150,6 +150,9 @@ data ExprPattern
   -- | Matches on vars that are parameters to the func
   | Param
 
+  -- | Matches global addresses from data sections (.data and .bss)
+  | GlobalAddr
+
   -- | Matches if its an immediate, like a const int, ptr, float, etc.
   | Immediate
 

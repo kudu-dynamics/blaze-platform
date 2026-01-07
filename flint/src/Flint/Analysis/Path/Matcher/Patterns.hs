@@ -201,11 +201,9 @@ stackSetToExecutable' = BugMatch
 -- patterns from dirty test binary
 ---------------------------------
 
--- | In Binja, I've seen a global be a Const or a ConstPtr.
--- Since this is just matching on an "immediate" the context will be important,
--- like it'll need to be in a place that expects a pointer.
+-- | Matches the global address from data sections (.data, .bss)
 isGlobal :: ExprPattern
-isGlobal = Immediate
+isGlobal = GlobalAddr
 
 isArg :: ExprPattern
 isArg = Var "arg" .|| Var "param"

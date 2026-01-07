@@ -34,17 +34,22 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
           
       PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
 
-    -- it "should properly convert global to FuncVar in Expression" $ do
-    --   let params = fooParams
-    --       codeSum = fooCodeSummary2
-    --       globalVar = var "global1" 8
-    --       expr = load (add globalVar (const 4 8) 8) 8
-    --       expected =
-    --         ( load (add (FuncVar $ Prim.Global globalVar) (const 4 8) 8) 8
-    --         , HashSet.fromList [Prim.Global globalVar]
-    --         )
+  context "getFuncVar" $ do
+    it "should recognize GLOBAL_PTR as a global FuncVar" $ do
+      let params = fooParams
+          codeSum = fooCodeSummary1
+          globalPtrExpr = globalPtr 0x4035c0 (Just "(GLOBAL 0x4035c0)") 8
+          result = Prim.getFuncVar params codeSum globalPtrExpr
 
-    --   PShow (toFuncVarExpr params codeSum expr) `shouldBe` PShow expected
+      PShow result `shouldBe` PShow (Just (Prim.Global globalPtrExpr))
+
+    it "should not recognize CONST_PTR as a global FuncVar" $ do
+      let params = fooParams
+          codeSum = fooCodeSummary1
+          constPtrExpr = constPtr 0x4035c0 8
+          result = Prim.getFuncVar params codeSum constPtrExpr
+
+      PShow result `shouldBe` PShow (Nothing :: Maybe Prim.FuncVar)
 
   context "mkCallableWMI" $ do
     it "should create callable primitive with single nested arg and no constraints" $ do

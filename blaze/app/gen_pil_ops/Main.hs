@@ -38,6 +38,7 @@ ops = HashMap.fromList
   , ("Const", constInt64)
   , ("ConstPtr", constInt64)
   , ("ConstFloat", constDouble)
+  , ("GlobalPtr", constInt64)
 
   , ("DivsDp", binOp)
   , ("Divs", binOp)
