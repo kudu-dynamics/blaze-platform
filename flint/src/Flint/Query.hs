@@ -1258,17 +1258,18 @@ onionFlow
   :: Word64
   -> Bool               -- actually use SMT solver?
   -> Word64             -- max times to iterate checking whole binary
+  -> Double             -- path sampling factor
   -> CfgStore
   -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
   -> HashSet Text       -- blacklisted function nanes
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations store stdLibPrims prims blacklist = do
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist = do
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
     debug $ "Getting paths for: " <> show (func ^. #name)
-    paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
+    paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize pathSamplingFactor store func
     debug $ "Got " <> show (length paths) <> " paths."
     let pathPreps = mkPathPrep [] <$> paths
 
