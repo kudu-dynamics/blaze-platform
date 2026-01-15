@@ -16,7 +16,7 @@ import qualified Flint.Types.CachedMap as CM
 
 import Blaze.Import.Binary (getBase)
 import Blaze.Pretty (pretty')
--- import qualified Blaze.Types.Function as Func
+import qualified Blaze.Types.Function as Func
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -37,9 +37,11 @@ data Options = Options
   , outputToFile :: Maybe FilePath
   , doNotUseSolver :: Bool
   , onionDepth :: Word64
+  , pathSamplingFactor :: Double
   , isKernelModule :: Bool
   , analysisDb :: Maybe FilePath
   , verbosity :: VerbosityLevel
+  , filterFuncsFile :: Maybe FilePath
   , blacklistFile :: Maybe FilePath
   , inputFile :: FilePath
   }
@@ -82,6 +84,12 @@ parseOnionDepth = option auto $
   <> metavar "ONION_DEPTH"
   <> help "number of layers to bubble up primitives thru callsites"
 
+parsePathSamplingFactor :: Parser Double
+parsePathSamplingFactor = option auto $
+  long "pathSamplingFactor"
+  <> metavar "PATH_SAMPLING_FACTOR"
+  <> help "adjust sampling multiplier (default 1.0)"
+
 parseIsKernelModule :: Parser Bool
 parseIsKernelModule = switch $
   long "isKernelModule"
@@ -97,6 +105,13 @@ parseDoNotUseSolver = switch $
   long "doNotUseSolver"
   <> help "do not verify if paths are satisfiable"
 
+parseFilterFuncsFile :: Parser FilePath
+parseFilterFuncsFile = strOption $
+  long "filterFuncs"
+  <> short 'f'
+  <> metavar "FILTER_FUNCS_FILE"
+  <> help "file containing function names to include in JSON output"
+
 parseBlacklistFile :: Parser FilePath
 parseBlacklistFile = strOption $
   long "blacklist"
@@ -110,9 +125,11 @@ optionsParser = Options
   <*> optional parseOutputToFile
   <*> (parseDoNotUseSolver <|> pure False)
   <*> (parseOnionDepth <|> pure 3)
+  <*> (parsePathSamplingFactor <|> pure 1.0)
   <*> (parseIsKernelModule <|> pure False)
   <*> optional parseAnalysisDb
   <*> (parseVerbosity <|> pure Info)
+  <*> optional parseFilterFuncsFile
   <*> optional parseBlacklistFile
   <*> parseInputFile
 
@@ -229,9 +246,23 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
 
   -- TODO: make maxResultsPerPath an option
   let maxResultsPerPath = 10 -- max WMIs found per path
-  onionFlow maxResultsPerPath (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) store stdLibPrims prims blacklist
+  onionFlow maxResultsPerPath (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) (opts ^. #pathSamplingFactor) store stdLibPrims prims blacklist
   cprims <- CM.getSnapshot $ store ^. #callablePrims
-  let cprims' = M.asOldCallableWMIsMap cprims
+
+  let loadFilterFuncs fp = HashSet.fromList
+        . filter (not . Text.null)
+        . fmap Text.strip
+        . Text.lines
+        <$> liftIO (TextIO.readFile fp)
+  filterFuncs <- maybe (pure Nothing) (fmap Just . loadFilterFuncs) $ opts ^. #filterFuncsFile
+
+  let filteredCprims = case filterFuncs of
+        Nothing -> cprims
+        Just funcs -> HashMap.filterWithKey
+          (\(_, func) _ -> HashSet.member (func ^. Func._name) funcs)
+          cprims
+
+  let cprims' = M.asOldCallableWMIsMap filteredCprims
   let flintResult = toFlintResult base cprims'
   case opts ^. #outputToFile of
     Nothing -> printResult flintResult
