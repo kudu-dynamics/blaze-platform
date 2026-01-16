@@ -46,7 +46,6 @@ data FuncVarExprSize
   | SizeOf FuncVar  -- looks up symbol to get size of expr
   deriving (Eq, Ord, Show, Hashable, Generic)
 
-
 -- | This is like a BoundExpr, except it can refer to FuncVars
 data FuncVarExpr
   = FuncVar FuncVar

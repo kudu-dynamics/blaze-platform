@@ -1117,8 +1117,8 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
   -- | Because so many things can go wrong with patterns, this little section allows
   -- you to choose a func and primitive to print out debug info for.
   let debuggingOn = False
-      debugFuncName = "helperBad"
-      debugPrimName = "ReturnsFreedPointer"
+      debugFuncName = "menu"
+      debugPrimName = "ControlledIndirectCall"
       debugMode = debuggingOn
         && func ^. #name == debugFuncName
         && prim ^. #primType . #name == debugPrimName
@@ -1128,10 +1128,10 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
     -- info . cs . pshow $ m
     -- putText $ prim ^. #primType . #name
     info $ Text.concat
-      [ -- ("\n---\n" <>) . pretty' . P.PStmts . M.asStmts $ pprep ^. #untouchedStmts
+      [ ("\n---\n" <>) . pretty' . P.PStmts . M.asStmts $ pprep ^. #untouchedStmts
        -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
-       (<> "\n\n") . ("\n+++\n" <>) . pretty' . P.PStmts . M.asStmts $ pprep ^. #stmts
-      , (<> "\n\n||\n") . cs . pshow $ take 2 (drop (length (pprep ^. #stmts) - 2) $ pprep ^. #stmts)
+      , (<> "\n\n") . ("\n+++\n" <>) . pretty' . P.PStmts . M.asStmts $ pprep ^. #stmts
+      -- , (<> "\n\n||\n") . cs . pshow $ take 2 (drop (length (pprep ^. #stmts) - 2) $ pprep ^. #stmts)
       ]
     -- info . cs . pshow $ take 2 (drop (length (pprep ^. #stmts) - 2) . M.asStmts $ pprep ^. #stmts)
 
