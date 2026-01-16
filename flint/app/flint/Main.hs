@@ -4,6 +4,7 @@ module Main where
 
 import Flint.Prelude
 
+import Flint.SMTish (toFlintSMTishResult)
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.Analysis.Path.Matcher as M
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
@@ -43,6 +44,7 @@ data Options = Options
   , verbosity :: VerbosityLevel
   , filterFuncsFile :: Maybe FilePath
   , blacklistFile :: Maybe FilePath
+  , outputSMTish :: Bool
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -119,6 +121,11 @@ parseBlacklistFile = strOption $
   <> metavar "BLACKLIST_FILE"
   <> help "file containing functions names to skip during analysis"
 
+parseOutputSMTish :: Parser Bool
+parseOutputSMTish = switch $
+  long "outputSMTish"
+  <> help "output SMT-like syntax instead of PIL"
+
 optionsParser :: Parser Options
 optionsParser = Options
   <$> optional parseBackend
@@ -131,6 +138,7 @@ optionsParser = Options
   <*> (parseVerbosity <|> pure Info)
   <*> optional parseFilterFuncsFile
   <*> optional parseBlacklistFile
+  <*> (parseOutputSMTish <|> pure False)
   <*> parseInputFile
 
 main :: IO ()
@@ -211,13 +219,13 @@ printCallablePrimsJSON (primtype, cprims) = do
              )
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 
-resultToJSON :: FlintResult -> Text
+resultToJSON :: ToJSON a => a -> Text
 resultToJSON = Text.pack . unpack . encodePretty . toJSON
 
-printResult :: FlintResult -> IO ()
+printResult :: ToJSON a => a -> IO ()
 printResult = sequentialPutText . resultToJSON
 
-writeResult :: FilePath -> FlintResult -> IO ()
+writeResult :: ToJSON a => FilePath -> a -> IO ()
 writeResult fp = TextIO.writeFile fp . resultToJSON
 
 toFlintResult
@@ -263,11 +271,13 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
           cprims
 
   let cprims' = M.asOldCallableWMIsMap filteredCprims
-  let flintResult = toFlintResult base cprims'
-  case opts ^. #outputToFile of
-    Nothing -> printResult flintResult
-    Just outputFilePath -> do
-      writeResult outputFilePath flintResult
-      putText $ "Wrote results to " <> show outputFilePath
-
-
+  case opts ^. #outputSMTish of
+    False -> handleResult $ toFlintResult base cprims'
+    True -> handleResult $ toFlintSMTishResult base cprims'
+  where
+    handleResult :: ToJSON a => a -> IO ()
+    handleResult flintResult = case opts ^. #outputToFile of
+      Nothing -> printResult flintResult
+      Just outputFilePath -> do
+        writeResult outputFilePath flintResult
+        putText $ "Wrote results to " <> show outputFilePath
