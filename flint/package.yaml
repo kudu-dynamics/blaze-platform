@@ -137,6 +137,7 @@ library:
   - Flint.Cfg.Store
   - Flint.Graph
   - Flint.Query
+  - Flint.SMTish
   - Flint.Types.Analysis
   - Flint.Types.Analysis.Path.Matcher
   - Flint.Types.Analysis.Path.Matcher.Func
