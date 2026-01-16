@@ -2,9 +2,12 @@
 
 Monorepo for Blaze, Flint, and binary lifter backends
 
+## Preparing Development Environment
+If you want to use set up an environment to contribute to Flint, follow this [DevelopersGuide.md](DevelopersGuide.md) guide.
+
 ## Running
 
-### Using Docker
+### Running with Docker
 
 `DOCKER_REGISTRY` is an optional environment variable that is used in [`docker-compose.yaml`](docker-compose.yaml) to refer to a Docker registry that stores the images built by [`Dockerfile`](Dockerfile) and [`.gitlab-ci.yml`](.gitlab-ci.yml).
 If you use a Docker registry, set this environment variable (e.g., `export DOCKER_REGISTRY=gitlab.example.com:1234`) to use the images stored in the registry.
@@ -18,7 +21,7 @@ For the most part, `stack run { TARGET } [ ARGS... ]`, but see each package's `R
 
 ## Building
 
-### Using Docker
+### Building with Docker
 
 As simple as `docker build --platform=linux/amd64 .` or `docker-compose build`.
 See the comments about `DOCKER_REGISTRY` in the [Running > Using Docker](#using-docker) section.
