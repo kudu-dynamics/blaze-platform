@@ -9,12 +9,12 @@ import Blaze.Types.Pil (
   CallDest,
   Expression (Expression),
   FuncVar (FuncParam, FuncResult),
-  ParamPosition (ParamPosition),
   PilVar,
   StackOffset,
   Statement,
  )
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Function (ParamPosition(ParamPosition))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Prelude as P

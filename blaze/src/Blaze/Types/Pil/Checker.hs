@@ -6,6 +6,7 @@ import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
 import Blaze.Types.Function (
   ParamInfo,
   FuncParamInfo(FuncParamInfo, FuncVarArgInfo),
+  ParamPosition(ParamPosition)
   )
 import Blaze.Types.Pil (
   AddressableStatement,
@@ -205,7 +206,7 @@ getRootFunctionParamInfo ctx = RootFunctionParamInfo ctx paramMap
       FuncVarArgInfo x -> f x
       where
         f :: ParamInfo -> (Text, FuncVar SymExpression)
-        f pinfo = (pinfo ^. #name, Pil.FuncParam callTarget $ Pil.ParamPosition pos)
+        f pinfo = (pinfo ^. #name, Pil.FuncParam callTarget $ ParamPosition pos)
 
 data ConstraintGenCtx = ConstraintGenCtx
   { -- | Hashmap index is (stmt index from IndexedStmts, function name)
