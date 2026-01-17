@@ -18,11 +18,7 @@ import Blaze.Types.Function
     ResultInfo (ResultInfo),
     mkFuncInfo,
   )
-import Blaze.Types.Pil hiding
-  ( In,
-    Out,
-    ResultInfo
-  )
+import Blaze.Types.Pil
 import qualified Data.HashMap.Strict as HMap
 import qualified Data.HashSet as HSet
 

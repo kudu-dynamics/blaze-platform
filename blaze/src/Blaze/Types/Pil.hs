@@ -4,7 +4,7 @@ module Blaze.Types.Pil
   ) where
 
 import Blaze.Prelude hiding (Symbol, Type)
-import Blaze.Types.Function (Function, ExternFunction)
+import Blaze.Types.Function (Function, ExternFunction, Access, VarArgParameter, ParamPosition)
 import Blaze.Types.Pil.Ops as Exports
 import Blaze.Types.Pil.Common as Exports
 
@@ -377,24 +377,10 @@ mkFieldOffsetExprAddr addrExpr offst =
         $ offst
     )
 
-data Access = In | Out | InOut | Unknown
-  deriving (Enum, Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
--- | Parameter positions start at position 1.
-newtype ParamPosition = ParamPosition Int
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
 data PositionalParameter = PositionalParameter
   { var :: PilVar
   , access :: Access
   }
-  deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
-data VarArgParameter
-  = VarArgParameter
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
@@ -445,11 +431,6 @@ newtype CallTarget expr = CallTarget
   { dest :: CallDest expr
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
-
-newtype ResultInfo = ResultInfo
-  { name :: Text }
-  deriving (Eq, Show, Generic)
   deriving anyclass (Hashable)
 
 -- TODO: Consider extending this to support

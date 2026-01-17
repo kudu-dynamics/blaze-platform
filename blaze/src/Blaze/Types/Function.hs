@@ -19,11 +19,21 @@ data ParamInfo = ParamInfo
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, FromJSON, ToJSON)
 
+-- | Parameter positions start at position 1.
+newtype ParamPosition = ParamPosition Int
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
+
 data FuncParamInfo
   = FuncParamInfo ParamInfo
   | FuncVarArgInfo ParamInfo
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, FromJSON, ToJSON)
+
+data VarArgParameter
+  = VarArgParameter
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (Hashable)
 
 newtype ResultInfo = ResultInfo
   {name :: Text}
@@ -86,7 +96,6 @@ instance Identifiable Func Int where
   -- TODO: aren't we going to maybe have some collisions if we just use the hash?
   getNodeId f = NodeId $ hash f
 
--- TODO: Consider moving Function to Data.BinaryAnalysis
 -- | These are functions internally defined in a binary
 data Function = Function
   { symbol :: Maybe Symbol
