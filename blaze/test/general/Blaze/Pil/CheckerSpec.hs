@@ -338,7 +338,7 @@ spec = describe "Blaze.Pil.Checker" $ do
         expected = RootFunctionParamInfo
           { rootCtx = ctx
           , rootParamMap = HashMap.fromList
-                           [ ("arg1", Pil.FuncParam callTarget $ Pil.ParamPosition 1) ]
+                           [ ("arg1", Pil.FuncParam callTarget $ Func.ParamPosition 1) ]
           }
           
     it "should generate the correct root param mapping" $ do
