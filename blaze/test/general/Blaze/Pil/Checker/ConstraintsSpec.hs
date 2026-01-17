@@ -10,6 +10,7 @@ import Blaze.Pil.Construct (defCall, var)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (PilVar)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Function (ParamPosition(ParamPosition))
 import Blaze.Util.Spec (defaultSize)
 
 import qualified Data.HashSet as HashSet
@@ -386,7 +387,7 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
           xSym = getVarSym 8 "x"
           ySym = getVarSym 8 "y"
 
-          funcArg1Sym = fromJust . HashMap.lookup (Pil.FuncParam (Pil.CallTarget callTarget) $ Pil.ParamPosition 1) $ st ^. #funcSymMap
+          funcArg1Sym = fromJust . HashMap.lookup (Pil.FuncParam (Pil.CallTarget callTarget) $ ParamPosition 1) $ st ^. #funcSymMap
           funcRetSym = fromJust . HashMap.lookup (Pil.FuncResult $ Pil.CallTarget callTarget) $ st ^. #funcSymMap
           
           callArgSymA = callStmtA' ^?! #statement . #_Def . #value . #op . #_CALL . #args . ix 0 . #info . #sym
