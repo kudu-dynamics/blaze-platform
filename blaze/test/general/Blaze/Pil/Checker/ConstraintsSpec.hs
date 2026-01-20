@@ -352,7 +352,7 @@ spec = describe "Blaze.Pil.Checker.Constraints" $ do
               { info = SymInfo 64 (Sym 3),
                 op =
                   Pil.CALL $
-                    Pil.CallOp dest (Just "foo") args
+                    Pil.CallOp dest args
               }
           resultCxs =
             [ (Sym 0, SType (TBitVector {bitWidth = Just 32}))

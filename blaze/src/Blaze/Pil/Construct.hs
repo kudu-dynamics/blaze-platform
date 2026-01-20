@@ -2,7 +2,6 @@ module Blaze.Pil.Construct where
 
 import Blaze.Prelude hiding (Symbol, const, sym)
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Function (Function(Function))
 import Data.Text as T hiding (index)
 import Data.Text.Read (decimal)
 import Blaze.Types.Pil
@@ -256,12 +255,8 @@ defCall'
   -> AddressableStatement expr
 defCall' pv dest args size = def' pv callExpr
   where
-    mname :: Maybe Text
-    mname = case dest of
-      Pil.CallFunc (Function _ nm _ _) -> Just nm
-      _ -> Nothing
     callExpr :: expr
-    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest mname args
+    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest args
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
@@ -303,12 +298,7 @@ nop :: AddressableStatement expr
 nop = mkStmt_ Pil.Nop
 
 callStmt :: Pil.CallDest expr -> [expr] -> AddressableStatement expr
-callStmt dest args = mkStmt_ . Pil.Call $ Pil.CallOp dest mname args
-  where
-    mname :: Maybe Text
-    mname = case dest of
-      Pil.CallFunc (Function _ nm _ _) -> Just nm
-      _ -> Nothing
+callStmt dest args = mkStmt_ . Pil.Call $ Pil.CallOp dest args
 
 {- ex: var#3 --> (var, Just 3) -}
 parseVer :: Symbol -> (Symbol, Maybe SSAVersion)

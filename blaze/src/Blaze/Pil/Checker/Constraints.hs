@@ -28,53 +28,54 @@ constrainStandardFunc
   -> BitWidth
   -> Pil.CallOp SymExpression
   -> ConstraintGen (Maybe [(Sym, ConstraintSymType)])
-constrainStandardFunc _r _resultSize (Pil.CallOp _ Nothing _) = return Nothing
-constrainStandardFunc r resultSize (Pil.CallOp _ (Just name) cparams) = case name of
-  "fgets" -> case cparams of
-    [s, size', stream] -> do
-      return . Just $
-        [ (s ^. #info . #sym, ptr (CSType $ TCString Nothing))
-        , (size' ^. #info . #sym, CSType $ TInt Nothing (Just True))
-        , (stream ^. #info . #sym, ptr (CSType $ TChar (Just 8)))
-        , (r, ptr (CSType $ TCString Nothing))
-        ]
-    _ -> return Nothing -- TODO: add warning about malformed params
-  "asprintf" -> case cparams of
-    (strp : fmt : _) -> do
-      return . Just $
-        [ (strp ^. #info . #sym, ptr . ptr . CSType $ TCString Nothing)
-        , (fmt ^. #info . #sym, ptr . CSType $ TChar (Just 8))
-        , (r, CSType $ TInt jResultSize (Just True))
-        ]
-    _ -> return Nothing -- TODO: add warning about malformed params
-  "strcmp" -> case cparams of
-    [a, b] -> do
-      return . Just $
-        [ (a ^. #info . #sym, ptr (CSType $ TCString Nothing))
-        , (b ^. #info . #sym, ptr (CSType $ TCString Nothing))
-        , (r, CSType $ TInt jResultSize (Just True))
-        ]
-    _ -> return Nothing -- TODO: add warning about malformed params
-  "strtol" -> case cparams of
-    (nptr : endptr : base : _) -> do
-      return . Just $
-        [ (nptr ^. #info . #sym, ptr (CSType $ TCString Nothing))
-        , (endptr ^. #info . #sym, ptr . ptr . CSType $ TChar (Just 8))
-        , (base ^. #info . #sym, CSType $ TInt Nothing (Just True))
-        , (r, CSType $ TInt Nothing Nothing)
-        ]
-    _ -> return Nothing --TODO : add warning about malformed params
-  "abs" -> case cparams of
-    [n] -> do
-      return . Just $
-        [ ( n ^. #info . #sym, CSType $ TInt jResultSize (Just True))
-        , (r, CSType $ TInt jResultSize (Just True))
-        ]
-    _ -> return Nothing --TODO : add warning about malformed params
-  _ -> return Nothing
- where
-  jResultSize = Just resultSize
-  ptr = CSType . TPointer Nothing
+constrainStandardFunc r resultSize (Pil.CallOp dest cparams) = case Pil.destName dest of
+  Nothing -> return Nothing
+  Just name -> case name of
+    "fgets" -> case cparams of
+                 [s, size', stream] -> do
+                   return . Just $
+                     [ (s ^. #info . #sym, ptr (CSType $ TCString Nothing))
+                     , (size' ^. #info . #sym, CSType $ TInt Nothing (Just True))
+                     , (stream ^. #info . #sym, ptr (CSType $ TChar (Just 8)))
+                     , (r, ptr (CSType $ TCString Nothing))
+                     ]
+                 _ -> return Nothing -- TODO: add warning about malformed params
+    "asprintf" -> case cparams of
+                    (strp : fmt : _) -> do
+                      return . Just $
+                        [ (strp ^. #info . #sym, ptr . ptr . CSType $ TCString Nothing)
+                        , (fmt ^. #info . #sym, ptr . CSType $ TChar (Just 8))
+                        , (r, CSType $ TInt jResultSize (Just True))
+                        ]
+                    _ -> return Nothing -- TODO: add warning about malformed params
+    "strcmp" -> case cparams of
+                  [a, b] -> do
+                    return . Just $
+                      [ (a ^. #info . #sym, ptr (CSType $ TCString Nothing))
+                      , (b ^. #info . #sym, ptr (CSType $ TCString Nothing))
+                      , (r, CSType $ TInt jResultSize (Just True))
+                      ]
+                  _ -> return Nothing -- TODO: add warning about malformed params
+    "strtol" -> case cparams of
+                  (nptr : endptr : base : _) -> do
+                    return . Just $
+                      [ (nptr ^. #info . #sym, ptr (CSType $ TCString Nothing))
+                      , (endptr ^. #info . #sym, ptr . ptr . CSType $ TChar (Just 8))
+                      , (base ^. #info . #sym, CSType $ TInt Nothing (Just True))
+                      , (r, CSType $ TInt Nothing Nothing)
+                      ]
+                  _ -> return Nothing --TODO : add warning about malformed params
+    "abs" -> case cparams of
+               [n] -> do
+                 return . Just $
+                   [ ( n ^. #info . #sym, CSType $ TInt jResultSize (Just True))
+                   , (r, CSType $ TInt jResultSize (Just True))
+                   ]
+               _ -> return Nothing --TODO : add warning about malformed params
+    _ -> return Nothing
+  where
+    jResultSize = Just resultSize
+    ptr = CSType . TPointer Nothing
 --------------------------------------------------------------
 ------ Constraint generation phase ---------------------------
 

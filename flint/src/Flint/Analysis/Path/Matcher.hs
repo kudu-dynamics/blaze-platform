@@ -495,7 +495,7 @@ mkCallStatement stmt' = case getStatement stmt' of
   Pil.TailCall tc ->
     Just $ CallStatement stmt' callOp' (tc ^. #args) Nothing
     where
-      callOp' = Pil.CallOp (tc ^. #dest) (tc ^. #name) (tc ^. #args)
+      callOp' = Pil.CallOp (tc ^. #dest) (tc ^. #args)
   _ ->
     Nothing
 
