@@ -695,7 +695,7 @@ instance
 
 instance Tokenizable a => Tokenizable (Pil.CallOp a) where
   tokenize op =
-    case (op ^. #name, op ^. #dest) of
+    case (Pil.destName $ op ^. #dest, op ^. #dest) of
       (Just name, Pil.CallAddr fptr) ->
         addressToken (Just name) (fptr ^. #address)
           <++> tokenizeAsTuple (op ^. #args)

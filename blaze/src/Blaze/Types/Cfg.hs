@@ -626,7 +626,7 @@ splitTailCallNodes ogCfg = foldM splitTailCall ogCfg tcNodes
     outStores :: [Stmt]
     outStores = drop 1 $ call ^. #nodeData
     callOp :: Pil.CallOp Pil.Expression
-    callOp = Pil.CallOp (tc ^. #dest) (tc ^. #name) (tc ^. #args)
+    callOp = Pil.CallOp (tc ^. #dest) (tc ^. #args)
 
   getTcNodeOp
     :: PilNode

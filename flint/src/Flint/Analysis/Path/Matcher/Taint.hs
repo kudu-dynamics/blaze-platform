@@ -38,8 +38,9 @@ mkTaintPropagatorTaintSet ::
   HashSet Taint
 mkTaintPropagatorTaintSet tps mRetVar =
   \case
-    Pil.CALL (Pil.CallOp (Pil.CallFunc f) _ args) -> go (f ^. #name) args
-    Pil.CALL (Pil.CallOp _ (Just name) args) -> go name args
+    Pil.CALL (Pil.CallOp dest args) -> case Pil.destName dest of
+                                         Nothing -> HashSet.empty
+                                         Just name -> go name args
     _ -> HashSet.empty
   where
     go name args =

@@ -897,7 +897,7 @@ substAddr_ addrParser stmt@(Pil.Stmt addr statement) = case statement of
       <*> parseLoad value
   Pil.Constraint (Pil.ConstraintOp cond) ->
     mkStmt . Pil.Constraint . Pil.ConstraintOp <$> parseLoad cond
-  Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _ _) -> do
+  Pil.Call callOp@(Pil.CallOp (Pil.CallExpr expr) _) -> do
     cx <- parseLoad expr
     return . mkStmt $ Pil.Call (callOp & #dest .~ Pil.CallExpr cx)
   _ -> return stmt

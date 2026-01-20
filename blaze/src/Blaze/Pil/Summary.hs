@@ -133,7 +133,7 @@ mkWrite :: Stmt -> Maybe Effect
 mkWrite stmt@(Pil.Stmt _ (Store _)) = Just $ EffectWrite stmt
 mkWrite stmt = do
   callStmt <- mkCallStatement stmt
-  funcName <- callStmt ^. #callOp . #name
+  funcName <- Pil.destName $ callStmt ^. #callOp . #dest
   if HashSet.member funcName writeFuncs
     then Just $ EffectWrite stmt
     else Nothing
@@ -141,7 +141,7 @@ mkWrite stmt = do
 mkAlloc :: Stmt -> Maybe Effect
 mkAlloc stmt = do
   callStmt <- mkCallStatement stmt
-  funcName <- callStmt ^. #callOp . #name
+  funcName <- Pil.destName $ callStmt ^. #callOp . #dest
   if HashSet.member funcName allocFuncs
     then Just $ EffectAlloc stmt
     else Nothing
@@ -149,7 +149,7 @@ mkAlloc stmt = do
 mkDealloc :: Stmt -> Maybe Effect
 mkDealloc stmt = do
   callStmt <- mkCallStatement stmt
-  funcName <- callStmt ^. #callOp . #name
+  funcName <- Pil.destName $ callStmt ^. #callOp . #dest
   if HashSet.member funcName deallocFuncs
     then Just $ EffectDealloc stmt
     else Nothing

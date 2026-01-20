@@ -158,7 +158,8 @@ updateBsName expr =
             destExpr <- callOp ^? #dest . _Ctor @"CallExpr"
             offset <- getBsOffset $ destExpr ^. #op
             HMap.lookup (fromIntegral $ offset ^. #constant) bsNames
-      in maybe expr (\x -> expr & #op . _Ctor @"CALL" . #name ?~ x) name
+      in maybe expr (\x -> expr & #op . _Ctor @"CALL" . #dest . _Ctor @"CallFunc" . #name .~ x) name
+      -- CallExtern can have a name too, but this is probably fine
     _ -> expr
 
 {- | Adds BS name to appropriate statements and returns the updated statement.
