@@ -205,7 +205,7 @@ instance (Disp a, NeedsParens a) => Disp (Pil.Statement a) where
       where
         exitCtx = disp $ op ^. #leavingCtx
         retCtx = disp $ op ^. #returningToCtx
-    (Pil.Call c) -> case c ^. #name of
+    (Pil.Call c) -> case Pil.destName $ c ^. #dest of
       (Just name) -> Text.pack $ printf "call (%s) %s" name args
       Nothing -> Text.pack $ printf "call (Nothing) (%s) %s" dest args
       where
@@ -225,7 +225,7 @@ instance (Disp a, NeedsParens a) => Disp (Pil.Statement a) where
         val = asList . fmap showMem $ op ^. #srcMemory
     Pil.NoRet -> "NoRet"
     Pil.Exit -> "Exit"
-    (Pil.TailCall op) -> case op ^. #name of
+    (Pil.TailCall op) -> case Pil.destName $ op ^. #dest of
       (Just name) -> Text.pack $ printf "Tailcall (%s) %s" name args
       Nothing -> Text.pack $ printf "Tailcall (Nothing) (%s) %s" dest args
       where
@@ -338,7 +338,7 @@ dispExprOp exprOp size = case exprOp of
   (Pil.VAR_FIELD op) -> dispField "varField" op size
   (Pil.XOR op) -> dispBinop "xor" op size
   (Pil.ZX op) -> dispUnop "zx" op size
-  (Pil.CALL op) -> case op ^. #name of
+  (Pil.CALL op) -> case Pil.destName $ op ^. #dest of
     (Just name) -> Text.pack $ printf "call %s %s %s" name dest args
     Nothing -> Text.pack $ printf "call (Nothing) %s %s" dest args
     where
