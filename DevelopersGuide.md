@@ -1,6 +1,7 @@
 - [Installing Haskell Dependecies](#installing-haskell-dependecies)
 - [Building blaze-platform Monorepo](#building-blaze-platform-monorepo)
 - [Rapid Prototyping with Hspec library](#rapid-prototyping-with-hspec-library)
+- [blaze-platform Versioning](#blaze-platform-versioning)
 - [Using JSON Output as Control Group](#using-json-output-as-control-group)
     - [How To Actually Run flint](#how-to-actually-run-flint)
         - [Using the SMT Solver](#using-the-smt-solver)
@@ -103,6 +104,13 @@ You can run all test with `stack test`. However, its best to just run specific t
 ```bash
 stack test --test-arguments "--match MatcherSpec"
 ```
+
+## `blaze-platform` Versioning
+
+`blaze-platform` versioning uses the format "N.YY.MMDDx" where "N" is the major version (0 before release),
+"YY" is the last two digits of the year, "MMDD" is the numerical month and date concatenated, and "x" is the
+alphabetical index of the version within the same day. For example, the third version of `blaze-platform`
+before release committed on June 3, 2007 would be "0.07.0603c".
 
 ## Using JSON Output as Control Group
 
@@ -363,7 +371,7 @@ libbinaryninjacore.so -> /path/to/binaryninja/libbinaryninjacore.so.1
 libbinaryninjacore.so.1 -> /path/to/binaryninja/libbinaryninjacore.so.1
 ```
 
-Noow, get corresponding binja api:
+Now, get corresponding binja api:
 ```bash
 git clone https://github.com/Vector35/binaryninja-api.git
 cd binaryninja-ai
@@ -394,7 +402,7 @@ Now, copy binja license to
 cp license.dat ~/.binaryninja/license.dat
 ```
 
-Nnow, build `blaze-platform`:
+Now, build `blaze-platform`:
 ```bash
 cd blaze-platform
 git checkout 10-sample-plan

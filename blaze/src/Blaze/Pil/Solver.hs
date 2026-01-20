@@ -652,7 +652,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   -- TODO: stub standard libs here
   Pil.CALL x -> do
     fcg <- view #funcConstraintGen <$> ask
-    case (x ^. #name) >>= flip HashMap.lookup fcg of
+    case Pil.destName (x ^. #dest) >>= flip HashMap.lookup fcg of
       Nothing -> fallbackAsFreeVar
       Just gen -> do
         args <- mapM solveExprRec $ x ^. #args

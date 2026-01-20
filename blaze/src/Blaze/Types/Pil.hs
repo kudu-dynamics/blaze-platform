@@ -142,7 +142,6 @@ data VarJoinOp expr = VarJoinOp
 
 data CallOp expr = CallOp
   { dest :: CallDest expr
-  , name :: Maybe Text
   , args :: [expr]
   } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
@@ -280,13 +279,19 @@ newtype RetOp expr = RetOp
 
 data TailCallOp expr = TailCallOp
   { dest :: CallDest expr
-  , name :: Maybe Text
   , args :: [expr]
   , ret :: Maybe (PilVar, Size Expression)
   }
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
 
 data GotoOp expr = GotoOp
+
+destName :: CallDest a -> Maybe Text
+destName = \case
+  CallFunc f -> Just $ f ^. #name
+  CallExtern f -> Just $ f ^. #name
+  -- Pil.CallAddr _ -> undefined
+  _ -> Nothing
 
 type Stmt = AddressableStatement Expression
 
@@ -351,7 +356,7 @@ mkCallStatement stmt' = case stmt' ^. #statement of
   TailCall tc ->
     Just $ CallStatement stmt' callOp' (tc ^. #args) Nothing
     where
-      callOp' = CallOp (tc ^. #dest) (tc ^. #name) (tc ^. #args)
+      callOp' = CallOp (tc ^. #dest) (tc ^. #args)
   _ ->
     Nothing
 

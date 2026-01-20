@@ -146,12 +146,12 @@ data PltThunkMapping = PltThunkMapping
 getPltThunkDest :: Function -> PilCfg -> Maybe (Pil.CallDest Pil.Expression)
 getPltThunkDest srcFunc cfg = case HashSet.size nodes of
   2 -> case (getNodeStatements rootNode, getNodeStatements <$> HashSet.toList nonRootNodes) of
-         ( [ Pil.Def (Pil.DefOp v (Pil.Expression _ (Pil.CALL (Pil.CallOp dest@(Pil.CallAddr (Pil.ConstFuncPtrOp _ (Just x))) _ _)))) ]
+         ( [ Pil.Def (Pil.DefOp v (Pil.Expression _ (Pil.CALL (Pil.CallOp dest@(Pil.CallAddr (Pil.ConstFuncPtrOp _ (Just x))) _)))) ]
            , [[ Pil.Ret (Pil.RetOp (Pil.Expression _ (Pil.VAR (Pil.VarOp v')))) ]]) ->
            if v == v' && x == srcFunc ^. #name
            then Just dest
            else Nothing
-         ( [ Pil.Def (Pil.DefOp v (Pil.Expression _ (Pil.CALL (Pil.CallOp dest@(Pil.CallFunc destFunc) _ _)))) ]
+         ( [ Pil.Def (Pil.DefOp v (Pil.Expression _ (Pil.CALL (Pil.CallOp dest@(Pil.CallFunc destFunc) _)))) ]
            , [[ Pil.Ret (Pil.RetOp (Pil.Expression _ (Pil.VAR (Pil.VarOp v')))) ]]) ->
            if v == v' && destFunc ^. #name == srcFunc ^. #name
            then Just dest
