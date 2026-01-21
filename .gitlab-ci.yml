@@ -21,13 +21,22 @@ stages:
   - push
   - submit
 
+changelog-validation:
+  rules:
+    - if: $CI_SERVER_HOST =~ /.*kududyn.*/ && $CI_PIPELINE_SOURCE == "merge_request_event"
+  stage: prerequisites
+  needs: []
+  script:
+    - cd $CI_PROJECT_DIR
+    - 'git diff $CI_MERGE_REQUEST_SOURCE_BRANCH_SHA $CI_MERGE_REQUEST_DIFF_BASE_SHA -- CHANGELOG.md | grep "[[:alnum:]]"'
+
 .docker:
   image:
     name: docker:dind
 
   tags:
     - dind
-  before_script:    
+  before_script:
     - mkdir -p /etc/docker/certs.d/registry.gitlab.pd.kududyn.com
     - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
     - cat /etc/docker/certs.d/registry.gitlab.pd.kududyn.com/ca.crt
