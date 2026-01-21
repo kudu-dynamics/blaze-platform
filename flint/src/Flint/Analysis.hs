@@ -34,6 +34,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
 import Flint.Types.Query
+import Blaze.Types.Import
 
 
 getFuncPathsContainingAddrs
@@ -49,6 +50,20 @@ getFuncPathsContainingAddrs importer func addrs = do
       -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
   Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
 
+getFuncPathsContainingAddrsWithTypeHints
+  :: (CfgImporter a, ImpCfg.NodeDataType a ~ Cfg.CfNode [Stmt])
+  => a
+  -> Function
+  -> [Address]
+  -> IO ([Path (CfNode [Stmt])], TypeHints)
+getFuncPathsContainingAddrsWithTypeHints importer func addrs = do
+  (Just r, typeHints) <- ImpCfg.getCfgWithTypeHints importer func 0
+  let cfg = r ^. #result
+      ns = concatMap (`Cfg.getNodesContainingAddress` cfg) addrs
+      -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
+  paths <- Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
+  return (paths, typeHints)
+
 getFunctionPaths
   :: (CfgImporter a, ImpCfg.NodeDataType a ~ Cfg.CfNode [Stmt])
   => a
@@ -62,6 +77,19 @@ getFunctionPaths importer func = do
   -- return stmtPaths
   return paths
 
+getFunctionPathsWithTypeHints
+  :: (CfgImporter a, ImpCfg.NodeDataType a ~ Cfg.CfNode [Stmt])
+  => a
+  -> Function
+  -> IO ([Path (CfNode [Stmt])], TypeHints)
+getFunctionPathsWithTypeHints importer func = do
+  (Just r, typeHints) <- ImpCfg.getCfgWithTypeHints importer func 0
+  let cfg = r ^. #result
+      paths = Path.getAllSimplePaths cfg
+      -- stmtPaths = Path.toStmts <$> paths
+  -- return stmtPaths
+  return (paths, typeHints)
+
 getOkPathsFromResults :: SolvePathsResult a -> [a]
 getOkPathsFromResults r = sats <> unks -- <> cerrs <> serrs
   where
@@ -70,10 +98,10 @@ getOkPathsFromResults r = sats <> unks -- <> cerrs <> serrs
     _cerrs = snd <$> r ^. #constraintGenErrorPaths
     _serrs = snd <$> r ^. #solverErrorPaths
 
-filterOkPaths :: [Path (CfNode [Stmt])] -> IO [Path (CfNode [Stmt])]
-filterOkPaths paths = do
+filterOkPaths :: TypeHints -> [Path (CfNode [Stmt])] -> IO [Path (CfNode [Stmt])]
+filterOkPaths typeHints paths = do
   putText $ "Got " <> show (length paths) <> " paths"
-  r <- solvePaths z3 IgnoreErrors paths
+  r <- solvePaths z3 IgnoreErrors typeHints paths
   let ok = getOkPathsFromResults r
   putText $ "Got " <> show (length ok) <> " OK paths"
   return ok
@@ -87,8 +115,8 @@ getOkFunctionPaths
   -> Function
   -> IO [PilPath]
 getOkFunctionPaths importer func = do
-  paths <- getFunctionPaths importer func
-  filterOkPaths paths
+  (paths, typeHints) <- getFunctionPathsWithTypeHints importer func
+  filterOkPaths typeHints paths
 
 -- | Gets all functions paths that are not Unsat.
 --   This includes ones we couldn't solve due to type errors, etc.
@@ -100,8 +128,8 @@ getOkFunctionPathsContaining
   -> [Address]
   -> IO [PilPath]
 getOkFunctionPathsContaining importer func addrs = do
-  paths <- getFuncPathsContainingAddrs importer func addrs
-  filterOkPaths paths
+  (paths, typeHints) <- getFuncPathsContainingAddrsWithTypeHints importer func addrs
+  filterOkPaths typeHints paths
 
 simplify :: [Stmt] -> [Stmt]
 simplify = resolveCalls . PA.aggressiveExpand --  . PA.simplifyVars

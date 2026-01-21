@@ -82,6 +82,7 @@ instance CfgImporter GhidraImporter where
   type NodeDataType GhidraImporter = PilNode
   type NodeMapType GhidraImporter = PilPcodeMap VarNode
   getCfg = Cfg.getPilCfgFromHighPcode
+  getCfgWithTypeHints = Cfg.getPilCfgAndTypeHintsFromHighPcode
 
 instance PilImporter GhidraImporter where
   type IndexType GhidraImporter = Address
@@ -105,3 +106,21 @@ instance PilImporter GhidraImporter where
       putStrLn @String "Errors during conversion:"
       traverse_ pprint errors
     pure . fmap (view #stmt) $ stmts
+
+
+  getFuncStatementsWithTypeHints imp f ctx = do
+    (stmtsWithErr, typeHints) <- PilImp.getFuncStatementsWithTypeHintsFromHighPcode imp f ctx
+    let (errors, stmts) = partitionEithers stmtsWithErr
+    unless (null errors) $ do
+      hPutStrLn @String stderr "Errors during conversion:"
+      traverse_ (pHPrint stderr) errors
+    pure (view #stmt <$> stmts, typeHints)
+
+  getMappedStatementsWithTypeHints imp f ctx = do
+    (stmtsWithErr, typeHints) <- PilImp.getFuncStatementsWithTypeHintsFromHighPcode imp f ctx
+    let (errors, stmts) = partitionEithers stmtsWithErr
+    unless (null errors) $ do
+      hPutStrLn @String stderr "Errors during conversion:"
+      traverse_ (pHPrint stderr) errors
+    pure (stmts, typeHints)
+

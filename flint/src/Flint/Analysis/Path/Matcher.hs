@@ -34,6 +34,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Text.Regex.TDFA ((=~))
 import qualified Data.Vector as V
+import Blaze.Types.Pil.PilType as PT
 
 
 ------------------------------------------
@@ -319,10 +320,10 @@ newtype InfinitePilType = InfinitePilType { unInfiniteType :: PilType InfinitePi
 toInfiniteType :: DeepSymType -> InfinitePilType
 toInfiniteType = toInfiniteType' HashMap.empty
 
-toInfiniteType' :: HashMap Ch.Sym (Ch.PilType DeepSymType) -> DeepSymType -> InfinitePilType
+toInfiniteType' :: HashMap PT.Sym (PT.PilType DeepSymType) -> DeepSymType -> InfinitePilType
 toInfiniteType' m = \case
   Ch.DSVar s -> InfinitePilType
-    . maybe Ch.TUnit (fmap $ toInfiniteType' m)
+    . maybe PT.TUnit (fmap $ toInfiniteType' m)
     $ HashMap.lookup s m
   Ch.DSRecursive s pt -> InfinitePilType $ toInfiniteType' (HashMap.insert s pt m) <$> pt
   Ch.DSType pt -> InfinitePilType $ toInfiniteType' m <$> pt
@@ -346,7 +347,7 @@ matchType'
   :: ( IsExpression expr
      , Monad m
      )
-  => HashMap Ch.Sym (Ch.PilType DeepSymType) -- | recursiveContext
+  => HashMap PT.Sym (PT.PilType DeepSymType) -- | recursiveContext
   -> M.TypePattern
   -> DeepSymType
   -> MatcherT expr stmt m ()
@@ -366,38 +367,38 @@ matchType' recCtx tpat dst = case tpat of
       $ Ch.DSType pt
       
     Ch.DSType pt -> case (ptPat, pt) of
-      (M.TBool, Ch.TBool) -> good
+      (M.TBool, PT.TBool) -> good
 
-      (M.TChar bwPat, Ch.TChar mbits) -> do
+      (M.TChar bwPat, PT.TChar mbits) -> do
         matchBitWidth bwPat mbits
 
-      (M.TInt bwPat signPat, Ch.TInt mbits msign) -> do
+      (M.TInt bwPat signPat, PT.TInt mbits msign) -> do
         insist $ isNothing signPat || signPat == msign
         matchBitWidth bwPat mbits
   
-      (M.TFloat bwPat, Ch.TFloat mbits) -> do
+      (M.TFloat bwPat, PT.TFloat mbits) -> do
         matchBitWidth bwPat mbits
 
-      (M.TBitVector bwPat, Ch.TBitVector mbits) -> do
+      (M.TBitVector bwPat, PT.TBitVector mbits) -> do
         matchBitWidth bwPat mbits
 
-      (M.TPointer bwPat pointeePat, Ch.TPointer mbits pointee) -> do
+      (M.TPointer bwPat pointeePat, PT.TPointer mbits pointee) -> do
         matchBitWidth bwPat mbits
         matchType' recCtx pointeePat pointee
 
-      (M.TCString lenPat, Ch.TCString mlen) -> do
+      (M.TCString lenPat, PT.TCString mlen) -> do
         matchLen lenPat mlen
 
-      (M.TArray lenPat elemPat, Ch.TArray mlen elemt) -> do
+      (M.TArray lenPat elemPat, PT.TArray mlen elemt) -> do
         matchLen lenPat mlen
         matchType' recCtx elemPat elemt
 
-      (M.TRecord fieldPats, Ch.TRecord fields) -> do
+      (M.TRecord fieldPats, PT.TRecord fields) -> do
         matchRecordFields recCtx fieldPats . HashMap.toList $ fields
 
-      (M.TUnit, Ch.TUnit) -> good
+      (M.TUnit, PT.TUnit) -> good
 
-      (M.TFunction retPat paramsPats, Ch.TFunction ret params) -> do
+      (M.TFunction retPat paramsPats, PT.TFunction ret params) -> do
         matchType' recCtx retPat ret
         if length paramsPats > length params
           then bad
@@ -413,7 +414,7 @@ matchRecordFields
      ( IsExpression expr
      , Monad m
      )
-  => HashMap Ch.Sym (Ch.PilType DeepSymType) -- | recursiveContext
+  => HashMap PT.Sym (PT.PilType DeepSymType) -- | recursiveContext
   -> [(M.BitWidthPattern, M.TypePattern)]
   -> [(BitOffset, DeepSymType)]
   -> MatcherT expr stmt m ()

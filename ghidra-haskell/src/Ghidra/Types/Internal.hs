@@ -8,3 +8,6 @@ newtype Ghidra a = Ghidra { _runGhidra :: IO a }
 
 runIO :: IO a -> Ghidra a
 runIO = Ghidra
+
+instance MonadIO Ghidra where
+  liftIO = runIO

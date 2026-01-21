@@ -16,11 +16,12 @@ import qualified Blaze.Pil.Solver as PilSolver
 import Blaze.Pil.Solver (makeSymVarOfType, logError)
 import Blaze.Types.Pil.Solver
 import qualified Blaze.Types.Pil.Checker as Ch
-import Blaze.Cfg.Checker (checkCfg)
+import Blaze.Cfg.Checker (checkCfgWithTypeHints)
 import Data.SBV.Dynamic (SVal, svNot)
 import qualified Data.SBV.Trans.Control as Q
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
+import Blaze.Types.Import (TypeHints)
 
 data DecidedBranchCond = DecidedBranchCond
   { conditionStatementIndex :: Int
@@ -271,7 +272,13 @@ data GeneralSolveError = TypeCheckerError Ch.ConstraintGenError
 getUnsatBranches ::
   PilCfg ->
   IO (Either GeneralSolveError [CfEdge PilNode])
-getUnsatBranches cfg = case checkCfg cfg of
+getUnsatBranches = getUnsatBranchesWithTypeHints HashMap.empty
+
+getUnsatBranchesWithTypeHints ::
+  TypeHints ->
+  PilCfg ->
+  IO (Either GeneralSolveError [CfEdge PilNode])
+getUnsatBranchesWithTypeHints typeHints cfg = case checkCfgWithTypeHints typeHints cfg of
   Left err -> return . Left . TypeCheckerError $ err
   Right (_, cfg', tr) -> do
     let ddg = CfgA.getDataDependenceGraph cfg
@@ -290,19 +297,22 @@ getUnsatBranches cfg = case checkCfg cfg of
            dst' = fromJust $ Cfg.getNode cfg (G.getNodeId dst) in
              CfEdge src' dst' label
 
-simplify_ :: Bool -> Int -> PilCfg -> IO (Either GeneralSolveError PilCfg)
-simplify_ isRecursiveCall numItersLeft cfg
+simplify_ :: Bool -> Int -> TypeHints -> PilCfg -> IO (Either GeneralSolveError PilCfg)
+simplify_ isRecursiveCall numItersLeft typeHints cfg
   | numItersLeft <= 0 = return . Right $ cfg
   | otherwise = do
       let cfg' = CfgA.simplify cfg
       if cfg' == cfg && isRecursiveCall
         then return . Right $ cfg'
-        else getUnsatBranches cfg' >>= \case
+        else getUnsatBranchesWithTypeHints typeHints cfg' >>= \case
           Left err -> return $ Left err
           Right [] -> return . Right $ cfg'
-          Right es -> simplify_ True (numItersLeft - 1)
+          Right es -> simplify_ True (numItersLeft - 1) typeHints
                       $ foldr Cfg.removeEdge cfg' es
 
 simplify :: PilCfg -> IO (Either GeneralSolveError PilCfg)
-simplify stmts = do
-  simplify_ False 10 stmts
+simplify = simplifyWithTypeHints HashMap.empty
+
+simplifyWithTypeHints :: TypeHints -> PilCfg -> IO (Either GeneralSolveError PilCfg)
+simplifyWithTypeHints typeHints stmts = do
+  simplify_ False 10 typeHints stmts

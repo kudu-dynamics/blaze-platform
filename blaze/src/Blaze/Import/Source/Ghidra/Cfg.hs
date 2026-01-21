@@ -35,13 +35,14 @@ import Blaze.Types.Cfg (
 import qualified Blaze.Types.Cfg as Cfg
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Function (Function)
-import Blaze.Types.Import (ImportResult (ImportResult))
+import Blaze.Types.Import (ImportResult (ImportResult), TypeHints)
 import Blaze.Types.Pil (CtxId, Ctx(Ctx), PilVar)
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Import.Source.Ghidra.Pil as PilConv
 
 import qualified Data.Map.Strict as Map
 import qualified Data.List.NonEmpty as NEList
+import qualified Data.HashMap.Strict as HM
 
 
 newtype ConverterError
@@ -180,8 +181,9 @@ getHighPcodeForPcodeBlock
   -> IO [(Address, PcodeOp HighVarNode)]
 getHighPcodeForPcodeBlock gs pb = do
   xs <- runGhidraOrError $ do
-    addrSpaceMap <- getAddressSpaceMap $ gs ^. #program
-    Pcode.getBlockHighPcode addrSpaceMap $ pb ^. #handle
+    let prog = gs ^. #program
+    addrSpaceMap <- getAddressSpaceMap prog
+    Pcode.getBlockHighPcode prog addrSpaceMap $ pb ^. #handle
   return $ first convertAddress <$> xs
 
 mkCfNodePcodeBlock :: (PB.PcodeBlock -> IO [(Address, PcodeOp HighVarNode)]) -> Ctx -> PB.PcodeBlock -> IO (CfNode [(Address, PcodeOp HighVarNode)])
@@ -242,6 +244,24 @@ convertToPilCfg imp ctx cfg = do
   let pcfg = fmap snd <$> r
       errs = fold $ foldMap (toList . fmap fst) r
   return (cstate ^. #sourceVars, errs, pcfg)
+  where
+    split :: [Either a [b]] -> ([a], [b])
+    split = second concat . partitionEithers
+
+-- | Converts a Pcode CFG to a PIL CFG and returns the state.
+convertToPilCfgWithState
+  :: (IsVariable a, Show a)
+  => GhidraImporter
+  -> Ctx
+  -> Cfg (CfNode [(Address, PcodeOp a)])
+  -> IO (HashMap PilVar VarNode, [PilConv.PCodeOpToPilStmtConversionError], Cfg (CfNode [Pil.Stmt]), PilConv.ConverterState)
+convertToPilCfgWithState imp ctx cfg = do
+  convState <- PilConv.mkConverterState imp ctx
+  (r, cstate) <- flip PilConv.runConverter convState $ do
+    traverse (traverse (fmap split . traverse (runExceptT . convertIndexedPcodeOpToPilStmt ctx))) cfg
+  let pcfg = fmap snd <$> r
+      errs = fold $ foldMap (toList . fmap fst) r
+  return (cstate ^. #sourceVars, errs, pcfg, cstate)
   where
     split :: [Either a [b]] -> ([a], [b])
     split = second concat . partitionEithers
@@ -357,6 +377,26 @@ getPilCfg pcodeCfgGetter imp func ctxId = do
       splitPilCfg <- splitCallsInCfg ctx pilCfg
       return . Just $ ImportResult ctx (PilPcodeMap varMapping) splitPilCfg
 
+
+getPilCfgAndTypeHints
+  :: (IsVariable a, Show a)
+  => (GhidraImporter -> Function -> CtxId -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp a)]))))
+  -> GhidraImporter
+  -> Function
+  -> CtxId
+  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))), TypeHints)
+getPilCfgAndTypeHints pcodeCfgGetter imp func ctxId = do
+  let ctx = Ctx func ctxId
+  pcodeCfgGetter imp func ctxId >>= \case
+    Nothing -> return (Nothing, HM.empty)
+    Just pcodeCfg -> do
+      (varMapping, errs, pilCfg, st) <- convertToPilCfgWithState imp ctx pcodeCfg
+      unless (null errs) $ do
+        warn $ "getPilCfg encountered errors for function: " <> show func
+        traverse_ pprint errs
+      splitPilCfg <- splitCallsInCfg ctx pilCfg
+      return (Just $ ImportResult ctx (PilPcodeMap varMapping) splitPilCfg, st ^. #pvTypeHints)
+
 removeStmtAddrs :: Cfg (CfNode [(Address, a)]) -> Cfg (CfNode [a])
 removeStmtAddrs = fmap (fmap (fmap snd))
 
@@ -373,3 +413,10 @@ getPilCfgFromHighPcode
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfgFromHighPcode = getPilCfg getHighPcodeCfg
+
+getPilCfgAndTypeHintsFromHighPcode
+  :: GhidraImporter
+  -> Function
+  -> CtxId
+  -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))), TypeHints)
+getPilCfgAndTypeHintsFromHighPcode = getPilCfgAndTypeHints getHighPcodeCfg

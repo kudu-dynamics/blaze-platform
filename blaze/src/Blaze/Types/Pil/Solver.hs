@@ -25,7 +25,8 @@ import qualified Data.SBV.Trans.Control as Q
 import Blaze.Types.Pil (Expression, PilVar, Symbol)
 import qualified Data.HashMap.Strict as HashMap
 import Control.Monad.Fail (MonadFail(fail))
-import Blaze.Types.Pil.Checker (DeepSymType, Sym, SymInfo)
+import Blaze.Types.Pil.Checker (DeepSymType, SymInfo)
+import Blaze.Types.Pil.PilType (Sym)
 import qualified Blaze.Types.Pil.Checker as Ch
 
 

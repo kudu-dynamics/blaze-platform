@@ -32,9 +32,9 @@ var_ func sym attrs = mkExpr attrs (Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize
 
 memcpy :: Function
 memcpy = Function Nothing "memcpy" (intToAddr 0x111)
-  [ FuncParamInfo $ ParamInfo "dest" Func.Out
-  , FuncParamInfo $ ParamInfo "src" Func.In
-  , FuncParamInfo $ ParamInfo "n" Func.In
+  [ FuncParamInfo $ ParamInfo "dest" Nothing Func.Out
+  , FuncParamInfo $ ParamInfo "src" Nothing Func.In
+  , FuncParamInfo $ ParamInfo "n" Nothing Func.In
   ]
 
 memcpyPrims :: [StdLibPrimitive]
@@ -52,8 +52,8 @@ memcpyPrims =
 
 sscanf :: Function
 sscanf = Function Nothing "sscanf" (intToAddr 0x222)
-  [ FuncParamInfo $ ParamInfo "str" Func.In
-  , FuncParamInfo $ ParamInfo "format" Func.In
+  [ FuncParamInfo $ ParamInfo "str" Nothing Func.In
+  , FuncParamInfo $ ParamInfo "format" Nothing Func.In
   ]
 
 sscanfPrims :: [StdLibPrimitive]
@@ -83,7 +83,7 @@ strdupPrims =
 
 printf :: Function
 printf = Function Nothing "printf" (intToAddr 0x8888)
-  [ FuncParamInfo $ ParamInfo "format" Func.In
+  [ FuncParamInfo $ ParamInfo "format" Nothing Func.In
   ]
 
 printfPrims :: [StdLibPrimitive]
@@ -100,8 +100,8 @@ printfPrims =
 
 
 fooParams :: [FuncParamInfo]
-fooParams = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown
-            , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.Unknown
+fooParams = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.Unknown
+            , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.Unknown
             ]
             
 foo :: Function
@@ -198,10 +198,10 @@ fooCallableWMI3 = Prim.CallableWMI
 
 
 barParams :: [FuncParamInfo]
-barParams = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown
-            , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.Unknown
-            , Func.FuncParamInfo $ Func.ParamInfo "arg3" Func.Unknown
-            , Func.FuncParamInfo $ Func.ParamInfo "arg4" Func.Unknown
+barParams = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.Unknown
+            , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.Unknown
+            , Func.FuncParamInfo $ Func.ParamInfo "arg3" Nothing Func.Unknown
+            , Func.FuncParamInfo $ Func.ParamInfo "arg4" Nothing Func.Unknown
             ]
             
 bar :: Function

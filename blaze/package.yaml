@@ -147,6 +147,7 @@ library:
   - Blaze.Types.Path.Alga
   - Blaze.Types.Persist.Db
   - Blaze.Types.Pil
+  - Blaze.Types.Pil.PilType
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Pil.Analysis.Subst
   - Blaze.Types.Pil.Checker

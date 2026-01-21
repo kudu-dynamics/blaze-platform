@@ -4,7 +4,7 @@ module Ghidra.Clang
   ( module Ghidra.Clang
   ) where
 
-import Ghidra.Prelude hiding (replace, DataType)
+import Ghidra.Prelude hiding (replace)
 import Data.Text (replace)
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
@@ -12,7 +12,6 @@ import Ghidra.Types.Internal (Ghidra, runIO)
 import Foreign.JNI.Types (JClass)
 import Ghidra.Pcode (getBarePcodeOp)
 import Ghidra.Types.Pcode (BarePcodeOp)
---import Ghidra.Types.Variable (DataType(..), VarNode(..), HighVariable(..), HighSymbol(..))
 import Ghidra.Types.Variable (VarNode(..), HighVariable(..), HighSymbol(..))
 import Ghidra.Variable (mkVarNode, mkHighVariable, getHighSymbol)
 import Ghidra.Types.Address (Address)
@@ -20,8 +19,8 @@ import Ghidra.Address (mkAddress)
 import Language.Java (J)
 import Ghidra.Util (isJNull)
 import Data.Type.Equality
-import Ghidra.DataTypes as D
-import Ghidra.Types.DataTypes as DT
+import Ghidra.GhidraDataTypes (parseDataTypeWithTransaction)
+import Ghidra.Types.GhidraDataTypes (GhidraDataType)
 
 getClassName :: J.ClangNode -> Ghidra Text
 getClassName node = do
@@ -107,13 +106,13 @@ getIsVarRef :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coerc
 getIsVarRef node = do
   runIO $ Java.call node "isVariableRef"
 
-getDataType :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe DT.DataType)
-getDataType node = do
+getDataType :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => J.ProgramDB -> a -> Ghidra (Maybe GhidraDataType)
+getDataType prog node = do
   dt :: J.DataType <- runIO $ Java.call node "getDataType"
   if isJNull dt then
     return Nothing
   else do
-    dt' <- D.parseDataType dt
+    dt' <- parseDataTypeWithTransaction prog dt
     return $ Just dt' 
 
 getVarNode :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe VarNode)
@@ -165,11 +164,11 @@ getScalar node = do
     isSigned' :: Bool <- runIO $ Java.call scalar "isSigned"
     return $ Just Scalar { value = value, isSigned = isSigned' }
 
-getHighVariable :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe HighVariable)
-getHighVariable node = do
+getHighVariable :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => J.ProgramDB -> a -> Ghidra (Maybe HighVariable)
+getHighVariable prog node = do
   highVar :: J.HighVariable <- runIO $ Java.call node "getHighVariable"
   if isJNull highVar then return Nothing
-  else Just <$> mkHighVariable highVar
+  else Just <$> mkHighVariable prog highVar
 
 getHighSymbol' :: (ty ~ Java.Ty a, Java.IsReferenceType ty, Java.Coercible a, Coercible a (J ty)) => a -> Ghidra (Maybe HighSymbol)
 getHighSymbol' node = do
@@ -178,18 +177,18 @@ getHighSymbol' node = do
   else getHighSymbol highVar
 
 
-buildClangAST :: J.ClangNode -> Ghidra (ClangAST ClangNode)
-buildClangAST node = do
+buildClangAST :: J.ProgramDB -> J.ClangNode -> Ghidra (ClangAST ClangNode)
+buildClangAST prog node = do
   children <- getChildren node
-  childrenAST <- mapM buildClangAST children
-  node' <- constructClangNode node
+  childrenAST <- mapM (buildClangAST prog) children
+  node' <- constructClangNode prog node
   return $
     if null childrenAST then Leaf node'
     else Branch node' childrenAST
 
 
-constructClangNode :: J.ClangNode -> Ghidra ClangNode
-constructClangNode node = do
+constructClangNode :: J.ProgramDB -> J.ClangNode -> Ghidra ClangNode
+constructClangNode prog node = do
   className <- replace "ghidra.app.decompiler." "" <$> getClassName node
   addrRange <- getAddressRange node
   case className of
@@ -200,7 +199,7 @@ constructClangNode node = do
     "ClangCaseToken"      ->  do
       let node' :: J.ClangCaseToken = coerce node
       highSymbol    <- fromJust <$> getHighSymbol'  node'
-      highVariable  <- fromJust <$> getHighVariable node'
+      highVariable  <- fromJust <$> getHighVariable prog node'
       pcodeOp       <- fromJust <$> getPcodeOp      node'
       scalar        <- fromJust <$> getScalar       node'
       switchOp      <- fromJust <$> getSwitchOp     node'
@@ -214,7 +213,7 @@ constructClangNode node = do
       return $ ClangCommentToken ClangCommentTokenOpts { addrRange = addrRange, isVarRef = isVarRef }
     "ClangFieldToken"     -> do
       let node' :: J.ClangFieldToken = coerce node
-      datatype <- fromJust <$> getDataType node'
+      datatype <- fromJust <$> getDataType prog node'
       offset <- getOffset node'
       pcodeOp <- fromJust <$> getPcodeOp node'
       return $ ClangFieldToken ClangFieldTokenOpts { addrRange = addrRange, datatype = datatype, offset = offset, pcodeOp = pcodeOp }
@@ -227,7 +226,7 @@ constructClangNode node = do
     "ClangLabelToken"     -> do
       let node' :: J.ClangLabelToken = coerce node
       highSymbol    <- getHighSymbol'  node'
-      highVariable  <- getHighVariable node'
+      highVariable  <- getHighVariable prog node'
       pcodeOp       <- getPcodeOp      node'
       scalar        <- getScalar       node'
       varnode       <- getVarNode      node'
@@ -241,7 +240,7 @@ constructClangNode node = do
       return $ ClangOpToken ClangOpTokenOpts { addrRange = addrRange, pcodeOp = pcodeOp, opToken = tok }
     "ClangReturnType"     ->  do
       let node' :: J.ClangReturnType = coerce node
-      dt <- getDataType node'
+      dt <- getDataType prog node'
       varnode <- getVarNode node'
       return $ ClangReturnType ClangReturnTypeOpts { datatype = dt, varnode = varnode }
     "ClangStatement"      ->  do
@@ -258,18 +257,18 @@ constructClangNode node = do
     "ClangTypeToken"      -> do
       let node' :: J.ClangTypeToken = coerce node
       isVarRef <- getIsVarRef node'
-      datatype <- fromJust <$> getDataType node'
+      datatype <- fromJust <$> getDataType prog node'
       return $ ClangTypeToken ClangTypeTokenOpts { datatype = datatype, isVarRef = isVarRef }
     "ClangVariableDecl"   -> do
       let node' :: J.ClangVariableDecl = coerce node
-      datatype <- fromJust <$> getDataType node'
+      datatype <- fromJust <$> getDataType prog node'
       highSymbol <- getHighSymbol' node'
-      highVariable <- getHighVariable node'
+      highVariable <- getHighVariable prog node'
       return $ ClangVariableDecl ClangVariableDeclOpts { datatype = datatype, highSymbol = highSymbol, highVariable = highVariable }
     "ClangVariableToken"  -> do
       let node' :: J.ClangVariableToken = coerce node
       highSymbol <- getHighSymbol' node'
-      highVariable <- getHighVariable node'
+      highVariable <- getHighVariable prog node'
       pcodeOp <- getPcodeOp node'
       scalar <- getScalar node'
       varnode <- getVarNode node'
@@ -320,7 +319,7 @@ data ClangCommentTokenOpts = ClangCommentTokenOpts
 -- not tested (add more information from ClangToken when testing)
 data ClangFieldTokenOpts = ClangFieldTokenOpts
   { addrRange :: Maybe AddrRange
-  , datatype  :: DT.DataType
+  , datatype  :: GhidraDataType
   , offset    :: Int32
   , pcodeOp   :: BarePcodeOp
   } deriving (Eq, Ord, Show, Generic, Hashable)
@@ -356,7 +355,7 @@ data ClangOpTokenOpts = ClangOpTokenOpts
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ClangReturnTypeOpts = ClangReturnTypeOpts
-  { datatype  :: Maybe DT.DataType
+  { datatype  :: Maybe GhidraDataType
   , varnode   :: Maybe VarNode
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
@@ -383,12 +382,12 @@ newtype ClangTokenGroupOpts = ClangTokenGroupOpts
 
 -- haven't tested the ClangToken aspect, but if it's like ClangOpTokenOpts, then it won't have a lot of information
 data ClangTypeTokenOpts = ClangTypeTokenOpts
-  { datatype :: DT.DataType
+  { datatype :: GhidraDataType
   , isVarRef :: Bool
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data ClangVariableDeclOpts = ClangVariableDeclOpts
-  { datatype      :: DT.DataType
+  { datatype      :: GhidraDataType
   , highSymbol    :: Maybe HighSymbol
   , highVariable  :: Maybe HighVariable
   } deriving (Eq, Ord, Show, Generic, Hashable)

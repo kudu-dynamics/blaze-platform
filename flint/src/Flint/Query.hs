@@ -7,7 +7,7 @@ import Flint.Prelude
 
 import qualified Flint.Analysis as FA
 import Flint.Analysis.Path.Matcher (StmtPattern, StmtSolver, IsStatement, IsExpression, HasAddress, TypedStmt)
-import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep, mkPathPrepWithTypeHints)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
 import qualified Flint.Types.Analysis.Path.Matcher.Func as M
@@ -43,6 +43,7 @@ import qualified Blaze.Path as Path
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
+import Blaze.Types.Import (TypeHints)
 
 import Data.List (nub)
 import qualified Data.Text as Text
@@ -210,7 +211,7 @@ queryForBugMatch_
   -> Word64 -- max samples
   -> CfgStore
   -> FuncMapping
-  -> Maybe (HashSet Function) -- restrict start funcs
+  -> Maybe (HashSet Function)
   -- TODO: taints
   -> [StubSpec]
   -> BugMatch
@@ -1262,16 +1263,18 @@ onionFlow
   -> CfgStore
   -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
-  -> HashSet Text       -- blacklisted function nanes
+  -> HashSet Text       -- blacklisted function names
+  -> HashMap Function TypeHints
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist = do
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist funcToTypeHintsMap = do
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
     debug $ "Getting paths for: " <> show (func ^. #name)
     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize pathSamplingFactor store func
     debug $ "Got " <> show (length paths) <> " paths."
-    let pathPreps = mkPathPrep [] <$> paths
+    let typeHints = fromMaybe HashMap.empty (HashMap.lookup func funcToTypeHintsMap)
+    let pathPreps = mkPathPrepWithTypeHints typeHints [] <$> paths
 
     CM.set func pathPreps $ store ^. #pathSamples
   debug "Finished sampling paths"

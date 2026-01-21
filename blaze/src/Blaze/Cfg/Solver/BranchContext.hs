@@ -4,7 +4,7 @@ import Blaze.Prelude hiding (Constraint, Type, bitSize, sym)
 
 import Blaze.Cfg qualified as Cfg
 import Blaze.Cfg.Analysis qualified as CfgA
-import Blaze.Cfg.Checker (checkCfg)
+import Blaze.Cfg.Checker (checkCfgWithTypeHints)
 import Blaze.Graph qualified as G
 import Blaze.Pil.Analysis qualified as PA
 import Blaze.Pil.Solver (catchIfLenient, catchIfLenientForStmt, makeSymVarOfType, logError)
@@ -36,6 +36,7 @@ import Data.SBV.Dynamic (SVal, svAnd, svNot)
 import Data.SBV.Dynamic qualified as D hiding (Solver)
 import Data.SBV.Trans qualified as SBV
 import Data.SBV.Trans.Control qualified as Q
+import Blaze.Types.Import (TypeHints)
 
 
 type TypedExpression = Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
@@ -328,7 +329,10 @@ data WarnReport = WarnReport
 
 -- TODO: Need to recover original edges. The single use of this function only uses the original edges
 getUnsatBranches :: Cfg PilNode -> IO (Either GeneralSolveError (WarnReport, [CfEdge PilNode]))
-getUnsatBranches cfg = case checkCfg cfg of
+getUnsatBranches = getUnsatBranchesWithTypeHints HashMap.empty
+
+getUnsatBranchesWithTypeHints :: TypeHints -> Cfg PilNode -> IO (Either GeneralSolveError (WarnReport, [CfEdge PilNode]))
+getUnsatBranchesWithTypeHints typeHints cfg = case checkCfgWithTypeHints typeHints cfg of
   -- The TypeCheckerError only occurs if the type checker cannot produce a type report.
   -- The type report could still report errors.
   Left err -> return . Left . TypeCheckerError $ err
@@ -379,19 +383,23 @@ cleanPrunedCfg = CfgA.removeEmptyBasicBlockNodes . _cleanPrunedCfg maxIters
  where
   maxIters = 10
 
-simplify_ :: [WarnReport] -> Bool -> Int -> PilCfg -> IO (Either GeneralSolveError ([WarnReport], PilCfg))
-simplify_ warns isRecursiveCall numItersLeft cfg
+simplify_ :: [WarnReport] -> Bool -> Int -> TypeHints -> PilCfg -> IO (Either GeneralSolveError ([WarnReport], PilCfg))
+simplify_ warns isRecursiveCall numItersLeft typeHints cfg
   | numItersLeft <= 0 = return . Right $ (warns, cfg)
   | otherwise = do
       let cfg' = cleanPrunedCfg cfg
       if cfg' == cfg && isRecursiveCall
         then return . Right $ (warns, cfg')
-        else getUnsatBranches cfg' >>= \case
+        else getUnsatBranchesWithTypeHints typeHints cfg' >>= \case
           Left err -> return $ Left err
           Right (wr, []) -> return . Right $ (wr:warns, cfg')
-          Right (wr, es) -> simplify_ (wr:warns) True (numItersLeft - 1)
+          Right (wr, es) -> simplify_ (wr:warns) True (numItersLeft - 1) typeHints
                       $ foldr Cfg.removeEdge cfg' es
 
 simplify :: PilCfg -> IO (Either GeneralSolveError ([WarnReport], PilCfg))
-simplify stmts = do
-  simplify_ [] False 10 stmts
+simplify = simplifyWithTypeHints HashMap.empty
+
+
+simplifyWithTypeHints :: TypeHints -> PilCfg -> IO (Either GeneralSolveError ([WarnReport], PilCfg))
+simplifyWithTypeHints typeHints stmts = do
+  simplify_ [] False 10 typeHints stmts
