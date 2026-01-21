@@ -82,8 +82,8 @@ mkBareHighPcodeInstruction x = PcodeInstruction
   -- <*> (maybeNull <$> Java.call x "getOutput")
   <*> getHighInputs x -- (Java.call x "getInputs" >>= Java.reify)
 
-mkHighPcodeInstruction :: BareHighPcodeInstruction -> Ghidra HighPcodeInstruction
-mkHighPcodeInstruction = traverse Var.mkHighVarNode
+mkHighPcodeInstruction :: J.ProgramDB -> BareHighPcodeInstruction -> Ghidra HighPcodeInstruction
+mkHighPcodeInstruction prog = traverse $ Var.mkHighVarNode prog
 
 mkRawPcodeInstruction :: BareRawPcodeInstruction -> Ghidra RawPcodeInstruction
 mkRawPcodeInstruction = traverse Var.mkVarNode
@@ -271,7 +271,7 @@ getHighPcode
   -> Ghidra [(Address, PcodeOp HighVarNode)]
 getHighPcode prg addressSpaceMap hfn a = do
   jpcodes <- getHighPcodeOps prg hfn a
-  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) jpcodes
+  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction prg <=< mkBareHighPcodeInstruction) jpcodes
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of
@@ -282,17 +282,18 @@ getHighPcode prg addressSpaceMap hfn a = do
     separateError (Left err) (errs, instrs) = (err:errs, instrs)
 
 getBlockHighPcode
-  :: AddressSpaceMap
+  :: J.ProgramDB
+  -> AddressSpaceMap
   -> J.PcodeBlockBasic
   -> Ghidra [(Address, PcodeOp HighVarNode)]
-getBlockHighPcode addressSpaceMap block = do
+getBlockHighPcode prog addressSpaceMap block = do
   ops :: [J.PcodeOpAST] <- iteratorToList =<< runIO (Java.call block "getIterator")
   opsWithAddr :: [(Address, J.PcodeOpAST)] <-
     forM ops $ \op -> do
       seqnum :: J.SequenceNumber <- runIO $ Java.call op "getSeqnum"
       addr <- runIO (Java.call seqnum "getTarget") >>= mkAddress
       pure (addr, op)
-  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction <=< mkBareHighPcodeInstruction) opsWithAddr
+  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction prog <=< mkBareHighPcodeInstruction) opsWithAddr
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of
@@ -301,3 +302,21 @@ getBlockHighPcode addressSpaceMap block = do
   where
     separateError (Right x) (errs, instrs) = (errs, x:instrs)
     separateError (Left err) (errs, instrs) = (err:errs, instrs)
+
+getHighVarNodes :: J.ProgramDB -> J.HighFunction -> Ghidra [HighVarNode]
+getHighVarNodes prog hFunc = do
+    pcodeOpsIter :: J.Iterator J.PcodeOpAST <- runIO $ Java.call hFunc "getPcodeOps"
+    pcodeOps :: [J.PcodeOpAST] <- iteratorToList pcodeOpsIter
+    foldM getVarnodeASTs [] pcodeOps
+    where
+        getVarnodeASTs :: [HighVarNode] -> J.PcodeOpAST -> Ghidra [HighVarNode]
+        getVarnodeASTs lst pcodeAST = do
+            jOutput <- getHighOutput pcodeAST
+            jInputs <- getHighInputs pcodeAST
+            inputs <- mapM (Var.mkHighVarNode prog) jInputs
+            case jOutput of
+              Nothing -> return $ inputs ++ lst
+              Just jOutput' -> do
+                output <- Var.mkHighVarNode prog jOutput'
+                return $ (output : inputs) ++ lst
+

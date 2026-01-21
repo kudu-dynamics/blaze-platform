@@ -9,6 +9,7 @@ import Blaze.Types.Pil.Checker
 import Blaze.Pil.Construct (defCall, var)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (PilVar)
+import Blaze.Types.Pil.PilType
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Function (ParamPosition(ParamPosition))
 import Blaze.Util.Spec (defaultSize)

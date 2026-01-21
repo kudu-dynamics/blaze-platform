@@ -7,11 +7,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker
     ( Constraint(Constraint),
       SymType(SType, SVar),
-      PilType(TBottom, TBitVector, TFloat, TInt, TChar, TBool, TUnit,
-              TPointer, TArray, TFunction, TRecord,
-              TCString
-             ),
-      Sym,
       UnifyConstraintsError(UnifyConstraintsError),
       UnifyError(IncompatibleTypes, IncompatibleTypeLevelValues),
       UnifyState,
@@ -21,6 +16,7 @@ import Blaze.Types.Pil.Checker
       assignType,
       equals )
 import Blaze.Pil.Analysis (addToOriginMap)
+import Blaze.Types.Pil.PilType
 
 -- | Adds new var equality, returning the origin sym.
 -- If the equality merges two groups, it picks the origin associated

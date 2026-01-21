@@ -21,6 +21,8 @@ import qualified Prelude as P
 
 import Blaze.Pil.Function (mkCallTarget)
 import Blaze.Types.Pil.Checker
+import Blaze.Types.Import
+import Blaze.Types.Pil.PilType
 
 
 constrainStandardFunc
@@ -459,10 +461,11 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     addChildConstraints
 
   Pil.LSL x -> do
-    add =<< integralFirstArgIsReturn x
+    add =<< bitVectorFirstArgIsReturn x
     addChildConstraints
   Pil.LSR x -> do
-    add =<< integralFirstArgIsReturn x
+    add =<< bitVectorFirstArgIsReturn x
+    --add =<< integralFirstArgIsReturn x
     addChildConstraints
   Pil.MODS x -> do
     add =<< integralBinOpFirstArgIsReturn (Just True) False x
@@ -559,22 +562,33 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     addChildConstraints
 
   Pil.VAR x -> do
-    v <- lookupVarSym $ x ^. #src
+    let pv = x ^. #src
+    pvMap <- view #pvTypeHints
+
+    v <- lookupVarSym pv
     add [ (r, CSVar v)
-        , (v, CSType $ TBitVector jSz)
+        , (v, pvToConstraintType pvMap pv jSz)
         ]
     addChildConstraints
-  Pil.VAR_FIELD _ -> do
+  Pil.VAR_FIELD x -> do
+    let pv = x ^. #src
+    pvMap <- view #pvTypeHints
+    v <- lookupVarSym pv
+    add [ (r, CSVar v)
+        , (v, pvToConstraintType pvMap pv jSz)
+        ]
     -- TODO: can we know anything about src PilVar by looking at offset + result size?
-    add [ (r, CSType $ TBitVector jSz) ]
     addChildConstraints
 
   Pil.VAR_JOIN x -> do
-    low <- lookupVarSym $ x ^. #low
-    high <- lookupVarSym $ x ^. #high
+    let pv1 = x ^. #low
+    let pv2 = x ^. #high
+    pvMap <- view #pvTypeHints
+    low <- lookupVarSym pv1
+    high <- lookupVarSym pv2
     add [ (r, CSType $ TBitVector jSz)
-        , (low, CSType $ TBitVector jHalfSz)
-        , (high, CSType $ TBitVector jHalfSz)
+        , (low, pvToConstraintType pvMap pv1 jHalfSz)
+        , (high, pvToConstraintType pvMap pv2 jHalfSz)
         ]
     addChildConstraints
 
@@ -582,7 +596,8 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     add $ bitVectorBinOp x
     addChildConstraints
   Pil.ZX x -> do
-    add =<< integralExtendOp Nothing x
+    add =<< bitVectorExtendOp x
+    --add =<< integralExtendOp Nothing x
     addChildConstraints
 
   Pil.STACK_LOCAL_ADDR x -> do
@@ -592,6 +607,12 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
   Pil.UNIT -> add [ (r, CSType TUnit) ]
 
   where
+    pvToConstraintType :: TypeHints -> PilVar -> Maybe BitWidth -> ConstraintSymType
+    pvToConstraintType typeHints pv sz' =
+      case HashMap.lookup pv typeHints of
+        Nothing -> CSType $ TBitVector sz'
+        Just impType -> impTypeToConstraintType impType
+
     add = addConstraints
     addChildConstraints = traverse_ addExprTypeConstraints op'
     jSz = Just sz
@@ -614,6 +635,17 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
       , (r, CSVar $ x ^. field' @"left" . #info . #sym)
       , (r, CSVar $ x ^. field' @"right" . #info . #sym)
       ]
+
+    bitVectorExtendOp ::
+      (HasField' "src" x SymExpression) =>
+      x -> 
+      ConstraintGen [SymConstraint]
+    bitVectorExtendOp x = do
+      return
+        [ (r, CSType $ TBitVector jSz)
+        , (x ^. field' @"src" . #info . #sym, CSType $ TBitVector Nothing)
+        ]
+
 
     integralExtendOp ::
       (HasField' "src" x SymExpression) =>
@@ -787,6 +819,17 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
         , (x ^. field' @"left" . #info . #sym, argType)
         , (x ^. field' @"right" . #info . #sym, argType)
         ]
+    
+    bitVectorFirstArgIsReturn :: (HasField' "left" x SymExpression, HasField' "right" x SymExpression)
+                             => x
+                             -> ConstraintGen [SymConstraint]
+    bitVectorFirstArgIsReturn x = do
+      let n = CSType $ TBitVector Nothing
+      return
+        [ (x ^. field' @"left" . #info . #sym, n)
+        , (x ^. field' @"right" . #info . #sym, CSType $ TBitVector Nothing)
+        , (r, n)
+        ]
 
     integralFirstArgIsReturn :: (HasField' "left" x SymExpression, HasField' "right" x SymExpression)
                              => x
@@ -898,3 +941,20 @@ addStmtTypeConstraints
   -> ConstraintGen (AddressableStatement SymExpression)
 addStmtTypeConstraints (Pil.Stmt addr statement) =
   Pil.Stmt addr <$> addStatementTypeConstraints statement
+
+
+impTypeToConstraintType :: ImpType -> ConstraintSymType
+impTypeToConstraintType (Unknown x _) = CSType (TBitVector x)
+impTypeToConstraintType (ImpType TBool) = CSType TBool 
+impTypeToConstraintType (ImpType (TChar x)) = CSType (TChar x)
+impTypeToConstraintType (ImpType (TInt x y)) = CSType (TInt x y)
+impTypeToConstraintType (ImpType (TFloat x)) = CSType (TFloat x)
+impTypeToConstraintType (ImpType (TBitVector x)) = CSType (TBitVector x)
+impTypeToConstraintType (ImpType (TPointer x y)) = CSType (TPointer x (impTypeToConstraintType y))
+impTypeToConstraintType (ImpType (TCString x)) = CSType (TCString x)
+impTypeToConstraintType (ImpType (TArray x y)) = CSType (TArray x (impTypeToConstraintType y))
+impTypeToConstraintType (ImpType (TRecord hm)) = CSType (TRecord (map impTypeToConstraintType hm))
+impTypeToConstraintType (ImpType TUnit) = CSType TUnit
+impTypeToConstraintType (ImpType (TBottom x)) = CSType (TBottom x)
+impTypeToConstraintType (ImpType (TFunction x y)) = CSType (TFunction (impTypeToConstraintType x) (map impTypeToConstraintType y))
+

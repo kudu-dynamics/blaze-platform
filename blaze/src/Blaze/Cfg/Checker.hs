@@ -7,15 +7,16 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Checker (TypeReport, ConstraintGenError, SymTypedStmt)
 import Blaze.Cfg (Cfg, CfNode, gatherCfgData, getCtx)
 import qualified Blaze.Pil.Analysis as Analysis
+import Blaze.Types.Import (TypeHints)
 
 
 -- | Checks indexed statements pulled from a CFG.
 -- First performs analysis pass to make field accesses explicit
 -- then removes unused phi vars, which otherwise would cause type inference
 -- to somtimes equate unrelated vars.
-checkFromCfg :: Maybe Ctx -> [(Int, Stmt)] -> Either ConstraintGenError TypeReport
-checkFromCfg mRootCtx cfgStmts =
-  checkIndexedStmts mRootCtx . removeUnusedPhi $
+checkFromCfg :: Maybe Ctx -> TypeHints -> [(Int, Stmt)] -> Either ConstraintGenError TypeReport
+checkFromCfg typeHints mRootCtx cfgStmts =
+  checkIndexedStmts typeHints mRootCtx . removeUnusedPhi $
     zip (fmap fst cfgStmts) (Analysis.substAddrs $ fmap snd cfgStmts)
 
 checkCfg :: Cfg (CfNode [Stmt])
@@ -24,7 +25,16 @@ checkCfg :: Cfg (CfNode [Stmt])
             , Cfg (CfNode [(Int, SymTypedStmt)])
             , TypeReport
             )
-checkCfg cfg = case checkFromCfg (Just $ getCtx cfg) indexedStmts' of
+checkCfg = checkCfgWithTypeHints HashMap.empty
+
+checkCfgWithTypeHints :: TypeHints
+                      -> Cfg (CfNode [Stmt])
+                      -> Either ConstraintGenError
+                      ( Cfg (CfNode [(Int, Stmt)])
+                      , Cfg (CfNode [(Int, SymTypedStmt)])
+                      , TypeReport
+                      )
+checkCfgWithTypeHints typeHints cfg = case checkFromCfg (Just $ getCtx cfg) typeHints indexedStmts' of
   Left err -> Left err
   Right tr -> Right (cfg', typedCfg, tr)
     where

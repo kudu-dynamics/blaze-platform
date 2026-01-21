@@ -44,6 +44,7 @@ data Options = Options
   , verbosity :: VerbosityLevel
   , filterFuncsFile :: Maybe FilePath
   , blacklistFile :: Maybe FilePath
+  , typeHintsFile :: Maybe FilePath
   , outputSMTish :: Bool
   , inputFile :: FilePath
   }
@@ -121,6 +122,13 @@ parseBlacklistFile = strOption $
   <> metavar "BLACKLIST_FILE"
   <> help "file containing functions names to skip during analysis"
 
+parseTypeHintsFile :: Parser FilePath
+parseTypeHintsFile = strOption $
+  long "typeHints"
+  <> short 't'
+  <> metavar "TYPEHINT_FILE"
+  <> help "file containing functions that we should get type hints for"
+
 parseOutputSMTish :: Parser Bool
 parseOutputSMTish = switch $
   long "outputSMTish"
@@ -138,6 +146,7 @@ optionsParser = Options
   <*> (parseVerbosity <|> pure Info)
   <*> optional parseFilterFuncsFile
   <*> optional parseBlacklistFile
+  <*> optional parseTypeHintsFile
   <*> (parseOutputSMTish <|> pure False)
   <*> parseInputFile
 
@@ -237,40 +246,36 @@ toFlintResult baseOffset
   . fmap (\(pt, s) -> (pt ^. #name, fmap toCallableWMIBlob . HashSet.toList $ s))
   . HashMap.toList
 
+
 -- | Checks for bugs using the onion
 onionCheck :: MonadIO m => Options -> m ()
 onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
-  store <- Store.init (opts ^. #analysisDb) imp
+  typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
+  (store,funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
   base <- getBase imp
-  let loadBlacklist fp = HashSet.fromList
-        . filter (not . Text.null)
-        . fmap Text.strip
-        . Text.lines
-        <$> liftIO (TextIO.readFile fp)
-  blacklist <- maybe (pure HashSet.empty) loadBlacklist $ opts ^. #blacklistFile
+  blacklist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #blacklistFile)
   let stdLibPrims = allStdLibPrims
       prims :: [Prim]
       prims = PrimLib.allPrims
 
   -- TODO: make maxResultsPerPath an option
   let maxResultsPerPath = 10 -- max WMIs found per path
-  onionFlow maxResultsPerPath (not $ opts ^. #doNotUseSolver) (opts ^. #onionDepth) (opts ^. #pathSamplingFactor) store stdLibPrims prims blacklist
+  onionFlow
+    maxResultsPerPath
+    (not $ opts ^. #doNotUseSolver) 
+    (opts ^. #onionDepth)
+    (opts ^. #pathSamplingFactor)
+    store 
+    stdLibPrims 
+    prims 
+    blacklist 
+    funcToTypeHintsMap
   cprims <- CM.getSnapshot $ store ^. #callablePrims
-
-  let loadFilterFuncs fp = HashSet.fromList
-        . filter (not . Text.null)
-        . fmap Text.strip
-        . Text.lines
-        <$> liftIO (TextIO.readFile fp)
-  filterFuncs <- maybe (pure Nothing) (fmap Just . loadFilterFuncs) $ opts ^. #filterFuncsFile
-
+  filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
   let filteredCprims = case filterFuncs of
         Nothing -> cprims
-        Just funcs -> HashMap.filterWithKey
-          (\(_, func) _ -> HashSet.member (func ^. Func._name) funcs)
-          cprims
-
-  let cprims' = M.asOldCallableWMIsMap filteredCprims
+        Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
+  let cprims' = M.asOldCallableWMIsMap filteredCprims  
   case opts ^. #outputSMTish of
     False -> handleResult $ toFlintResult base cprims'
     True -> handleResult $ toFlintSMTishResult base cprims'
@@ -281,3 +286,19 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
       Just outputFilePath -> do
         writeResult outputFilePath flintResult
         putText $ "Wrote results to " <> show outputFilePath
+
+
+getFuncsFromFile :: FilePath -> IO (HashSet Text)
+getFuncsFromFile fp 
+  = HashSet.fromList
+  . filter (not . Text.null)
+  . fmap Text.strip
+  . Text.lines
+  <$> liftIO (TextIO.readFile fp)
+
+
+
+
+
+
+

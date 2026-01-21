@@ -120,7 +120,7 @@ getClangAST gs fn = do
   res :: J.DecompilerResults <- runIO $ Java.call ifc "decompileFunction" fn (0 :: Int32) mon >>= JNI.newGlobalRef
   tokenGroup :: J.ClangTokenGroup <- runIO $ Java.call res "getCCodeMarkup"
   let rootNode :: J.ClangNode = coerce tokenGroup
-  buildClangAST rootNode
+  buildClangAST (gs ^. #program) rootNode
 
 simplStyleStr :: SimplificationStyle -> Text
 simplStyleStr = Text.toLower . Text.pack . show
@@ -195,10 +195,11 @@ mkParameter p = runIO $ do
 -- | Assumes that s.category == 0 (parameter)
 mkHighParameter :: J.HighSymbol -> Ghidra HighParameter
 mkHighParameter s = runIO $ do
+  size :: Int32 <- Java.call s "getSize"
   ordIndex :: Int32 <- Java.call s "getCategoryIndex"
   mname :: Maybe Text <- traverse Java.reify . maybeNull =<< Java.call s "getName"
   let name = fromMaybe ("param_" <> show (ordIndex + 1)) mname
-  pure $ HighParameter s ordIndex name
+  pure $ HighParameter s ordIndex name size
 
 -- | Probably not what you want, since decompilation can uncover more parameters
 -- that were unknown at the low level. See 'getHighParams'

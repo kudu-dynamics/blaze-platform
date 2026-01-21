@@ -1,9 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 module Ghidra.Types.Variable where
 
-import Ghidra.Prelude hiding (DataType)
+import Ghidra.Prelude
 import Ghidra.Types.Address (Address)
-import Ghidra.Types.DataTypes (DataType)
+import Ghidra.Types.GhidraDataTypes (GhidraDataType)
 
 data VarType
   = Const Int64
@@ -34,7 +34,7 @@ data HighSymbol = HighSymbol
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
 data HighVariable = HighVariable
-  { dataType :: DataType
+  { dataType :: GhidraDataType
   , name :: Maybe Text
   , size :: Bytes
   , highVariableType :: HighVariableType

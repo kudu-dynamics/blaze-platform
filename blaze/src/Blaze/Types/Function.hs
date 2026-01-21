@@ -14,6 +14,7 @@ data Access = In | Out | InOut | Unknown
 
 data ParamInfo = ParamInfo
   { name :: Text
+  , size :: Maybe Bytes
   , access :: Access
   }
   deriving (Eq, Ord, Show, Generic)
