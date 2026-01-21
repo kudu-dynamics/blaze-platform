@@ -17,7 +17,7 @@ import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Types.Path as Path
 import Blaze.Types.Pil.Analysis (LoadExpr(LoadExpr))
 import qualified Blaze.Types.Pil.Checker as PI
-import Blaze.Types.Pil.Checker (Sym)
+import Blaze.Types.Pil.PilType
 import Blaze.Types.Pil.Summary (Effect (EffectWrite, EffectAlloc, EffectDealloc, EffectCall))
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
@@ -107,12 +107,12 @@ data Token = Token
   , context :: TokenContext
   -- , confidence :: Int
   , address :: Address
-  , typeSym :: Maybe PI.Sym -- not in Binja's Token type
+  , typeSym :: Maybe Sym -- not in Binja's Token type
   }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hashable)
 
 newtype TokenizerCtx = TokenizerCtx
-  { varSymMap :: Maybe (HashMap Pil.PilVar PI.Sym)
+  { varSymMap :: Maybe (HashMap Pil.PilVar Sym)
   } deriving (Eq, Ord, Show, Generic)
 
 blankTokenizerCtx :: TokenizerCtx
@@ -600,8 +600,8 @@ instance Tokenizable PI.DeepSymType where
               <++> tokenize dst
           )
 
-instance Tokenizable PI.Sym where
-  tokenize (PI.Sym n) = pure [tt $ "s" <> show n]
+instance Tokenizable Sym where
+  tokenize (Sym n) = pure [tt $ "s" <> show n]
 
 instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.SymType)) where
   tokenize (PI.InfoExpression (PI.SymInfo bitwidth s, mstype) op) =
@@ -620,9 +620,9 @@ instance Tokenizable (PI.InfoExpression (PI.SymInfo, Maybe PI.DeepSymType)) wher
       mstype' = maybe (pure [keywordToken "Unknown"]) tokenize mstype
 
 instance Tokenizable (PI.InfoExpression PI.SymInfo) where
-  tokenize (PI.InfoExpression (PI.SymInfo bitwidth (PI.Sym n)) op) =
+  tokenize (PI.InfoExpression (PI.SymInfo bitwidth (Sym n)) op) =
     [tt (show n), tt ":"]
-      <++> (paren <$> tokenizeExprOp (Just $ PI.Sym n) op (Pil.widthToSize bitwidth))
+      <++> (paren <$> tokenizeExprOp (Just $ Sym n) op (Pil.widthToSize bitwidth))
 
 instance Tokenizable Pil.Expression where
   tokenize (Pil.Expression size' exprOp) = tokenizeExprOp Nothing exprOp size'
@@ -812,32 +812,32 @@ instance Tokenizable Pil.StmtIndex where
 instance Tokenizable Word64 where
   tokenize x = pure [integerToken x]
 
-instance Tokenizable t => Tokenizable (PI.PilType t) where
+instance Tokenizable t => Tokenizable (PilType t) where
   tokenize = \case
-    PI.TArray len elemType ->
+    TArray len elemType ->
       [kt "Array", tt " "]
         <++> tokenize len
         <++> tt " "
         <++> tokenize elemType
-    --    PI.TZeroField pt -> "ZeroField" <-> paren (tokenize pt)
-    PI.TBool -> pure [kt "Bool"]
-    PI.TChar bitWidth -> [kt "Char"] <++> tokenize bitWidth
-    -- PI.TQueryChar -> "QueryChar"
-    PI.TInt bitWidth signed -> return [kt $ intName <> intWidth]
+    --    TZeroField pt -> "ZeroField" <-> paren (tokenize pt)
+    TBool -> pure [kt "Bool"]
+    TChar bitWidth -> [kt "Char"] <++> tokenize bitWidth
+    -- TQueryChar -> "QueryChar"
+    TInt bitWidth signed -> return [kt $ intName <> intWidth]
       where
         intName = case signed of
           Nothing -> "_Int"
           Just True -> "SInt"
           Just False -> "UInt"
         intWidth = showAsInt_ bitWidth
-    PI.TFloat bitWidth -> return [kt "Float", tt $ showAsInt_ bitWidth]
-    PI.TBitVector bitWidth -> return [kt "BitVector", tt $ showAsInt_ bitWidth]
-    PI.TPointer bitWidth pointeeType ->
+    TFloat bitWidth -> return [kt "Float", tt $ showAsInt_ bitWidth]
+    TBitVector bitWidth -> return [kt "BitVector", tt $ showAsInt_ bitWidth]
+    TPointer bitWidth pointeeType ->
       [kt "Pointer", tt $ showAsInt_ bitWidth]
         <++> tt " "
         <++> (paren <$> tokenize pointeeType)
-    PI.TCString len -> [kt "CString", tt " "] <++> tokenize len
-    PI.TRecord m ->
+    TCString len -> [kt "CString", tt " "] <++> tokenize len
+    TRecord m ->
       [kt "Record", tt " "]
         <++> ( delimitedList [tt "["] [tt ", "] [tt "]"]
                 <$> traverse rfield (sortOn fst $ HashMap.toList m)
@@ -845,9 +845,9 @@ instance Tokenizable t => Tokenizable (PI.PilType t) where
       where
         rfield :: forall a. Tokenizable a => (BitOffset, a) -> Tokenizer [Token]
         rfield (BitOffset n, t) = paren <$> [tt (show n), tt ", "] <++> tokenize t
-    PI.TBottom s -> paren <$> [kt "Bottom", tt " "] <++> tokenize s
-    PI.TUnit -> pure [kt "Unit"]
-    PI.TFunction _ret _params -> pure [kt "Func"]
+    TBottom s -> paren <$> [kt "Bottom", tt " "] <++> tokenize s
+    TUnit -> pure [kt "Unit"]
+    TFunction _ret _params -> pure [kt "Func"]
 
 -- | Shows something as an Integer or, if Nothing, as an underscore
 showAsInt_ :: (Integral a, IsString b, StringConv String b) => Maybe a -> b

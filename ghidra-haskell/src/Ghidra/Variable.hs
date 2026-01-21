@@ -8,7 +8,7 @@ module Ghidra.Variable
   , VarType(..)
   ) where
 
-import Ghidra.Prelude hiding (toList, Const(Const), DataType, mkDataType)
+import Ghidra.Prelude hiding (toList, Const(Const), mkDataType)
 
 import Foreign.JNI.Types (JObject)
 import qualified Language.Java as Java
@@ -19,8 +19,8 @@ import Ghidra.Address (Address, mkAddress)
 import Ghidra.Util (maybeNullCall, maybeNull)
 import qualified Data.Text as Text
 import qualified Foreign.JNI as JNI
-import Ghidra.Types.DataTypes (DataType)
-import Ghidra.DataTypes (parseDataType)
+import Ghidra.Types.GhidraDataTypes (GhidraDataType)
+import Ghidra.GhidraDataTypes (parseDataTypeWithTransaction)
 
 
 mkVarType :: Either J.VarNode J.VarNodeAST -> Ghidra VarType
@@ -75,10 +75,10 @@ mkHighVariableType hv = do
       "HighOther" -> return HighOther
       other -> error $ "Invalid class name: " <> cs other
 
-mkDataType :: J.HighVariable -> Ghidra DataType
-mkDataType hv = do
+mkDataType :: J.ProgramDB -> J.HighVariable -> Ghidra GhidraDataType
+mkDataType prog hv = do
   dt :: J.DataType <- runIO $ Java.call hv "getDataType"
-  parseDataType dt
+  parseDataTypeWithTransaction prog dt
 
 getHighSymbol :: J.HighVariable -> Ghidra (Maybe HighSymbol)
 getHighSymbol hv = do
@@ -90,11 +90,11 @@ getHighSymbol hv = do
       isParamVar :: Bool <- fmap (fromMaybe False) . maybeNullCall . runIO $ Java.call hsym "isParameter" 
       return . Just $ HighSymbol name isParamVar
 
-mkHighVariable :: J.HighVariable -> Ghidra HighVariable
-mkHighVariable hv = do
+mkHighVariable :: J.ProgramDB -> J.HighVariable -> Ghidra HighVariable
+mkHighVariable prog hv = do
   sz :: Int32 <- runIO $ Java.call hv "getSize"
   mVarNameStr <- maybeNullCall . runIO $ Java.call hv "getName" >>= Java.reify
-  dt <- mkDataType hv
+  dt <- mkDataType prog hv
   hvt <- mkHighVariableType hv
   mhsym <- getHighSymbol hv
   return $ HighVariable
@@ -105,12 +105,12 @@ mkHighVariable hv = do
     , highSymbol = mhsym
     }
 
-mkHighVarNode :: J.VarNodeAST -> Ghidra HighVarNode
-mkHighVarNode v = do
+mkHighVarNode :: J.ProgramDB -> J.VarNodeAST -> Ghidra HighVarNode
+mkHighVarNode prog v = do
   -- sz :: Int32 <- Java.call (coerce v :: J.VarNode)  "getSize"
   sz :: Int32 <- runIO $ Java.call v "getSize"
   mhv <- maybeNull <$> runIO (Java.call v "getHigh")
-  mhv' <- maybe (return Nothing) (fmap Just . (mkHighVariable <=< runIO . JNI.newGlobalRef)) mhv
+  mhv' <- maybe (return Nothing) (fmap Just . (mkHighVariable prog <=< runIO . JNI.newGlobalRef)) mhv
   HighVarNode <$> mkVarType (Right v) <*> pure (fromIntegral sz) <*> getPcAddress <*> pure mhv'
 
   where
@@ -123,3 +123,5 @@ mkHighVarNode v = do
       if addr == noAddress
         then return Nothing
         else fmap Just $ runIO (JNI.newGlobalRef addr) >>= mkAddress
+
+

@@ -193,8 +193,8 @@ func2 = Function
   { symbol = Nothing
   , name = "func2"
   , address = intToAddr 200
-  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
-             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
+  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.In
+             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.In
              ]
   }
 
@@ -203,7 +203,7 @@ func3 = Function
   { symbol = Nothing
   , name = "func3"
   , address = intToAddr 300
-  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In ]
+  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.In ]
   }
 
 func4 :: Function
@@ -211,8 +211,8 @@ func4 = Function
   { symbol = Nothing
   , name = "func4"
   , address = intToAddr 400
-  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
-             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
+  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.In
+             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.In
              ]
   }
 
@@ -221,8 +221,8 @@ func5 = Function
   { symbol = Nothing
   , name = "func5"
   , address = intToAddr 500
-  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
-             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
+  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.In
+             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.In
              ]
   }
 

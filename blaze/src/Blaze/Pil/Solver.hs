@@ -19,6 +19,7 @@ import Blaze.Types.Pil ( Expression
                        )
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Pil.Solver
+import Blaze.Types.Pil.PilType
 import qualified Blaze.Pil.Solver.List as BSList
 import Data.SBV.Tools.Overflow (bvAddO, bvSubO)
 import qualified Data.SBV.Trans as Exports (z3, cvc4)
@@ -49,7 +50,8 @@ import Data.SBV.Trans ( (.==)
 import Data.SBV.Dynamic as D hiding (Solver)
 import qualified Blaze.Types.Pil.Checker as Ch
 import qualified Blaze.Pil.Checker as Ch
-import Blaze.Types.Pil.Checker ( DeepSymType )
+import Blaze.Types.Pil.Checker (DeepSymType)
+import Blaze.Types.Import (TypeHints)
 import Data.SBV.Internals (SBV(SBV), unSBV)
 
 
@@ -94,26 +96,26 @@ deepSymTypeToKind t = case t of
                           -- ignore recursion, and hope for the best
 
   Ch.DSType pt -> case pt of
-    Ch.TArray _alen _etype -> err "Array should be handled only when wrapped in Ptr"
-    Ch.TBool -> return KBool
-    Ch.TChar bw -> KBounded False <$> getBitWidth bw
-    Ch.TInt bw s -> KBounded <$> (getSigned s <|> pure False) <*> getBitWidth bw
-    Ch.TFloat _ -> return KDouble
+    TArray _alen _etype -> err "Array should be handled only when wrapped in Ptr"
+    TBool -> return KBool
+    TChar bw -> KBounded False <$> getBitWidth bw
+    TInt bw s -> KBounded <$> (getSigned s <|> pure False) <*> getBitWidth bw
+    TFloat _ -> return KDouble
                    -- SBV only has float or double, so we'll just pick double
 
-    Ch.TBitVector bw -> KBounded False <$> getBitWidth bw
-    Ch.TPointer bw _pt -> KBounded False <$> getBitWidth bw
-    -- Ch.TPointer bwt ptrElemType -> case ptrElemType of
-    --   Ch.DSType (Ch.TArray _alen arrayElemType) ->
+    TBitVector bw -> KBounded False <$> getBitWidth bw
+    TPointer bw _pt -> KBounded False <$> getBitWidth bw
+    -- TPointer bwt ptrElemType -> case ptrElemType of
+    --   Ch.DSType (TArray _alen arrayElemType) ->
     --     -- alen constraint is handled at sym var creation
     --     KList <$> deepSymTypeToKind arrayElemType
     --   -- TODO: structs. good luck
     --   _ -> KBounded <$> pure False <*> getBitWidth bwt
-    Ch.TCString _ -> return KString
-    Ch.TRecord _ -> err "Can't handle Record type"
-    Ch.TUnit -> return $ KTuple []
-    Ch.TBottom s -> err $ "TBottom " <> show s
-    Ch.TFunction _ _ -> err "Can't handle Function type"
+    TCString _ -> return KString
+    TRecord _ -> err "Can't handle Record type"
+    TUnit -> return $ KTuple []
+    TBottom s -> err $ "TBottom " <> show s
+    TFunction _ _ -> err "Can't handle Function type"
   where
     getBitWidth :: Maybe Bits -> Solver Int
     getBitWidth (Just b) = case fromIntegral b of
@@ -138,7 +140,7 @@ makeSymVar nm _dst k = do
   --   Just n -> D.svNewVar k n
   --   Nothing -> D.svNewVar_ k
   -- case dst of
-  --   Ch.DSType (Ch.TPointer _ (Ch.DSType (Ch.TArray (Ch.DSType (Ch.TVLength n)) _))) -> do
+  --   Ch.DSType (TPointer _ (Ch.DSType (TArray (Ch.DSType (TVLength n)) _))) -> do
   --     constrain_ $ fromIntegral n .== BSList.length v
   --   _ -> return ()
   -- return v
@@ -1101,16 +1103,17 @@ solveTypedStmtsWith solverCfg leniency vartypes =
 -- | runs type checker first, then solver
 solveStmtsWith :: SMTConfig
                -> SolverLeniency
+               -> TypeHints
                -> [Stmt]
                -> IO (Either
                       (Either
                        Ch.ConstraintGenError
                        (SolverError, Ch.TypeReport))
                       (SolverReport, Ch.TypeReport))
-solveStmtsWith solverCfg leniency stmts = do
+solveStmtsWith solverCfg leniency typeHints stmts = do
   -- should essential analysis steps be included here?
   -- let stmts' = Analysis.substFields stmts
-  let er = Ch.checkStmts Nothing stmts
+  let er = Ch.checkStmtsWithTypeHints typeHints Nothing stmts
   case er of
     Left e -> return $ Left (Left e)
     Right tr -> solveTypedStmtsWith solverCfg leniency (tr ^. #varSymTypeMap) (tr ^. #symTypedStmts) >>= \case
@@ -1120,13 +1123,17 @@ solveStmtsWith solverCfg leniency stmts = do
 -- | Convenience function for checking statements that package results nicely.
 solveStmtsWith_ :: SMTConfig
                 -> SolverLeniency
+                -> TypeHints
                 -> [Stmt]
                 -> IO SolverResult
-solveStmtsWith_ solverCfg leniency stmts = solveStmtsWith solverCfg leniency stmts >>= \case
+solveStmtsWith_ solverCfg leniency typeHints stmts = solveStmtsWith solverCfg leniency typeHints stmts >>= \case
   Left err -> return $ Err err
   Right (r, _) -> return $ r ^. #result
 
 solveStmtsWithZ3 :: SolverLeniency -> [Stmt] -> IO SolverResult
-solveStmtsWithZ3 leniency stmts = solveStmtsWith SBV.z3 leniency stmts >>= \case
+solveStmtsWithZ3 = solveStmtsWithZ3WithTypeHints HashMap.empty
+
+solveStmtsWithZ3WithTypeHints :: TypeHints -> SolverLeniency -> [Stmt] -> IO SolverResult
+solveStmtsWithZ3WithTypeHints typeHints leniency stmts = solveStmtsWith SBV.z3 leniency typeHints stmts >>= \case
   Left _ -> return Unk
   Right (r, _) -> return $ r ^. #result

@@ -12,6 +12,7 @@ import Blaze.Pil.Solver hiding (pilVar)
 import Blaze.Pil.Construct hiding (pilVar)
 import qualified Blaze.Pil.Construct as C
 import Blaze.Types.Pil (PilVar)
+import Blaze.Types.Pil.PilType
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.SBV.Trans as SBV
 import qualified Data.HashMap.Strict as HashMap
@@ -46,19 +47,19 @@ getVal k r = getVar k r >>= getInt
 spec :: Spec
 spec = describe "Blaze.Pil.SolverSpec" $ do
   let solveSolver m = checkSatWith_ SBV.z3 False AbortOnError m
-      signed32 = Ch.DSType $ Ch.TInt (bw 32) (Just True)
-      signed64 = Ch.DSType $ Ch.TInt (bw 64) (Just True)
-      unsigned32 = Ch.DSType $ Ch.TInt (bw 32) (Just False)
-      unsigned64 = Ch.DSType $ Ch.TInt (bw 64) (Just False)
-      unsigned8 = Ch.DSType $ Ch.TInt (bw 8) (Just False)
-      unsigned4 = Ch.DSType $ Ch.TInt (bw 4) (Just False)
-      carry = Ch.DSType Ch.TBool
+      signed32 = Ch.DSType $ TInt (bw 32) (Just True)
+      signed64 = Ch.DSType $ TInt (bw 64) (Just True)
+      unsigned32 = Ch.DSType $ TInt (bw 32) (Just False)
+      unsigned64 = Ch.DSType $ TInt (bw 64) (Just False)
+      unsigned8 = Ch.DSType $ TInt (bw 8) (Just False)
+      unsigned4 = Ch.DSType $ TInt (bw 4) (Just False)
+      carry = Ch.DSType TBool
       bw = Just
-      char = Ch.DSType $ Ch.TChar (Just 8)
-      float = Ch.DSType $ Ch.TFloat (bw 80)
-      tbool = Ch.DSType Ch.TBool
-      -- pointer = Ch.DSType . Ch.TPointer (bw 64)
-      bitVec = Ch.DSType . Ch.TBitVector
+      char = Ch.DSType $ TChar (Just 8)
+      float = Ch.DSType $ TFloat (bw 80)
+      tbool = Ch.DSType TBool
+      -- pointer = Ch.DSType . TPointer (bw 64)
+      bitVec = Ch.DSType . TBitVector
       floatEqual x y = unSBV $ (toSFloat' x .>= toSFloat' y)
         .&& (toSFloat' x .< SBV.fpAdd SBV.sRoundNearestTiesToAway (toSFloat' y) (toSFloat' . constFloat $ 0.0000001))
       pv = C.pilVar
@@ -185,7 +186,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
     context "declarePilVars" $ do
       let tenv = [ (pilVar "a", char)
                  , (pilVar "b", signed32)
-                 , (pilVar "c", Ch.DSType Ch.TBool)
+                 , (pilVar "c", Ch.DSType TBool)
                  ]
           vmap = [ (pilVar "a", KBounded False 8)
                  , (pilVar "b", KBounded True 32)
@@ -248,7 +249,7 @@ spec = describe "Blaze.Pil.SolverSpec" $ do
               arg2 :: DSTExpression
               arg2 = Ch.InfoExpression (Ch.SymInfo inw $ Sym 1, Just (bitVec $ Just inw))
                      . Pil.CONST . Pil.ConstOp $ r
-              expr = Ch.InfoExpression (Ch.SymInfo 1 $ Sym 0, Just (Ch.DSType Ch.TBool))
+              expr = Ch.InfoExpression (Ch.SymInfo 1 $ Sym 0, Just (Ch.DSType TBool))
                      $ op arg1 arg2
 
               cmd = do

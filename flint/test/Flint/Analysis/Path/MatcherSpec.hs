@@ -9,6 +9,7 @@ import Flint.Prelude hiding (and, const, not, or, until, sym, Location)
 import Helper.Primitives
 
 import Flint.Analysis.Path.Matcher
+import qualified Flint.Analysis.Path.Matcher as M
 -- import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep, PathPrep(PathPrep))
@@ -21,6 +22,7 @@ import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Pil.Solver as Solver
 import qualified Blaze.Types.Pil.Checker as Ch
+import Blaze.Types.Pil.PilType as PT hiding (ret)
 import Blaze.Types.Pil.Summary (CodeSummary(CodeSummary))
 import Blaze.Pretty (PrettyShow'(PrettyShow'))
 import Blaze.Types.Function (Function(Function))
@@ -731,17 +733,17 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     context "Matching on Types" $ do
       it "should match on signed int type" $ do
         let t1 = ( 32
-                 , Just . Ch.DSType $ Ch.TInt (Just 32) (Just True)
+                 , Just . Ch.DSType $ PT.TInt (Just 32) (Just True)
                  )
                    
             stmts = [ def "b" (const 0 t1)
                     ]
             pats = [ Stmt $ Def (Var "b")
-                     (OfType (PilType $ TInt AnyBitWidth (Just True)) Wild)
+                     (OfType (PilType $ M.TInt AnyBitWidth (Just True)) Wild)
                    ]
             patsNotSigned
               = [ Stmt $ Def (Var "b")
-                  (OfType (PilType $ TInt AnyBitWidth (Just False)) Wild)
+                  (OfType (PilType $ M.TInt AnyBitWidth (Just False)) Wild)
                 ]
 
             expected = [stmts]
@@ -749,16 +751,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         typedMatch_ patsNotSigned stmts `shouldBe` []
 
       it "should be able to bind on type len and use it in Where clause" $ do
-        let dstInt = Ch.DSType $ Ch.TInt (Just 32) (Just True)
+        let dstInt = Ch.DSType $ PT.TInt (Just 32) (Just True)
             tarray
               = ( 32
-                , Just . Ch.DSType $ Ch.TArray (Just 14) dstInt
+                , Just . Ch.DSType $ PT.TArray (Just 14) dstInt
                 )
 
             stmts = [ def "b" (var "a" tarray)
                     ]
             pats = [ Stmt (Def (Var "b")
-                       (OfType (PilType $ TArray (BindLenAsExpr "len" AnyLen) AnyType) Wild))
+                       (OfType (PilType $ M.TArray (BindLenAsExpr "len" AnyLen) AnyType) Wild))
                      `Where`
                      [ cmpUlt (Bound "len") (const 37 (SizeOf "len")) (SizeOf "len")]
                    ]
@@ -772,13 +774,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         typedMatch_ pats stmts `shouldBe` expected
 
       it "should be able to match on a record using specific field offsets" $ do
-        let dstInt = Ch.DSType $ Ch.TInt (Just 32) (Just True)
-            dstFloat = Ch.DSType $ Ch.TFloat (Just 32)
+        let dstInt = Ch.DSType $ PT.TInt (Just 32) (Just True)
+            dstFloat = Ch.DSType $ PT.TFloat (Just 32)
             tlinkedList
               = ( 32
                 , Just
                   . Ch.DSType
-                  . Ch.TRecord
+                  . PT.TRecord
                   $ HashMap.fromList
                     [ (0, dstInt)
                     , (0x10, dstFloat)
@@ -787,10 +789,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
             stmts = [ def "b" (var "a" tlinkedList)
                     ]
-            tIntPat = PilType $ TInt AnyBitWidth (Just True)
-            tFloatPat = PilType $ TFloat AnyBitWidth
+            tIntPat = PilType $ M.TInt AnyBitWidth (Just True)
+            tFloatPat = PilType $ M.TFloat AnyBitWidth
             tRecordPat
-              = PilType $ TRecord
+              = PilType $ M.TRecord
                 [ ( ConstBitWidth 0, tIntPat )
                 , ( ConstBitWidth 0x10, tFloatPat )
                 ]
@@ -802,13 +804,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         typedMatch_ pats stmts `shouldBe` expected
 
       it "should be able to match on a recursively defined type" $ do
-        let dstInt = Ch.DSType $ Ch.TInt (Just 32) (Just True)
-            linkedListSym = Ch.Sym 7
+        let dstInt = Ch.DSType $ PT.TInt (Just 32) (Just True)
+            linkedListSym = PT.Sym 7
             tlinkedList
               = ( 32
                 , Just
                   . Ch.DSRecursive linkedListSym
-                  . Ch.TRecord
+                  . PT.TRecord
                   $ HashMap.fromList
                     [ (0, dstInt)
                     , (0x10, Ch.DSVar linkedListSym)
@@ -817,12 +819,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
             stmts = [ def "b" (var "a" tlinkedList)
                     ]
-            tIntPat = PilType $ TInt AnyBitWidth (Just True)
+            tIntPat = PilType $ M.TInt AnyBitWidth (Just True)
             tRecordPat
-              = PilType $ TRecord
+              = PilType $ M.TRecord
                 [ ( AnyBitWidth, tIntPat )
                 , ( AnyBitWidth,
-                    PilType $ TRecord
+                    PilType $ M.TRecord
                     [ ( AnyBitWidth, tIntPat ) ])
                 ]
                   

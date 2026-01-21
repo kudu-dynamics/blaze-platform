@@ -16,6 +16,7 @@ import Blaze.Pil.Analysis.Rewrite (rewriteStmts)
 import Blaze.Pretty (prettyPrint', prettyIndexedStmts')
 import qualified Blaze.Types.Pil.Checker as Ch
 import Blaze.Util.Analysis (untilFixedPoint)
+import Blaze.Types.Import (TypeHints)
 
 
 simplifyForSolving_ :: Int -> [Stmt] -> [Stmt]
@@ -33,16 +34,17 @@ prepPath = simplifyForSolving . Path.toStmts
 solvePathWith
   :: SMTConfig
   -> SolverLeniency
+  -> TypeHints
   -> PilPath
   -> IO (Either
           (Either
             ConstraintGenError
             (SolverError, TypeReport))
           (SolverReport, TypeReport))
-solvePathWith solverCfg leniency = solveStmtsWith solverCfg leniency . prepPath
+solvePathWith solverCfg leniency typeHints = solveStmtsWith solverCfg leniency typeHints . prepPath
 
-solvePathWith_ :: SMTConfig -> SolverLeniency -> PilPath -> IO SolverResult
-solvePathWith_ solverCfg leniency = solveStmtsWith_ solverCfg leniency . prepPath
+solvePathWith_ :: SMTConfig -> SolverLeniency -> TypeHints -> PilPath -> IO SolverResult
+solvePathWith_ solverCfg leniency typeHints = solveStmtsWith_ solverCfg leniency typeHints . prepPath
 
 data SolvePathsResult a = SolvePathsResult
   { satPaths :: [(HashMap Text CV, a)]
@@ -52,9 +54,9 @@ data SolvePathsResult a = SolvePathsResult
   , solverErrorPaths :: [((SolverError, Ch.TypeReport), a)]
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
   
-solvePaths :: SMTConfig -> SolverLeniency -> [PilPath] -> IO (SolvePathsResult PilPath)
-solvePaths solverCfg leniency paths = do
-  solved <- mapConcurrently (\p -> (,p) <$> solvePathWith_ solverCfg leniency p) paths
+solvePaths :: SMTConfig -> SolverLeniency -> TypeHints -> [PilPath] -> IO (SolvePathsResult PilPath)
+solvePaths solverCfg leniency typeHints paths = do
+  solved <- mapConcurrently (\p -> (,p) <$> solvePathWith_ solverCfg leniency typeHints p) paths
   return $ foldr divideSolved (SolvePathsResult [] [] [] [] []) solved
   where
     divideSolved :: (SolverResult, PilPath) -> SolvePathsResult PilPath -> SolvePathsResult PilPath

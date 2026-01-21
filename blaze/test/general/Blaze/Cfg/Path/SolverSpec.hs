@@ -10,12 +10,13 @@ import qualified Blaze.Cfg.Path as Path
 import Blaze.Types.Path ((-|), (|-))
 import Blaze.Cfg.Path.Solver
 import Blaze.Cfg.PathSpec (bbp, func1)
+import qualified Data.HashMap.Strict as HashMap
 
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Path.Solver" $ do
   context "solvePathWith_ z3" $ do
-    let solvePath = solvePathWith_ z3 AbortOnError
+    let solvePath = solvePathWith_ z3 AbortOnError HashMap.empty
 
     it "should solve path with a single empty basic block" $ do
       let ctx = Ctx func1 0
