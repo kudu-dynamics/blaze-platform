@@ -12,7 +12,7 @@ import Blaze.Pil.Construct (ExprConstructor(..))
 import Blaze.Pil.Display (needsParens, NeedsParens)
 import qualified Blaze.Types.Function as Function
 import qualified Blaze.Types.Pil as Pil
-import Blaze.Types.Pil.Checker (Sym)
+import Blaze.Types.Pil.PilType (Sym)
 
 import Data.Aeson (ToJSON(toJSON), object)
 import qualified Data.Aeson as A

@@ -34,7 +34,7 @@ getFuncAddr :: G.Function -> Address
 getFuncAddr = convertAddress . view #startAddress
 
 convertParam :: G.HighParameter -> ParamInfo
-convertParam p = ParamInfo (p ^. #name) BFunc.Unknown
+convertParam p = ParamInfo (p ^. #name) (Just . fromIntegral $ p ^. #size) BFunc.Unknown
 
 toGhidraFunction :: J.ProgramDB -> Function -> IO J.Function
 toGhidraFunction prg fn = getJFunction prg (fn ^. #address) >>= \case
@@ -70,7 +70,7 @@ getHighFunction (GhidraImporter gs fc) addr fn = CM.get addr fc >>= \case
   Just cachedFn -> return cachedFn
 
 convertRawParam :: G.Parameter -> BFunc.FuncParamInfo
-convertRawParam p = BFunc.FuncParamInfo $ BFunc.ParamInfo (p ^. #name) BFunc.Unknown
+convertRawParam p = BFunc.FuncParamInfo $ BFunc.ParamInfo (p ^. #name) Nothing BFunc.Unknown
 
 -- | Converts Ghidra function to a Blaze internal (not extern) Function
 -- G.isExternal must be True

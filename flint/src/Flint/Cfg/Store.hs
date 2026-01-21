@@ -32,6 +32,8 @@ import Blaze.Types.CallGraph (CallGraph)
 import Blaze.Types.Cfg (PilCfg, PilNode)
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Util (getMemoized)
+import Blaze.Types.Import (TypeHints)
+
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
@@ -44,7 +46,6 @@ import qualified Data.HashMap.Strict as HashMap
 -- gcc -no-pie -Wl,--unresolved-symbols=ignore-all -o full_collection_binary *.o
 -- OR you can maybe use this one:
 -- ld -r -o combined.o *.o
-
 init
   :: ( CallGraphImporter imp
      , NodeDataType imp ~ PilNode
@@ -53,6 +54,21 @@ init
      )
   => Maybe FilePath -> imp -> IO CfgStore
 init mDbFilePath imp = do
+  (cfgStore, _) <- initWithTypeHints HashSet.empty mDbFilePath imp
+  return cfgStore
+
+
+initWithTypeHints
+  :: ( CallGraphImporter imp
+     , NodeDataType imp ~ PilNode
+     , BinaryImporter imp
+     , CfgImporter imp
+     )
+  => HashSet Text     -- whitelist for functions we want to have type hints for
+  -> Maybe FilePath 
+  -> imp 
+  -> IO (CfgStore, HashMap Function TypeHints)
+initWithTypeHints typeHintsWhitelist mDbFilePath imp = do
   mDb <- case mDbFilePath of
     Nothing -> return Nothing
     Just fp -> Just <$> Db.init fp
@@ -74,12 +90,14 @@ init mDbFilePath imp = do
   let internalFuncs :: [Function]
       internalFuncs = mapMaybe (^? #_Internal) allFuncs
 
-  functionCfgs :: [(Function, PilCfg)] <- getFuncsWithCfgs imp internalFuncs
+  (funcToCfgs :: [(Function, PilCfg)], funcToTypeHints) <- getFuncsWithCfgsAndTypeHints imp typeHintsWhitelist internalFuncs
 
   let functionCfgMapping :: HashMap Function PilCfg
-      functionCfgMapping = HashMap.fromList functionCfgs
+      functionCfgMapping = HashMap.fromList funcToCfgs
+      functionToTypeHintsMap :: HashMap Function TypeHints
+      functionToTypeHintsMap = HashMap.fromList funcToTypeHints
       callNodesMapping :: HashMap Function [Cfg.CallNode [Pil.Stmt]]
-      callNodesMapping = getCallNodesMapping functionCfgs
+      callNodesMapping = getCallNodesMapping funcToCfgs
     
   CC.setCalc () (store ^. #funcs) $ return allFuncs
   CC.setCalc () (store ^. #internalFuncs) $ return internalFuncs
@@ -122,7 +140,7 @@ init mDbFilePath imp = do
                 _ -> Nothing
     addFunc' store func $ HashMap.lookup func functionCfgMapping
 
-  return store
+  return (store, functionToTypeHintsMap)
 
 -- | Returns a list of all the functions in the binary that we can make a Cfg for.
 getFuncsWithCfgs
@@ -134,6 +152,24 @@ getFuncsWithCfgs
   -> IO [(Function, PilCfg)]
 getFuncsWithCfgs imp funcs = do
   fmap catMaybes . forM funcs $ \func -> fmap (func,) <$> ImpCfg.getCfg_ imp func 0
+
+-- | Returns a tuple that contains the functions in the binary that we can make a Cfg for and functions that we want type hints for
+getFuncsWithCfgsAndTypeHints
+  :: ( CfgImporter a
+     , NodeDataType a ~ PilNode
+     )
+  => a
+  -> HashSet Text     -- function whitelist for typehints
+  -> [Function]
+  -> IO ([(Function, PilCfg)], [(Function,TypeHints)])
+getFuncsWithCfgsAndTypeHints imp whitelist = foldM updateTuple ([],[])
+  where
+    updateTuple :: ([(Function,PilCfg)], [(Function, TypeHints)]) -> Function -> IO ([(Function,PilCfg)], [(Function, TypeHints)])
+    updateTuple (funcToCfg, funcToTypeHints) func = do
+      (cfg, typeHints) <- ImpCfg.getCfgAndTypeHints_ imp func 0
+      let funcToCfg' = maybe funcToCfg (\cfg' -> (func,cfg'):funcToCfg) cfg
+      let funcToTypeHints' = if HashSet.member (func ^. #name) whitelist && (not . null) typeHints then (func,typeHints):funcToTypeHints else funcToTypeHints
+      return (funcToCfg', funcToTypeHints')
 
 data PltThunkMapping = PltThunkMapping
   { renamedFunc :: Function
@@ -420,7 +456,7 @@ getFuncs :: CfgStore -> IO [Func]
 getFuncs store = fromJust <$> CC.get () (store ^. #funcs)
 
 getInternalFuncs :: CfgStore -> IO [Function]
-getInternalFuncs = fmap (mapMaybe (^? #_Internal)) . getFuncs
+getInternalFuncs store = fromJust <$> CC.get () (store ^. #internalFuncs)
 
 getTransposedCallGraph :: CfgStore -> IO CallGraph
 getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
@@ -438,6 +474,7 @@ addFunc' store func mcfg = CC.setCalc func (store ^. #cfgCache) $ do
       putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> func ^. #name <> " ------------"
       print e
       return Nothing
+    
 
 
 -- | Adds a func/cfg to the store.
@@ -636,3 +673,5 @@ populateInitialPrimitives
 populateInitialPrimitives sprims store = do
   funcs <- getFuncs store
   CM.putSnapshot (getInitialWMIs sprims funcs) $ store ^. #callablePrims
+
+

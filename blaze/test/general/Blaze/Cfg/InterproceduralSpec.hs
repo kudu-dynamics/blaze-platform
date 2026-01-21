@@ -46,8 +46,8 @@ targetFunc = Function
   { symbol = Nothing
   , name = "targetFunc"
   , address = intToAddr 100
-  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
-             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
+  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.In
+             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.In
              ]
   }
 

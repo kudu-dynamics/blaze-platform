@@ -30,6 +30,7 @@ import Blaze.Types.Pil
     MappedStatement(MappedStatement),
     Symbol,
   )
+import Blaze.Types.Import
 
 import Data.Binary.IEEE754 (wordToDouble)
 import qualified Data.Text as Text
@@ -42,6 +43,7 @@ import Blaze.Import.Source.Ghidra.Types (
   GhidraImporter(GhidraImporter),
   ghidraState
   )
+import Blaze.Import.Source.Ghidra.DataTypeConversions (convertGhidraDataTypeToImpType)
 import Blaze.Types.Function ( Function )
 
 import qualified Data.BinaryAnalysis as BA
@@ -100,6 +102,7 @@ data ConverterState = ConverterState
   , ghidraImporter :: GhidraImporter
   , paramNames :: HashSet Symbol
   , sp :: Int32
+  , pvTypeHints :: TypeHints
   }
   deriving (Show, Generic)
 
@@ -115,6 +118,7 @@ mkConverterState imp ctx = do
                         , ghidraImporter = imp
                         , paramNames = HashSet.fromList $ getParamName <$> ctx ^. #func . #params
                         , sp = stackPointer
+                        , pvTypeHints = HashMap.empty
                         }
   where
     getParamName (Func.FuncParamInfo p) = p ^. #name
@@ -137,6 +141,7 @@ class IsVariable a where
   getVarType :: a -> VarType
   -- | The special name is like "param_1" or a user defined name
   getSpecialName :: a -> Maybe Symbol
+  getDataType :: a -> Maybe ImpType
 
 showVariable :: IsVariable a => a -> Text
 showVariable v = "(" <> show (getVarType v) <> ", " <> show (getSize v) <> ", " <> show (getSpecialName v) <> ")"
@@ -145,21 +150,25 @@ instance IsVariable HighVarNode where
   getSize = view #size
   getVarType = view #varType
   getSpecialName x = x ^. #highVariable . _Just . #highSymbol . _Just . #name
+  getDataType x = fmap convertGhidraDataTypeToImpType (x ^? #highVariable . _Just . #dataType)
 
 instance IsVariable VarNode where
   getSize = view #size
   getVarType = view #varType
   getSpecialName _ = Nothing
+  getDataType _ = Nothing
 
 instance IsVariable a => IsVariable (P.Output a) where
   getSize (P.Output a) = getSize a
   getVarType (P.Output a) = getVarType a
   getSpecialName (P.Output a) = getSpecialName a
+  getDataType (P.Output a) = getDataType a
 
 instance IsVariable a => IsVariable (P.Input a) where
   getSize = getSize . view #value
   getVarType = getVarType . view #value
   getSpecialName = getSpecialName . view #value
+  getDataType = getDataType . view #value
 
 data VarNodeType
   = VUnique {offset :: Int64, pcAddress :: Maybe Int64}
@@ -355,21 +364,30 @@ varNodeToReference v = do
     specialName = getSpecialName v
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
 
+
+maybeInsert :: Hashable k => k -> Maybe v -> HashMap k v -> HashMap k v
+maybeInsert key maybeVal hm = maybe hm (\v -> HashMap.insert key v hm) maybeVal
+
 -- | Like 'varNodeToReference' but throw 'VarNodeInvalidAsPilVar' if an
 -- 'Expression' was returned instead of a 'PilVar'
 varNodeToPilVar :: IsVariable a => a -> ExceptT ConverterError Converter PilVar
 varNodeToPilVar v =
   varNodeToReference v >>= \case
-    Left pv -> pure pv
+    Left pv -> do
+      #pvTypeHints %= maybeInsert pv (getDataType v)
+      pure pv
     Right _ -> throwError $ VarNodeInvalidAsPilVar (getSize v) (getVarType v)
 
 -- | Like 'varNodeToReference', but returns either a partially applied 'Store'
 -- or a partially applied 'Def'
 varNodeToAssignment :: IsVariable a => a -> ExceptT ConverterError Converter (Expression -> Pil.Statement Pil.Expression)
 varNodeToAssignment v =
-  varNodeToReference v <&> \case
-    Left pv -> Pil.Def . Pil.DefOp pv
-    Right expr -> Pil.Store . Pil.StoreOp expr
+  varNodeToReference v >>= \case
+    Left pv -> do
+      #pvTypeHints %= maybeInsert pv (getDataType v)
+      return $ Pil.Def . Pil.DefOp pv
+    Right expr -> return $ Pil.Store . Pil.StoreOp expr
+ 
 
 -- | Converts a Ghidra VarNode to an 'Expression' that represents the __value
 -- stored at__ the abstract location that the VarNode specifies. Throws
@@ -667,6 +685,54 @@ convertPcodeOps imp ctx pcodeOps = do
       Left err -> [Left err]
       Right stmts -> Right <$> stmts
 
+
+convertPcodeOpsWithState
+  :: IsVariable a
+  => GhidraImporter
+  -> Ctx
+  -> [(Address, P.PcodeOp a)]
+  -> IO ([Either ConverterError (MappedStmt Address)], ConverterState)
+convertPcodeOpsWithState imp ctx pcodeOps = do
+  cstate <- mkConverterState imp ctx
+  runConverter (traverse (\ (addr, op) -> fmap (fmap (fmap (MappedStatement addr . Pil.Stmt addr)))
+                           . swallowErrors
+                           . convertPcodeOpToPilStatement
+                           $ op
+                         )
+                 pcodeOps) cstate >>= \case
+    (stmts, st) -> return (concat stmts, st)
+  where
+    -- tryError :: ExceptT e m a -> ExceptT e m (Either e a)
+    -- tryError action = catchError (Right <$> action) (pure . Left)
+    swallowErrors :: ExceptT ConverterError Converter [a] -> Converter [Either ConverterError a]
+    swallowErrors a = runExceptT a <&> \case
+      Left err -> [Left err]
+      Right stmts -> Right <$> stmts
+
+{-
+-- simply using logic from above, quick but probably inefficient
+convertAndGetTypeHints
+  :: IsVariable a
+  => GhidraImporter
+  -> Ctx
+  -> [(Address, P.PcodeOp a)]
+  -> IO TypeHints
+convertAndGetTypeHints imp ctx pcodeOps = do
+  cstate <- mkConverterState imp ctx
+  (_, st) <- runConverter (traverse (\ (addr, op) -> fmap (fmap (fmap (MappedStatement addr . Pil.Stmt addr)))
+                           . swallowErrors
+                           . convertPcodeOpToPilStatement
+                           $ op
+                         )
+                pcodeOps) cstate
+  return $ st ^. #pvTypeHints
+  where
+    swallowErrors :: ExceptT ConverterError Converter [a] -> Converter [Either ConverterError a]
+    swallowErrors a = runExceptT a <&> \case
+      Left err -> [Left err]
+      Right stmts -> Right <$> stmts
+-}
+
 getFuncStatementsFromRawPcode :: GhidraImporter -> Function -> CtxId -> IO [Either ConverterError (MappedStmt Address)]
 getFuncStatementsFromRawPcode imp@(GhidraImporter gs _) func ctxId = do
   let ctx = Ctx func ctxId
@@ -687,6 +753,33 @@ getFuncStatementsFromHighPcode imp@(GhidraImporter gs _) func ctxId = do
     addrSpaceMap <- getAddressSpaceMap prg
     fmap (first convertAddress) <$> getHighPcode prg addrSpaceMap hfunc jfunc
   convertPcodeOps imp ctx pcodeOps
+
+getFuncStatementsWithTypeHintsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO ([Either ConverterError (MappedStmt Address)], TypeHints)
+getFuncStatementsWithTypeHintsFromHighPcode imp@(GhidraImporter gs _) func ctxId = do
+  let ctx = Ctx func ctxId
+      addr = func ^. #address
+      prg = gs ^. #program
+  jfunc <- GCG.toGhidraFunction prg func
+  hfunc <- GCG.getHighFunction imp addr jfunc
+  pcodeOps <- runGhidraOrError $ do
+    addrSpaceMap <- getAddressSpaceMap prg
+    fmap (first convertAddress) <$> getHighPcode prg addrSpaceMap hfunc jfunc
+  (stmts, st) <- convertPcodeOpsWithState imp ctx pcodeOps
+  return (stmts, st ^. #pvTypeHints)
+
+{-
+getTypeHintsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO TypeHints
+getTypeHintsFromHighPcode imp@(GhidraImporter gs _) func ctxId = do
+  let ctx = Ctx func ctxId
+      addr = func ^. #address
+      prg = gs ^. #program
+  jfunc <- GCG.toGhidraFunction prg func
+  hfunc <- GCG.getHighFunction imp addr jfunc
+  pcodeOps <- runGhidraOrError $ do
+    addrSpaceMap <- getAddressSpaceMap prg
+    fmap (first convertAddress) <$> getHighPcode prg addrSpaceMap hfunc jfunc
+  convertAndGetTypeHints imp ctx pcodeOps
+-}
 
 getCodeRefStatementsFromRawPcode
   :: GhidraImporter

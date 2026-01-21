@@ -1,10 +1,10 @@
 {-# LANGUAGE DataKinds #-}
-module Ghidra.Types.DataTypes where
+module Ghidra.Types.GhidraDataTypes where
 
-import Ghidra.Prelude hiding (DataType)
+import Ghidra.Prelude
 
 
-data DataType
+data GhidraDataType
     = FloatType     FloatTypeOpts
     | IntType       IntTypeOpts
     | StringType    StringTypeOpts
@@ -19,6 +19,8 @@ data DataType
     | FuncDefType   FuncDefTypeOpts
     | UndefType     UndefTypeOpts
     | OtherType     OtherTypeOpts
+    | VoidType      VoidTypeOpts
+    | UnknownType
     deriving (Eq, Ord, Show, Generic)
     deriving anyclass Hashable
 
@@ -39,13 +41,13 @@ newtype StringTypeOpts = StringTypeOpts
       deriving anyclass Hashable
 
 data ArrayTypeOpts = ArrayTypeOpts
-    { elementType :: DataType
+    { elementType :: GhidraDataType
     , elementWidth :: Bytes -- width of data 
     , len :: Word32
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
-{- BadBoy corresponds to Ghidra's BadDataType; it's used for a datatype that is not valid as it
+{- BadBoy corresponds to Ghidra's BadGhidraDataType; it's used for a datatype that is not valid as it
    is used in the program. For example, the class of the underlying datatype may no longer be
    available or may not fit where it has been placed in the program -}
 newtype BadBoyTypeOpts = BadBoyTypeOpts
@@ -63,26 +65,27 @@ newtype CharTypeOpts = CharTypeOpts
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
-newtype EnumTypeOpts = EnumTypeOpts
-    { enums :: [(Text, Int32)]
+data EnumTypeOpts = EnumTypeOpts
+    { width :: Bytes
+    , enums :: [(Text, Int32)]
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
 data PointerTypeOpts = PointerTypeOpts
     { width :: Bytes
-    , pointeeType :: DataType
+    , pointeeType :: GhidraDataType
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
 data StructTypeOpts = StructTypeOpts
     { width :: Bytes
-    , fields :: [(Int32, DataType)] -- (offset within struct, datatype)
+    , fields :: [(Int32, GhidraDataType)] -- (offset within struct, datatype)
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
 data UnionTypeOpts = UnionTypeOpts
     { width :: Bytes
-    , types :: [DataType]
+    , types :: [GhidraDataType]
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
@@ -90,12 +93,12 @@ data FuncDefTypeOpts = FuncDefTypeOpts
   { width :: Bytes
   , funcParams :: [FuncParam]
   , callingConvention :: Text
-  , returnType :: Maybe DataType -- might not return a value
+  , returnType :: GhidraDataType -- might not return a value
   } deriving (Eq, Ord, Show, Generic)
     deriving anyclass Hashable
 
 data FuncParam = FuncParam
-  { dataType :: DataType
+  { dataType :: GhidraDataType
   , name :: Text
   } deriving (Eq, Ord, Show, Generic)
     deriving anyclass Hashable
@@ -107,10 +110,14 @@ newtype UndefTypeOpts = UndefTypeOpts
       deriving anyclass Hashable
 
 {- Handles the case for datatypes that we have not implemented (or won't implement, like we probably
-   won't implement Ghidra's DiaglogResourceDataType) -}
-newtype OtherTypeOpts = OtherTypeOpts
-    { name :: Text
+   won't implement Ghidra's DiaglogResourceGhidraDataType) -}
+data OtherTypeOpts = OtherTypeOpts
+    { width :: Bytes
+    , name :: Text
+    , className :: Text
     } deriving (Eq, Ord, Show, Generic)
       deriving anyclass Hashable
 
-
+data VoidTypeOpts = VoidTypeOpts
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass Hashable

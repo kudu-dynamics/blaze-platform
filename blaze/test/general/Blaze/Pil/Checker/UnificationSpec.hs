@@ -6,6 +6,7 @@ import Blaze.Prelude hiding (Type, sym, bitSize, const, Constraint)
 import qualified Data.HashMap.Strict as HashMap
 import Blaze.Pil.Checker.Unification
 import Blaze.Types.Pil.Checker
+import Blaze.Types.Pil.PilType
 
 import Test.Hspec
 

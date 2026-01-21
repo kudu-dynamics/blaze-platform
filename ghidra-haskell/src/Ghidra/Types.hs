@@ -129,7 +129,13 @@ type AbstractIntegerDataType = J ('Java.Class "ghidra.program.model.data.Abstrac
 type PointerDataType = J ('Java.Class "ghidra.program.model.data.PointerDataType")
 type FunctionDefinitionDataType = J ('Java.Class "ghidra.program.model.data.PointerDataType")
 type ParameterDefinition = J('Java.Iface "ghidra.program.model.data.ParameterDefinition")
-
+type StructureDB = J('Java.Class "ghidra.program.database.data.StructureDB")
+type ArrayDB = J ('Java.Class "ghidra.program.database.data.ArrayDB")
+type PointerDB = J ('Java.Class "ghidra.program.database.data.PointerDB")
+type Composite = J('Java.Iface "ghidra.program.model.data.Composite")
+type LocalSymbolMap = J ('Java.Class "ghidra.program.model.pcode.LocalSymbolMap")
+type GlobalSymbolMap = J ('Java.Class "ghidra.program.model.pcode.GlobalSymbolMap")
+type Pointer = J ('Java.Iface "ghidra.program.model.data.Pointer")
 
 class Addressable a where
   toAddr :: a -> Ghidra Address

@@ -8,6 +8,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.BinaryAnalysis as BA
 import Blaze.Pil.Checker
 import Blaze.Types.Pil.Checker
+import Blaze.Types.Pil.PilType
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Ctx(Ctx))
 import Blaze.Types.Function (Function(Function))
@@ -330,7 +331,7 @@ spec = describe "Blaze.Pil.Checker" $ do
       PShow (checkVars stmts) `shouldBe` PShow (Right (mkVarSymTypeMap rvars))
 
   context "getRootFunctionParamInfo" $ do
-    let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown ]
+    let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.Unknown ]
         ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" (intToAddr 0xf00) params
         ctx = Ctx ctxFunc 0
         paramInfo = getRootFunctionParamInfo ctx
@@ -345,7 +346,7 @@ spec = describe "Blaze.Pil.Checker" $ do
         paramInfo `shouldBe` expected
         
   context "addAllConstraints" $ do
-    let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.Unknown ]
+    let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.Unknown ]
         ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" (intToAddr 0xf00) params
         ctx = Ctx ctxFunc 0
         pvX = pilVar' 8 ctx "x"

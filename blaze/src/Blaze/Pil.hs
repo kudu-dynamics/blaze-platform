@@ -75,9 +75,9 @@ knownFuncDefs =
         mkFuncInfo
           "asprintf"
           "asprintf"
-          [ FuncParamInfo $ ParamInfo "ret" Out,
-            FuncParamInfo $ ParamInfo "fmt" In,
-            FuncVarArgInfo $ ParamInfo "args" In
+          [ FuncParamInfo $ ParamInfo "ret" Nothing Out,
+            FuncParamInfo $ ParamInfo "fmt" Nothing In,
+            FuncVarArgInfo $ ParamInfo "args" (Just 4) In
           ]
           (ResultInfo "result")
       ),
@@ -85,9 +85,9 @@ knownFuncDefs =
         mkFuncInfo
           "cgc_sprintf"
           "cgc_sprintf"
-          [ FuncParamInfo $ ParamInfo "ret" Out,
-            FuncParamInfo $ ParamInfo "fmt" In,
-            FuncVarArgInfo $ ParamInfo "args" In
+          [ FuncParamInfo $ ParamInfo "ret" Nothing Out,
+            FuncParamInfo $ ParamInfo "fmt" Nothing In,
+            FuncVarArgInfo $ ParamInfo "args" (Just 4) In
           ]
           (ResultInfo "result")
       )

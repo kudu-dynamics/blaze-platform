@@ -29,4 +29,5 @@ data HighParameter = HighParameter
   { handle :: J.HighSymbol
   , ordinalIndex :: Int32
   , name :: Text
+  , size :: Int32
   } deriving (Eq, Ord, Show, Generic)

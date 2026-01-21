@@ -18,8 +18,11 @@ import Blaze.Types.Pil (
   StackOffset,
   Statement,
  )
+import Blaze.Types.Import
+import Blaze.Types.Pil.PilType
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
+
 
 type BitWidth = Bits
 type ByteWidth = Bytes
@@ -31,12 +34,6 @@ type SymConstraint = (Sym, ConstraintSymType)
 
 type SymTypedStmt = AddressableStatement (InfoExpression (SymInfo, Maybe DeepSymType))
 
--- | Type symbols. Both type variables and metavariables are represented as
--- 'Sym's
-newtype Sym = Sym Int
-  deriving (Eq, Ord, Read, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, Hashable)
-
 data TypeTag = TagDirty
              | TagSanitized
              | TagAllocedMemory
@@ -44,31 +41,6 @@ data TypeTag = TagDirty
              | TagNullPtr
              | TagNonNull
              deriving (Eq, Ord, Read, Show, Generic)
-
--- | PIL types, as a functor over the type of nested types. 'ConcretePilType',
--- 'DeepSymType', and 'RecursiveSymType' all use instances of this parameterized
--- type
-data PilType t
-  = TBool
-  -- | Represents a character from some character set. Please use TInt {bitWidth = Bits 8, ...} for
-  -- the C-type `char`
-  | TChar {bitWidth :: Maybe Bits}
-  | TInt {bitWidth :: Maybe Bits, signed :: Maybe Bool}
-  | TFloat {bitWidth :: Maybe Bits}
-  | TBitVector {bitWidth :: Maybe Bits}
-  | TPointer {bitWidth :: Maybe Bits, pointeeType :: t}
-  | TCString {strLen :: Maybe Bytes}
-  | TArray {len :: Maybe Word64, elemType :: t}
-  -- | First record field or array index, or itself t is type of first thing
-  | TRecord (HashMap BitOffset t)
-  -- TODO: Consider adding a recursive type constructor
-  -- TRecursive Sym (PilType t)
-  | TUnit
-    -- | Bottom is labeled with error info,
-    -- it only results from a unification error
-  | TBottom Sym
-  | TFunction {ret :: t, params :: [t]}
-  deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Generic, Hashable, FromJSON, ToJSON)
 
 -- | Fully concrete, non-recursive PIL types
 newtype ConcretePilType = ConcretePilType (PilType ConcretePilType)
@@ -213,10 +185,11 @@ data ConstraintGenCtx = ConstraintGenCtx
     callConstraintGenerators :: HashMap (Int, Text) CallConstraintGenerator
     -- | Info needed to link function param args of CFG's root function
   , rootFunctionParamInfo :: Maybe RootFunctionParamInfo
+  , pvTypeHints :: TypeHints
   } deriving (Generic)
 
 emptyConstraintGenCtx :: ConstraintGenCtx
-emptyConstraintGenCtx = ConstraintGenCtx HashMap.empty Nothing
+emptyConstraintGenCtx = ConstraintGenCtx HashMap.empty Nothing HashMap.empty
 
 data ConstraintGenState = ConstraintGenState
   { currentSym :: Sym

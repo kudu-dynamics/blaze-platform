@@ -22,6 +22,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Cfg.Checker
 import Blaze.Types.Pil.Checker
 import Blaze.Pil.Construct
+import Blaze.Types.Pil.PilType hiding (ret)
 import Test.Hspec
 
 
@@ -49,8 +50,8 @@ targetFunc = Function
   { symbol = Nothing
   , name = "targetFunc"
   , address = intToAddr 100
-  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Func.In
-             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Func.In
+  , params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.In
+             , Func.FuncParamInfo $ Func.ParamInfo "arg2" Nothing Func.In
              ]
   }
 

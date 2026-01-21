@@ -54,6 +54,8 @@ import Blaze.Types.Pil.Checker
 import Blaze.Pil.Checker.Constraints (addStmtTypeConstraints)
 import Blaze.Pil.Checker.Unification ( unify )
 import Blaze.Pil.Analysis ( originMapToGroupMap )
+import Blaze.Types.Import
+import Blaze.Types.Pil.PilType
 import qualified Blaze.Pil.Analysis as Analysis
 
 
@@ -138,28 +140,31 @@ addAllConstraints_ cgCtx indexedStmts =
 -- access to all statements.
 addAllConstraints ::
   Maybe Ctx ->
+  TypeHints ->
   [(Int, AddressableStatement Expression)] ->
   Either ConstraintGenError
     ( [AddressableStatement SymExpression],
       ConstraintGenState
     )
-addAllConstraints mRootCtx = addAllConstraints_ cgCtx
+addAllConstraints mRootCtx typeHints = addAllConstraints_ cgCtx
   where
     cgCtx :: ConstraintGenCtx
     cgCtx = emptyConstraintGenCtx
             & #rootFunctionParamInfo .~ (getRootFunctionParamInfo <$> mRootCtx)
+            & #pvTypeHints .~ typeHints
 
 -- | Attempt to find a unification solution to the provided statements.
 stmtSolutions ::
   Maybe Ctx ->
+  TypeHints ->
   [(Int, AddressableStatement Expression)] ->
   Either ConstraintGenError
     ( [AddressableStatement SymExpression],
       ConstraintGenState,
       UnifyState
     )
-stmtSolutions mRootCtx indexedStmts = do
-  (symStmts', genState) <- addAllConstraints mRootCtx indexedStmts
+stmtSolutions mRootCtx typeHints indexedStmts = do
+  (symStmts', genState) <- addAllConstraints mRootCtx typeHints indexedStmts
   -- TODO: Why are the constraints reversed?
   let unifyState = unifyConstraints . reverse $ genState ^. #constraints
   -- Ensure all vars are resolved to the original/canonical/origin var
@@ -170,9 +175,10 @@ stmtSolutions mRootCtx indexedStmts = do
 -- | This is the main function to check / infer types for a collection of statements.
 checkIndexedStmts
   :: Maybe Ctx
+  -> TypeHints
   -> [(Int, Stmt)]
   -> Either ConstraintGenError TypeReport
-checkIndexedStmts mRootCtx indexedStmts = fmap toReport . stmtSolutions mRootCtx $ indexedStmts
+checkIndexedStmts mRootCtx typeHints indexedStmts = fmap toReport . stmtSolutions mRootCtx typeHints $ indexedStmts
   where
     toReport :: ( [AddressableStatement SymExpression]
                 , ConstraintGenState
@@ -240,7 +246,14 @@ checkStmts
   :: Maybe Ctx
   -> [Stmt]
   -> Either ConstraintGenError TypeReport
-checkStmts mRootCtx = checkIndexedStmts mRootCtx . zip [0..]
+checkStmts = checkStmtsWithTypeHints HashMap.empty
+
+checkStmtsWithTypeHints
+  :: TypeHints
+  -> Maybe Ctx
+  -> [Stmt]
+  -> Either ConstraintGenError TypeReport
+checkStmtsWithTypeHints typeHints mRootCtx = checkIndexedStmts mRootCtx typeHints . zip [0..]
 
 removeUnusedPhi :: [(Int, Pil.Stmt)] -> [(Int, Pil.Stmt)]
 removeUnusedPhi stmts' = filter (not . Analysis.isUnusedPhi refs . view _2) stmts'
