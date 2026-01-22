@@ -218,6 +218,18 @@ tokenizeExprOp msym exprOp size = case exprOp of
   (Pil.FSQRT op) -> tokenizeUnop msym "fsqrt" op
   (Pil.FSUB op) -> tokenizeBinop msym "-" op
   (Pil.FTRUNC op) -> tokenizeUnop msym "ftrunc" op
+
+  (Pil.GLOBAL_PTR op) -> return $ 
+    [ tt "GLOBAL {addr: "
+    , tt (showHexSMT (toBytes_ size) $ op ^. #constant)
+    ] <> case op ^. #symbol of
+    Nothing -> [tt "}"]
+    Just t ->
+      [ tt ", name: \""
+      , tt t
+      , tt "\"}"
+      ]
+    
   (Pil.IMPORT op) -> pure [addressToken Nothing $ intToAddr (op ^. #constant)]
   (Pil.INT_TO_FLOAT op) -> tokenizeUnop msym "intToFloat" op
   (Pil.LOAD op) -> fmap paren $
@@ -304,7 +316,6 @@ tokenizeExprOp msym exprOp size = case exprOp of
       <++> tt " "
       <++> tokenize (op ^. #offset)
   Pil.UNIT -> pure [tt "()"]
-  _ -> error "SMTish:tokenizeExprOp could not parse op."
 
 data Effect = Effect
   { effectType :: Text
@@ -380,7 +391,7 @@ instance NeedsParens SMTishFuncVarExpr where
 
 instance Tokenizable SMTishFuncVarExpr where
   tokenize (FuncVar (Prim.Arg n)) = return [tt $ "(ARG " <> show n <> ")"]
-  tokenize (FuncVar (Prim.Global x)) = return [tt $ "(GLOBAL " <> pretty' x <> ")"]
+  tokenize (FuncVar (Prim.Global x)) = return [tt $ "(" <> pretty' (toSMTishExpression x) <> ")"]
   tokenize (FuncVar Prim.Ret) = return [tt "RET"]
   tokenize (FuncVarExpr sz op) = tokenizeExprOp Nothing op (lookupSize sz)
     where
