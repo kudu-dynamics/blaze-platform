@@ -1,7 +1,6 @@
 {- HLINT ignore "Redundant do" -}
 {- HLINT ignore "Reduce duplication" -}
 {- HLINT ignore "Evaluate" -}
-{-# OPTIONS_GHC -fsimpl-tick-factor=200 #-}
 
 module Blaze.Cfg.Solver.BranchContextSpec where
 

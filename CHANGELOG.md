@@ -1,7 +1,14 @@
 # Blaze Platform
 
+## Version 0.26.0122a
+- Removed some `-02` optimization flags from `.gitlab-ci.yml` and the
+`-fsimpl-tick-factor=200` GHC flag that boosted the tick limit for
+[`BranchContextSpec.hs`](./blaze/test/general/Blaze/Cfg/Solver/BranchContextSpec.hs).
+
 ## Version 0.26.0121b
-- Fixed `GLOBAL` formatting in Flint's `SMTish` module. Previously, it only showed the symbol of the global, or the address if there was no symbol. Now we show it as a JSON record field with both name and address.
+- Fixed `GLOBAL` formatting in Flint's `SMTish` module. Previously, it only
+showed the symbol of the global, or the address if there was no symbol. Now
+we show it as a JSON record field with both name and address.
 
 ## Version 0.26.0121a
 - Corrected `.gitignore` to ignore `stack.yaml.lock` and added changelog
