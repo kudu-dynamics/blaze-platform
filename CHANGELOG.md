@@ -1,5 +1,6 @@
 # Blaze Platform
 
+- [Version 0.26.0123a](#version-0260123a)
 - [Version 0.26.0122b](#version-0260122b)
 - [Version 0.26.0122a](#version-0260122a)
 - [Version 0.26.0121b](#version-0260121b)
@@ -7,6 +8,12 @@
 - [Version 0.26.0120a](#version-0260120a)
 
 ---
+
+## Version 0.26.0123a
+- Fixed bug where `onionSinglePass` used non-squased CallableWMI snapshot instead
+of the squashed CallableWMI snapshot.
+- Allow users to disable the `squashCallableWMIs` feature by passing a `--noSquash`
+command-line option.
 
 ## Version 0.26.0122b
 - Added more documentation in `DevelopersGuide.md` related to the SMT output. Also,

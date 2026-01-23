@@ -46,6 +46,7 @@ data Options = Options
   , blacklistFile :: Maybe FilePath
   , typeHintsFile :: Maybe FilePath
   , outputSMTish :: Bool
+  , noSquash :: Bool
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -134,6 +135,11 @@ parseOutputSMTish = switch $
   long "outputSMTish"
   <> help "output SMT-like syntax instead of PIL"
 
+parseNoSquash :: Parser Bool
+parseNoSquash = switch $
+  long "noSquash"
+  <> help "do not reduce CallableWMIs that point to the same location"
+
 optionsParser :: Parser Options
 optionsParser = Options
   <$> optional parseBackend
@@ -148,6 +154,7 @@ optionsParser = Options
   <*> optional parseBlacklistFile
   <*> optional parseTypeHintsFile
   <*> (parseOutputSMTish <|> pure False)
+  <*> (parseNoSquash <|> pure False)
   <*> parseInputFile
 
 main :: IO ()
@@ -270,6 +277,7 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
     prims 
     blacklist 
     funcToTypeHintsMap
+    (not $ opts ^. #noSquash)
   cprims <- CM.getSnapshot $ store ^. #callablePrims
   filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
   let filteredCprims = case filterFuncs of

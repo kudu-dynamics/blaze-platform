@@ -1219,17 +1219,22 @@ onionSinglePass
   -> CfgStore
   -> [Prim]
   -> [Function]
+  -> Bool
   -> IO ()
-onionSinglePass maxResultsPerPath solver store prims funcs = do
+onionSinglePass maxResultsPerPath solver store prims funcs doSquash = do
   -- Get a fresh snapshot every time
   debug "Getting callable primitives snapshot"
   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
-  let squashedSnapshot = fmap squashCallableWMIs cprimsSnapshot
-  debug "Squashing duplicate CallableWMIs"
-  CM.putSnapshot squashedSnapshot (store ^. #callablePrims)
+  cprimsToUse <- if doSquash
+    then do
+      let squashedSnapshot = fmap squashCallableWMIs cprimsSnapshot
+      debug "Squashing duplicate CallableWMIs"
+      CM.putSnapshot squashedSnapshot (store ^. #callablePrims)
+      return squashedSnapshot
+    else return cprimsSnapshot
   forM_ (zip [1::Int ..] funcs) $ \(idx, func) -> do
     debug $ "Checking function " <> show idx <> "/" <> show (length funcs) <> ": " <> show (func ^. #name)
-    onionCheckFunc maxResultsPerPath solver store cprimsSnapshot prims func
+    onionCheckFunc maxResultsPerPath solver store cprimsToUse prims func
 
 -- onionSinglePass
 --   :: StmtSolver Pil.Stmt IO
@@ -1265,8 +1270,9 @@ onionFlow
   -> [Prim]             -- checks all on each path
   -> HashSet Text       -- blacklisted function names
   -> HashMap Function TypeHints
+  -> Bool
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist funcToTypeHintsMap = do
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist funcToTypeHintsMap doSquash = do
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
@@ -1281,11 +1287,12 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor s
   let initialPrims = getInitialWMIs stdLibPrims allFuncs
       whitelistedFuncs = filter (\func -> not $ HashSet.member (func ^. #name) blacklist) funcs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
-  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims whitelistedFuncs
-  debug "Squashing the rest of the duplicate CallableWMIs"
-  snapshot <- CM.getSnapshot (store ^. #callablePrims)
-  squashed <- fmap HashMap.fromList . mapConcurrently (\(k, v) -> pure (k, squashCallableWMIs v)) $ HashMap.toList snapshot
-  CM.putSnapshot squashed $ store ^. #callablePrims
+  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims whitelistedFuncs doSquash
+  when doSquash $ do
+    debug "Squashing the rest of the duplicate CallableWMIs"
+    snapshot <- CM.getSnapshot (store ^. #callablePrims)
+    squashed <- fmap HashMap.fromList . mapConcurrently (\(k, v) -> pure (k, squashCallableWMIs v)) $ HashMap.toList snapshot
+    CM.putSnapshot squashed $ store ^. #callablePrims
   where
     solver = chooseSolver actuallyUseSolver
 
