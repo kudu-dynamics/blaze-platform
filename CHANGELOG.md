@@ -1,5 +1,17 @@
 # Blaze Platform
 
+- [Version 0.26.0122b](#version-0260122b)
+- [Version 0.26.0122a](#version-0260122a)
+- [Version 0.26.0121b](#version-0260121b)
+- [Version 0.26.0121a](#version-0260121a)
+- [Version 0.26.0120a](#version-0260120a)
+
+---
+
+## Version 0.26.0122b
+- Added more documentation in `DevelopersGuide.md` related to the SMT output. Also,
+added table of contents inside the `CHANGELOG.md`.
+
 ## Version 0.26.0122a
 - Removed some `-02` optimization flags from `.gitlab-ci.yml` and the
 `-fsimpl-tick-factor=200` GHC flag that boosted the tick limit for
