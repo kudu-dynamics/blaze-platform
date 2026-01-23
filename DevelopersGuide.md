@@ -2,14 +2,15 @@
 - [Building blaze-platform Monorepo](#building-blaze-platform-monorepo)
 - [Rapid Prototyping with Hspec library](#rapid-prototyping-with-hspec-library)
 - [blaze-platform Versioning](#blaze-platform-versioning)
-- [Using JSON Output as Control Group](#using-json-output-as-control-group)
-    - [How To Actually Run flint](#how-to-actually-run-flint)
-        - [Using the SMT Solver](#using-the-smt-solver)
+- [How To Actually Run flint](#how-to-actually-run-flint)
+    - [Using the SMT Solver](#using-the-smt-solver)
     - [Describing the SMT output](#describing-the-smt-output)
 - [Miscellaneous Build Instructions](#miscellaneous-build-instructions)
     - [Special side directions for MacOS](#special-side-directions-for-macos)
     - [Legacy Build Instructions](#legacy-build-instructions)
         - [Binary Ninja](#binary-ninja)
+
+---
 
 ## Installing Haskell Dependecies
 
@@ -48,6 +49,8 @@ cd build
 make
 make install
 ```
+
+---
 
 ## Building `blaze-platform` Monorepo
 
@@ -89,6 +92,8 @@ stack build
 stack test
 ```
 
+---
+
 ## Rapid Prototyping with `Hspec` library
 
 You can quickly add features to `blaze`, `flint`, or `ghidra-haskell` by creating or adding to a `*spec*.hs` file. This will allow rapid development using `Hspec` library.
@@ -105,6 +110,8 @@ You can run all test with `stack test`. However, its best to just run specific t
 stack test --test-arguments "--match MatcherSpec"
 ```
 
+---
+
 ## `blaze-platform` Versioning
 
 `blaze-platform` versioning uses the format "N.YY.MMDDx" where "N" is the major version (0 before release),
@@ -112,11 +119,9 @@ stack test --test-arguments "--match MatcherSpec"
 alphabetical index of the version within the same day. For example, the third version of `blaze-platform`
 before release committed on June 3, 2007 would be "0.07.0603c".
 
-## Using JSON Output as Control Group
+---
 
-I used the `*.json` output as the, "Do my changes work", file.
-
-### How To Actually Run `flint`
+## How To Actually Run `flint`
 
 First, clean and build your changes in `blaze-platform`:
 
@@ -223,13 +228,17 @@ Wrote results to "test.json"
 
 It produces a `test.json` file you can look into.
 
-#### Using the SMT Solver
+---
+
+### Using the SMT Solver
 
 In order to modify Flint's output, you will need to use different flags.
 
 The `--outputSMTish` flag makes an output almost compatible with ASU's requirements. Also, you can use the `--pathSamplingFactor` to increase the how many paths we enumerate through. We can also use `-f` to filter on functions we want to show in the JSON results.
 
-A challenge binary was created to test the SMT output. It's located in `blaze-platform/flint/res/test_bins/demo`.
+A challenge binary was created to test the SMT output. It's located in [`blaze-platform/flint/res/test_bins/demo1/demo1`](./flint/res/test_bins//demo1/demo1).
+
+If you want to look at the source code, you can find it in [`blaze-platform/flint/res/test_bins/demo1/demo1.c`](./flint/res/test_bins/demo1/demo1.c).
 
 You can run generate SMT-like output, compatible with other weird machine research programs, with the following command:
 ```bash
@@ -328,6 +337,147 @@ $ test-smt.json
 }
 ```
 
+---
+
+#### Write Primitive 1
+
+`demo1.c` snippet:
+```c
+struct SystemState {
+    void (*handlers[HANDLER_COUNT])();
+    long call_target;   // an attacker can write past the array of function pointers
+};
+
+...
+
+// arbitarary write to addr
+void set_call_target(long addr)
+{
+    sys->call_target = addr;
+}
+```
+
+The first write primitive allows us to write an arbitary function pointer to `sys->call_target`. In this case, we can write `admin_mode()` to `call_target`.
+
+`test-smt.json` snippet:
+```json
+        {
+            "name": "Write",
+            "operation": {
+                "effects": [
+                    {
+                        "arguments": {
+                            "ptr": "(FIELD_ADDR (DEREF 64 (GLOBAL sys)) 0x0000000000000030)",
+                            "value": "(ARG 1)"
+                        },
+                        "id": "-8904604037364128612",
+                        "type": "Write"
+                    }
+                ],
+                "preconditions": [
+                    "(= (ARG 0) 0x00000003)"
+                ],
+                "variables": [
+                    "; variables section\n; TODO\n"
+                ]
+            },
+            "trigger": "menu((ARG 0), (ARG 1), (ARG 2));"
+        }
+```
+
+---
+
+#### Write Primitive 2
+
+`demo1.c` snippet:
+```c
+// oob to handler index
+int set_slot(long index, long value)
+{
+    if (index < 0 || index > SLOT_COUNT)
+        return 0;
+    ctrl->slots[index] = value; // oob
+    return 1;
+}
+```
+
+The second write primitive uses an off-by-one write to overflow `ctrl->slots[]` into `ctrl->handler_index`.
+
+`test-smt.json` snippet:
+```json
+        {
+            "name": "Write",
+            "operation": {
+                "effects": [
+                    {
+                        "arguments": {
+                            "ptr": "(ARRAY_ADDR ((FIELD_ADDR (DEREF 64 (GLOBAL ctrl)) 0x0000000000000000)) ((ARG 1)) 8)",
+                            "value": "(ARG 2)"
+                        },
+                        "id": "4720097406850872539",
+                        "type": "Write"
+                    }
+                ],
+                "preconditions": [
+                    "(bvnot ((= (ARG 0) 0x00000003)))",
+                    "(bvslt (ARG 0) 0x00000004)",
+                    "(= (ARG 0) 0x00000001)",
+                    "(bvnot ((bvslt (ARG 1) 0x0000000000000000)))",
+                    "(bvnot ((bvslt 0x000000000000000a (ARG 1))))"
+                ],
+                "variables": [
+                    "; variables section\n; TODO\n"
+                ]
+            },
+            "trigger": "menu((ARG 0), (ARG 1), (ARG 2));"
+        }
+```
+
+---
+
+#### Indirect Call Primitive
+
+`demo1.c` snippet:
+```c
+// indirect call
+void call_handler()
+{
+    sys->handlers[ctrl->handler_index]();   // handler_index stores the admin_mode() address
+}
+```
+
+The indirect call primitive triggers an indirect call that indexes into `sys->handlers[]` to call your controlled pointer.
+
+`test-smt.json` snippet:
+```json
+       {
+            "name": "ControlledIndirectCall",
+            "operation": {
+                "effects": [
+                    {
+                        "arguments": {
+                            "call_dest": "(DEREF 64 (ARRAY_ADDR ((FIELD_ADDR (DEREF 64 (GLOBAL sys)) 0x0000000000000000)) (DEREF 64 (FIELD_ADDR (DEREF 64 (GLOBAL ctrl)) 0x0000000000000050)) 8))"
+                        },
+                        "id": "9095671908802974361",
+                        "type": "ControlledIndirectCall"
+                    }
+                ],
+                "preconditions": [
+                    "(bvnot ((= (ARG 0) 0x00000003)))",
+                    "(bvslt (ARG 0) 0x00000004)",
+                    "(bvnot ((= (ARG 0) 0x00000001)))",
+                    "(= (ARG 0) 0x00000002)"
+                ],
+                "variables": [
+                    "; variables section\n; TODO\n"
+                ]
+            },
+            "trigger": "menu((ARG 0), (ARG 1), (ARG 2));"
+        }
+```
+
+---
+
 ### Describing the SMT output
 
 This JSON output has multiple fields matching ASU's UTE tool.
@@ -345,6 +495,10 @@ This JSON output has multiple fields matching ASU's UTE tool.
 
 ## Miscellaneous Build Instructions
 
+The following sections are for developers on MacOS. Also, `blaze` supported Binary Ninja backend in the past. This was before Ghidra was open source.
+
+---
+
 ### Special side directions for MacOS
 
 - Install the build-essentials stuff from x tools. OSX doesn't have the build-essential package in their repository, but it should automatically prompt the equivalent when trying to download build-essential
@@ -357,6 +511,8 @@ This JSON output has multiple fields matching ASU's UTE tool.
 ---
 
 ### Legacy Build Instructions
+
+---
 
 #### Binary Ninja
 
@@ -411,3 +567,5 @@ stack build
 cd flint
 stack test
 ```
+
+---
