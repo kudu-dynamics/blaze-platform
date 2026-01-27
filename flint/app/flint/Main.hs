@@ -14,6 +14,7 @@ import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
 import qualified Flint.Types.CachedMap as CM
+import Flint.Analysis.References (ReferenceKind)
 
 import Blaze.Import.Binary (getBase)
 import Blaze.Pretty (pretty')
@@ -25,7 +26,9 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Aeson (ToJSON(toJSON))
 import Data.ByteString.Lazy.Char8 (unpack)
+import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Aeson.Decoding (eitherDecode)
 import Options.Applicative hiding (info)
 import qualified Options.Applicative as OA
 
@@ -44,6 +47,7 @@ data Options = Options
   , verbosity :: VerbosityLevel
   , filterFuncsFile :: Maybe FilePath
   , blacklistFile :: Maybe FilePath
+  , referencesSpecFile :: Maybe FilePath
   , typeHintsFile :: Maybe FilePath
   , outputSMTish :: Bool
   , noSquash :: Bool
@@ -123,6 +127,13 @@ parseBlacklistFile = strOption $
   <> metavar "BLACKLIST_FILE"
   <> help "file containing functions names to skip during analysis"
 
+parseReferencesSpecFile :: Parser FilePath
+parseReferencesSpecFile = strOption $
+  long "references"
+  <> short 'r'
+  <> metavar "REFERENCES_SPEC_FILE"
+  <> help "file containing specifications for reference kinds"
+
 parseTypeHintsFile :: Parser FilePath
 parseTypeHintsFile = strOption $
   long "typeHints"
@@ -152,6 +163,7 @@ optionsParser = Options
   <*> (parseVerbosity <|> pure Info)
   <*> optional parseFilterFuncsFile
   <*> optional parseBlacklistFile
+  <*> optional parseReferencesSpecFile
   <*> optional parseTypeHintsFile
   <*> (parseOutputSMTish <|> pure False)
   <*> (parseNoSquash <|> pure False)
@@ -260,7 +272,14 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
   typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
   (store,funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
   base <- getBase imp
-  blacklist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #blacklistFile)
+  -- warns on no refs spec option
+  eRefKinds :: Either String [ReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
+  refKinds <- case eRefKinds of
+                 Left s -> do
+                   warn $ "Bad refs spec: " <> Text.pack s
+                   return []
+                 Right refKinds -> return refKinds
+  blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
   let stdLibPrims = allStdLibPrims
       prims :: [Prim]
       prims = PrimLib.allPrims
@@ -278,6 +297,7 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
     blacklist 
     funcToTypeHintsMap
     (not $ opts ^. #noSquash)
+    refKinds
   cprims <- CM.getSnapshot $ store ^. #callablePrims
   filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
   let filteredCprims = case filterFuncs of
