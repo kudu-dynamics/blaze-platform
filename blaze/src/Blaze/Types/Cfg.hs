@@ -339,7 +339,7 @@ mkCfg nextCtxIndex_ root_ rest es =
     , nextCtxIndex = nextCtxIndex_
     }
 
-edges :: Hashable a => Cfg (CfNode a) -> [CfEdge (CfNode a)]
+edges :: (Hashable a, Identifiable a UUID) => Cfg a -> [CfEdge a]
 edges = fmap fromLEdge . G.edges
 
 removeEdge :: Hashable a => CfEdge (CfNode a) -> Cfg (CfNode a) -> Cfg (CfNode a)
@@ -693,3 +693,6 @@ fromTransport t = mkCfg (t ^. #transportNextCtxIndex) root' nodes' edges'
     root' = snd . fromJust $ find ((== t ^. #transportRootId) . fst) (t ^. #transportNodes)
     nodes' = snd <$> t ^. #transportNodes
     edges' = t ^. #transportEdges
+
+removeNodes :: Hashable n => [CfNode n] -> Cfg (CfNode n) -> Cfg (CfNode n)
+removeNodes nodes cfg = foldr G.removeNode cfg nodes

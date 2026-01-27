@@ -1,6 +1,10 @@
 # Blaze Platform
 
 
+## Version 0.26.0126c
+- Added Loop analysis type modules for HighCfg and HighCfNode
+- Added HighCfg Dot graph visualizer module
+
 ## Version 0.26.0126b
 - Initial addition of references abstraction. Not yet integrated into analysis
 process.
