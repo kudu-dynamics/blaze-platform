@@ -33,7 +33,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives.Library" $ do
                   , PrimLib.returnsFreedPointerPrim
                   ]
           action = do
-            onionFlow 20 False 3 1.0 store stdLibPrims prims HashSet.empty HashMap.empty True
+            onionFlow 20 False 3 1.0 store stdLibPrims prims HashSet.empty HashMap.empty True []
             m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ store ^. #callablePrims
             -- info . cs . pshow $ m
             -- pprint m

@@ -9,6 +9,10 @@
 
 ---
 
+## Version 0.26.0126a
+- Initial addition of references abstraction. Not yet integrated into analysis
+process.
+
 ## Version 0.26.0123a
 - Fixed bug where `onionSinglePass` used non-squased CallableWMI snapshot instead
 of the squashed CallableWMI snapshot.
