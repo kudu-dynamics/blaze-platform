@@ -1,15 +1,7 @@
 # Blaze Platform
 
-- [Version 0.26.0123a](#version-0260123a)
-- [Version 0.26.0122b](#version-0260122b)
-- [Version 0.26.0122a](#version-0260122a)
-- [Version 0.26.0121b](#version-0260121b)
-- [Version 0.26.0121a](#version-0260121a)
-- [Version 0.26.0120a](#version-0260120a)
 
----
-
-## Version 0.26.0126a
+## Version 0.26.0126b
 - Initial addition of references abstraction. Not yet integrated into analysis
 process.
 
@@ -37,6 +29,43 @@ we show it as a JSON record field with both name and address.
 - Corrected `.gitignore` to ignore `stack.yaml.lock` and added changelog
 update enforcement to CI.
 
-## Version 0.26.0120a
+## Version 0.26.0120b
 - Eliminated unnecessary duplication of function name data in `CallOp`s and
 `TailCallOp`s.
+
+## Version 0.26.0120a
+- import Ghidra types
+  + optionally import inferred types through Importer
+  + ie you can specify good types for a func in Ghidra, then tell Flint to use the Ghidra types for that function
+  + improved our own type inference
+
+## Version 0.26.0115
+- Created SMTish module that converts PIL expressions in Flint output to an SMT-like syntax
+- includes CLI option
+
+## Version 0.26.0107
+- This change incorporates global detection into a CallableWMI like WriteToGlobalKernel.
+- Instead of flagging every CONST_PTR as a global variable, we modify Pil to detect global addresses that reside in `.data` and `.bss`. We ignore `.rodata` due to the data being read-only.
+
+## Version 0.25.1208
+- Allow case matching on type of exprs in Flint.
+- Pipes inferred types along with Stmts into matcher
+- Added patterns for matching on types
+
+## Version 0.25.1122
+- Added a "blacklist" feature to flint
+  + sometimes flint encounters a nasty function that it hangs on
+  + this feature allows users at the CLI to specify functions not to check
+
+## Version 0.25.1120
+- This change adds a function called sqCallableWMI that removes CallableWMIs that point to the same location. We now merge these into one CallableWMI (unique to one location). Also, we only extract constraints and varMappings that are the same across all duplicate CallableWMIs.
+
+## Version 0.25.1118
+- Produce STACK_LOCAL_ADDR Pil statements for PTRSUB pcodeops that get the address of a local variable.
+
+## Version 0.25.1027
+- Added AddressSpace to Address type. Now we can tell if an address is in stack, regular RAM, etc
+
+## Version 0.25.1001
+- Swapped out hand-made matcher backend to use LogicT. This gives us more control over backtracking and fetching multiple results.
+
