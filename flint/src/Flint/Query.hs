@@ -22,6 +22,7 @@ import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
+import Flint.Analysis.References hiding (length)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
@@ -1123,6 +1124,9 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
       debugMode = debuggingOn
         && func ^. #name == debugFuncName
         && prim ^. #primType . #name == debugPrimName
+  -- let pats = [M.Stmt $ M.Def M.Wild M.Wild] -- [M.Stmt $ M.Constraint M.Wild]
+  -- when ((func ^. #name) == "main") $ do
+  --   info . show $ matchInvPats_ pats pprep
   when debugMode $ do
     -- m <- fmap M.asOldCallableWMIsMap . CM.getSnapshot $ store ^. #callablePrims
     -- info . cs . pshow . HashMap.lookup PrimSpec.freeHeapSpec $ m
@@ -1271,8 +1275,10 @@ onionFlow
   -> HashSet Text       -- blacklisted function names
   -> HashMap Function TypeHints
   -> Bool
+  -> [ReferenceKind]
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist funcToTypeHintsMap doSquash = do
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist funcToTypeHintsMap doSquash refKinds = do
+  _ <- return refKinds -- suppressing warning
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
   forM_ funcs $ \func -> do
