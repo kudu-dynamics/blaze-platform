@@ -221,10 +221,10 @@ substNode
 
 
 findNodeByUUID ::
-  (Hashable a, Identifiable (CfNode [a]) UUID) =>
+  (Hashable a, Identifiable (CfNode a) UUID) =>
   UUID ->
-  Cfg (CfNode [a]) ->
-  Maybe (CfNode [a])
+  Cfg (CfNode a) ->
+  Maybe (CfNode a)
 findNodeByUUID id cfg = case filter ((== id) . getNodeUUID) . HashSet.toList . G.nodes $ cfg of
   [] -> Nothing
   [x] -> Just x
