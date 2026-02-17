@@ -51,6 +51,15 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives" $ do
 
       PShow result `shouldBe` PShow (Nothing :: Maybe Prim.FuncVar)
 
+    it "should recognize ret expr as a Ret FuncVar" $ do
+      let params = fooParams
+          codeSum = fooCodeSummary1
+          expr = var "r" 8
+          result = Prim.getFuncVar params codeSum expr
+
+      PShow (codeSum ^. #results) `shouldBe` PShow (HashSet.fromList [expr])
+      PShow result `shouldBe` PShow (Just Prim.Ret)
+
   context "mkCallableWMI" $ do
     it "should create callable primitive with single nested arg and no constraints" $ do
       let func = Func.Internal foo
