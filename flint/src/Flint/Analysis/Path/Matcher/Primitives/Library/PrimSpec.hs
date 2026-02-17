@@ -112,3 +112,17 @@ returnsFreedPointerSpec = PrimSpec
   , vars = fromList ["ptr"]
   , locations = fromList ["return", "free"]
   }
+
+copyPtrSpec :: PrimSpec
+copyPtrSpec = PrimSpec
+  { name = "copyPtr"
+  , vars = fromList ["dest", "copied_ptr"]
+  , locations = fromList ["copy"]
+  }
+
+copyMemSpec :: PrimSpec
+copyMemSpec = PrimSpec
+  { name = "copyMem"
+  , vars = fromList ["len", "dest_ptr", "src_ptr"]
+  , locations = fromList ["copy"]
+  }

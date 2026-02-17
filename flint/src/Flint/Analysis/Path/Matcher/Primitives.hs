@@ -49,10 +49,13 @@ getFuncVar
   -> CodeSummary
   -> Pil.Expression
   -> Maybe FuncVar
-getFuncVar params _codeSum expr@(Pil.Expression _ exprOp) = case exprOp of
-  (Pil.VAR (Pil.VarOp pv)) -> getFuncVarFromPilVar params pv
-  (Pil.GLOBAL_PTR _) -> Just $ Global expr
-  _ -> Nothing
+getFuncVar params codeSum expr@(Pil.Expression _ exprOp) = isArgOrGlobal <|> isRet
+  where
+    isArgOrGlobal = case exprOp of
+      (Pil.VAR (Pil.VarOp pv)) -> getFuncVarFromPilVar params pv
+      (Pil.GLOBAL_PTR _) -> Just $ Global expr
+      _ -> Nothing
+    isRet = bool Nothing (Just Ret) . HashSet.member expr $ codeSum ^. #results
 
 -- | This converts any args from func params, globals, and the return expr (FuncVars)
 -- and explicitly labels them as such.
@@ -84,8 +87,9 @@ mkCallableWMI
   -> HashMap (Symbol Address) (Either ExternFunction Address)
   -> [Stmt] -- whole path
   -> Either MkCallableWMIError CallableWMI
-mkCallableWMI func codeSum primSpec boundExprs boundLocations path = do
-  let keySet = HashSet.fromList . HashMap.keys
+mkCallableWMI func codeSum primSpec boundExprs' boundLocations path = do
+  let boundExprs = HashMap.filterWithKey (\k _ -> HashSet.member k $ primSpec ^. #vars) boundExprs'
+      keySet = HashSet.fromList . HashMap.keys
       missingVarKeys = HashSet.difference (primSpec ^. #vars) $ keySet boundExprs
       missingLocationKeys = HashSet.difference (primSpec ^. #locations) $ keySet boundLocations
   case not (HashSet.null missingVarKeys) || not (HashSet.null missingLocationKeys) of

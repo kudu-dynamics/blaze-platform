@@ -271,6 +271,15 @@ matchExpr pat expr = case pat of
     matchExpr xpat expr
     -- success
     bind sym expr
+
+  M.BindWidth sym xpat -> do
+    matchExpr xpat expr
+    let szExpr = mkExprLike expr
+          . Pil.CONST
+          $ Pil.ConstOp (fromIntegral (fromByteBased $ getExprSize expr :: Bytes))
+    -- success
+    bind sym szExpr
+
   M.Var prefixOfName -> case getExprOp expr of
     Pil.VAR (Pil.VarOp pv) -> insist . Text.isPrefixOf (cs prefixOfName) $ pv ^. #symbol
     Pil.ConstFuncPtr (Pil.ConstFuncPtrOp _addr (Just symb)) -> do
@@ -476,6 +485,7 @@ data CallStatement expr stmt = CallStatement
   , callOp :: Pil.CallOp expr
   , args :: [expr]
   , resultVar :: Maybe Pil.PilVar
+  , callExpr :: Maybe expr -- | needed to get the type of the return, but TailCall and Call stmts have no associated expr (which is probably OK because they don't return anything)
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)
@@ -489,12 +499,12 @@ mkCallStatement
   -> Maybe (CallStatement expr stmt)
 mkCallStatement stmt' = case getStatement stmt' of
   Pil.Call callOp' ->
-    Just $ CallStatement stmt' callOp' (callOp' ^. #args) Nothing
+    Just $ CallStatement stmt' callOp' (callOp' ^. #args) Nothing Nothing
   Pil.Def (Pil.DefOp resultVar' expr) -> case getExprOp expr of
-    Pil.CALL callOp' -> Just $ CallStatement stmt' callOp' (callOp' ^. #args) (Just resultVar')
+    Pil.CALL callOp' -> Just $ CallStatement stmt' callOp' (callOp' ^. #args) (Just resultVar') (Just expr)
     _ -> Nothing
   Pil.TailCall tc ->
-    Just $ CallStatement stmt' callOp' (tc ^. #args) Nothing
+    Just $ CallStatement stmt' callOp' (tc ^. #args) Nothing Nothing
     where
       callOp' = Pil.CallOp (tc ^. #dest) (tc ^. #args)
   _ ->
@@ -512,7 +522,7 @@ matchStmt
 matchStmt sPat stmt = case sPat of
   M.Def destPat srcPat -> case statement of
     Pil.Def (Pil.DefOp pv expr) -> do
-      let pvExpr = liftVar pv
+      let pvExpr = liftVarLike expr pv
       matchExpr destPat pvExpr
       matchExpr srcPat expr
     _ -> bad
@@ -570,12 +580,12 @@ matchStmt sPat stmt = case sPat of
         
     _ -> case mkCallStatement stmt of
       Nothing -> bad
-      Just (CallStatement _ callOp argExprs mResultVar) -> do
+      Just (CallStatement _ callOp argExprs mResultVar mCallExpr) -> do
         matchCallDest callDestPat $ callOp ^. #dest
         case (mResultPat, mResultVar) of
           (Nothing, _) -> good
           (Just resultPat, Just resultVar) -> do
-            let pvExpr = liftVar resultVar
+            let pvExpr = maybe liftVar liftVarLike mCallExpr resultVar
             matchExpr resultPat pvExpr
           _ -> bad
       -- It's ok if there are less arg pats than there are args
@@ -753,7 +763,8 @@ matchPattern = \case
           Just destFunc -> getCallableWMIs pt destFunc >>= \case
             Nothing -> bad
             Just wmis -> do
-              let mRetExpr = liftVar <$> (callStmt ^. #resultVar) :: Maybe expr
+              let mRetExpr = maybe liftVar liftVarLike (callStmt ^. #callExpr)
+                             <$> (callStmt ^. #resultVar) :: Maybe expr
                   argVector = V.fromList $ callStmt ^. #args
                   resolveFuncVar' :: FuncVarExpr -> Maybe expr
                   resolveFuncVar' = resolveFuncVar argVector mRetExpr
