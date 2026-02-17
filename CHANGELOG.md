@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0216
+- Added pure tests for some WMIs in LibarySpec
+- Fixed bug where the type of the return var in a Def Call wasn't being set properly in the Matcher
+  This prevented matching the return of a function call to any later uses.
 
 ## Version 0.26.0126c
 - Added Loop analysis type modules for HighCfg and HighCfNode

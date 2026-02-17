@@ -6,6 +6,10 @@ import Flint.Types.Analysis.Path.Matcher.Primitives
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec as PrimSpec
 
 import Blaze.Pil.Construct
+import qualified Blaze.Types.Function as Func
+import qualified Blaze.Types.Pil as Pil
+
+import qualified Data.BinaryAnalysis as BA
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -15,8 +19,53 @@ allStdLibPrims =
      controlledFormatStringPrims
   <> freeHeapPrims
   <> allocHeapPrims
+  <> copyMemPrims
 
 -----------------------------------
+
+callExtern :: Text -> [FuncVarExpr] -> FuncVarExprSize -> FuncVarExpr
+callExtern funcName args sz = FuncVarExpr sz . Pil.CALL $ Pil.CallOp dest args
+  where
+    dest = Pil.CallExtern $ Func.ExternFunction
+      { symbol = Nothing
+      , name = funcName
+      , library = Nothing
+      , address = Address (AddressSpace 8 1 BA.EXTERNAL) 0
+      , params = fmap mkParam [0..(numArgs - 1)]
+      }
+    numArgs = length args
+    mkParam n = Func.FuncParamInfo (Func.ParamInfo ("arg" <> show (n + 1)) (Just 8) Func.Unknown)
+
+copyMemPrims :: [StdLibPrimitive]
+copyMemPrims = 
+  [ StdLibPrimitive
+    { prim = PrimSpec.copyMemSpec
+    , funcName = "strncpy"
+    , varMapping = HashMap.fromList
+      [ ("dest_ptr", FuncVar $ Arg 0)
+      , ("src_ptr", FuncVar $ Arg 1)
+      , ("len", let sz = SizeOf $ Arg 2 in
+            callExtern
+              "min"
+              [ callExtern "strlen" [ FuncVar $ Arg 1 ] sz
+              , FuncVar $ Arg 2 ]
+              sz
+        )
+      ]
+    , constraints = []
+    }
+  , StdLibPrimitive
+    { prim = PrimSpec.copyMemSpec
+    , funcName = "memcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest_ptr", FuncVar $ Arg 0)
+      , ("src_ptr", FuncVar $ Arg 1)
+      , ("len", FuncVar $ Arg 2)
+      ]
+    , constraints = []
+    }
+  ]
+
 
 freeHeapPrims :: [StdLibPrimitive]
 freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $

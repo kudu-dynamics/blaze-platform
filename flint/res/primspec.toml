@@ -83,3 +83,15 @@
   name = "ReturnsFreedPointer"
   locations = ["free", "return"]
   vars = ["ptr"]
+
+
+[[prim]]
+  name = "copyPtr"
+  locations = ["copy"]
+  vars = ["dest","copied_ptr"]
+
+[[prim]]
+  name = "copyMem"
+  locations = ["copy"]
+  vars = ["dest_ptr","src_ptr","len"]
+

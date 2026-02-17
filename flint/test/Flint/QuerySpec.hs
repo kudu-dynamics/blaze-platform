@@ -99,7 +99,6 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
 
     context "onion primitives" $ do
       it "should find controlled format string in dirty" $ \tctx -> do
-        putText "no way"
         let stdLibPrims = StdLibPrims.controlledFormatStringPrims
             prims = [PrimLib.controlledFormatStringPrim]
             action = do
