@@ -47,12 +47,13 @@ hlint *hlint_args:
 #         done
 
 tags:
-    hasktags -R -e ghidra-haskell blaze flint
+    hasktags -R -e binary-analysis ghidra-haskell blaze flint
 
 sub-tags: tags
     cp TAGS blaze/TAGS
     cp TAGS flint/TAGS
     cp TAGS ghidra-haskell/TAGS
+    cp TAGS binary-analysis/TAGS
 
 clean:
     stack {{stack_options}} clean

@@ -913,7 +913,7 @@ checkPathForPrim_ maxResultsPerPath mctx mstate func codeSummary prim = do
       f :: (M.MatcherState expr stmt, [stmt])
         -> Maybe CallableWMI
       f (ms, stmtsWithAssertions) =
-        either (const Nothing) Just $ mkCallableWMI
+        either (error . cs . pshow) Just $ mkCallableWMI
           (Func.Internal func)
           codeSummary
           (prim ^. #primType)

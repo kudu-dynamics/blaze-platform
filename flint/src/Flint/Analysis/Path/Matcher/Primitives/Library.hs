@@ -28,6 +28,8 @@ allPrims =
   -- , escapedDataFromLock
   , writePrim
   , returnsFreedPointerPrim
+  , copyMemPrim
+  , copyPtrPrim
   ]
 
 ---------------------------
@@ -37,7 +39,7 @@ isArg = Param
 
 -- Matches function input parameters and external global addresses
 isInput :: ExprPattern
-isInput= Param .|| GlobalAddr
+isInput = Param .|| GlobalAddr
 
 -- | This indicates the expr is tainted by function input (args/globals)
 -- TODO: maybe we can use CodeSummary when matching
@@ -72,12 +74,109 @@ allocHeapPrim = Prim
   { primType = allocHeapSpec
   , stmtPattern =
       [ Star
-      , Location "alloc" . Primitive allocHeapSpec $ HashMap.fromList
-        [ ("ptr", Bind "ptr" (Contains isInput))
-        , ("size", Bind "size" Wild)
+      -- | case 1: allocated ptr is returned
+      -- | case 2: allocated ptr is copied to arg or global ptr
+      , orr
+        [ ordered
+          [ Location "alloc" . Primitive allocHeapSpec $ HashMap.fromList
+            [ ("ptr", Bind "ptr" Wild)
+            , ("size", Bind "size" Wild)
+            ]
+          , Star
+          , Stmt . M.Ret $ Bind "ptr" Wild
+          ]
+        , ordered
+          [ Location "alloc" . Primitive allocHeapSpec $ HashMap.fromList
+            [ ("ptr", Bind "ptr_alloc" Wild)
+            , ("size", Bind "size" Wild)
+            ]
+          , Star
+          , Stmt $ M.Store (Bind "ptr" $ Contains isInput) (Bind "ptr_alloc" Wild)
+          ]
         ]
       ]
   }
+
+
+copyMemPrim :: Prim
+copyMemPrim = Prim
+  { primType = copyMemSpec
+  , stmtPattern =
+      [ Star
+      -- TODO: handle possibly infinted CopyPtrs
+      -- | case 1: func returns dest_ptr or it's copied to input
+      -- | case 2: dest and src ptrs are both inputs/globals
+      -- | case 3: dest is not global, but ptr gets copied to global
+      , orr
+        [ ordered
+          [ Location "copy" $ orr
+            [ Primitive copyMemSpec $ HashMap.fromList
+              [ ("dest_ptr", Bind "local_dest_ptr" Wild)
+              , ("src_ptr", Bind "src_ptr" (Contains isInput))
+              , ("len", Bind "len" Wild)
+              ]
+            , Stmt $ M.Store (Bind "local_dest_ptr" Wild) (BindWidth "len" (load (Bind "src_ptr" (Contains isInput)) ()))
+            ]
+          , Star
+          , orr
+            [ Stmt . M.Ret  . Contains . Bind "dest_ptr" $ Bind "local_dest_ptr" Wild
+            -- | local ptr is copied out of func into global/arg ptr
+            , Stmt $ Store (Bind "dest_ptr" (Contains isInput)) (Bind "local_dest_ptr" Wild)
+            ]
+          ]
+
+        , ordered
+          [ Location "copy" $ orr
+            [ Primitive copyMemSpec $ HashMap.fromList
+              [ ("dest_ptr", Bind "dest_ptr" (Contains isInput))
+              , ("src_ptr", Bind "src_ptr" (Contains isInput))
+              , ("len", Bind "len" Wild)
+              ]
+            , Stmt $ M.Store (Bind "dest_ptr" (Contains isInput)) (BindWidth "len" (load (Bind "src_ptr" (Contains isInput)) ()))
+            ]
+          ]
+        ]
+      ]
+  }
+
+copyPtrPrim :: Prim
+copyPtrPrim = Prim
+  { primType = copyPtrSpec
+  , stmtPattern =
+      [ Star
+      , orr
+        [ Location "copy" $ orr
+          [ Primitive copyPtrSpec $ HashMap.fromList
+            [ ("dest", Bind "dest" (Contains isInput))
+            , ("copied_ptr", Bind "copied_ptr" (Contains isInput))
+            ]
+          , Stmt $ Store (Bind "dest" (Contains isInput))
+            (OfType
+             (PilType $ TPointer AnyBitWidth AnyType)
+             (Bind "copied_ptr" (Contains isInput)))
+          ]
+        -- , ordered
+        --   [ Location "copy" $ orr
+        --     [ Primitive copyPtrSpec $ HashMap.fromList
+        --       [ ("dest", Bind "local_dest" Wild)
+        --       , ("copied_ptr", Bind "copied_ptr" (Contains isInput))
+        --       ]
+        --     , Stmt $ Store (Bind "dest" (Contains isInput))
+        --       (OfType
+        --        (PilType $ TPointer AnyBitWidth Wild)
+        --        (Bind "copied_ptr" (Contains isInput)))
+        --     ]
+
+        --     Stmt . M.Ret  . Contains . Bind "dest_ptr" $ Bind "local_dest_ptr" Wild
+        --     -- | local ptr is copied out of func into global/arg ptr
+        --   , Stmt $ Store (Bind "dest_ptr" (Contains isInput)) (Bind "local_dest_ptr" Wild)
+        --   ]
+        --   ]
+
+        ]
+      ]
+  }
+
 
 doubleFreePrim :: Prim
 doubleFreePrim = Prim

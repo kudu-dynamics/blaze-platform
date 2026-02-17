@@ -143,6 +143,9 @@ data ExprPattern
   -- You can nest more binds within the ExprPattern.
   | Bind (Symbol Pil.Expression) ExprPattern
 
+  -- | Binds the byte width of an Expression as a const expr
+  | BindWidth (Symbol Pil.Expression) ExprPattern
+
   -- | Matches prefix of var name, like "arg4" will match "arg4-7#1".
   -- Also matches against ConstFuncPtrs that a name.
   | Var (Symbol Pil.Expression)
@@ -361,6 +364,8 @@ class Eq expr => IsExpression expr where
   mkExprLike :: expr -> Pil.ExprOp expr -> expr
   mkExprWithSize :: Pil.Size Pil.Expression -> Pil.ExprOp expr -> expr
   liftVar :: Pil.PilVar -> expr
+  -- | lifts pilvar with same attrs as expr
+  liftVarLike :: expr -> Pil.PilVar -> expr
   getType :: expr -> Maybe DeepSymType
 
 instance IsExpression Pil.Expression where
@@ -372,6 +377,7 @@ instance IsExpression Pil.Expression where
   liftVar pv = Pil.Expression sz . Pil.VAR . Pil.VarOp $ pv
     where
       sz = coerce $ pv ^. #size
+  liftVarLike x = Pil.Expression (x ^. #size) . Pil.VAR . Pil.VarOp
   getType = const Nothing
 
 instance IsExpression (InfoExpression (BitWidth, Maybe DeepSymType)) where
@@ -381,6 +387,7 @@ instance IsExpression (InfoExpression (BitWidth, Maybe DeepSymType)) where
   mkExprLike x op = x & #op .~ op
   mkExprWithSize sz = Ch.InfoExpression (toBits . fromIntegral $ sz, Nothing)
   liftVar pv = mkExprWithSize (fromIntegral $ pv ^. #size) (Pil.VAR . Pil.VarOp $ pv)
+  liftVarLike x = mkExprLike x . Pil.VAR . Pil.VarOp
   getType x = x ^. #info . _2
   
 type StmtSolver stmt m = [stmt] -> m SolverResult
