@@ -385,9 +385,11 @@ failedToUnregister = fmap f thingsYouShouldUnregister
     f ((regName, regArg), (unregName, unregArg)) = Prim
       { primType = primType
       , stmtPattern =
-          [ Location "registerHandlerCall"
+          [ Star
+          , Location "registerHandlerCall"
             . Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg
             $ Bind "handler" Wild
+          , Star  
           , AvoidUntil $ AvoidSpec
             { avoid = Stmt . Call Nothing (CallFunc $ FuncName unregName)
                       . argAt unregArg $ Bind "handler" Wild
