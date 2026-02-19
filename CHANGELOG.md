@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0219
+- Restored functionality of --isKernelModule option
+
 ## Version 0.26.0216
 - Added pure tests for some WMIs in LibarySpec
 - Fixed bug where the type of the return var in a Def Call wasn't being set properly in the Matcher
