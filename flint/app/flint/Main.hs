@@ -270,7 +270,7 @@ toFlintResult baseOffset
 onionCheck :: MonadIO m => Options -> m ()
 onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
-  (store,funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
+  (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
   base <- getBase imp
   -- warns on no refs spec option
   eRefKinds :: Either String [ReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
@@ -283,6 +283,25 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
   let stdLibPrims = allStdLibPrims
       prims :: [Prim]
       prims = PrimLib.allPrims
+
+  let convertKernelWMIs :: [MatchingPrim] -> HashMap PrimSpec (HashSet CallableWMI)
+      convertKernelWMIs = foldr
+        ((\wmi
+          -> HashMap.alter
+             (maybe (Just $ HashSet.singleton wmi) (Just . HashSet.insert wmi))
+             (wmi ^. #prim))
+         . view #callablePrim)
+        HashMap.empty
+                                                         
+  kernelWMIs <- convertKernelWMIs <$> case opts ^. #isKernelModule of
+    False -> pure []
+    True -> do
+      checkKernelLifecycleForPrims'
+            (not $ opts ^. #doNotUseSolver)
+            store
+            20
+            1
+
 
   -- TODO: make maxResultsPerPath an option
   let maxResultsPerPath = 10 -- max WMIs found per path
@@ -303,10 +322,11 @@ onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> 
   let filteredCprims = case filterFuncs of
         Nothing -> cprims
         Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
-  let cprims' = M.asOldCallableWMIsMap filteredCprims  
+  let cprims' = M.asOldCallableWMIsMap filteredCprims
+      allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
   case opts ^. #outputSMTish of
-    False -> handleResult $ toFlintResult base cprims'
-    True -> handleResult $ toFlintSMTishResult base cprims'
+    False -> handleResult $ toFlintResult base allPrims
+    True -> handleResult $ toFlintSMTishResult base allPrims
   where
     handleResult :: ToJSON a => a -> IO ()
     handleResult flintResult = case opts ^. #outputToFile of

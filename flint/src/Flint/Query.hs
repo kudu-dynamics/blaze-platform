@@ -18,6 +18,7 @@ import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs, squashCallableWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, StdLibPrimitive, PrimSpec)
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
@@ -848,7 +849,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
             ]
           lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
       CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
-      
+
       let q :: Query Function
           q = QueryExpandAll $ QueryExpandAllOpts
               { callExpandDepthLimit = expandCallDepth + 1
@@ -857,7 +858,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
               }
           prims :: [Prim]
           --- TODO: add these kernel prims back in
-          prims = [] -- PrimLib.kernelModulePrims
+          prims = PrimLib.kernelModulePrims
 
       checkFuncForPrims'
         actuallyUseSolver
