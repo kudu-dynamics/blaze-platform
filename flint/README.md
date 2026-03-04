@@ -2,7 +2,8 @@
 
 - [Dependencies](#dependencies)
 - [Overview of output](#overview-of-output)
-- [Usage](#usage)
+- [Interactive Shell](#interactive-shell)
+- [Batch Usage](#batch-usage)
 
 A program that uses [Blaze](../blaze) to find Weird Machine instructions.
 
@@ -61,7 +62,39 @@ Here's a breakdown of the fields in this Callable WMI:
 - `constraints` - this shows nessecary constraints that must be true for the WMI to pass. These might be collected from a single path, or from the common constraints of multiple paths that trigger the same WMI. This example constraint shows that the second arg of the function `double_free1` must not equal zero.
 - `vars` - we can see the that `ptr` that gets double-freed is the first arg of the `double_free1` function. That means: if we call `double_free1`, the pointer we pass to the first arg will get double-freed
 
-# Usage
+# Interactive Shell
+
+Flint includes an interactive shell (`flint-shell`) for exploring binaries, sampling and inspecting paths, and checking for WMIs interactively.
+
+```
+stack run flint-shell -- /path/to/your/binary.gzf
+```
+
+Once in the shell, type `help` for a list of commands. Here's a typical workflow:
+
+```
+flint> functions malloc           # list functions matching "malloc"
+flint> sample vulnerable_func 10  # sample 10 paths from a function
+flint> show 0                     # pretty-print path 0
+flint> reduce [0..9]              # reduce all paths via copy/constant propagation
+flint> solve [10..19]             # check satisfiability with Z3
+flint> wmis                       # list available WMI primitives
+flint> check-wmi doubleFree 10    # check a path for a WMI
+flint> free [0..19]               # free cached paths
+```
+
+You can also do targeted sampling, where sampled paths must pass through specific addresses:
+
+```
+flint> sample my_func @ 0x401000 0x401050
+flint> sample my_func 10 @ 0x401000
+```
+
+The shell supports tab completion, command history, bracket/range syntax for path IDs (`[0..5]`, `[1, 3, 7-10]`), and aliases for all commands (e.g. `sp` for `sample`, `sh` for `show`).
+
+The command layer is decoupled from the REPL so these same functions can be reused by an MCP server for AI-driven analysis.
+
+# Batch Usage
 
 From this folder, run:
 

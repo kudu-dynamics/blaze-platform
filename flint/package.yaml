@@ -49,6 +49,7 @@ dependencies:
   - generics-sop
   - ghidra
   - hashable
+  - haskeline
   - lens
   - list-t
   - logict
@@ -150,6 +151,14 @@ library:
   - Flint.Types.Query
   - Flint.Types.Symbol
   - Flint.Util
+  - Flint.Shell.Types
+  - Flint.Shell.Command
+  - Flint.Shell.Commands.Functions
+  - Flint.Shell.Commands.Paths
+  - Flint.Shell.Commands.Solver
+  - Flint.Shell.Commands.WMI
+  - Flint.Shell.Commands.TypeCheck
+  - Flint.Shell.Repl
 
 executables:
   flint:
@@ -165,6 +174,18 @@ executables:
     - -fspecialise-aggressively
     dependencies:
     - flint
+    - optparse-applicative
+  flint-shell:
+    main: Main.hs
+    source-dirs: app/flint-shell
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
+    - haskeline
     - optparse-applicative
   flint_classic:
     main: Main.hs
