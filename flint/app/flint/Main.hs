@@ -29,6 +29,7 @@ import Data.ByteString.Lazy.Char8 (unpack)
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Decoding (eitherDecode)
+import System.Directory (doesFileExist)
 import Options.Applicative hiding (info)
 import qualified Options.Applicative as OA
 
@@ -268,72 +269,78 @@ toFlintResult baseOffset
 
 -- | Checks for bugs using the onion
 onionCheck :: MonadIO m => Options -> m ()
-onionCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
-  typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
-  (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
-  base <- getBase imp
-  -- warns on no refs spec option
-  eRefKinds :: Either String [ReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
-  refKinds <- case eRefKinds of
-                 Left s -> do
-                   warn $ "Bad refs spec: " <> Text.pack s
-                   return []
-                 Right refKinds -> return refKinds
-  blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
-  let stdLibPrims = allStdLibPrims
-      prims :: [Prim]
-      prims = PrimLib.allPrims
+onionCheck opts = do
+  let fp = opts ^. #inputFile
+  exists <- liftIO $ doesFileExist fp
+  unless exists $ liftIO $ do
+    putText $ "Error: file not found: " <> Text.pack fp
+    exitFailure
+  withBackend (opts ^. #backend) fp $ \imp -> do
+    typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
+    (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
+    base <- getBase imp
+    -- warns on no refs spec option
+    eRefKinds :: Either String [ReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
+    refKinds <- case eRefKinds of
+                   Left s -> do
+                     warn $ "Bad refs spec: " <> Text.pack s
+                     return []
+                   Right refKinds -> return refKinds
+    blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
+    let stdLibPrims = allStdLibPrims
+        prims :: [Prim]
+        prims = PrimLib.allPrims
 
-  let convertKernelWMIs :: [MatchingPrim] -> HashMap PrimSpec (HashSet CallableWMI)
-      convertKernelWMIs = foldr
-        ((\wmi
-          -> HashMap.alter
-             (maybe (Just $ HashSet.singleton wmi) (Just . HashSet.insert wmi))
-             (wmi ^. #prim))
-         . view #callablePrim)
-        HashMap.empty
-                                                         
-  kernelWMIs <- convertKernelWMIs <$> case opts ^. #isKernelModule of
-    False -> pure []
-    True -> do
-      checkKernelLifecycleForPrims'
-            (not $ opts ^. #doNotUseSolver)
-            store
-            20
-            1
+    let convertKernelWMIs :: [MatchingPrim] -> HashMap PrimSpec (HashSet CallableWMI)
+        convertKernelWMIs = foldr
+          ((\wmi
+            -> HashMap.alter
+               (maybe (Just $ HashSet.singleton wmi) (Just . HashSet.insert wmi))
+               (wmi ^. #prim))
+           . view #callablePrim)
+          HashMap.empty
+
+    kernelWMIs <- convertKernelWMIs <$> case opts ^. #isKernelModule of
+      False -> pure []
+      True -> do
+        checkKernelLifecycleForPrims'
+              (not $ opts ^. #doNotUseSolver)
+              store
+              20
+              1
 
 
-  -- TODO: make maxResultsPerPath an option
-  let maxResultsPerPath = 10 -- max WMIs found per path
-  onionFlow
-    maxResultsPerPath
-    (not $ opts ^. #doNotUseSolver) 
-    (opts ^. #onionDepth)
-    (opts ^. #pathSamplingFactor)
-    store 
-    stdLibPrims 
-    prims 
-    blacklist 
-    funcToTypeHintsMap
-    (not $ opts ^. #noSquash)
-    refKinds
-  cprims <- CM.getSnapshot $ store ^. #callablePrims
-  filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
-  let filteredCprims = case filterFuncs of
-        Nothing -> cprims
-        Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
-  let cprims' = M.asOldCallableWMIsMap filteredCprims
-      allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
-  case opts ^. #outputSMTish of
-    False -> handleResult $ toFlintResult base allPrims
-    True -> handleResult $ toFlintSMTishResult base allPrims
-  where
-    handleResult :: ToJSON a => a -> IO ()
-    handleResult flintResult = case opts ^. #outputToFile of
-      Nothing -> printResult flintResult
-      Just outputFilePath -> do
-        writeResult outputFilePath flintResult
-        putText $ "Wrote results to " <> show outputFilePath
+    -- TODO: make maxResultsPerPath an option
+    let maxResultsPerPath = 10 -- max WMIs found per path
+    onionFlow
+      maxResultsPerPath
+      (not $ opts ^. #doNotUseSolver)
+      (opts ^. #onionDepth)
+      (opts ^. #pathSamplingFactor)
+      store
+      stdLibPrims
+      prims
+      blacklist
+      funcToTypeHintsMap
+      (not $ opts ^. #noSquash)
+      refKinds
+    cprims <- CM.getSnapshot $ store ^. #callablePrims
+    filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
+    let filteredCprims = case filterFuncs of
+          Nothing -> cprims
+          Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
+    let cprims' = M.asOldCallableWMIsMap filteredCprims
+        allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
+    case opts ^. #outputSMTish of
+      False -> handleResult $ toFlintResult base allPrims
+      True -> handleResult $ toFlintSMTishResult base allPrims
+    where
+      handleResult :: ToJSON a => a -> IO ()
+      handleResult flintResult = case opts ^. #outputToFile of
+        Nothing -> printResult flintResult
+        Just outputFilePath -> do
+          writeResult outputFilePath flintResult
+          putText $ "Wrote results to " <> show outputFilePath
 
 
 getFuncsFromFile :: FilePath -> IO (HashSet Text)
