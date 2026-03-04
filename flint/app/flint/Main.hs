@@ -277,7 +277,8 @@ onionCheck opts = do
     exitFailure
   withBackend (opts ^. #backend) fp $ \imp -> do
     typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
-    (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist (opts ^. #analysisDb) imp
+    blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
+    (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist blacklist (opts ^. #analysisDb) imp
     base <- getBase imp
     -- warns on no refs spec option
     eRefKinds :: Either String [ReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
@@ -286,7 +287,6 @@ onionCheck opts = do
                      warn $ "Bad refs spec: " <> Text.pack s
                      return []
                    Right refKinds -> return refKinds
-    blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
     let stdLibPrims = allStdLibPrims
         prims :: [Prim]
         prims = PrimLib.allPrims
@@ -320,7 +320,6 @@ onionCheck opts = do
       store
       stdLibPrims
       prims
-      blacklist
       funcToTypeHintsMap
       (not $ opts ^. #noSquash)
       refKinds
