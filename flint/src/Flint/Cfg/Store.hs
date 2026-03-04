@@ -54,7 +54,7 @@ init
      )
   => Maybe FilePath -> imp -> IO CfgStore
 init mDbFilePath imp = do
-  (cfgStore, _) <- initWithTypeHints HashSet.empty mDbFilePath imp
+  (cfgStore, _) <- initWithTypeHints HashSet.empty HashSet.empty mDbFilePath imp
   return cfgStore
 
 
@@ -65,10 +65,11 @@ initWithTypeHints
      , CfgImporter imp
      )
   => HashSet Text     -- whitelist for functions we want to have type hints for
-  -> Maybe FilePath 
-  -> imp 
+  -> HashSet Text     -- blacklist of function names to exclude from analysis
+  -> Maybe FilePath
+  -> imp
   -> IO (CfgStore, HashMap Function TypeHints)
-initWithTypeHints typeHintsWhitelist mDbFilePath imp = do
+initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   mDb <- case mDbFilePath of
     Nothing -> return Nothing
     Just fp -> Just <$> Db.init fp
@@ -88,7 +89,8 @@ initWithTypeHints typeHintsWhitelist mDbFilePath imp = do
   allFuncs <- CG.getFunctions imp
   
   let internalFuncs :: [Function]
-      internalFuncs = mapMaybe (^? #_Internal) allFuncs
+      internalFuncs = filter (\f -> not $ HashSet.member (f ^. #name) blacklist)
+                    $ mapMaybe (^? #_Internal) allFuncs
 
   (funcToCfgs :: [(Function, PilCfg)], funcToTypeHints) <- getFuncsWithCfgsAndTypeHints imp typeHintsWhitelist internalFuncs
 
