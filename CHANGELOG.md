@@ -1,5 +1,14 @@
 # Blaze Platform
 
+## Version 0.26.0304
+- Added `flint-shell`, an interactive shell for exploring binaries
+  + Commands: `functions`, `sample`, `show`, `reduce`, `solve`, `free`, `paths`, `wmis`, `check-wmi`
+  + Path caching by integer ID for referring to sampled paths across commands
+  + Targeted sampling with `@` syntax to sample paths through specific addresses
+  + Haskeline-based REPL with tab completion, history, and command aliases
+  + Bracket/range syntax for path IDs: `[0..5]`, `[1, 3, 7-10]`
+  + Command layer decoupled from REPL for future MCP server reuse
+
 ## Version 0.26.0219
 - Restored functionality of --isKernelModule option
 
