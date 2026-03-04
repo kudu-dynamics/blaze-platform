@@ -1,5 +1,11 @@
 # Blaze Platform
 
+## Version 0.26.0304b
+- Moved blacklist filtering into `Store.initWithTypeHints` so blacklisted functions are never loaded or sampled
+  + Blacklist is now applied at store initialization, filtering out functions before CFGs are fetched
+  + Removed downstream blacklist filtering from `onionFlow`
+
+
 ## Version 0.26.0304
 - Added `flint-shell`, an interactive shell for exploring binaries
   + Commands: `functions`, `sample`, `show`, `reduce`, `solve`, `free`, `paths`, `wmis`, `check-wmi`

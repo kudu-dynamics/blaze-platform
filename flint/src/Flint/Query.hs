@@ -1273,12 +1273,11 @@ onionFlow
   -> CfgStore
   -> [StdLibPrimitive]
   -> [Prim]             -- checks all on each path
-  -> HashSet Text       -- blacklisted function names
   -> HashMap Function TypeHints
   -> Bool
   -> [ReferenceKind]
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims blacklist funcToTypeHintsMap doSquash refKinds = do
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash refKinds = do
   _ <- return refKinds -- suppressing warning
   allFuncs <- CfgStore.getFuncs store
   funcs <- CfgStore.getInternalFuncs store
@@ -1292,9 +1291,8 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor s
     CM.set func pathPreps $ store ^. #pathSamples
   debug "Finished sampling paths"
   let initialPrims = getInitialWMIs stdLibPrims allFuncs
-      whitelistedFuncs = filter (\func -> not $ HashSet.member (func ^. #name) blacklist) funcs
   CM.putSnapshot initialPrims $ store ^. #callablePrims
-  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims whitelistedFuncs doSquash
+  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims funcs doSquash
   when doSquash $ do
     debug "Squashing the rest of the duplicate CallableWMIs"
     snapshot <- CM.getSnapshot (store ^. #callablePrims)
