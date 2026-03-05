@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0304d
+- Fixed CfgStore so that it lazily loads Cfgs for functions.
+- Now initial load times are much faster for `flint-shell`
+
 ## Version 0.26.0304c
 - Added steady-state onion analysis mode (`--steadyState`)
   + Stochastically picks functions and samples paths on-demand instead of pre-sampling all paths up front

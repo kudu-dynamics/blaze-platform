@@ -73,6 +73,7 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   mDb <- case mDbFilePath of
     Nothing -> return Nothing
     Just fp -> Just <$> Db.init fp
+
   store <- CfgStore
     <$> atomically CC.create
     <*> atomically CC.create
@@ -87,20 +88,23 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     <*> Binary.getBase imp
 
   allFuncs <- CG.getFunctions imp
-  
+
   let internalFuncs :: [Function]
       internalFuncs = filter (\f -> not $ HashSet.member (f ^. #name) blacklist)
                     $ mapMaybe (^? #_Internal) allFuncs
 
-  (funcToCfgs :: [(Function, PilCfg)], funcToTypeHints) <- getFuncsWithCfgsAndTypeHints imp typeHintsWhitelist internalFuncs
+  -- Only eagerly fetch CFGs for functions in the type hints whitelist.
+  -- All other CFGs are computed lazily on demand.
+  (eagerCfgMap, funcToTypeHints) <- if HashSet.null typeHintsWhitelist
+    then return (HashMap.empty, [])
+    else do
+      (cfgs, hints) <- getFuncsWithCfgsAndTypeHints imp typeHintsWhitelist
+                        (filter (\f -> HashSet.member (f ^. #name) typeHintsWhitelist) internalFuncs)
+      return (HashMap.fromList cfgs, hints)
 
-  let functionCfgMapping :: HashMap Function PilCfg
-      functionCfgMapping = HashMap.fromList funcToCfgs
-      functionToTypeHintsMap :: HashMap Function TypeHints
+  let functionToTypeHintsMap :: HashMap Function TypeHints
       functionToTypeHintsMap = HashMap.fromList funcToTypeHints
-      callNodesMapping :: HashMap Function [Cfg.CallNode [Pil.Stmt]]
-      callNodesMapping = getCallNodesMapping funcToCfgs
-    
+
   CC.setCalc () (store ^. #funcs) $ return allFuncs
   CC.setCalc () (store ^. #internalFuncs) $ return internalFuncs
   CC.setCalc () (store ^. #callGraphCache) $ do
@@ -130,9 +134,10 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
       return $ G.getStrictDescendants func cg
   forM_ internalFuncs $ \func -> do
     CC.setCalc func (store ^. #callSitesCache) $ do
-      case HashMap.lookup func callNodesMapping of
+      -- Compute call sites lazily from the CFG
+      getFuncCfgInfo store func >>= \case
         Nothing -> return []
-        Just dests -> return $ mapMaybe toCallSite dests
+        Just cfgInfo -> return $ mapMaybe toCallSite (cfgInfo ^. #calls)
           where
             toCallSite n = case n ^. #callDest of
                 Pil.CallFunc destFunc -> Just
@@ -140,7 +145,10 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
                 Pil.CallExtern destExtern -> Just
                   $ CG.CallSite func (n ^. #start) (Func.External destExtern)
                 _ -> Nothing
-    addFunc' store func $ HashMap.lookup func functionCfgMapping
+    -- Use pre-computed CFG for whitelisted functions, lazy for the rest
+    case HashMap.lookup func eagerCfgMap of
+      Just cfg -> addFunc' store func (Just cfg)
+      Nothing  -> addFunc imp store func
 
   return (store, functionToTypeHintsMap)
 
