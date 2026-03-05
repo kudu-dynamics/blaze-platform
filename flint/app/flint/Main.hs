@@ -30,6 +30,7 @@ import qualified Data.ByteString.Lazy.Char8 as C8
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Aeson.Decoding (eitherDecode)
 import System.Directory (doesFileExist)
+import System.IO (hFlush)
 import Options.Applicative hiding (info)
 import qualified Options.Applicative as OA
 
@@ -52,6 +53,10 @@ data Options = Options
   , typeHintsFile :: Maybe FilePath
   , outputSMTish :: Bool
   , noSquash :: Bool
+  , steadyState :: Bool
+  , attackSurfaceFile :: Maybe FilePath
+  , attackSurfaceDepth :: Word64
+  , reportInterval :: Word64
   , inputFile :: FilePath
   }
   deriving (Eq, Ord, Read, Show, Generic)
@@ -152,6 +157,29 @@ parseNoSquash = switch $
   long "noSquash"
   <> help "do not reduce CallableWMIs that point to the same location"
 
+parseSteadyState :: Parser Bool
+parseSteadyState = switch $
+  long "steadyState"
+  <> help "use steady-state stochastic onion analysis instead of full passes"
+
+parseAttackSurfaceFile :: Parser FilePath
+parseAttackSurfaceFile = strOption $
+  long "attackSurface"
+  <> metavar "ATTACK_SURFACE_FILE"
+  <> help "file containing entry function names for attack surface (one per line)"
+
+parseAttackSurfaceDepth :: Parser Word64
+parseAttackSurfaceDepth = option auto $
+  long "attackSurfaceDepth"
+  <> metavar "ATTACK_SURFACE_DEPTH"
+  <> help "BFS depth from attack surface entry functions (default 5)"
+
+parseReportInterval :: Parser Word64
+parseReportInterval = option auto $
+  long "reportInterval"
+  <> metavar "REPORT_INTERVAL"
+  <> help "print intermediate results every N iterations in steady-state mode (default 100)"
+
 optionsParser :: Parser Options
 optionsParser = Options
   <$> optional parseBackend
@@ -168,6 +196,10 @@ optionsParser = Options
   <*> optional parseTypeHintsFile
   <*> (parseOutputSMTish <|> pure False)
   <*> (parseNoSquash <|> pure False)
+  <*> (parseSteadyState <|> pure False)
+  <*> optional parseAttackSurfaceFile
+  <*> (parseAttackSurfaceDepth <|> pure 5)
+  <*> (parseReportInterval <|> pure 100)
   <*> parseInputFile
 
 main :: IO ()
@@ -312,33 +344,64 @@ onionCheck opts = do
 
     -- TODO: make maxResultsPerPath an option
     let maxResultsPerPath = 10 -- max WMIs found per path
-    onionFlow
-      maxResultsPerPath
-      (not $ opts ^. #doNotUseSolver)
-      (opts ^. #onionDepth)
-      (opts ^. #pathSamplingFactor)
-      store
-      stdLibPrims
-      prims
-      funcToTypeHintsMap
-      (not $ opts ^. #noSquash)
-      refKinds
-    cprims <- CM.getSnapshot $ store ^. #callablePrims
-    filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
-    let filteredCprims = case filterFuncs of
-          Nothing -> cprims
-          Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
-    let cprims' = M.asOldCallableWMIsMap filteredCprims
-        allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
-    case opts ^. #outputSMTish of
-      False -> handleResult $ toFlintResult base allPrims
-      True -> handleResult $ toFlintSMTishResult base allPrims
+
+    let buildResult = do
+          cprims <- CM.getSnapshot $ store ^. #callablePrims
+          filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
+          let filteredCprims = case filterFuncs of
+                Nothing -> cprims
+                Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
+          let cprims' = M.asOldCallableWMIsMap filteredCprims
+              allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
+          return $ case opts ^. #outputSMTish of
+            False -> resultToJSON $ toFlintResult base allPrims
+            True -> resultToJSON $ toFlintSMTishResult base allPrims
+
+    let outputResults = buildResult >>= \json -> handleResult json
+
+    attackSurface <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #attackSurfaceFile)
+
+    if opts ^. #steadyState
+      then do
+        -- Intermediate reports overwrite the output file; if no file, skip intermediates
+        let intermediateReport = case opts ^. #outputToFile of
+              Nothing -> return ()  -- no-op for stdout; final report will print
+              Just outFp -> do
+                json <- buildResult
+                TextIO.writeFile outFp json
+        steadyStateOnionFlow
+          maxResultsPerPath
+          (not $ opts ^. #doNotUseSolver)
+          (opts ^. #pathSamplingFactor)
+          store stdLibPrims prims funcToTypeHintsMap
+          (not $ opts ^. #noSquash) refKinds
+          attackSurface
+          (opts ^. #attackSurfaceDepth)
+          (opts ^. #reportInterval)
+          intermediateReport
+        -- Final output (to file or stdout)
+        outputResults
+      else do
+        onionFlow
+          maxResultsPerPath
+          (not $ opts ^. #doNotUseSolver)
+          (opts ^. #onionDepth)
+          (opts ^. #pathSamplingFactor)
+          store
+          stdLibPrims
+          prims
+          funcToTypeHintsMap
+          (not $ opts ^. #noSquash)
+          refKinds
+          attackSurface
+          (opts ^. #attackSurfaceDepth)
+        outputResults
     where
-      handleResult :: ToJSON a => a -> IO ()
-      handleResult flintResult = case opts ^. #outputToFile of
-        Nothing -> printResult flintResult
+      handleResult :: Text -> IO ()
+      handleResult json = case opts ^. #outputToFile of
+        Nothing -> TextIO.putStrLn json >> hFlush stdout
         Just outputFilePath -> do
-          writeResult outputFilePath flintResult
+          TextIO.writeFile outputFilePath json
           putText $ "Wrote results to " <> show outputFilePath
 
 

@@ -4,6 +4,7 @@
 - [Overview of output](#overview-of-output)
 - [Interactive Shell](#interactive-shell)
 - [Batch Usage](#batch-usage)
+- [Steady-State Mode](#steady-state-mode)
 
 A program that uses [Blaze](../blaze) to find Weird Machine instructions.
 
@@ -107,6 +108,35 @@ It will output a potentially very long JSON object that contains all the weird m
 We currently use `--doNotUseSolver` because the SMT solver can get tripped up by many edge cases that we have not yet handled.
 
 For more examples of usage, please see the [DevelopersGuide.md](DevelopersGuide.md).
+
+# Steady-State Mode
+
+The default onion analysis runs N full passes across the entire binary. The steady-state mode (`--steadyState`) instead stochastically picks functions, samples paths on-demand, checks for WMIs immediately, and squashes results incrementally. This avoids the expensive up-front path pre-sampling that can exhaust memory on large binaries.
+
+```
+stack run flint -- --steadyState -o results.json /path/to/binary
+```
+
+Intermediate results are periodically written to the output file (overwriting each time), so you can inspect progress while the analysis runs. The `--reportInterval` flag controls how often this happens (default: every 100 iterations).
+
+## Attack Surface
+
+You can focus the analysis on functions reachable from known entry points using `--attackSurface`:
+
+```
+stack run flint -- --steadyState --attackSurface funcs.txt -o results.json /path/to/binary
+```
+
+Where `funcs.txt` contains one function name per line. Flint will BFS from those functions through callsites and only analyze functions within `--attackSurfaceDepth` hops (default: 5).
+
+## Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--steadyState` | off | Enable steady-state stochastic analysis |
+| `--attackSurface FILE` | none | File with entry function names (one per line) |
+| `--attackSurfaceDepth N` | 5 | BFS depth from attack surface entry functions |
+| `--reportInterval N` | 100 | Write intermediate results every N iterations |
 
 Distribution A. (Approved for public release; distribution unlimited.)
 
