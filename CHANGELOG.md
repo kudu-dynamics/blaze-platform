@@ -1,5 +1,20 @@
 # Blaze Platform
 
+## Version 0.26.0304c
+- Added steady-state onion analysis mode (`--steadyState`)
+  + Stochastically picks functions and samples paths on-demand instead of pre-sampling all paths up front
+  + Weighted random function selection: larger, under-sampled functions are prioritized
+  + Per-function visit count tracking for path diversity (uses existing `VisitCounts`/`SequenceChooserState` machinery)
+  + Immediate per-insert squashing of CallableWMIs
+  + Periodic intermediate results written to output file (overwrites each time)
+  + Terminates when all functions meet their sample target
+- Added attack surface option (`--attackSurface FILE`, `--attackSurfaceDepth N`)
+  + BFS from user-specified entry functions through `CfgInfo.calls` (avoids expensive CallGraph)
+  + Limits analysis to functions within N hops of the attack surface
+- Added `--reportInterval N` to control how often intermediate results are output
+- Changed existing `onionFlow` to sample paths on-demand per pass instead of pre-caching all paths
+- Added `sampleSinglePathWithVisitCounts` to `Flint.Cfg.Path` for visit-count-aware path sampling
+
 ## Version 0.26.0304b
 - Moved blacklist filtering into `Store.initWithTypeHints` so blacklisted functions are never loaded or sampled
   + Blacklist is now applied at store initialization, filtering out functions before CFGs are fetched
