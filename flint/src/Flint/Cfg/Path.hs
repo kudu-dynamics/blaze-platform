@@ -11,12 +11,12 @@ import Flint.Types.Cfg.Store (CfgStore)
 import Flint.Util (incUUID)
 
 import qualified Blaze.Cfg.Interprocedural as InterCfg
-import Blaze.Cfg.Path (PilPath, SequenceChooserState, initSequenceChooserState, samplePathContainingSequence_)
+import Blaze.Cfg.Path (PilPath, SequenceChooserState(..), UnrollLoopState(..), initSequenceChooserState, samplePathContainingSequence_)
 import qualified Blaze.Cfg.Path as CfgPath
 import Blaze.Graph (StrictDescendantsMap, Route)
 import qualified Blaze.Graph as G
 import qualified Blaze.Path as Path
-import Blaze.Path (SampleRandomPathError', pickFromListFp)
+import Blaze.Path (SampleRandomPathError', VisitCounts(..), SeqAndVisitCounts(..), pickFromListFp)
 import Blaze.Pretty (pretty', FullCfNode(FullCfNode))
 import Blaze.Types.Function (Function)
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
@@ -504,4 +504,36 @@ sampleFromRouteIO
   -> Route Function PilNode
   -> IO (Maybe (PilPath, (Route Function PilNode, SequenceChooserState)))
 sampleFromRouteIO = sampleFromRoute randomIO randomIO
-                 
+
+-- | Sample a single path from a function, using accumulated visit counts
+-- to prefer less-visited nodes for path diversity.
+-- Returns the path and updated visit counts.
+sampleSinglePathWithVisitCounts
+  :: CfgStore
+  -> Function
+  -> VisitCounts PilNode
+  -> IO (Maybe (PilPath, VisitCounts PilNode))
+sampleSinglePathWithVisitCounts store func visitCounts =
+  CfgStore.getFreshFuncCfgInfo store func >>= \case
+    Nothing -> return Nothing
+    Just cfgInfo -> do
+      let rootNode = Cfg.getRootNode $ cfgInfo ^. #cfg
+          retNodes :: [PilNode]
+          retNodes = fmap (Cfg.BasicBlock . view #basicBlock) . InterCfg.getRetNodes $ cfgInfo ^. #cfg
+      case retNodes of
+        [] -> return Nothing
+        (r:rs) -> do
+          retNode <- pickFromList randomRIO $ r :| rs
+          let seqState = SequenceChooserState
+                (SeqAndVisitCounts [retNode] visitCounts)
+                (UnrollLoopState HashMap.empty HashSet.empty)
+          rpath <- CfgPath.samplePathContainingSequenceIO
+                   (cfgInfo ^. #strictDescendantsMap)
+                   seqState
+                   rootNode
+                   (cfgInfo ^. #cfg)
+          case rpath of
+            Left _err -> return Nothing
+            Right (path, sst) ->
+              let updatedVisitCounts = sst ^. #seqAndVisitCounts . #visitCounts
+              in return $ Just (path, updatedVisitCounts)
