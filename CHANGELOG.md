@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0305
+- Fixed targeted path sampling (`sample func N @ addr`) failing with `NoReqNodesCanBeReached` in functions with loops
+  + `expandToTargetsStrategy` now uses an acyclic `StrictDescendantsMap` matching the acyclic CFG it traverses
+
 ## Version 0.26.0304d
 - Fixed CfgStore so that it lazily loads Cfgs for functions.
 - Now initial load times are much faster for `flint-shell`

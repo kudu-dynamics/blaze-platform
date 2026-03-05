@@ -21,6 +21,7 @@ data CfgInfo = CfgInfo
   , acyclicCfg :: PilCfg
   , descendantsMap :: DescendantsMap PilNode -- based off of acyclicCfg
   , strictDescendantsMap :: StrictDescendantsMap PilNode -- based off cfg
+  , acyclicStrictDescendantsMap :: StrictDescendantsMap PilNode -- based off acyclicCfg
   , nodes :: HashSet PilNode
   , calls :: [CallNode [Stmt]]
   } deriving (Eq, Ord, Show, Generic)
