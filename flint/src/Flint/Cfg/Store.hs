@@ -413,6 +413,7 @@ getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
     acyclicCfg' <- Cfg.safeTraverse_ updateNodeId $ cfgInfo ^. #acyclicCfg
     dmap' <- traverseDescendantsMap updateNodeId $ cfgInfo ^. #descendantsMap
     sdmap' <- traverseStrictDescendantsMap updateNodeId $ cfgInfo ^. #strictDescendantsMap
+    asdmap' <- traverseStrictDescendantsMap updateNodeId $ cfgInfo ^. #acyclicStrictDescendantsMap
     nodes' <- fmap HashSet.fromList
               . traverse (getMemoized updateNodeId)
               . HashSet.toList
@@ -425,6 +426,7 @@ getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
       , acyclicCfg = acyclicCfg'
       , descendantsMap = dmap'
       , strictDescendantsMap = sdmap'
+      , acyclicStrictDescendantsMap = asdmap'
       , calls = calls'
       , nodes = nodes'
       }
@@ -514,6 +516,7 @@ calcCfgInfo cfg =
     , acyclicCfg = cfgWithoutBackedges
     , descendantsMap = dmap
     , strictDescendantsMap = strictDmap
+    , acyclicStrictDescendantsMap = acyclicStrictDmap
     , nodes = G.nodes cfg
     , calls = calls
     }
@@ -521,6 +524,7 @@ calcCfgInfo cfg =
     cfgWithoutBackedges = makeCfgAcyclic cfg
     dmap = calcDescendantsMap cfgWithoutBackedges
     strictDmap = calcStrictDescendantsMap cfg
+    acyclicStrictDmap = calcStrictDescendantsMap cfgWithoutBackedges
     calls = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfgWithoutBackedges
 
 -- | This is pretty expensive and basically forces calculation of almost everything

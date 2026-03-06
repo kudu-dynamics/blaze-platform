@@ -193,7 +193,7 @@ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTarg
           path <- CfgPath.sampleRandomPath_'
             (Path.toFullChooser . Path.chooseChildByDescendantCountAndReqSomeNodes
               pickFromRange
-              $ cfgInfo ^. #strictDescendantsMap)
+              $ cfgInfo ^. #acyclicStrictDescendantsMap)
             (Path.InitReqNodes $ HashSet.singleton targetNode)
             (cfgInfo ^. #acyclicCfg)
           return $ Just (path, expandLater)
