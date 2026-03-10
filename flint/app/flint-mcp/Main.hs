@@ -200,7 +200,7 @@ loadBinary mcpSt fp = do
       SIO.hPutStrLn stderr $ "Loading " <> fp <> "..."
 
       _ <- forkIO $
-        (withBackend (opts ^. #backend) fp $ \imp -> do
+        withBackend (opts ^. #backend) fp (\imp -> do
           typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
           (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
           base <- getBase imp
@@ -285,7 +285,7 @@ buildCommandString toolName args = case toolName of
         let count = lookupArg "count" args
             addrs = lookupArg "addresses" args
             countPart = maybe "" (" " <>) count
-            addrPart = maybe "" (\a -> " @ " <> a) addrs
+            addrPart = maybe "" (" @ " <>) addrs
         in Right $ "sample " <> func <> countPart <> addrPart
 
   "show_paths" ->
