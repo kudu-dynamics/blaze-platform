@@ -35,7 +35,7 @@ data DecidedBranchCond = DecidedBranchCond
 data BranchCheckAccum = BranchCheckAccum
   { condsToRecheck :: [(UndecidedBranchCond (CfNode [(Int, SymTypedStmt)]), SVal)]
   , edgesToRemove :: [CfEdge (CfNode [(Int, SymTypedStmt)])]
-  } deriving (Eq, Show)
+  } deriving (Show)
 
 -- | If the node contains a conditional branch, and one of the conditional edges
 -- has been removed, this returns information about which conditional edge remains

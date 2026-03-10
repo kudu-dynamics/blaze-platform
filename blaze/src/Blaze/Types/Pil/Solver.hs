@@ -114,6 +114,7 @@ instance SolverContext Solver where
   setLogic = liftSymbolicT . setLogic
   setTimeOut = liftSymbolicT . setTimeOut
   contextState = liftSymbolicT contextState
+  internalVariable = liftSymbolicT . internalVariable
 
 runSolverWith :: SMTConfig
               -> Solver a

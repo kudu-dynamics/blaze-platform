@@ -1,7 +1,7 @@
-resolver: lts-23.18
+resolver: lts-24.33
 # Always keep `compiler` explicit because it's used by the Dockerfile to
 # optimize both build time and intermediate image size
-compiler: ghc-9.8.4
+compiler: ghc-9.10.3
 
 packages:
   - ghidra-haskell
@@ -10,11 +10,8 @@ packages:
   - binary-analysis
 
 extra-deps:
-  - git: https://github.com/kudu-dynamics/inline-java.git
-    commit: 9de6cfa65b8d5d692bf7f5de1e4f1b853f2bbef1
-    subdirs:
-      - jni
-      - jvm
+  - inline-java/jni
+  - inline-java/jvm
   - git: https://github.com/kudu-dynamics/selda.git
     commit : ecb3321f9cca116f658590f35a5e85fa0c6dd929
     subdirs:

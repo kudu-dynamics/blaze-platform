@@ -8,7 +8,7 @@ import Data.Generics.Product.Fields ()
 
 import Data.Hashable
 import Data.Int (Int64)
-import Data.Text
+import Data.Text (Text)
 import Data.Word
 import GHC.Generics
 import qualified Numeric
