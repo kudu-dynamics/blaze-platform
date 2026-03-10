@@ -13,7 +13,7 @@ extra-deps:
   - ../binaryninja-haskell/binja-header-cleaner
   - ../ghidra-haskell
   - git: https://github.com/kudu-dynamics/inline-java
-  - commit : 8915275dae15ddd280bf45e891ccb2b3d11522ae
+    commit : 8915275dae15ddd280bf45e891ccb2b3d11522ae
     subdirs:
       - jni
       - jvm

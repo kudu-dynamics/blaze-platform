@@ -7,11 +7,13 @@ packages:
   - .
 
 extra-deps:
+  - git: https://github.com/drshade/haskell-mcp-server.git
+    commit: 7991756933ae5e39ad480b0be830beb855cb8768
   - ../binary-analysis
   - ../blaze
   - ../ghidra-haskell
   - git: https://github.com/kudu-dynamics/inline-java
-  - commit : 8915275dae15ddd280bf45e891ccb2b3d11522ae
+    commit : 8915275dae15ddd280bf45e891ccb2b3d11522ae
     subdirs:
       - jni
       - jvm

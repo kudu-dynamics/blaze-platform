@@ -187,6 +187,18 @@ executables:
     - flint
     - haskeline
     - optparse-applicative
+  flint-mcp:
+    main: Main.hs
+    source-dirs: app/flint-mcp
+    ghc-options:
+    - -Wall
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flint
+    - mcp-server
+    - optparse-applicative
   flint_classic:
     main: Main.hs
     source-dirs:  app/flint_classic

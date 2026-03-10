@@ -10,8 +10,11 @@ packages:
   - binary-analysis
 
 extra-deps:
-  - inline-java/jni
-  - inline-java/jvm
+  - git: https://github.com/kudu-dynamics/inline-java
+    commit : 8915275dae15ddd280bf45e891ccb2b3d11522ae
+    subdirs:
+      - jni
+      - jvm
   - git: https://github.com/kudu-dynamics/selda.git
     commit : ecb3321f9cca116f658590f35a5e85fa0c6dd929
     subdirs:
