@@ -21,7 +21,8 @@ import qualified System.IO as SIO
 import Options.Applicative hiding (info)
 import qualified Options.Applicative as OA
 
-import MCP.Server (runMcpServerStdio, McpServerInfo(..), McpServerHandlers(..), Content(..), Error(..))
+import MCP.Server (runMcpServerStdio, runMcpServerHttpWithConfig, McpServerInfo(..), McpServerHandlers(..), Content(..), Error(..))
+import MCP.Server.Transport.Http (HttpConfig(..))
 import MCP.Server.Types
   ( ToolDefinition(..)
   , InputSchemaDefinition(..)
@@ -34,9 +35,18 @@ data McpOptions = McpOptions
   , doNotUseSolver :: Bool
   , analysisDb     :: Maybe FilePath
   , typeHintsFile  :: Maybe FilePath
-  , inputFile      :: FilePath
+  , useHttp        :: Bool
+  , httpPort       :: Int
   }
   deriving (Eq, Ord, Read, Show, Generic)
+
+-- | Mutable state for the MCP server, allowing dynamic binary loading.
+data McpState = McpState
+  { shellStateRef    :: IORef (Maybe ShellState)
+  , binaryShutdown   :: IORef (Maybe (MVar ()))
+  , options          :: McpOptions
+  }
+  deriving (Generic)
 
 parseBackend :: Parser Backend
 parseBackend = option auto $
@@ -68,10 +78,17 @@ parseTypeHintsFile = strOption $
   <> metavar "TYPEHINT_FILE"
   <> help "file containing functions that we should get type hints for"
 
-parseInputFile :: Parser FilePath
-parseInputFile = argument str $
-  metavar "INPUT_FILE"
-  <> help "input binary file (e.g. .gzf)"
+parseUseHttp :: Parser Bool
+parseUseHttp = switch $
+  long "http"
+  <> help "Use HTTP transport instead of stdio"
+
+parseHttpPort :: Parser Int
+parseHttpPort = option auto $
+  long "port"
+  <> metavar "PORT"
+  <> value 3000
+  <> help "Port for HTTP transport (default: 3000)"
 
 optionsParser :: Parser McpOptions
 optionsParser = McpOptions
@@ -79,24 +96,30 @@ optionsParser = McpOptions
   <*> (parseDoNotUseSolver <|> pure False)
   <*> optional parseAnalysisDb
   <*> optional parseTypeHintsFile
-  <*> parseInputFile
+  <*> parseUseHttp
+  <*> parseHttpPort
 
 main :: IO ()
 main = do
   opts <- execParser optsParser
-  let fp = opts ^. #inputFile
-  exists <- doesFileExist fp
-  unless exists $ do
-    SIO.hPutStrLn stderr $ "Error: file not found: " <> fp
-    exitFailure
-  SIO.hPutStrLn stderr $ "Loading " <> fp <> "..."
-  withBackend (opts ^. #backend) fp $ \imp -> do
-    typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
-    (store, _funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
-    base <- getBase imp
-    shellState <- initShellState store base (not $ opts ^. #doNotUseSolver)
-    SIO.hPutStrLn stderr "Binary loaded. Starting MCP server..."
-    runMcpServerStdio serverInfo (handlers shellState)
+  stateRef <- newIORef Nothing
+  shutdownRef <- newIORef Nothing
+  let mcpSt = McpState
+        { shellStateRef = stateRef
+        , binaryShutdown = shutdownRef
+        , options = opts
+        }
+  if opts ^. #useHttp
+    then do
+      let port = opts ^. #httpPort
+      SIO.hPutStrLn stderr $ "Starting MCP HTTP server on port " <> show port <> " (no binary loaded)..."
+      runMcpServerHttpWithConfig
+        (HttpConfig { httpPort = port, httpHost = "localhost", httpEndpoint = "/mcp", httpVerbose = False })
+        serverInfo
+        (handlers mcpSt)
+    else do
+      SIO.hPutStrLn stderr "Starting MCP server (stdio). Use load_binary to load a binary."
+      runMcpServerStdio serverInfo (handlers mcpSt)
   where
     optsParser = OA.info (optionsParser <**> helper)
       ( fullDesc
@@ -119,22 +142,23 @@ serverInfo = McpServerInfo
   , serverVersion = "0.1.0"
   , serverInstructions = Text.unlines
       [ "Flint is a binary vulnerability detection tool."
+      , "Use 'load_binary' to load a binary file for analysis."
       , "Use 'list_functions' to discover functions in the loaded binary."
       , "Use 'sample_paths' to sample execution paths from a function."
       , "Use 'show_paths' to view the PIL statements on a sampled path."
       , "Use 'check_wmi' to check if a path matches a vulnerability pattern."
       , "Use 'list_wmis' to see all available vulnerability patterns."
-      , "Typical workflow: list_functions -> sample_paths -> show_paths -> check_wmi"
+      , "Typical workflow: load_binary -> list_functions -> sample_paths -> show_paths -> check_wmi"
       ]
   }
 
 
 -- | MCP handlers: only tools, no prompts or resources
-handlers :: ShellState -> McpServerHandlers IO
-handlers st = McpServerHandlers
+handlers :: McpState -> McpServerHandlers IO
+handlers mcpSt = McpServerHandlers
   { prompts   = Nothing
   , resources = Nothing
-  , tools     = Just (pure toolDefinitions, handleToolCall st)
+  , tools     = Just (pure toolDefinitions, handleToolCall mcpSt)
   }
 
 
@@ -155,30 +179,96 @@ renderResultText = \case
       ("[" <> show pid <> "]") : msgs) results
 
 
+-- | Load a binary file, resetting all state. The importer is kept alive in a
+--   background thread so that lazy CFG computations can still access it.
+loadBinary :: McpState -> FilePath -> IO (Either Error Content)
+loadBinary mcpSt fp = do
+  exists <- doesFileExist fp
+  if not exists
+    then pure $ Left $ InvalidParams $ "File not found: " <> cs fp
+    else do
+      -- Shutdown previous binary if loaded
+      mOldShutdown <- readIORef (mcpSt ^. #binaryShutdown)
+      forM_ mOldShutdown $ \mv -> void $ tryPutMVar mv ()
+      writeIORef (mcpSt ^. #shellStateRef) Nothing
+      writeIORef (mcpSt ^. #binaryShutdown) Nothing
+
+      let opts = mcpSt ^. #options
+      readyMVar <- newEmptyMVar :: IO (MVar (Either Text ()))
+      shutdownMVar <- newEmptyMVar :: IO (MVar ())
+
+      SIO.hPutStrLn stderr $ "Loading " <> fp <> "..."
+
+      _ <- forkIO $
+        (withBackend (opts ^. #backend) fp $ \imp -> do
+          typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
+          (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
+          base <- getBase imp
+          st <- initShellState store base (not $ opts ^. #doNotUseSolver)
+          writeIORef (mcpSt ^. #shellStateRef) (Just st)
+          SIO.hPutStrLn stderr $ "Binary loaded: " <> fp
+          putMVar readyMVar (Right ())
+          -- Block until told to shutdown (keeps importer alive for lazy CFG access)
+          takeMVar shutdownMVar
+        ) `catch` \(e :: SomeException) ->
+          void $ tryPutMVar readyMVar (Left $ show e)
+
+      result <- takeMVar readyMVar
+      case result of
+        Left err -> pure $ Left $ InternalError $ "Failed to load binary: " <> err
+        Right () -> do
+          writeIORef (mcpSt ^. #binaryShutdown) (Just shutdownMVar)
+          pure $ Right $ ContentText $ "Binary loaded: " <> cs fp
+
+
+-- | Get the current ShellState, or return an error if no binary is loaded.
+requireBinary :: McpState -> IO (Either Error ShellState)
+requireBinary mcpSt = do
+  mSt <- readIORef (mcpSt ^. #shellStateRef)
+  case mSt of
+    Nothing -> pure $ Left $ InternalError "No binary loaded. Use load_binary first."
+    Just st -> pure $ Right st
+
+
 -- | Dispatch an MCP tool call by building a shell command string
-handleToolCall :: ShellState -> Text -> [(Text, Text)] -> IO (Either Error Content)
-handleToolCall st "set_solver" args =
+handleToolCall :: McpState -> Text -> [(Text, Text)] -> IO (Either Error Content)
+handleToolCall _mcpSt "exit" _args = do
+  SIO.hPutStrLn stderr "Shutting down flint-mcp..."
+  exitSuccess
+handleToolCall mcpSt "load_binary" args =
+  case lookupArg "file_path" args of
+    Nothing -> pure $ Left $ InvalidParams "Missing required parameter: file_path"
+    Just fp -> loadBinary mcpSt (cs fp)
+handleToolCall mcpSt "set_solver" args =
   case lookupArg "enabled" args of
     Nothing -> pure $ Left $ InvalidParams "Missing required parameter: enabled"
-    Just val
-      | val `elem` ["true", "1", "on"] -> do
-          writeIORef (st ^. #useSolver) True
-          pure $ Right $ ContentText "Solver enabled."
-      | val `elem` ["false", "0", "off"] -> do
-          writeIORef (st ^. #useSolver) False
-          pure $ Right $ ContentText "Solver disabled."
-      | otherwise -> pure $ Left $ InvalidParams $ "Invalid value for enabled: " <> val
-handleToolCall st toolName args = do
-  let cmdStr = buildCommandString toolName args
-  case cmdStr of
-    Left err -> pure $ Left $ InvalidParams err
-    Right cmd -> do
-      result <- catch
-        (dispatchCommand allCommands st cmd)
-        (\(e :: SomeException) -> pure $ ResultError $ "Error: " <> show e)
-      case result of
-        ResultError msg -> pure $ Left $ InternalError msg
-        other -> pure $ Right $ ContentText $ renderResultText other
+    Just val -> do
+      eSt <- requireBinary mcpSt
+      case eSt of
+        Left err -> pure $ Left err
+        Right st
+          | val `elem` ["true", "1", "on"] -> do
+              writeIORef (st ^. #useSolver) True
+              pure $ Right $ ContentText "Solver enabled."
+          | val `elem` ["false", "0", "off"] -> do
+              writeIORef (st ^. #useSolver) False
+              pure $ Right $ ContentText "Solver disabled."
+          | otherwise -> pure $ Left $ InvalidParams $ "Invalid value for enabled: " <> val
+handleToolCall mcpSt toolName args = do
+  eSt <- requireBinary mcpSt
+  case eSt of
+    Left err -> pure $ Left err
+    Right st -> do
+      let cmdStr = buildCommandString toolName args
+      case cmdStr of
+        Left err -> pure $ Left $ InvalidParams err
+        Right cmd -> do
+          result <- catch
+            (dispatchCommand allCommands st cmd)
+            (\(e :: SomeException) -> pure $ ResultError $ "Error: " <> show e)
+          case result of
+            ResultError msg -> pure $ Left $ InternalError msg
+            other -> pure $ Right $ ContentText $ renderResultText other
 
 
 -- | Build a shell command string from MCP tool name + arguments
@@ -235,8 +325,10 @@ buildCommandString toolName args = case toolName of
       Nothing -> Left "Missing required parameter: path_ids"
       Just pids -> Right $ "solve " <> pids
 
-  -- set_solver is handled directly in handleToolCall, not via command dispatch
+  -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
+  "exit" -> Left "handled_directly"
+  "load_binary" -> Left "handled_directly"
 
   _ -> Left $ "Unknown tool: " <> toolName
 
@@ -249,6 +341,17 @@ lookupArg key = fmap snd . find (\(k, _) -> k == key)
 toolDefinitions :: [ToolDefinition]
 toolDefinitions =
   [ ToolDefinition
+      { toolDefinitionName = "load_binary"
+      , toolDefinitionDescription = "Load a binary file for analysis. This resets all state (cached paths, results, etc). Must be called before using any other tool."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("file_path", InputSchemaDefinitionProperty "string" "Path to the binary file (e.g. .gzf)")
+              ]
+          , required = ["file_path"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
       { toolDefinitionName = "list_functions"
       , toolDefinitionDescription = "List functions in the binary. Optionally filter by substring."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
@@ -337,10 +440,10 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "check_wmi"
-      , toolDefinitionDescription = "Check paths against a WMI vulnerability primitive. Returns variable mappings and locations if a match is found."
+      , toolDefinitionDescription = "Check paths against a WMI vulnerability primitive. Use 'all' as wmi_name to check all primitives at once. Returns variable mappings and locations if a match is found."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
-              [ ("wmi_name", InputSchemaDefinitionProperty "string" "Name of the WMI primitive (use list_wmis to see available)")
+              [ ("wmi_name", InputSchemaDefinitionProperty "string" "Name of the WMI primitive, or 'all' to check all (use list_wmis to see available)")
               , ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to check (e.g. '0 1 2', '0..5')")
               ]
           , required = ["wmi_name", "path_ids"]
@@ -366,6 +469,15 @@ toolDefinitions =
               [ ("enabled", InputSchemaDefinitionProperty "string" "Set to 'true' or 'false'")
               ]
           , required = ["enabled"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "exit"
+      , toolDefinitionDescription = "Shut down the flint-mcp server."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
           }
       , toolDefinitionTitle = Nothing
       }

@@ -38,8 +38,8 @@ checkWMICommand :: ShellCommand
 checkWMICommand = ShellCommand
   { cmdName = "check-wmi"
   , cmdAliases = ["cw"]
-  , cmdHelp = "Check path(s) for a WMI primitive"
-  , cmdUsage = "check-wmi <wmi_name> <path_id> [path_id ...]"
+  , cmdHelp = "Check path(s) for a WMI primitive (use 'all' to check all)"
+  , cmdUsage = "check-wmi <wmi_name|all> <path_id> [path_id ...]"
   , cmdAction = checkWMIs
   }
 
@@ -68,13 +68,18 @@ findPrimByName name =
   find (\p -> Text.toLower (p ^. #primType . #name) == Text.toLower name) PrimLib.allPrims
 
 checkWMIs :: ShellState -> [Text] -> IO CommandResult
-checkWMIs _st [] = return $ ResultError "Usage: check-wmi <wmi_name> <path_ids>"
-checkWMIs _st [_] = return $ ResultError "Usage: check-wmi <wmi_name> <path_ids>"
+checkWMIs _st [] = return $ ResultError "Usage: check-wmi <wmi_name|all> <path_ids>"
+checkWMIs _st [_] = return $ ResultError "Usage: check-wmi <wmi_name|all> <path_ids>"
 checkWMIs st (wmiName : pidArgs) = do
-  case findPrimByName wmiName of
-    Nothing -> return $ ResultError $
-      "Unknown WMI: " <> wmiName <> ". Use 'wmis' to list available primitives."
-    Just prim -> do
+  primsToCheck <- case Text.toLower wmiName of
+    "all" -> return $ Right PrimLib.allPrims
+    _ -> case findPrimByName wmiName of
+      Nothing -> return $ Left $
+        "Unknown WMI: " <> wmiName <> ". Use 'wmis' to list available primitives, or 'all' to check all."
+      Just prim -> return $ Right [prim]
+  case primsToCheck of
+    Left err -> return $ ResultError err
+    Right prims -> do
       let pids = parsePathIds pidArgs
       useSolve <- readIORef (st ^. #useSolver)
       let solver = chooseSolver useSolve
@@ -89,12 +94,13 @@ checkWMIs st (wmiName : pidArgs) = do
                   Just existing -> existing
                   Nothing -> mkPathPrep [] (cp ^. #pilPath)
                 func = cp ^. #sourceFunc
-            cprims <- catch
-              (matchAndReturnCallablePrim 10 solver callablePrimSnapshot func prep prim)
-              (\(e :: SomeException) -> do
-                warn $ "Error checking WMI: " <> show e
-                return [])
-            case cprims of
+            allMatches <- fmap concat . forM prims $ \prim ->
+              catch
+                (matchAndReturnCallablePrim 10 solver callablePrimSnapshot func prep prim)
+                (\(e :: SomeException) -> do
+                  warn $ "Error checking WMI: " <> show e
+                  return [])
+            case allMatches of
               [] -> return (pid, ["No match"])
               xs -> return (pid, fmap formatCallableWMI xs)
       return $ ResultWMIs results

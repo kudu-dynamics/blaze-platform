@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "flint-mcp": {
+      "type": "stdio",
+      "command": "stack",
+      "args": ["exec", "flint-mcp", "--"],
+      "cwd": "/root/flint/blaze-platform/flint"
+    }
+  }
+}

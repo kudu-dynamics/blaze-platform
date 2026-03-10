@@ -5,6 +5,7 @@
 - [Interactive Shell](#interactive-shell)
 - [Batch Usage](#batch-usage)
 - [Steady-State Mode](#steady-state-mode)
+- [MCP Server](#mcp-server)
 
 A program that uses [Blaze](../blaze) to find Weird Machine instructions.
 
@@ -137,6 +138,97 @@ Where `funcs.txt` contains one function name per line. Flint will BFS from those
 | `--attackSurface FILE` | none | File with entry function names (one per line) |
 | `--attackSurfaceDepth N` | 5 | BFS depth from attack surface entry functions |
 | `--reportInterval N` | 100 | Write intermediate results every N iterations |
+
+# MCP Server
+
+Flint includes an MCP (Model Context Protocol) server (`flint-mcp`) that exposes the same analysis tools as the interactive shell over JSON-RPC, enabling AI-driven binary analysis.
+
+## Building
+
+```
+stack build flint:flint-mcp
+```
+
+## Running
+
+**Stdio transport** (for use with Claude Code, etc.):
+```
+stack exec flint-mcp -- [--backend Ghidra] [--doNotUseSolver]
+```
+
+**HTTP transport**:
+```
+stack exec flint-mcp -- --http [--port 3000]
+```
+
+No binary is loaded on startup — use the `load_binary` tool to load one.
+
+## Claude Code Configuration
+
+To use flint-mcp with Claude Code, add a `.mcp.json` file in your project directory (or `~/.claude/.mcp.json` for global config):
+
+```json
+{
+  "mcpServers": {
+    "flint-mcp": {
+      "type": "stdio",
+      "command": "stack",
+      "args": ["exec", "flint-mcp", "--"],
+      "cwd": "/path/to/blaze-platform/flint"
+    }
+  }
+}
+```
+
+Adjust `cwd` to point to your `flint` directory (where `stack.yaml` lives). You can also pass extra flags via `args`, e.g. `["exec", "flint-mcp", "--", "--doNotUseSolver"]`.
+
+Once configured, Claude Code will automatically start the MCP server and expose the flint tools. Use `/mcp` in Claude Code to verify the server is connected.
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `load_binary` | Load a binary file for analysis (resets all state) |
+| `list_functions` | List/filter functions in the binary |
+| `sample_paths` | Sample execution paths from a function |
+| `show_paths` | Display PIL statements for paths |
+| `pshow_path` | Show raw Haskell PIL types for a path |
+| `reduce_paths` | Simplify paths via copy/constant propagation |
+| `solve_paths` | Check path satisfiability with Z3 |
+| `list_wmis` | List available WMI vulnerability primitives |
+| `check_wmi` | Check paths against a WMI primitive (or `all` to check all) |
+| `set_solver` | Toggle the Z3 solver on/off |
+| `list_paths` | List cached paths |
+| `free_paths` | Free cached paths to release memory |
+| `exit` | Shut down the server |
+
+## Typical AI Workflow
+
+```
+load_binary → list_functions → sample_paths → reduce_paths → show_paths → check_wmi
+```
+
+## Driving from the CLI
+
+Write JSON-RPC commands to a file and pipe them in:
+
+```bash
+cat > /tmp/mcp_cmds.txt << 'EOF'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"load_binary","arguments":{"file_path":"path/to/binary.gzf"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_functions","arguments":{}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sample_paths","arguments":{"function":"main","count":"5"}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"reduce_paths","arguments":{"path_ids":"0 1 2 3 4"}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"check_wmi","arguments":{"wmi_name":"all","path_ids":"5 6 7 8 9"}}}
+EOF
+
+stack exec flint-mcp -- < /tmp/mcp_cmds.txt 2>/dev/null
+```
+
+- **stdout**: JSON-RPC responses (one per line)
+- **stderr**: log messages — redirect to `/dev/null` or a log file
+- The `initialize` handshake must be the first message
+- Path IDs are sequential: sampling 5 paths gives IDs 0-4, then `reduce_paths` creates new paths starting at ID 5
 
 Distribution A. (Approved for public release; distribution unlimited.)
 
