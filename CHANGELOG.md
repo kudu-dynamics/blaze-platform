@@ -1,5 +1,11 @@
 # Blaze Platform
 
+## Version 0.26.0310
+- Inline primitive matching through SubPrimitive
+
+## Version 0.26.0309
+- added MCP version of Flint
+
 ## Version 0.26.0305
 - Fixed targeted path sampling (`sample func N @ addr`) failing with `NoReqNodesCanBeReached` in functions with loops
   + `expandToTargetsStrategy` now uses an acyclic `StrictDescendantsMap` matching the acyclic CFG it traverses
