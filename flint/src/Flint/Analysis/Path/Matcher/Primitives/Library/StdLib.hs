@@ -14,7 +14,7 @@ import qualified Data.BinaryAnalysis as BA
 import qualified Data.HashMap.Strict as HashMap
 
 
-allStdLibPrims :: [StdLibPrimitive]
+allStdLibPrims :: [KnownFunc]
 allStdLibPrims =
      controlledFormatStringPrims
   <> freeHeapPrims
@@ -36,9 +36,9 @@ callExtern funcName args sz = FuncVarExpr sz . Pil.CALL $ Pil.CallOp dest args
     numArgs = length args
     mkParam n = Func.FuncParamInfo (Func.ParamInfo ("arg" <> show (n + 1)) (Just 8) Func.Unknown)
 
-copyMemPrims :: [StdLibPrimitive]
+copyMemPrims :: [KnownFunc]
 copyMemPrims = 
-  [ StdLibPrimitive
+  [ KnownFunc
     { prim = PrimSpec.copyMemSpec
     , funcName = "strncpy"
     , varMapping = HashMap.fromList
@@ -54,7 +54,7 @@ copyMemPrims =
       ]
     , constraints = []
     }
-  , StdLibPrimitive
+  , KnownFunc
     { prim = PrimSpec.copyMemSpec
     , funcName = "memcpy"
     , varMapping = HashMap.fromList
@@ -67,9 +67,9 @@ copyMemPrims =
   ]
 
 
-freeHeapPrims :: [StdLibPrimitive]
+freeHeapPrims :: [KnownFunc]
 freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
-  StdLibPrimitive
+  KnownFunc
     { prim = PrimSpec.freeHeapSpec
     , funcName = funcName
     , varMapping = HashMap.fromList
@@ -89,9 +89,9 @@ freeHeapPrims = freeFuncs >>= \(funcName, argNo) -> return $
       , ("xmlFree", 0)    -- if xmlMalloc == malloc, then same danger
       ]
 
-allocHeapPrims :: [StdLibPrimitive]
+allocHeapPrims :: [KnownFunc]
 allocHeapPrims =
-  [ StdLibPrimitive
+  [ KnownFunc
     { prim = PrimSpec.allocHeapSpec
     , funcName = "malloc"
     , varMapping = HashMap.fromList
@@ -100,7 +100,7 @@ allocHeapPrims =
       ]
     , constraints = []
     }
-  , StdLibPrimitive
+  , KnownFunc
     { prim = PrimSpec.allocHeapSpec
     , funcName = "calloc"
     , varMapping = HashMap.fromList
@@ -111,9 +111,9 @@ allocHeapPrims =
     }
   ]
 
-controlledFormatStringPrims :: [StdLibPrimitive]
+controlledFormatStringPrims :: [KnownFunc]
 controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $
-  StdLibPrimitive
+  KnownFunc
     { prim = PrimSpec.controlledFormatStringSpec
     , funcName = funcName
     , varMapping = HashMap.fromList

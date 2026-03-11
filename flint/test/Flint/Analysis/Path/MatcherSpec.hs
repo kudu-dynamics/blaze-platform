@@ -14,7 +14,9 @@ import qualified Flint.Analysis.Path.Matcher as M
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep, PathPrep(PathPrep))
 import Flint.Analysis.Path.Matcher.Logic.Combinators (good, bad)
-import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
+import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs, PrimSpec(..), KnownFunc(..), FuncVar(Arg), FuncVarExpr(FuncVar))
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec as PrimSpecLib
 import Flint.Types.Symbol (Symbol)
 
 import Blaze.Pil.Construct
@@ -1411,13 +1413,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let callablePrim = fooCallableWMI3
             -- outerFunc = bar
             outerPath = barPath3
-            prim = copyPrim
+            -- Wrap the PrimSpec in a Prim with a dummy inline pattern
+            copyPrimAsPrim = Prim copyPrim []
             varPats = HashMap.fromList
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
               ]
             pats = [ Star
-                   , Primitive prim varPats
+                   , CallsPrimitive copyPrim varPats
                    ]
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver stmt Identity
@@ -1449,7 +1452,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             
         pureMatchFullWithBinds ctx initMs' pats `shouldBe` expected
       
-      it "should match format string Primitive pattern" $ do        
+      it "should match format string CallsPrimitive pattern" $ do
         let stdLibPrims = memcpyPrims <> sscanfPrims <> strdupPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
             initialCPrims = getInitialWMIs stdLibPrims . fmap Func.Internal $ allFuncs
@@ -1460,11 +1463,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             (ctx, initMs) = mkMatcherState solver pprep
             initMs' = initMs & #callablePrimitives .~ initialCPrims
             varPats = HashMap.empty
-            pat = [ Primitive controlledFormatStringPrim varPats ]
+            pat = [ CallsPrimitive controlledFormatStringPrim varPats ]
 
         null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
 
-      it "should create CallableWMI from StdLibPrimites, then use them to match Primitive pattern" $ do
+      it "should create CallableWMI from KnownFuncs, then use them to match CallsPrimitive pattern" $ do
         let stdLibPrims = memcpyPrims <> sscanfPrims <> printfPrims
             allFuncs = [memcpy, sscanf, printf, foo, bar]
             initialCPrims = getInitialWMIs stdLibPrims . fmap Func.Internal $ allFuncs
@@ -1475,6 +1478,283 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             (ctx, initMs) = mkMatcherState solver pprep
             initMs' = initMs & #callablePrimitives .~ initialCPrims
             varPats = HashMap.empty
-            pat = [ Primitive controlledFormatStringPrim varPats ]
+            pat = [ CallsPrimitive controlledFormatStringPrim varPats ]
 
         null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
+
+    context "Inline SubPrimitive matching" $ do
+      let pureMatchFull'
+            :: MatcherCtx Pil.Stmt Identity
+            -> MatcherState Pil.Expression Pil.Stmt
+            -> [StmtPattern]
+            -> [( MatcherState Pil.Expression Pil.Stmt
+                , [Pil.Stmt]
+                )]
+          pureMatchFull' mctx mstate = runIdentity . match_ 20 mctx mstate
+          pureMatchFullWithBinds' mctx mstate = fmap f . pureMatchFull' mctx mstate
+            where f (ms, stmts') = (ms ^. #boundSyms, stmts')
+          dummyCodeSummary' = CodeSummary HashSet.empty HashSet.empty HashSet.empty [] HashSet.empty
+          mkDummyPathPrep' stmts' = PathPrep stmts' stmts' HashSet.empty dummyCodeSummary'
+          solver :: StmtSolver stmt Identity
+          solver _ = return $ Solver.Sat HashMap.empty
+
+      it "should match a simple inline prim pattern" $ do
+        -- Define a prim that matches: store to ptr
+        let storePrimSpec = PrimSpec
+              { name = "testStore"
+              , vars = HashSet.fromList ["ptr", "val"]
+              , locations = HashSet.fromList ["write"]
+              }
+            storePrim_ = Prim
+              { primType = storePrimSpec
+              , stmtPattern =
+                  [ Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "val" Wild)
+                  ]
+              }
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ store (var "dest" 8) (const 42 8)
+              , ret (const 0 4)
+              ]
+            varPats = HashMap.fromList
+              [ ("ptr", Bind "matched_ptr" Wild)
+              , ("val", Bind "matched_val" Wild)
+              ]
+            pats = [ SubPrimitive storePrim_ varPats
+                   , Stmt . M.Ret $ Wild
+                   ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+
+            expectedBoundSyms = HashMap.fromList
+              [ ("matched_ptr", var "dest" 8)
+              , ("matched_val", const 42 8)
+              ]
+
+        let results = pureMatchFullWithBinds' ctx initMs pats
+        length results `shouldBe` 1
+        fst (head results) `shouldBe` expectedBoundSyms
+
+      it "should match inline prim after Star" $ do
+        let storePrimSpec = PrimSpec
+              { name = "testStore"
+              , vars = HashSet.fromList ["ptr", "val"]
+              , locations = HashSet.fromList ["write"]
+              }
+            storePrim_ = Prim
+              { primType = storePrimSpec
+              , stmtPattern =
+                  [ Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "val" Wild)
+                  ]
+              }
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ def "x" (const 1 4)
+              , def "y" (const 2 4)
+              , store (var "dest" 8) (const 42 8)
+              , ret (const 0 4)
+              ]
+            varPats = HashMap.fromList
+              [ ("ptr", Bind "matched_ptr" Wild)
+              ]
+            pats = [ Star
+                   , SubPrimitive storePrim_ varPats
+                   ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+
+        let results = pureMatchFullWithBinds' ctx initMs pats
+        length results `shouldBe` 1
+        HashMap.lookup "matched_ptr" (fst $ head results) `shouldBe` Just (var "dest" 8)
+
+      it "should isolate inline prim state from outer state" $ do
+        -- Bind "x" before the Primitive, and verify the inline match
+        -- doesn't see it and doesn't clobber it
+        let storePrimSpec = PrimSpec
+              { name = "testStore"
+              , vars = HashSet.fromList ["ptr"]
+              , locations = HashSet.empty
+              }
+            -- This inline prim also tries to bind "x" internally
+            storePrim_ = Prim
+              { primType = storePrimSpec
+              , stmtPattern =
+                  [ Stmt $ Store (Bind "ptr" Wild) (Bind "x" Wild)
+                  ]
+              }
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ def "myvar" (const 99 4)
+              , store (var "dest" 8) (const 42 8)
+              , ret (const 0 4)
+              ]
+            varPats = HashMap.fromList
+              [ ("ptr", Bind "matched_ptr" Wild)
+              ]
+            -- First bind "x" to something, then match the prim
+            pats = [ Stmt $ Def Wild (Bind "x" Wild)
+                   , SubPrimitive storePrim_ varPats
+                   ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+
+        let results = pureMatchFullWithBinds' ctx initMs pats
+        length results `shouldBe` 1
+        let binds = fst $ head results
+        -- Outer "x" should be preserved (const 99 4), not clobbered by inline's "x" (const 42 8)
+        HashMap.lookup "x" binds `shouldBe` Just (const 99 4)
+        -- The var from varPats should be rebound
+        HashMap.lookup "matched_ptr" binds `shouldBe` Just (var "dest" 8)
+
+      it "should match multi-statement inline prim" $ do
+        -- A prim that matches a store followed by a def
+        let multiPrimSpec = PrimSpec
+              { name = "testMulti"
+              , vars = HashSet.fromList ["ptr", "result"]
+              , locations = HashSet.empty
+              }
+            multiPrim_ = Prim
+              { primType = multiPrimSpec
+              , stmtPattern =
+                  [ Stmt $ Store (Bind "ptr" Wild) Wild
+                  , Stmt $ Def (Bind "result" Wild) Wild
+                  ]
+              }
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ def "junk" (const 0 4)
+              , store (var "dest" 8) (const 42 8)
+              , def "output" (load (var "dest" 8) 8)
+              , ret (const 0 4)
+              ]
+            varPats = HashMap.fromList
+              [ ("ptr", Bind "out_ptr" Wild)
+              , ("result", Bind "out_result" Wild)
+              ]
+            pats = [ Star
+                   , SubPrimitive multiPrim_ varPats
+                   , Stmt . M.Ret $ Wild
+                   ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+
+        let results = pureMatchFullWithBinds' ctx initMs pats
+        length results `shouldBe` 1
+        let binds = fst $ head results
+        HashMap.lookup "out_ptr" binds `shouldBe` Just (var "dest" 8)
+        HashMap.lookup "out_result" binds `shouldBe` Just (var "output" 8)
+
+      it "should fail inline prim when pattern doesn't match" $ do
+        let storePrimSpec = PrimSpec
+              { name = "testStore"
+              , vars = HashSet.fromList ["ptr"]
+              , locations = HashSet.empty
+              }
+            storePrim_ = Prim
+              { primType = storePrimSpec
+              , stmtPattern =
+                  [ Stmt $ Store (Bind "ptr" Wild) Wild
+                  ]
+              }
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ def "x" (const 1 4)  -- no store here
+              , ret (const 0 4)
+              ]
+            varPats = HashMap.fromList [("ptr", Bind "p" Wild)]
+            pats = [ SubPrimitive storePrim_ varPats ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+
+        let results = pureMatchFull' ctx initMs pats
+        results `shouldBe` []
+
+      it "should match SubPrimitive that internally uses CallsPrimitive" $ do
+        -- Set up a CallableWMI in the state.
+        -- Path has a call to foo which has a CallableWMI for copyPrim.
+        -- SubPrimitive runs inline, and its pattern uses CallsPrimitive
+        -- to check the cache.
+        let callablePrim = fooCallableWMI3
+            outerPath = barPath3
+            -- Inline prim that uses CallsPrimitive to check cache
+            copyAsPrim = Prim copyPrim
+              [ CallsPrimitive copyPrim $ HashMap.fromList
+                [ ("dest", Bind "dest" Wild)
+                , ("src", Bind "src" Wild)
+                ]
+              ]
+            varPats = HashMap.fromList
+              [ ("dest", Bind "newdest" Wild)
+              , ("src", Bind "newsrc" Wild)
+              ]
+            pats = [ Star
+                   , SubPrimitive copyAsPrim varPats
+                   ]
+            pprep = mkDummyPathPrep' outerPath
+            callablePrims = HashMap.fromList
+              [( (copyPrim, callablePrim ^. #func), HashSet.singleton callablePrim )]
+            (ctx, initMs) = mkMatcherState solver pprep
+            initMs' = initMs & #callablePrimitives .~ callablePrims
+
+        -- Should match via CallsPrimitive inside the SubPrimitive
+        let results = pureMatchFullWithBinds' ctx initMs' pats
+        length results `shouldBe` 1
+
+      it "should propagate locations from inline prim match" $ do
+        let loc addr s = s & #addr .~ addr
+            storePrimSpec = PrimSpec
+              { name = "testStore"
+              , vars = HashSet.fromList ["ptr"]
+              , locations = HashSet.fromList ["write"]
+              }
+            storePrim_ = Prim
+              { primType = storePrimSpec
+              , stmtPattern =
+                  [ Location "write" . Stmt $ Store (Bind "ptr" Wild) Wild
+                  ]
+              }
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ loc (intToAddr 0x1000) $ store (var "dest" 8) (const 42 8)
+              ]
+            varPats = HashMap.fromList [("ptr", Wild)]
+            pats = [ SubPrimitive storePrim_ varPats ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+
+        let results = pureMatchFull' ctx initMs pats
+        length results `shouldBe` 1
+        let ms = fst $ head results
+        HashMap.lookup "write" (ms ^. #locations) `shouldBe` Just (Right (intToAddr 0x1000))
+
+      it "should use freeHeap inline prim from the library via CallsPrimitive" $ do
+        -- freeHeapPrim_ now uses CallsPrimitive internally,
+        -- so we need the cache seeded with a freeHeap KnownFunc for "free"
+        let free_ = Function Nothing "free" (intToAddr 0x500) []
+            freeFunc = Func.Internal free_
+            stdLibPrims = [KnownFunc
+              { prim = PrimSpecLib.freeHeapSpec
+              , funcName = "free"
+              , varMapping = HashMap.fromList [("ptr", FuncVar $ Arg 0)]
+              , constraints = []
+              }]
+            initialCPrims = getInitialWMIs stdLibPrims [freeFunc]
+            stmts :: [Pil.Stmt]
+            stmts =
+              [ def "x" (const 1 4)
+              , defCall "r" (Pil.CallFunc free_) [var "myptr" 8] 8
+              , ret (const 0 4)
+              ]
+            varPats = HashMap.fromList
+              [ ("ptr", Bind "freed_ptr" Wild)
+              ]
+            pats = [ Star
+                   , SubPrimitive PrimLib.freeHeapPrim_ varPats
+                   ]
+            pprep = mkDummyPathPrep' stmts
+            (ctx, initMs) = mkMatcherState solver pprep
+            initMs' = initMs & #callablePrimitives .~ initialCPrims
+
+        let results = pureMatchFullWithBinds' ctx initMs' pats
+        length results `shouldBe` 1
+        HashMap.lookup "freed_ptr" (fst $ head results) `shouldBe` Just (var "myptr" 8)

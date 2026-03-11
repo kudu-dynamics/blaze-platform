@@ -18,7 +18,7 @@ import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs, squashCallableWMIs)
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, StdLibPrimitive, PrimSpec)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, KnownFunc, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
@@ -104,7 +104,8 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
       M.Necessarily pat _ -> go (parents, g) pat
       M.EndOfPath -> return (parents, g)
       M.Location _ pat -> go (parents, g) pat
-      M.Primitive _ _ -> return (parents, g)
+      M.SubPrimitive _ _ -> return (parents, g)
+      M.CallsPrimitive _ _ -> return (parents, g)
       M.Star -> return (parents, g)
       M.Good -> return (parents, g)
       M.Bad -> return (parents, g)
@@ -1280,7 +1281,7 @@ onionFlow
   -> Word64             -- max times to iterate checking whole binary
   -> Double             -- path sampling factor
   -> CfgStore
-  -> [StdLibPrimitive]
+  -> [KnownFunc]
   -> [Prim]             -- checks all on each path
   -> HashMap Function TypeHints
   -> Bool
@@ -1311,7 +1312,7 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor s
 --   :: Bool               -- actually use SMT solver?
 --   -> Word64             -- max times to iterate checking whole binary
 --   -> CfgStore
---   -> [StdLibPrimitive]
+--   -> [KnownFunc]
 --   -> [Prim]             -- checks all on each path
 --   -> IO ()              -- it writes results into CfgStore and hopefully DB
 -- onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
@@ -1414,7 +1415,7 @@ steadyStateOnionFlow
   -> Bool              -- actually use SMT solver?
   -> Double            -- path sampling factor
   -> CfgStore
-  -> [StdLibPrimitive]
+  -> [KnownFunc]
   -> [Prim]
   -> HashMap Function TypeHints
   -> Bool              -- doSquash

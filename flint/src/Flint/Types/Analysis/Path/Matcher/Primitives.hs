@@ -93,12 +93,15 @@ data CallableWMI = CallableWMI
   , linkedVars :: HashSet FuncVar
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
--- | This is a reduced version of CallableWMI used to describe primitives
--- in standard lib functions. We can combine this with the real plt stdlib func
--- in the binary to create a CallableWMI
-data StdLibPrimitive = StdLibPrimitive
+-- | Describes a known function whose arg semantics are understood.
+-- Used to match calls to known functions (e.g. stdlib) and map their
+-- arguments to primitive variables.
+data KnownFunc = KnownFunc
   { prim :: PrimSpec
   , funcName :: Text
   , varMapping :: HashMap (Symbol Pil.Expression) FuncVarExpr
   , constraints :: [FuncVarExpr]
   } deriving (Eq, Ord, Show, Hashable, Generic)
+
+-- | Deprecated alias
+type StdLibPrimitive = KnownFunc

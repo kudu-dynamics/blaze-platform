@@ -37,9 +37,9 @@ memcpy = Function Nothing "memcpy" (intToAddr 0x111)
   , FuncParamInfo $ ParamInfo "n" Nothing Func.In
   ]
 
-memcpyPrims :: [StdLibPrimitive]
+memcpyPrims :: [KnownFunc]
 memcpyPrims =
-  [ StdLibPrimitive
+  [ KnownFunc
     { prim = copyPrim
     , funcName = "memcpy"
     , varMapping = HashMap.fromList
@@ -56,9 +56,9 @@ sscanf = Function Nothing "sscanf" (intToAddr 0x222)
   , FuncParamInfo $ ParamInfo "format" Nothing Func.In
   ]
 
-sscanfPrims :: [StdLibPrimitive]
+sscanfPrims :: [KnownFunc]
 sscanfPrims =
-  [ StdLibPrimitive
+  [ KnownFunc
     { prim = controlledFormatStringPrim
     , funcName = "sscanf"
     , varMapping = HashMap.fromList
@@ -68,9 +68,9 @@ sscanfPrims =
     }
   ]
 
-strdupPrims :: [StdLibPrimitive]
+strdupPrims :: [KnownFunc]
 strdupPrims =
-  [ StdLibPrimitive
+  [ KnownFunc
     { prim = copyPrim
     , funcName = "strdup"
     , varMapping = HashMap.fromList
@@ -86,9 +86,9 @@ printf = Function Nothing "printf" (intToAddr 0x8888)
   [ FuncParamInfo $ ParamInfo "format" Nothing Func.In
   ]
 
-printfPrims :: [StdLibPrimitive]
+printfPrims :: [KnownFunc]
 printfPrims =
-  [ StdLibPrimitive
+  [ KnownFunc
     { prim = controlledFormatStringPrim
     , funcName = "printf"
     , varMapping = HashMap.fromList

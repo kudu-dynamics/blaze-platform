@@ -12,7 +12,7 @@ import qualified Prelude as P
 import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
 import qualified Flint.Analysis.Path.Matcher.Logic.Combinators as C
 import Flint.Analysis.Path.Matcher.Logic.Combinators (good, bad, insist, (<|||>))
-import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, FuncVarExpr)
+import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, FuncVarExpr, PrimSpec)
 -- import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import Flint.Types.Analysis.Path.Matcher -- (MatcherState, MatcherCtx, MatcherT, StmtSolver, IsExpression, IsStatement, HasAddress)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
@@ -683,6 +683,99 @@ solvePath = do
   let stmts = reverse (ms ^. #parsedStmtsWithAssertions) <> ms ^. #remaining
   lift (solver stmts)
 
+-- | Match via CallableWMI lookup (through call-sites) for a given PrimSpec.
+-- Used by both CallsPrimitive (directly) and SubPrimitive (as first attempt).
+matchCallableWMI
+  :: forall stmt expr m.
+     ( HasAddress stmt
+     , IsExpression expr
+     , IsStatement expr stmt
+     , Monad m
+     )
+  => PrimSpec
+  -> HashMap (Symbol Pil.Expression) M.ExprPattern
+  -> MatcherT expr stmt m ()
+matchCallableWMI pt varPats = do
+    stmt <- popStmt
+    retireStmt stmt
+
+    case mkCallStatement stmt of
+      Nothing -> bad
+      Just callStmt -> do
+        let mdestFunc = case callStmt ^. #callOp . #dest of
+              Pil.CallFunc ifunc -> Just $ BFunc.Internal ifunc
+              Pil.CallExtern efunc -> Just $ BFunc.External efunc
+              _ -> Nothing
+        case mdestFunc of
+          Nothing -> bad
+          Just destFunc -> getCallableWMIs pt destFunc >>= \case
+            Nothing -> bad
+            Just wmis -> do
+              let mRetExpr = maybe liftVar liftVarLike (callStmt ^. #callExpr)
+                             <$> (callStmt ^. #resultVar) :: Maybe expr
+                  argVector = V.fromList $ callStmt ^. #args
+                  resolveFuncVar' :: FuncVarExpr -> Maybe expr
+                  resolveFuncVar' = resolveFuncVar argVector mRetExpr
+              let callablePats = toSnd mkStmtPatternFromCallableWMI <$> HashSet.toList wmis :: [(CallableWMI, M.Statement M.ExprPattern)]
+
+              C.orr . flip fmap callablePats $ \(cprim, cpat) -> do
+                matchStmt cpat stmt
+                let mPrimVars = traverse (traverse (resolveFuncVar' . fst))
+                      . HashMap.toList
+                      $ cprim ^. #varMapping
+                      :: Maybe [(Symbol Pil.Expression, expr)]
+                case mPrimVars of
+                  Nothing -> bad
+                  Just primVars -> do
+                    forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
+                      Nothing -> good
+                      Just vpat -> matchExpr vpat vexpr
+
+                    -- add constraints to stmts
+                    forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
+                      case resolveFuncVar' fvExpr of
+                        Nothing -> bad
+                        Just resolvedExpr -> do
+                          #parsedStmtsWithAssertions %= ((mkStmtLike stmt $ Pil.Constraint (Pil.ConstraintOp resolvedExpr)) :)
+
+-- | Match a SubPrimitive via inline pattern matching.
+-- Runs the prim's stmtPattern with a fresh state (no variable bindings),
+-- then restores the outer state except for consumed statements and
+-- var bindings that are rebound through varPats.
+-- The prim's pattern is expected to use CallsPrimitive for call-site matching.
+matchSubPrimitive
+  :: forall stmt expr m.
+     ( HasAddress stmt
+     , IsExpression expr
+     , IsStatement expr stmt
+     , Monad m
+     )
+  => M.Prim
+  -> HashMap (Symbol Pil.Expression) M.ExprPattern
+  -> MatcherT expr stmt m ()
+matchSubPrimitive prim varPats = do
+    outerState <- get
+    let freshState = (M.emptyMatcherState :: M.MatcherState expr stmt)
+          & #remaining .~ (outerState ^. #remaining)
+          & #callablePrimitives .~ (outerState ^. #callablePrimitives)
+    -- Run the inline pattern in the fresh state
+    put freshState
+    matchPattern $ M.ordered (prim ^. #stmtPattern)
+    innerState <- get
+    -- Restore outer state, but keep consumed stmts and parsed stmts from inline match
+    put outerState
+    #remaining .= (innerState ^. #remaining)
+    #parsedStmtsWithAssertions .= (innerState ^. #parsedStmtsWithAssertions)
+      <> (outerState ^. #parsedStmtsWithAssertions)
+    -- Rebind vars from the inner match through varPats
+    let innerBinds = innerState ^. #boundSyms
+    forM_ (HashMap.toList varPats) $ \(varName, vpat) -> do
+      case HashMap.lookup varName innerBinds of
+        Nothing -> bad
+        Just vexpr -> matchExpr vpat vexpr
+    -- Also propagate locations from the inner match
+    #locations %= HashMap.union (innerState ^. #locations)
+
 matchPattern
   :: forall stmt expr m.
      ( HasAddress stmt
@@ -747,51 +840,12 @@ matchPattern = \case
     #locations %= HashMap.insert lname (Right $ getAddress stmt)
     matchPattern pat
       
-  M.Primitive pt varPats -> do
-    stmt <- popStmt
-    retireStmt stmt
+  M.SubPrimitive prim varPats ->
+    matchSubPrimitive prim varPats
 
-    case mkCallStatement stmt of
-      Nothing -> bad
-      Just callStmt -> do
-        let mdestFunc = case callStmt ^. #callOp . #dest of
-              Pil.CallFunc ifunc -> Just $ BFunc.Internal ifunc
-              Pil.CallExtern efunc -> Just $ BFunc.External efunc
-              _ -> Nothing
-        case mdestFunc of
-          Nothing -> bad
-          Just destFunc -> getCallableWMIs pt destFunc >>= \case
-            Nothing -> bad
-            Just wmis -> do
-              let mRetExpr = maybe liftVar liftVarLike (callStmt ^. #callExpr)
-                             <$> (callStmt ^. #resultVar) :: Maybe expr
-                  argVector = V.fromList $ callStmt ^. #args
-                  resolveFuncVar' :: FuncVarExpr -> Maybe expr
-                  resolveFuncVar' = resolveFuncVar argVector mRetExpr
-                  -- TODO: We are recreating these every single stmt we check for a Primitive.
-                  --       Instead, we could cache them in the MatcherState
-              let callablePats = toSnd mkStmtPatternFromCallableWMI <$> HashSet.toList wmis :: [(CallableWMI, M.Statement M.ExprPattern)]
+  M.CallsPrimitive primSpec varPats ->
+    matchCallableWMI primSpec varPats
 
-              C.orr . flip fmap callablePats $ \(cprim, cpat) -> do
-                matchStmt cpat stmt
-                let mPrimVars = traverse (traverse (resolveFuncVar' . fst))
-                      . HashMap.toList
-                      $ cprim ^. #varMapping
-                      :: Maybe [(Symbol Pil.Expression, expr)]
-                case mPrimVars of
-                  Nothing -> bad
-                  Just primVars -> do
-                    forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
-                      Nothing -> good
-                      Just vpat -> matchExpr vpat vexpr
-              
-                    -- add constraints to stmts
-                    forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
-                      case resolveFuncVar' fvExpr of
-                        Nothing -> bad
-                        Just resolvedExpr -> do
-                          #parsedStmtsWithAssertions %= ((mkStmtLike stmt $ Pil.Constraint (Pil.ConstraintOp resolvedExpr)) :)
-    
   M.Star -> use #remaining >>= \case
     [] -> good
     _ -> good <|> (popAndRetireStmt >> matchPattern M.Star)

@@ -5,7 +5,7 @@ module Flint.Cfg.Store where
 import Flint.Prelude
 
 import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
-import Flint.Types.Analysis.Path.Matcher.Primitives (StdLibPrimitive)
+import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store
 import qualified Flint.Types.CachedCalc as CC
 import qualified Flint.Types.CachedMap as CM
@@ -677,11 +677,11 @@ getFuncNameMapping
 --     Just func1 -> shimmyFunc imp store func1 func2
 
 
--- | Looks through all funcs to which which StdLibPrimitives are in play,
--- generates CallablePrimitives from these std lib funcs and stores it in Cfg,
+-- | Looks through all funcs to find which KnownFuncs are in play,
+-- generates CallablePrimitives from these known funcs and stores it in Cfg,
 -- overwriting whatever CallablePrimitives may already be there.
 populateInitialPrimitives
-  :: [StdLibPrimitive]
+  :: [KnownFunc]
   -> CfgStore
   -> IO ()
 populateInitialPrimitives sprims store = do

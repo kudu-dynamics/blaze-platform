@@ -71,8 +71,13 @@ data StmtPattern
   | Necessarily StmtPattern [BoundExpr]
   | EndOfPath
   | Location (Symbol Address) StmtPattern
-  -- | Primitive <prefix for bound vars> <primtype>
-  | Primitive PrimSpec (HashMap (Symbol Pil.Expression) ExprPattern)
+  -- | SubPrimitive <prim> <var patterns>
+  -- Tries CallableWMI lookup (through call-sites) and inline pattern matching.
+  -- Used for matching sub-patterns within a complex primitive.
+  | SubPrimitive Prim (HashMap (Symbol Pil.Expression) ExprPattern)
+  -- | CallsPrimitive <primSpec> <var patterns>
+  -- Only checks CallableWMI cache (through call-sites). No inline fallback.
+  | CallsPrimitive PrimSpec (HashMap (Symbol Pil.Expression) ExprPattern)
   | Star -- | Kleene star. Consumes any statements until next match
   | And StmtPattern StmtPattern -- | conjunction of two sequential patterns
   | Or StmtPattern StmtPattern -- | disjunction of two patterns

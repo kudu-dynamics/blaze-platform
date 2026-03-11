@@ -142,8 +142,8 @@ locationFromFunc :: Func -> Either ExternFunction Address
 locationFromFunc (Func.External x) = Left x
 locationFromFunc (Func.Internal x) = Right $ x ^. #address
 
-fromStdLibPrimitive :: StdLibPrimitive -> Func -> CallableWMI
-fromStdLibPrimitive x func = CallableWMI
+fromKnownFunc :: KnownFunc -> Func -> CallableWMI
+fromKnownFunc x func = CallableWMI
   { prim = x ^. #prim
   , func = func
   , callDest = MFunc.FuncName $ func ^. _name
@@ -162,18 +162,18 @@ fromStdLibPrimitive x func = CallableWMI
     constraints' = toSnd extractFuncVars <$> x ^. #constraints
 
 
-getInitialWMIsForFunc :: Func -> [StdLibPrimitive] -> [CallableWMI]
+getInitialWMIsForFunc :: Func -> [KnownFunc] -> [CallableWMI]
 getInitialWMIsForFunc func = mapMaybe f
   where
     f sprim = if cleanFuncName (func ^. _name) == sprim ^. #funcName
-      then Just $ fromStdLibPrimitive sprim func
+      then Just $ fromKnownFunc sprim func
       else Nothing
 
 cleanFuncName :: Text -> Text
 cleanFuncName = Text.dropWhile (== '_')
 
 getInitialWMIs
-  :: [StdLibPrimitive]
+  :: [KnownFunc]
   -> [Func]
   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
 getInitialWMIs sprims
