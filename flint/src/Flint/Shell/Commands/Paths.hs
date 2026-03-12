@@ -101,7 +101,7 @@ findFunction st nameOrAddr = do
     Nothing -> case parseAddress nameOrAddr of
       Nothing -> return Nothing
       Just addr -> do
-        funcs <- Store.getInternalFuncs (st ^. #cfgStore)
+        funcs <- Store.getInternalFuncs $ st ^. #cfgStore
         return $ find (\f -> f ^. #address == addr) funcs
 
 samplePaths :: ShellState -> [Text] -> IO CommandResult
@@ -212,7 +212,7 @@ pshowStmts st (pidArg : addrArgs) =
     -- Match stmt if its address is within a small range of the target
     -- (handles Ghidra address misalignment within a basic block)
     stmtNearAddr s target =
-      let a = addrToInt (s ^. #addr)
+      let a = addrToInt $ s ^. #addr
           t = addrToInt target
       in a >= t && a < t + 16
 

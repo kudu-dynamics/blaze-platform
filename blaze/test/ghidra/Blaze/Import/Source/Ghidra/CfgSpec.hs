@@ -25,10 +25,9 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
   context "Getting CFGs from DiveLogger" $ do
     imp <- runIO $ G.getImporter diveBin
     funcs <- fmap (mapMaybe (^? #_Internal)) . runIO $ getFunctions imp
-    let gs = imp ^. #ghidraState
 
     context "getRawPcodeCfg" $ do
-      cfgs <- fmap catMaybes . runIO $ traverse (\func -> getRawPcodeCfg gs func 0) funcs
+      cfgs <- fmap catMaybes . runIO $ traverse (\func -> getRawPcodeCfg (imp ^. #ghidraState) func 0) funcs
       let f = HashSet.size . Cfg.nodes
           nodeCounts = f <$> cfgs
           expected = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,8,9,9,9,9,10,10,10,11,11,11,14,14,15,16,16,17,21,32,34,36,37,40,41,117,117]

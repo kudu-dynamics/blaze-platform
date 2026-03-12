@@ -283,7 +283,7 @@ matchIntegral a b = matchBoundedWidth a (matchSign a b)
 -- if x is signed, converts to unsigned, then runs f, then converts result to signed
 runAsUnsigned :: (SVal -> SVal) -> SVal -> SVal
 runAsUnsigned f x = case kindOf x of
-  KBounded True _ -> svSign (f (svUnsign x))
+  KBounded True _ -> svSign . f $ svUnsign x
   KBounded False _ -> f x
   _ -> P.error "runAsSigned: expected KBounded"
 
@@ -1115,9 +1115,9 @@ solveStmtsWith solverCfg leniency typeHints stmts = do
   -- let stmts' = Analysis.substFields stmts
   let er = Ch.checkStmtsWithTypeHints typeHints Nothing stmts
   case er of
-    Left e -> return $ Left (Left e)
+    Left e -> return . Left $ Left e
     Right tr -> solveTypedStmtsWith solverCfg leniency (tr ^. #varSymTypeMap) (tr ^. #symTypedStmts) >>= \case
-      Left e -> return $ Left (Right (e, tr))
+      Left e -> return . Left $ Right (e, tr)
       Right sr -> return $ Right (sr, tr)
 
 -- | Convenience function for checking statements that package results nicely.

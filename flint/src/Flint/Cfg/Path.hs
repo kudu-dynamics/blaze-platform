@@ -35,7 +35,6 @@ type CallExpansionChooser = Function -> CallDepth -> [CallNode [Stmt]] -> IO [Ca
 -- | An ExplorationStrategy returns a path and a list of call nodes that,
 -- if found in the path, should be expanded and further explored with
 -- the same strategy.
--- 
 data ExpandCall s = ExpandCall
   { newState :: s
   -- TODO: truncateAfter True would mean that path after this call is cut off

@@ -90,6 +90,23 @@ tokenizeUnderBinop tsym opSym op = fmap paren $
     <++> tt " "
     <++> tokenize (op ^. #right)
 
+-- | Prefix lisp-like binop, but with the underscore first like some SMT funcs have
+tokenizeUnderSizeBinop
+  :: ( Tokenizable a )
+  => Maybe Sym
+  -> Text
+  -> Pil.Size Pil.Expression
+  -> a
+  -> Tokenizer [Token]
+tokenizeUnderSizeBinop tsym opSym sz x = fmap paren $ 
+         tt "(_ "
+    <++> setSym tsym (instr opSym)
+    <++> tt " "
+    <++> tt (show (fromIntegral sz :: Word64))
+    <++> tt ")"
+    <++> tt " "
+    <++> tokenize x
+
 tokenizeBinopInfix ::
   ( Tokenizable b
   , HasField' "left" a b
@@ -270,13 +287,16 @@ tokenizeExprOp msym exprOp size = case exprOp of
   -------- bookmark ---------------
   (Pil.SBB op) -> tokenizeBinop msym "sbb" op
   (Pil.STACK_LOCAL_ADDR op) ->
-    pure
-      [ tt "&"
+    pure . paren $
+      [ tt "DEREF"
+      , tt " "
+      , decimalToken (Pil.sizeToWidth size)
+      , tt " "
       , varToken Nothing $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
       ]
-  (Pil.SUB op) -> tokenizeBinop msym "-" op
+  (Pil.SUB op) -> tokenizeBinop msym "bvsub" op
   (Pil.SUB_WILL_OVERFLOW op) -> tokenizeBinop msym "subOF" op
-  (Pil.SX op) -> tokenizeUnop msym "sx" op
+  (Pil.SX op) -> tokenizeUnderSizeBinop msym "sign_extend" size (op ^. #src)
   (Pil.TEST_BIT op) -> tokenizeBinop msym "testBit" op
   (Pil.UNIMPL t) -> keywordToken "unimpl" <++> paren [tt t]
   (Pil.UPDATE_VAR op) ->
@@ -297,7 +317,7 @@ tokenizeExprOp msym exprOp size = case exprOp of
   -- TODO: Add field offset
   (Pil.VAR_FIELD op) -> tokenizeField op
   (Pil.XOR op) -> tokenizeBinop msym "xor" op
-  (Pil.ZX op) -> tokenizeUnop msym "zx" op
+  (Pil.ZX op) -> tokenizeUnderSizeBinop msym "zero_extend" size (op ^. #src)
   (Pil.CALL op) -> tokenize op
   (Pil.StrCmp op) -> tokenizeBinop msym "strcmp" op
   (Pil.StrNCmp op) ->
@@ -325,10 +345,16 @@ data Effect = Effect
 
 instance ToJSON Effect where
   toJSON (Effect etype eid vars) =
-        object [ "type" A..= etype
-               , "id" A..= eid
-               , "arguments" A..= toJSON vars
-               ]
+    case toJSON vars of
+      A.Object varObj -> A.Object $ KM.fromList
+        [ "type" A..= etype
+        , "id" A..= eid
+        , "arguments" A..= varObj
+        ]
+      _ -> object [ "type" A..= etype
+                   , "id" A..= eid
+                   , "arguments" A..= A.Object (KM.fromList [])
+                   ]
 
 -- From the greater system spec
 data EffectVars
@@ -359,6 +385,11 @@ data EffectVars
     { locations :: [Text]
     , offset :: Text
     }
+  | MProtect
+    { locations :: [Text]
+    , length :: Text
+    , permissions :: Text
+    }
   | Other (HashMap Text Text) -- var/funcvar mapping
   deriving (Eq, Ord, Read, Show, Hashable, Generic)
 
@@ -367,9 +398,10 @@ instance ToJSON EffectVars where
   toJSON x = over #_Object (KM.delete "tag") $ A.genericToJSON A.defaultOptions x
 
 data Operation = Operation
-  { variables :: [Text]
-  , effects :: [Effect]
+  { name :: Text
+  , variables :: [Text]
   , preconditions :: [Text]
+  , effects :: [Effect]
   } deriving (Eq, Ord, Read, Show, Generic, Hashable, ToJSON)
 
 data SMTishWMI = SMTishWMI
@@ -419,13 +451,16 @@ toEffectVars primName vars = case primName of
   "copy" -> ("copyMem", CopyMem (vs "src") (vs "dest") (v "len"))
   "freeHeap" -> ("free", Free (vs "ptr"))
   "allocHeap" -> ("malloc", Malloc (vs "ptr") (v "size"))
-  -- "Write" -> Write (vs "ptr") "0x0" "0x0" 
+  "MProtect_NX_USB" -> ("mprotect", MProtect (vsMaybe "location") (vMaybe "length" "unknown") (vMaybe "permissions" "rwx"))
+  -- "Write" -> Write (vs "ptr") "0x0" "0x0"
   _ -> (primName, Other vars)
   where
     v x = case HashMap.lookup x vars of
       Nothing -> error $ "Couldn't find var '" <> cs x <> "' in hashmap for '" <> cs primName <> "' primitive"
       Just y -> y
     vs x = [v x]
+    vMaybe x def = fromMaybe def $ HashMap.lookup x vars
+    vsMaybe x = maybeToList $ HashMap.lookup x vars
 
 callableWMIToEffect :: CallableWMI -> Effect
 callableWMIToEffect x = Effect
@@ -455,11 +490,12 @@ toSMTishWMI x = SMTishWMI
   { trigger = getTriggerAsFuncCall x
   , name = x ^. #prim . #name
   , operation = Operation
-    { variables = ["; variables section\n; TODO\n"]
+    { name = x ^. #prim . #name
+    , variables = ["; variables section\n; TODO\n"]
+    , preconditions = pretty' . toSMTishFuncVarExpr . fst <$> x ^. #constraints
     -- | TODO: at some point, a CallableWMI might have multiple effects, too.
     -- But for now, each CallableWMI is just one effect.
     , effects = [callableWMIToEffect x]
-    , preconditions = pretty' . toSMTishFuncVarExpr . fst <$> x ^. #constraints
     }
   }
 

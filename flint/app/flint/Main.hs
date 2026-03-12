@@ -4,17 +4,18 @@ module Main where
 
 import Flint.Prelude
 
-import Flint.SMTish (toFlintSMTishResult)
+import Flint.SMTish (toFlintSMTishResult) -- toSMTishWMI -- hot fix
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.Analysis.Path.Matcher as M
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
+import qualified Flint.Analysis.LibC as LibC
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
 import qualified Flint.Types.CachedMap as CM
-import Flint.Analysis.References (ReferenceKind)
+import Flint.Analysis.References (PseudoReferenceKind, genPseudoRefSubPrims, staleReferencePrims, applyImpliedMatches) --, genRefPrims)
 
 import Blaze.Import.Binary (getBase)
 import Blaze.Pretty (pretty')
@@ -250,7 +251,6 @@ toMatchingPrimBlob res = blob
       , linkedVars = fmap pretty' . HashSet.toList $ res ^. #callablePrim . #linkedVars
       }
 
-
 printMatchingPrimJSON :: MatchingPrim -> IO ()
 printMatchingPrimJSON res = do
   let func = res ^. #func
@@ -308,20 +308,24 @@ onionCheck opts = do
     putText $ "Error: file not found: " <> Text.pack fp
     exitFailure
   withBackend (opts ^. #backend) fp $ \imp -> do
-    typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
+    typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #typeHintsFile
     blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
     (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist blacklist (opts ^. #analysisDb) imp
     base <- getBase imp
     -- warns on no refs spec option
-    eRefKinds :: Either String [ReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
+    eRefKinds :: Either String [PseudoReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile
     refKinds <- case eRefKinds of
                    Left s -> do
                      warn $ "Bad refs spec: " <> Text.pack s
                      return []
                    Right refKinds -> return refKinds
     let stdLibPrims = allStdLibPrims
+        pRefSubPrimGroups = genPseudoRefSubPrims refKinds
+        pRefSubPrimPairs = concat pRefSubPrimGroups
+        pRefPrims = applyImpliedMatches pRefSubPrimGroups . staleReferencePrims $ map (map snd) pRefSubPrimGroups
         prims :: [Prim]
-        prims = PrimLib.allPrims
+        prims = PrimLib.allPrims ++ pRefPrims -- ++ (genRefPrims refKinds)
+    -- putText $ show pRefPrims
 
     let convertKernelWMIs :: [MatchingPrim] -> HashMap PrimSpec (HashSet CallableWMI)
         convertKernelWMIs = foldr
@@ -341,31 +345,26 @@ onionCheck opts = do
               20
               1
 
-
     -- TODO: make maxResultsPerPath an option
     let maxResultsPerPath = 10 -- max WMIs found per path
-
     let buildResult = do
           cprims <- CM.getSnapshot $ store ^. #callablePrims
           filterFuncs <- maybe (pure Nothing) (fmap Just . getFuncsFromFile) (opts ^. #filterFuncsFile)
           let filteredCprims = case filterFuncs of
                 Nothing -> cprims
-                Just funcs -> HashMap.filterWithKey (\(_,func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
-          let cprims' = M.asOldCallableWMIsMap filteredCprims
+                Just funcs -> HashMap.filterWithKey (\(_, func) _ -> HashSet.member (func ^. Func._name) funcs) cprims
+              cprims' = M.asOldCallableWMIsMap filteredCprims
               allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
           return $ case opts ^. #outputSMTish of
             False -> resultToJSON $ toFlintResult base allPrims
             True -> resultToJSON $ toFlintSMTishResult base allPrims
-
     let outputResults = buildResult >>= \json -> handleResult json
-
-    attackSurface <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #attackSurfaceFile)
-
+    attackSurface <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #attackSurfaceFile
     if opts ^. #steadyState
       then do
         -- Intermediate reports overwrite the output file; if no file, skip intermediates
         let intermediateReport = case opts ^. #outputToFile of
-              Nothing -> return ()  -- no-op for stdout; final report will print
+              Nothing -> return () -- no-op for stdout; final report will print
               Just outFp -> do
                 json <- buildResult
                 TextIO.writeFile outFp json
@@ -374,9 +373,11 @@ onionCheck opts = do
           (not $ opts ^. #doNotUseSolver)
           (opts ^. #pathSamplingFactor)
           store stdLibPrims prims funcToTypeHintsMap
-          (not $ opts ^. #noSquash) refKinds
+          (not $ opts ^. #noSquash) -- refKinds
           attackSurface
           (opts ^. #attackSurfaceDepth)
+          pRefSubPrimPairs
+          LibC.taintPropagators
           (opts ^. #reportInterval)
           intermediateReport
         -- Final output (to file or stdout)
@@ -392,10 +393,18 @@ onionCheck opts = do
           prims
           funcToTypeHintsMap
           (not $ opts ^. #noSquash)
-          refKinds
+          -- refKinds
           attackSurface
           (opts ^. #attackSurfaceDepth)
+          pRefSubPrimPairs
+          LibC.taintPropagators
         outputResults
+--    let cprims' = M.asOldCallableWMIsMap filteredCprims
+--        allPrims = HashMap.unionWith HashSet.union cprims' kernelWMIs
+--    case opts ^. #outputSMTish of
+--      False -> handleResult $ toFlintResult base allPrims
+--      -- True -> handleResult $ toFlintSMTishResult base allPrims
+--      True -> handleResult $ fmap toSMTishWMI . HashSet.toList . foldl' HashSet.union HashSet.empty . HashMap.elems $ allPrims
     where
       handleResult :: Text -> IO ()
       handleResult json = case opts ^. #outputToFile of
@@ -404,18 +413,10 @@ onionCheck opts = do
           TextIO.writeFile outputFilePath json
           putText $ "Wrote results to " <> show outputFilePath
 
-
 getFuncsFromFile :: FilePath -> IO (HashSet Text)
-getFuncsFromFile fp 
+getFuncsFromFile fp
   = HashSet.fromList
   . filter (not . Text.null)
   . fmap Text.strip
   . Text.lines
   <$> liftIO (TextIO.readFile fp)
-
-
-
-
-
-
-

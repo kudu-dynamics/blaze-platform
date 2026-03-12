@@ -131,7 +131,9 @@ library:
   - Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec
   - Flint.Analysis.Path.Matcher.Logic.Combinators
   - Flint.Analysis.Path.Matcher.Stub
+  - Flint.Analysis.Path.Matcher.Taint
   - Flint.Analysis.References
+  - Flint.Analysis.LibC
   - Flint.Analysis.Uefi
   - Flint.App
   - Flint.Cfg

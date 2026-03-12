@@ -5,6 +5,7 @@ import Flint.Prelude hiding (until)
 import Flint.Analysis.Path.Matcher.Logic.Combinators
 import Flint.Types.Analysis.Path.Matcher
 
+--import qualified Data.HashSet as HashSet
 import Test.Hspec
 
 type Matcher a = MatcherT () Int Identity a
@@ -12,7 +13,7 @@ type Matcher a = MatcherT () Int Identity a
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher.Logic.Combinators" $ do
   let defaultMatcherState = emptyMatcherState
-      defaultMatcherCtx = MatcherCtx dummySolver
+      defaultMatcherCtx = MatcherCtx dummySolver mempty []
       maxResults = 20 -- should always be less for these tests
       observeAll :: Matcher a -> [a]
       observeAll = fmap fst

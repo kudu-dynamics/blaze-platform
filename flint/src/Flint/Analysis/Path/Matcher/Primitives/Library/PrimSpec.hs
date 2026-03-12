@@ -126,3 +126,17 @@ copyMemSpec = PrimSpec
   , vars = fromList ["len", "dest_ptr", "src_ptr"]
   , locations = fromList ["copy"]
   }
+
+detectStackExecSpec :: PrimSpec
+detectStackExecSpec = PrimSpec
+  { name = "MProtect_NX_USB"
+  , vars = fromList ["location", "length", "permissions"]
+  , locations = fromList ["call"]
+  }
+
+danglingPtrSpec :: PrimSpec
+danglingPtrSpec = PrimSpec
+  { name = "danglingPtr"
+  , vars = fromList ["ptr"]
+  , locations = fromList ["free"]
+  }

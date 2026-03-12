@@ -15,7 +15,6 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
 
-
 type PathId = Int
 
 -- | Parse path IDs from command arguments. Supports:

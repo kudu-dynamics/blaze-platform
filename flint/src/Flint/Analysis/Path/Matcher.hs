@@ -7,15 +7,14 @@ module Flint.Analysis.Path.Matcher
 
 import Flint.Prelude hiding (sym, negate, until, Location)
 
-import qualified Prelude as P
-
 import qualified Flint.Analysis.Path.Matcher.Primitives as Prim
 import qualified Flint.Analysis.Path.Matcher.Logic.Combinators as C
 import Flint.Analysis.Path.Matcher.Logic.Combinators (good, bad, insist, (<|||>))
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, FuncVarExpr, PrimSpec)
 -- import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
+import Flint.Analysis.Path.Matcher.Taint
 import Flint.Types.Analysis.Path.Matcher -- (MatcherState, MatcherCtx, MatcherT, StmtSolver, IsExpression, IsStatement, HasAddress)
-import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
+import Flint.Types.Analysis.Path.Matcher.PathPrep
 import qualified Flint.Types.Analysis.Path.Matcher as M
 import Flint.Types.Analysis.Path.Matcher.Func (Func(..))
 import Flint.Types.Symbol (Symbol)
@@ -98,11 +97,28 @@ bind_ lens' sym x = do
 -- | Binds a sym to an expression. Or, if the sym already exists,
 -- it checks to see if this expression matches the first.
 bind
-  :: (Eq expr, Monad m)
+  :: (IsExpression expr, Monad m)
   => Symbol Pil.Expression
   -> expr
   -> MatcherT expr stmt m ()
-bind = bind_ #boundSyms
+bind  sym x = do
+  bsyms <- use #boundSyms
+  case HashMap.lookup sym bsyms of
+    Just x' -> insist $ sortaEqual x x'
+    Nothing -> #boundSyms %= HashMap.insert sym x
+-- bind = bind_ #boundSyms
+
+sortaEqual
+  :: (IsExpression expr1, IsExpression expr2)
+  => expr1
+  -> expr2
+  -> Bool
+sortaEqual a b = case (asExpression a, asExpression b) of
+  (Pil.Expression _ (Pil.STACK_LOCAL_ADDR stackOp), Pil.Expression _ (Pil.VAR varOp)) ->
+    Just (stackOp ^. #stackOffset . #offset) == (fromIntegral <$> varOp ^? #src . #location . #_StackMemory)
+  (Pil.Expression _ (Pil.VAR varOp), Pil.Expression _ (Pil.STACK_LOCAL_ADDR stackOp)) ->
+    Just (stackOp ^. #stackOffset . #offset) == (fromIntegral <$> varOp ^? #src . #location . #_StackMemory)
+  (x, y) -> x == y
 
 bindCtx :: Monad m => Symbol Pil.Ctx -> Pil.Ctx -> MatcherT expr stmt m ()
 bindCtx = bind_ #boundCtxSyms
@@ -121,7 +137,7 @@ matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
   $ regexIsIn rpat (func ^. #name)
   || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
 
-regexIsIn :: Text -> Text -> Bool 
+regexIsIn :: Text -> Text -> Bool
 regexIsIn a b = b =~ a
 
 matchCtx :: Monad m => M.CtxPattern -> Pil.Ctx -> MatcherT expr stmt m ()
@@ -296,12 +312,28 @@ matchExpr pat expr = case pat of
     matchExpr xpat expr
       <|> C.orr (matchExpr (M.Contains xpat) <$> toList (getExprOp expr))
 
-  M.TaintedBy _dstPat _src -> P.error "TaintedBy not yet implemented"
-    -- do
-    -- backtrackOnError (matchExpr dstPat expr)
-    -- taintSet <- use #taintSet
-    -- src' <- resolveBoundExpr src
-    -- insist $ doesTaint taintSet src' expr
+  -- we we really be passing both src and dst pats
+  --but TaintedBy really only needs what source to look at right?
+-- M.TaintedBy _dstPat _src -> do
+  M.TaintedBy scrpat -> do
+    -- TODO: match on destination pattern against expression
+    --matchExpr dstPat expr
+    -- TODO: get the taint set
+    --ts <- view  #taintSet
+    -- TODO: resolve bound source expressio
+    -- just check taint from any source actually
+    -- srcExpr <- resolveBoundExpr src
+    -- TODO Eventually will check if source taints any bits
+    --insist $ isTainted ts (asExpression expr)
+    -- CLEANMEUP
+    ts <- view #taintSet
+    tps <- view #taintPropagators
+    let expr' = asExpression expr
+    case scrpat of
+      -- find what expr is tainted by globalss
+      M.GlobalAddr -> insist $ isTaintedBySrc tps containsGlobalPtr ts expr'
+      _ -> insist $ isTainted tps ts expr'
+
   M.Wild -> good
   M.Expr xop -> case (xop, getExprOp expr) of
     -- the ADD pattern should match FIELD_ADDR since both do addition
@@ -374,7 +406,7 @@ matchType' recCtx tpat dst = case tpat of
     -- then run the type matching pattern on the type.
     Ch.DSRecursive s pt -> matchType' (HashMap.insert s pt recCtx) tpat
       $ Ch.DSType pt
-      
+
     Ch.DSType pt -> case (ptPat, pt) of
       (M.TBool, PT.TBool) -> good
 
@@ -384,7 +416,7 @@ matchType' recCtx tpat dst = case tpat of
       (M.TInt bwPat signPat, PT.TInt mbits msign) -> do
         insist $ isNothing signPat || signPat == msign
         matchBitWidth bwPat mbits
-  
+
       (M.TFloat bwPat, PT.TFloat mbits) -> do
         matchBitWidth bwPat mbits
 
@@ -412,7 +444,7 @@ matchType' recCtx tpat dst = case tpat of
         if length paramsPats > length params
           then bad
           else forM_ (zip paramsPats params) $ uncurry (matchType' recCtx)
-        
+
       (_, _) -> bad
 
 -- | Matches each record field pattern to an actual record field.
@@ -433,7 +465,7 @@ matchRecordFields recCtx fieldPats fields = C.orr perms
     fieldPatsAsParsers = foreach fieldPats $ \(bwPat, fieldPat) (bw, fieldType) -> do
       matchBitWidth bwPat (Just $ fromIntegral bw)
       matchType' recCtx fieldPat fieldType
-      
+
     -- Get all permutations of fieldPats (all different orderings)
     -- Then check them each against normal list of fields
     perms = foreach (permutations fieldPatsAsParsers) $ \parsers -> do
@@ -453,7 +485,7 @@ matchBitWidth
      )
   => BitWidthPattern
   -> Maybe Bits
-  -> MatcherT expr stmt m () 
+  -> MatcherT expr stmt m ()
 matchBitWidth bwpat mbits = case bwpat of
   M.ConstBitWidth n -> maybe bad (insist . (== n)) mbits
   M.AnyBitWidth -> good
@@ -470,7 +502,7 @@ matchLen
      )
   => LenPattern
   -> Maybe a
-  -> MatcherT expr stmt m () 
+  -> MatcherT expr stmt m ()
 matchLen lenPat mlen = case lenPat of
   M.ConstLen n -> maybe bad (insist . (== n) . fromIntegral) mlen
   M.AnyLen -> good
@@ -526,7 +558,7 @@ matchStmt sPat stmt = case sPat of
       matchExpr destPat pvExpr
       matchExpr srcPat expr
     _ -> bad
-  
+
   M.Constraint expr -> case statement of
     Pil.Constraint (Pil.ConstraintOp condExpr) -> do
       matchExpr expr condExpr
@@ -542,7 +574,7 @@ matchStmt sPat stmt = case sPat of
     Pil.EnterContext (Pil.EnterContextOp ctx argExprs) -> do
       matchCtx ctxPat ctx
       if length argPats > length argExprs
-        then bad 
+        then bad
         else do
           traverse_ (uncurry matchExpr) $ zip argPats argExprs
     _ -> bad
@@ -577,7 +609,7 @@ matchStmt sPat stmt = case sPat of
       -- -- Retire current call statement
       -- retireStmt stmt
       matchPattern $ M.ordered [M.Star, endPat]
-        
+
     _ -> case mkCallStatement stmt of
       Nothing -> bad
       Just (CallStatement _ callOp argExprs mResultVar mCallExpr) -> do
@@ -610,7 +642,7 @@ matchStmt sPat stmt = case sPat of
     Pil.Ret (Pil.RetOp valExpr) -> do
       matchExpr valPat valExpr
     _ -> bad
-  
+
   M.NoRet -> case statement of
     Pil.NoRet -> good
     _ -> bad
@@ -790,20 +822,20 @@ matchPattern = \case
     stmt <- popStmt
     retireStmt stmt
     matchStmt pat stmt
-  
+
   M.AvoidUntil x -> avoidUntil
     (const $ matchPattern $ x ^. #avoid)
     (matchPattern $ x ^. #until)
-    
+
   M.Where subPat boundExprs -> do
     matchPattern subPat
-    mLastParsedStmt <- headMay <$> use #parsedStmtsWithAssertions 
+    mLastParsedStmt <- headMay <$> use #parsedStmtsWithAssertions
     traverse_ (addConstraintLike mLastParsedStmt) boundExprs
 
   M.Necessarily subPat boundExprs -> do
     -- First check that negation of necessary constraints are UNSAT.
     matchPattern subPat
-    mLastParsedStmt <- headMay <$> use #parsedStmtsWithAssertions 
+    mLastParsedStmt <- headMay <$> use #parsedStmtsWithAssertions
     resolvedExprs <- traverse resolveBoundExpr boundExprs
     let negatedExprs = fmap (absorbNots . negate) resolvedExprs
         mkOr x y = mkExprLike x . Pil.OR $ Pil.OrOp x y
@@ -816,7 +848,7 @@ matchPattern = \case
                 . Pil.ConstraintOp
                 $ x
           #parsedStmtsWithAssertions %= (stmt :)
-          
+
     case mNegatedDisjunction of
       Nothing ->
         -- If there's no negated disjuction, it means there were no boundExprs
@@ -834,7 +866,7 @@ matchPattern = \case
   M.EndOfPath -> use #remaining >>= \case
     [] -> good
     _ -> bad
-    
+
   M.Location lname pat -> do
     stmt <- peekStmt
     #locations %= HashMap.insert lname (Right $ getAddress stmt)
@@ -846,6 +878,65 @@ matchPattern = \case
   M.CallsPrimitive primSpec varPats ->
     matchCallableWMI primSpec varPats
 
+-- TODO: remove. saving in case needed by References
+--   M.Primitive pt varPats -> do
+--     stmt <- popStmt
+--     retireStmt stmt
+--     -- for matching subpatterns, one approach
+--     -- could be to make this not just check
+--     -- if the callee has the WMI but also check
+--     -- if the pattern for the primitive exists
+--     -- (in the caller). this would change the
+--     -- meaning of the Primitive StmtPattern,
+--     -- but I think it would be an improvement.
+--     -- this would allow us to eliminate special
+--     -- treatment for StdLibPrimitives as well.
+--     -- this would encourage (but not per se
+--     -- require) changes to the matcher to
+--     -- eliminate the need to start primitive
+--     -- patterns with Star. I believe this would
+--     -- be an improvement
+--     case mkCallStatement stmt of
+--       Nothing -> bad
+--       Just callStmt -> do
+--         let mdestFunc = case callStmt ^. #callOp . #dest of
+--               Pil.CallFunc ifunc -> Just $ BFunc.Internal ifunc
+--               Pil.CallExtern efunc -> Just $ BFunc.External efunc
+--               _ -> Nothing
+--         case mdestFunc of
+--           Nothing -> bad
+--           Just destFunc -> getCallableWMIs pt destFunc >>= \case
+--             Nothing -> bad
+--             Just wmis -> do
+--               let mRetExpr = maybe liftVar liftVarLike (callStmt ^. #callExpr)
+--                              <$> (callStmt ^. #resultVar) :: Maybe expr
+--                   argVector = V.fromList $ callStmt ^. #args
+--                   resolveFuncVar' :: FuncVarExpr -> Maybe expr
+--                   resolveFuncVar' = resolveFuncVar argVector mRetExpr
+--                   -- TODO: We are recreating these every single stmt we check for a Primitive.
+--                   --       Instead, we could cache them in the MatcherState
+--               let callablePats = toSnd mkStmtPatternFromCallableWMI <$> HashSet.toList wmis :: [(CallableWMI, M.Statement M.ExprPattern)]
+
+--               C.orr . flip fmap callablePats $ \(cprim, cpat) -> do
+--                 matchStmt cpat stmt
+--                 let mPrimVars = traverse (traverse (resolveFuncVar' . fst))
+--                       . HashMap.toList
+--                       $ cprim ^. #varMapping
+--                       :: Maybe [(Symbol Pil.Expression, expr)]
+--                 case mPrimVars of
+--                   Nothing -> bad
+--                   Just primVars -> do
+--                     forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
+--                       Nothing -> good
+--                       Just vpat -> matchExpr vpat vexpr
+
+--                     -- add constraints to stmts
+--                     forM_ (fmap fst $ cprim ^. #constraints :: [FuncVarExpr]) $ \fvExpr -> do
+--                       case resolveFuncVar' fvExpr of
+--                         Nothing -> bad
+--                         Just resolvedExpr -> do
+--                           #parsedStmtsWithAssertions %= ((mkStmtLike stmt $ Pil.Constraint (Pil.ConstraintOp resolvedExpr)) :)
+
   M.Star -> use #remaining >>= \case
     [] -> good
     _ -> good <|> (popAndRetireStmt >> matchPattern M.Star)
@@ -855,9 +946,9 @@ matchPattern = \case
     matchPattern b
 
   M.Or a b -> matchPattern a <|||> matchPattern b
-  
+
   M.Good -> good
-  
+
   M.Bad -> bad
 
 resolveFuncVar
@@ -877,7 +968,7 @@ resolveFuncVar argExprs mRetExpr = \case
     fmap (mkExprWithSize sz')
       . traverse (resolveFuncVar argExprs mRetExpr)
       $ op
-          
+ 
   (Prim.FuncVar fv) -> case fv of
     Prim.Ret -> mRetExpr
     (Prim.Global x) -> Just $ liftExpression x
@@ -948,7 +1039,7 @@ mkMatcherState
   -> PathPrep stmt
   -> (MatcherCtx stmt m, MatcherState expr stmt)
 mkMatcherState solver pathPrep =
-  ( MatcherCtx solver
+  ( MatcherCtx solver (pathPrep ^. #taintSet) (pathPrep ^. #taintPropagators)
   , MatcherState (pathPrep ^. #stmts) HashMap.empty HashMap.empty HashMap.empty [] Nothing HashMap.empty HashMap.empty
   )
 

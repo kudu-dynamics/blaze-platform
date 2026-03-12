@@ -42,7 +42,7 @@ wrapVar pv = Pil.Expression (coerce $ pv ^. #size) (Pil.VAR . Pil.VarOp $ pv)
 -- otherwise return Nothing.
 getFuncVarFromPilVar :: [FuncParamInfo] -> PilVar -> Maybe FuncVar
 getFuncVarFromPilVar params pv = Arg <$> getParamIndex params pv
-  
+
 -- | If the expr is an arg, ret expr, or a global, convert to a FuncVar
 getFuncVar
   :: [FuncParamInfo]

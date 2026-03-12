@@ -1,4 +1,5 @@
 - [Installing Haskell Dependecies](#installing-haskell-dependecies)
+- [Installing Java and Setting Environment Variables](#installing-java-and-setting-environment-variables)
 - [Building blaze-platform Monorepo](#building-blaze-platform-monorepo)
 - [Rapid Prototyping with Hspec library](#rapid-prototyping-with-hspec-library)
 - [blaze-platform Versioning](#blaze-platform-versioning)
@@ -28,6 +29,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
 
 Everything is generally default. However, if you plan on using `vscode`, make sure you install the Haskell Language Server.
 
+Then, go ahead and refresh your shell:
+
+```bash
+source ~/.bashrc
+```
+
 In `blaze-platform`, we use `stack` for building and testing. Install `stack` using the `ghcup`:
 
 ```bash
@@ -44,13 +51,33 @@ Then, build and install `z3`:
 
 ```bash
 cd z3
-./configure; mkdir build
+./configure
+mkdir -p build
 cd build
-make
+```
+
+Now, install `z3`:
+
+```bash
 make install
 ```
 
 ---
+
+# Installing Java and Setting Environment Variables
+
+Now, you can install Java 21:
+
+```bash
+sudo apt install openjdk-21-jdk
+```
+
+Then, create environment variables for `libjvm.so`:
+```bash
+export JDK="$(dirname "$(dirname "$(readlink -f "$(which javac)")")")"
+export PATH=$JDK/bin/${PATH:+:$PATH}
+export LD_LIBRARY_PATH=$JDK/lib/server/${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+```
 
 ## Building `blaze-platform` Monorepo
 
@@ -507,65 +534,3 @@ The following sections are for developers on MacOS. Also, `blaze` supported Bina
 - get the blaze repo
 - run getGhidraJar.sh on the ghidra-haskell directory (so your terminal would be ghidra-haskell > ./scripts/getGhidraJar.sh
 - run `stack build` and `stack test` in the ghidra-haskell library
-
----
-
-### Legacy Build Instructions
-
----
-
-#### Binary Ninja
-
-You must have binaryninja installed somewhere, and must be able to be headless:
-```bash
-Set to version `3.5.4526`
-```
-
-Now, make links from some dir on your LD_LIBARY_PATH (or /usr/lib) to these binja libs
-```bash
-libbinaryninjacore.so -> /path/to/binaryninja/libbinaryninjacore.so.1
-libbinaryninjacore.so.1 -> /path/to/binaryninja/libbinaryninjacore.so.1
-```
-
-Now, get corresponding binja api:
-```bash
-git clone https://github.com/Vector35/binaryninja-api.git
-cd binaryninja-ai
-git checkout beb79f0a7aa38bdf6818056d8c21c6e599456be8
-git submodule update --init --recursive
-cmake -S . -B build
-cmake --build build -j8
-```
-
-Now, link this from some dir on your library path:
-```bash
-libbinaryninjaapi.a -> /path/to/binaryninja-api/build/out/libbinaryninjaapi.a
-```
-
-Now add this environment variable:
-```
-export BINJA_PLUGINS="/path/to//binaryninja/plugins"
-```
-
-Now, refresh your `.bashrc`
-
-```bash
-source ~/.bashrc
-```
-
-Now, copy binja license to 
-```bash
-cp license.dat ~/.binaryninja/license.dat
-```
-
-Now, build `blaze-platform`:
-```bash
-cd blaze-platform
-git checkout 10-sample-plan
-stack build
-
-cd flint
-stack test
-```
-
----

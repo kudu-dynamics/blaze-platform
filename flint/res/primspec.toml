@@ -84,7 +84,6 @@
   locations = ["free", "return"]
   vars = ["ptr"]
 
-
 [[prim]]
   name = "copyPtr"
   locations = ["copy"]
@@ -95,3 +94,12 @@
   locations = ["copy"]
   vars = ["dest_ptr","src_ptr","len"]
 
+[[prim]]
+  name = "MProtect_NX_USB"
+  locations = ["call"]
+  vars = ["location", "length", "permissions"]
+
+[[prim]]
+  name = "danglingPtr"
+  locations = ["free"]
+  vars = ["ptr"]

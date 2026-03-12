@@ -13,7 +13,6 @@ import Blaze.Pil.Construct hiding (not)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
-
 allPrims :: [Prim]
 allPrims =
   [ controlledFormatStringPrim
@@ -25,11 +24,14 @@ allPrims =
   , unboundedCopyFromUserPrim
   , writeToKernelGlobalPrim
   , writeWhatWherePrim
-  -- , escapedDataFromLock
-  , writePrim
+  , -- , escapedDataFromLock
+    writePrim
   , returnsFreedPointerPrim
   , copyMemPrim
   , copyPtrPrim
+  , copyFromGlobalPrim
+  , -- detectStackExecPrim now uses StdLib only
+    danglingPtrPrim
   ]
 
 ---------------------------
@@ -41,11 +43,12 @@ isArg = Param
 isInput :: ExprPattern
 isInput = Param .|| GlobalAddr
 
--- | This indicates the expr is tainted by function input (args/globals)
--- TODO: maybe we can use CodeSummary when matching
+{- | This indicates the expr is tainted by function input (args/globals)
+TODO: maybe we can use CodeSummary when matching
+Matches if an expression is tainted by any src
+-}
 fromInput :: ExprPattern
-fromInput = Wild
-
+fromInput = TaintedBy Wild
 
 ------------------------
 -- Inline versions (no Star, no isInput, no Ret requirements)
@@ -184,10 +187,16 @@ copyPtrPrim_ :: Prim
 copyPtrPrim_ = Prim
   { primType = copyPtrSpec
   , stmtPattern =
-      [ Location "copy" . Stmt $ Store (Bind "dest" Wild)
-        (OfType
-         (PilType $ TPointer AnyBitWidth AnyType)
-         (Bind "copied_ptr" Wild))
+      [ Location "copy" $ orr
+        [ CallsPrimitive copyPtrSpec $ HashMap.fromList
+          [ ("dest", Bind "dest" Wild)
+          , ("copied_ptr", Bind "copied_ptr" Wild)
+          ]
+        , Stmt $ Store (Bind "dest" Wild)
+          (OfType
+           (PilType $ TPointer AnyBitWidth AnyType)
+           (Bind "copied_ptr" Wild))
+        ]
       ]
   }
 
@@ -198,18 +207,19 @@ copyPtrPrim = Prim
       [ Star
       , Location "copy" . SubPrimitive copyPtrPrim_ $ HashMap.fromList
           [ ("dest", Bind "dest" (Contains isInput))
-          , ("copied_ptr", Bind "copied_ptr" (Contains isInput))
+          -- TODO: do we care if the ptr is a stack local vs global vs arg?
+          -- for now, I'll assume that any ptr copied out might be valuable
+          , ("copied_ptr", Bind "copied_ptr" Wild)
           ]
       ]
   }
-
 
 doubleFreePrim_ :: Prim
 doubleFreePrim_ = Prim
   { primType = doubleFreeSpec
   , stmtPattern =
       [ orr
-        [ Location "free1" . Location "free2" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
+        [ Location "free1" . Location "free2" . CallsPrimitive doubleFreeSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild) ]
         , ordered
           [ Location "free1" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
@@ -231,23 +241,8 @@ doubleFreePrim :: Prim
 doubleFreePrim = Prim
   { primType = doubleFreeSpec
   , stmtPattern =
-      [ Star
-      , orr
-        [ Location "free1" . Location "free2" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
+      [ Location "free1" . Location "free2" . SubPrimitive doubleFreePrim_ $ HashMap.fromList
           [ ("ptr", Bind "ptr" (Contains isInput)) ]
-        , ordered
-          [ Location "free1" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
-            [ ("ptr", Bind "ptr" (Contains isInput)) ]
-          , Star
-          , AvoidUntil $ AvoidSpec
-            { avoid = SubPrimitive allocHeapPrim_ $ HashMap.fromList
-                      [("ptr", Bind "ptr" Wild)]
-            , until =
-              Location "free2" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
-              [ ("ptr", Bind "ptr" Wild) ]
-            }
-          ]
-        ]
       ]
   }
 
@@ -255,7 +250,13 @@ writePrim_ :: Prim
 writePrim_ = Prim
   { primType = writeSpec
   , stmtPattern =
-      [ Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "value" Wild)
+      [ Location "write" $ orr
+        [ CallsPrimitive writeSpec $ HashMap.fromList
+          [ ("ptr", Bind "ptr" Wild)
+          , ("value", Bind "value" Wild)
+          ]
+        , Stmt $ Store (Bind "ptr" Wild) (Bind "value" Wild)
+        ]
       ]
   }
 
@@ -275,9 +276,15 @@ writeWhatWherePrim_ :: Prim
 writeWhatWherePrim_ = Prim
   { primType = writeWhatWhereSpec
   , stmtPattern =
-      [ Location "write" . Stmt
-        $ Store (Bind "dest" Wild)
-                (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())
+      [ Location "write" $ orr
+        [ CallsPrimitive writeWhatWhereSpec $ HashMap.fromList
+          [ ("dest", Bind "dest" Wild)
+          , ("src", Bind "src" Wild)
+          ]
+        -- TODO: probably should have a `Contains`
+        , Stmt $ Store (Bind "dest" Wild)
+                       (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())
+        ]
       ]
   }
 
@@ -288,23 +295,11 @@ writeWhatWherePrim = Prim
       [ Star
       , Location "write" . SubPrimitive writeWhatWherePrim_ $ HashMap.fromList
           [ ("src", Bind "src" (Contains isInput))
-          -- TODO: probably can't refer to previously bound var here -- fix!
           , ("dest", Bind "dest" (NotPattern $ Bind "src" (Contains isInput)))
           ]
       ]
   }
 
-integerOverflowPrim_ :: Prim
-integerOverflowPrim_ = Prim
-  { primType = integerOverflowSpec
-  , stmtPattern =
-      [ Location "increment store"
-        . Stmt $ Store
-        (Bind "ptr" Wild)
-        (add (load (Bind "ptr" Wild) ())
-          (Bind "increment_by" Wild) ())
-      ]
-  }
 
 integerOverflowPrim :: Prim
 integerOverflowPrim = Prim
@@ -312,7 +307,7 @@ integerOverflowPrim = Prim
   , stmtPattern =
       [ Star
       , orr
-        [ Location "increment store" . SubPrimitive integerOverflowPrim_ $ HashMap.fromList
+        [ Location "increment store" . CallsPrimitive integerOverflowSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild )
           , ("increment_by", Bind "increment_by" Wild)
           ]
@@ -332,19 +327,23 @@ integerOverflowPrim = Prim
           }
         ]
       ]
-  }
+    }
 
 returnsFreedPointerPrim_ :: Prim
 returnsFreedPointerPrim_ = Prim
   { primType = returnsFreedPointerSpec
   , stmtPattern =
-      [ orr
+    [ orr
+      [ Location "free" . CallsPrimitive returnsFreedPointerSpec $ HashMap.fromList
+        [ ("ptr", Bind "ptr" Wild) ]
+      , ordered
         [ Location "free" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild) ]
+        , Star
+        , Location "return" . Stmt . M.Ret $ Bind "ptr" Wild
         ]
-      , Star
-      , Location "return" . Stmt . M.Ret $ Bind "ptr" Wild
       ]
+    ]
   }
 
 returnsFreedPointerPrim :: Prim
@@ -366,6 +365,7 @@ returnsFreedPointerPrim = Prim
 
 -------------------------------------
 
+-- TODO: add recursive CallsPrimitive
 writeToKernelGlobalPrim_ :: Prim
 writeToKernelGlobalPrim_ = Prim
   { primType = writeToKernelGlobalSpec
@@ -400,7 +400,12 @@ controlledIndirectCallPrim_ :: Prim
 controlledIndirectCallPrim_ = Prim
   { primType = controlledIndirectCallSpec
   , stmtPattern =
-      [ Location "callsite" . Stmt $ Call Nothing (CallIndirect $ Bind "call_dest" Wild) []
+      [ orr
+        [ Location "callsite" . CallsPrimitive controlledIndirectCallSpec $ HashMap.fromList
+          [ ("call_dest", Bind "call_dest" Wild)
+          ]
+        , Location "callsite" . Stmt $ Call Nothing (CallIndirect $ Bind "call_dest" Wild) []
+        ]
       ]
   }
 
@@ -415,6 +420,34 @@ controlledIndirectCallPrim = Prim
       ]
   }
 
+danglingPtrPrim_ :: Prim
+danglingPtrPrim_ = Prim
+  { primType = danglingPtrSpec
+  , stmtPattern =
+      [ ordered
+        [ Location "free" $ orr
+          [ CallsPrimitive danglingPtrSpec $ HashMap.fromList
+            [ ("ptr", Bind "ptr" Wild) ]
+          , SubPrimitive freeHeapPrim $ HashMap.fromList
+            [ ("ptr", load (Bind "ptr" Wild) ()) ]
+          ]
+        , AvoidUntil $ AvoidSpec
+          { avoid = Stmt $ Store (Bind "ptr" Wild) Wild
+          , until = ordered [Star, Stmt $ M.Ret Wild]
+          }
+        ]
+      ]
+  }
+
+danglingPtrPrim :: Prim
+danglingPtrPrim = Prim
+  { primType = danglingPtrSpec
+  , stmtPattern =
+      [ Star
+      , Location "free" . SubPrimitive danglingPtrPrim_ $ HashMap.fromList
+        [ ("ptr", Bind "ptr" (Contains isInput)) ]
+      ]
+  }
 
 ----------------
 
@@ -459,27 +492,27 @@ argAt n x = replicate (fromIntegral n) Wild <> [x]
 failedToUnregister :: [Prim]
 failedToUnregister = fmap f thingsYouShouldUnregister
   where
-    primType = PrimSpec
-      { name = "FailedToUnregisterKernelHandler"
-      , vars = HashSet.fromList ["handler"]
-      , locations = HashSet.fromList ["registerHandlerCall"]
-      }
+    primType =
+      PrimSpec
+        { name = "FailedToUnregisterKernelHandler"
+        , vars = HashSet.fromList ["handler"]
+        , locations = HashSet.fromList ["registerHandlerCall"]
+        }
     f :: ((Text, Word64), (Text, Word64)) -> Prim
-    f ((regName, regArg), (unregName, unregArg)) = Prim
-      { primType = primType
-      , stmtPattern =
-          [ Star
-          , Location "registerHandlerCall"
-            . Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg
-            $ Bind "handler" Wild
-          , Star
-          , AvoidUntil $ AvoidSpec
-            { avoid = Stmt . Call Nothing (CallFunc $ FuncName unregName)
-                      . argAt unregArg $ Bind "handler" Wild
-            , until = EndOfPath
-            }
-          ]
-      }
+    f ((regName, regArg), (unregName, unregArg)) =
+      Prim
+        { primType = primType
+        , stmtPattern =
+            [ Star
+            , Location "registerHandlerCall"
+              . Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg $ Bind "handler" Wild
+            , AvoidUntil $ AvoidSpec
+              { avoid = Stmt . Call Nothing (CallFunc $ FuncName unregName) . argAt unregArg
+                        $ Bind "handler" Wild
+              , until = ordered [Star, EndOfPath]
+              }
+            ]
+        }
 
 unboundedCopyFromUserPrim_ :: Prim
 unboundedCopyFromUserPrim_ = Prim
@@ -500,33 +533,95 @@ unboundedCopyFromUserPrim :: Prim
 unboundedCopyFromUserPrim = Prim
   { primType = unboundedCopyFromUserSpec
   , stmtPattern =
-      [ Star
-      , AvoidUntil $ AvoidSpec
+      [ AvoidUntil $ AvoidSpec
         { avoid = Stmt . Constraint
                   $   (Contains (Bind "size" Wild) .< Wild)
                   .|| (Contains (Bind "size" Wild) .<= Wild)
-        , until = Location "copy" . SubPrimitive unboundedCopyFromUserPrim_ $ HashMap.fromList
+        , until = ordered
+                  [ Star
+                  , Location "copy" . SubPrimitive unboundedCopyFromUserPrim_ $ HashMap.fromList
                     [ ("src", Bind "src" $ Contains isInput)
                     , ("dst", Bind "dst" Wild)
                     , ("size", Bind "size" $ NotPattern Immediate)
                     ]
+                  ]
         }
       ]
   }
 
-escapedDataFromLock :: Prim
-escapedDataFromLock = Prim
-  { primType = escapedDataFromLockSpec
-  , stmtPattern =
-      [ Location "lock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_lock") [Wild]
-      , Location "bind" $ orr
-        [ Stmt $ Call Nothing (CallFunc $ FuncName "_copy_to_user")
-          [ Bind "ptr_containing_escaped_data" (Contains isInput)
-          , Wild
-          ]
-        , Stmt $ Store (Bind "ptr_containing_escaped_data" $ Contains isInput) Wild
-        -- TODO: add more copy cases or use Copy primitive
+-- TODO: FIX THIS INDENTATION
+copyFromGlobalPrim :: Prim
+copyFromGlobalPrim =
+  Prim
+    { primType = copyMemSpec
+    , stmtPattern =
+        [ Star
+        , Location "copy" $
+            Stmt $
+              Call
+                Nothing
+                ( CallFunc
+                    . FuncNames
+                    . HashSet.fromList
+                    $ ["memcpy", "_memcpy"] -- NOTE: _memcpy huh why?
+                    --                    [ Bind "dst" Wild
+                    --                    , Bind "src" (Contains GlobalAddr)
+                    --                    , Bind "size" Wild
+                    --                    ]
+                    --                  , Primitive copyFromGlobalSpec $ HashMap.fromList
+                    --                    [ ("src", Bind "src" $ Contains GlobalAddr)
+                    --                    , ("dst", Bind "dst" Wild)
+                    --                    , ("size", Bind "size" $ NotPattern Immediate)
+                    --                    ]
+                )
+                [ Bind "dest_ptr" Wild
+                , Bind "src_ptr" (Contains (TaintedBy GlobalAddr))
+                , --          , Bind "src" (Contains isInput) -- fixme
+                  Bind "len" Wild
+                ]
         ]
-      , Location "unlock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_unlock") [Wild]
-      ]
-  }
+    }
+
+--
+
+-- Detects calls to make_dynamic_area() which makes stack executable
+detectStackExecPrim :: Prim
+detectStackExecPrim =
+  Prim
+    { primType = detectStackExecSpec
+    , stmtPattern =
+        [ Star
+        , orr
+            [ Location "call" $
+                CallsPrimitive detectStackExecSpec $
+                  HashMap.fromList
+                    [ ("location", Wild)
+                    , ("length", Wild)
+                    , ("permissions", Wild)
+                    ]
+            , Location "call" $ Stmt $ Call Nothing (CallFunc $ FuncName "make_dynamic_area") []
+            ]
+        ]
+    }
+
+escapedDataFromLock :: Prim
+escapedDataFromLock =
+  Prim
+    { primType = escapedDataFromLockSpec
+    , stmtPattern =
+        [ Location "lock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_lock") [Wild]
+        , Location "bind" $
+            orr
+              [ Stmt $
+                  Call
+                    Nothing
+                    (CallFunc $ FuncName "_copy_to_user")
+                    [ Bind "ptr_containing_escaped_data" (Contains isInput)
+                    , Wild
+                    ]
+              , Stmt $ Store (Bind "ptr_containing_escaped_data" $ Contains isInput) Wild
+              -- TODO: add more copy cases or use Copy primitive
+              ]
+        , Location "unlock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_unlock") [Wild]
+        ]
+    }

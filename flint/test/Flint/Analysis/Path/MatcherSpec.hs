@@ -1,4 +1,5 @@
 {- HLINT ignore "Evaluate" -}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Flint.Analysis.Path.MatcherSpec
   ( module Flint.Analysis.Path.MatcherSpec
@@ -10,7 +11,6 @@ import Helper.Primitives
 
 import Flint.Analysis.Path.Matcher
 import qualified Flint.Analysis.Path.Matcher as M
--- import Flint.Types.Analysis (TaintPropagator(..), Parameter (Parameter, ReturnParameter))
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep, PathPrep(PathPrep))
 import Flint.Analysis.Path.Matcher.Logic.Combinators (good, bad)
@@ -68,11 +68,13 @@ type MatcherInt a = MatcherT () Int Identity a
 
 spec :: Spec
 spec = describe "Flint.Analysis.Path.Matcher" $ do
+--  let dummyCodeSummary = CodeSummary HashSet.empty HashSet.empty HashSet.empty [] HashSet.empty
+--      mkDummyPathPrep stmts = PathPrep stmts stmts HashSet.empty dummyCodeSummary
   let dummyCodeSummary = CodeSummary HashSet.empty HashSet.empty HashSet.empty [] HashSet.empty
-      mkDummyPathPrep stmts = PathPrep stmts stmts HashSet.empty dummyCodeSummary
+      mkDummyPathPrep stmts = PathPrep stmts stmts HashSet.empty dummyCodeSummary []
   context "parsing" $ do
     let defaultMatcherState = emptyMatcherState :: MatcherState () Int
-        defaultMatcherCtx = MatcherCtx dummySolver
+        defaultMatcherCtx = MatcherCtx dummySolver HashSet.empty []
         maxResults = 20 -- should always be less for these tests
         observeAll :: MatcherState () Int -> MatcherInt a -> [(a, MatcherState () Int)]
         observeAll st = runIdentity . observeManyMatcherT defaultMatcherCtx st maxResults
@@ -522,6 +524,19 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
+    it "should match zero statements to Star" $ do
+      let stmts = [ def "b" (load (var "arg4" 4) 4)
+                  , def "ur" (var "sad" 4)
+                  , def "c" (load (var "arg4" 4) 4)
+                  ]
+          pats = [ Star
+                 , Stmt $ Def (Var "b") Wild
+                 , Star
+                 , Stmt $ Def (Var "c") Wild
+                 ]
+          expected = [stmts]
+      pureMatch_ pats stmts `shouldBe` expected
+
     it "should match an expression has been bound to sym" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
@@ -561,6 +576,46 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                        )
                      ]
       sort (pureMatchWithBinds pats stmts) `shouldBe` sort expected
+
+    it "should match on ptr inside LOAD" $ do
+      let stmts = [ def "b" $ load (var "arg4" 4) 4
+                  ]
+          pats = [ Stmt $ Def Wild (load (Bind "x" Wild) ())
+                 ]
+          expected = [ ( HashMap.fromList
+                         [("x", var "arg4" 4)]
+                       , stmts
+                       )
+                     ]
+      sort (pureMatchWithBinds pats stmts) `shouldBe` sort expected
+
+    it "should match on complex ptr inside LOAD" $ do
+      let ptr = C.add (var "arg4" 4) (C.const 52 4) 4
+          stmts = [ def "b" $ load ptr 4
+                  ]
+          pats = [ Stmt $ Def Wild (load (Bind "x" Wild) ())
+                 ]
+          expected = [ ( HashMap.fromList
+                         [("x", ptr)]
+                       , stmts
+                       )
+                     ]
+      sort (pureMatchWithBinds pats stmts) `shouldBe` sort expected
+
+    it "should match on complex ptr inside LOAD in func arg" $ do
+      let ptr = C.add (var "arg4" 4) (C.const 52 4) 4
+          cdest = Pil.CallFunc func0
+          stmts = [ defCall "r" cdest [load ptr 4] 4
+                  ]
+          pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [load (Bind "x" Wild) ()]
+                 ]
+          expected = [ ( HashMap.fromList
+                         [("x", ptr)]
+                       , stmts
+                       )
+                     ]
+      sort (pureMatchWithBinds pats stmts) `shouldBe` sort expected
+
 
     it "should handle nested Ordered that returns multiple results" $ do
       let stmts :: [Pil.Stmt]
@@ -1324,7 +1379,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               ]
         solveMatch_ pats stmts `shouldReturn` expected
 
-      it "should require vars to be unsatisfiable if necessary constrints are not met" $ do
+      it "should require vars to be unsatisfiable if necessary constraints are not met" $ do
         let stmts = [ def "a" (const 10 4)
                     , def "b" (var "c" 4)
                     ]
@@ -1414,7 +1469,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             -- outerFunc = bar
             outerPath = barPath3
             -- Wrap the PrimSpec in a Prim with a dummy inline pattern
-            copyPrimAsPrim = Prim copyPrim []
             varPats = HashMap.fromList
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
@@ -1494,7 +1548,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           pureMatchFullWithBinds' mctx mstate = fmap f . pureMatchFull' mctx mstate
             where f (ms, stmts') = (ms ^. #boundSyms, stmts')
           dummyCodeSummary' = CodeSummary HashSet.empty HashSet.empty HashSet.empty [] HashSet.empty
-          mkDummyPathPrep' stmts' = PathPrep stmts' stmts' HashSet.empty dummyCodeSummary'
+          mkDummyPathPrep' stmts' = PathPrep stmts' stmts' HashSet.empty dummyCodeSummary' []
           solver :: StmtSolver stmt Identity
           solver _ = return $ Solver.Sat HashMap.empty
 

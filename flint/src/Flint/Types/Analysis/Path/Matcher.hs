@@ -5,6 +5,7 @@ module Flint.Types.Analysis.Path.Matcher where
 
 import Flint.Prelude hiding (sym, negate)
 import qualified Flint.Types.Analysis.Path.Matcher.Func as M
+import Flint.Types.Analysis (Taint, TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher.Primitives (PrimSpec, CallableWMI)
 import Flint.Types.Symbol (Symbol)
 
@@ -167,7 +168,9 @@ data ExprPattern
   -- | Matches if ExprPattern matches somewhere inside expr
   | Contains ExprPattern
   -- | Matches if 'src' is involved in the definition of 'dst'
-  | TaintedBy ExprPattern BoundExpr
+  -- | TaintedBy ExprPattern BoundExpr
+  -- | Matches if the expression is tainted by a source
+  | TaintedBy ExprPattern
   | Wild
 
   -- | Inequalities. These match on converse inequalities that mean the same thing,
@@ -402,7 +405,8 @@ dummySolver _ = pure $ Sat HashMap.empty
 
 data MatcherCtx stmt m = MatcherCtx
   { pathSolver :: StmtSolver stmt m
-  -- , taintSet :: HashSet Taint
+  , taintSet :: HashSet Taint
+  , taintPropagators :: [TaintPropagator]
   -- , callablePrimitives :: HashMap (PrimSpec, Func) (HashSet CallableWMI)
   } deriving (Generic)
   

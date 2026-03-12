@@ -191,6 +191,7 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives.Library" $ do
         memcpyFunc = mkExternFunc "memcpy" 3
         memcpyCallDest = Pil.CallExtern memcpyFunc
         initialWMIs = Prim.getInitialWMIs allStdLibPrims [Func.External memcpyFunc]
+
     it "should properly populate initial WMIs" $ do
       let k = (PrimSpec.copyMemSpec, Func.External memcpyFunc)
       HashMap.keys initialWMIs `shouldBe` [k]
@@ -292,28 +293,39 @@ spec = describe "Flint.Analysis.Path.Matcher.Primitives.Library" $ do
             ]
       PShow (testMatchVars initialWMIs prim func stmts) `shouldBe` PShow expected
 
+  context "danglingPtr" $ do
+    let prim = PrimLib.danglingPtrPrim
+        freeFunc = mkExternFunc "free" 1
+        freeCallDest = Pil.CallExtern freeFunc
+        initialWMIs = Prim.getInitialWMIs allStdLibPrims [Func.External freeFunc]
+    it "should properly populate initial WMIs" $ do
+      let k = (PrimSpec.freeHeapSpec, Func.External freeFunc)
+      HashMap.keys initialWMIs `shouldBe` [k]
+      HashSet.size (fromJust $ HashMap.lookup k initialWMIs) `shouldNotBe` 0
 
-  -- context "use-after-free" $ do
-  --   it "should detect function that returns freed pointer" $ do
-  --     (imp :: GhidraImporter) <- unsafeFromRight <$> openBinary "res/test_bins/juliet/CWE416/CWE416_Use_After_Free__return_freed_ptr_01-bad"
-  --     store <- Store.init Nothing imp
-  --     let stdLibPrims = StdLibPrims.allStdLibPrims
-  --         prims = [ PrimLib.returnsFreedPointerPrim
-  --                 , PrimLib.returnsFreedPointerPrim
-  --                 ]
-  --         action = do
-  --           onionFlow 20 False 3 1.0 store stdLibPrims prims HashSet.empty HashMap.empty True []
-  --           m <- fmap asOldCallableWMIsMap . CM.getSnapshot $ store ^. #callablePrims
-  --           -- info . cs . pshow $ m
-  --           -- pprint m
-  --           -- info "Billy Jane"
-  --           -- putText "-------- DOUGLAS VAN COOPER ------------"
-  --           putText "alive"
-            
-  --           return $ do
-  --             s <- HashMap.lookup PrimSpec.returnsFreedPointerSpec m
-  --             return $ HashSet.map (view $ #func . _name) s
-  --         expected = Just $ HashSet.fromList
-  --           [ "helperBad" ]
+    it "should detect dangling ptr where freed ptr is a deref and is not nulled out before return" $ do
+      let ptr = paramVar "arg1" 8
+          fullPtr = C.add ptr (C.const 52 8) 8
+          func = mkFunc "foo" 1
+          stmts = [ C.defCall "x" freeCallDest [ C.load fullPtr 8 ] 8
+                  , C.def "y" (C.const 88 8)
+                  , C.ret (C.const 0 8)
+                  ] :: [Pil.Stmt]
+          expected =
+            [ HashMap.fromList
+              [ ("ptr", C.add (Prim.FuncVar (Prim.Arg 0)) (C.const 52 $ Prim.ConstSize 8) (Prim.ConstSize 8))
+              ]
+            ]
+      testMatchVars initialWMIs prim func stmts `shouldBe` expected
 
-  --     action `shouldReturn` expected
+    it "should not detect dangling ptr where freed ptr is a deref and is nulled out before return" $ do
+      let ptr = paramVar "arg1" 8
+          fullPtr = C.add ptr (C.const 52 8) 8
+          func = mkFunc "foo" 1
+          stmts = [ C.defCall "x" freeCallDest [ C.load fullPtr 8 ] 8
+                  , C.store fullPtr $ C.const 0 8
+                  , C.def "y" (C.const 88 8)
+                  , C.ret (C.const 0 8)
+                  ] :: [Pil.Stmt]
+          expected = []
+      testMatchVars initialWMIs prim func stmts `shouldBe` expected

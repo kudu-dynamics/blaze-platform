@@ -23,6 +23,7 @@ data PathPrep stmt = PathPrep
   , stmts :: [stmt]
   , taintSet :: HashSet Taint
   , codeSummary :: CodeSummary
+  , taintPropagators :: [TaintPropagator]
   } deriving (Eq, Ord, Show, Generic)
 
 class MkPathPrep stmt a where
@@ -30,14 +31,14 @@ class MkPathPrep stmt a where
   mkPathPrepWithTypeHints :: TypeHints -> [TaintPropagator] -> a -> PathPrep stmt
 
 instance MkPathPrep Pil.Stmt [Pil.Stmt] where
-  mkPathPrep props stmts = PathPrep stmts stmts' (mkTaintSet props stmts) codeSummary
+  mkPathPrep props stmts = PathPrep stmts stmts' (mkTaintSet props stmts) codeSummary props
     where
       stmts' = PA.aggressiveExpand stmts
       codeSummary = Summary.fromStmts stmts
   mkPathPrepWithTypeHints _ = mkPathPrep
 
 instance MkPathPrep Pil.Stmt PilPath where
-  mkPathPrep mprops p = PathPrep stmts stmts' (mkTaintSet mprops stmts) codeSummary
+  mkPathPrep mprops p = PathPrep stmts stmts' (mkTaintSet mprops stmts) codeSummary mprops
     where
       stmts = Path.toStmts p
       stmts' = PA.aggressiveExpand stmts

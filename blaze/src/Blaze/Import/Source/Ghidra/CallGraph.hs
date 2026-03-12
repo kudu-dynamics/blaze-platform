@@ -138,7 +138,7 @@ getCallSites imp@(GhidraImporter gs _) fn = do
   mgfunc <- case fn of
     BFunc.Internal func -> do
       startAddr <- runGhidraOrError . State.mkAddress prg $ func ^. #address
-      runGhidraOrError (G.fromAddr (gs ^. #program) startAddr)
+      runGhidraOrError $ G.fromAddr prg startAddr
     -- Rudy TODO: clarify what's going on here. mkExternalAddress says it takes an offset,
     -- but what does that actually mean for an external address in Ghidra
     BFunc.External func -> do
@@ -146,7 +146,7 @@ getCallSites imp@(GhidraImporter gs _) fn = do
         . State.mkExternalAddress prg
         . fromIntegral
         $ func ^. #address . #offset
-      runGhidraOrError (G.getFunctionAt prg externAddr)
+      runGhidraOrError $ G.getFunctionAt prg externAddr
       -- externAddr <- runGhidraOrError
       --   . State.mkExternalAddress gs
       --   . fromIntegral

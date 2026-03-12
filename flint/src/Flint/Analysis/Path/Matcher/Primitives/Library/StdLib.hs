@@ -19,7 +19,9 @@ allStdLibPrims =
      controlledFormatStringPrims
   <> freeHeapPrims
   <> allocHeapPrims
-  <> copyMemPrims
+  <> copyPrims
+  <> copyFromGlobalPrims-- better naming maybe???
+  <> detectStackExecPrims
 
 -----------------------------------
 
@@ -109,6 +111,24 @@ allocHeapPrims =
       ]
     , constraints = []
     }
+  , KnownFunc
+    { prim = PrimSpec.allocHeapSpec
+    , funcName = "kmalloc_trace"
+    , varMapping = HashMap.fromList
+      [ ("ptr", FuncVar Ret)
+      , ("size", FuncVar $ Arg 2) 
+      ]
+    , constraints = []
+    }
+  , KnownFunc
+    { prim = PrimSpec.allocHeapSpec
+    , funcName = "kmalloc"
+    , varMapping = HashMap.fromList
+      [ ("ptr", FuncVar Ret)
+      , ("size", FuncVar $ Arg 0)
+      ]
+    , constraints = []
+    }
   ]
 
 controlledFormatStringPrims :: [KnownFunc]
@@ -140,3 +160,45 @@ controlledFormatStringPrims = fmtStringFuncs >>= \(funcName, argNo) -> return $
       , ("snprintf", 2)
       , ("vsnprintf", 2)
       ]
+
+copyPrims :: [KnownFunc]
+copyPrims = copyFuncs >>= \funcName' -> return $
+  KnownFunc
+    { prim = PrimSpec.copySpec
+    , funcName = funcName'
+    , varMapping = HashMap.fromList
+      [ ("dest", FuncVar $ Arg 0)
+      , ("len", FuncVar $ Arg 1)
+      , ("src", FuncVar $ Arg 2)
+      ]
+    ,constraints = []
+    }
+  where
+    copyFuncs =
+      [ "fgets"
+      -- TOOD:  there wasnt any copy prim before but we need to add more funcs from the libc
+      ]
+
+copyFromGlobalPrims :: [KnownFunc]
+copyFromGlobalPrims =
+  [ KnownFunc
+    {prim = PrimSpec.copyMemSpec
+    , funcName = "memcpy"
+    , varMapping = HashMap.fromList
+      [ ("dest_ptr", FuncVar $ Arg 0)
+      , ("src_ptr", FuncVar $ Arg 1)
+      , ("len", FuncVar $ Arg 2)
+    ]
+    , constraints = []
+    }
+  ]
+
+detectStackExecPrims :: [KnownFunc]
+detectStackExecPrims =
+  [ KnownFunc
+    { prim = PrimSpec.detectStackExecSpec
+    , funcName = "make_dynamic_area"
+    , varMapping = HashMap.empty --literally just has an empty locations
+    , constraints = []
+    }
+  ]

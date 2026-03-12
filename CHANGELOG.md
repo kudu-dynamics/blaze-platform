@@ -3,10 +3,18 @@
 ## Version 0.26.0310
 - Inline primitive matching through SubPrimitive
 
-## Version 0.26.0309
+## Version 0.26.0309b
 - added MCP version of Flint
 
-## Version 0.26.0305
+## Version 0.26.0309a
+- Initial references abstraction integration with call-based suboperations.
+- Documentation improvements with CVE example.
+
+## Version 0.26.0305b
+- Added `danglingPtr` WMI pattern with tests
+- Fixed `Star` in relation to `AvoidUntil`. It should be in the `until`.
+
+## Version 0.26.0305a
 - Fixed targeted path sampling (`sample func N @ addr`) failing with `NoReqNodesCanBeReached` in functions with loops
   + `expandToTargetsStrategy` now uses an acyclic `StrictDescendantsMap` matching the acyclic CFG it traverses
 
@@ -34,8 +42,7 @@
   + Blacklist is now applied at store initialization, filtering out functions before CFGs are fetched
   + Removed downstream blacklist filtering from `onionFlow`
 
-
-## Version 0.26.0304
+## Version 0.26.0304a
 - Added `flint-shell`, an interactive shell for exploring binaries
   + Commands: `functions`, `sample`, `show`, `reduce`, `solve`, `free`, `paths`, `wmis`, `check-wmi`
   + Path caching by integer ID for referring to sampled paths across commands
@@ -52,11 +59,11 @@
 - Fixed bug where the type of the return var in a Def Call wasn't being set properly in the Matcher
   This prevented matching the return of a function call to any later uses.
 
-## Version 0.26.0126c
+## Version 0.26.0126b
 - Added Loop analysis type modules for HighCfg and HighCfNode
 - Added HighCfg Dot graph visualizer module
 
-## Version 0.26.0126b
+## Version 0.26.0126a
 - Initial addition of references abstraction. Not yet integrated into analysis
 process.
 

@@ -7,7 +7,7 @@ import Flint.Prelude
 
 import qualified Flint.Analysis as FA
 import Flint.Analysis.Path.Matcher (StmtPattern, StmtSolver, IsStatement, IsExpression, HasAddress, TypedStmt)
-import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep, mkPathPrepWithTypeHints)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep(..), mkPathPrep, mkPathPrepWithTypeHints)
 import Flint.Analysis.Path.Matcher.Stub (StubSpec, stubPath)
 import qualified Flint.Analysis.Path.Matcher as M
 import qualified Flint.Types.Analysis.Path.Matcher.Func as M
@@ -24,7 +24,7 @@ import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
-import Flint.Analysis.References hiding (length)
+import Flint.Analysis.References as R
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
@@ -98,7 +98,7 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
         -- look at function call ordering, so for now we can just treat unordered
         -- like an ordered.
         -- go (parents, g) . M.orr . fmap M.Ordered $ permutations pats
- 
+
       M.And pat1 pat2 -> foldM go (parents, g) [pat1, pat2]
       M.Where pat _ -> go (parents, g) pat
       M.Necessarily pat _ -> go (parents, g) pat
@@ -274,7 +274,7 @@ makeRoutesStartingFromFunc
   -> PilNode
   -> [PilNode]
   -> [Route Function PilNode]
-makeRoutesStartingFromFunc = G.makeRoutes 
+makeRoutesStartingFromFunc = G.makeRoutes
 
 -- | Returns all possible PilNodes that match each pattern in sequence.
 -- The patterns are meant to match statements an isolated basic block.
@@ -303,7 +303,7 @@ matchNodesFulfillingSeq tps allNodes = fmap getAllMatches
       . mapMaybe (matchesPat pat)
       $ simplified
     -- getAllMatches pat = HashSet.filter (matchesPat pat) allNodes
-    
+
     matchesPat :: StmtPattern -> (PilNode, [Pil.Stmt]) -> Maybe PilNode
     matchesPat pat (node, nodeData) =
       case M.singlePureMatch [pat] (mkPathPrep tps nodeData :: PathPrep Pil.Stmt) of
@@ -534,7 +534,7 @@ reifyRoute
 reifyRoute imp store currentFunc route = do
   currentFunc' <- getFunction imp currentFunc
   flip evalStateT (NE.singleton currentFunc') $ reifyRoute' imp store route
-    
+
 data SampleRoutePrep = SampleRoutePrep
   { funcCfgs :: HashMap Function PilCfg
   , funcDmaps :: HashMap Function (G.StrictDescendantsMap PilNode)
@@ -546,7 +546,7 @@ getSampleRoutePrep store = do
   let dmaps = view #strictDescendantsMap <$> cfgInfos
       cfgs = view #cfg <$> cfgInfos
   return $ SampleRoutePrep cfgs dmaps
-  
+
 sampleRoute
   :: (CallGraphImporter imp, GetFunction func, GetNode node)
   => imp
@@ -685,7 +685,7 @@ checkFuncs
   -> IO ()
 checkFuncs actuallySolve store q bugMatches streamResults funcs = do
   mapConcurrently_ (checkFunc actuallySolve store q bugMatches streamResults) . HashSet.toList $ funcs
-  
+
 checkFunc
   :: Bool                   -- actually use SMT solver?
   -> CfgStore
@@ -712,7 +712,7 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
             , mitigationAdvice = resolveText $ bugMatch ^. #mitigationAdvice
             }
             where
-              resolveText = M.resolveBoundText (ms ^. #boundSyms)
+              resolveText = M.resolveBoundText $ ms ^. #boundSyms
   where
     solver = if actuallySolve
       then solveStmtsWithZ3 Solver.AbortOnError -- Solver.IgnoreErrors
@@ -766,7 +766,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
                   (intToAddr 0x12)
                   uuidBbEnd
                   [ C.ret $ C.var "r1" 8 ]
-                  
+
           lifeCfg = Cfg.mkCfg
             0
             callNodeInit
@@ -776,7 +776,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
             ]
           lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
       CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
-      
+
       let q :: Query Function
           q = QueryExpandAll $ QueryExpandAllOpts
               { callExpandDepthLimit = expandCallDepth + 1
@@ -795,7 +795,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
         lifecycleFunc
 
       return ()
-      
+
     _ -> do
       putText "Failed to find both `init_module` and `cleanup_module` for kernel"
       return ()
@@ -842,7 +842,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
                   (intToAddr 0x12)
                   uuidBbEnd
                   [ C.ret $ C.var "r1" 8 ]
-                  
+
           lifeCfg = Cfg.mkCfg
             0
             callNodeInit
@@ -869,7 +869,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
         q
         prims
         lifecycleFunc
-      
+
     _ ->
       -- TODO: WARN
       return []
@@ -1100,10 +1100,9 @@ matchAndReturnCallablePrim maxResultsPerPath solver callablePrimSnapshot func pp
   --     Just (Right _) -> putText "Match city"
   --     Just (Left _) -> putText "match error"
   --     Nothing -> putText "no match :("
-  
+
   let (mctx, mstate) = M.mkMatcherState solver pprep
       mstate' = mstate & #callablePrimitives .~ callablePrimSnapshot
-      
   checkPathForPrim_ maxResultsPerPath mctx mstate' func (pprep ^. #codeSummary) prim
 
 -- | Checks path for prim and updates the callable primitives if the path
@@ -1158,50 +1157,6 @@ onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func p
         debug $ "MATCHED " <> show (length cprims) <> " prims"
       CM.modify_ (HashSet.union (HashSet.fromList cprims)) (prim ^. #primType, Func.Internal func) $ store ^. #callablePrims
 
-
--- onionCheckPathForPrim
---   :: StmtSolver Pil.Stmt IO
---   -> CfgStore
---   -> HashMap (PrimSpec, Func) (HashSet CallableWMI)
---   -> Function
---   -> PathPrep Pil.Stmt
---   -> Prim
---   -> IO ()
--- onionCheckPathForPrim solver store callablePrimSnapshot func pprep prim = do
---   -- putText $ func ^. #name <> ": " <> prim ^. #primType . #name
---   -- | Because so many things can go wrong with patterns, this little section allows
---   -- you to choose a func and primitive to print out debug info for.
---   let debuggingOn = False
---       debugFuncName = "clearHistory"
---       debugPrimName = "freeHeap"
---       debugMode = debuggingOn
---         && func ^. #name == debugFuncName
---         && prim ^. #primType . #name == debugPrimName
---   when debugMode $ do
---     debug $ prim ^. #primType . #name
---     -- putText . ("\n---\n" <>) . pretty' . P.PStmts $ pprep ^. #untouchedStmts
---     -- writeAsJSON "/tmp/untouched_path.json" $ pprep ^. #untouchedStmts
---     debug . ("\n+++\n" <>) . pretty' . P.PStmts $ pprep ^. #stmts
---     -- pprint $ take 2 (pprep ^. #untouchedStmts)
-
---   when debugMode $ do
---     checkPathForPrim solver func pprep (pprep ^. #codeSummary) prim >>= \case
---       Nothing -> debug "|| NO MATCH ||"
---       Just (Left _) -> debug "|| err ||"
---       Just (Right _) -> debug "|| MATCH!!! ||"
---   matchAndReturnCallablePrim solver callablePrimSnapshot func pprep prim >>= \case
---     Nothing -> do
---       when debugMode $ do
---         debug "Found nothing"
---     Just (Left cprimError) -> do
---       -- TODO: make this log a warning properly
---       warn $ "WARNING: Error constructing callable Primitive:\n" <> show cprimError
---     Just (Right cprim) -> do
---       when debugMode $ do
---         debug "MATCH!"
---       CM.modify_ (HashSet.insert cprim) (prim ^. #primType, cprim ^. #func) $ store ^. #callablePrims
-
-
 -- | Samples paths on-demand for function, and checks them for each prim.
 -- Adds instances found of CallableWMIs back into CfgStore
 onionCheckFunc
@@ -1212,17 +1167,17 @@ onionCheckFunc
   -> [Prim]
   -> Double
   -> HashMap Function TypeHints
+  -> [TaintPropagator]
   -> Function
   -> IO ()
-onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims pathSamplingFactor funcToTypeHintsMap func = do
+onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims pathSamplingFactor funcToTypeHintsMap taintProps func = do
   mPaths <- onionSampleBasedOnFuncSize pathSamplingFactor store func
   let paths = fromMaybe [] mPaths
       typeHints = fromMaybe HashMap.empty (HashMap.lookup func funcToTypeHintsMap)
-      pathPreps = mkPathPrepWithTypeHints typeHints [] <$> paths
+      pathPreps = mkPathPrepWithTypeHints typeHints taintProps <$> paths
       pathPrimCombos = (,) <$> pathPreps <*> prims
   forConcurrently_ pathPrimCombos $
     uncurry (onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func)
-
 
 -- | Does a single pass over all the funcs.
 -- Adds instances found of CallableWMIs back into CfgStore
@@ -1235,8 +1190,9 @@ onionSinglePass
   -> Bool
   -> Double
   -> HashMap Function TypeHints
+  -> [TaintPropagator]
   -> IO ()
-onionSinglePass maxResultsPerPath solver store prims funcs doSquash pathSamplingFactor funcToTypeHintsMap = do
+onionSinglePass maxResultsPerPath solver store prims funcs doSquash pathSamplingFactor funcToTypeHintsMap taintProps = do
   -- Get a fresh snapshot every time
   debug "Getting callable primitives snapshot"
   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
@@ -1244,24 +1200,12 @@ onionSinglePass maxResultsPerPath solver store prims funcs doSquash pathSampling
     then do
       let squashedSnapshot = fmap squashCallableWMIs cprimsSnapshot
       debug "Squashing duplicate CallableWMIs"
-      CM.putSnapshot squashedSnapshot (store ^. #callablePrims)
+      CM.putSnapshot squashedSnapshot $ store ^. #callablePrims
       return squashedSnapshot
     else return cprimsSnapshot
   forM_ (zip [1::Int ..] funcs) $ \(idx, func) -> do
     debug $ "Checking function " <> show idx <> "/" <> show (length funcs) <> ": " <> show (func ^. #name)
-    onionCheckFunc maxResultsPerPath solver store cprimsToUse prims pathSamplingFactor funcToTypeHintsMap func
-
--- onionSinglePass
---   :: StmtSolver Pil.Stmt IO
---   -> CfgStore
---   -> [Prim]
---   -> [Function]
---   -> IO ()
--- onionSinglePass solver store prims funcs = do
---   -- Get a fresh snapshot every time
---   cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
---   mapM_ (onionCheckFunc solver store cprimsSnapshot prims) funcs
-
+    onionCheckFunc maxResultsPerPath solver store cprimsToUse prims pathSamplingFactor funcToTypeHintsMap taintProps func
 
 chooseSolver
   :: IsStatement expr stmt
@@ -1274,7 +1218,6 @@ chooseSolver False = const . return $ Solver.Sat HashMap.empty
 -- chooseSolver True = either (const $ pure Solver.Unk) (return . view #result)
 --   <=< solveTypedStmtsWith z3 Solver.IgnoreErrors . zip [0..]
 
-
 onionFlow
   :: Word64
   -> Bool               -- actually use SMT solver?
@@ -1285,21 +1228,23 @@ onionFlow
   -> [Prim]             -- checks all on each path
   -> HashMap Function TypeHints
   -> Bool
-  -> [ReferenceKind]
-  -> HashSet Text       -- attack surface function names (empty = all funcs)
-  -> Word64             -- attack surface BFS depth
+  -> HashSet Text -- attack surface function names (empty = all funcs)
+  -> Word64 -- attack sufrace BFS depth
+  -> [(Text, Prim)]   -- ref sub-prim pairs
+  -> [TaintPropagator]  -- taint propagators for func calls
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash refKinds attackSurface attackSurfaceDepth = do
-  _ <- return refKinds -- suppressing warning
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash attackSurface attackSurfaceDepth pRefSubPrimPairs taintProps = do
   allFuncs <- CfgStore.getFuncs store
   internalFuncs <- CfgStore.getInternalFuncs store
   funcs <- if HashSet.null attackSurface
     then return internalFuncs
     else computeAttackSurfaceWorkingSet store internalFuncs attackSurface attackSurfaceDepth
   debug $ "Onion working set: " <> show (length funcs) <> " functions"
-  let initialPrims = getInitialWMIs stdLibPrims allFuncs
+  let stdlibPrims = getInitialWMIs stdLibPrims allFuncs
+      morePrims = getInitialPseudoRefSubPrims pRefSubPrimPairs allFuncs
+      initialPrims = HashMap.union stdlibPrims morePrims
   CM.putSnapshot initialPrims $ store ^. #callablePrims
-  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims funcs doSquash pathSamplingFactor funcToTypeHintsMap
+  replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims funcs doSquash pathSamplingFactor funcToTypeHintsMap taintProps
   when doSquash $ do
     debug "Squashing the rest of the duplicate CallableWMIs"
     snapshot <- CM.getSnapshot (store ^. #callablePrims)
@@ -1307,31 +1252,6 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor s
     CM.putSnapshot squashed $ store ^. #callablePrims
   where
     solver = chooseSolver actuallyUseSolver
-
--- onionFlow
---   :: Bool               -- actually use SMT solver?
---   -> Word64             -- max times to iterate checking whole binary
---   -> CfgStore
---   -> [KnownFunc]
---   -> [Prim]             -- checks all on each path
---   -> IO ()              -- it writes results into CfgStore and hopefully DB
--- onionFlow actuallyUseSolver maxIterations store stdLibPrims prims = do
---   allFuncs <- CfgStore.getFuncs store
---   funcs <- CfgStore.getInternalFuncs store
---   forM_ funcs $ \func -> do
---     debug $ "Getting paths for: " <> show (func ^. #name)
---     paths <- fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 store func
---     debug $ "Got " <> show (length paths) <> " paths."
---     let pathPreps = mkPathPrep [] <$> paths
-
---     CM.set func pathPreps $ store ^. #pathSamples
---   debug "Finished sampling paths"
---   let initialPrims = getInitialWMIs stdLibPrims allFuncs
---   CM.putSnapshot initialPrims $ store ^. #callablePrims
---   replicateM_ (fromIntegral maxIterations) $ onionSinglePass solver store prims funcs
---   where
---     solver = chooseSolver actuallyUseSolver
-
 
 -- | Compute the set of functions reachable from attack surface entry points
 -- via BFS through CfgInfo calls, up to a given depth.
@@ -1359,7 +1279,6 @@ computeAttackSurfaceWorkingSet store internalFuncs entryNames maxDepth = do
           go
   go
   HashSet.toList <$> readIORef visitedRef
-
 
 -- | Pick a function weighted by remaining samples needed.
 -- Returns Nothing when all functions have met their sample targets.
@@ -1419,19 +1338,21 @@ steadyStateOnionFlow
   -> [Prim]
   -> HashMap Function TypeHints
   -> Bool              -- doSquash
-  -> [ReferenceKind]
   -> HashSet Text      -- attack surface function names
   -> Word64            -- attack surface BFS depth
+  -> [(Text, Prim)]    -- ref things
+  -> [TaintPropagator]
   -> Word64            -- report interval
   -> IO ()             -- output callback
   -> IO ()
-steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash refKinds attackSurface attackSurfaceDepth reportInterval outputCallback = do
-  _ <- return refKinds -- suppressing warning
+steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash attackSurface attackSurfaceDepth pRefSubPrimPairs taintProps reportInterval outputCallback = do
   allFuncs <- CfgStore.getFuncs store
   internalFuncs <- CfgStore.getInternalFuncs store
 
   -- Initialize WMIs from stdlib prims
-  let initialPrims = getInitialWMIs stdLibPrims allFuncs
+  let stdlibPrims = getInitialWMIs stdLibPrims allFuncs
+      morePrims = getInitialPseudoRefSubPrims pRefSubPrimPairs allFuncs
+      initialPrims = HashMap.union stdlibPrims morePrims
   CM.putSnapshot initialPrims $ store ^. #callablePrims
 
   -- Compute working set
@@ -1446,8 +1367,8 @@ steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor stor
     return $ case mCfgInfo of
       Nothing -> Nothing
       Just cfgInfo ->
-        let numNodes = fromIntegral $ HashSet.size (cfgInfo ^. #nodes)
-            target = max 1 (floor (numNodes * pathSamplingFactor))
+        let numNodes = fromIntegral . HashSet.size $ cfgInfo ^. #nodes
+            target = max 1 . floor $ numNodes * pathSamplingFactor
         in Just (func, target)
 
   -- Initialize sample counters and per-function visit counts for path diversity
@@ -1467,7 +1388,7 @@ steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor stor
           Just func -> do
             -- Get accumulated visit counts for this function
             allVisitCounts <- readIORef visitCountsRef
-            let funcVisitCounts = fromMaybe emptyVisitCounts (HashMap.lookup func allVisitCounts)
+            let funcVisitCounts = fromMaybe emptyVisitCounts $ HashMap.lookup func allVisitCounts
 
             -- Sample 1 path using visit counts for diversity
             mResult <- sampleSinglePathWithVisitCounts store func funcVisitCounts
@@ -1479,18 +1400,18 @@ steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor stor
                 -- Update visit counts for this function
                 modifyIORef' visitCountsRef (HashMap.insert func updatedVisitCounts)
 
-                let typeHints = fromMaybe HashMap.empty (HashMap.lookup func funcToTypeHintsMap)
-                    pprep = mkPathPrepWithTypeHints typeHints [] path
+                let typeHints = fromMaybe HashMap.empty $ HashMap.lookup func funcToTypeHintsMap
+                    pprep = mkPathPrepWithTypeHints typeHints taintProps path
 
                 -- Get fresh callable prims snapshot
-                cprimsSnapshot <- CM.getSnapshot (store ^. #callablePrims)
+                cprimsSnapshot <- CM.getSnapshot $ store ^. #callablePrims
 
                 -- Check path against all prims concurrently
                 forConcurrently_ prims $ \prim ->
                   steadyStateCheckPathForPrim maxResultsPerPath solver store cprimsSnapshot func pprep prim doSquash
 
             -- Increment sample count
-            modifyIORef' countsRef (HashMap.insertWith (+) func 1)
+            modifyIORef' countsRef $ HashMap.insertWith (+) func 1
 
             -- Check report interval
             modifyIORef' iterRef (+ 1)
