@@ -36,12 +36,11 @@ import qualified Data.Text as Text
 userControlledStrnCpyLen :: BugMatch
 userControlledStrnCpyLen = BugMatch
   { pathPattern =
-      [ Stmt $ Call (Just Wild) (CallFunc (FuncName "cgc_strncpy"))
+      Stmt $ Call (Just Wild) (CallFunc (FuncName "cgc_strncpy"))
         [ Wild
         , Wild
         , Bind "n" $ Contains (Bind "arg" (Var "arg"))
         ]
-      ]
   , bugName = "User Controlled strncpy length"
   , bugDescription =
     "The function arg `" <> TextExpr "arg" <> "` is passed into the length argument of `strncpy` as the expression `" <> TextExpr "n" <> "`."
@@ -51,11 +50,10 @@ userControlledStrnCpyLen = BugMatch
 userControlledStrcpySecondArg :: BugMatch
 userControlledStrcpySecondArg = BugMatch
   { pathPattern =
-      [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_strcpy"))
+      Stmt $ Call Nothing (CallFunc (FuncName "cgc_strcpy"))
         [ Wild
         , Bind "src" $ Contains (Bind "arg" (Var "arg"))
         ]
-      ]
   , bugName = "User Controlled src arg of strcpy"
   , bugDescription =
     "The function arg `" <> TextExpr "arg" <> "` is passed into the src arg of `strcpy` as the expression `" <> TextExpr "src" <> "`."
@@ -64,7 +62,7 @@ userControlledStrcpySecondArg = BugMatch
 
 doubleFree :: BugMatch
 doubleFree = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ Stmt $ Call Nothing (CallFunc (FuncName "cgc_free")) [ Bind "DivePtr" Wild ]
       , Stmt $ Call Nothing (CallFunc (FuncName "cgc_free")) [ Bind "DivePtr" Wild ]
       ]
@@ -76,7 +74,7 @@ doubleFree = BugMatch
 
 useAfterFree :: BugMatch
 useAfterFree = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc (FuncName "cgc_malloc")) []
       , Stmt $ Call Nothing (CallFunc (FuncName "cgc_free")) [ Bind "ptr" Wild ]
       -- TODO: add the "use" part, ie memory load or store to "ptr"
@@ -90,7 +88,7 @@ useAfterFree = BugMatch
 incrementWithoutCheck :: BugMatch
 incrementWithoutCheck = BugMatch
   { pathPattern =
-      [ AvoidUntil $ AvoidSpec
+      AvoidUntil $ AvoidSpec
         { avoid = Stmt . Constraint
                   $   (Contains $ (load (Bind "ptr" Wild) ()) .< Wild)
                   .|| (Contains $ (load (Bind "ptr" Wild) ()) .<= Wild)
@@ -100,7 +98,6 @@ incrementWithoutCheck = BugMatch
           [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
           ]
         }
-      ]
 
   , bugName = "Increment Without Check"
   , bugDescription =
@@ -110,7 +107,7 @@ incrementWithoutCheck = BugMatch
 
 oobWrite :: BugMatch
 oobWrite = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ -- Stmt $ Call Nothing (CallFunc (FuncName "cgc_receive_until_flush")) []
         Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc (FuncName "cgc_malloc")) [Bind "ptrSize" Immediate]
       , Stmt (Store (Bind "ptrAccess" (Contains (Bind "ptr" Wild))) (Bind "val" Wild))
@@ -130,7 +127,7 @@ oobWrite = BugMatch
 
 oobRead :: BugMatch
 oobRead = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc (FuncName "cgc_malloc")) [Bind "ptrSize" Immediate]
       , Stmt (Def Wild
               (Bind "fullExpr"

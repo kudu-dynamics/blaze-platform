@@ -220,17 +220,17 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         sort (observeAll' stmts $ avoidUntil avoid until) `shouldBe` sort expected
 
   context "match" $ do
-    let pureMatch :: [StmtPattern] -> [Pil.Stmt] -> [(MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])]
-        pureMatch pats stmts = runIdentity . match 20 dummySolver pats $ mkDummyPathPrep (stmts :: [Pil.Stmt])
-        pureMatch_ pats stmts = view _2 <$> pureMatch pats stmts
+    let pureMatch :: StmtPattern -> [Pil.Stmt] -> [(MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])]
+        pureMatch pat stmts = runIdentity . match 20 dummySolver pat $ mkDummyPathPrep (stmts :: [Pil.Stmt])
+        pureMatch_ pat stmts = view _2 <$> pureMatch pat stmts
         pureMatchWithBinds
-          :: [StmtPattern]
+          :: StmtPattern
           -> [Pil.Stmt]
           -> [ ( HashMap ( Symbol Pil.Expression) Pil.Expression
                , [Pil.Stmt]
                )
              ]
-        pureMatchWithBinds pats stmts = f <$> pureMatch pats stmts
+        pureMatchWithBinds pat stmts = f <$> pureMatch pat stmts
           where f (ms, stmts') = (ms ^. #boundSyms, stmts')
         _pureMatchStmt
           :: Statement ExprPattern
@@ -260,27 +260,27 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             (mctx, mstate) = mkMatcherState dummySolver $ mkDummyPathPrep stmts
 
         -- Match that runs the solver in IO
-        solveMatch :: [StmtPattern] -> [Pil.Stmt] -> IO [(MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])]
-        solveMatch pats stmts = match 20 (solveStmtsWithZ3 Solver.AbortOnError) pats $ mkDummyPathPrep (stmts :: [Pil.Stmt])
-        solveMatch_ pats stmts = view _2 <<$>> solveMatch pats stmts
+        solveMatch :: StmtPattern -> [Pil.Stmt] -> IO [(MatcherState Pil.Expression Pil.Stmt, [Pil.Stmt])]
+        solveMatch pat stmts = match 20 (solveStmtsWithZ3 Solver.AbortOnError) pat $ mkDummyPathPrep (stmts :: [Pil.Stmt])
+        solveMatch_ pat stmts = view _2 <<$>> solveMatch pat stmts
 
-        typedMatch :: [StmtPattern] -> [TypedStmt] -> [(MatcherState TypedExpr TypedStmt, [TypedStmt])]
-        typedMatch pats stmts = runIdentity . match 20 dummySolver pats $ mkDummyPathPrep (stmts :: [TypedStmt])
-        typedMatch_ pats stmts = view _2 <$> typedMatch pats stmts
+        typedMatch :: StmtPattern -> [TypedStmt] -> [(MatcherState TypedExpr TypedStmt, [TypedStmt])]
+        typedMatch pat stmts = runIdentity . match 20 dummySolver pat $ mkDummyPathPrep (stmts :: [TypedStmt])
+        typedMatch_ pat stmts = view _2 <$> typedMatch pat stmts
 
     
     it "should match empty list of stmts when provided no patterns" $ do
-      pureMatch_ [] [] `shouldBe` [[]]
+      pureMatch_ Good [] `shouldBe` [[]]
 
     it "should match when provided no patterns" $ do
       let stmts = path1
-          pats = []
+          pats = Good
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail to match stmt pattern when there are no statements" $ do
       let stmts = []
-          pats = [Stmt $ Def Wild Wild]
+          pats = Stmt $ Def Wild Wild
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -301,13 +301,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     it "should match on an immediate" $ do
       let stmts = [def "b" (const 33 4)]
-          pats = [Stmt $ Def Wild Immediate]
+          pats = Stmt $ Def Wild Immediate
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an immediate that must be evaluated" $ do
       let stmts = [def "b" (add (const 0 4) (const 33 4) 4)]
-          pats = [Stmt $ Def Wild Immediate]
+          pats = Stmt $ Def Wild Immediate
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -317,7 +317,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                 , op = Pil.CONST_PTR $ Pil.ConstPtrOp 1052800
                 }
           stmts = [def "b" loadPtrExpr]
-          pats = [Stmt $ Def Wild Immediate]
+          pats = Stmt $ Def Wild Immediate
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -332,14 +332,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                          }
                 }
           stmts = [def "b" loadPtrExpr]
-          pats = [Stmt $ Def Wild (Contains Immediate)]
+          pats = Stmt $ Def Wild (Contains Immediate)
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for integral CmpE" $ do
       let stmts :: [Pil.Stmt]
           stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
-          pats = [Stmt . BranchCond $ Wild .== Wild]
+          pats = Stmt . BranchCond $ Wild .== Wild
           expected = [stmts]
       PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
@@ -348,66 +348,66 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [ branchCond $ cmpE (const 33 4) (var "arg4" 4) 4
                   , ret (var "arg4" 4)
                   ]
-          pats1 = [ Stmt . BranchCond $ Bind "x" (Var "arg4") .== Wild
-                  , Stmt . Ret $ Bind "x" Wild
-                  ]
+          pats1 = ordered [ Stmt . BranchCond $ Bind "x" (Var "arg4") .== Wild
+                          , Stmt . Ret $ Bind "x" Wild
+                          ]
           expected = [ (HashMap.fromList
                         [ ("x", var "arg4" 4)
                         ]
                        , stmts
                        )
                      ]
-          pats2 = [ Stmt . BranchCond $ Wild .== Bind "x" (Var "arg4")
-                  , Stmt . Ret $ Bind "x" Wild
-                  ]
+          pats2 = ordered [ Stmt . BranchCond $ Wild .== Bind "x" (Var "arg4")
+                          , Stmt . Ret $ Bind "x" Wild
+                          ]
       PrettyShow' (pureMatchWithBinds pats1 stmts) `shouldBe` PrettyShow' expected
       PrettyShow' (pureMatchWithBinds pats2 stmts) `shouldBe` PrettyShow' expected
 
     it "should match .== for float FcmpE" $ do
       let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
-          pats = [Stmt . BranchCond $ Wild .== Wild]
+          pats = Stmt . BranchCond $ Wild .== Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for integral (Not (Not (CmpE ...)))" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
-          pats = [Stmt . BranchCond $ Wild .== Wild]
+          pats = Stmt . BranchCond $ Wild .== Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for integral (Not (CmpNe ...))" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (const 33 4) 4]
-          pats = [Stmt . BranchCond $ Wild .== Wild]
+          pats = Stmt . BranchCond $ Wild .== Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for float (Not (Not (fcmpE ...)))" $ do
       let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
-          pats = [Stmt . BranchCond $ Wild .== Wild]
+          pats = Stmt . BranchCond $ Wild .== Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== for float (Not (fcmpNe ...))" $ do
       let stmts = [branchCond $ fcmpE (fconst 33.0 4) (fconst 33.0 4) 4]
-          pats = [Stmt . BranchCond $ Wild .== Wild]
+          pats = Stmt . BranchCond $ Wild .== Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match .== if args are flipped" $ do
       let stmts = [branchCond $ cmpE (const 33 4) (var "x" 4) 4]
-          pats = [Stmt . BranchCond $ Var "x" .== Immediate]
+          pats = Stmt . BranchCond $ Var "x" .== Immediate
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match inequality if args are flipped" $ do
       let stmts = [branchCond $ cmpSlt (const 33 4) (var "x" 4) 4]
-          pats = [Stmt . BranchCond $ Var "x" .> Immediate]
+          pats = Stmt . BranchCond $ Var "x" .> Immediate
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on a var" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def (Var "b") Wild]
+          pats = Stmt $ Def (Var "b") Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -417,61 +417,61 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             . Pil.ConstFuncPtrOp (intToAddr 0x888)
             $ Just "funcTable"
           stmts = [def "b" funcPtr]
-          pats = [Stmt $ Def (Var "b") (Var "funcTable")]
+          pats = Stmt $ Def (Var "b") (Var "funcTable")
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should fail to match match a var if prefix of name is different" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def (Var "a") Wild]
+          pats = Stmt $ Def (Var "a") Wild
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match an expression that Contains a variable" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
+          pats = Stmt $ Def Wild (Contains (Var "arg4"))
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match an expression that Contains an Immediate" $ do
       let stmts = [def "b" (load (const 83483834 8) 8)]
-          pats = [Stmt $ Def Wild (Contains Immediate)]
+          pats = Stmt $ Def Wild (Contains Immediate)
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match an expression that Contains an Immediate2" $ do
       let stmts = [def "b" (load (constPtr 83483834 8) 8)]
-          pats = [Stmt $ Def Wild (Contains Immediate)]
+          pats = Stmt $ Def Wild (Contains Immediate)
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match first match in OrPattern" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def (Var "b" .|| Var "a") Wild]
+          pats = Stmt $ Def (Var "b" .|| Var "a") Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match second match in OrPattern" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def (Var "a" .|| Var "b") Wild]
+          pats = Stmt $ Def (Var "a" .|| Var "b") Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match a NotPattern" $ do
       let stmts = [def "b" (load (var "arg4" 4) 4)]
-          pats = [Stmt $ Def (NotPattern $ Var "c") Wild]
+          pats = Stmt $ Def (NotPattern $ Var "c") Wild
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should use NotPattern to fail to bind if two things are equal" $ do
       let stmts = [store (var "a" 8) (load (var "a" 8) 8)]
-          pats = [Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())]
+          pats = Stmt $ Store (Bind "dest" Wild) (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match a more complex expression that Contains a variable" $ do
       let stmts = [def "b" (load (add (var "arg4" 4) (const 44 4) 4) 4)]
-          pats = [Stmt $ Def Wild (Contains (Var "arg4"))]
+          pats = Stmt $ Def Wild (Contains (Var "arg4"))
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -480,9 +480,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [ def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Stmt $ Def (Var "b") Wild
-                 , Stmt $ Def (Var "c") Wild
-                 ]
+          pats = ordered [ Stmt $ Def (Var "b") Wild
+                         , Stmt $ Def (Var "c") Wild
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -491,9 +491,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Stmt $ Def (Var "b") Wild
-                 , Stmt $ Def (Var "c") Wild
-                 ]
+          pats = ordered [ Stmt $ Def (Var "b") Wild
+                         , Stmt $ Def (Var "c") Wild
+                         ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -502,10 +502,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Star
-                 , Stmt $ Def (Var "b") Wild
-                 , Stmt $ Def (Var "c") Wild
-                 ]
+          pats = ordered [ Star
+                         , Stmt $ Def (Var "b") Wild
+                         , Stmt $ Def (Var "c") Wild
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -516,11 +516,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "ur" (var "sad" 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Star
-                 , Stmt $ Def (Var "b") Wild
-                 , Star
-                 , Stmt $ Def (Var "c") Wild
-                 ]
+          pats = ordered [ Star
+                         , Stmt $ Def (Var "b") Wild
+                         , Star
+                         , Stmt $ Def (Var "c") Wild
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -529,11 +529,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "ur" (var "sad" 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Star
-                 , Stmt $ Def (Var "b") Wild
-                 , Star
-                 , Stmt $ Def (Var "c") Wild
-                 ]
+          pats = ordered [ Star
+                         , Stmt $ Def (Var "b") Wild
+                         , Star
+                         , Stmt $ Def (Var "c") Wild
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -541,9 +541,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Stmt $ Def (Var "b") (Bind "x" Wild)
-                 , Stmt $ Def (Var "c") (Bind "x" Wild)
-                 ]
+          pats = ordered [ Stmt $ Def (Var "b") (Bind "x" Wild)
+                         , Stmt $ Def (Var "c") (Bind "x" Wild)
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -551,9 +551,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let stmts = [ def "b" (load (var "arg4" 4) 4)
                   , def "c" (load (var "arg5" 4) 4)
                   ]
-          pats = [ Stmt $ Def (Var "b") (Bind "x" Wild)
-                 , Stmt $ Def (Var "c") (Bind "x" Wild)
-                 ]
+          pats = ordered [ Stmt $ Def (Var "b") (Bind "x" Wild)
+                         , Stmt $ Def (Var "c") (Bind "x" Wild)
+                         ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -563,9 +563,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "skip" (const 123 4)
                   , def "d" (var "b" 4)
                   ]
-          pats = [ Star
-                 , Stmt $ Def (Bind "x" Wild) (Var "b")
-                 ]
+          pats = ordered [ Star
+                         , Stmt $ Def (Bind "x" Wild) (Var "b")
+                         ]
           expected = [ ( HashMap.fromList
                          [("x", var "c" 4)]
                        , stmts
@@ -580,8 +580,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     it "should match on ptr inside LOAD" $ do
       let stmts = [ def "b" $ load (var "arg4" 4) 4
                   ]
-          pats = [ Stmt $ Def Wild (load (Bind "x" Wild) ())
-                 ]
+          pats = Stmt $ Def Wild (load (Bind "x" Wild) ())
           expected = [ ( HashMap.fromList
                          [("x", var "arg4" 4)]
                        , stmts
@@ -593,8 +592,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let ptr = C.add (var "arg4" 4) (C.const 52 4) 4
           stmts = [ def "b" $ load ptr 4
                   ]
-          pats = [ Stmt $ Def Wild (load (Bind "x" Wild) ())
-                 ]
+          pats = Stmt $ Def Wild (load (Bind "x" Wild) ())
           expected = [ ( HashMap.fromList
                          [("x", ptr)]
                        , stmts
@@ -607,8 +605,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           cdest = Pil.CallFunc func0
           stmts = [ defCall "r" cdest [load ptr 4] 4
                   ]
-          pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [load (Bind "x" Wild) ()]
-                 ]
+          pats = Stmt $ Call Nothing (CallFunc (FuncName "func0")) [load (Bind "x" Wild) ()]
           expected = [ ( HashMap.fromList
                          [("x", ptr)]
                        , stmts
@@ -624,8 +621,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "skip" (const 123 4)
                   , def "d" (var "b" 4)
                   ]
-          pats = [ ordered [ordered [Star, Stmt $ Def (Bind "x" Wild) (Var "b")]]
-                 ]
+          pats = ordered [ordered [Star, Stmt $ Def (Bind "x" Wild) (Var "b")]]
           expected = [ stmts, stmts ]
       PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
@@ -634,10 +630,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "z" (const 0 4)
                   , def "c" (load (var "arg4" 4) 4)
                   ]
-          pats = [ Stmt $ Def (Var "b") (Bind "x" Wild)
-                 , Star
-                 , Stmt $ Def Wild (Bind "x" Wild)
-                 ]
+          pats = ordered [ Stmt $ Def (Var "b") (Bind "x" Wild)
+                         , Star
+                         , Stmt $ Def Wild (Bind "x" Wild)
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -645,8 +641,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallFunc func0
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -655,8 +650,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
           funcNames = HashSet.fromList ["func0", "func1"]
-          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNames funcNames)) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call (Just Wild) (CallFunc (FuncNames funcNames)) [Wild, Wild]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -664,8 +658,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallFunc func2
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncNameRegex "^[a-zA-Z0-9_]+free$")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call (Just Wild) (CallFunc (FuncNameRegex "^[a-zA-Z0-9_]+free$")) [Wild, Wild]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -673,9 +666,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallFunc func0
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0"))
+          pats = Stmt $ Call (Just Wild) (CallFunc (FuncName "func0"))
                    [Var "nope", Wild]
-                 ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -683,8 +675,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallFunc func0
           stmts = [ defCall "r" cdest [var "a" 4] 8
                   ]
-          pats = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call (Just Wild) (CallFunc (FuncName "func0")) [Wild, Wild]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -692,8 +683,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallFunc func0
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -701,8 +691,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallExpr $ var "x" 4
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt $ Call Nothing (CallIndirect $ Var "x") [Wild, Wild]
-                 ]
+          pats = Stmt $ Call Nothing (CallIndirect $ Var "x") [Wild, Wild]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -710,8 +699,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let cdest = Pil.CallExpr $ load (add (var "x" 4) (const 1 4) 4) 4
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt $ Call Nothing (CallIndirect . Contains $ Var "x") [Wild, Wild]
-                 ]
+          pats = Stmt $ Call Nothing (CallIndirect . Contains $ Var "x") [Wild, Wild]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -723,8 +711,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           cdest = Pil.CallExpr $ load (add funcPtr (const 0x4e 4) 4) 4
           stmts = [ defCall "r" cdest [var "a" 4, load (var "arg4" 4) 4] 8
                   ]
-          pats = [ Stmt (Call Nothing (CallIndirect . Contains $ Var "funcTable") [Wild, Wild])
-                 ]
+          pats = Stmt (Call Nothing (CallIndirect . Contains $ Var "funcTable") [Wild, Wild])
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -733,8 +720,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
           stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                   ]
-          pats = [ Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call Nothing (CallFunc (FuncName "func0")) [Wild, Wild]
           expected = [stmts]
       PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
@@ -746,8 +732,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , ret $ var "r" 4
                   , exitContext ctx0 ctx1
                   ]
-          pats = [ Stmt $ Call (Just $ Var "r") (CallFunc (FuncName "func0")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call (Just $ Var "r") (CallFunc (FuncName "func0")) [Wild, Wild]
           expected = [stmts]
       PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
@@ -758,8 +743,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , ret $ const 888 4
                   , exitContext ctx0 ctx1
                   ]
-          pats = [ Stmt $ Call (Just $ Var "r") (CallFunc (FuncName "func0")) [Wild, Wild]
-                 ]
+          pats = Stmt $ Call (Just $ Var "r") (CallFunc (FuncName "func0")) [Wild, Wild]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -774,12 +758,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "y" $ const 777 8
                   , def "z" $ const 777 8
                   ]
-          pats1 = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func1")) [Wild, Wild]
-                  , Stmt $ Def (Var "x") Wild
-                  ]
-          pats2 = [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func1")) [Wild, Wild]
-                  , Stmt $ Def (Var "y") Wild
-                  ]
+          pats1 = ordered [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func1")) [Wild, Wild]
+                          , Stmt $ Def (Var "x") Wild
+                          ]
+          pats2 = ordered [ Stmt $ Call (Just Wild) (CallFunc (FuncName "func1")) [Wild, Wild]
+                          , Stmt $ Def (Var "y") Wild
+                          ]
 
           expected1 = []
           expected2 = [stmts]
@@ -795,13 +779,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                    
             stmts = [ def "b" (const 0 t1)
                     ]
-            pats = [ Stmt $ Def (Var "b")
+            pats = Stmt $ Def (Var "b")
                      (OfType (PilType $ M.TInt AnyBitWidth (Just True)) Wild)
-                   ]
             patsNotSigned
-              = [ Stmt $ Def (Var "b")
+              = Stmt $ Def (Var "b")
                   (OfType (PilType $ M.TInt AnyBitWidth (Just False)) Wild)
-                ]
 
             expected = [stmts]
         typedMatch_ pats stmts `shouldBe` expected
@@ -816,11 +798,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
             stmts = [ def "b" (var "a" tarray)
                     ]
-            pats = [ Stmt (Def (Var "b")
+            pats = Stmt (Def (Var "b")
                        (OfType (PilType $ M.TArray (BindLenAsExpr "len" AnyLen) AnyType) Wild))
                      `Where`
                      [ cmpUlt (Bound "len") (const 37 (SizeOf "len")) (SizeOf "len")]
-                   ]
             sz = ( 32
                  , Nothing
                  )
@@ -854,8 +835,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                 , ( ConstBitWidth 0x10, tFloatPat )
                 ]
                 
-            pats = [ Stmt $ Def (Var "b") (OfType tRecordPat Wild)
-                   ]
+            pats = Stmt $ Def (Var "b") (OfType tRecordPat Wild)
             expected = [ stmts
                        ]
         typedMatch_ pats stmts `shouldBe` expected
@@ -885,7 +865,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     [ ( AnyBitWidth, tIntPat ) ])
                 ]
                   
-            pats = [ Stmt $ Def (Var "b") (OfType tRecordPat Wild) ]
+            pats = Stmt $ Def (Var "b") (OfType tRecordPat Wild)
             expected = [ stmts ]
         typedMatch_ pats stmts `shouldBe` expected
 
@@ -894,7 +874,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let ctx0 = Pil.Ctx func0 0
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
-            pats = [ Stmt $ EnterContext AnyCtx [] ]
+            pats = Stmt $ EnterContext AnyCtx []
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -902,7 +882,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let ctx0 = Pil.Ctx func0 0
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
-            pats = [ Stmt $ EnterContext AnyCtx [Var "a", Contains (Var "arg4")] ]
+            pats = Stmt $ EnterContext AnyCtx [Var "a", Contains (Var "arg4")]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -910,7 +890,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let ctx0 = Pil.Ctx func0 0
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
-            pats = [ Stmt $ EnterContext AnyCtx [Var "b", Wild] ]
+            pats = Stmt $ EnterContext AnyCtx [Var "b", Wild]
             expected = []
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -920,9 +900,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts = [ exitContext ctx1 ctx0
                     , def "c" $ const 42 8
                     ]
-            pats = [ Stmt $ ExitContext AnyCtx AnyCtx
-                   , Stmt $ Def (Var "c") Wild
-                   ]
+            pats = ordered [ Stmt $ ExitContext AnyCtx AnyCtx
+                           , Stmt $ Def (Var "c") Wild
+                           ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -932,9 +912,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
                     , exitContext ctx1 ctx0
                     ]
-            pats = [ Stmt $ EnterContext (BindCtx "x" AnyCtx) []
-                   , Stmt $ ExitContext (BindCtx "x" AnyCtx) AnyCtx
-                   ]
+            pats = ordered [ Stmt $ EnterContext (BindCtx "x" AnyCtx) []
+                           , Stmt $ ExitContext (BindCtx "x" AnyCtx) AnyCtx
+                           ]
             
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
@@ -945,9 +925,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
                     , exitContext ctx1 ctx0
                     ]
-            pats = [ Stmt $ EnterContext (BindCtx "x" AnyCtx) []
-                   , Stmt $ ExitContext AnyCtx (BindCtx "x" AnyCtx)
-                   ]
+            pats = ordered [ Stmt $ EnterContext (BindCtx "x" AnyCtx) []
+                           , Stmt $ ExitContext AnyCtx (BindCtx "x" AnyCtx)
+                           ]
             
             expected = []
         pureMatch_ pats stmts `shouldBe` expected
@@ -955,10 +935,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
     it "should match on orr" $ do
       let stmts = [ def "b" (const 0 4)
                   ]
-          pats = [ orr [ Stmt $ Def (Var "a") Wild
-                       , Stmt $ Def (Var "b") Wild
-                       ]
-                 ]
+          pats = orr [ Stmt $ Def (Var "a") Wild
+                     , Stmt $ Def (Var "b") Wild
+                     ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -968,18 +947,18 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "c" (const 1 4)
                   , def "d" (const 1 4)
                   ]
-          pats = [ ordered [ Stmt $ Def (Var "b") Wild
-                           , Star
-                           , Stmt $ Def (Var "c") Wild
-                           ]
-                 , Stmt $ Def (Var "d") Wild
-                 ]
+          pats = ordered [ ordered [ Stmt $ Def (Var "b") Wild
+                                   , Star
+                                   , Stmt $ Def (Var "c") Wild
+                                   ]
+                         , Stmt $ Def (Var "d") Wild
+                         ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match ADD pattern on FIELD_ADDR expression" $ do
       let stmts = [def "a" (C.fieldAddr (var "esp" 8) 0x24 8)]
-          pats = [Stmt $ Def (Var "a") (Expr $ Pil.ADD (Pil.AddOp (Var "esp") Immediate))]
+          pats = Stmt $ Def (Var "a") (Expr $ Pil.ADD (Pil.AddOp (Var "esp") Immediate))
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -990,12 +969,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "c" (const 3 8)
                   , def "d" (const 2 8)
                   ]
-          pats = [ ordered [ Star
-                           , Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
-                           , Star
-                           , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
-                           ]
-                 ]
+          pats = ordered [ Star
+                         , Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                         , Star
+                         , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
+                         ]
           expected = stmts
           r = pureMatch pats stmts
       length r `shouldBe` 1
@@ -1011,11 +989,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "c" (const 3 8)
                   , def "d" (const 2 8)
                   ]
-          pats = [ Star
-                 , Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
-                 , Star
-                 , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
-                 ]
+          pats = ordered [ Star
+                         , Stmt $ Def (Bind "dest1" Wild) (Bind "x" Wild)
+                         , Star
+                         , Stmt $ Def (Bind "dest2" Wild) (Bind "x" Wild)
+                         ]
           expected = stmts
           r = pureMatch pats stmts
       length r `shouldBe` 1
@@ -1031,11 +1009,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "c" (const 1 4)
                     , def "d" (const 1 4)
                     ]
-            pats = [ Stmt $ Def (Var "b") Wild
-                   , Stmt $ Def (Var "c") Wild
-                   , Star
-                   , Stmt $ Def (Var "d") Wild
-                   ]
+            pats = ordered [ Stmt $ Def (Var "b") Wild
+                           , Stmt $ Def (Var "c") Wild
+                           , Star
+                           , Stmt $ Def (Var "d") Wild
+                           ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -1047,15 +1025,15 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "d" (const 1 4)
                     , def "e" (const 2 4)
                     ]
-            pats = [ Star
-                   , ordered [ Stmt $ Def (Var "a") Wild
-                             , Stmt $ Def (Var "b") Wild
-                             ]
-                   , ordered [ Stmt $ Def (Var "c") Wild
-                             , Stmt $ Def (Var "d") Wild
-                             ]
-                   , Stmt $ Def (Var "e") Wild
-                   ]
+            pats = ordered [ Star
+                           , ordered [ Stmt $ Def (Var "a") Wild
+                                     , Stmt $ Def (Var "b") Wild
+                                     ]
+                           , ordered [ Stmt $ Def (Var "c") Wild
+                                     , Stmt $ Def (Var "d") Wild
+                                     ]
+                           , Stmt $ Def (Var "e") Wild
+                           ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -1065,11 +1043,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "c" (const 1 4)
                     , def "d" (const 1 4)
                     ]
-            pats = [ Stmt $ Def (Var "b") Wild
-                   , Stmt $ Def (Var "c") Wild
-                   , Star  
-                   , Stmt $ Def (Var "d") Wild
-                   ]
+            pats = ordered [ Stmt $ Def (Var "b") Wild
+                           , Stmt $ Def (Var "c") Wild
+                           , Star
+                           , Stmt $ Def (Var "d") Wild
+                           ]
             expected = []
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -1078,9 +1056,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ Star
-                   , EndOfPath
-                   ]
+            pats = ordered [ Star
+                           , EndOfPath
+                           ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -1088,11 +1066,10 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ AvoidUntil $ AvoidSpec
+            pats = AvoidUntil $ AvoidSpec
                      { until = Star `And` EndOfPath
                      , avoid = Stmt $ Def (Var "z") Wild
                      }
-                   ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -1100,12 +1077,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "b" (const 0 4)
                     , def "c" (const 1 4)
                     ]
-            pats = [ ordered [ Star
-                             , Stmt $ Def (Var "b") Wild
-                             , Star
-                             , EndOfPath
-                             ]
-                   ]
+            pats = ordered [ Star
+                           , Stmt $ Def (Var "b") Wild
+                           , Star
+                           , EndOfPath
+                           ]
             expected = [stmts]
         pureMatch_ pats stmts `shouldBe` expected
 
@@ -1113,7 +1089,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let loc addr s = s & #addr .~ addr
       it "should store location for single statement" $ do
         let stmts = [loc (intToAddr 0x888) $ def "b" (load (var "arg4" 4) 4)]
-            pats = [Location "varPlace" . Stmt $ Def (Var "b") Wild]
+            pats = Location "varPlace" . Stmt $ Def (Var "b") Wild
             expected = Just $ HashMap.fromList
               [("varPlace", Right (intToAddr 0x888))]
         (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
@@ -1122,9 +1098,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ loc (intToAddr 0x777) $ def "a" (load (var "arg1" 4) 4)
                     , loc (intToAddr 0x888) $ def "b" (load (var "arg4" 4) 4)
                     ]
-            pats = [ Star
-                   , Location "varPlace" . Stmt $ Def (Var "b") Wild
-                   ]
+            pats = ordered [ Star
+                           , Location "varPlace" . Stmt $ Def (Var "b") Wild
+                           ]
             expected = Just $ HashMap.fromList
               [("varPlace", Right (intToAddr 0x888))]
         (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
@@ -1134,12 +1110,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , loc (intToAddr 0x888) $ def "b" (load (var "arg4" 4) 4)
                     , loc (intToAddr 0x999) $ def "c" (load (var "arg5" 4) 4)
                     ]
-            pats = [ Star
-                   , Location "varPlace" $ orr
-                     [ Stmt $ Def (Var "zzz") Wild
-                     , Stmt $ Def (Var "b") Wild
-                     ]
-                   ]
+            pats = ordered [ Star
+                           , Location "varPlace" $ orr
+                             [ Stmt $ Def (Var "zzz") Wild
+                             , Stmt $ Def (Var "b") Wild
+                             ]
+                           ]
             expected = Just $ HashMap.fromList
               [("varPlace", Right (intToAddr 0x888))]
         (fmap (view (_1 . #locations)) . headMay $ pureMatch pats stmts) `shouldBe` expected
@@ -1149,14 +1125,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "wiff" (const 1 4)
                   , def "b" (const 0 4)
                   ]
-          pats = [ AvoidUntil $ AvoidSpec
+          pats = AvoidUntil $ AvoidSpec
                    { avoid = Stmt $ Def (Var "b") Wild
                    , until = ordered
                              [ Star
                              , Stmt $ Def (Var "wiff") Wild
                              ]
                    }
-                 ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -1165,14 +1140,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "wiff" (const 1 4)
                   , def "b" (const 0 4)
                   ]
-          pats = [ AvoidUntil $ AvoidSpec
+          pats = AvoidUntil $ AvoidSpec
                    { avoid = Stmt $ Def (Var "b") Wild
                    , until = ordered
                              [ Star
                              , Stmt $ Def (Var "c") Wild
                              ]
                    }
-                 ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -1183,14 +1157,13 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                   , def "wiff" (const 1 4)
                   , def "b" (const 0 4)
                   ]
-          pats = [ AvoidUntil $ AvoidSpec
+          pats = AvoidUntil $ AvoidSpec
                    { avoid = Stmt $ Def (Var "a") Wild
                    , until = ordered
                      [ Star
                      , Stmt $ Def (Var "b") Wild
                      ]
                    }
-                 ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -1200,7 +1173,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let stmts = [ constraint $ cmpSlt (load (var "x" 8) 8) (const 888 8) 8
                   , store (var "a" 8) $ add (load (var "a" 8) 8) (const 1 8) 8
                   ]
-          pats = [ AvoidUntil $ AvoidSpec
+          pats = AvoidUntil $ AvoidSpec
                    { avoid = Stmt . Constraint $ load (Bind "ptr" Wild) () .< Wild
                    , until = ordered
                              [ Star
@@ -1208,7 +1181,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                                $ add (load (Bind "ptr" Wild) ()) Wild ()
                              ]
                    }
-                 ]
           expected = [stmts]
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -1216,7 +1188,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let stmts = [ constraint $ cmpSlt (load (var "a" 8) 8) (const 888 8) 8
                   , store (var "a" 8) $ add (load (var "a" 8) 8) (const 1 8) 8
                   ]
-          pats = [ AvoidUntil $ AvoidSpec
+          pats = AvoidUntil $ AvoidSpec
                    { avoid = Stmt . Constraint $ load (Bind "ptr" Wild) () .< Wild
                    , until = ordered
                              [ Star
@@ -1224,12 +1196,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                                $ add (load (Bind "ptr" Wild) ()) Wild ()
                              ]
                    }
-                 ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should handle avoid/until for real world example" $ do
-      
+
       let addr :: Pil.Expression
           addr = add (var "arg1" 0x8) (const 0x8 0x8) 0x8
           stmts :: [Pil.Stmt]
@@ -1237,7 +1208,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             [ constraint $ not (cmpUgt (add (load addr 0x8) (const 0x1 0x8) 0x8) (var "x" 0x8) 0x8) 0x8
             , store addr $ add (load addr 0x8) (const 0x1 0x8) 0x8
             ]
-          pats = [ AvoidUntil $ AvoidSpec
+          pats = AvoidUntil $ AvoidSpec
                    { avoid = Stmt . Constraint
                      $   (Contains (load (Bind "ptr" Wild) ()) .< Wild)
                      .|| (Contains (load (Bind "ptr" Wild) ()) .<= Wild)
@@ -1250,7 +1221,6 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                      , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
                      ]
                    }
-                 ]
           expected = []
       pureMatch_ pats stmts `shouldBe` expected
 
@@ -1260,11 +1230,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "a" (const 0 4)
                     , def "b" (const 777 4)
                     ]
-            pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
-                   , Stmt (Def (Var "b") (Bind "y" Wild))
-                     `Where`
-                     [ cmpNE (Bound "x") (Bound "y") (ConstSize 4) ]
-                   ]
+            pats = ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                           , Stmt (Def (Var "b") (Bind "y" Wild))
+                             `Where`
+                             [ cmpNE (Bound "x") (Bound "y") (ConstSize 4) ]
+                           ]
             stmts' = stmts <> [constraint (cmpNE (const 0 4) (const 777 4) 4)]
             expected = [stmts']
         pureMatch_ pats stmts `shouldBe` expected
@@ -1274,12 +1244,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "b" (const 777 4)
                     , def "c" (const 0 4)
                     ]
-            pats = [ Stmt $ Def (Bind "x" Wild) Immediate
-                   , Star
-                   , Stmt (Def (Bind "y" Wild) Immediate)
-                     `Where`
-                     [ cmpUgt (Bound "x") (Bound "y") (ConstSize 4) ]
-                   ]
+            pats = ordered [ Stmt $ Def (Bind "x" Wild) Immediate
+                           , Star
+                           , Stmt (Def (Bind "y" Wild) Immediate)
+                             `Where`
+                             [ cmpUgt (Bound "x") (Bound "y") (ConstSize 4) ]
+                           ]
             expected = [ stmts <> [constraint (cmpUgt (var "a" 4) (var "c" 4) 4)]
                        , [ def "a" (const 100 4)
                          , def "b" (const 777 4)
@@ -1295,13 +1265,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "a" (const 0 4)
                     , def "b" (const 777 4)
                     ]
-            pats = [ ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
-                             , Stmt (Def (Var "b") (Bind "y" Wild))
-                             ]
+            pats = ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                           , Stmt (Def (Var "b") (Bind "y" Wild))
+                           ]
                      `Necessarily`
                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
                      ]
-                   ]
             expected = [ stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)] ]
         solveMatch_ pats stmts `shouldReturn` expected
 
@@ -1363,15 +1332,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "b" (const 777 4)
                     , def "c" (var "b" 4)
                     ]
-            pats = [ ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
-                             , Stmt $ Def (Var "b") (Bind "y" Wild)
-                             , Stmt (Def (Var "c") (Bind "z" Wild))
-                             ]
+            pats = ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                           , Stmt $ Def (Var "b") (Bind "y" Wild)
+                           , Stmt (Def (Var "c") (Bind "z" Wild))
+                           ]
                      `Necessarily`
                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
                      , cmpE (Bound "z") (Bound "y") (ConstSize 4)
                      ]
-                   ]
             expected =
               [ stmts <> [ constraint (cmpUlt (const 0 4) (const 777 4) 4)
                          , constraint (cmpE (var "b" 4) (const 777 4) 4)
@@ -1383,12 +1351,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         let stmts = [ def "a" (const 10 4)
                     , def "b" (var "c" 4)
                     ]
-            pats = [ ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
-                             , Stmt (Def (Var "b") (Bind "y" Wild))
-                             ]
+            pats = ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
+                           , Stmt (Def (Var "b") (Bind "y" Wild))
+                           ]
                      `Necessarily`
                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
-                   ]
         solveMatch_ pats stmts `shouldReturn` []
 
     context "solving" $ do
@@ -1398,9 +1365,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                     , def "b" (const 777 4)
                     , constraint $ cmpE (var "a" 4) (var "b" 4) 4
                     ]
-            pats = [ Stmt $ Def (Var "a") Wild
-                   , Stmt $ Def (Var "b") Wild
-                   ]
+            pats = ordered [ Stmt $ Def (Var "a") Wild
+                           , Stmt $ Def (Var "b") Wild
+                           ]
             expected = []
         solveMatch pats stmts `shouldReturn` expected
 
@@ -1456,11 +1423,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let pureMatchFull
             :: MatcherCtx Pil.Stmt Identity
             -> MatcherState Pil.Expression Pil.Stmt
-            -> [StmtPattern]
+            -> StmtPattern
             -> [( MatcherState Pil.Expression Pil.Stmt
                 , [Pil.Stmt]
                 )]
-          pureMatchFull mctx mstate = runIdentity . match_ 20 mctx mstate
+          pureMatchFull mctx mstate pat = runIdentity $ match_ 20 mctx mstate pat
           pureMatchFullWithBinds mctx mstate = fmap f . pureMatchFull mctx mstate
             where f (ms, stmts') = (ms ^. #boundSyms, stmts')
 
@@ -1473,9 +1440,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
               ]
-            pats = [ Star
-                   , CallsPrimitive copyPrim varPats
-                   ]
+            pats = ordered [ Star
+                           , CallsPrimitive copyPrim varPats
+                           ]
             pprep = mkPathPrep [] outerPath
             solver :: StmtSolver stmt Identity
             solver _ = return $ Solver.Sat HashMap.empty
@@ -1517,7 +1484,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             (ctx, initMs) = mkMatcherState solver pprep
             initMs' = initMs & #callablePrimitives .~ initialCPrims
             varPats = HashMap.empty
-            pat = [ CallsPrimitive controlledFormatStringPrim varPats ]
+            pat = CallsPrimitive controlledFormatStringPrim varPats
 
         null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
 
@@ -1532,7 +1499,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             (ctx, initMs) = mkMatcherState solver pprep
             initMs' = initMs & #callablePrimitives .~ initialCPrims
             varPats = HashMap.empty
-            pat = [ CallsPrimitive controlledFormatStringPrim varPats ]
+            pat = CallsPrimitive controlledFormatStringPrim varPats
 
         null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
 
@@ -1540,11 +1507,11 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       let pureMatchFull'
             :: MatcherCtx Pil.Stmt Identity
             -> MatcherState Pil.Expression Pil.Stmt
-            -> [StmtPattern]
+            -> StmtPattern
             -> [( MatcherState Pil.Expression Pil.Stmt
                 , [Pil.Stmt]
                 )]
-          pureMatchFull' mctx mstate = runIdentity . match_ 20 mctx mstate
+          pureMatchFull' mctx mstate pat = runIdentity $ match_ 20 mctx mstate pat
           pureMatchFullWithBinds' mctx mstate = fmap f . pureMatchFull' mctx mstate
             where f (ms, stmts') = (ms ^. #boundSyms, stmts')
           dummyCodeSummary' = CodeSummary HashSet.empty HashSet.empty HashSet.empty [] HashSet.empty
@@ -1562,8 +1529,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             storePrim_ = Prim
               { primType = storePrimSpec
               , stmtPattern =
-                  [ Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "val" Wild)
-                  ]
+                  Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "val" Wild)
               }
             stmts :: [Pil.Stmt]
             stmts =
@@ -1574,9 +1540,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ ("ptr", Bind "matched_ptr" Wild)
               , ("val", Bind "matched_val" Wild)
               ]
-            pats = [ SubPrimitive storePrim_ varPats
-                   , Stmt . M.Ret $ Wild
-                   ]
+            pats = ordered [ SubPrimitive storePrim_ varPats
+                           , Stmt . M.Ret $ Wild
+                           ]
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
 
@@ -1598,8 +1564,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             storePrim_ = Prim
               { primType = storePrimSpec
               , stmtPattern =
-                  [ Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "val" Wild)
-                  ]
+                  Location "write" . Stmt $ Store (Bind "ptr" Wild) (Bind "val" Wild)
               }
             stmts :: [Pil.Stmt]
             stmts =
@@ -1611,9 +1576,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             varPats = HashMap.fromList
               [ ("ptr", Bind "matched_ptr" Wild)
               ]
-            pats = [ Star
-                   , SubPrimitive storePrim_ varPats
-                   ]
+            pats = ordered [ Star
+                           , SubPrimitive storePrim_ varPats
+                           ]
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
 
@@ -1633,8 +1598,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             storePrim_ = Prim
               { primType = storePrimSpec
               , stmtPattern =
-                  [ Stmt $ Store (Bind "ptr" Wild) (Bind "x" Wild)
-                  ]
+                  Stmt $ Store (Bind "ptr" Wild) (Bind "x" Wild)
               }
             stmts :: [Pil.Stmt]
             stmts =
@@ -1646,9 +1610,9 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ ("ptr", Bind "matched_ptr" Wild)
               ]
             -- First bind "x" to something, then match the prim
-            pats = [ Stmt $ Def Wild (Bind "x" Wild)
-                   , SubPrimitive storePrim_ varPats
-                   ]
+            pats = ordered [ Stmt $ Def Wild (Bind "x" Wild)
+                           , SubPrimitive storePrim_ varPats
+                           ]
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
 
@@ -1669,7 +1633,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               }
             multiPrim_ = Prim
               { primType = multiPrimSpec
-              , stmtPattern =
+              , stmtPattern = ordered
                   [ Stmt $ Store (Bind "ptr" Wild) Wild
                   , Stmt $ Def (Bind "result" Wild) Wild
                   ]
@@ -1685,7 +1649,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ ("ptr", Bind "out_ptr" Wild)
               , ("result", Bind "out_result" Wild)
               ]
-            pats = [ Star
+            pats = ordered [ Star
                    , SubPrimitive multiPrim_ varPats
                    , Stmt . M.Ret $ Wild
                    ]
@@ -1707,8 +1671,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             storePrim_ = Prim
               { primType = storePrimSpec
               , stmtPattern =
-                  [ Stmt $ Store (Bind "ptr" Wild) Wild
-                  ]
+                  Stmt $ Store (Bind "ptr" Wild) Wild
               }
             stmts :: [Pil.Stmt]
             stmts =
@@ -1716,7 +1679,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               , ret (const 0 4)
               ]
             varPats = HashMap.fromList [("ptr", Bind "p" Wild)]
-            pats = [ SubPrimitive storePrim_ varPats ]
+            pats = SubPrimitive storePrim_ varPats
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
 
@@ -1732,16 +1695,16 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             outerPath = barPath3
             -- Inline prim that uses CallsPrimitive to check cache
             copyAsPrim = Prim copyPrim
-              [ CallsPrimitive copyPrim $ HashMap.fromList
+              ( CallsPrimitive copyPrim $ HashMap.fromList
                 [ ("dest", Bind "dest" Wild)
                 , ("src", Bind "src" Wild)
                 ]
-              ]
+              )
             varPats = HashMap.fromList
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
               ]
-            pats = [ Star
+            pats = ordered [ Star
                    , SubPrimitive copyAsPrim varPats
                    ]
             pprep = mkDummyPathPrep' outerPath
@@ -1764,15 +1727,14 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             storePrim_ = Prim
               { primType = storePrimSpec
               , stmtPattern =
-                  [ Location "write" . Stmt $ Store (Bind "ptr" Wild) Wild
-                  ]
+                  Location "write" . Stmt $ Store (Bind "ptr" Wild) Wild
               }
             stmts :: [Pil.Stmt]
             stmts =
               [ loc (intToAddr 0x1000) $ store (var "dest" 8) (const 42 8)
               ]
             varPats = HashMap.fromList [("ptr", Wild)]
-            pats = [ SubPrimitive storePrim_ varPats ]
+            pats = SubPrimitive storePrim_ varPats
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
 
@@ -1802,7 +1764,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             varPats = HashMap.fromList
               [ ("ptr", Bind "freed_ptr" Wild)
               ]
-            pats = [ Star
+            pats = ordered [ Star
                    , SubPrimitive PrimLib.freeHeapPrim_ varPats
                    ]
             pprep = mkDummyPathPrep' stmts

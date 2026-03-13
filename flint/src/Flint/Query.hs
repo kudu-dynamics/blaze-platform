@@ -57,9 +57,9 @@ import qualified Data.List.NonEmpty as NE
 
 
 getCallSequenceGraph_
-  :: [StmtPattern]
+  :: StmtPattern
   -> State Int ([FuncNode M.Func], CallSequenceGraph M.Func)
-getCallSequenceGraph_ = foldM go ([], G.empty)
+getCallSequenceGraph_ = go ([], G.empty)
   where
     useId = do
       n <- get
@@ -110,8 +110,8 @@ getCallSequenceGraph_ = foldM go ([], G.empty)
       M.Good -> return (parents, g)
       M.Bad -> return (parents, g)
 
-getCallSequenceGraph :: [StmtPattern] -> CallSequenceGraph M.Func
-getCallSequenceGraph pats = snd $ evalState (getCallSequenceGraph_ pats) 0
+getCallSequenceGraph :: StmtPattern -> CallSequenceGraph M.Func
+getCallSequenceGraph pat = snd $ evalState (getCallSequenceGraph_ pat) 0
 
 mkFuncAddrMapping :: [Function] -> HashMap Address Function
 mkFuncAddrMapping = foldl' (\m func -> HashMap.insert (func ^. #address) func m) HashMap.empty
@@ -306,7 +306,7 @@ matchNodesFulfillingSeq tps allNodes = fmap getAllMatches
 
     matchesPat :: StmtPattern -> (PilNode, [Pil.Stmt]) -> Maybe PilNode
     matchesPat pat (node, nodeData) =
-      case M.singlePureMatch [pat] (mkPathPrep tps nodeData :: PathPrep Pil.Stmt) of
+      case M.singlePureMatch pat (mkPathPrep tps nodeData :: PathPrep Pil.Stmt) of
         Just _ -> Just node
         Nothing -> Nothing
 

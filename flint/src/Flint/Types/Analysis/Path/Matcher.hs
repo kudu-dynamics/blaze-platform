@@ -321,7 +321,7 @@ asOldCallableWMIsMap = HashMap.fromList
 
 data Prim = Prim
   { primType :: PrimSpec
-  , stmtPattern :: [StmtPattern]
+  , stmtPattern :: StmtPattern
   } deriving (Eq, Ord, Show, Hashable, Generic)
 
 type TypedExpr = InfoExpression (BitWidth, Maybe DeepSymType)

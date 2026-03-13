@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0312
+- Changed `Prim.stmtPattern` and `BugMatch.pathPattern` from `[StmtPattern]` to `StmtPattern`
+- Updated matcher API (`match_`, `match`, `singleMatch`, etc.) to take single `StmtPattern`
+
 ## Version 0.26.0310
 - Inline primitive matching through SubPrimitive
 

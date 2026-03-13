@@ -72,7 +72,7 @@ failedToUnregister = fmap f thingsYouShouldUnregister
   where
     f :: ((Text, Word64), (Text, Word64)) -> BugMatch
     f ((regName, regArg), (unregName, unregArg)) = BugMatch
-      { pathPattern =
+      { pathPattern = ordered
           [ Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg $ Bind "handler" Wild
           , Star
           , AvoidUntil $ AvoidSpec
@@ -90,7 +90,7 @@ failedToUnregister = fmap f thingsYouShouldUnregister
 incrementWithoutCheck :: BugMatch
 incrementWithoutCheck = BugMatch
   { pathPattern =
-      [ AvoidUntil $ AvoidSpec
+      AvoidUntil $ AvoidSpec
         { avoid = Stmt . Constraint
                   $   (Contains (load (Bind "ptr" Wild) ()) .< Wild)
                   .|| (Contains (load (Bind "ptr" Wild) ()) .<= Wild)
@@ -102,7 +102,6 @@ incrementWithoutCheck = BugMatch
           [ Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
           ]
         }
-      ]
       
   , bugName = "Increment Without Check"
   , bugDescription =
@@ -112,7 +111,7 @@ incrementWithoutCheck = BugMatch
 
 oobWrite :: Func -> BugMatch
 oobWrite mallocFunc = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc mallocFunc) [Bind "sz" Wild]
       , Stmt $ Store (Bind "ptr" Wild) (add (load (Bind "ptr" Wild) ()) (Bind "n" Wild) ())
       ]
@@ -126,11 +125,10 @@ oobWrite mallocFunc = BugMatch
 writeToGlobal :: BugMatch
 writeToGlobal = BugMatch
   { pathPattern =
-      [ Stmt $ Call Nothing (CallFunc $ FuncName "_copy_from_user")
+      Stmt $ Call Nothing (CallFunc $ FuncName "_copy_from_user")
         [ Bind "out" isGlobal
         , Bind "in" (isGlobal .|| isArg)
         ]
-      ]
       
   , bugName = "User input writes to kernel global"
   , bugDescription =
@@ -141,7 +139,7 @@ writeToGlobal = BugMatch
 inputDataCopiedToStack :: BugMatch
 inputDataCopiedToStack = BugMatch
   { pathPattern =
-      [ AvoidUntil $ AvoidSpec
+      AvoidUntil $ AvoidSpec
         { avoid = Stmt $ Call (Just $ Bind "stackVar" Wild) (CallFunc $ FuncNameRegex "alloc") []
         , until = orr
           [ Stmt $ Call Nothing (CallFunc $ FuncName "memcpy")
@@ -151,7 +149,6 @@ inputDataCopiedToStack = BugMatch
             -- TODO: add regular STORE and other stdlib copies
           ]
         }
-      ]
   , bugName = "User input writes to stack"
   , bugDescription =
     "This path shows that possibly user-controllable memory from " <> TextExpr "src" <> " is written to memory on the stack: `" <> TextExpr "stackVar" <> "`."
@@ -163,10 +160,9 @@ inputDataCopiedToStack = BugMatch
 inputControlledIndirectCall :: BugMatch
 inputControlledIndirectCall = BugMatch
   { pathPattern =
-      [ orr
+      orr
         [ Stmt $ Call Nothing (CallIndirect $ Bind "callTarget" inputDest) []
         ]
-      ]
   , bugName = "Input Controlled Indirect Call"
   , bugDescription =
     "This path shows an indirect call to `" <> TextExpr "callTarget" <> "` which is controlled by an input to the function."
@@ -177,7 +173,7 @@ inputControlledIndirectCall = BugMatch
 
 stackSetToExecutable :: BugMatch
 stackSetToExecutable = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ Stmt $ Call Nothing (CallFunc $ FuncName "fopen") [constStr "/proc/self/maps" ()]
       , Stmt $ Call Nothing (CallFunc $ FuncName "mprotect") [Wild, Wild, const 7 ()]
       ]
@@ -189,9 +185,8 @@ stackSetToExecutable = BugMatch
 stackSetToExecutable' :: BugMatch
 stackSetToExecutable' = BugMatch
   { pathPattern =
-      [ -- Stmt $ Call Nothing (CallFunc $ FuncName "fopen") [constStr "/proc/self/maps" ()]
+      -- Stmt $ Call Nothing (CallFunc $ FuncName "fopen") [constStr "/proc/self/maps" ()]
        Stmt $ Call Nothing (CallFunc $ FuncName "mprotect") [Wild, Wild, const 7 ()]
-      ]
   , bugName = "Stack Set to Executable"
   , bugDescription = "The stack might be set to executable in this function."
   , mitigationAdvice = "Be careful."
@@ -225,8 +220,7 @@ bufferOverflow :: BugMatch
 bufferOverflow = BugMatch
   { pathPattern =
       -- TODO: make this more general than just strcpy
-      [ overFlowCopyingFunc "dest" "src" isArg
-      ]
+      overFlowCopyingFunc "dest" "src" isArg
   , bugName = "Buffer Overflow"
   , bugDescription =
     "The buffer at `" <> TextExpr "dest" <> "` can be overflowed by `" <> TextExpr "src" <> "` because the copy function has no bounds limit and `" <> TextExpr "src" <> "` could be user-controlled."
@@ -321,13 +315,11 @@ formatStringCallPattern'' argPat = orr
 formatStringVulnerability :: BugMatch
 formatStringVulnerability = BugMatch
   { pathPattern =
-      [
         -- Stmt $ Call Nothing (CallFunc $ FuncNames badFuncs) []
         -- formatStringCallPattern "arg" isArg
         -- formatStringCallPattern'
         -- TODO: measure if this version is significantly faster
         formatStringCallPattern'' (Bind "arg" isArg)
-      ]
   , bugName = "Potentially User Controlled Format String"
   , bugDescription =
     "The format string for printf is controlled by `" <> TextExpr "arg" <> "`, which could be user controlled."
@@ -387,7 +379,7 @@ pointerAssigned ptrPat = orr
   
 useAfterFree :: BugMatch
 useAfterFree = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       -- TODO: make this more general to match any stdlib func that takes a format str
       [ Stmt $ Call Nothing (CallFunc $ FuncName "free") [Bind "ptr" Wild]
       , AvoidUntil $ AvoidSpec
@@ -479,7 +471,7 @@ nullPtr = const 0 () .|| constPtr 0 ()
 nullPointerDereference :: BugMatch
 nullPointerDereference = BugMatch
   { pathPattern =
-      [ orr
+      orr
         [ ordered
           [ Stmt $ Def (Bind "ptr" Wild) nullPtr
           , AvoidUntil $ AvoidSpec
@@ -490,7 +482,6 @@ nullPointerDereference = BugMatch
           ]
         , shouldn'tGetPassedNullPtr (Bind "ptr" nullPtr)
         ]
-      ]
   , bugName = "Null Pointer Dereference"
   , bugDescription =
     "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
@@ -517,7 +508,7 @@ nullPointerDereference = BugMatch
 -- TODO: make more general
 stackBasedBufferOverflow :: BugMatch
 stackBasedBufferOverflow = BugMatch
-  { pathPattern =
+  { pathPattern = ordered
       [ Stmt $ Call (Just $ Bind "len" Wild) (CallFunc $ FuncName "strlen") [Bind "buf" isArg]
       , Stmt $ Call Nothing (CallFunc $ FuncName "memcpy") [Wild, Bind "buf" isArg, Bind "len" Wild]
       ]

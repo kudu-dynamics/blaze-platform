@@ -85,14 +85,14 @@ forgePathPrep pp = pp & #stmts .~ (pp ^. #untouchedStmts)
 matchInvPats :: ( M.HasAddress stmt
                 , M.IsStatement expr stmt
                 , M.IsExpression expr
-                ) => [M.StmtPattern] -> Int -> PathPrep stmt -> [(M.MatcherState expr stmt, [stmt])]
-matchInvPats pats maxMatches = runIdentity . M.match maxMatches M.dummySolver pats . forgePathPrep
+                ) => M.StmtPattern -> Int -> PathPrep stmt -> [(M.MatcherState expr stmt, [stmt])]
+matchInvPats pat maxMatches = runIdentity . M.match maxMatches M.dummySolver pat . forgePathPrep
 
 matchInvPats_ :: ( M.HasAddress stmt
                  , M.IsStatement expr stmt
                  , M.IsExpression expr
-                 ) => [M.StmtPattern] -> PathPrep stmt -> [[stmt]]
-matchInvPats_ pats pp = view _2 <$> matchInvPats pats 20 pp
+                 ) => M.StmtPattern -> PathPrep stmt -> [[stmt]]
+matchInvPats_ pat pp = view _2 <$> matchInvPats pat 20 pp
 
 -- doing this instead of parameterizing Prim (or adding Either, etc.)
 -- actually, can just pass ReferenceKinds
@@ -139,22 +139,22 @@ getInitialPseudoRefSubPrims sprimPairs
 genPseudoRefSubPrims :: [PseudoReferenceKind] -> [[(Text, M.Prim)]]
 genPseudoRefSubPrims = map genSubPrimsOnce
   where
-    genPrim :: PseudoReferenceKind -> Text -> [M.StmtPattern] -> (Text, M.Prim)
-    genPrim pRefKind op pats =
+    genPrim :: PseudoReferenceKind -> Text -> M.StmtPattern -> (Text, M.Prim)
+    genPrim pRefKind op pat =
       ( case op of
           "store" -> pRefKind ^. #storeFuncName
           "create" -> pRefKind ^. #createFuncName
           "delete" -> pRefKind ^. #deleteFuncName
           "storedelete" -> pRefKind ^. #storeDeleteFuncName
           _ -> error "cosmic radiation detected"
-      , M.Prim (PrimSpec (DT.concat [pRefKind ^. #name, "_", op]) HashSet.empty HashSet.empty) pats)
+      , M.Prim (PrimSpec (DT.concat [pRefKind ^. #name, "_", op]) HashSet.empty HashSet.empty) pat)
     callPat name = M.Stmt $ M.Call Nothing (M.CallFunc $ M.FuncName name) []
     genSubPrimsOnce :: PseudoReferenceKind -> [(Text, M.Prim)]
     genSubPrimsOnce pRefKind = zipWith ($) (map (genPrim pRefKind) ["create", "store", "storedelete", "delete"])
-      [ [M.Star, callPat $ pRefKind ^. #createFuncName]
-      , [M.Star, callPat $ pRefKind ^. #storeFuncName]
-      , [M.Star, callPat $ pRefKind ^. #storeDeleteFuncName]
-      , [M.Star, callPat $ pRefKind ^. #deleteFuncName]
+      [ M.ordered [M.Star, callPat $ pRefKind ^. #createFuncName]
+      , M.ordered [M.Star, callPat $ pRefKind ^. #storeFuncName]
+      , M.ordered [M.Star, callPat $ pRefKind ^. #storeDeleteFuncName]
+      , M.ordered [M.Star, callPat $ pRefKind ^. #deleteFuncName]
       ]
 
 -- one full pattern OR another full pattern, etc.
@@ -173,10 +173,11 @@ staleReferencePrims =
     getSubPrimName subPrim = DT.take (DT.length longName - 7) longName
       where
         longName = subPrim ^. #primType . #name
-    headHack = view _1 . fromMaybe (M.Prim (PrimSpec "fake" HashSet.empty HashSet.empty) [], []) . uncons
+    headHack = view _1 . fromMaybe (M.Prim (PrimSpec "fake" HashSet.empty HashSet.empty) M.Good, []) . uncons
     genPrim :: [M.Prim] -> M.Prim
     -- maybe bind to ensure arg to funcs is same
     genPrim subPrims = M.Prim (PrimSpec (DT.concat ["stale_reference_", getSubPrimName $ headHack subPrims]) HashSet.empty $ HashSet.fromList ["create", "store", "delete"])
+      $ M.ordered
       [ M.Star
       , M.Location "create" $ M.CallsPrimitive (view #primType $ headHack subPrims) HashMap.empty
       , M.Star
@@ -189,8 +190,11 @@ applyImpliedMatches :: [[(Text, M.Prim)]] -> [M.Prim] -> [M.Prim]
 applyImpliedMatches = zipWith z
  where
    dropAndSet :: M.Prim -> Int -> (HashSet (Symbol Address) -> HashSet (Symbol Address)) -> M.Prim
-   dropAndSet prim n hsFunc = (prim & #stmtPattern .~ drop n (prim ^. #stmtPattern)) & #primType .~ ((prim ^. #primType) & #locations .~ hsFunc (prim ^. #primType . #locations))
-   safeHead = fromMaybe ("", M.Prim (PrimSpec "fake" HashSet.empty HashSet.empty) []) . listToMaybe
+   dropAndSet prim n hsFunc = (prim & #stmtPattern %~ dropOrdered n) & #primType .~ ((prim ^. #primType) & #locations .~ hsFunc (prim ^. #primType . #locations))
+   dropOrdered 0 pat = pat
+   dropOrdered k (M.And _ rest) = dropOrdered (k - 1) rest
+   dropOrdered _ pat = pat
+   safeHead = fromMaybe ("", M.Prim (PrimSpec "fake" HashSet.empty HashSet.empty) M.Good) . listToMaybe
    z x y
      | (fst . safeHead $ x) == "#implied" && fst (x !! 1) == "#implied" = dropAndSet y 4 $ HashSet.delete "store" . HashSet.delete "create"
      | (fst . safeHead $ x) == "#implied" = dropAndSet y 2 $ HashSet.delete "create"
@@ -204,13 +208,13 @@ refPrims = []
 patStarts :: ( M.HasAddress stmt
              , M.IsStatement expr stmt
              , M.IsExpression expr
-             ) => [M.StmtPattern] -> PathPrep stmt -> [[stmt]]
+             ) => M.StmtPattern -> PathPrep stmt -> [[stmt]]
 patStarts pats pp = startHelper [] (pp ^. #untouchedStmts) pats pp
 
 startHelper :: ( M.HasAddress stmt
                , M.IsStatement expr stmt
                , M.IsExpression expr
-               ) => [stmt] -> [stmt] -> [M.StmtPattern] -> PathPrep stmt -> [[stmt]]
+               ) => [stmt] -> [stmt] -> M.StmtPattern -> PathPrep stmt -> [[stmt]]
 startHelper stmts origList pats pp
   | length stmts == length origList = if matched then [stmts] else []
   | matched = stmts : startHelper [] (take (length origList - length stmts) origList) pats pp -- split
@@ -223,13 +227,13 @@ startHelper stmts origList pats pp
 patEnds :: ( M.HasAddress stmt
            , M.IsStatement expr stmt
            , M.IsExpression expr
-           ) => [M.StmtPattern] -> PathPrep stmt -> [[stmt]]
+           ) => M.StmtPattern -> PathPrep stmt -> [[stmt]]
 patEnds pats pp = map (endHelper pats pp) $ patStarts pats pp
 
 endHelper :: ( M.HasAddress stmt
              , M.IsStatement expr stmt
              , M.IsExpression expr
-             ) => [M.StmtPattern] -> PathPrep stmt -> [stmt] -> [stmt]
+             ) => M.StmtPattern -> PathPrep stmt -> [stmt] -> [stmt]
 endHelper pats pp stmts =
   if not matched
     then stmts

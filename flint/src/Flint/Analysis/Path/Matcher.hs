@@ -792,7 +792,7 @@ matchSubPrimitive prim varPats = do
           & #callablePrimitives .~ (outerState ^. #callablePrimitives)
     -- Run the inline pattern in the fresh state
     put freshState
-    matchPattern $ M.ordered (prim ^. #stmtPattern)
+    matchPattern $ prim ^. #stmtPattern
     innerState <- get
     -- Restore outer state, but keep consumed stmts and parsed stmts from inline match
     put outerState
@@ -1023,10 +1023,10 @@ runMatchStmts
   => Int
   -> MatcherCtx stmt m
   -> MatcherState expr stmt
-  -> [M.StmtPattern]
+  -> M.StmtPattern
   -> m [MatcherState expr stmt]
-runMatchStmts maxResults ctx st pats = fmap (fmap snd). observeManyMatcherT ctx st maxResults $ do
-  matchPattern $ M.ordered pats
+runMatchStmts maxResults ctx st pat = fmap (fmap snd). observeManyMatcherT ctx st maxResults $ do
+  matchPattern pat
   drainRemainingStmts
   where
     drainRemainingStmts :: MatcherT expr stmt m ()
@@ -1110,7 +1110,7 @@ match_
   => Int
   -> MatcherCtx stmt m
   -> MatcherState expr stmt
-  -> [M.StmtPattern]
+  -> M.StmtPattern
   -> m [(MatcherState expr stmt, [stmt])]
 match_ maxResults mctx mstate pats = do
   runMatchStmts maxResults mctx mstate pats >>= mapMaybeM solveAndFinalize
@@ -1131,7 +1131,7 @@ match
      )
   => Int
   -> StmtSolver stmt m
-  -> [M.StmtPattern]
+  -> M.StmtPattern
   -> PathPrep stmt
   -> m [(MatcherState expr stmt, [stmt])]
 match maxResults solver pats pathPrep = match_ maxResults mctx mstate pats
@@ -1145,7 +1145,7 @@ singleMatch
      , IsExpression expr
      )
   => StmtSolver stmt m
-  -> [M.StmtPattern]
+  -> M.StmtPattern
   -> PathPrep stmt
   -> m (Maybe (MatcherState expr stmt, [stmt]))
 singleMatch solver pats = fmap headMay . match 1 solver pats
@@ -1155,7 +1155,7 @@ singlePureMatch
      , IsStatement expr stmt
      , IsExpression expr
      )
-  => [M.StmtPattern]
+  => M.StmtPattern
   -> PathPrep stmt
   -> Maybe (MatcherState expr stmt, [stmt])
 singlePureMatch pats = runIdentity . fmap headMay . match 1 dummySolver pats
@@ -1168,6 +1168,6 @@ singleMatch_
      )
   => MatcherCtx stmt m
   -> MatcherState expr stmt
-  -> [M.StmtPattern]
+  -> M.StmtPattern
   -> m (Maybe (MatcherState expr stmt, [stmt]))
 singleMatch_ mctx mstate = fmap headMay . match_ 1 mctx mstate
