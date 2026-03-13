@@ -59,15 +59,14 @@ controlledFormatStringPrim_ :: Prim
 controlledFormatStringPrim_ = Prim
   { primType = controlledFormatStringSpec
   , stmtPattern =
-      [ Location "call" . CallsPrimitive controlledFormatStringSpec $ HashMap.fromList
+      Location "call" . CallsPrimitive controlledFormatStringSpec $ HashMap.fromList
         [ ("fmt", Bind "fmt" Wild) ]
-      ]
   }
 
 controlledFormatStringPrim :: Prim
 controlledFormatStringPrim = Prim
   { primType = controlledFormatStringSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "call" . SubPrimitive controlledFormatStringPrim_ $ HashMap.fromList
         [ ("fmt", Bind "fmt" (Contains Param)) ]
@@ -78,15 +77,14 @@ freeHeapPrim_ :: Prim
 freeHeapPrim_ = Prim
   { primType = freeHeapSpec
   , stmtPattern =
-      [ Location "free" . CallsPrimitive freeHeapSpec $ HashMap.fromList
+      Location "free" . CallsPrimitive freeHeapSpec $ HashMap.fromList
         [ ("ptr", Bind "ptr" Wild) ]
-      ]
   }
 
 freeHeapPrim :: Prim
 freeHeapPrim = Prim
   { primType = freeHeapSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "free" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
         [ ("ptr", Bind "ptr" (Contains isInput)) ]
@@ -97,17 +95,16 @@ allocHeapPrim_ :: Prim
 allocHeapPrim_ = Prim
   { primType = allocHeapSpec
   , stmtPattern =
-      [ Location "alloc" . CallsPrimitive allocHeapSpec $ HashMap.fromList
+      Location "alloc" . CallsPrimitive allocHeapSpec $ HashMap.fromList
         [ ("ptr", Bind "ptr" Wild)
         , ("size", Bind "size" Wild)
         ]
-      ]
   }
 
 allocHeapPrim :: Prim
 allocHeapPrim = Prim
   { primType = allocHeapSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       -- | case 1: allocated ptr is returned
       -- | case 2: allocated ptr is copied to arg or global ptr
@@ -137,7 +134,7 @@ copyMemPrim_ :: Prim
 copyMemPrim_ = Prim
   { primType = copyMemSpec
   , stmtPattern =
-      [ Location "copy" $ orr
+      Location "copy" $ orr
         [ CallsPrimitive copyMemSpec $ HashMap.fromList
           [ ("dest_ptr", Bind "dest_ptr" Wild)
           , ("src_ptr", Bind "src_ptr" Wild)
@@ -145,13 +142,12 @@ copyMemPrim_ = Prim
           ]
         , Stmt $ M.Store (Bind "dest_ptr" Wild) (BindWidth "len" (load (Bind "src_ptr" Wild) ()))
         ]
-      ]
   }
 
 copyMemPrim :: Prim
 copyMemPrim = Prim
   { primType = copyMemSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       -- TODO: handle possibly infinted CopyPtrs
       -- | case 1: func returns dest_ptr or it's copied to input
@@ -187,7 +183,7 @@ copyPtrPrim_ :: Prim
 copyPtrPrim_ = Prim
   { primType = copyPtrSpec
   , stmtPattern =
-      [ Location "copy" $ orr
+      Location "copy" $ orr
         [ CallsPrimitive copyPtrSpec $ HashMap.fromList
           [ ("dest", Bind "dest" Wild)
           , ("copied_ptr", Bind "copied_ptr" Wild)
@@ -197,13 +193,12 @@ copyPtrPrim_ = Prim
            (PilType $ TPointer AnyBitWidth AnyType)
            (Bind "copied_ptr" Wild))
         ]
-      ]
   }
 
 copyPtrPrim :: Prim
 copyPtrPrim = Prim
   { primType = copyPtrSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "copy" . SubPrimitive copyPtrPrim_ $ HashMap.fromList
           [ ("dest", Bind "dest" (Contains isInput))
@@ -218,7 +213,7 @@ doubleFreePrim_ :: Prim
 doubleFreePrim_ = Prim
   { primType = doubleFreeSpec
   , stmtPattern =
-      [ orr
+      orr
         [ Location "free1" . Location "free2" . CallsPrimitive doubleFreeSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild) ]
         , ordered
@@ -234,36 +229,33 @@ doubleFreePrim_ = Prim
             }
           ]
         ]
-      ]
   }
 
 doubleFreePrim :: Prim
 doubleFreePrim = Prim
   { primType = doubleFreeSpec
   , stmtPattern =
-      [ Location "free1" . Location "free2" . SubPrimitive doubleFreePrim_ $ HashMap.fromList
+      Location "free1" . Location "free2" . SubPrimitive doubleFreePrim_ $ HashMap.fromList
           [ ("ptr", Bind "ptr" (Contains isInput)) ]
-      ]
   }
 
 writePrim_ :: Prim
 writePrim_ = Prim
   { primType = writeSpec
   , stmtPattern =
-      [ Location "write" $ orr
+      Location "write" $ orr
         [ CallsPrimitive writeSpec $ HashMap.fromList
           [ ("ptr", Bind "ptr" Wild)
           , ("value", Bind "value" Wild)
           ]
         , Stmt $ Store (Bind "ptr" Wild) (Bind "value" Wild)
         ]
-      ]
   }
 
 writePrim :: Prim
 writePrim = Prim
   { primType = writeSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "write" . SubPrimitive writePrim_ $ HashMap.fromList
           [ ("ptr", Bind "ptr" (Contains isInput))
@@ -276,7 +268,7 @@ writeWhatWherePrim_ :: Prim
 writeWhatWherePrim_ = Prim
   { primType = writeWhatWhereSpec
   , stmtPattern =
-      [ Location "write" $ orr
+      Location "write" $ orr
         [ CallsPrimitive writeWhatWhereSpec $ HashMap.fromList
           [ ("dest", Bind "dest" Wild)
           , ("src", Bind "src" Wild)
@@ -285,13 +277,12 @@ writeWhatWherePrim_ = Prim
         , Stmt $ Store (Bind "dest" Wild)
                        (load (Bind "src" (NotPattern $ Bind "dest" Wild)) ())
         ]
-      ]
   }
 
 writeWhatWherePrim :: Prim
 writeWhatWherePrim = Prim
   { primType = writeWhatWhereSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "write" . SubPrimitive writeWhatWherePrim_ $ HashMap.fromList
           [ ("src", Bind "src" (Contains isInput))
@@ -304,7 +295,7 @@ writeWhatWherePrim = Prim
 integerOverflowPrim :: Prim
 integerOverflowPrim = Prim
   { primType = integerOverflowSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , orr
         [ Location "increment store" . CallsPrimitive integerOverflowSpec $ HashMap.fromList
@@ -333,7 +324,7 @@ returnsFreedPointerPrim_ :: Prim
 returnsFreedPointerPrim_ = Prim
   { primType = returnsFreedPointerSpec
   , stmtPattern =
-    [ orr
+    orr
       [ Location "free" . CallsPrimitive returnsFreedPointerSpec $ HashMap.fromList
         [ ("ptr", Bind "ptr" Wild) ]
       , ordered
@@ -343,13 +334,12 @@ returnsFreedPointerPrim_ = Prim
         , Location "return" . Stmt . M.Ret $ Bind "ptr" Wild
         ]
       ]
-    ]
   }
 
 returnsFreedPointerPrim :: Prim
 returnsFreedPointerPrim = Prim
   { primType = returnsFreedPointerSpec
-  , stmtPattern =
+  , stmtPattern = ordered
     [ Star
     , orr
       [ Location "free" . SubPrimitive freeHeapPrim_ $ HashMap.fromList
@@ -370,7 +360,7 @@ writeToKernelGlobalPrim_ :: Prim
 writeToKernelGlobalPrim_ = Prim
   { primType = writeToKernelGlobalSpec
   , stmtPattern =
-      [ Location "copy" . Stmt $ Call Nothing (CallFunc
+      Location "copy" . Stmt $ Call Nothing (CallFunc
                                 . FuncNames
                                 . HashSet.fromList
                                 $ ["_copy_from_user", "copy_from_user"])
@@ -378,13 +368,12 @@ writeToKernelGlobalPrim_ = Prim
         , Bind "src" Wild
         , Bind "len" Wild
         ]
-      ]
   }
 
 writeToKernelGlobalPrim :: Prim
 writeToKernelGlobalPrim = Prim
   { primType = writeToKernelGlobalSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "copy" . SubPrimitive writeToKernelGlobalPrim_ $ HashMap.fromList
           [ ("src", Bind "src" $ Contains isInput)
@@ -400,19 +389,18 @@ controlledIndirectCallPrim_ :: Prim
 controlledIndirectCallPrim_ = Prim
   { primType = controlledIndirectCallSpec
   , stmtPattern =
-      [ orr
+      orr
         [ Location "callsite" . CallsPrimitive controlledIndirectCallSpec $ HashMap.fromList
           [ ("call_dest", Bind "call_dest" Wild)
           ]
         , Location "callsite" . Stmt $ Call Nothing (CallIndirect $ Bind "call_dest" Wild) []
         ]
-      ]
   }
 
 controlledIndirectCallPrim :: Prim
 controlledIndirectCallPrim = Prim
   { primType = controlledIndirectCallSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "callsite" . SubPrimitive controlledIndirectCallPrim_ $ HashMap.fromList
           [ ("call_dest", Bind "call_dest" (Contains isInput))
@@ -424,7 +412,7 @@ danglingPtrPrim_ :: Prim
 danglingPtrPrim_ = Prim
   { primType = danglingPtrSpec
   , stmtPattern =
-      [ ordered
+      ordered
         [ Location "free" $ orr
           [ CallsPrimitive danglingPtrSpec $ HashMap.fromList
             [ ("ptr", Bind "ptr" Wild) ]
@@ -436,13 +424,12 @@ danglingPtrPrim_ = Prim
           , until = ordered [Star, Stmt $ M.Ret Wild]
           }
         ]
-      ]
   }
 
 danglingPtrPrim :: Prim
 danglingPtrPrim = Prim
   { primType = danglingPtrSpec
-  , stmtPattern =
+  , stmtPattern = ordered
       [ Star
       , Location "free" . SubPrimitive danglingPtrPrim_ $ HashMap.fromList
         [ ("ptr", Bind "ptr" (Contains isInput)) ]
@@ -502,7 +489,7 @@ failedToUnregister = fmap f thingsYouShouldUnregister
     f ((regName, regArg), (unregName, unregArg)) =
       Prim
         { primType = primType
-        , stmtPattern =
+        , stmtPattern = ordered
             [ Star
             , Location "registerHandlerCall"
               . Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg $ Bind "handler" Wild
@@ -518,7 +505,7 @@ unboundedCopyFromUserPrim_ :: Prim
 unboundedCopyFromUserPrim_ = Prim
   { primType = unboundedCopyFromUserSpec
   , stmtPattern =
-      [ Stmt $ Call Nothing (CallFunc
+      Stmt $ Call Nothing (CallFunc
                              . FuncNames
                              . HashSet.fromList
                              $ ["_copy_from_user", "copy_from_user"])
@@ -526,14 +513,13 @@ unboundedCopyFromUserPrim_ = Prim
         , Bind "src" Wild
         , Bind "size" (NotPattern Immediate)
         ]
-      ]
   }
 
 unboundedCopyFromUserPrim :: Prim
 unboundedCopyFromUserPrim = Prim
   { primType = unboundedCopyFromUserSpec
   , stmtPattern =
-      [ AvoidUntil $ AvoidSpec
+      AvoidUntil $ AvoidSpec
         { avoid = Stmt . Constraint
                   $   (Contains (Bind "size" Wild) .< Wild)
                   .|| (Contains (Bind "size" Wild) .<= Wild)
@@ -546,7 +532,6 @@ unboundedCopyFromUserPrim = Prim
                     ]
                   ]
         }
-      ]
   }
 
 -- TODO: FIX THIS INDENTATION
@@ -554,7 +539,7 @@ copyFromGlobalPrim :: Prim
 copyFromGlobalPrim =
   Prim
     { primType = copyMemSpec
-    , stmtPattern =
+    , stmtPattern = ordered
         [ Star
         , Location "copy" $
             Stmt $
@@ -589,7 +574,7 @@ detectStackExecPrim :: Prim
 detectStackExecPrim =
   Prim
     { primType = detectStackExecSpec
-    , stmtPattern =
+    , stmtPattern = ordered
         [ Star
         , orr
             [ Location "call" $
@@ -608,7 +593,7 @@ escapedDataFromLock :: Prim
 escapedDataFromLock =
   Prim
     { primType = escapedDataFromLockSpec
-    , stmtPattern =
+    , stmtPattern = ordered
         [ Location "lock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_lock") [Wild]
         , Location "bind" $
             orr

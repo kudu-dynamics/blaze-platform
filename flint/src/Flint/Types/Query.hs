@@ -30,7 +30,7 @@ import qualified Data.Text as Text
 
 -- | Types used for query/search
 data BugMatch = BugMatch
-  { pathPattern :: [StmtPattern]
+  { pathPattern :: StmtPattern
   , bugName :: Text
   , bugDescription :: BoundText
   , mitigationAdvice :: BoundText

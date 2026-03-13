@@ -20,12 +20,10 @@ import Data.Time.Clock (getCurrentTime, diffUTCTime)
 
 doubleFreeBug :: BugMatch
 doubleFreeBug = BugMatch
-  { pathPattern =    
-    [ ordered
+  { pathPattern = ordered
       [ Stmt $ Call Nothing (CallFunc (FuncName "free")) [ Bind "ptr" Wild ]
       , Stmt $ Call Nothing (CallFunc (FuncName "free")) [ Bind "ptr" Wild ]
       ]
-    ]
   , bugName = "Double Free"
   , bugDescription =
     "This path frees " <> TextExpr "ptr" <> " twice. This may result in a memory leak or a write-what-where."
@@ -34,12 +32,10 @@ doubleFreeBug = BugMatch
 
 memAllocatedWithMallocFreedWithKfreeBug :: BugMatch
 memAllocatedWithMallocFreedWithKfreeBug = BugMatch
-  { pathPattern =    
-    [ ordered
+  { pathPattern = ordered
       [ Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc (FuncName "malloc")) [ Wild ]
       , Stmt $ Call Nothing (CallFunc (FuncName "kfree")) [ Bind "ptr" Wild ]
       ]
-    ]
   , bugName = "Mem Allocated with `malloc` freed with `kfree`"
   , bugDescription = "`" <> TextExpr "ptr" <> "` is allocated with `malloc`, but freed with `kfree`. From the `kfree` man page: Don't free memory not originally allocated by `kmalloc` or you will run into trouble."
   , mitigationAdvice = "Allocate " <> TextExpr "ptr" <> " with `kmalloc`."
