@@ -288,6 +288,12 @@ matchExpr pat expr = case pat of
     -- success
     bind sym expr
 
+  M.Bound sym -> do
+    bsyms <- use #boundSyms
+    case HashMap.lookup sym bsyms of
+      Nothing -> bad
+      Just x' -> insist $ sortaEqual x' expr
+
   M.BindWidth sym xpat -> do
     matchExpr xpat expr
     let szExpr = mkExprLike expr
@@ -725,7 +731,7 @@ matchCallableWMI
      , Monad m
      )
   => PrimSpec
-  -> HashMap (Symbol Pil.Expression) M.ExprPattern
+  -> [(Symbol Pil.Expression, M.ExprPattern)]
   -> MatcherT expr stmt m ()
 matchCallableWMI pt varPats = do
     stmt <- popStmt
@@ -759,7 +765,8 @@ matchCallableWMI pt varPats = do
                 case mPrimVars of
                   Nothing -> bad
                   Just primVars -> do
-                    forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPats of
+                    let varPatsMap = HashMap.fromList varPats
+                    forM_ primVars $ \(varName, vexpr) -> case HashMap.lookup varName varPatsMap of
                       Nothing -> good
                       Just vpat -> matchExpr vpat vexpr
 
@@ -783,7 +790,7 @@ matchSubPrimitive
      , Monad m
      )
   => M.Prim
-  -> HashMap (Symbol Pil.Expression) M.ExprPattern
+  -> [(Symbol Pil.Expression, M.ExprPattern)]
   -> MatcherT expr stmt m ()
 matchSubPrimitive prim varPats = do
     outerState <- get
@@ -801,7 +808,7 @@ matchSubPrimitive prim varPats = do
       <> (outerState ^. #parsedStmtsWithAssertions)
     -- Rebind vars from the inner match through varPats
     let innerBinds = innerState ^. #boundSyms
-    forM_ (HashMap.toList varPats) $ \(varName, vpat) -> do
+    forM_ varPats $ \(varName, vpat) -> do
       case HashMap.lookup varName innerBinds of
         Nothing -> bad
         Just vexpr -> matchExpr vpat vexpr
@@ -1063,7 +1070,7 @@ resolveBoundExpr
   :: (IsExpression expr, Monad m)
   => BoundExpr
   -> MatcherT expr stmt m expr
-resolveBoundExpr (Bound sym) = lookupBound sym
+resolveBoundExpr (BoundRef sym) = lookupBound sym
 resolveBoundExpr (BoundExpr bsize op) = do
   mkExprWithSize <$> resolveBoundExprSize bsize <*> traverse resolveBoundExpr op
 

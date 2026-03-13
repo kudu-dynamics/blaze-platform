@@ -801,7 +801,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             pats = Stmt (Def (Var "b")
                        (OfType (PilType $ M.TArray (BindLenAsExpr "len" AnyLen) AnyType) Wild))
                      `Where`
-                     [ cmpUlt (Bound "len") (const 37 (SizeOf "len")) (SizeOf "len")]
+                     [ cmpUlt (BoundRef "len") (const 37 (SizeOf "len")) (SizeOf "len")]
             sz = ( 32
                  , Nothing
                  )
@@ -1233,7 +1233,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             pats = ordered [ Stmt $ Def (Var "a") (Bind "x" Wild)
                            , Stmt (Def (Var "b") (Bind "y" Wild))
                              `Where`
-                             [ cmpNE (Bound "x") (Bound "y") (ConstSize 4) ]
+                             [ cmpNE (BoundRef "x") (BoundRef "y") (ConstSize 4) ]
                            ]
             stmts' = stmts <> [constraint (cmpNE (const 0 4) (const 777 4) 4)]
             expected = [stmts']
@@ -1248,7 +1248,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                            , Star
                            , Stmt (Def (Bind "y" Wild) Immediate)
                              `Where`
-                             [ cmpUgt (Bound "x") (Bound "y") (ConstSize 4) ]
+                             [ cmpUgt (BoundRef "x") (BoundRef "y") (ConstSize 4) ]
                            ]
             expected = [ stmts <> [constraint (cmpUgt (var "a" 4) (var "c" 4) 4)]
                        , [ def "a" (const 100 4)
@@ -1269,7 +1269,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                            , Stmt (Def (Var "b") (Bind "y" Wild))
                            ]
                      `Necessarily`
-                     [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
+                     [ cmpUlt (BoundRef "x") (BoundRef "y") (ConstSize 4)
                      ]
             expected = [ stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)] ]
         solveMatch_ pats stmts `shouldReturn` expected
@@ -1287,8 +1287,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 -- --                      `Where`
 -- --                      [
 -- --                        (not (or
--- --                              (cmpUge (Bound "x") (Bound "y") (ConstSize 4))
--- --                              (cmpNE (Bound "z") (Bound "y") (ConstSize 4))
+-- --                              (cmpUge (BoundRef "x") (BoundRef "y") (ConstSize 4))
+-- --                              (cmpNE (BoundRef "z") (BoundRef "y") (ConstSize 4))
 -- --                              (ConstSize 4))
 -- --                          (ConstSize 4))
 -- --                      ]
@@ -1307,8 +1307,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 -- --                    , Stmt $ Def (Var "c") (Bind "z" Wild)
 -- --                    , Stmt (Def (Var "b") (Bind "y" Wild))
 -- --                      `Necessarily`
--- --                      [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
--- --                      , cmpE (Bound "z") (Bound "y") (ConstSize 4)
+-- --                      [ cmpUlt (BoundRef "x") (BoundRef "y") (ConstSize 4)
+-- --                      , cmpE (BoundRef "z") (BoundRef "y") (ConstSize 4)
 -- --                      ]
 -- --                    ]
 -- --             stmts' = stmts <> [constraint (cmpUlt (const 0 4) (const 777 4) 4)]
@@ -1322,7 +1322,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 --       --       pats = [ Stmt $ Def (Var "a") (Bind "x" Wild)
 --       --              , Stmt (Def (Var "b") (Bind "y" Wild))
 --       --                `Necessarily`
---       --                [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
+--       --                [ cmpUlt (BoundRef "x") (BoundRef "y") (ConstSize 4) ]
 --       --              ]
 --       --   matchStmtsIO [] pats stmts `shouldReturn` NoMatch
 
@@ -1337,8 +1337,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                            , Stmt (Def (Var "c") (Bind "z" Wild))
                            ]
                      `Necessarily`
-                     [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4)
-                     , cmpE (Bound "z") (Bound "y") (ConstSize 4)
+                     [ cmpUlt (BoundRef "x") (BoundRef "y") (ConstSize 4)
+                     , cmpE (BoundRef "z") (BoundRef "y") (ConstSize 4)
                      ]
             expected =
               [ stmts <> [ constraint (cmpUlt (const 0 4) (const 777 4) 4)
@@ -1355,7 +1355,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
                            , Stmt (Def (Var "b") (Bind "y" Wild))
                            ]
                      `Necessarily`
-                     [ cmpUlt (Bound "x") (Bound "y") (ConstSize 4) ]
+                     [ cmpUlt (BoundRef "x") (BoundRef "y") (ConstSize 4) ]
         solveMatch_ pats stmts `shouldReturn` []
 
     context "solving" $ do
@@ -1436,7 +1436,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             -- outerFunc = bar
             outerPath = barPath3
             -- Wrap the PrimSpec in a Prim with a dummy inline pattern
-            varPats = HashMap.fromList
+            varPats =
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
               ]
@@ -1483,7 +1483,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             solver _ = return $ Solver.Sat HashMap.empty
             (ctx, initMs) = mkMatcherState solver pprep
             initMs' = initMs & #callablePrimitives .~ initialCPrims
-            varPats = HashMap.empty
+            varPats = []
             pat = CallsPrimitive controlledFormatStringPrim varPats
 
         null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
@@ -1498,7 +1498,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             solver _ = return $ Solver.Sat HashMap.empty
             (ctx, initMs) = mkMatcherState solver pprep
             initMs' = initMs & #callablePrimitives .~ initialCPrims
-            varPats = HashMap.empty
+            varPats = []
             pat = CallsPrimitive controlledFormatStringPrim varPats
 
         null (pureMatchFullWithBinds ctx initMs' pat) `shouldBe` False
@@ -1536,7 +1536,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ store (var "dest" 8) (const 42 8)
               , ret (const 0 4)
               ]
-            varPats = HashMap.fromList
+            varPats =
               [ ("ptr", Bind "matched_ptr" Wild)
               , ("val", Bind "matched_val" Wild)
               ]
@@ -1573,7 +1573,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               , store (var "dest" 8) (const 42 8)
               , ret (const 0 4)
               ]
-            varPats = HashMap.fromList
+            varPats =
               [ ("ptr", Bind "matched_ptr" Wild)
               ]
             pats = ordered [ Star
@@ -1606,7 +1606,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               , store (var "dest" 8) (const 42 8)
               , ret (const 0 4)
               ]
-            varPats = HashMap.fromList
+            varPats =
               [ ("ptr", Bind "matched_ptr" Wild)
               ]
             -- First bind "x" to something, then match the prim
@@ -1645,7 +1645,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               , def "output" (load (var "dest" 8) 8)
               , ret (const 0 4)
               ]
-            varPats = HashMap.fromList
+            varPats =
               [ ("ptr", Bind "out_ptr" Wild)
               , ("result", Bind "out_result" Wild)
               ]
@@ -1678,7 +1678,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               [ def "x" (const 1 4)  -- no store here
               , ret (const 0 4)
               ]
-            varPats = HashMap.fromList [("ptr", Bind "p" Wild)]
+            varPats = [("ptr", Bind "p" Wild)]
             pats = SubPrimitive storePrim_ varPats
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
@@ -1695,12 +1695,12 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             outerPath = barPath3
             -- Inline prim that uses CallsPrimitive to check cache
             copyAsPrim = Prim copyPrim
-              ( CallsPrimitive copyPrim $ HashMap.fromList
+              ( CallsPrimitive copyPrim
                 [ ("dest", Bind "dest" Wild)
                 , ("src", Bind "src" Wild)
                 ]
               )
-            varPats = HashMap.fromList
+            varPats =
               [ ("dest", Bind "newdest" Wild)
               , ("src", Bind "newsrc" Wild)
               ]
@@ -1733,7 +1733,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
             stmts =
               [ loc (intToAddr 0x1000) $ store (var "dest" 8) (const 42 8)
               ]
-            varPats = HashMap.fromList [("ptr", Wild)]
+            varPats = [("ptr", Wild)]
             pats = SubPrimitive storePrim_ varPats
             pprep = mkDummyPathPrep' stmts
             (ctx, initMs) = mkMatcherState solver pprep
@@ -1761,7 +1761,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
               , defCall "r" (Pil.CallFunc free_) [var "myptr" 8] 8
               , ret (const 0 4)
               ]
-            varPats = HashMap.fromList
+            varPats =
               [ ("ptr", Bind "freed_ptr" Wild)
               ]
             pats = ordered [ Star
