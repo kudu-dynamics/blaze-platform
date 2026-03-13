@@ -50,6 +50,12 @@ changelog-validation:
     # --oci-worker-gc=false: see https://github.com/moby/buildkit/issues/4327#issuecomment-1772968980
     - pwd
     - ls -alF
+        # generate that buildkit dynamically
+    - |
+      cat > .docker/buildkit.toml <<EOF
+      [registry."${INTERNAL_REGISTRY_HOST}"]
+        ca = ["/etc/buildkit/certs/ca.crt"]
+      EOF
     - docker buildx create --driver=docker-container --buildkitd-flags '--oci-worker-gc=false' --config .docker/buildkit.toml --use
     # - cp "${BLAZE_BINJA_LICENSE_FILE}" license.dat
     # - '

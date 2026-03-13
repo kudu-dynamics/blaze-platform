@@ -1,2 +1,0 @@
-[registry."registry."]
-  ca = ["/etc/buildkit/certs/ca.crt"]
