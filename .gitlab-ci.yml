@@ -21,7 +21,7 @@ stages:
 
 changelog-validation:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/ && $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/ && $CI_PIPELINE_SOURCE == "merge_request_event"
   stage: prerequisites
   needs: []
   script:
@@ -35,9 +35,9 @@ changelog-validation:
   tags:
     - dind
   before_script:
-    - mkdir -p /etc/docker/certs.d/registry.
-    - cp $REGISTRY_CA_CERT /etc/docker/certs.d/registry./ca.crt
-    - cat /etc/docker/certs.d/registry./ca.crt
+    - mkdir -p /etc/docker/certs.d/${INTERNAL_REGISTRY_HOST}
+    - cp $REGISTRY_CA_CERT /etc/docker/certs.d/${INTERNAL_REGISTRY_HOST}/ca.crt
+    - cat /etc/docker/certs.d/${INTERNAL_REGISTRY_HOST}/ca.crt
     - env
       # Setup BuildKit cert trust
     - mkdir -p /etc/buildkit/certs/
@@ -67,7 +67,7 @@ changelog-validation:
 
 base-images:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: prerequisites
   needs: []
   extends: .docker
@@ -85,7 +85,7 @@ base-images:
 
 just-deps:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: prerequisites
   needs:
     - base-images
@@ -112,11 +112,11 @@ include:
   project: 'blaze/filter-check'
   file: '/filtercheck.gitlab-ci.yml'
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
 
 hlint:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: check
   needs:
     - base-images
@@ -127,7 +127,7 @@ hlint:
 
 ghc-warnings:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: check
   needs:
     - just-deps
@@ -139,7 +139,7 @@ ghc-warnings:
 
 build:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: build
   needs:
     - just-deps
@@ -188,7 +188,7 @@ build:
 
 test:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: test
   needs:
     - build
@@ -196,22 +196,10 @@ test:
   script:
     - /out/run-tests --color
 
-# test-binaryninja:
-#   rules:
-#     - if: $CI_SERVER_HOST =~ /.*kududyn.*/
-#   stage: test
-#   needs:
-#     - build
-#   image: ${CI_REGISTRY_IMAGE}/builder-binaryninja:pipeline-${CI_PIPELINE_ID}
-#   script:
-#     - mkdir -p /root/.binaryninja
-#     - cp "${BLAZE_BINJA_LICENSE_FILE}" /root/.binaryninja/license.dat
-#     - /out/run-tests --color
-
 push:latest:
   stage: push
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/ && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/ && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
     - test
   variables:
@@ -232,7 +220,7 @@ push:latest:
 push:tag:
   stage: push
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/ && $CI_COMMIT_TAG
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/ && $CI_COMMIT_TAG
   needs:
     - test
   variables:
@@ -251,7 +239,7 @@ push:tag:
 
 cleanup:
   rules:
-    - if: $CI_SERVER_HOST =~ /.*kududyn.*/
+    - if: $CI_SERVER_HOST =~ /$INTERNAL_HOST_PATTERN/
   stage: .post
   when: always
   variables:
@@ -274,7 +262,7 @@ cleanup:
 
 clean-runner:
   rules:
-    - if: $CI_SERVER_HOST =~ /^code\.*/
+    - if: $CI_SERVER_HOST =~ /$INTEGRATION_HOST_PATTERN/
   stage: prerequisites
   script:
     # We can't run this because we're inside a docker executor, so we'd kill our own container:
@@ -285,7 +273,7 @@ clean-runner:
 
 pull-artifacts:
   rules:
-    - if: $CI_SERVER_HOST =~ /^code\.*/
+    - if: $CI_SERVER_HOST =~ /$INTEGRATION_HOST_PATTERN/
   stage: build
   image: docker:cli
   artifacts:
@@ -308,7 +296,7 @@ pull-artifacts:
 
 test-submit:
   rules:
-    - if: $CI_SERVER_HOST =~ /^code\.*/
+    - if: $CI_SERVER_HOST =~ /$INTEGRATION_HOST_PATTERN/
   stage: submit
   image: ${CI_REGISTRY_IMAGE}
   dependencies:
@@ -329,7 +317,7 @@ test-submit:
 
 submit:
   rules:
-    - if: $CI_SERVER_HOST =~ /^code\.*/
+    - if: $CI_SERVER_HOST =~ /$INTEGRATION_HOST_PATTERN/
   stage: submit
   when: manual
   image: ${CI_REGISTRY_IMAGE}
