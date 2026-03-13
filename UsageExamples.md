@@ -100,7 +100,7 @@ stack run -- flint \
   --blacklist sudo-blacklist.txt \
   --filterFuncs sudo-filter.txt \
   -o sudo.json \
-  ../res/test_bins/cve_tests/cve_2012_0809/sudo-1.8.3p1/src/sudo.o
+  /your/directory/sudo-1.8.3p1/src/sudo.o
 ```
 
 ## Understanding the Flint Output
@@ -153,7 +153,7 @@ Here is each line described in human-readable format:
 
 Go back to the directory where we built `sudo.o`:
 ```bash
-$ cd blaze-platform/res/test_bins/cve_tests/cve_2012_0809
+$ cd /your/directory
 ```
 
 You can pull the stripped version of `sudo.o` like this:
@@ -268,7 +268,7 @@ FUN_0040c1f0" > sudo-stripped-blacklist.txt
 $ echo -e "FUN_004092c0" > sudo-stripped-filter.txt
 ```
 
-I went ahead and opened the stripped `sudo.o` in Ghidra and the `FUN_004092c0` is `sudo_debug`.
+`FUN_004092c0` is `sudo_debug` in the stripped `sudo.o`.
 
 This is what `FUN_004092c0` without any cleaning up:
 ```c
@@ -334,7 +334,7 @@ stack run -- flint \
   --blacklist sudo-stripped-blacklist.txt  \
   --filterFuncs sudo-stripped-filter.txt \
   -o sudo-stripped.json \
-  ../res/test_bins/cve_tests/cve_2012_0809/sudo_1.8.3p1_bin/usr/bin/sudo
+  /your/directory/sudo_1.8.3p1_bin/usr/bin/sudo
 ```
 
 Flint is able to catch the same `ControlledFormatString` in a stripped `sudo.o` binary:

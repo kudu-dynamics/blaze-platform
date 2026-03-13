@@ -233,7 +233,7 @@ COPY flint/package.yaml \
 # COPY flint/flint-binaryninja/package.yaml \
 #      flint/flint-binaryninja/package.yaml
 
-# Separated to narrow down intermitten error
+# Separated to narrow down intermittent error
 RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binary-analysis
 # RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binaryninja
 # RUN stack build --color always --ghc-options="${OPTIM}" --only-dependencies binja-header-cleaner
