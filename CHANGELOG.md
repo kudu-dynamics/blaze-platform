@@ -1,5 +1,7 @@
 # Blaze Platform
 
+## Version 0.26.0213b
+- Dynamically generate buildkit
 
 ## Version 0.26.0313a
 - Eliminated duplication in `DevelopersGuide.md`
