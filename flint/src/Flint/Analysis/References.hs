@@ -179,10 +179,10 @@ staleReferencePrims =
     genPrim subPrims = M.Prim (PrimSpec (DT.concat ["stale_reference_", getSubPrimName $ headHack subPrims]) HashSet.empty $ HashSet.fromList ["create", "store", "delete"])
       $ M.ordered
       [ M.Star
-      , M.Location "create" $ M.CallsPrimitive (view #primType $ headHack subPrims) HashMap.empty
+      , M.Location "create" $ M.CallsPrimitive (view #primType $ headHack subPrims) []
       , M.Star
-      , M.Location "store" $ M.CallsPrimitive (view #primType $ subPrims !! 1) HashMap.empty
-      , M.And M.Star . M.AvoidUntil . M.AvoidSpec (M.CallsPrimitive (view #primType $ subPrims !! 2) HashMap.empty) . M.Location "delete" $ M.CallsPrimitive (view #primType $ subPrims !! 3) HashMap.empty
+      , M.Location "store" $ M.CallsPrimitive (view #primType $ subPrims !! 1) []
+      , M.And M.Star . M.AvoidUntil . M.AvoidSpec (M.CallsPrimitive (view #primType $ subPrims !! 2) []) . M.Location "delete" $ M.CallsPrimitive (view #primType $ subPrims !! 3) []
       ]
 
 -- storedelete nonexistence might also be implied

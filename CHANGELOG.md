@@ -1,6 +1,10 @@
 # Blaze Platform
 
-## Version 0.26.0312
+## Version 0.26.0312b
+- Added `Bound` constructor to `ExprPattern` for referencing previously bound vars
+- Changed `CallsPrimitive` and `SubPrimitive` to take `[(Symbol, ExprPattern)]` instead of `HashMap`
+
+## Version 0.26.0312a
 - Changed `Prim.stmtPattern` and `BugMatch.pathPattern` from `[StmtPattern]` to `StmtPattern`
 - Updated matcher API (`match_`, `match`, `singleMatch`, etc.) to take single `StmtPattern`
 

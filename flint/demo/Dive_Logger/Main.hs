@@ -112,10 +112,10 @@ oobWrite = BugMatch
         Stmt $ Call (Just $ Bind "ptr" Wild) (CallFunc (FuncName "cgc_malloc")) [Bind "ptrSize" Immediate]
       , Stmt (Store (Bind "ptrAccess" (Contains (Bind "ptr" Wild))) (Bind "val" Wild))
         `Where`
-        [ cmpE (Bound "ptr") (const 0x100000 $ SizeOf "ptr") (ConstSize 1)
+        [ cmpE (BoundRef "ptr") (const 0x100000 $ SizeOf "ptr") (ConstSize 1)
         , cmpSgt
-          (Bound "ptrAccess")
-          (add (Bound "ptr") (Bound "ptrSize") (SizeOf "ptrSize"))
+          (BoundRef "ptrAccess")
+          (add (BoundRef "ptr") (BoundRef "ptrSize") (SizeOf "ptrSize"))
           (SizeOf "ptrSize")
         ]
       ]
@@ -133,10 +133,10 @@ oobRead = BugMatch
               (Bind "fullExpr"
                (Contains (load (Bind "ptrAccess" (Contains (Bind "ptr" Wild))) ()))))
         `Where`
-        [ cmpE (Bound "ptr") (const 0x100000 $ SizeOf "ptr") (ConstSize 1)
+        [ cmpE (BoundRef "ptr") (const 0x100000 $ SizeOf "ptr") (ConstSize 1)
         , cmpSgt
-          (Bound "ptrAccess")
-          (add (Bound "ptr") (Bound "ptrSize") (SizeOf "ptrSize"))
+          (BoundRef "ptrAccess")
+          (add (BoundRef "ptr") (BoundRef "ptrSize") (SizeOf "ptrSize"))
           (SizeOf "ptrSize")
         ]
       ]

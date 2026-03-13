@@ -75,10 +75,10 @@ data StmtPattern
   -- | SubPrimitive <prim> <var patterns>
   -- Tries CallableWMI lookup (through call-sites) and inline pattern matching.
   -- Used for matching sub-patterns within a complex primitive.
-  | SubPrimitive Prim (HashMap (Symbol Pil.Expression) ExprPattern)
+  | SubPrimitive Prim [(Symbol Pil.Expression, ExprPattern)]
   -- | CallsPrimitive <primSpec> <var patterns>
   -- Only checks CallableWMI cache (through call-sites). No inline fallback.
-  | CallsPrimitive PrimSpec (HashMap (Symbol Pil.Expression) ExprPattern)
+  | CallsPrimitive PrimSpec [(Symbol Pil.Expression, ExprPattern)]
   | Star -- | Kleene star. Consumes any statements until next match
   | And StmtPattern StmtPattern -- | conjunction of two sequential patterns
   | Or StmtPattern StmtPattern -- | disjunction of two patterns
@@ -105,7 +105,7 @@ data BoundExprSize
   deriving (Eq, Ord, Show, Hashable, Generic)
 
 data BoundExpr
-  = Bound (Symbol Pil.Expression) -- gets expression that has been bound with Bind
+  = BoundRef (Symbol Pil.Expression) -- gets expression that has been bound with Bind
   | BoundExpr BoundExprSize (Pil.ExprOp BoundExpr)
   deriving (Eq, Ord, Show, Hashable, Generic)
 
@@ -113,17 +113,17 @@ class BoundVar a where
   bound :: Symbol Pil.Expression -> a
 
 instance BoundVar BoundExpr where
-  bound = Bound
+  bound = BoundRef
 
 instance ExprConstructor BoundExprSize BoundExpr where
   mkExpr = BoundExpr
 
 instance Disp.NeedsParens BoundExpr where
-  needsParens (Bound _) = False
+  needsParens (BoundRef _) = False
   needsParens (BoundExpr _ op) = Disp.needsParens op
 
 instance Pretty.Tokenizable BoundExpr where
-  tokenize (Bound sym) = pure [Pretty.varToken Nothing ("?" <> cs sym)]
+  tokenize (BoundRef sym) = pure [Pretty.varToken Nothing ("?" <> cs sym)]
   tokenize (BoundExpr (ConstSize (Size size)) op) = Pretty.tokenizeExprOp Nothing op (Size size)
   tokenize (BoundExpr (SizeOf _) op) = Pretty.tokenizeExprOp Nothing op (Size 0)
 
@@ -148,6 +148,10 @@ data ExprPattern
   -- sees if equal to old sym val.
   -- You can nest more binds within the ExprPattern.
   | Bind (Symbol Pil.Expression) ExprPattern
+
+  -- | Checks that the expression equals a previously bound symbol.
+  -- Fails if the symbol has not been bound yet.
+  | Bound (Symbol Pil.Expression)
 
   -- | Binds the byte width of an Expression as a const expr
   | BindWidth (Symbol Pil.Expression) ExprPattern
