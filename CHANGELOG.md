@@ -1,5 +1,9 @@
 # Blaze Platform
 
+
+## Version 0.26.0313a
+- Eliminated duplication in `DevelopersGuide.md`
+
 ## Version 0.26.0312b
 - Added `Bound` constructor to `ExprPattern` for referencing previously bound vars
 - Changed `CallsPrimitive` and `SubPrimitive` to take `[(Symbol, ExprPattern)]` instead of `HashMap`

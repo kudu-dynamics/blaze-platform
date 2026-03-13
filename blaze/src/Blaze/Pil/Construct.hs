@@ -67,7 +67,7 @@ pilVar_ size ctx symbol =
   in PilVar size ctx ver sym False Pil.UnknownLocation
 
 pilVar' :: Size PilVar -> Pil.Ctx -> Symbol -> PilVar
-pilVar' sz ctx = pilVar_ sz (Just ctx)
+pilVar' sz ctx = pilVar_ sz $ Just ctx
 
 pilVar :: Size PilVar -> Symbol -> PilVar
 pilVar sz = pilVar_ sz Nothing
@@ -80,7 +80,7 @@ binOp
   -> expr
   -> attrs
   -> expr
-binOp f g x y size = mkExpr size $ f (g x y)
+binOp f g x y size = mkExpr size . f $ g x y
 
 unOp
   :: ExprConstructor attrs expr
@@ -89,38 +89,38 @@ unOp
   -> expr
   -> attrs
   -> expr
-unOp f g x size = mkExpr size $ f (g x)
+unOp f g x size = mkExpr size . f $ g x
 
 ---- Expressions
 const :: ExprConstructor attrs expr => Int64 -> attrs -> expr
-const x size = mkExpr size (Pil.CONST (Pil.ConstOp x))
+const x size = mkExpr size . Pil.CONST $ Pil.ConstOp x
 
 fconst :: ExprConstructor attrs expr => Double -> attrs -> expr
-fconst x size = mkExpr size (Pil.CONST_FLOAT (Pil.ConstFloatOp x))
+fconst x size = mkExpr size . Pil.CONST_FLOAT $ Pil.ConstFloatOp x
 
 unit :: ExprConstructor attrs expr => attrs -> expr
 unit attrs = mkExpr attrs Pil.UNIT
 
 constPtr :: ExprConstructor attrs expr => Word64 -> attrs -> expr
-constPtr addr size = mkExpr size (Pil.CONST_PTR (Pil.ConstPtrOp (fromIntegral addr :: Int64)))
+constPtr addr size = mkExpr size . Pil.CONST_PTR $ Pil.ConstPtrOp (fromIntegral addr :: Int64)
 
 globalPtr :: ExprConstructor attrs expr => Word64 -> Maybe Symbol -> attrs -> expr
-globalPtr addr sym size = mkExpr size (Pil.GLOBAL_PTR (Pil.GlobalPtrOp (fromIntegral addr :: Int64) sym))
+globalPtr addr sym size = mkExpr size . Pil.GLOBAL_PTR $ Pil.GlobalPtrOp (fromIntegral addr :: Int64) sym
 
 externPtr :: ExprConstructor attrs expr => Address -> ByteOffset -> Maybe Symbol -> attrs -> expr
-externPtr addr off sym size = mkExpr size (Pil.ExternPtr (Pil.ExternPtrOp addr off sym))
+externPtr addr off sym size = mkExpr size . Pil.ExternPtr $ Pil.ExternPtrOp addr off sym
 
 constStr :: ExprConstructor attrs expr => Text -> attrs -> expr
-constStr str size = mkExpr size (Pil.ConstStr (Pil.ConstStrOp str))
+constStr str size = mkExpr size . Pil.ConstStr $ Pil.ConstStrOp str
 
 constBool :: ExprConstructor attrs expr => Bool -> attrs -> expr
-constBool b size = mkExpr size (Pil.CONST_BOOL (Pil.ConstBoolOp b))
+constBool b size = mkExpr size . Pil.CONST_BOOL $ Pil.ConstBoolOp b
 
 var' :: ExprConstructor attrs expr => PilVar -> attrs -> expr
-var' pv size = mkExpr size (Pil.VAR $ Pil.VarOp pv)
+var' pv size = mkExpr size . Pil.VAR $ Pil.VarOp pv
 
 var :: (GetExprSize attrs, ExprConstructor attrs expr) => Symbol -> attrs -> expr
-var sym attrs = mkExpr attrs (Pil.VAR $ Pil.VarOp $ pilVar_ (getPilVarSize attrs) Nothing sym)
+var sym attrs = mkExpr attrs . Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize attrs) Nothing sym
 
 add :: ExprConstructor attrs expr => expr -> expr -> attrs -> expr
 add = binOp Pil.ADD Pil.AddOp
@@ -209,7 +209,7 @@ not = unOp Pil.NOT Pil.NotOp
 
 -- TODO: Change to just Load. PIL is being updated to drop versioned memory.
 load :: ExprConstructor attrs expr => expr -> attrs -> expr
-load addr size = mkExpr size (Pil.LOAD (Pil.LoadOp addr))
+load addr size = mkExpr size . Pil.LOAD $ Pil.LoadOp addr
 
 varField
   :: (ExprConstructor attrs expr, GetExprSize attrs)
@@ -219,7 +219,7 @@ varField
   -> attrs
   -> expr
 varField version sym offset attrs =
-  mkExpr attrs (Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar__ (getPilVarSize attrs) Nothing version sym False Pil.UnknownLocation) offset)
+  mkExpr attrs . Pil.VAR_FIELD $ Pil.VarFieldOp (pilVar__ (getPilVarSize attrs) Nothing version sym False Pil.UnknownLocation) offset
 
 fieldAddr :: ExprConstructor attrs expr => expr -> ByteOffset -> attrs -> expr
 fieldAddr base offset size =
@@ -242,7 +242,7 @@ def sym expr = def' (pilVar (getPilVarSize expr) sym) expr
 
 -- | Constructs a 'Pil.Def' that assigns 'val' to 'pv'
 def' :: PilVar -> expr -> AddressableStatement expr
-def' pv val = mkStmt_ $ Pil.Def (Pil.DefOp pv val)
+def' pv val = mkStmt_ . Pil.Def $ Pil.DefOp pv val
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
@@ -256,7 +256,7 @@ defCall'
 defCall' pv dest args size = def' pv callExpr
   where
     callExpr :: expr
-    callExpr = mkExpr size $ Pil.CALL $ Pil.CallOp dest args
+    callExpr = mkExpr size . Pil.CALL $ Pil.CallOp dest args
 
 -- TODO: This helper assumes the only output of the call operation
 --       is the variable being defined.
@@ -276,13 +276,13 @@ defPhi' :: PilVar -> [PilVar] -> AddressableStatement expr
 defPhi' dest = mkStmt_ . Pil.DefPhi . Pil.DefPhiOp dest
 
 store :: expr -> expr -> AddressableStatement expr
-store addr val = mkStmt_ $ Pil.Store (Pil.StoreOp addr val)
+store addr val = mkStmt_ . Pil.Store $ Pil.StoreOp addr val
 
 constraint :: expr -> AddressableStatement expr
-constraint e = mkStmt_ $ Pil.Constraint (Pil.ConstraintOp e)
+constraint e = mkStmt_ . Pil.Constraint $ Pil.ConstraintOp e
 
 branchCond :: expr -> AddressableStatement expr
-branchCond e = mkStmt_ $ Pil.BranchCond (Pil.BranchCondOp e)
+branchCond e = mkStmt_ . Pil.BranchCond $ Pil.BranchCondOp e
 
 ret :: expr -> AddressableStatement expr
 ret = mkStmt_ . Pil.Ret . Pil.RetOp
