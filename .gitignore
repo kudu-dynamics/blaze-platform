@@ -38,3 +38,4 @@ cabal.project.local~
 */stack.yaml.lock
 stack.yaml.lock
 *.cabal
+CLAUDE.md

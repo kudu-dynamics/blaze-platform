@@ -2,7 +2,6 @@ module Flint.Shell.Commands.Paths
   ( sampleCommand
   , showCommand
   , pshowCommand
-  , reduceCommand
   , freeCommand
   , pathsCommand
   ) where
@@ -14,8 +13,8 @@ import Flint.Shell.Command (ShellCommand(..))
 import qualified Flint.Cfg.Store as Store
 import Flint.Cfg.Path (samplesFromQuery)
 import Flint.Query (onionSampleBasedOnFuncSize)
-import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
-import Flint.Analysis.Path.Matcher (TypedStmt, asStmts)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
+import Flint.Analysis.Path.Matcher (asStmts)
 import Flint.Types.Query (QueryExpandAllOpts(..), QueryTargetOpts(..), Query(..))
 
 import Blaze.Types.Function (Function)
@@ -44,15 +43,6 @@ showCommand = ShellCommand
   , cmdHelp = "Show path statements"
   , cmdUsage = "show <path_id> [path_id ...]"
   , cmdAction = showPaths
-  }
-
-reduceCommand :: ShellCommand
-reduceCommand = ShellCommand
-  { cmdName = "reduce"
-  , cmdAliases = ["red"]
-  , cmdHelp = "Reduce a path via copy/constant propagation"
-  , cmdUsage = "reduce <path_id>"
-  , cmdAction = reducePath
   }
 
 freeCommand :: ShellCommand
@@ -151,49 +141,47 @@ samplePaths st (funcArg : rest) = do
         _ -> do
           results <- forM paths $ \path -> do
             let stmts = Path.toStmts path
+                prep = mkPathPrep [] stmts
+                reducedStmts = asStmts $ prep ^. #stmts
             pid <- insertPath st CachedPath
               { pilPath = stmts
               , sourceFunc = func
-              , pathPrep = Nothing
+              , pathPrep = Just prep
               }
             let summary = "path " <> show pid
-                  <> " (" <> show (length stmts) <> " stmts"
+                  <> " (" <> show (length reducedStmts) <> " stmts"
                   <> ", func: " <> func ^. #name <> ")"
             return (pid, summary)
           return $ ResultPaths results
 
 showPaths :: ShellState -> [Text] -> IO CommandResult
-showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5])"
+showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw)"
 showPaths st args = do
-  let pids = parsePathIds args
-  when (null pids) $ return ()
-  results <- forM pids $ \pid -> do
+  let refs = parsePathRefs args
+  results <- forM refs $ \(PathRef pid raw) -> do
     mPath <- lookupPath st pid
     case mPath of
       Nothing -> return $ "Path " <> show pid <> ": not found"
       Just cp -> do
-        let stmts = case cp ^. #pathPrep of
-              Just prep -> asStmts $ prep ^. #stmts
-              Nothing   -> cp ^. #pilPath
-            header = "=== Path " <> show pid
+        let stmts = resolveStmts cp raw
+            rawTag = if raw then " [raw]" else ""
+            header = "=== Path " <> show pid <> rawTag
               <> " (func: " <> (cp ^. #sourceFunc . #name)
               <> ", " <> show (length stmts) <> " stmts) ==="
         return $ header <> "\n" <> pretty' (PStmts stmts)
   return $ ResultText $ Text.intercalate "\n\n" results
 
 pshowStmts :: ShellState -> [Text] -> IO CommandResult
-pshowStmts _st [] = return $ ResultError "Usage: pshow <path_id> [addr ...]"
+pshowStmts _st [] = return $ ResultError "Usage: pshow <path_id> [addr ...] (use N! for raw)"
 pshowStmts st (pidArg : addrArgs) =
-  case readMaybe (Text.unpack pidArg) :: Maybe PathId of
-    Nothing -> return $ ResultError $ "Invalid path id: " <> pidArg
-    Just pid -> do
+  case parsePathRefs [pidArg] of
+    [] -> return $ ResultError $ "Invalid path id: " <> pidArg
+    (PathRef pid raw : _) -> do
       mPath <- lookupPath st pid
       case mPath of
         Nothing -> return $ ResultError $ "Path " <> show pid <> " not found"
         Just cp -> do
-          let stmts = case cp ^. #pathPrep of
-                Just prep -> asStmts $ prep ^. #stmts
-                Nothing   -> cp ^. #pilPath
+          let stmts = resolveStmts cp raw
               filterAddrs = mapMaybe parseAddress addrArgs
               filtered
                 | null filterAddrs = stmts
@@ -216,31 +204,6 @@ pshowStmts st (pidArg : addrArgs) =
           t = addrToInt target
       in a >= t && a < t + 16
 
-reducePath :: ShellState -> [Text] -> IO CommandResult
-reducePath _st [] = return $ ResultError "Usage: reduce <path_ids>  (e.g. 0, [0,1,2], [0..5])"
-reducePath st args = do
-  let pids = parsePathIds args
-  case pids of
-    [] -> return $ ResultError $ "Invalid path id: " <> Text.unwords args
-    _ -> do
-      results <- forM pids $ \pid -> do
-        mPath <- lookupPath st pid
-        case mPath of
-          Nothing -> return $ "Path " <> show pid <> ": not found"
-          Just cp -> do
-            let prep :: PathPrep TypedStmt
-                prep = mkPathPrep [] (cp ^. #pilPath)
-                reducedStmts = asStmts $ prep ^. #stmts
-            newPid <- insertPath st CachedPath
-              { pilPath = reducedStmts
-              , sourceFunc = cp ^. #sourceFunc
-              , pathPrep = Just prep
-              }
-            return $
-              "Reduced path " <> show pid <> " -> new path " <> show newPid
-              <> " (" <> show (length reducedStmts) <> " stmts)"
-      return $ ResultOk $ Text.intercalate "\n" results
-
 freePaths :: ShellState -> [Text] -> IO CommandResult
 freePaths _st [] = return $ ResultError "Usage: free <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5])"
 freePaths st args = do
@@ -260,11 +223,8 @@ listPaths st _args = do
     entries -> do
       let sorted = sortOn fst entries
           rows = fmap (\(pid, cp) ->
-            let nStmts = length $ cp ^. #pilPath
+            let stmts = resolveStmts cp False
                 funcName = cp ^. #sourceFunc . #name
-                reduced = case cp ^. #pathPrep of
-                  Just _ -> " [reduced]"
-                  Nothing -> ""
-            in (pid, "func: " <> funcName <> ", " <> show nStmts <> " stmts" <> reduced)
+            in (pid, "func: " <> funcName <> ", " <> show (length stmts) <> " stmts")
             ) sorted
       return $ ResultPaths rows

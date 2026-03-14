@@ -8,7 +8,6 @@ import Data.IORef
 
 import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
-import Flint.Analysis.Path.Matcher (asStmts)
 
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import qualified Blaze.Types.Pil.Solver as Solver
@@ -27,18 +26,16 @@ solveCommand = ShellCommand
   }
 
 solvePaths :: ShellState -> [Text] -> IO CommandResult
-solvePaths _st [] = return $ ResultError "Usage: solve <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5])"
+solvePaths _st [] = return $ ResultError "Usage: solve <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw)"
 solvePaths st args = do
-  let pids = parsePathIds args
+  let refs = parsePathRefs args
   solver <- readIORef (st ^. #useSolver)
-  results <- forM pids $ \pid -> do
+  results <- forM refs $ \(PathRef pid raw) -> do
     mPath <- lookupPath st pid
     case mPath of
       Nothing -> return (pid, "not found")
       Just cp -> do
-        let stmts = case cp ^. #pathPrep of
-              Just prep -> asStmts $ prep ^. #stmts
-              Nothing   -> cp ^. #pilPath
+        let stmts = resolveStmts cp raw
         if not solver
           then return (pid, "Solver disabled. Use 'set solver on' to enable.")
           else do

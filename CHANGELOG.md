@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0314
+- Reduced paths are now the default in shell and MCP; use `N!` suffix for raw/unreduced view
+- HLint cleanup in Shell.Types
+
 ## Version 0.26.0213b
 - Dynamically generate buildkit
 

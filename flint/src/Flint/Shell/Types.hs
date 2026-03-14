@@ -5,7 +5,7 @@ import Flint.Prelude
 import Data.IORef
 
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
-import Flint.Analysis.Path.Matcher (TypedStmt)
+import Flint.Analysis.Path.Matcher (TypedStmt, asStmts)
 import Flint.Types.Cfg.Store (CfgStore)
 
 import Blaze.Types.Function (Function)
@@ -17,37 +17,50 @@ import qualified Data.Text as Text
 
 type PathId = Int
 
--- | Parse path IDs from command arguments. Supports:
---   Individual args:   1 2 3
+-- | A path reference with an optional raw modifier.
+--   @PathRef 3 False@ = reduced (default), @PathRef 3 True@ = raw/unreduced (3!)
+data PathRef = PathRef
+  { pathRefId :: PathId
+  , wantRaw   :: Bool
+  } deriving (Eq, Show, Generic)
+
+-- | Parse path references from command arguments. Supports:
+--   Individual args:   1 2 3       (reduced by default)
+--   Raw modifier:      1! 2!       (unreduced/raw view)
 --   Bracket lists:     [1, 2, 3]
 --   Ranges:            1..5  or  1-5  (expands to [1,2,3,4,5])
---   Mixed:             [1, 3..7, 10]
-parsePathIds :: [Text] -> [PathId]
-parsePathIds args =
+--   Mixed:             [1, 3..7, 10!]
+parsePathRefs :: [Text] -> [PathRef]
+parsePathRefs args =
   let joined = Text.intercalate " " args
       stripped = Text.filter (\c -> c /= '[' && c /= ']') joined
       parts = filter (not . Text.null)
             . fmap Text.strip
             . Text.split (\c -> c == ',' || isSpace c)
             $ stripped
-  in concatMap parsePart parts
+  in concatMap parseRefPart parts
 
-parsePart :: Text -> [PathId]
-parsePart t
+-- | Backwards-compatible: parse path IDs, ignoring any ! modifiers
+parsePathIds :: [Text] -> [PathId]
+parsePathIds = fmap pathRefId . parsePathRefs
+
+parseRefPart :: Text -> [PathRef]
+parseRefPart t
   -- Try "a..b" range first
   | (a, rest) <- Text.breakOn ".." t
   , not (Text.null rest)
-  , Just lo <- readMaybe (Text.unpack $ Text.strip a)
-  , Just hi <- readMaybe (Text.unpack . Text.strip $ Text.drop 2 rest)
-  = [lo..hi]
+  , Just lo <- readMaybe (Text.unpack . Text.strip . Text.dropWhileEnd (== '!') $ a)
+  , Just hi <- readMaybe (Text.unpack . Text.strip . Text.dropWhileEnd (== '!') $ Text.drop 2 rest)
+  = fmap (`PathRef` False) [lo..hi]
   -- Try "a-b" range (only if both sides are digits, to avoid negative numbers)
-  | Just (a, b) <- splitRange t
+  | Just (a, b) <- splitRange (Text.dropWhileEnd (== '!') t)
   , Just lo <- readMaybe (Text.unpack a)
   , Just hi <- readMaybe (Text.unpack b)
-  = [lo..hi]
-  -- Single number
-  | Just n <- readMaybe (Text.unpack t)
-  = [n]
+  = fmap (`PathRef` False) [lo..hi]
+  -- Single number, possibly with ! suffix
+  | (numPart, suffix) <- Text.span isDigit t
+  , Just n <- readMaybe (Text.unpack numPart)
+  = [PathRef n (suffix == "!")]
   | otherwise = []
   where
     -- Split "3-10" but not "-3" (negative number)
@@ -59,6 +72,15 @@ parsePart t
          else case Text.uncons (Text.drop (Text.length digits) s) of
            Just ('-', rest) | not (Text.null rest) -> Just (digits, rest)
            _ -> Nothing
+
+-- | Resolve which statements to show for a cached path.
+--   Raw = original PIL, otherwise = reduced (falling back to original if no prep).
+resolveStmts :: CachedPath -> Bool -> [Pil.Stmt]
+resolveStmts cp raw
+  | raw       = cp ^. #pilPath
+  | otherwise = case cp ^. #pathPrep of
+      Just prep -> asStmts $ prep ^. #stmts
+      Nothing   -> cp ^. #pilPath
 
 data CachedPath = CachedPath
   { pilPath     :: [Pil.Stmt]

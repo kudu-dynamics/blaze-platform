@@ -10,7 +10,7 @@ import Data.IORef
 import Flint.Shell.Types
 import Flint.Shell.Command
 import Flint.Shell.Commands.Functions (functionsCommand)
-import Flint.Shell.Commands.Paths (sampleCommand, showCommand, pshowCommand, reduceCommand, freeCommand, pathsCommand)
+import Flint.Shell.Commands.Paths (sampleCommand, showCommand, pshowCommand, freeCommand, pathsCommand)
 import Flint.Shell.Commands.Solver (solveCommand)
 import Flint.Shell.Commands.WMI (wmisCommand, checkWMICommand)
 import Flint.Shell.Commands.TypeCheck (typecheckCommand)
@@ -26,7 +26,6 @@ allCommands =
   , sampleCommand
   , showCommand
   , pshowCommand
-  , reduceCommand
   , solveCommand
   , wmisCommand
   , checkWMICommand
