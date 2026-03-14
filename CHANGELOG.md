@@ -1,6 +1,10 @@
 # Blaze Platform
 
-## Version 0.26.0314
+## Version 0.26.0314b
+- Added `tag` / `free-untagged` commands to shell and MCP for naming paths with human-readable tags
+- Tag names can be used in place of numeric path IDs in all commands (`show`, `free`, `solve`, `check-wmi`, `pshow`)
+
+## Version 0.26.0314a
 - Reduced paths are now the default in shell and MCP; use `N!` suffix for raw/unreduced view
 - HLint cleanup in Shell.Types
 

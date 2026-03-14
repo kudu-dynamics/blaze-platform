@@ -320,6 +320,14 @@ buildCommandString toolName args = case toolName of
       Nothing -> Left "Missing required parameter: path_ids"
       Just pids -> Right $ "solve " <> pids
 
+  "tag_path" ->
+    case (lookupArg "path_id" args, lookupArg "name" args) of
+      (Nothing, _) -> Left "Missing required parameter: path_id"
+      (_, Nothing) -> Left "Missing required parameter: name"
+      (Just pid, Just name) -> Right $ "tag " <> pid <> " " <> name
+
+  "free_untagged" -> Right "free-untagged"
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -442,6 +450,27 @@ toolDefinitions =
               [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to solve (e.g. '0 1 2', '0..5')")
               ]
           , required = ["path_ids"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "tag_path"
+      , toolDefinitionDescription = "Tag a cached path with a human-readable name. Tagged names can be used in place of numeric path IDs in all commands."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("path_id", InputSchemaDefinitionProperty "string" "Path ID or existing tag name to tag")
+              , ("name", InputSchemaDefinitionProperty "string" "Tag name to assign (e.g. 'sprintf_system_all4')")
+              ]
+          , required = ["path_id", "name"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "free_untagged"
+      , toolDefinitionDescription = "Free all untagged cached paths. Keeps paths that have been tagged with 'tag_path'."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
           }
       , toolDefinitionTitle = Nothing
       }

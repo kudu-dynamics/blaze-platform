@@ -26,9 +26,9 @@ solveCommand = ShellCommand
   }
 
 solvePaths :: ShellState -> [Text] -> IO CommandResult
-solvePaths _st [] = return $ ResultError "Usage: solve <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw)"
+solvePaths _st [] = return $ ResultError "Usage: solve <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw, or tag names)"
 solvePaths st args = do
-  let refs = parsePathRefs args
+  refs <- resolvePathRefs st args
   solver <- readIORef (st ^. #useSolver)
   results <- forM refs $ \(PathRef pid raw) -> do
     mPath <- lookupPath st pid
