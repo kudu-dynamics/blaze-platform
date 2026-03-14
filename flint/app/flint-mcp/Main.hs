@@ -144,8 +144,8 @@ serverInfo = McpServerInfo
       [ "Flint is a binary vulnerability detection tool."
       , "Use 'load_binary' to load a binary file for analysis."
       , "Use 'list_functions' to discover functions in the loaded binary."
-      , "Use 'sample_paths' to sample execution paths from a function."
-      , "Use 'show_paths' to view the PIL statements on a sampled path."
+      , "Use 'sample_paths' to sample execution paths from a function (reduced by default)."
+      , "Use 'show_paths' to view the PIL statements on a sampled path (use N! for raw/unreduced)."
       , "Use 'check_wmi' to check if a path matches a vulnerability pattern."
       , "Use 'list_wmis' to see all available vulnerability patterns."
       , "Typical workflow: load_binary -> list_functions -> sample_paths -> show_paths -> check_wmi"
@@ -300,11 +300,6 @@ buildCommandString toolName args = case toolName of
         let addrs = lookupArg "addresses" args
         in Right $ "pshow " <> pid <> maybe "" (" " <>) addrs
 
-  "reduce_paths" ->
-    case lookupArg "path_ids" args of
-      Nothing -> Left "Missing required parameter: path_ids"
-      Just pids -> Right $ "reduce " <> pids
-
   "free_paths" ->
     case lookupArg "path_ids" args of
       Nothing -> Left "Missing required parameter: path_ids"
@@ -364,7 +359,7 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "sample_paths"
-      , toolDefinitionDescription = "Sample execution paths from a function. Paths are cached and referenced by path ID."
+      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Use N! suffix to access raw/unreduced view."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x401000')")
@@ -377,10 +372,10 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "show_paths"
-      , toolDefinitionDescription = "Show PIL (Platform Independent Language) statements for cached paths."
+      , toolDefinitionDescription = "Show PIL (Platform Independent Language) statements for cached paths. Shows reduced view by default; use N! suffix for raw/unreduced (e.g. '0!' for raw path 0)."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
-              [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to show (e.g. '0 1 2', '0..5', '[0,1,2]')")
+              [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to show (e.g. '0 1 2', '0..5', '[0,1,2]', '0!' for raw)")
               ]
           , required = ["path_ids"]
           }
@@ -395,17 +390,6 @@ toolDefinitions =
               , ("addresses", InputSchemaDefinitionProperty "string" "Optional hex addresses to filter statements (space-separated)")
               ]
           , required = ["path_id"]
-          }
-      , toolDefinitionTitle = Nothing
-      }
-  , ToolDefinition
-      { toolDefinitionName = "reduce_paths"
-      , toolDefinitionDescription = "Reduce paths via copy/constant propagation. Creates new cached path IDs with simplified statements."
-      , toolDefinitionInputSchema = InputSchemaDefinitionObject
-          { properties =
-              [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to reduce (e.g. '0 1 2', '0..5')")
-              ]
-          , required = ["path_ids"]
           }
       , toolDefinitionTitle = Nothing
       }

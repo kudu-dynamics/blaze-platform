@@ -80,19 +80,21 @@ checkWMIs st (wmiName : pidArgs) = do
   case primsToCheck of
     Left err -> return $ ResultError err
     Right prims -> do
-      let pids = parsePathIds pidArgs
+      let refs = parsePathRefs pidArgs
       useSolve <- readIORef (st ^. #useSolver)
       let solver = chooseSolver useSolve
       callablePrimSnapshot <- CM.getSnapshot $ st ^. (#cfgStore . #callablePrims)
-      results <- forM pids $ \pid -> do
+      results <- forM refs $ \(PathRef pid raw) -> do
         mPath <- lookupPath st pid
         case mPath of
           Nothing -> return (pid, ["Path not found"])
           Just cp -> do
             let prep :: PathPrep TypedStmt
-                prep = case cp ^. #pathPrep of
-                  Just existing -> existing
-                  Nothing -> mkPathPrep [] (cp ^. #pilPath)
+                prep = if raw
+                  then mkPathPrep [] (cp ^. #pilPath)
+                  else case cp ^. #pathPrep of
+                    Just existing -> existing
+                    Nothing -> mkPathPrep [] (cp ^. #pilPath)
                 func = cp ^. #sourceFunc
             allMatches <- fmap concat . forM prims $ \prim ->
               catch
