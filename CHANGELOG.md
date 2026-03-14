@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0314d
+- Undid the "pure func whitelist" in `aggressiveExpand`
+
 ## Version 0.26.0314c
 - Added `expand` / `expand_call` command to shell and MCP for interprocedural path expansion
   + Expand a callsite in a cached path by sampling fresh callee paths or stitching in specific cached paths
