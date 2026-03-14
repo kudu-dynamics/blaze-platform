@@ -1,5 +1,13 @@
 # Blaze Platform
 
+## Version 0.26.0314c
+- Added `expand` / `expand_call` command to shell and MCP for interprocedural path expansion
+  + Expand a callsite in a cached path by sampling fresh callee paths or stitching in specific cached paths
+  + Caller args are propagated into callee via EnterFunc/LeaveFunc nodes
+  + Supports chaining: expand multiple callsites in the same path sequentially
+  + Validates callsite address, callee function match, and rejects indirect calls
+- `CachedPath` now preserves the graph-structured `PilPath` for use in expansion
+
 ## Version 0.26.0314b
 - Added `tag` / `free-untagged` commands to shell and MCP for naming paths with human-readable tags
 - Tag names can be used in place of numeric path IDs in all commands (`show`, `free`, `solve`, `check-wmi`, `pshow`)
