@@ -138,10 +138,6 @@ type Addr = Expression
 type StmtIndex = Int
 type VarSubstMap = HashMap PilVar (StmtIndex, Expression)
 
--- HACK: copy prop memchr() in constraints so it's readable downstream
-pureFunctionsWhitelist :: HashSet Text
-pureFunctionsWhitelist = HashSet.fromList ["memchr"]
-
 showVarSubstMap :: HashMap PilVar (StmtIndex, Expression) -> Text
 showVarSubstMap
   = Text.intercalate "\n\n"
@@ -172,23 +168,15 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
   -- so we can't subst the calls in multiple places.
   Just call -> AggressiveExpandState
                usedVars'
-               varSubstMap'
+               varSubstMap
                (removeFromMemSubstMap args)
                processed'
       where
         usedVars' = addUsedFromStmt stmt'
         args = substAll <$> call ^. #args
         stmt' = substAll <$> stmt
+        processed' = stmt':processed
 
-        isPure = maybe False (`HashSet.member` pureFunctionsWhitelist)
-                   $ Pil.destName (call ^. #callOp . #dest)
-
-        (varSubstMap', processed')
-          | isPure
-          , Just rv <- call ^. #resultVar
-          , Pil.Def (Pil.DefOp _ ce) <- stmt' ^. #statement
-          = (HashMap.insert rv (stmtIndex, ce) varSubstMap, processed)
-          | otherwise = (varSubstMap, stmt':processed)
   -- | Handle the non-call statements.
   Nothing ->  case statement of
     Pil.Def (Pil.DefOp pv expr) -> AggressiveExpandState
