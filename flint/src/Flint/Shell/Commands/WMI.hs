@@ -80,7 +80,7 @@ checkWMIs st (wmiName : pidArgs) = do
   case primsToCheck of
     Left err -> return $ ResultError err
     Right prims -> do
-      let refs = parsePathRefs pidArgs
+      refs <- resolvePathRefs st pidArgs
       useSolve <- readIORef (st ^. #useSolver)
       let solver = chooseSolver useSolve
       callablePrimSnapshot <- CM.getSnapshot $ st ^. (#cfgStore . #callablePrims)

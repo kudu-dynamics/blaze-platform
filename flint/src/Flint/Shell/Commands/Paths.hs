@@ -4,6 +4,8 @@ module Flint.Shell.Commands.Paths
   , pshowCommand
   , freeCommand
   , pathsCommand
+  , tagCommand
+  , freeUntaggedCommand
   ) where
 
 import Flint.Prelude
@@ -24,6 +26,7 @@ import qualified Blaze.Types.Cfg.Path as Path
 import Numeric (showHex)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
 
@@ -70,6 +73,24 @@ pathsCommand = ShellCommand
   , cmdHelp = "List all cached paths"
   , cmdUsage = "paths"
   , cmdAction = listPaths
+  }
+
+tagCommand :: ShellCommand
+tagCommand = ShellCommand
+  { cmdName = "tag"
+  , cmdAliases = ["tg"]
+  , cmdHelp = "Tag a path with a name"
+  , cmdUsage = "tag <path_id> <name>"
+  , cmdAction = tagPathCmd
+  }
+
+freeUntaggedCommand :: ShellCommand
+freeUntaggedCommand = ShellCommand
+  { cmdName = "free-untagged"
+  , cmdAliases = ["fu"]
+  , cmdHelp = "Free all untagged paths"
+  , cmdUsage = "free-untagged"
+  , cmdAction = freeUntaggedPaths
   }
 
 -- | Parse a hex address like "0x401000" or a decimal number
@@ -155,26 +176,29 @@ samplePaths st (funcArg : rest) = do
           return $ ResultPaths results
 
 showPaths :: ShellState -> [Text] -> IO CommandResult
-showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw)"
+showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw, or tag names)"
 showPaths st args = do
-  let refs = parsePathRefs args
+  refs <- resolvePathRefs st args
   results <- forM refs $ \(PathRef pid raw) -> do
     mPath <- lookupPath st pid
+    mTag <- lookupTag st pid
     case mPath of
       Nothing -> return $ "Path " <> show pid <> ": not found"
       Just cp -> do
         let stmts = resolveStmts cp raw
             rawTag = if raw then " [raw]" else ""
-            header = "=== Path " <> show pid <> rawTag
+            tagLabel = maybe "" (\t -> " \"" <> t <> "\"") mTag
+            header = "=== Path " <> show pid <> tagLabel <> rawTag
               <> " (func: " <> (cp ^. #sourceFunc . #name)
               <> ", " <> show (length stmts) <> " stmts) ==="
         return $ header <> "\n" <> pretty' (PStmts stmts)
   return $ ResultText $ Text.intercalate "\n\n" results
 
 pshowStmts :: ShellState -> [Text] -> IO CommandResult
-pshowStmts _st [] = return $ ResultError "Usage: pshow <path_id> [addr ...] (use N! for raw)"
-pshowStmts st (pidArg : addrArgs) =
-  case parsePathRefs [pidArg] of
+pshowStmts _st [] = return $ ResultError "Usage: pshow <path_id> [addr ...] (use N! for raw, or tag name)"
+pshowStmts st (pidArg : addrArgs) = do
+  refs <- resolvePathRefs st [pidArg]
+  case refs of
     [] -> return $ ResultError $ "Invalid path id: " <> pidArg
     (PathRef pid raw : _) -> do
       mPath <- lookupPath st pid
@@ -205,13 +229,15 @@ pshowStmts st (pidArg : addrArgs) =
       in a >= t && a < t + 16
 
 freePaths :: ShellState -> [Text] -> IO CommandResult
-freePaths _st [] = return $ ResultError "Usage: free <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5])"
+freePaths _st [] = return $ ResultError "Usage: free <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], or tag names)"
 freePaths st args = do
-  let pids = parsePathIds args
+  pids <- resolvePathIds st args
   results <- forM pids $ \pid -> do
     deleted <- deletePath st pid
     if deleted
-      then return $ "Freed path " <> show pid
+      then do
+        untagPath st pid
+        return $ "Freed path " <> show pid
       else return $ "Path " <> show pid <> " not found"
   return $ ResultOk $ Text.intercalate "\n" results
 
@@ -222,9 +248,33 @@ listPaths st _args = do
     [] -> return $ ResultOk "No paths cached."
     entries -> do
       let sorted = sortOn fst entries
-          rows = fmap (\(pid, cp) ->
-            let stmts = resolveStmts cp False
-                funcName = cp ^. #sourceFunc . #name
-            in (pid, "func: " <> funcName <> ", " <> show (length stmts) <> " stmts")
-            ) sorted
+      rows <- forM sorted $ \(pid, cp) -> do
+        let stmts = resolveStmts cp False
+            funcName = cp ^. #sourceFunc . #name
+        mTag <- lookupTag st pid
+        let tagLabel = maybe "" (\t -> " [" <> t <> "]") mTag
+        return (pid, "func: " <> funcName <> ", " <> show (length stmts) <> " stmts" <> tagLabel)
       return $ ResultPaths rows
+
+tagPathCmd :: ShellState -> [Text] -> IO CommandResult
+tagPathCmd _st [] = return $ ResultError "Usage: tag <path_id> <name>"
+tagPathCmd _st [_] = return $ ResultError "Usage: tag <path_id> <name>"
+tagPathCmd st (pidArg : nameArg : _) = do
+  pids <- resolvePathIds st [pidArg]
+  case pids of
+    [] -> return $ ResultError $ "Invalid path id: " <> pidArg
+    (pid : _) -> do
+      mPath <- lookupPath st pid
+      case mPath of
+        Nothing -> return $ ResultError $ "Path " <> show pid <> " not found"
+        Just _ -> do
+          tagPath st pid nameArg
+          return $ ResultOk $ "Tagged path " <> show pid <> " as \"" <> nameArg <> "\""
+
+freeUntaggedPaths :: ShellState -> [Text] -> IO CommandResult
+freeUntaggedPaths st _args = do
+  cache <- allPaths st
+  tagged <- taggedPathIds st
+  let untaggedPids = filter (\pid -> not $ HashSet.member pid tagged) $ HashMap.keys cache
+  forM_ untaggedPids $ \pid -> deletePath st pid
+  return $ ResultOk $ "Freed " <> show (length untaggedPids) <> " untagged path(s)"

@@ -12,6 +12,7 @@ import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil as Pil
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 
 
@@ -94,6 +95,7 @@ data ShellState = ShellState
   , nextPathId  :: IORef PathId
   , useSolver   :: IORef Bool
   , baseOffset  :: Address
+  , pathTags    :: IORef (HashMap PathId Text, HashMap Text PathId)
   } deriving (Generic)
 
 data CommandResult
@@ -111,12 +113,14 @@ initShellState store base solver = do
   cache <- newIORef HashMap.empty
   nextId <- newIORef 0
   solverRef <- newIORef solver
+  tags <- newIORef (HashMap.empty, HashMap.empty)
   return ShellState
     { cfgStore = store
     , pathCache = cache
     , nextPathId = nextId
     , useSolver = solverRef
     , baseOffset = base
+    , pathTags = tags
     }
 
 allocPathId :: ShellState -> IO PathId
@@ -145,3 +149,60 @@ deletePath st pid = do
 
 allPaths :: ShellState -> IO (HashMap PathId CachedPath)
 allPaths st = readIORef (st ^. #pathCache)
+
+-- | Tag a path with a name. Removes any previous tag on the same path ID,
+--   and any previous path using the same tag name.
+tagPath :: ShellState -> PathId -> Text -> IO ()
+tagPath st pid name = modifyIORef' (st ^. #pathTags) $ \(idToName, nameToId) ->
+  let -- Remove old tag for this path ID if any
+      oldName = HashMap.lookup pid idToName
+      nameToId' = maybe nameToId (`HashMap.delete` nameToId) oldName
+      -- Remove old path ID for this tag name if any
+      oldPid = HashMap.lookup name nameToId'
+      idToName' = maybe idToName (`HashMap.delete` idToName) oldPid
+  in (HashMap.insert pid name idToName', HashMap.insert name pid nameToId')
+
+-- | Remove tag from a path.
+untagPath :: ShellState -> PathId -> IO ()
+untagPath st pid = modifyIORef' (st ^. #pathTags) $ \(idToName, nameToId) ->
+  case HashMap.lookup pid idToName of
+    Nothing -> (idToName, nameToId)
+    Just name -> (HashMap.delete pid idToName, HashMap.delete name nameToId)
+
+-- | Look up a tag name for a path ID.
+lookupTag :: ShellState -> PathId -> IO (Maybe Text)
+lookupTag st pid = do
+  (idToName, _) <- readIORef (st ^. #pathTags)
+  return $ HashMap.lookup pid idToName
+
+-- | Look up a path ID by tag name.
+lookupTaggedPath :: ShellState -> Text -> IO (Maybe PathId)
+lookupTaggedPath st name = do
+  (_, nameToId) <- readIORef (st ^. #pathTags)
+  return $ HashMap.lookup name nameToId
+
+-- | Get all tagged path IDs.
+taggedPathIds :: ShellState -> IO (HashSet PathId)
+taggedPathIds st = do
+  (idToName, _) <- readIORef (st ^. #pathTags)
+  return $ HashSet.fromList $ HashMap.keys idToName
+
+-- | Parse path references, resolving tag names via ShellState.
+--   Falls back to numeric parsing if not a known tag.
+resolvePathRefs :: ShellState -> [Text] -> IO [PathRef]
+resolvePathRefs st args = do
+  (_, nameToId) <- readIORef (st ^. #pathTags)
+  let resolve part = case HashMap.lookup (Text.dropWhileEnd (== '!') part) nameToId of
+        Just pid -> [PathRef pid (Text.isSuffixOf "!" part)]
+        Nothing  -> parseRefPart part
+      joined = Text.intercalate " " args
+      stripped = Text.filter (\c -> c /= '[' && c /= ']') joined
+      parts = filter (not . Text.null)
+            . fmap Text.strip
+            . Text.split (\c -> c == ',' || isSpace c)
+            $ stripped
+  return $ concatMap resolve parts
+
+-- | Like resolvePathRefs but returns only PathIds.
+resolvePathIds :: ShellState -> [Text] -> IO [PathId]
+resolvePathIds st args = fmap pathRefId <$> resolvePathRefs st args
