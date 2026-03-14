@@ -8,6 +8,7 @@ import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
 import Flint.Analysis.Path.Matcher (TypedStmt, asStmts)
 import Flint.Types.Cfg.Store (CfgStore)
 
+import Blaze.Cfg.Path (PilPath)
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil as Pil
 
@@ -85,6 +86,7 @@ resolveStmts cp raw
 
 data CachedPath = CachedPath
   { pilPath     :: [Pil.Stmt]
+  , fullPath    :: PilPath
   , sourceFunc  :: Function
   , pathPrep    :: Maybe (PathPrep TypedStmt)
   } deriving (Generic)

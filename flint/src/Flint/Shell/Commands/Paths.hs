@@ -6,6 +6,7 @@ module Flint.Shell.Commands.Paths
   , pathsCommand
   , tagCommand
   , freeUntaggedCommand
+  , expandCommand
   ) where
 
 import Flint.Prelude
@@ -14,14 +15,19 @@ import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
 import qualified Flint.Cfg.Store as Store
 import Flint.Cfg.Path (samplesFromQuery)
+import Blaze.Cfg.Path (expandCallWithNewInnerPathIds)
 import Flint.Query (onionSampleBasedOnFuncSize)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
 import Flint.Analysis.Path.Matcher (asStmts)
 import Flint.Types.Query (QueryExpandAllOpts(..), QueryTargetOpts(..), Query(..))
 
+import Blaze.Cfg.Interprocedural (getCallTargetFunction)
+import Blaze.Types.Cfg (CfNode(Call), CallNode)
 import Blaze.Types.Function (Function)
 import Blaze.Pretty (pretty', PStmts(PStmts))
 import qualified Blaze.Types.Cfg.Path as Path
+import qualified Blaze.Types.Path as P
+import qualified Blaze.Types.Pil as Pil
 
 import Numeric (showHex)
 import qualified Data.List.NonEmpty as NE
@@ -166,6 +172,7 @@ samplePaths st (funcArg : rest) = do
                 reducedStmts = asStmts $ prep ^. #stmts
             pid <- insertPath st CachedPath
               { pilPath = stmts
+              , fullPath = path
               , sourceFunc = func
               , pathPrep = Just prep
               }
@@ -278,3 +285,143 @@ freeUntaggedPaths st _args = do
   let untaggedPids = filter (\pid -> not $ HashSet.member pid tagged) $ HashMap.keys cache
   forM_ untaggedPids $ \pid -> deletePath st pid
   return $ ResultOk $ "Freed " <> show (length untaggedPids) <> " untagged path(s)"
+
+expandCommand :: ShellCommand
+expandCommand = ShellCommand
+  { cmdName = "expand"
+  , cmdAliases = ["ex"]
+  , cmdHelp = "Expand a callsite in a path with callee paths"
+  , cmdUsage = "expand <path_id> <callsite_addr> [count | --paths <path_ids>]"
+  , cmdAction = expandCallSite
+  }
+
+expandCallSite :: ShellState -> [Text] -> IO CommandResult
+expandCallSite _st [] = return $ ResultError
+  "Usage: expand <path_id> <callsite_addr> [count | --paths <path_ids>]"
+expandCallSite _st [_] = return $ ResultError
+  "Usage: expand <path_id> <callsite_addr> [count | --paths <path_ids>]"
+expandCallSite st (pidArg : addrArg : rest) = do
+  -- Parse outer path ID
+  pids <- resolvePathIds st [pidArg]
+  case pids of
+    [] -> return $ ResultError $ "Invalid path id: " <> pidArg
+    (outerPid : _) -> do
+      mOuterCp <- lookupPath st outerPid
+      case mOuterCp of
+        Nothing -> return $ ResultError $ "Path " <> show outerPid <> " not found"
+        Just outerCp -> do
+          -- Parse callsite address
+          case parseAddress addrArg of
+            Nothing -> return $ ResultError $ "Invalid address: " <> addrArg
+            Just callAddr -> expandWithAddr st outerPid outerCp callAddr rest
+
+expandWithAddr :: ShellState -> PathId -> CachedPath -> Address -> [Text] -> IO CommandResult
+expandWithAddr st outerPid outerCp callAddr rest = do
+  let outerPilPath = outerCp ^. #fullPath
+      -- Find all Call nodes in the path
+      allNodes = HashSet.toList $ P.nodes outerPilPath
+      callNodes = [ cn | Call cn <- allNodes ]
+      -- Find the call node at the target address
+      matchingCalls = filter (\cn -> cn ^. #start == callAddr) callNodes
+  case matchingCalls of
+    [] -> do
+      -- List available call addresses for the user
+      let callAddrs = fmap (\cn -> showAddr (cn ^. #start)) callNodes
+      if null callAddrs
+        then return $ ResultError $ "Path " <> show outerPid <> " has no call nodes"
+        else return $ ResultError $ "No call at " <> showAddr callAddr
+              <> ". Available calls: " <> Text.intercalate ", " callAddrs
+    (callNode : _) -> do
+      -- Check if call destination is a known function
+      case getCallTargetFunction (callNode ^. #callDest) of
+        Nothing -> return $ ResultError
+          $ "Call at " <> showAddr callAddr
+          <> " is an indirect call (not yet supported)"
+        Just calleeFunc -> do
+          -- Parse mode: --paths or count
+          let (_beforePaths, pathsArgs) = break (== "--paths") rest
+          case pathsArgs of
+            ("--paths" : innerPathArgs) ->
+              expandWithSpecificPaths st outerPid outerCp callNode calleeFunc innerPathArgs
+            _ -> do
+              let count = case rest of
+                    (n : _) -> fromMaybe 1 (readMaybe (Text.unpack n) :: Maybe Int)
+                    _ -> 1
+              expandWithSampling st outerPid outerCp callNode calleeFunc count
+
+expandWithSampling
+  :: ShellState -> PathId -> CachedPath -> CallNode [Pil.Stmt]
+  -> Function -> Int -> IO CommandResult
+expandWithSampling st outerPid outerCp callNode calleeFunc count = do
+  let q = QueryExpandAll $ QueryExpandAllOpts
+        { callExpandDepthLimit = 0
+        , numSamples = fromIntegral count
+        }
+  innerPaths <- catch
+    (samplesFromQuery (st ^. #cfgStore) calleeFunc q)
+    (\(e :: SomeException) -> do
+      warn $ "Sampling error for " <> calleeFunc ^. #name <> ": " <> show e
+      return [])
+  case innerPaths of
+    [] -> return $ ResultError $ "No paths sampled from " <> calleeFunc ^. #name
+    _ -> doExpansions st outerPid outerCp callNode innerPaths
+
+expandWithSpecificPaths
+  :: ShellState -> PathId -> CachedPath -> CallNode [Pil.Stmt]
+  -> Function -> [Text] -> IO CommandResult
+expandWithSpecificPaths st outerPid outerCp callNode calleeFunc innerPathArgs = do
+  innerPids <- resolvePathIds st innerPathArgs
+  if null innerPids
+    then return $ ResultError "No valid inner path IDs provided"
+    else do
+      results <- forM innerPids $ \iPid -> do
+        mCp <- lookupPath st iPid
+        case mCp of
+          Nothing -> return $ Left $ "Path " <> show iPid <> " not found"
+          Just cp
+            | cp ^. #sourceFunc . #address /= calleeFunc ^. #address ->
+                return $ Left $ "Path " <> show iPid <> " is from "
+                  <> cp ^. #sourceFunc . #name
+                  <> ", but callsite targets " <> calleeFunc ^. #name
+            | otherwise -> return $ Right (cp ^. #fullPath)
+      let (errs, innerPilPaths) = partitionEithers results
+      if null innerPilPaths
+        then return $ ResultError $ Text.intercalate "\n" errs
+        else do
+          r <- doExpansions st outerPid outerCp callNode innerPilPaths
+          if null errs
+            then return r
+            else case r of
+              ResultPaths ps -> return $ ResultPaths ps  -- warnings are secondary
+              other -> return other
+
+doExpansions
+  :: ShellState -> PathId -> CachedPath -> CallNode [Pil.Stmt]
+  -> [Path.PilPath] -> IO CommandResult
+doExpansions st outerPid outerCp callNode innerPilPaths = do
+  let outerPilPath = outerCp ^. #fullPath
+      outerFunc = outerCp ^. #sourceFunc
+  results <- forM innerPilPaths $ \innerPilPath -> do
+    uuid <- randomIO
+    mExpanded <- expandCallWithNewInnerPathIds uuid outerPilPath callNode innerPilPath
+    case mExpanded of
+      Nothing -> return $ Left "Expansion failed (call node not found in path)"
+      Just expandedPath -> do
+        let stmts = Path.toStmts expandedPath
+            prep = mkPathPrep [] stmts
+            reducedStmts = asStmts $ prep ^. #stmts
+        pid <- insertPath st CachedPath
+          { pilPath = stmts
+          , fullPath = expandedPath
+          , sourceFunc = outerFunc
+          , pathPrep = Just prep
+          }
+        let summary = "path " <> show pid
+              <> " (" <> show (length reducedStmts) <> " stmts"
+              <> ", expanded from path " <> show outerPid <> ")"
+        return $ Right (pid, summary)
+  let (errs, expanded) = partitionEithers results
+  case expanded of
+    [] -> return $ ResultError $ "All expansions failed: "
+            <> Text.intercalate ", " errs
+    _ -> return $ ResultPaths expanded

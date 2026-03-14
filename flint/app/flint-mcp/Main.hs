@@ -328,6 +328,18 @@ buildCommandString toolName args = case toolName of
 
   "free_untagged" -> Right "free-untagged"
 
+  "expand_call" ->
+    case (lookupArg "path_id" args, lookupArg "address" args) of
+      (Nothing, _) -> Left "Missing required parameter: path_id"
+      (_, Nothing) -> Left "Missing required parameter: address"
+      (Just pid, Just addr) ->
+        let pathsPart = case lookupArg "paths" args of
+              Just ps -> " --paths " <> ps
+              Nothing -> case lookupArg "count" args of
+                Just c  -> " " <> c
+                Nothing -> ""
+        in Right $ "expand " <> pid <> " " <> addr <> pathsPart
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -471,6 +483,20 @@ toolDefinitions =
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties = []
           , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "expand_call"
+      , toolDefinitionDescription = "Expand a callsite in a cached path with callee paths, creating interprocedural paths. Either sample fresh paths through the callee (count) or stitch in specific cached paths (paths). Each expansion produces a new cached path."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("path_id", InputSchemaDefinitionProperty "string" "Path ID containing the callsite to expand")
+              , ("address", InputSchemaDefinitionProperty "string" "Hex address of the call instruction (e.g. '0x431458')")
+              , ("count", InputSchemaDefinitionProperty "string" "Number of fresh callee paths to sample (default 1). Mutually exclusive with 'paths'.")
+              , ("paths", InputSchemaDefinitionProperty "string" "Space-separated path IDs of existing callee paths to stitch in. Mutually exclusive with 'count'.")
+              ]
+          , required = ["path_id", "address"]
           }
       , toolDefinitionTitle = Nothing
       }
