@@ -16,7 +16,7 @@
 First, install the following packages:
 
 ```bash
-sudo apt install build-essential curl libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev pkg-config
+sudo apt install build-essential curl libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev pkg-config zlib1g-dev
 ```
 
 Then, install the script:

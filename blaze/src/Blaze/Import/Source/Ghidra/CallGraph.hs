@@ -57,12 +57,12 @@ getFuncFromJFunction imp jfunc = do
     False -> Internal <$> mkInternalFunc imp dethunkedJFunc
 
 getFunction :: GhidraImporter -> Address -> IO (Maybe Func)
-getFunction imp@(GhidraImporter gs _) addr = getJFunction (gs ^. #program) addr >>= \case
+getFunction imp@(GhidraImporter gs _ _) addr = getJFunction (gs ^. #program) addr >>= \case
   Nothing -> return Nothing
   Just jfunc -> Just <$> getFuncFromJFunction imp jfunc
 
 getHighFunction :: GhidraImporter -> Address -> J.Function -> IO J.HighFunction
-getHighFunction (GhidraImporter gs fc) addr fn = CM.get addr fc >>= \case
+getHighFunction (GhidraImporter gs fc _) addr fn = CM.get addr fc >>= \case
   Nothing -> do
     hf <- runGhidraOrError $ G.getHighFunction gs fn
     CM.set addr (Just hf) fc
@@ -119,7 +119,7 @@ mkExternFunc jfunc = do
     }
 
 getFunctions :: GhidraImporter -> IO [Func]
-getFunctions imp@(GhidraImporter gs _) = fmap nub $ runGhidraOrError (G.getFunctions' opts $ gs ^. #program)
+getFunctions imp@(GhidraImporter gs _ _) = fmap nub $ runGhidraOrError (G.getFunctions' opts $ gs ^. #program)
   >>= traverse (getFuncFromJFunction imp)
   where
     -- Are these sensible options for blaze?
@@ -133,7 +133,7 @@ getFunctions imp@(GhidraImporter gs _) = fmap nub $ runGhidraOrError (G.getFunct
 
 -- | Gets all callsites that call fn.
 getCallSites :: GhidraImporter -> Func -> IO [CallSite]
-getCallSites imp@(GhidraImporter gs _) fn = do
+getCallSites imp@(GhidraImporter gs _ _) fn = do
   let prg = gs ^. #program
   mgfunc <- case fn of
     BFunc.Internal func -> do

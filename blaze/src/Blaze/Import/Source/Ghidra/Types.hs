@@ -31,4 +31,5 @@ newtype PilPcodeMap a = PilPcodeMap
 data GhidraImporter = GhidraImporter
   { ghidraState :: GhidraState
   , highFnCache :: CachedMap Address (Maybe HighFunction)
+  , stringsMap :: HashMap Address Text
   } deriving (Show, Generic)
