@@ -470,6 +470,9 @@ getFuncs store = fromJust <$> CC.get () (store ^. #funcs)
 getInternalFuncs :: CfgStore -> IO [Function]
 getInternalFuncs store = fromJust <$> CC.get () (store ^. #internalFuncs)
 
+getExternalFuncs :: CfgStore -> IO [Func.ExternFunction]
+getExternalFuncs store = mapMaybe (^? #_External) <$> getFuncs store
+
 getTransposedCallGraph :: CfgStore -> IO CallGraph
 getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
 

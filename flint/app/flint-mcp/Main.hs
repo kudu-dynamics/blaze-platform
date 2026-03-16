@@ -168,8 +168,15 @@ renderResultText = \case
   ResultText t -> t
   ResultOk t -> t
   ResultError t -> "Error: " <> t
-  ResultFunctions funcs ->
-    Text.unlines $ fmap (\(name, addr) -> show addr <> "  " <> name) funcs
+  ResultFunctions internals externs ->
+    let internalLines = if null internals then []
+          else "Internal Functions:"
+             : fmap (\(name, addr) -> "  " <> show addr <> "  " <> name) internals
+        externLines = if null externs then []
+          else "External Functions:"
+             : fmap (\(name, mLib) -> "  " <> name <> maybe "" (\l -> " (" <> l <> ")") mLib) externs
+        sep = if not (null internals) && not (null externs) then [""] else []
+    in Text.unlines $ internalLines <> sep <> externLines
   ResultPaths paths ->
     Text.unlines $ fmap (\(pid, summary) -> "[" <> show pid <> "] " <> summary) paths
   ResultSolver results ->
@@ -368,10 +375,10 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "list_functions"
-      , toolDefinitionDescription = "List functions in the binary. Optionally filter by substring."
+      , toolDefinitionDescription = "List functions in the binary. Shows both internal and external (imported) functions. Use -i for internal only, -e for extern only. Optionally filter by substring."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
-              [ ("filter", InputSchemaDefinitionProperty "string" "Optional substring to filter function names")
+              [ ("filter", InputSchemaDefinitionProperty "string" "Optional substring to filter function names. Prefix with -i or -e to show only internal or external functions (e.g. '-e printf').")
               ]
           , required = []
           }
