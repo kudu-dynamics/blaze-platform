@@ -160,6 +160,7 @@ library:
   - Flint.Shell.Commands.Solver
   - Flint.Shell.Commands.WMI
   - Flint.Shell.Commands.TypeCheck
+  - Flint.Shell.Commands.Xrefs
   - Flint.Shell.Repl
 
 executables:

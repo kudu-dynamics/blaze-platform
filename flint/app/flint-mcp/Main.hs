@@ -144,6 +144,7 @@ serverInfo = McpServerInfo
       [ "Flint is a binary vulnerability detection tool."
       , "Use 'load_binary' to load a binary file for analysis."
       , "Use 'list_functions' to discover functions in the loaded binary."
+      , "Use 'functions_calling' to find call sites to an extern (e.g. system, popen)."
       , "Use 'sample_paths' to sample execution paths from a function (reduced by default)."
       , "Use 'show_paths' to view the PIL statements on a sampled path (use N! for raw/unreduced)."
       , "Use 'check_wmi' to check if a path matches a vulnerability pattern."
@@ -347,6 +348,11 @@ buildCommandString toolName args = case toolName of
                 Nothing -> ""
         in Right $ "expand " <> pid <> " " <> addr <> pathsPart
 
+  "functions_calling" ->
+    case lookupArg "extern_name" args of
+      Nothing -> Left "Missing required parameter: extern_name"
+      Just name -> Right $ "functions-calling " <> name
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -381,6 +387,17 @@ toolDefinitions =
               [ ("filter", InputSchemaDefinitionProperty "string" "Optional substring to filter function names. Prefix with -i or -e to show only internal or external functions (e.g. '-e printf').")
               ]
           , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "functions_calling"
+      , toolDefinitionDescription = "Find internal functions that call a given extern function. Returns call sites as 'FuncName @ 0xAddress' which can be used with sample_paths addresses parameter."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("extern_name", InputSchemaDefinitionProperty "string" "Name of the extern function (e.g. 'system', 'popen', 'sprintf')")
+              ]
+          , required = ["extern_name"]
           }
       , toolDefinitionTitle = Nothing
       }
