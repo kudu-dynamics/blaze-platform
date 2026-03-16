@@ -14,6 +14,7 @@ import Flint.Shell.Commands.Paths (sampleCommand, showCommand, pshowCommand, fre
 import Flint.Shell.Commands.Solver (solveCommand)
 import Flint.Shell.Commands.WMI (wmisCommand, checkWMICommand)
 import Flint.Shell.Commands.TypeCheck (typecheckCommand)
+import Flint.Shell.Commands.Xrefs (functionsCallingCommand)
 
 import qualified Data.Text as Text
 import System.Console.Haskeline
@@ -35,6 +36,7 @@ allCommands =
   , tagCommand
   , freeUntaggedCommand
   , expandCommand
+  , functionsCallingCommand
   ]
 
 runShell :: ShellState -> IO ()

@@ -1,6 +1,9 @@
 # Blaze Platform
 
-## Version 0.26.0316
+## Version 0.26.0316b
+- `functions-calling` / `functions_calling` command in shell and MCP: find call sites to a given extern function
+
+## Version 0.26.0316a
 - `functions` command lists external/imported functions alongside internals; `-e`/`-i` flags to filter
 
 ## Version 0.26.0314d
