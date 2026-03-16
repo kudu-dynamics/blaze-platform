@@ -11,6 +11,7 @@ import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
 
 import qualified Data.BinaryAnalysis as BA
+import qualified Data.HashMap.Strict as HashMap
 import qualified Foreign.JNI as JNI
 import qualified Data.Text as Text
 
@@ -227,3 +228,40 @@ saveDatabase gs fp = runIO $ do
   file :: J.File <- Java.new jstringFilePath
   () <- Java.call (coerce prg :: J.DomainObjectAdapterDB) "saveToPackedFile" file (gs ^. #taskMonitor)
   return ()
+
+-- | Iterate all defined data items in the binary and collect string entries.
+-- Returns a map from address offset to string value.
+getDefinedStrings :: J.ProgramDB -> Ghidra (HashMap Int64 Text)
+getDefinedStrings prg = do
+  listing <- getListing prg
+  mm <- getMemoryMap prg
+  dataIter :: J.DataIterator <- runIO $
+    Java.call listing "getDefinedData" (coerce mm :: J.AddressSetView) True
+      >>= JNI.newGlobalRef
+  dataItems <- dataIteratorToList dataIter
+  HashMap.fromList . catMaybes <$> traverse extractString dataItems
+  where
+    dataIteratorToList :: J.DataIterator -> Ghidra [J.Data]
+    dataIteratorToList x = do
+      hasNext :: Bool <- runIO $ Java.call x "hasNext"
+      if hasNext
+        then do
+          d :: J.Data <- runIO $ Java.call x "next" >>= JNI.newGlobalRef
+          (d:) <$> dataIteratorToList x
+        else return []
+
+    extractString :: J.Data -> Ghidra (Maybe (Int64, Text))
+    extractString d = do
+      hasStr :: Bool <- runIO $ Java.call d "hasStringValue"
+      if hasStr
+        then do
+          mStr <- maybeNullCall $ do
+            valObj :: J.Object <- runIO $ Java.call d "getValue"
+            runIO $ Java.reify (coerce valObj :: J.String)
+          case mStr of
+            Nothing -> return Nothing
+            Just strVal -> do
+              addr :: J.Address <- runIO $ Java.call d "getAddress"
+              offset :: Int64 <- runIO $ Java.call addr "getOffset"
+              return $ Just (offset, strVal)
+        else return Nothing

@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0316c
+- Resolve constant strings in Ghidra backend
+
 ## Version 0.26.0316b
 - `functions-calling` / `functions_calling` command in shell and MCP: find call sites to a given extern function
 

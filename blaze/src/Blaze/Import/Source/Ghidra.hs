@@ -23,7 +23,7 @@ import Blaze.Types.Cfg (PilNode)
 import Blaze.Types.CachedMap qualified as CM
 import Ghidra.Types.Variable (VarNode)
 import Text.Pretty.Simple (pHPrint)
-
+import qualified Data.HashMap.Strict as HashMap
 
 getImporter :: FilePath -> IO GhidraImporter
 getImporter fp = do
@@ -33,7 +33,8 @@ getImporter fp = do
       Left err -> error $ "Could not open binary: " <> show err
       Right gs -> do
         GState.analyze gs
-        return $ GhidraImporter gs highFnCache
+        smap <- GState.getDefinedStrings (gs ^. #program)
+        return $ GhidraImporter gs highFnCache (HashMap.mapKeys intToAddr smap)
 
 instance BinaryImporter GhidraImporter where
   openBinary fp = do
@@ -43,31 +44,33 @@ instance BinaryImporter GhidraImporter where
         Left err -> return . error $ "Could not open binary: " <> show err
         Right gs -> do
           GState.analyze gs
-          return . Right $ GhidraImporter gs highFnCache
+          smap <- GState.getDefinedStrings (gs ^. #program)
+          return . Right $ GhidraImporter gs highFnCache (HashMap.mapKeys intToAddr smap)
 
   shutdown = stopJVMIfRunning
 
-  saveToDb fp (GhidraImporter gs _) = do
+  saveToDb fp (GhidraImporter gs _ _) = do
     let fp' = fp <> if ".gzf" `isSuffixOf` fp then "" else ".gzf"
     runGhidraOrError $ GState.saveDatabase gs fp'
     return $ Right fp'
 
   -- uh, won't this invalidate the cache??
-  rebaseBinary (GhidraImporter gs fc) off = runGhidraOrError $ do
+  rebaseBinary (GhidraImporter gs fc _) off = runGhidraOrError $ do
     GProg.withTransaction (gs ^. #program) "BinaryImporter: Set Image Base" $ do
       GProg.setImageBase (gs ^. #program) (addrToInt off) True
       GState.analyze gs
-    return $ GhidraImporter gs fc
+    smap <- GState.getDefinedStrings (gs ^. #program)
+    return $ GhidraImporter gs fc (HashMap.mapKeys intToAddr smap)
 
-  getBase (GhidraImporter gs _) = runGhidraOrError $ do
+  getBase (GhidraImporter gs _ _) = runGhidraOrError $ do
     prg <- GState.getProgram gs
     fmap convertAddress $ GState.getImageBase prg >>= GAddr.mkAddress
 
-  getStart (GhidraImporter gs _) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
+  getStart (GhidraImporter gs _ _) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
 
-  getEnd (GhidraImporter gs _) = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
+  getEnd (GhidraImporter gs _ _) = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
 
-  getOriginalBinaryPath (GhidraImporter gs _) = do
+  getOriginalBinaryPath (GhidraImporter gs _ _) = do
     binPath <- runGhidraOrError $ GProg.getExecutablePath (gs ^. #program)
     return $ cs binPath
 
