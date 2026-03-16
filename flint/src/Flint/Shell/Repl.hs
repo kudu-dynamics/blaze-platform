@@ -121,9 +121,17 @@ renderResult = \case
   ResultText t -> putText t
   ResultOk t -> putText t
   ResultError t -> putText $ "Error: " <> t
-  ResultFunctions funcs -> do
-    forM_ funcs $ \(name, addr) ->
-      putText $ "  " <> padAddr addr <> "  " <> name
+  ResultFunctions internals externs -> do
+    unless (null internals) $ do
+      putText "Internal Functions:"
+      forM_ internals $ \(name, addr) ->
+        putText $ "  " <> padAddr addr <> "  " <> name
+    unless (null externs) $ do
+      unless (null internals) $ putText ""
+      putText "External Functions:"
+      forM_ externs $ \(name, mLib) ->
+        let libText = maybe "" (\l -> " (" <> l <> ")") mLib
+        in putText $ "  " <> name <> libText
   ResultPaths paths -> do
     forM_ paths $ \(pid, summary) ->
       putText $ "  [" <> show pid <> "] " <> summary

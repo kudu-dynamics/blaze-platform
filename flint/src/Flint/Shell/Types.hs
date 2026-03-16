@@ -105,7 +105,8 @@ data CommandResult
   | ResultPaths [(PathId, Text)]
   | ResultSolver [(PathId, Text)]
   | ResultWMIs [(PathId, [Text])]
-  | ResultFunctions [(Text, Address)]
+  | ResultFunctions [(Text, Address)] [(Text, Maybe Text)]
+    -- ^ (internal: name+address, extern: name+library)
   | ResultOk Text
   | ResultError Text
   deriving (Eq, Show, Generic)

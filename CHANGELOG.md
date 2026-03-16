@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0316
+- `functions` command lists external/imported functions alongside internals; `-e`/`-i` flags to filter
+
 ## Version 0.26.0314d
 - Undid the "pure func whitelist" in `aggressiveExpand`
 
