@@ -9,9 +9,11 @@ import Blaze.Import.Binary (BinaryImporter (..))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
 import Blaze.Import.Pil (PilImporter (..))
+import Blaze.Import.Xref (XrefImporter (..))
 import Blaze.Import.Source.Ghidra.CallGraph qualified as CallGraph
 import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
 import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
+import Blaze.Import.Source.Ghidra.Xref qualified as Xref
 import Ghidra.Core (runGhidraOrError, stopJVMIfRunning)
 import Ghidra.Program qualified as GProg
 import Ghidra.State qualified as GState
@@ -74,6 +76,8 @@ instance BinaryImporter GhidraImporter where
     binPath <- runGhidraOrError $ GProg.getExecutablePath (gs ^. #program)
     return $ cs binPath
 
+  getStringsMap = return . view #stringsMap
+
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction
 
@@ -126,4 +130,7 @@ instance PilImporter GhidraImporter where
       hPutStrLn @String stderr "Errors during conversion:"
       traverse_ (pHPrint stderr) errors
     pure (stmts, typeHints)
+
+instance XrefImporter GhidraImporter where
+  getXrefsTo = Xref.getXrefsTo
 

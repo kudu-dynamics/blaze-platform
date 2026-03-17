@@ -27,6 +27,8 @@ import qualified Blaze.Import.CallGraph as CG
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.Cfg as ImpCfg
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
+import Blaze.Import.Xref (XrefImporter)
+import qualified Blaze.Import.Xref as Xref
 
 import Blaze.Types.CallGraph (CallGraph)
 import Blaze.Types.Cfg (PilCfg, PilNode)
@@ -51,6 +53,7 @@ init
      , NodeDataType imp ~ PilNode
      , BinaryImporter imp
      , CfgImporter imp
+     , XrefImporter imp
      )
   => Maybe FilePath -> imp -> IO CfgStore
 init mDbFilePath imp = do
@@ -63,6 +66,7 @@ initWithTypeHints
      , NodeDataType imp ~ PilNode
      , BinaryImporter imp
      , CfgImporter imp
+     , XrefImporter imp
      )
   => HashSet Text     -- whitelist for functions we want to have type hints for
   -> HashSet Text     -- blacklist of function names to exclude from analysis
@@ -73,6 +77,11 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   mDb <- case mDbFilePath of
     Nothing -> return Nothing
     Just fp -> Just <$> Db.init fp
+
+  smap <- Binary.getStringsMap imp
+  sxrefs <- fmap HashMap.fromList . forM (HashMap.keys smap) $ \addr -> do
+    xrefs <- Xref.getXrefsTo imp addr
+    return (addr, xrefs)
 
   store <- CfgStore
     <$> atomically CC.create
@@ -86,6 +95,8 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     <*> atomically (CM.create [])
     <*> atomically (CM.create HashSet.empty)
     <*> Binary.getBase imp
+    <*> pure smap
+    <*> pure sxrefs
 
   allFuncs <- CG.getFunctions imp
 

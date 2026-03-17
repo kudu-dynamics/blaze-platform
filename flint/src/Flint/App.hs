@@ -8,6 +8,7 @@ import Blaze.Import.Binary (BinaryImporter, openBinary, shutdown)
 import Blaze.Import.CallGraph (CallGraphImporter)
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 import Blaze.Import.Pil (PilImporter)
+import Blaze.Import.Xref (XrefImporter)
 
 #ifdef FLINT_SUPPORT_BINARYNINJA
 import Blaze.Import.Source.BinaryNinja (BNImporter)
@@ -47,6 +48,7 @@ type FullImporter imp =
   , CallGraphImporter imp
   , CfgImporter imp
   , PilImporter imp
+  , XrefImporter imp
   , NodeDataType imp ~ PilNode
   )
 

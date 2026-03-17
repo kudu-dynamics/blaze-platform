@@ -6,13 +6,14 @@ module Blaze.Import.Source.GhidraSpec where
 
 import Blaze.CallGraph (getCallGraph)
 import Blaze.Function (Func, _name)
-import Blaze.Import.Binary (BinaryImporter (getEnd, getStart, openBinary, rebaseBinary))
+import Blaze.Import.Binary (BinaryImporter (getEnd, getStart, getStringsMap, openBinary, rebaseBinary))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
 import Blaze.Import.Source.Ghidra (GhidraImporter)
 import qualified Blaze.Import.Source.Ghidra as G
 import Blaze.Prelude hiding (Symbol)
 import qualified Blaze.Types.Graph as Graph
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Test.Hspec
 
@@ -40,6 +41,14 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
 
     it "should rebase binary" $ do
       addrToInt rebasedStart `shouldBe` 0x10000000
+
+    smap <- runIO $ getStringsMap importer
+
+    it "should return a non-empty strings map" $ do
+      HashMap.size smap `shouldSatisfy` (> 0)
+
+    it "should contain string values" $ do
+      HashMap.elems smap `shouldSatisfy` (not . null)
 
   context "Importing call graphs" $ do
     importer <- runIO $ G.getImporter diveBin
