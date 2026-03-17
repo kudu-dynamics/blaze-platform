@@ -8,6 +8,7 @@ import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 
 import Blaze.Types.Function (Func, Function)
 
+import Blaze.Import.Xref (Xref)
 import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
 import Blaze.Types.Graph (DescendantsMap, StrictDescendantsMap)
@@ -50,5 +51,7 @@ data CfgStore = CfgStore
     -- will undergo signficant change.
     -- tuple indicates arbitrary (create, store, delete) capability
   , baseOffset :: Address
+  , stringsMap :: HashMap Address Text
+  , stringXrefs :: HashMap Address [Xref]
   }
   deriving (Generic)

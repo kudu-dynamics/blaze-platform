@@ -353,6 +353,15 @@ buildCommandString toolName args = case toolName of
       Nothing -> Left "Missing required parameter: extern_name"
       Just name -> Right $ "functions-calling " <> name
 
+  "strings" ->
+    let filterArg = lookupArg "filter" args
+    in Right $ "strings" <> maybe "" (" " <>) filterArg
+
+  "string_xrefs" ->
+    case lookupArg "target" args of
+      Nothing -> Left "Missing required parameter: target"
+      Just target -> Right $ "string-xrefs " <> target
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -521,6 +530,28 @@ toolDefinitions =
               , ("paths", InputSchemaDefinitionProperty "string" "Space-separated path IDs of existing callee paths to stitch in. Mutually exclusive with 'count'.")
               ]
           , required = ["path_id", "address"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "strings"
+      , toolDefinitionDescription = "List strings in the binary. No argument lists all strings. A quoted string filters by content (case-insensitive). A bare hex address looks up a specific string."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("filter", InputSchemaDefinitionProperty "string" "Quoted substring to filter (e.g. '\"iptables\"'), or bare hex address to look up (e.g. '0x475648')")
+              ]
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "string_xrefs"
+      , toolDefinitionDescription = "Find functions that reference a string. A bare hex address shows xrefs for that specific string. A quoted string filters all strings by content and shows xrefs for each match, grouped by string."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("target", InputSchemaDefinitionProperty "string" "Quoted substring to search (e.g. '\"iptables\"'), or bare hex address of a string (e.g. '0x475648')")
+              ]
+          , required = ["target"]
           }
       , toolDefinitionTitle = Nothing
       }

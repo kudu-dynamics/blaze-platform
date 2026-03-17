@@ -1,5 +1,14 @@
 # Blaze Platform
 
+## Version 0.26.0316d
+- `strings` / `string-xrefs` commands in shell and MCP for string navigation
+  + `strings` lists all strings; filter by quoted substring or look up by hex address
+  + `string-xrefs` finds functions referencing a string address; quoted filter xrefs all matches grouped by string
+  + Alias `sxrefs` for `string-xrefs`
+- `XrefImporter` typeclass in Blaze (`Blaze.Import.Xref`) with Ghidra backend implementation
+- `getStringsMap` method on `BinaryImporter` typeclass
+- String map and xrefs precalculated at init and cached in `CfgStore`
+
 ## Version 0.26.0316c
 - Resolve constant strings in Ghidra backend
 

@@ -19,3 +19,5 @@ class BinaryImporter a where
   getStart :: a -> IO Address
   getEnd :: a -> IO Address
   getOriginalBinaryPath :: a -> IO FilePath
+  -- | Returns a map of addresses to their string contents from the binary.
+  getStringsMap :: a -> IO (HashMap Address Text)
