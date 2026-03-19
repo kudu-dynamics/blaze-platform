@@ -9,7 +9,10 @@ import qualified Data.UUID as UUID
 
 
 incUUID :: UUID -> UUID
-incUUID = uncurry UUID.fromWords64 . bimap (+1) (+1) . UUID.toWords64
+incUUID = offsetUUID 1
+
+offsetUUID :: Word64 -> UUID -> UUID
+offsetUUID n = uncurry UUID.fromWords64 . bimap (+n) (+n) . UUID.toWords64
 
 -- from GPT
 timeIt :: IO a -> IO (a, NominalDiffTime)

@@ -1,5 +1,13 @@
 # Blaze Platform
 
+## Version 0.26.0319
+- Path sampling perf: smart `CfgInfo` caching avoids redundant UUID regeneration (4-130x speedup on warm cache)
+- Removed dead `CfgInfo` fields (`descendantsMap`, `acyclicStrictDescendantsMap`) — never read, each O(n²)
+- Split `acyclicCfg` into separate lazy `CachedCalc` so `expandAllStrategy` never pays for it
+- `--profileSampling` flag for flint, flint-shell, flint-mcp — prints per-path timing breakdown to stderr
+- Deterministic UUID offsetting for duplicate call expansions (`getOffsetFuncCfgInfo`) — same expansion pattern always produces identical UUIDs, enabling `nub` to dedup across call sites
+- Fix `expand_call` and `pshow` address matching on 32-bit binaries (was assuming 64-bit address space)
+
 ## Version 0.26.0317
 - Collapse nested `ARRAY_ADDR`/`FIELD_ADDR` ops in path reduction (e.g. `ptr[1][1][1]` → `ptr[3]`)
 - Fix extern callsite lookup: follow through PLT/thunk stubs via `getFunctionThunkAddresses`

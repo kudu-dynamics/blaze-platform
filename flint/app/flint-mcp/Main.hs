@@ -5,6 +5,7 @@ module Main where
 import Flint.Prelude
 
 import Flint.App (withBackend, Backend)
+import Flint.Cfg.Path (enableSamplingTiming)
 import qualified Flint.Cfg.Store as Store
 import Data.IORef
 import Flint.Shell.Types (ShellState, CommandResult(..), initShellState)
@@ -33,6 +34,7 @@ import MCP.Server.Types
 data McpOptions = McpOptions
   { backend        :: Maybe Backend
   , doNotUseSolver :: Bool
+  , profileSampling :: Bool
   , analysisDb     :: Maybe FilePath
   , typeHintsFile  :: Maybe FilePath
   , useHttp        :: Bool
@@ -71,6 +73,11 @@ parseDoNotUseSolver = switch $
   long "doNotUseSolver"
   <> help "do not enable the SMT solver by default"
 
+parseProfileSampling :: Parser Bool
+parseProfileSampling = switch $
+  long "profileSampling"
+  <> help "print timing info for path sampling phases to stderr"
+
 parseTypeHintsFile :: Parser FilePath
 parseTypeHintsFile = strOption $
   long "typeHints"
@@ -94,6 +101,7 @@ optionsParser :: Parser McpOptions
 optionsParser = McpOptions
   <$> optional parseBackend
   <*> (parseDoNotUseSolver <|> pure False)
+  <*> (parseProfileSampling <|> pure False)
   <*> optional parseAnalysisDb
   <*> optional parseTypeHintsFile
   <*> parseUseHttp
@@ -102,6 +110,7 @@ optionsParser = McpOptions
 main :: IO ()
 main = do
   opts <- execParser optsParser
+  when (opts ^. #profileSampling) enableSamplingTiming
   stateRef <- newIORef Nothing
   shutdownRef <- newIORef Nothing
   let mcpSt = McpState

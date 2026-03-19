@@ -19,7 +19,7 @@ getAcyclicCfgForCallDest store = \case
   -- Pil.CallAddr ptr -> do
   --   sym <- ptr ^. #symbol
   --   CfgStore.getFromFuncName_ sym store
-  Pil.CallFunc func -> fmap (view #acyclicCfg) <$> CfgStore.getFreshFuncCfgInfo store func
+  Pil.CallFunc func -> CfgStore.getFreshAcyclicCfg store func
   _ -> return Nothing
 
 getAcyclicCfgForCallNode :: CfgStore -> PilCallNode -> IO (Maybe PilCfg)
