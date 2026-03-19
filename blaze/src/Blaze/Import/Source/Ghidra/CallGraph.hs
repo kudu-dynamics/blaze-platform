@@ -25,8 +25,11 @@ import qualified Ghidra.Types.Function as G
 import Ghidra.Types (Ghidra)
 import qualified Ghidra.Types as J
 import qualified Ghidra.Reference as GRef
+import qualified Ghidra.Address as Addr
 
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (nub)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.BinaryAnalysis as BA
 
 
@@ -46,15 +49,50 @@ getJFunction prg addr = runGhidraOrError $ do
   jaddr <- State.mkAddress prg addr
   G.fromAddr prg jaddr
 
-getFuncFromJFunction :: GhidraImporter -> J.Function -> IO Func
-getFuncFromJFunction imp jfunc = do
+type ThunkMap = HashMap Int64 J.Function
+
+getFuncFromJFunction_ :: GhidraImporter -> IORef (Maybe ThunkMap) -> J.Function -> IO Func
+getFuncFromJFunction_ imp@(GhidraImporter gs _ _) thunkMapRef jfunc = do
+  let prg = gs ^. #program
   (dethunkedJFunc, isExt) <- runGhidraOrError $ do
     dethunkedJFunc <- G.resolveThunk jfunc
     isExt <- G.isExternal dethunkedJFunc
     return (dethunkedJFunc, isExt)
   case isExt of
     True -> fmap External . runGhidraOrError $ mkExternFunc dethunkedJFunc
-    False -> Internal <$> mkInternalFunc imp dethunkedJFunc
+    False -> do
+      hasDflt <- runGhidraOrError $ G.hasDefaultName jfunc
+      if hasDflt
+        then tryResolveAsExternThunk thunkMapRef prg jfunc >>= \case
+          Just externFunc -> return $ External externFunc
+          Nothing -> Internal <$> mkInternalFunc imp dethunkedJFunc
+        else Internal <$> mkInternalFunc imp dethunkedJFunc
+
+getFuncFromJFunction :: GhidraImporter -> J.Function -> IO Func
+getFuncFromJFunction imp jfunc = do
+  ref <- newIORef Nothing
+  getFuncFromJFunction_ imp ref jfunc
+
+tryResolveAsExternThunk :: IORef (Maybe ThunkMap) -> J.ProgramDB -> J.Function -> IO (Maybe ExternFunction)
+tryResolveAsExternThunk thunkMapRef prg jfunc = runGhidraOrError $ do
+  bodyAddrs <- J.toAddrs jfunc
+  allRefs <- concat <$> traverse (GRef.getReferencesFromAddress prg) bodyAddrs
+  refTargetOffsets <- forM allRefs $
+    fmap (view #offset) . (Addr.mkAddress <=< GRef.getToAddress)
+  thunkMap <- liftIO (readIORef thunkMapRef) >>= \case
+    Just m -> return m
+    Nothing -> do
+      externFuncs <- G.getExternalFunctions prg
+      m <- foldM buildMap HashMap.empty externFuncs
+      liftIO $ writeIORef thunkMapRef (Just m)
+      return m
+  case mapMaybe (`HashMap.lookup` thunkMap) refTargetOffsets of
+    (ef:_) -> Just <$> mkExternFunc ef
+    [] -> return Nothing
+  where
+    buildMap m ef = do
+      offsets <- traverse (fmap (view #offset) . Addr.mkAddress) =<< G.getFunctionThunkAddresses ef
+      return $ foldl' (\m' o -> HashMap.insert o ef m') m offsets
 
 getFunction :: GhidraImporter -> Address -> IO (Maybe Func)
 getFunction imp@(GhidraImporter gs _ _) addr = getJFunction (gs ^. #program) addr >>= \case
@@ -119,8 +157,10 @@ mkExternFunc jfunc = do
     }
 
 getFunctions :: GhidraImporter -> IO [Func]
-getFunctions imp@(GhidraImporter gs _ _) = fmap nub $ runGhidraOrError (G.getFunctions' opts $ gs ^. #program)
-  >>= traverse (getFuncFromJFunction imp)
+getFunctions imp@(GhidraImporter gs _ _) = do
+  thunkMapRef <- newIORef Nothing
+  fmap nub $ runGhidraOrError (G.getFunctions' opts $ gs ^. #program)
+    >>= traverse (getFuncFromJFunction_ imp thunkMapRef)
   where
     -- Are these sensible options for blaze?
     opts = G.GetFunctionsOptions
@@ -132,6 +172,8 @@ getFunctions imp@(GhidraImporter gs _ _) = fmap nub $ runGhidraOrError (G.getFun
       }
 
 -- | Gets all callsites that call fn.
+-- For internal functions, uses reference-based lookup.
+-- For extern functions, uses Ghidra's getCallingFunctions which follows through thunks/PLT stubs.
 getCallSites :: GhidraImporter -> Func -> IO [CallSite]
 getCallSites imp@(GhidraImporter gs _ _) fn = do
   let prg = gs ^. #program
@@ -139,35 +181,43 @@ getCallSites imp@(GhidraImporter gs _ _) fn = do
     BFunc.Internal func -> do
       startAddr <- runGhidraOrError . State.mkAddress prg $ func ^. #address
       runGhidraOrError $ G.fromAddr prg startAddr
-    -- Rudy TODO: clarify what's going on here. mkExternalAddress says it takes an offset,
-    -- but what does that actually mean for an external address in Ghidra
     BFunc.External func -> do
       externAddr <- runGhidraOrError
         . State.mkExternalAddress prg
         . fromIntegral
         $ func ^. #address . #offset
       runGhidraOrError $ G.getFunctionAt prg externAddr
-      -- externAddr <- runGhidraOrError
-      --   . State.mkExternalAddress gs
-      --   . fromIntegral
-      --   $ func ^. #address . #externalIndex
-      -- runGhidraOrError (G.getFunctionAt gs externAddr)
 
   case mgfunc of
     Nothing -> error $ "Could not find callee function for func: " <> show fn
-    Just gfunc -> runGhidraOrError (GRef.getFunctionRefs prg gfunc) >>= mapMaybeM f
+    Just gfunc -> case fn of
+      -- For internal functions, use reference-based lookup (existing behavior)
+      BFunc.Internal _ ->
+        runGhidraOrError (GRef.getFunctionRefs prg gfunc) >>= mapMaybeM mkCallSiteFromRef
+      -- For extern functions, find call sites via thunk references.
+      -- Extern calls go through PLT/thunk stubs, so we find the thunks for
+      -- the extern and then use reference-based lookup (like the internal branch)
+      -- to get the actual call instruction addresses within each caller.
+      BFunc.External _ -> do
+        thunkAddrs <- runGhidraOrError $ G.getFunctionThunkAddresses gfunc
+        thunkRefs <- fmap concat . forM thunkAddrs $ \thunkAddr -> do
+          mthunk <- runGhidraOrError $ G.fromAddr prg thunkAddr
+          case mthunk of
+            Nothing -> return []
+            Just thunkFunc ->
+              runGhidraOrError (GRef.getFunctionRefs prg thunkFunc) >>= mapMaybeM mkCallSiteFromRef
+        -- Also try direct references to the extern itself (no thunk)
+        directRefs <- runGhidraOrError (GRef.getFunctionRefs prg gfunc) >>= mapMaybeM mkCallSiteFromRef
+        return . nub $ thunkRefs <> directRefs
   where
-    f :: GRef.FuncRef -> IO (Maybe CallSite)
-    f x = do
+    mkCallSiteFromRef :: GRef.FuncRef -> IO (Maybe CallSite)
+    mkCallSiteFromRef x = do
       caller <- getFuncFromJFunction imp $ x ^. #caller . #handle
       case caller of
         External _ -> return Nothing
         Internal func -> do
           let addr = convertAddress $ x ^. #callerAddr
-              dest = fn
-          return
-            . Just
-            $ CallSite { CG.caller = func
-                       , CG.address = addr
-                       , CG.dest = dest
-                       }
+          return . Just $ CallSite { CG.caller = func
+                                   , CG.address = addr
+                                   , CG.dest = fn
+                                   }

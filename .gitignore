@@ -39,3 +39,4 @@ cabal.project.local~
 stack.yaml.lock
 *.cabal
 CLAUDE.md
+.mcp.json

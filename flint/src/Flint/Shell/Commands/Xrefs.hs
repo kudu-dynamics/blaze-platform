@@ -7,7 +7,6 @@ import Flint.Prelude
 import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
 import qualified Flint.Cfg.Store as Store
-import qualified Flint.Types.CachedCalc as CC
 
 import Blaze.Types.CallGraph (CallSite)
 import qualified Blaze.Types.Function as Func
@@ -18,41 +17,35 @@ import Numeric (showHex)
 
 functionsCallingCommand :: ShellCommand
 functionsCallingCommand = ShellCommand
-  { cmdName = "functions-calling"
-  , cmdAliases = ["xrefs"]
-  , cmdHelp = "Find internal functions that call an extern  (e.g. functions-calling system)"
-  , cmdUsage = "functions-calling <extern_name>"
+  { cmdName = "calls"
+  , cmdAliases = ["xrefs", "functions-calling"]
+  , cmdHelp = "Find functions that call a given function (internal or extern)"
+  , cmdUsage = "calls <func_name>"
   , cmdAction = functionsCallingAction
   }
 
 functionsCallingAction :: ShellState -> [Text] -> IO CommandResult
 functionsCallingAction st args = case args of
-  [] -> return $ ResultError "Usage: functions-calling <extern_name>"
-  (externName : _) -> do
+  [] -> return $ ResultError "Usage: calls <func_name>"
+  (funcName : _) -> do
     let store = st ^. #cfgStore
-    -- Find matching extern functions
+        lowerName = Text.toLower funcName
+    -- Search both extern and internal functions
     externs <- Store.getExternalFuncs store
-    let matchingExterns = filter (\e -> Text.toLower (e ^. #name) == Text.toLower externName) externs
-    case matchingExterns of
-      [] -> return $ ResultOk $ "No extern function found matching: " <> externName
+    internals <- Store.getInternalFuncs store
+    let matchingExterns = Func.External <$>
+          filter (\e -> Text.toLower (e ^. #name) == lowerName) externs
+        matchingInternals = Func.Internal <$>
+          filter (\f -> Text.toLower (f ^. #name) == lowerName) internals
+        matchingFuncs = matchingExterns <> matchingInternals
+    case matchingFuncs of
+      [] -> return $ ResultOk $ "No function found matching: " <> funcName
       _ -> do
-        -- Get all internal functions and their call sites
-        internalFuncs <- Store.getInternalFuncs store
-        results <- fmap concat . forM internalFuncs $ \func -> do
-          mCallSites <- CC.get func (store ^. #callSitesCache)
-          case mCallSites of
-            Nothing -> return []
-            Just callSites -> do
-              let matching = filter (isCallingExtern matchingExterns) callSites
-              return $ fmap formatCallSite matching
+        results <- fmap concat . forM matchingFuncs $
+          fmap (fmap formatCallSite) . Store.getCallSitesToFunc store
         case results of
-          [] -> return $ ResultOk $ "No call sites found for: " <> externName
+          [] -> return $ ResultOk $ "No call sites found for: " <> funcName
           _  -> return $ ResultText $ Text.unlines results
-
-isCallingExtern :: [Func.ExternFunction] -> CallSite -> Bool
-isCallingExtern externs callSite = case callSite ^. #dest of
-  Func.External e -> e `elem` externs
-  _ -> False
 
 formatCallSite :: CallSite -> Text
 formatCallSite callSite =

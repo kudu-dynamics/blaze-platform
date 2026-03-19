@@ -416,12 +416,21 @@ varNodeToValueExpr v = do
     VExtern n ptrWidth -> pure $ C.load (C.externPtr (intToAddr 0) (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrWidth)) operSize
     VImmediate n -> do
       smap <- use $ #ghidraImporter . #stringsMap
-      case HashMap.lookup (intToAddr n) smap of
-        Just str -> pure $ C.constStr str operSize
-        Nothing  -> pure $ C.const n operSize
+      pure $ resolveImmediateString smap n operSize
     VOther _ _ -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
+
+-- | Resolve a VImmediate value to a string if the address is in the strings map
+-- and looks like a plausible data address (not a small integer constant).
+-- Addresses below 0x100 are excluded to avoid false positives from ELF header
+-- data items that Ghidra's hasStringValue() incorrectly reports as strings.
+resolveImmediateString :: HashMap Address Text -> Int64 -> Size Expression -> Expression
+resolveImmediateString smap n operSize
+  | n >= 0x100
+  , Just str <- HashMap.lookup (intToAddr n) smap
+  = C.constStr str operSize
+  | otherwise = C.const n operSize
 
 convertPcodeOpToPilStatement :: forall a. IsVariable a => P.PcodeOp a -> ExceptT ConverterError Converter [Pil.Statement Pil.Expression]
 convertPcodeOpToPilStatement = \case
@@ -488,7 +497,7 @@ convertPcodeOpToPilStatement = \case
     v <- varNodeToValueExpr in0
     out' <- varNodeToValueExpr out
     if v == out' then
-      return [Pil.Nop]
+      return []
     else
       return [assignment v]
   P.INSERT _out _in0 _in1 _position _size -> pure [Pil.UnimplInstr "INSERT"]

@@ -144,7 +144,7 @@ serverInfo = McpServerInfo
       [ "Flint is a binary vulnerability detection tool."
       , "Use 'load_binary' to load a binary file for analysis."
       , "Use 'list_functions' to discover functions in the loaded binary."
-      , "Use 'functions_calling' to find call sites to an extern (e.g. system, popen)."
+      , "Use 'calls' to find call sites to a function (internal or extern, e.g. system, popen)."
       , "Use 'sample_paths' to sample execution paths from a function (reduced by default)."
       , "Use 'show_paths' to view the PIL statements on a sampled path (use N! for raw/unreduced)."
       , "Use 'check_wmi' to check if a path matches a vulnerability pattern."
@@ -294,7 +294,7 @@ buildCommandString toolName args = case toolName of
             addrs = lookupArg "addresses" args
             countPart = maybe "" (" " <>) count
             addrPart = maybe "" (" @ " <>) addrs
-        in Right $ "sample " <> func <> countPart <> addrPart
+        in Right $ "sample" <> countPart <> " " <> func <> addrPart
 
   "show_paths" ->
     case lookupArg "path_ids" args of
@@ -348,10 +348,10 @@ buildCommandString toolName args = case toolName of
                 Nothing -> ""
         in Right $ "expand " <> pid <> " " <> addr <> pathsPart
 
-  "functions_calling" ->
-    case lookupArg "extern_name" args of
-      Nothing -> Left "Missing required parameter: extern_name"
-      Just name -> Right $ "functions-calling " <> name
+  "calls" ->
+    case lookupArg "func_name" args of
+      Nothing -> Left "Missing required parameter: func_name"
+      Just name -> Right $ "calls " <> name
 
   "strings" ->
     let filterArg = lookupArg "filter" args
@@ -400,19 +400,19 @@ toolDefinitions =
       , toolDefinitionTitle = Nothing
       }
   , ToolDefinition
-      { toolDefinitionName = "functions_calling"
-      , toolDefinitionDescription = "Find internal functions that call a given extern function. Returns call sites as 'FuncName @ 0xAddress' which can be used with sample_paths addresses parameter."
+      { toolDefinitionName = "calls"
+      , toolDefinitionDescription = "Find functions that call a given function (internal or extern). Returns call sites as 'FuncName @ 0xAddress' which can be used with sample_paths addresses parameter."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
-              [ ("extern_name", InputSchemaDefinitionProperty "string" "Name of the extern function (e.g. 'system', 'popen', 'sprintf')")
+              [ ("func_name", InputSchemaDefinitionProperty "string" "Name of the function to find callers of (e.g. 'system', 'popen', 'sprintf', or an internal function name)")
               ]
-          , required = ["extern_name"]
+          , required = ["func_name"]
           }
       , toolDefinitionTitle = Nothing
       }
   , ToolDefinition
       { toolDefinitionName = "sample_paths"
-      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Use N! suffix to access raw/unreduced view."
+      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are handled via unrolling."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x401000')")

@@ -34,6 +34,34 @@ getFunctionAt prg addr = do
 functionIteratorToList :: J.FunctionIterator -> Ghidra [J.Function]
 functionIteratorToList = iteratorToList . coerce
 
+-- | Get all functions that call the given function.
+-- For thunk targets (like externs), follows through thunk addresses
+-- to find actual callers.
+getCallingFunctions :: GhidraState -> J.Function -> Ghidra [J.Function]
+getCallingFunctions gs fn = do
+  mon <- State.getTaskMonitor gs
+  -- First try direct callers
+  direct <- getCallingFunctions_ mon fn
+  if not (null direct)
+    then return direct
+    else do
+      -- If no direct callers, check if this function has thunks pointing to it
+      -- (common for extern functions — callers reference the thunk, not the extern)
+      thunkAddrs <- getFunctionThunkAddresses fn
+      thunkCallers <- forM thunkAddrs $ \thunkAddr -> do
+        mthunk <- fromAddr (gs ^. #program) thunkAddr
+        case mthunk of
+          Nothing -> return []
+          Just thunk -> getCallingFunctions_ mon thunk
+      return $ concat thunkCallers
+
+getCallingFunctions_ :: J.TaskMonitor -> J.Function -> Ghidra [J.Function]
+getCallingFunctions_ mon fn = do
+  jset :: J.Set J.Function <- runIO $ Java.call fn "getCallingFunctions" mon >>= JNI.newGlobalRef
+  jiter :: J.Iterator J.Function <- runIO $ Java.call jset "iterator" >>= JNI.newGlobalRef
+  iteratorToList jiter
+
+
 getFuncs_ :: JString.String -> J.ProgramDB -> Ghidra [J.Function]
 getFuncs_ methodName prg = do
   listing <- State.getListing prg
@@ -213,6 +241,17 @@ getHighParams fn = do
     runIO $ Java.call fn "getFunctionPrototype" >>= JNI.newGlobalRef
   paramCount :: Int32 <- runIO $ Java.call proto "getNumParams"
   traverse (runIO . Java.call proto "getParam" >=> mkHighParameter) [0 .. paramCount - 1]
+
+getFunctionThunkAddresses :: J.Function -> Ghidra [J.Address]
+getFunctionThunkAddresses func = do
+  mArr :: Maybe J.AddressArray <- maybeNull <$> runIO (Java.call func "getFunctionThunkAddresses" True)
+  case mArr of
+    Nothing -> return []
+    Just arr -> do
+      n <- runIO $ JNI.getArrayLength arr
+      forM [0 .. n - 1] $ \i -> do
+        obj :: J.Object <- runIO $ JNI.getObjectArrayElement arr i >>= JNI.newGlobalRef
+        return $ coerce obj
 
 getExternalLocation :: J.Function -> Ghidra J.ExternalLocationDB
 getExternalLocation fn = runIO $ coerce (Java.call fn "getExternalLocation" :: IO J.ExternalLocation)

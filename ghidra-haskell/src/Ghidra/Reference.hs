@@ -29,6 +29,15 @@ getReferencesToAddress prg addr = do
   rm :: J.ReferenceManager <- runIO $ Java.call prg "getReferenceManager" >>= JNI.newGlobalRef
   runIO (Java.call rm "getReferencesTo" addr >>= JNI.newGlobalRef) >>= referenceIteratorToList
 
+getReferencesFromAddress :: J.ProgramDB -> J.Address -> Ghidra [J.Reference]
+getReferencesFromAddress prg addr = do
+  rm :: J.ReferenceManager <- runIO $ Java.call prg "getReferenceManager" >>= JNI.newGlobalRef
+  refs :: J.ReferenceArray <- runIO $ Java.call rm "getReferencesFrom" addr >>= JNI.newGlobalRef
+  n <- runIO $ JNI.getArrayLength refs
+  forM [0 .. n - 1] $ \i -> do
+    obj :: J.Object <- runIO $ JNI.getObjectArrayElement refs i >>= JNI.newGlobalRef
+    return $ coerce obj
+
 getReferencesTo :: (Addressable a) => J.ProgramDB -> a -> Ghidra [J.Reference]
 getReferencesTo prg x = toAddrs x >>= concatMapM (getReferencesToAddress prg)
 

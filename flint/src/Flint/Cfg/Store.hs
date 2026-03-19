@@ -30,7 +30,7 @@ import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 import Blaze.Import.Xref (XrefImporter)
 import qualified Blaze.Import.Xref as Xref
 
-import Blaze.Types.CallGraph (CallGraph)
+import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (PilCfg, PilNode)
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Util (getMemoized)
@@ -91,7 +91,8 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
-    <*> atomically CC.create
+    <*> atomically CC.create -- callSitesInFuncCache
+    <*> atomically CC.create -- callSitesToFuncCache
     <*> atomically (CM.create [])
     <*> atomically (CM.create HashSet.empty)
     <*> Binary.getBase imp
@@ -135,7 +136,7 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg
-  -- Set up calcs for ancestors
+  -- Set up calcs for ancestors and call sites to each function
   forM_ allFuncs $ \func -> do
     CC.setCalc func (store ^. #ancestorsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
@@ -143,8 +144,10 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     CC.setCalc func (store ^. #descendantsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #callGraphCache)
       return $ G.getStrictDescendants func cg
+    CC.setCalc func (store ^. #callSitesToFuncCache) $
+      CG.getCallSites imp func
   forM_ internalFuncs $ \func -> do
-    CC.setCalc func (store ^. #callSitesCache) $ do
+    CC.setCalc func (store ^. #callSitesInFuncCache) $ do
       -- Compute call sites lazily from the CFG
       getFuncCfgInfo store func >>= \case
         Nothing -> return []
@@ -483,6 +486,10 @@ getInternalFuncs store = fromJust <$> CC.get () (store ^. #internalFuncs)
 
 getExternalFuncs :: CfgStore -> IO [Func.ExternFunction]
 getExternalFuncs store = mapMaybe (^? #_External) <$> getFuncs store
+
+-- | Get call sites that target a given function (callee → callers)
+getCallSitesToFunc :: CfgStore -> Func -> IO [CallSite]
+getCallSitesToFunc store func = fromMaybe [] <$> CC.get func (store ^. #callSitesToFuncCache)
 
 getTransposedCallGraph :: CfgStore -> IO CallGraph
 getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallGraphCache)

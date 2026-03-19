@@ -1173,7 +1173,7 @@ onionCheckFunc
 onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims pathSamplingFactor funcToTypeHintsMap taintProps func = do
   mPaths <- onionSampleBasedOnFuncSize pathSamplingFactor store func
   let paths = fromMaybe [] mPaths
-      typeHints = fromMaybe HashMap.empty (HashMap.lookup func funcToTypeHintsMap)
+  let typeHints = fromMaybe HashMap.empty (HashMap.lookup func funcToTypeHintsMap)
       pathPreps = mkPathPrepWithTypeHints typeHints taintProps <$> paths
       pathPrimCombos = (,) <$> pathPreps <*> prims
   forConcurrently_ pathPrimCombos $

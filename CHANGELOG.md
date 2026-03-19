@@ -1,5 +1,14 @@
 # Blaze Platform
 
+## Version 0.26.0317
+- Collapse nested `ARRAY_ADDR`/`FIELD_ADDR` ops in path reduction (e.g. `ptr[1][1][1]` → `ptr[3]`)
+- Fix extern callsite lookup: follow through PLT/thunk stubs via `getFunctionThunkAddresses`
+  + New `callSitesToFuncCache` for callee→callers lookup
+- `calls` command (renamed from `functions-calling`) works for both internal and extern functions
+- `sample` command: reordered args to `sample [count] <func>`, fixed address space on target addrs
+- Filter out low-address strings
+- Tests for path sampling
+
 ## Version 0.26.0316d
 - `strings` / `string-xrefs` commands in shell and MCP for string navigation
   + `strings` lists all strings; filter by quoted substring or look up by hex address

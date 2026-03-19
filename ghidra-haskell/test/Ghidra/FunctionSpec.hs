@@ -144,3 +144,10 @@ spec = describe "Ghidra.Function" $ do
 
     it "should have found the puts extern function with getFunctionAt" $ do
       funcName `shouldBe` "puts"
+
+    -- getCallingFunctions tests
+    it "should find callers of 'puts' via getCallingFunctions" $ do
+      callers <- runGhidraOrError $ Function.getCallingFunctions gs putsExternFunc
+      length callers `shouldBe` 5
+      callerNames <- runGhidraOrError $ traverse Function.getName callers
+      sort callerNames `shouldBe` ["filmont", "g", "j", "main", "puts"]
