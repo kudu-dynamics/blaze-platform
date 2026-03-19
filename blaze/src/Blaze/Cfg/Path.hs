@@ -311,7 +311,7 @@ makeCfgAcyclic cfg = Cfg.removeEdges bedges cfg
 -- cannot follow, so the path will lack the required node.
 -- It also expects that the Cfg has no groups.
 sampleRandomPathsContaining_
-  :: (Ord a, Hashable a)
+  :: Ord a
   => StrictDescendantsMap (CfNode a)
   -> HashSet (CfNode a)
   -> Int

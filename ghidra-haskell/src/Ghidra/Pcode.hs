@@ -85,6 +85,9 @@ mkBareHighPcodeInstruction x = PcodeInstruction
 mkHighPcodeInstruction :: J.ProgramDB -> BareHighPcodeInstruction -> Ghidra HighPcodeInstruction
 mkHighPcodeInstruction prog = traverse $ Var.mkHighVarNode prog
 
+mkHighPcodeInstructionCached :: J.ProgramDB -> Var.HighVarCache -> BareHighPcodeInstruction -> Ghidra HighPcodeInstruction
+mkHighPcodeInstructionCached prog cache = traverse $ Var.mkHighVarNodeCached prog cache
+
 mkRawPcodeInstruction :: BareRawPcodeInstruction -> Ghidra RawPcodeInstruction
 mkRawPcodeInstruction = traverse Var.mkVarNode
 
@@ -287,13 +290,26 @@ getBlockHighPcode
   -> J.PcodeBlockBasic
   -> Ghidra [(Address, PcodeOp HighVarNode)]
 getBlockHighPcode prog addressSpaceMap block = do
+  cache <- Var.newHighVarCache
+  getBlockHighPcodeCached prog cache addressSpaceMap block
+
+-- | Like 'getBlockHighPcode' but uses an external cache for HighVariable
+-- deduplication and NO_ADDRESS caching. Pass the same cache across all blocks
+-- in a function for maximum dedup benefit.
+getBlockHighPcodeCached
+  :: J.ProgramDB
+  -> Var.HighVarCache
+  -> AddressSpaceMap
+  -> J.PcodeBlockBasic
+  -> Ghidra [(Address, PcodeOp HighVarNode)]
+getBlockHighPcodeCached prog cache addressSpaceMap block = do
   ops :: [J.PcodeOpAST] <- iteratorToList =<< runIO (Java.call block "getIterator")
   opsWithAddr :: [(Address, J.PcodeOpAST)] <-
     forM ops $ \op -> do
       seqnum :: J.SequenceNumber <- runIO $ Java.call op "getSeqnum"
       addr <- runIO (Java.call seqnum "getTarget") >>= mkAddress
       pure (addr, op)
-  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstruction prog <=< mkBareHighPcodeInstruction) opsWithAddr
+  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstructionCached prog cache <=< mkBareHighPcodeInstruction) opsWithAddr
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of

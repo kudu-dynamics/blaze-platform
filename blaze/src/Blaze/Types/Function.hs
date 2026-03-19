@@ -105,7 +105,11 @@ data Function = Function
   , params :: [FuncParamInfo]
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
+  deriving anyclass (FromJSON, ToJSON)
+
+-- | Hash by address only — unique per function, avoids traversing params list.
+instance Hashable Function where
+  hashWithSalt salt f = hashWithSalt salt (f ^. #address)
 
 instance Identifiable Function Int where
   getNodeId f = NodeId $ hash f
@@ -120,7 +124,11 @@ data ExternFunction = ExternFunction
   , params :: [FuncParamInfo]
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
+  deriving anyclass (FromJSON, ToJSON)
+
+-- | Hash by address only — unique per extern function (offset = externalIndex).
+instance Hashable ExternFunction where
+  hashWithSalt salt f = hashWithSalt salt (f ^. #address)
 
 instance Identifiable ExternFunction Int where
   getNodeId f = NodeId $ hash f

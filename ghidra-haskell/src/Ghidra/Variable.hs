@@ -18,9 +18,27 @@ import Ghidra.Types.Variable
 import Ghidra.Address (Address, mkAddress)
 import Ghidra.Util (maybeNullCall, maybeNull)
 import qualified Data.Text as Text
+import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
+import qualified Data.IntMap.Strict as IntMap
 import qualified Foreign.JNI as JNI
 import Ghidra.Types.GhidraDataTypes (GhidraDataType)
 import Ghidra.GhidraDataTypes (parseDataTypeWithTransaction)
+
+-- | Cache for expensive JNI lookups during high pcode processing.
+-- Holds the Address.NO_ADDRESS static field (fetched once instead of per-varnode)
+-- and a memoization map for HighVariable objects (many varnodes share the same one).
+data HighVarCache = HighVarCache
+  { noAddr :: J.Address
+  , highVarMapRef :: IORef (IntMap.IntMap HighVariable)
+  }
+
+-- | Create a new cache. Call once per function, share across all blocks.
+newHighVarCache :: Ghidra HighVarCache
+newHighVarCache = do
+  na <- runIO $ Java.getStaticField "ghidra.program.model.address.Address" "NO_ADDRESS"
+    >>= JNI.newGlobalRef
+  ref <- runIO $ newIORef IntMap.empty
+  return $ HighVarCache na ref
 
 
 mkVarType :: Either J.VarNode J.VarNodeAST -> Ghidra VarType
@@ -123,5 +141,48 @@ mkHighVarNode prog v = do
       if addr == noAddress
         then return Nothing
         else fmap Just $ runIO (JNI.newGlobalRef addr) >>= mkAddress
+
+-- | Like 'mkHighVarNode' but uses a cache for NO_ADDRESS lookups and
+-- HighVariable deduplication. Multiple varnodes often share the same
+-- HighVariable object; caching avoids ~10 redundant JNI calls per duplicate.
+mkHighVarNodeCached :: J.ProgramDB -> HighVarCache -> J.VarNodeAST -> Ghidra HighVarNode
+mkHighVarNodeCached prog cache v = do
+  sz :: Int32 <- runIO $ Java.call v "getSize"
+  mhv <- maybeNull <$> runIO (Java.call v "getHigh")
+  mhv' <- case mhv of
+    Nothing -> return Nothing
+    Just hv -> do
+      hvRef <- runIO $ JNI.newGlobalRef hv
+      key :: Int32 <- runIO $ Java.call hvRef "hashCode"
+      cached <- runIO $ readIORef (highVarMapRef cache)
+      case IntMap.lookup (fromIntegral key) cached of
+        Just result -> return (Just result)
+        Nothing -> do
+          result <- mkHighVariable prog hvRef
+          runIO $ modifyIORef' (highVarMapRef cache) (IntMap.insert (fromIntegral key) result)
+          return (Just result)
+  HighVarNode <$> mkVarTypeCached (noAddr cache) v <*> pure (fromIntegral sz) <*> getPcAddress <*> pure mhv'
+  where
+    getPcAddress :: Ghidra (Maybe Address)
+    getPcAddress = do
+      addr :: J.Address <- runIO $ Java.call v "getPCAddress"
+      if addr == noAddr cache
+        then return Nothing
+        else fmap Just $ runIO (JNI.newGlobalRef addr) >>= mkAddress
+
+-- | Like 'mkVarType' for the Right (high varnode) case, but uses a cached NO_ADDRESS.
+mkVarTypeCached :: J.Address -> J.VarNodeAST -> Ghidra VarType
+mkVarTypeCached cachedNoAddr v = runIO (Java.call v "isConstant") >>= \case
+  True -> do
+    addr :: J.Address <- runIO $ Java.call v "getAddress"
+    Const <$> runIO (Java.call addr "getOffset")
+  False -> do
+    Addr
+      <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
+      <*> do
+        pcAddr :: J.Address <- runIO (Java.call v "getPCAddress")
+        if pcAddr == cachedNoAddr
+          then pure Nothing
+          else Just <$> do runIO (JNI.newGlobalRef pcAddr) >>= mkAddress
 
 

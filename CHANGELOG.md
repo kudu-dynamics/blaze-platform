@@ -1,6 +1,13 @@
 # Blaze Platform
 
-## Version 0.26.0319
+## Version 0.26.0319b
+- PilCfg loading perf: `calcStrictDescendantsMap` uses SCC decomposition + Integer bitsets instead of N independent BFS traversals (~25x faster for 160 nodes, ~20x for 712 nodes)
+- Hash `CfNode` by UUID only instead of entire statement list (speeds up all PilCfg HashMap/HashSet ops)
+- Hash `Function`/`ExternFunction` by address only instead of full struct including params
+- Cache `addressSpaceMap` in `GhidraState` — computed once at DB open, not per block
+- Cache `HighVariable` processing per function and `Address.NO_ADDRESS` lookup — eliminates thousands of redundant JNI calls
+
+## Version 0.26.0319a
 - Path sampling perf: smart `CfgInfo` caching avoids redundant UUID regeneration (4-130x speedup on warm cache)
 - Removed dead `CfgInfo` fields (`descendantsMap`, `acyclicStrictDescendantsMap`) — never read, each O(n²)
 - Split `acyclicCfg` into separate lazy `CachedCalc` so `expandAllStrategy` never pays for it
