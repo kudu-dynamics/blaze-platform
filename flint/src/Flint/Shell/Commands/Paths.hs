@@ -14,12 +14,13 @@ import Flint.Prelude
 import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
 import qualified Flint.Cfg.Store as Store
-import Flint.Cfg.Path (samplesFromQuery)
+import Flint.Cfg.Path (samplesFromQuery, timingLog)
 import Blaze.Cfg.Path (expandCallWithNewInnerPathIds)
 import Flint.Query (onionSampleBasedOnFuncSize)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
 import Flint.Analysis.Path.Matcher (asStmts)
 import Flint.Types.Query (QueryExpandAllOpts(..), QueryTargetOpts(..), Query(..))
+import Flint.Util (timeIt)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Types.Cfg (CfNode(Call), CallNode)
@@ -152,7 +153,7 @@ samplePaths st allArgs = do
               targetAddrs = case afterAt of
                 ("@" : addrArgs) -> mapMaybe (parseAddressWithSpace addrSpace) addrArgs
                 _ -> []
-          paths <- case NE.nonEmpty targetAddrs of
+          (paths, samplingTime) <- timeIt $ case NE.nonEmpty targetAddrs of
             Just addrs -> do
               -- Targeted sampling: paths must go through these addresses
               let count = fromMaybe 20 mCount
@@ -176,6 +177,8 @@ samplePaths st allArgs = do
                 samplesFromQuery (st ^. #cfgStore) func q
               Nothing ->
                 fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
+          timingLog $ "[timing] samplesFromQuery (" <> func ^. #name <> "): "
+            <> show (length paths) <> " paths in " <> show samplingTime
           case paths of
             [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
                   <> if not (null targetAddrs)
@@ -183,15 +186,25 @@ samplePaths st allArgs = do
                      else ""
             _ -> do
               results <- forM paths $ \path -> do
-                let stmts = Path.toStmts path
-                    prep = mkPathPrep [] stmts
-                    reducedStmts = asStmts $ prep ^. #stmts
+                (stmts, toStmtsTime) <- timeIt $ do
+                  let s = Path.toStmts path
+                  _ <- evaluate (length s)
+                  return s
+                (prep, expandTime) <- timeIt $ do
+                  let p = mkPathPrep [] stmts
+                  _ <- evaluate (length $ p ^. #stmts)
+                  return p
+                let reducedStmts = asStmts $ prep ^. #stmts
                 pid <- insertPath st CachedPath
                   { pilPath = stmts
                   , fullPath = path
                   , sourceFunc = func
                   , pathPrep = Just prep
                   }
+                timingLog $ "[timing] path " <> show pid <> ": toStmts=" <> show toStmtsTime
+                  <> " (" <> show (length stmts) <> " raw stmts)"
+                  <> ", aggressiveExpand=" <> show expandTime
+                  <> " (" <> show (length reducedStmts) <> " reduced stmts)"
                 let summary = "path " <> show pid
                       <> " (" <> show (length reducedStmts) <> " stmts"
                       <> ", func: " <> func ^. #name <> ")"
@@ -229,7 +242,8 @@ pshowStmts st (pidArg : addrArgs) = do
         Nothing -> return $ ResultError $ "Path " <> show pid <> " not found"
         Just cp -> do
           let stmts = resolveStmts cp raw
-              filterAddrs = mapMaybe parseAddress addrArgs
+              addrSpace = cp ^. #sourceFunc . #address . #space
+              filterAddrs = mapMaybe (parseAddressWithSpace addrSpace) addrArgs
               filtered
                 | null filterAddrs = stmts
                 | otherwise = filter (\s -> any (stmtNearAddr s) filterAddrs) stmts
@@ -327,7 +341,8 @@ expandCallSite st (pidArg : addrArg : rest) = do
         Nothing -> return $ ResultError $ "Path " <> show outerPid <> " not found"
         Just outerCp -> do
           -- Parse callsite address
-          case parseAddress addrArg of
+          let addrSpace = outerCp ^. #sourceFunc . #address . #space
+          case parseAddressWithSpace addrSpace addrArg of
             Nothing -> return $ ResultError $ "Invalid address: " <> addrArg
             Just callAddr -> expandWithAddr st outerPid outerCp callAddr rest
 

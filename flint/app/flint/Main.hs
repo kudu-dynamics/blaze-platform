@@ -12,6 +12,7 @@ import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
 import qualified Flint.Analysis.LibC as LibC
 import Flint.App (withBackend, Backend)
+import Flint.Cfg.Path (enableSamplingTiming)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
 import qualified Flint.Types.CachedMap as CM
@@ -57,6 +58,7 @@ data Options = Options
   , steadyState :: Bool
   , attackSurfaceFile :: Maybe FilePath
   , attackSurfaceDepth :: Word64
+  , profileSampling :: Bool
   , reportInterval :: Word64
   , inputFile :: FilePath
   }
@@ -119,6 +121,11 @@ parseDoNotUseSolver :: Parser Bool
 parseDoNotUseSolver = switch $
   long "doNotUseSolver"
   <> help "do not verify if paths are satisfiable"
+
+parseProfileSampling :: Parser Bool
+parseProfileSampling = switch $
+  long "profileSampling"
+  <> help "print timing info for path sampling phases to stderr"
 
 parseFilterFuncsFile :: Parser FilePath
 parseFilterFuncsFile = strOption $
@@ -200,12 +207,14 @@ optionsParser = Options
   <*> (parseSteadyState <|> pure False)
   <*> optional parseAttackSurfaceFile
   <*> (parseAttackSurfaceDepth <|> pure 5)
+  <*> (parseProfileSampling <|> pure False)
   <*> (parseReportInterval <|> pure 100)
   <*> parseInputFile
 
 main :: IO ()
 main = do
   opts <- execParser optsParser
+  when (opts ^. #profileSampling) enableSamplingTiming
   setVerbosity $ case opts ^. #verbosity of
     Info -> VInfo
     Warn -> VWarn

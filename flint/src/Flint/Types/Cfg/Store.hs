@@ -11,17 +11,14 @@ import Blaze.Types.Function (Func, Function)
 import Blaze.Import.Xref (Xref)
 import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
-import Blaze.Types.Graph (DescendantsMap, StrictDescendantsMap)
+import Blaze.Types.Graph (StrictDescendantsMap)
 import Blaze.Types.Pil (Stmt)
 import Flint.Types.CachedCalc (CachedCalc)
 import Flint.Types.CachedMap (CachedMap)
 
 data CfgInfo = CfgInfo
   { cfg :: PilCfg
-  , acyclicCfg :: PilCfg
-  , descendantsMap :: DescendantsMap PilNode -- based off of acyclicCfg
   , strictDescendantsMap :: StrictDescendantsMap PilNode -- based off cfg
-  , acyclicStrictDescendantsMap :: StrictDescendantsMap PilNode -- based off acyclicCfg
   , nodes :: HashSet PilNode
   , calls :: [CallNode [Stmt]]
   }
@@ -32,6 +29,7 @@ TODO: make this into sqlite db
 -}
 data CfgStore = CfgStore
   { cfgCache :: CachedCalc Function (Maybe CfgInfo)
+  , acyclicCfgCache :: CachedCalc Function (Maybe PilCfg)
   , ancestorsCache :: CachedCalc Func (HashSet Func)
   , descendantsCache :: CachedCalc Func (HashSet Func)
   , funcs :: CachedCalc () [Func] -- result of `getFunctions` from CallGraph importer

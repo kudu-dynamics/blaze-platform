@@ -7,11 +7,11 @@ import Flint.Prelude
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths, QueryCallSeq), CallSeqPrep)
 import qualified Flint.Cfg.Store as CfgStore
-import Flint.Types.Cfg.Store (CfgStore)
-import Flint.Util (incUUID)
+import Flint.Types.Cfg.Store (CfgStore, CfgInfo)
+import Flint.Util (incUUID, timeIt)
 
 import qualified Blaze.Cfg.Interprocedural as InterCfg
-import Blaze.Cfg.Path (PilPath, SequenceChooserState(..), UnrollLoopState(..), initSequenceChooserState, samplePathContainingSequence_)
+import Blaze.Cfg.Path (PilPath, SequenceChooserState(..), UnrollLoopState(..), initSequenceChooserState, samplePathContainingSequence_, makeCfgAcyclic)
 import qualified Blaze.Cfg.Path as CfgPath
 import Blaze.Graph (StrictDescendantsMap, Route)
 import qualified Blaze.Graph as G
@@ -25,12 +25,62 @@ import Blaze.Types.Pil (Stmt)
 
 import qualified Data.List.NonEmpty as NE
 
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
+import qualified Data.Text.IO as TextIO
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.List (nub)
+import System.IO.Unsafe (unsafePerformIO)
 
 type CallDepth = Word64
+
+{-# NOINLINE samplingTimingEnabled #-}
+samplingTimingEnabled :: IORef Bool
+samplingTimingEnabled = unsafePerformIO $ newIORef False
+
+enableSamplingTiming :: IO ()
+enableSamplingTiming = writeIORef samplingTimingEnabled True
+
+timingLog :: MonadIO m => Text -> m ()
+timingLog msg = liftIO $ readIORef samplingTimingEnabled >>= \case
+  False -> return ()
+  True -> TextIO.hPutStrLn stderr msg
 type CallExpansionChooser = Function -> CallDepth -> [CallNode [Stmt]] -> IO [CallNode [Stmt]]
+
+-- | Tracks how many times each function has been used in the current sample.
+--   First use (count 0) returns cached CfgInfo directly. Subsequent uses
+--   deterministically offset UUIDs by the usage count, so identical expansion
+--   patterns always produce identical UUIDs (enabling nub to dedup).
+type UsedFuncsRef = IORef (HashMap Function Word64)
+
+getSmartCfgInfo :: CfgStore -> UsedFuncsRef -> Function -> IO (Maybe CfgInfo)
+getSmartCfgInfo store usedFuncsRef func = do
+  usedFuncs <- readIORef usedFuncsRef
+  let count = HashMap.lookupDefault 0 func usedFuncs
+  result <- if count == 0
+            then CfgStore.getFuncCfgInfo store func
+            else CfgStore.getOffsetFuncCfgInfo store func count
+  modifyIORef' usedFuncsRef (HashMap.insertWith (+) func 1)
+  return result
+
+-- | Get both CfgInfo and acyclic CFG with smart caching.
+--   When UUIDs are offset (count > 0), the acyclic CFG gets the same offset.
+getSmartCfgInfoAndAcyclic :: CfgStore -> UsedFuncsRef -> Function -> IO (Maybe (CfgInfo, PilCfg))
+getSmartCfgInfoAndAcyclic store usedFuncsRef func = do
+  usedFuncs <- readIORef usedFuncsRef
+  let count = HashMap.lookupDefault 0 func usedFuncs
+  mCfgInfo <- getSmartCfgInfo store usedFuncsRef func
+  case mCfgInfo of
+    Nothing -> return Nothing
+    Just cfgInfo -> do
+      acyclic <- if count > 0
+        then do
+          mac <- CfgStore.getOffsetAcyclicCfg store func count
+          return $ fromMaybe (makeCfgAcyclic $ cfgInfo ^. #cfg) mac
+        else do
+          mac <- CfgStore.getAcyclicCfg store func
+          return $ fromMaybe (makeCfgAcyclic $ cfgInfo ^. #cfg) mac
+      return $ Just (cfgInfo, acyclic)
 
 -- | An ExplorationStrategy returns a path and a list of call nodes that,
 -- if found in the path, should be expanded and further explored with
@@ -62,80 +112,90 @@ exploreFromStartingFunc_
   -> CfgStore
   -> Function
   -> IO (Maybe PilPath)
-exploreFromStartingFunc_ pickFromRange expansionChooser currentDepth store startingFunc = CfgStore.getFreshFuncCfgInfo store startingFunc >>= \case
-  Nothing -> return Nothing
-  Just cfgInfo -> do
-    er <- CfgPath.sampleRandomPath_
-      pickFromRange
-      (cfgInfo ^. #strictDescendantsMap)
-      (cfgInfo ^. #acyclicCfg)
-    case er of
-      Left err -> error $ "Unexpected sampleRandomPath_ failure: " <> show err
-      Right mainPath -> do
-        let callsOnPath = mapMaybe (^? #_Call) . HashSet.toList . Path.nodes $ mainPath
-        callsToExpand <- expansionChooser startingFunc currentDepth callsOnPath
-        innerPaths <- flip mapMaybeM callsToExpand $ \callNode -> runMaybeT $ do
-          destFunc <- hoistMaybe $ getCallNodeFunc callNode
-          innerPath <- liftMaybeTIO $ exploreFromStartingFunc_
-            pickFromRange
-            expansionChooser
-            (currentDepth + 1)
-            store
-            destFunc
-          leaveFuncUuid <- liftIO randomIO -- TODO: pass in UUID-making func?
-          return (callNode, innerPath, leaveFuncUuid)
-        return
-          . Just
-          $ foldl (\p (callNode, innerPath, leaveFuncUuid) -> fromJust $
-                    CfgPath.expandCall leaveFuncUuid p callNode innerPath)
-            mainPath
-            innerPaths
+exploreFromStartingFunc_ pickFromRange expansionChooser currentDepth store startingFunc = do
+  mCfgInfo <- CfgStore.getFreshFuncCfgInfo store startingFunc
+  mAcyclic <- CfgStore.getFreshAcyclicCfg store startingFunc
+  case (mCfgInfo, mAcyclic) of
+    (Nothing, _) -> return Nothing
+    (_, Nothing) -> return Nothing
+    (Just cfgInfo, Just acyclicCfg) -> do
+      er <- CfgPath.sampleRandomPath_
+        pickFromRange
+        (cfgInfo ^. #strictDescendantsMap)
+        acyclicCfg
+      case er of
+        Left err -> error $ "Unexpected sampleRandomPath_ failure: " <> show err
+        Right mainPath -> do
+          let callsOnPath = mapMaybe (^? #_Call) . HashSet.toList . Path.nodes $ mainPath
+          callsToExpand <- expansionChooser startingFunc currentDepth callsOnPath
+          innerPaths <- flip mapMaybeM callsToExpand $ \callNode -> runMaybeT $ do
+            destFunc <- hoistMaybe $ getCallNodeFunc callNode
+            innerPath <- liftMaybeTIO $ exploreFromStartingFunc_
+              pickFromRange
+              expansionChooser
+              (currentDepth + 1)
+              store
+              destFunc
+            leaveFuncUuid <- liftIO randomIO -- TODO: pass in UUID-making func?
+            return (callNode, innerPath, leaveFuncUuid)
+          return
+            . Just
+            $ foldl (\p (callNode, innerPath, leaveFuncUuid) -> fromJust $
+                      CfgPath.expandCall leaveFuncUuid p callNode innerPath)
+              mainPath
+              innerPaths
 
 expandAllStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> UsedFuncsRef
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
-expandAllStrategy _pickFromRange expandDepthLimit store func currentDepth
+expandAllStrategy _pickFromRange expandDepthLimit store usedFuncsRef func currentDepth
   | currentDepth > expandDepthLimit = return Nothing
-  | otherwise = lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
-      Nothing -> return Nothing
-      Just cfgInfo -> do
-        let rootNode = Cfg.getRootNode $ cfgInfo ^. #cfg
-            retNodes :: [PilNode]
-            retNodes = fmap (Cfg.BasicBlock . view #basicBlock) . InterCfg.getRetNodes $ cfgInfo ^. #cfg
-        case retNodes of
-          [] -> return Nothing -- TODO: shouldn't be error, should just snip
-          (r:rs) -> do
-            retNode <- pickFromList randomRIO $ r :| rs
-            let seqState = initSequenceChooserState [retNode]
-            rpath <- liftIO $ CfgPath.samplePathContainingSequenceIO
-                          (cfgInfo ^. #strictDescendantsMap)
-                          seqState rootNode (cfgInfo ^. #cfg)
-            case rpath of
-              Left _err -> return Nothing
-              Right (path, _sst) -> do
-                let expCalls = fmap (ExpandCall (currentDepth + 1))
-                               . mapMaybe (^? #_Call)
-                               . HashSet.toList
-                               . Path.nodes
-                               $ path
-                return $ Just (path, HashSet.fromList expCalls)
+  | otherwise = do
+      (mCfgInfo, cfgInfoTime) <- liftIO $ timeIt $ getSmartCfgInfo store usedFuncsRef func
+      liftIO . timingLog $ "[timing] getCfgInfo (" <> func ^. #name <> "): " <> show cfgInfoTime
+      case mCfgInfo of
+        Nothing -> return Nothing
+        Just cfgInfo -> do
+          let rootNode = Cfg.getRootNode $ cfgInfo ^. #cfg
+              retNodes :: [PilNode]
+              retNodes = fmap (Cfg.BasicBlock . view #basicBlock) . InterCfg.getRetNodes $ cfgInfo ^. #cfg
+          case retNodes of
+            [] -> return Nothing -- TODO: shouldn't be error, should just snip
+            (r:rs) -> do
+              retNode <- pickFromList randomRIO $ r :| rs
+              let seqState = initSequenceChooserState [retNode]
+              (rpath, sampleTime) <- liftIO $ timeIt $ CfgPath.samplePathContainingSequenceIO
+                            (cfgInfo ^. #strictDescendantsMap)
+                            seqState rootNode (cfgInfo ^. #cfg)
+              liftIO . timingLog $ "[timing] samplePath (" <> func ^. #name <> "): " <> show sampleTime
+              case rpath of
+                Left _err -> return Nothing
+                Right (path, _sst) -> do
+                  let expCalls = fmap (ExpandCall (currentDepth + 1))
+                                 . mapMaybe (^? #_Call)
+                                 . HashSet.toList
+                                 . Path.nodes
+                                 $ path
+                  return $ Just (path, HashSet.fromList expCalls)
 
 exploreDeepStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> UsedFuncsRef
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
-exploreDeepStrategy pickFromRange expandDepthLimit store func currentDepth
+exploreDeepStrategy pickFromRange expandDepthLimit store usedFuncsRef func currentDepth
   | currentDepth > expandDepthLimit = return Nothing
-  | otherwise = lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
+  | otherwise = liftIO (getSmartCfgInfoAndAcyclic store usedFuncsRef func) >>= \case
       Nothing -> return Nothing
-      Just cfgInfo -> do
+      Just (cfgInfo, acyclicCfg) -> do
         path <- CfgPath.sampleRandomPath_'
           (Path.toFullChooser . Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #strictDescendantsMap)
           ()
-          (cfgInfo ^. #acyclicCfg)
+          acyclicCfg
         case getCallsFromPath path of
           [] -> return $ Just (path, HashSet.empty)
           x:xs -> do
@@ -156,13 +216,14 @@ expandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> UsedFuncsRef
   -> HashSet Function
   -> NonEmpty Address
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
-expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets targets func currentDepth =
+expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets targets func currentDepth =
   if currentDepth > expandDepthLimit then
     return Nothing
-  else lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
+  else liftIO (getSmartCfgInfo store usedFuncsRef func) >>= \case
     Nothing -> return Nothing
     Just cfgInfo -> do
       let cfg = cfgInfo ^. #cfg
@@ -206,11 +267,12 @@ mkExpandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> UsedFuncsRef
   -> NonEmpty (Function, Address)
   -> IO (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO)
-mkExpandToTargetsStrategy pickFromRange expandDepthLimit store targets = do
+mkExpandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef targets = do
   funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
-  return $ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets (snd <$> targets)
+  return $ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
@@ -227,16 +289,17 @@ mkExpandAlongCallSeqStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> UsedFuncsRef
   -> CallSeqPrep
   -> IO (Maybe (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO))
-mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
+mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store usedFuncsRef prep = do
   CC.get (prep ^. #lastCall) (store ^. #callSitesInFuncCache) >>= \case
     Nothing -> error $ "Could not find func call sites cache for " <> show (prep ^. #lastCall)
     Just [] -> return Nothing
     Just (y:ys) -> do
       let targets = fmap (\x -> (x ^. #caller, x ^. #address)) $ y :| ys
       funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
-      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets (snd <$> targets)
+      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
@@ -253,9 +316,10 @@ mkFanAlongCallSeqStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
   -> CfgStore
+  -> UsedFuncsRef
   -> CallSeqPrep
   -> IO (Maybe (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO))
-mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
+mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store usedFuncsRef prep = do
   mtargets <- fmap NE.nonEmpty . flip concatMapM (NE.toList $ prep ^. #callSeq) $ \func -> do
     CC.get func (store ^. #callSitesInFuncCache) >>= \case
       Nothing -> error $ "Could not find func call sites cache for " <> show (prep ^. #lastCall)
@@ -264,7 +328,7 @@ mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
     Nothing -> return Nothing
     Just targets -> do
       funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
-      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTargets (snd <$> targets)
+      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
@@ -343,40 +407,56 @@ samplesFromQuery
   -> IO [PilPath]
 samplesFromQuery store startFunc = \case
   QueryTarget opts -> do
-    strat <- mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) store (opts ^. #mustReachSome)
-    let action = exploreForward_ incUUID' strat 0 startFunc
+    let action = do
+          usedFuncsRef <- liftIO $ newIORef HashMap.empty
+          strat <- liftIO $ mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) store usedFuncsRef (opts ^. #mustReachSome)
+          exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
   QueryExpandAll opts -> do
-    let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) store
-        action = exploreForward_ incUUID' strat 0 startFunc
+    let action = do
+          usedFuncsRef <- liftIO $ newIORef HashMap.empty
+          let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) store usedFuncsRef
+          exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
   QueryExploreDeep opts -> do
-    let strat = exploreDeepStrategy randomRIO (opts ^. #callExpandDepthLimit) store
-        action = exploreForward_ incUUID' strat 0 startFunc
+    let action = do
+          usedFuncsRef <- liftIO $ newIORef HashMap.empty
+          let strat = exploreDeepStrategy randomRIO (opts ^. #callExpandDepthLimit) store usedFuncsRef
+          exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
-  QueryAllPaths -> CfgStore.getFuncCfgInfo store startFunc >>= \case
-    Nothing -> error $ "Could not get cfg for function " <> show startFunc
-    Just cfgInfo -> return . CfgPath.getAllSimplePaths $ cfgInfo ^. #acyclicCfg
+  QueryAllPaths -> CfgStore.getAcyclicCfg store startFunc >>= \case
+    Nothing -> error $ "Could not get acyclic cfg for function " <> show startFunc
+    Just acyclicCfg -> return . CfgPath.getAllSimplePaths $ acyclicCfg
 
   QueryCallSeq opts -> do
-    mkFanAlongCallSeqStrategy randomRIO (opts ^. #callExpandDepthLimit) store (opts ^. #callSeqPrep) >>= \case
-      Nothing -> return [] -- TODO: this currently happens when there are no call sites for last func in CallSeq
-      Just strat -> do
-        let action = exploreForward_ incUUID' strat 0 startFunc
-        collectSamples (opts ^. #numSamples) action
+    let action = do
+          usedFuncsRef <- liftIO $ newIORef HashMap.empty
+          liftIO (mkFanAlongCallSeqStrategy randomRIO (opts ^. #callExpandDepthLimit) store usedFuncsRef (opts ^. #callSeqPrep)) >>= \case
+            Nothing -> return Nothing
+            Just strat -> exploreForward_ incUUID' strat 0 startFunc
+    collectSamples (opts ^. #numSamples) action
 
   where
     incUUID' = return . incUUID
     collectSamples :: forall e. Show e => Word64 -> ExceptT e IO (Maybe PilPath) -> IO [PilPath]
-    collectSamples n action =
-      fmap (nub . catMaybes) . replicateConcurrently (fromIntegral n) $ runExceptT action >>= \case
-        Left err -> do
-          putText $ "ERROR getting sample: " <> show err
-          return Nothing
-        Right mpath -> return mpath
+    collectSamples n action = do
+      (rawResults, sampleTime) <- timeIt $
+        replicateConcurrently (fromIntegral n) $ runExceptT action >>= \case
+          Left err -> do
+            putText $ "ERROR getting sample: " <> show err
+            return Nothing
+          Right mpath -> return mpath
+      let paths = catMaybes rawResults
+      (nubbed, nubTime) <- timeIt $ do
+        let r = nub paths
+        _ <- evaluate (length r)
+        return r
+      timingLog $ "[timing] collectSamples: " <> show (length paths) <> " paths in " <> show sampleTime
+        <> ", nub: " <> show (length nubbed) <> " unique in " <> show nubTime
+      return nubbed
 
 data SampleFromRouteState = SampleFromRouteState
   { remaningRoute :: Route Function PilNode

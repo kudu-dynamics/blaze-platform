@@ -6,6 +6,8 @@ module Flint.Cfg.PathSpec where
 
 import Flint.Prelude
 
+import Data.IORef (newIORef)
+import qualified Data.HashMap.Strict as HashMap
 import Flint.Analysis (addCfgStoreForBinary)
 import Flint.Cfg.Path
 import Flint.Types.Cfg.Store (CfgStore)
@@ -144,8 +146,9 @@ spec = do
 
     context "exploreForward_ expandAllStrategy" $ do
       it "should get path from func with single basic block" $ \tctx -> do
+        usedFuncsRef <- newIORef HashMap.empty
         let startFunc = tctx ^. #singlePathFunc
-            strat = expandAllStrategy alwaysLowestOfRange 0 $ tctx ^. #store
+            strat = expandAllStrategy alwaysLowestOfRange 0 (tctx ^. #store) usedFuncsRef
 
             action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
             action = runExceptT $ exploreForward_
@@ -161,8 +164,9 @@ spec = do
         (modifyResult <$> action) `shouldReturn` expected
 
       it "should not expand call nodes if expand limit is 0" $ \tctx -> do
+        usedFuncsRef <- newIORef HashMap.empty
         let startFunc = tctx ^. #outerAFunc
-            strat = expandAllStrategy alwaysLowestOfRange 0 $ tctx ^. #store
+            strat = expandAllStrategy alwaysLowestOfRange 0 (tctx ^. #store) usedFuncsRef
 
             action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
             action = runExceptT $ exploreForward_
@@ -181,8 +185,9 @@ spec = do
         (modifyResult <$> action) `shouldReturn` expected
 
       it "should expand all call nodes once when expand limit is 1" $ \tctx -> do
+        usedFuncsRef <- newIORef HashMap.empty
         let startFunc = tctx ^. #mainFunc
-            strat = expandAllStrategy alwaysLowestOfRange 1 $ tctx ^. #store
+            strat = expandAllStrategy alwaysLowestOfRange 1 (tctx ^. #store) usedFuncsRef
 
             action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
             action = runExceptT $ exploreForward_
@@ -202,8 +207,9 @@ spec = do
         (modifyResult <$> action) `shouldReturn` expected
 
       it "should expand every call two times when expand limit is 2" $ \tctx -> do
+        usedFuncsRef <- newIORef HashMap.empty
         let startFunc = tctx ^. #mainFunc
-            strat = expandAllStrategy alwaysLowestOfRange 2 $ tctx ^. #store
+            strat = expandAllStrategy alwaysLowestOfRange 2 (tctx ^. #store) usedFuncsRef
 
             action :: IO (Either (SampleRandomPathError' PilNode) (Maybe PilPath))
             action = runExceptT $ exploreForward_

@@ -5,6 +5,7 @@ module Main where
 import Flint.Prelude
 
 import Flint.App (withBackend, Backend)
+import Flint.Cfg.Path (enableSamplingTiming)
 import qualified Flint.Cfg.Store as Store
 import Flint.Shell.Types (initShellState)
 import Flint.Shell.Repl (runShell)
@@ -24,6 +25,7 @@ data VerbosityLevel = Info | Warn | Debug deriving (Eq, Ord, Read, Show, Generic
 data ShellOptions = ShellOptions
   { backend        :: Maybe Backend
   , doNotUseSolver :: Bool
+  , profileSampling :: Bool
   , analysisDb     :: Maybe FilePath
   , verbosity      :: VerbosityLevel
   , typeHintsFile  :: Maybe FilePath
@@ -60,6 +62,11 @@ parseDoNotUseSolver = switch $
   long "doNotUseSolver"
   <> help "do not enable the SMT solver by default"
 
+parseProfileSampling :: Parser Bool
+parseProfileSampling = switch $
+  long "profileSampling"
+  <> help "print timing info for path sampling phases to stderr"
+
 parseTypeHintsFile :: Parser FilePath
 parseTypeHintsFile = strOption $
   long "typeHints"
@@ -76,6 +83,7 @@ optionsParser :: Parser ShellOptions
 optionsParser = ShellOptions
   <$> optional parseBackend
   <*> (parseDoNotUseSolver <|> pure False)
+  <*> (parseProfileSampling <|> pure False)
   <*> optional parseAnalysisDb
   <*> (parseVerbosity <|> pure Info)
   <*> optional parseTypeHintsFile
@@ -84,6 +92,7 @@ optionsParser = ShellOptions
 main :: IO ()
 main = do
   opts <- execParser optsParser
+  when (opts ^. #profileSampling) enableSamplingTiming
   setVerbosity $ case opts ^. #verbosity of
     Info -> VInfo
     Warn -> VWarn

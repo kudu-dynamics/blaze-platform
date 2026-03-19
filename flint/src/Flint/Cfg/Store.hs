@@ -7,6 +7,7 @@ import Flint.Prelude
 import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store
+import Flint.Util (offsetUUID)
 import qualified Flint.Types.CachedCalc as CC
 import qualified Flint.Types.CachedMap as CM
 
@@ -18,7 +19,7 @@ import qualified Blaze.Graph as G
 import qualified Blaze.Persist.Db as Db
 import Blaze.Types.Function (Function, Func)
 import qualified Blaze.Types.Function as Func
-import Blaze.Types.Graph (calcDescendantsMap, calcStrictDescendantsMap, DescendantsMap(DescendantsMap), StrictDescendantsMap(StrictDescendantsMap))
+import Blaze.Types.Graph (calcStrictDescendantsMap, StrictDescendantsMap(StrictDescendantsMap))
 import qualified Blaze.Types.Pil as Pil
 
 import Blaze.Import.Binary (BinaryImporter)
@@ -85,6 +86,7 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
 
   store <- CfgStore
     <$> atomically CC.create
+    <*> atomically CC.create -- acyclicCfgCache
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
@@ -163,6 +165,11 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     case HashMap.lookup func eagerCfgMap of
       Just cfg -> addFunc' store func (Just cfg)
       Nothing  -> addFunc imp store func
+    -- Set up lazy acyclic CFG computation
+    CC.setCalc func (store ^. #acyclicCfgCache) $
+      getFuncCfgInfo store func >>= \case
+        Nothing -> return Nothing
+        Just cfgInfo -> return . Just . makeCfgAcyclic $ cfgInfo ^. #cfg
 
   return (store, functionToTypeHintsMap)
 
@@ -381,25 +388,6 @@ getNewUuid old = do
       modify $ HashMap.insert old new
       return new
 
-traverseDescendantsMap
-  :: forall m a b.
-     ( Monad m
-     , Hashable a
-     , Hashable b
-     )
-  => (a -> m b)
-  -> DescendantsMap a
-  -> StateT (HashMap a b) m (DescendantsMap b)
-traverseDescendantsMap f (DescendantsMap dmap) =
-  DescendantsMap . HashMap.fromList <$> traverse g (HashMap.toList dmap)
-  where
-    g :: (a, HashSet a) -> StateT (HashMap a b) m (b, HashSet b)
-    g (x, s) = do
-      x' <- getMemoized f x
-      s' <- fmap HashSet.fromList . traverse (getMemoized f) . HashSet.toList $ s
-      return (x', s')
-
--- TODO: Reduce redundancy with above
 traverseStrictDescendantsMap
   :: forall m a b.
      ( Monad m
@@ -418,37 +406,75 @@ traverseStrictDescendantsMap f (StrictDescendantsMap dmap) =
       s' <- fmap HashSet.fromList . traverse (getMemoized f) . HashSet.toList $ s
       return (x', s')
 
--- | Gets the CfgInfo, but all the UUIDs are fresh and new
+-- | Gets the CfgInfo, but all the UUIDs are fresh random ones.
+--   Prefer getOffsetFuncCfgInfo for deterministic UUID remapping.
 getFreshFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
 getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
   Nothing -> return Nothing
   Just cfgInfo -> flip evalStateT HashMap.empty $ do
-    cfg' <- Cfg.safeTraverse_ updateNodeId $ cfgInfo ^. #cfg
-    acyclicCfg' <- Cfg.safeTraverse_ updateNodeId $ cfgInfo ^. #acyclicCfg
-    dmap' <- traverseDescendantsMap updateNodeId $ cfgInfo ^. #descendantsMap
-    sdmap' <- traverseStrictDescendantsMap updateNodeId $ cfgInfo ^. #strictDescendantsMap
-    asdmap' <- traverseStrictDescendantsMap updateNodeId $ cfgInfo ^. #acyclicStrictDescendantsMap
+    cfg' <- Cfg.safeTraverse_ randomNode $ cfgInfo ^. #cfg
+    sdmap' <- traverseStrictDescendantsMap randomNode $ cfgInfo ^. #strictDescendantsMap
     nodes' <- fmap HashSet.fromList
-              . traverse (getMemoized updateNodeId)
+              . traverse (getMemoized randomNode)
               . HashSet.toList
               $ cfgInfo ^. #nodes
     calls' <- fmap (mapMaybe (^? #_Call))
-              . traverse (getMemoized updateNodeId . Cfg.Call)
+              . traverse (getMemoized randomNode . Cfg.Call)
               $ cfgInfo ^. #calls
     return . Just $ CfgInfo
       { cfg = cfg'
-      , acyclicCfg = acyclicCfg'
-      , descendantsMap = dmap'
       , strictDescendantsMap = sdmap'
-      , acyclicStrictDescendantsMap = asdmap'
       , calls = calls'
       , nodes = nodes'
       }
-      where
-        updateNodeId :: PilNode -> IO PilNode
-        updateNodeId n = do
-          new <- randomIO
-          return $ Cfg.setNodeUUID new n
+
+-- | Gets the CfgInfo with UUIDs deterministically offset by n.
+--   Same function + same offset always produces the same UUIDs,
+--   which preserves nub's ability to dedup identical paths.
+getOffsetFuncCfgInfo :: CfgStore -> Function -> Word64 -> IO (Maybe CfgInfo)
+getOffsetFuncCfgInfo store func n = getFuncCfgInfo store func >>= \case
+  Nothing -> return Nothing
+  Just cfgInfo -> flip evalStateT HashMap.empty $ do
+    cfg' <- Cfg.safeTraverse_ (offsetNode n) $ cfgInfo ^. #cfg
+    sdmap' <- traverseStrictDescendantsMap (offsetNode n) $ cfgInfo ^. #strictDescendantsMap
+    nodes' <- fmap HashSet.fromList
+              . traverse (getMemoized (offsetNode n))
+              . HashSet.toList
+              $ cfgInfo ^. #nodes
+    calls' <- fmap (mapMaybe (^? #_Call))
+              . traverse (getMemoized (offsetNode n) . Cfg.Call)
+              $ cfgInfo ^. #calls
+    return . Just $ CfgInfo
+      { cfg = cfg'
+      , strictDescendantsMap = sdmap'
+      , calls = calls'
+      , nodes = nodes'
+      }
+
+-- | Gets the acyclic CFG for a function from the cache.
+getAcyclicCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
+getAcyclicCfg store func = join <$> CC.get func (store ^. #acyclicCfgCache)
+
+-- | Gets the acyclic CFG with fresh random UUIDs.
+getFreshAcyclicCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
+getFreshAcyclicCfg store func = getAcyclicCfg store func >>= \case
+  Nothing -> return Nothing
+  Just acfg -> Just <$> Cfg.safeTraverse randomNode acfg
+
+-- | Gets the acyclic CFG with UUIDs deterministically offset by n.
+getOffsetAcyclicCfg :: CfgStore -> Function -> Word64 -> IO (Maybe PilCfg)
+getOffsetAcyclicCfg store func n = getAcyclicCfg store func >>= \case
+  Nothing -> return Nothing
+  Just acfg -> Just <$> Cfg.safeTraverse (offsetNode n) acfg
+
+offsetNode :: Applicative f => Word64 -> PilNode -> f PilNode
+offsetNode n node = pure $ Cfg.setNodeUUID (offsetUUID n uuid) node
+  where uuid = Cfg.getNodeUUID node
+
+randomNode :: PilNode -> IO PilNode
+randomNode n = do
+  new <- randomIO
+  return $ Cfg.setNodeUUID new n
 
 -- | Gets the stored Cfg for a function, if it exists in the store.
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
@@ -534,19 +560,10 @@ calcCfgInfo :: PilCfg -> CfgInfo
 calcCfgInfo cfg =
   CfgInfo
     { cfg = cfg
-    , acyclicCfg = cfgWithoutBackedges
-    , descendantsMap = dmap
-    , strictDescendantsMap = strictDmap
-    , acyclicStrictDescendantsMap = acyclicStrictDmap
+    , strictDescendantsMap = calcStrictDescendantsMap cfg
     , nodes = G.nodes cfg
-    , calls = calls
+    , calls = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfg
     }
-  where
-    cfgWithoutBackedges = makeCfgAcyclic cfg
-    dmap = calcDescendantsMap cfgWithoutBackedges
-    strictDmap = calcStrictDescendantsMap cfg
-    acyclicStrictDmap = calcStrictDescendantsMap cfgWithoutBackedges
-    calls = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfgWithoutBackedges
 
 -- | This is pretty expensive and basically forces calculation of almost everything
 -- in CfgStore.
