@@ -25,5 +25,5 @@ extra-deps:
 
 rebuild-ghc-options: true
 ghc-options:
-  "$locals": -j -O0
+  "$locals": -j -O3
   "prettyprinter": -Wno-deprecations

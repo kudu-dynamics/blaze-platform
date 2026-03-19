@@ -4,7 +4,7 @@ module Blaze.Pil.Analysis.PathSpec where
 
 import Blaze.Prelude hiding (const, sym)
 
-import Blaze.Pil.Analysis.Path (expandVars, aggressiveExpand)
+import Blaze.Pil.Analysis.Path (expandVars, aggressiveExpand, simplifyArrayAddr)
 import Blaze.Pil.Construct
 import Blaze.Types.Pil (Stmt)
 import qualified Blaze.Types.Pil as Pil
@@ -110,4 +110,59 @@ spec = describe "Blaze.Pil.Analysis" $ do
             ]
           result = aggressiveExpand stmts
       result `shouldBe` expected
+
+  context "simplifyArrayAddr" $ do
+    it "should collapse nested ARRAY_ADDR with same stride" $ do
+      -- ptr[1][1] → ptr[2]
+      let ptr = var "ptr" 4
+          nested = arrayAddr (arrayAddr ptr (const 1 4) 1 4) (const 1 4) 1 4
+          expected = arrayAddr ptr (const 2 4) 1 4
+      simplifyArrayAddr nested `shouldBe` expected
+
+    it "should collapse deeply nested ARRAY_ADDR (simulating many fputc calls)" $ do
+      -- ptr[1][1][1][1][1] → ptr[5]
+      let ptr = var "ptr" 4
+          nested = foldr (\_ acc -> arrayAddr acc (const 1 4) 1 4) ptr [1..5 :: Int]
+          expected = arrayAddr ptr (const 5 4) 1 4
+      simplifyArrayAddr nested `shouldBe` expected
+
+    it "should not collapse ARRAY_ADDR with different strides" $ do
+      let ptr = var "ptr" 4
+          nested = arrayAddr (arrayAddr ptr (const 1 4) 1 4) (const 1 4) 2 4
+      simplifyArrayAddr nested `shouldBe` nested
+
+    it "should not modify a single ARRAY_ADDR" $ do
+      let ptr = var "ptr" 4
+          single = arrayAddr ptr (const 3 4) 1 4
+      simplifyArrayAddr single `shouldBe` single
+
+    it "should collapse nested FIELD_ADDR by adding offsets" $ do
+      -- base.+8.+16 → base.+24
+      let base = var "base" 4
+          nested = fieldAddr (fieldAddr base 8 4) 16 4
+          expected = fieldAddr base 24 4
+      simplifyArrayAddr nested `shouldBe` expected
+
+    it "should collapse deeply nested FIELD_ADDR" $ do
+      -- base.+4.+4.+4 → base.+12
+      let base = var "base" 4
+          nested = fieldAddr (fieldAddr (fieldAddr base 4 4) 4 4) 4 4
+          expected = fieldAddr base 12 4
+      simplifyArrayAddr nested `shouldBe` expected
+
+    it "should handle non-constant ARRAY_ADDR indices with ADD" $ do
+      -- ptr[x][y] → ptr[x + y] (same stride)
+      let ptr = var "ptr" 4
+          x = var "x" 4
+          y = var "y" 4
+          nested = arrayAddr (arrayAddr ptr x 1 4) y 1 4
+          expected = arrayAddr ptr (add x y 4) 1 4
+      simplifyArrayAddr nested `shouldBe` expected
+
+    it "should work inside larger expressions" $ do
+      -- load(ptr[1][1]) → load(ptr[2])
+      let ptr = var "ptr" 4
+          nested = load (arrayAddr (arrayAddr ptr (const 1 4) 1 4) (const 1 4) 1 4) 4
+          expected = load (arrayAddr ptr (const 2 4) 1 4) 4
+      simplifyArrayAddr nested `shouldBe` expected
 

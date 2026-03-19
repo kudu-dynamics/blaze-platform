@@ -237,6 +237,10 @@ stackLocalAddr base offset size =
 mkStmt_ :: Statement expr -> AddressableStatement expr
 mkStmt_ = Stmt $ intToAddr 0
 
+-- | Makes a statement with a specific address
+mkStmtAt :: Address -> Statement expr -> AddressableStatement expr
+mkStmtAt = Stmt
+
 def :: GetExprSize expr => Symbol -> expr -> AddressableStatement expr
 def sym expr = def' (pilVar (getPilVarSize expr) sym) expr
 
@@ -280,6 +284,9 @@ store addr val = mkStmt_ . Pil.Store $ Pil.StoreOp addr val
 
 constraint :: expr -> AddressableStatement expr
 constraint e = mkStmt_ . Pil.Constraint $ Pil.ConstraintOp e
+
+constraintAt :: Address -> expr -> AddressableStatement expr
+constraintAt a e = mkStmtAt a . Pil.Constraint $ Pil.ConstraintOp e
 
 branchCond :: expr -> AddressableStatement expr
 branchCond e = mkStmt_ . Pil.BranchCond $ Pil.BranchCondOp e

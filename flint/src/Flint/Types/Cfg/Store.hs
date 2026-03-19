@@ -39,8 +39,10 @@ data CfgStore = CfgStore
   , callGraphCache :: CachedCalc () CallGraph
     -- CallGraph, but all the edges are reversed. Useful for getting ancestors
   , transposedCallGraphCache :: CachedCalc () CallGraph
-    -- Functions and the callsites they contain
-  , callSitesCache :: CachedCalc Function [CallSite]
+    -- Call sites contained within a function (caller → [CallSite])
+  , callSitesInFuncCache :: CachedCalc Function [CallSite]
+    -- Call sites targeting a function (callee → [CallSite])
+  , callSitesToFuncCache :: CachedCalc Func [CallSite]
   , pathSamples :: CachedMap Function [PathPrep TypedStmt]
   , callablePrims :: CachedMap (PrimSpec, Func) (HashSet CallableWMI)
     -- -- If this is too slow or uses too much memory, we could do just calls or landmarks

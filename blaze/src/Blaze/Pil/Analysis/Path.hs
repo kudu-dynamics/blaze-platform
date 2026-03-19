@@ -127,6 +127,31 @@ expandVars = expandVars_ HashMap.empty
 -- The goal is eliminate non-arg vars and non-global mem accesses.
 -- Don't use this on partial paths through a funcion and expect to
 -- later append other paths to it, because var def elimination might ruin linking.
+-- | Collapse nested ARRAY_ADDR and FIELD_ADDR operations that accumulate
+-- during memory substitution (e.g. when fputc increments stdout's buffer
+-- pointer repeatedly, creating ptr[1][1][1]... instead of ptr[3]).
+simplifyArrayAddr :: Expression -> Expression
+simplifyArrayAddr = PA.substExprInExpr collapse
+  where
+    collapse :: Expression -> Maybe Expression
+    -- ARRAY_ADDR(ARRAY_ADDR(base, i, s), j, s) → ARRAY_ADDR(base, i+j, s)
+    collapse (Pil.Expression sz (Pil.ARRAY_ADDR (Pil.ArrayAddrOp base idx stride)))
+      | Pil.Expression _ (Pil.ARRAY_ADDR (Pil.ArrayAddrOp innerBase innerIdx innerStride)) <- base
+      , stride == innerStride
+      = Just $ Pil.Expression sz
+        (Pil.ARRAY_ADDR (Pil.ArrayAddrOp innerBase (addExprs innerIdx idx) stride))
+    -- FIELD_ADDR(FIELD_ADDR(base, off1), off2) → FIELD_ADDR(base, off1+off2)
+    collapse (Pil.Expression sz (Pil.FIELD_ADDR (Pil.FieldAddrOp base off)))
+      | Pil.Expression _ (Pil.FIELD_ADDR (Pil.FieldAddrOp innerBase innerOff)) <- base
+      = Just $ Pil.Expression sz
+        (Pil.FIELD_ADDR (Pil.FieldAddrOp innerBase (innerOff + off)))
+    collapse _ = Nothing
+
+    addExprs :: Expression -> Expression -> Expression
+    addExprs (Pil.Expression _ (Pil.CONST (Pil.ConstOp a))) (Pil.Expression sz (Pil.CONST (Pil.ConstOp b)))
+      = Pil.Expression sz (Pil.CONST (Pil.ConstOp (a + b)))
+    addExprs a b = C.add a b (a ^. #size)
+
 -- Because this substitutes loads, we might erase possible TOCTOU patterns
 -- TODO: once we know which mem addresses are global, we can eliminate the internal
 --       store stmts.
@@ -266,7 +291,7 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
                     AggressiveExpandState usedVars' varSubstMap memSubstMap (stmt':processed)
 
     substAll :: Expression -> Expression
-    substAll = substMem . substVars
+    substAll = simplifyArrayAddr . substMem . substVars
 
     -- | Substitutes any pre-defined vars with their exprs.
     substVars :: Expression -> Expression

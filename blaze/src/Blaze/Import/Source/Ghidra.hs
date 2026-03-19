@@ -27,6 +27,11 @@ import Ghidra.Types.Variable (VarNode)
 import Text.Pretty.Simple (pHPrint)
 import qualified Data.HashMap.Strict as HashMap
 
+-- | Filter out bogus string entries from low addresses (e.g. ELF header data
+-- that Ghidra's hasStringValue() incorrectly reports as strings).
+filterStringsMap :: HashMap Int64 Text -> HashMap Address Text
+filterStringsMap = HashMap.mapKeys intToAddr . HashMap.filterWithKey (\k _ -> k >= 0x100)
+
 getImporter :: FilePath -> IO GhidraImporter
 getImporter fp = do
   highFnCache <- atomically $ CM.create Nothing
@@ -36,7 +41,7 @@ getImporter fp = do
       Right gs -> do
         GState.analyze gs
         smap <- GState.getDefinedStrings (gs ^. #program)
-        return $ GhidraImporter gs highFnCache (HashMap.mapKeys intToAddr smap)
+        return $ GhidraImporter gs highFnCache (filterStringsMap smap)
 
 instance BinaryImporter GhidraImporter where
   openBinary fp = do
@@ -47,7 +52,7 @@ instance BinaryImporter GhidraImporter where
         Right gs -> do
           GState.analyze gs
           smap <- GState.getDefinedStrings (gs ^. #program)
-          return . Right $ GhidraImporter gs highFnCache (HashMap.mapKeys intToAddr smap)
+          return . Right $ GhidraImporter gs highFnCache (filterStringsMap smap)
 
   shutdown = stopJVMIfRunning
 
@@ -62,7 +67,7 @@ instance BinaryImporter GhidraImporter where
       GProg.setImageBase (gs ^. #program) (addrToInt off) True
       GState.analyze gs
     smap <- GState.getDefinedStrings (gs ^. #program)
-    return $ GhidraImporter gs fc (HashMap.mapKeys intToAddr smap)
+    return $ GhidraImporter gs fc (filterStringsMap smap)
 
   getBase (GhidraImporter gs _ _) = runGhidraOrError $ do
     prg <- GState.getProgram gs

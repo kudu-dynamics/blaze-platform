@@ -41,7 +41,7 @@ sampleCommand = ShellCommand
   { cmdName = "sample"
   , cmdAliases = ["sp"]
   , cmdHelp = "Sample paths from a function"
-  , cmdUsage = "sample <func> [count] [@ <addr> [addr ...]]"
+  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]]"
   , cmdAction = samplePaths
   }
 
@@ -99,11 +99,18 @@ freeUntaggedCommand = ShellCommand
   , cmdAction = freeUntaggedPaths
   }
 
--- | Parse a hex address like "0x401000" or a decimal number
+-- | Parse a hex address like "0x401000" or a decimal number,
+-- using the given address space (from the binary) for correct pointer size.
+parseAddressWithSpace :: AddressSpace -> Text -> Maybe Address
+parseAddressWithSpace sp t = setSpace <$> parseAddress t
+  where
+    setSpace addr = addr & #space .~ sp
+
+-- | Parse a hex address using the default (64-bit) address space.
 parseAddress :: Text -> Maybe Address
-parseAddress t = case Text.stripPrefix "0x" t of
-  Just hex -> intToAddr <$> readMaybe ("0x" <> Text.unpack hex)
-  Nothing -> intToAddr <$> readMaybe (Text.unpack t)
+parseAddress t = intToAddr <$> case Text.stripPrefix "0x" t of
+  Just hex -> readMaybe ("0x" <> Text.unpack hex)
+  Nothing -> readMaybe (Text.unpack t)
 
 -- | Show an address as hex
 showAddr :: Address -> Text
@@ -115,72 +122,81 @@ findFunction st nameOrAddr = do
   funcMap <- Store.getFuncNameMapping (st ^. #cfgStore)
   case HashMap.lookup nameOrAddr funcMap of
     Just f -> return (Just f)
-    Nothing -> case parseAddress nameOrAddr of
-      Nothing -> return Nothing
-      Just addr -> do
-        funcs <- Store.getInternalFuncs $ st ^. #cfgStore
-        return $ find (\f -> f ^. #address == addr) funcs
+    Nothing -> do
+      let addrSpace = st ^. #cfgStore . #baseOffset . #space
+      case parseAddressWithSpace addrSpace nameOrAddr of
+        Nothing -> return Nothing
+        Just addr -> do
+          funcs <- Store.getInternalFuncs $ st ^. #cfgStore
+          return $ find (\f -> f ^. #address == addr) funcs
 
 samplePaths :: ShellState -> [Text] -> IO CommandResult
-samplePaths _st [] = return $ ResultError "Usage: sample <func> [count] [@ <addr> [addr ...]]"
-samplePaths st (funcArg : rest) = do
-  mFunc <- findFunction st funcArg
-  case mFunc of
-    Nothing -> return $ ResultError $ "Function not found: " <> funcArg
-    Just func -> do
-      -- Split args on "@": before = [count], after = [addrs]
-      let (beforeAt, afterAt) = break (== "@") rest
-          mCount = case beforeAt of
-            (n : _) -> readMaybe (Text.unpack n) :: Maybe Int
-            _ -> Nothing
-          targetAddrs = case afterAt of
-            ("@" : addrArgs) -> mapMaybe parseAddress addrArgs
-            _ -> []
-      paths <- case NE.nonEmpty targetAddrs of
-        Just addrs -> do
-          -- Targeted sampling: paths must go through these addresses
-          let count = fromMaybe 20 mCount
-              targets = fmap (func,) addrs
-              q = QueryTarget $ QueryTargetOpts
-                { mustReachSome = targets
-                , callExpandDepthLimit = 0  -- intraprocedural only
-                , numSamples = fromIntegral count
-                }
-          catch
-            (samplesFromQuery (st ^. #cfgStore) func q)
-            (\(e :: SomeException) -> do
-              warn $ "Target sampling error: " <> show e
-              return [])
-        Nothing -> case mCount of
-          Just count -> do
-            let q = QueryExpandAll $ QueryExpandAllOpts
-                  { callExpandDepthLimit = 0
-                  , numSamples = fromIntegral count
+samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]]"
+samplePaths st allArgs = do
+  -- Parse optional leading count: if first arg is a number, it's the count
+  let (mLeadingCount, afterCount) = case allArgs of
+        (n : rest') | Just c <- (readMaybe (Text.unpack n) :: Maybe Int) -> (Just c, rest')
+        _ -> (Nothing, allArgs)
+  case afterCount of
+    [] -> return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]]"
+    (funcArg : rest) -> do
+      mFunc <- findFunction st funcArg
+      case mFunc of
+        Nothing -> return $ ResultError $ "Function not found: " <> funcArg
+        Just func -> do
+          let rest' = rest
+          -- Split remaining args on "@": after = [addrs]
+          let (_, afterAt) = break (== "@") rest'
+              mCount = mLeadingCount
+              addrSpace = func ^. #address . #space
+              targetAddrs = case afterAt of
+                ("@" : addrArgs) -> mapMaybe (parseAddressWithSpace addrSpace) addrArgs
+                _ -> []
+          paths <- case NE.nonEmpty targetAddrs of
+            Just addrs -> do
+              -- Targeted sampling: paths must go through these addresses
+              let count = fromMaybe 20 mCount
+                  targets = fmap (func,) addrs
+                  q = QueryTarget $ QueryTargetOpts
+                    { mustReachSome = targets
+                    , callExpandDepthLimit = 0  -- intraprocedural only
+                    , numSamples = fromIntegral count
+                    }
+              catch
+                (samplesFromQuery (st ^. #cfgStore) func q)
+                (\(e :: SomeException) -> do
+                  warn $ "Target sampling error: " <> show e
+                  return [])
+            Nothing -> case mCount of
+              Just count -> do
+                let q = QueryExpandAll $ QueryExpandAllOpts
+                      { callExpandDepthLimit = 0
+                      , numSamples = fromIntegral count
+                      }
+                samplesFromQuery (st ^. #cfgStore) func q
+              Nothing ->
+                fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
+          case paths of
+            [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
+                  <> if not (null targetAddrs)
+                     then " through " <> Text.intercalate ", " (fmap showAddr targetAddrs)
+                     else ""
+            _ -> do
+              results <- forM paths $ \path -> do
+                let stmts = Path.toStmts path
+                    prep = mkPathPrep [] stmts
+                    reducedStmts = asStmts $ prep ^. #stmts
+                pid <- insertPath st CachedPath
+                  { pilPath = stmts
+                  , fullPath = path
+                  , sourceFunc = func
+                  , pathPrep = Just prep
                   }
-            samplesFromQuery (st ^. #cfgStore) func q
-          Nothing ->
-            fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
-      case paths of
-        [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
-              <> if not (null targetAddrs)
-                 then " through " <> Text.intercalate ", " (fmap showAddr targetAddrs)
-                 else ""
-        _ -> do
-          results <- forM paths $ \path -> do
-            let stmts = Path.toStmts path
-                prep = mkPathPrep [] stmts
-                reducedStmts = asStmts $ prep ^. #stmts
-            pid <- insertPath st CachedPath
-              { pilPath = stmts
-              , fullPath = path
-              , sourceFunc = func
-              , pathPrep = Just prep
-              }
-            let summary = "path " <> show pid
-                  <> " (" <> show (length reducedStmts) <> " stmts"
-                  <> ", func: " <> func ^. #name <> ")"
-            return (pid, summary)
-          return $ ResultPaths results
+                let summary = "path " <> show pid
+                      <> " (" <> show (length reducedStmts) <> " stmts"
+                      <> ", func: " <> func ^. #name <> ")"
+                return (pid, summary)
+              return $ ResultPaths results
 
 showPaths :: ShellState -> [Text] -> IO CommandResult
 showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw, or tag names)"

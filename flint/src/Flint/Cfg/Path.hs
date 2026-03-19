@@ -101,10 +101,6 @@ expandAllStrategy _pickFromRange expandDepthLimit store func currentDepth
   | otherwise = lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
       Nothing -> return Nothing
       Just cfgInfo -> do
-        -- path <- CfgPath.sampleRandomPath_'
-        --   (Path.toFullChooser . Path.chooseChildByDescendantCount pickFromRange $ cfgInfo ^. #strictDescendantsMap)
-        --   ()
-        --   (cfgInfo ^. #acyclicCfg)
         let rootNode = Cfg.getRootNode $ cfgInfo ^. #cfg
             retNodes :: [PilNode]
             retNodes = fmap (Cfg.BasicBlock . view #basicBlock) . InterCfg.getRetNodes $ cfgInfo ^. #cfg
@@ -114,22 +110,16 @@ expandAllStrategy _pickFromRange expandDepthLimit store func currentDepth
             retNode <- pickFromList randomRIO $ r :| rs
             let seqState = initSequenceChooserState [retNode]
             rpath <- liftIO $ CfgPath.samplePathContainingSequenceIO
-                     (cfgInfo ^. #strictDescendantsMap)
-                     seqState
-                     rootNode
-                     (cfgInfo ^. #cfg)
+                          (cfgInfo ^. #strictDescendantsMap)
+                          seqState rootNode (cfgInfo ^. #cfg)
             case rpath of
-              Left err -> do
-                error $ "Error sampling path: " <> show err
-                -- return Nothing -- TODO: should this be error?
+              Left _err -> return Nothing
               Right (path, _sst) -> do
-                -- TODO: only expand calls that are actually in path.
                 let expCalls = fmap (ExpandCall (currentDepth + 1))
                                . mapMaybe (^? #_Call)
                                . HashSet.toList
                                . Path.nodes
                                $ path
-                -- let expCalls = ExpandCall (currentDepth + 1) <$> cfgInfo ^. #calls
                 return $ Just (path, HashSet.fromList expCalls)
 
 exploreDeepStrategy
@@ -161,6 +151,7 @@ pickFromList picker (x :| xs) = do
 -- If multiple calls reach the target, it randomly chooses one.
 -- If the target is within the Cfg itself and through calls, it randomly chooses
 -- between reaching the target in the current function, or pursuing a call.
+-- Uses the cyclic CFG with loop unrolling to handle loops.
 expandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
@@ -174,7 +165,8 @@ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTarg
   else lift (CfgStore.getFreshFuncCfgInfo store func) >>= \case
     Nothing -> return Nothing
     Just cfgInfo -> do
-      let nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` (cfgInfo ^. #acyclicCfg)) . NE.toList $ targets
+      let cfg = cfgInfo ^. #cfg
+          nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` cfg) . NE.toList $ targets
           callNodesThatLeadToTargets :: [CallNode [Stmt]]
           callNodesThatLeadToTargets
             = filter (maybe False (`HashSet.member` funcsThatLeadToTargets) . getCallNodeFunc)
@@ -189,13 +181,26 @@ expandToTargetsStrategy pickFromRange expandDepthLimit store funcsThatLeadToTarg
                 Right targetCallNode -> ( Cfg.Call targetCallNode
                                         , HashSet.singleton $ ExpandCall (currentDepth + 1) targetCallNode
                                         )
-          path <- CfgPath.sampleRandomPath_'
-            (Path.toFullChooser . Path.chooseChildByDescendantCountAndReqSomeNodes
-              pickFromRange
-              $ cfgInfo ^. #acyclicStrictDescendantsMap)
-            (Path.InitReqNodes $ HashSet.singleton targetNode)
-            (cfgInfo ^. #acyclicCfg)
-          return $ Just (path, expandLater)
+              rootNode = Cfg.getRootNode cfg
+              retNodes = fmap (Cfg.BasicBlock . view #basicBlock) . InterCfg.getRetNodes $ cfg
+          -- For direct target nodes (Left), continue the path to a return node
+          -- so the path isn't truncated at the target address.
+          -- If the target IS already a return node, don't duplicate it.
+          -- For call targets (Right), just reach the call node.
+          seqNodes <- case (choice, retNodes) of
+            (Left _, r:rs)
+              | targetNode `elem` (r:rs) -> return [targetNode]
+              | otherwise -> do
+                  retNode <- lift $ pickFromList pickFromRange (r :| rs)
+                  return [targetNode, retNode]
+            _ -> return [targetNode]
+          let seqState = initSequenceChooserState seqNodes
+          rpath <- liftIO $ CfgPath.samplePathContainingSequenceIO
+                        (cfgInfo ^. #strictDescendantsMap)
+                        seqState rootNode cfg
+          case rpath of
+            Left _err -> return Nothing
+            Right (path, _sst) -> return $ Just (path, expandLater)
 
 mkExpandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
@@ -225,7 +230,7 @@ mkExpandAlongCallSeqStrategy
   -> CallSeqPrep
   -> IO (Maybe (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO))
 mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
-  CC.get (prep ^. #lastCall) (store ^. #callSitesCache) >>= \case
+  CC.get (prep ^. #lastCall) (store ^. #callSitesInFuncCache) >>= \case
     Nothing -> error $ "Could not find func call sites cache for " <> show (prep ^. #lastCall)
     Just [] -> return Nothing
     Just (y:ys) -> do
@@ -252,7 +257,7 @@ mkFanAlongCallSeqStrategy
   -> IO (Maybe (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO))
 mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store prep = do
   mtargets <- fmap NE.nonEmpty . flip concatMapM (NE.toList $ prep ^. #callSeq) $ \func -> do
-    CC.get func (store ^. #callSitesCache) >>= \case
+    CC.get func (store ^. #callSitesInFuncCache) >>= \case
       Nothing -> error $ "Could not find func call sites cache for " <> show (prep ^. #lastCall)
       Just xs -> return $ (\x -> (x ^. #caller, x ^. #address)) <$> xs
   case mtargets of
@@ -527,10 +532,8 @@ sampleSinglePathWithVisitCounts store func visitCounts =
                 (SeqAndVisitCounts [retNode] visitCounts)
                 (UnrollLoopState HashMap.empty HashSet.empty)
           rpath <- CfgPath.samplePathContainingSequenceIO
-                   (cfgInfo ^. #strictDescendantsMap)
-                   seqState
-                   rootNode
-                   (cfgInfo ^. #cfg)
+                        (cfgInfo ^. #strictDescendantsMap)
+                        seqState rootNode (cfgInfo ^. #cfg)
           case rpath of
             Left _err -> return Nothing
             Right (path, sst) ->

@@ -22,7 +22,6 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Analysis.Subst (RecurSubst(recurSubst), FlatSubst(flatSubst))
 import qualified Blaze.Pil.Construct as C
 import qualified Blaze.Cfg.Loop as Loop
-
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.List (nub)
@@ -109,6 +108,7 @@ samplePathContainingSequenceIO
          (SampleRandomPathError (P.ChooseChildError PilNode))
          (Path PilNode, SequenceChooserState))
 samplePathContainingSequenceIO = samplePathContainingSequence_ randomIO randomIO
+
 
 type DefinedVarVersions = HashMap PilVar Word64
 
@@ -206,6 +206,8 @@ data SequenceChooserState = SequenceChooserState
 -- | This chooser gets a path that hits all nodes along a sequence.
 -- It can unroll loops to reach nodes as long as the StrictDescendantsMap was generated on a
 -- Cfg that still had backedges.
+-- When a loop is revisited, it unrolls with _loopN variable renaming and
+-- adds an Annotation marking loop iterations.
 choosePathsContainingSequence
   :: Monad m
   => m Double

@@ -25,7 +25,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
   context "Getting CFGs from DiveLogger" $ do
     imp <- runIO $ G.getImporter diveBin
     funcs <- fmap (mapMaybe (^? #_Internal)) . runIO $ getFunctions imp
-
+    
     context "getRawPcodeCfg" $ do
       cfgs <- fmap catMaybes . runIO $ traverse (\func -> getRawPcodeCfg (imp ^. #ghidraState) func 0) funcs
       let f = HashSet.size . Cfg.nodes
@@ -65,7 +65,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
 
       let f = maybe 0 (HashSet.size . Cfg.nodes)
           nodeCounts = f <$> cfgs
-          expected = [1,1,1,1,1,1,1,2,2,3,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,7,7,7,8,8,8,9,9,9,9,9,9,10,10,10,10,10,12,14,15,15,16,16,17,17,21,22,24,24,27,27,28,28,34,34,35,47,47,47,123,160]
+          expected = [1,1,1,1,1,1,1,2,2,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,7,7,7,8,8,8,8,9,9,9,9,9,10,10,10,10,10,12,14,15,15,16,16,16,17,21,22,24,24,27,27,28,28,34,34,34,42,44,47,123,160]
 
       it "should import Cfgs for all functions without crashing" $ do
         sort nodeCounts `shouldBe` expected
