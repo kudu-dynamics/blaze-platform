@@ -6,6 +6,7 @@ import qualified Language.Java as Java
 
 import qualified Ghidra.Program as Program
 import qualified Ghidra.Address as Addr
+import Ghidra.Address (AddressSpaceMap)
 import Ghidra.Util (iteratorToList, maybeNullCall, suppressOut, tryJVM, getDomainObject, maybeNull)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
@@ -21,6 +22,7 @@ data GhidraState = GhidraState
   , program :: J.ProgramDB
   , flatProgramAPI :: J.FlatProgramAPI
   , flatDecompilerAPI :: J.FlatDecompilerAPI
+  , addressSpaceMap :: AddressSpaceMap
   } deriving (Eq, Ord, Show, Generic)
 
 data OpenDatabaseOptions = OpenDatabaseOptions
@@ -133,7 +135,8 @@ openDatabase' opts fp = do
       prg <- maybe (error "Couldn't find any J.Program for Ghidra db") return $ headMay prgs
       flatApi :: J.FlatProgramAPI <- runIO $ Java.new prg >>= JNI.newGlobalRef
       flatDecApi :: J.FlatDecompilerAPI <- runIO $ Java.new flatApi >>= JNI.newGlobalRef
-      return $ GhidraState tm (coerce prg :: J.ProgramDB) flatApi flatDecApi
+      addrSpaces <- Program.getAddressSpaceMap (coerce prg :: J.ProgramDB)
+      return $ GhidraState tm (coerce prg :: J.ProgramDB) flatApi flatDecApi addrSpaces
 
 openDatabase :: FilePath -> Ghidra (Either OpenDatabaseError GhidraState)
 openDatabase = openDatabase' defaultOpenDatabaseOptions

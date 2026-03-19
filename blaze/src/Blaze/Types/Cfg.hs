@@ -157,7 +157,12 @@ data CfNode a
   | LeaveFunc (LeaveFuncNode a)
   | Grouping (GroupingNode a)
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+
+-- | Hash only the UUID (unique per node) instead of the entire structure.
+-- Generic-derived Hashable would traverse the full statement list, making
+-- HashMap/HashSet operations extremely expensive for large basic blocks.
+instance Eq a => Hashable (CfNode a) where
+  hashWithSalt salt = hashWithSalt salt . getNodeUUID
 
 instance Identifiable (CfNode a) UUID where
   getNodeId = NodeId . getNodeUUID

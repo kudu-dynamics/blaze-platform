@@ -7,9 +7,12 @@ module Blaze.Types.Graph where
 
 import Blaze.Prelude hiding (transpose, empty)
 
+import Data.Graph (stronglyConnComp, SCC(AcyclicSCC, CyclicSCC))
 import Data.HashMap.Strict ((!))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import qualified Data.IntMap.Strict as IMap
+import qualified Data.IntSet as ISet
 
 -- | An integer node ID.
 newtype NodeId a = NodeId a
@@ -361,14 +364,111 @@ newtype StrictDescendantsMap node = StrictDescendantsMap (HashMap node (HashSet 
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable)
 
--- | Slowly calculate descendants for each node. O(m * log n * n)
+-- | Calculate strict descendants for each node using SCC decomposition
+-- and Integer bitset propagation in reverse topological order.
+-- O(N^2 + E) with ~64x constant factor improvement over naive BFS-per-node.
 calcStrictDescendantsMap :: forall l n g. (Graph l n g, Hashable n)
             => g n -> StrictDescendantsMap n
-calcStrictDescendantsMap g = StrictDescendantsMap
-  . HashMap.fromList
-  . fmap (toSnd $ flip getStrictDescendants g)
-  . HashSet.toList
-  $ nodes g
+calcStrictDescendantsMap g
+  | numNodes == 0 = StrictDescendantsMap HashMap.empty
+  | otherwise = StrictDescendantsMap resultMap
+  where
+    -- Step 1: Number nodes 0..N-1, build bidirectional mappings.
+    nodeList :: [n]
+    nodeList = HashSet.toList $ nodes g
+
+    numNodes :: Int
+    numNodes = length nodeList
+
+    nodeToIdx :: HashMap n Int
+    nodeToIdx = HashMap.fromList $ zip nodeList [0 ..]
+
+    idxToNode :: IMap.IntMap n
+    idxToNode = IMap.fromList $ zip [0 ..] nodeList
+
+    -- Step 2: Build Int-indexed successor lists.
+    intSuccs :: IMap.IntMap [Int]
+    intSuccs = IMap.fromList
+      [ (i, fmap (nodeToIdx !) . HashSet.toList $ succs n g)
+      | (n, i) <- zip nodeList [0 ..]
+      ]
+
+    -- Step 3: SCC decomposition. stronglyConnComp returns SCCs in
+    -- reverse topological order (sinks first).
+    sccList :: [SCC Int]
+    sccList = stronglyConnComp
+      [ (i, i, IMap.findWithDefault [] i intSuccs)
+      | i <- [0 .. numNodes - 1]
+      ]
+
+    -- Step 4: Assign each node to its SCC index.
+    nodeToScc :: IMap.IntMap Int
+    nodeToScc = IMap.fromList
+      [ (v, sccIdx)
+      | (sccIdx, scc) <- zip [0 ..] sccList
+      , v <- sccMembers scc
+      ]
+
+    sccMembers :: SCC Int -> [Int]
+    sccMembers (AcyclicSCC v) = [v]
+    sccMembers (CyclicSCC vs) = vs
+
+    -- Step 5: Bottom-up propagation with Integer bitsets.
+    -- sccDescBits = bits for all nodes reachable from successor SCCs
+    -- (not including the SCC's own members).
+    --
+    -- sccData maps sccIdx -> (memberBits, sccDescBits, isCyclic)
+    sccData :: IMap.IntMap (Integer, Integer, Bool)
+    sccData = foldl' processSCC IMap.empty (zip [0 ..] sccList)
+
+    processSCC
+      :: IMap.IntMap (Integer, Integer, Bool)
+      -> (Int, SCC Int)
+      -> IMap.IntMap (Integer, Integer, Bool)
+    processSCC acc (sccIdx, scc) =
+      let members = sccMembers scc
+          isCyclic = case scc of
+            AcyclicSCC _ -> False
+            CyclicSCC _ -> True
+          memberBits :: Integer
+          memberBits = foldl' setBit (zeroBits :: Integer) members
+          -- Collect unique successor SCC indices (excluding self)
+          succSccIdxs :: ISet.IntSet
+          succSccIdxs = foldl'
+            (\s v -> foldl'
+              (\s' succV ->
+                let si = nodeToScc IMap.! succV
+                in if si == sccIdx then s' else ISet.insert si s')
+              s
+              (IMap.findWithDefault [] v intSuccs))
+            ISet.empty
+            members
+          -- Union memberBits and sccDescBits of each successor SCC
+          sccDescBits :: Integer
+          sccDescBits = ISet.foldl'
+            (\bits si ->
+              let (mb, db, _) = acc IMap.! si
+              in bits .|. mb .|. db)
+            (zeroBits :: Integer)
+            succSccIdxs
+      in IMap.insert sccIdx (memberBits, sccDescBits, isCyclic) acc
+
+    -- Step 6-7: Per-node results, convert bitsets to HashSets.
+    resultMap :: HashMap n (HashSet n)
+    resultMap = HashMap.fromList
+      [ (node, bitsToHashSet descBits)
+      | (node, idx) <- zip nodeList [0 ..]
+      , let sccIdx = nodeToScc IMap.! idx
+      , let (memberBits, sccDescBits, isCyclic) = sccData IMap.! sccIdx
+      , let descBits =
+              if isCyclic
+                then memberBits .|. sccDescBits
+                else sccDescBits
+      ]
+
+    bitsToHashSet :: Integer -> HashSet n
+    bitsToHashSet bits = HashSet.fromList
+      [idxToNode IMap.! i | i <- [0 .. numNodes - 1], testBit bits i]
 
 -- | Returns all descendants of a node, excluding itself,
 -- unless a loop makes it its own descendent.

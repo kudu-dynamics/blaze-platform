@@ -8,7 +8,8 @@ import Ghidra.State (GhidraState)
 import qualified Ghidra.Pcode as Pcode
 import qualified Ghidra.PcodeBlock as PB
 import Ghidra.Types.Pcode.Lifted (PcodeOp)
-import Ghidra.Program (getAddressSpaceMap)
+import Ghidra.Types.Address (AddressSpaceMap)
+import qualified Ghidra.Variable as Var
 import qualified Ghidra.Types.Pcode.Lifted as P
 import qualified Ghidra.Types.Address as GAddr
 import qualified Ghidra.Types.BasicBlock as GBB
@@ -57,10 +58,9 @@ newtype Converter a = Converter { _runConverter :: ExceptT ConverterError (State
   deriving (Functor)
   deriving newtype (Applicative, Monad, MonadState ConverterState, MonadIO, MonadError ConverterError)
 
-getRawPcodeForBasicBlock :: J.ProgramDB -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
-getRawPcodeForBasicBlock prg bb = do
-  xs <- runGhidraOrError $ do
-    addrSpaceMap <- getAddressSpaceMap prg
+getRawPcodeForBasicBlock :: J.ProgramDB -> AddressSpaceMap -> GBB.BasicBlock -> IO [(Address, PcodeOp VarNode)]
+getRawPcodeForBasicBlock prg addrSpaceMap bb = do
+  xs <- runGhidraOrError $
     Pcode.getRawPcode prg addrSpaceMap $ bb ^. #handle
   return $ first convertAddress <$> xs
   -- traverse (\(addr, op) -> (,op) . convertAddress <$> addr) xs
@@ -142,7 +142,7 @@ type ThunkDestFunc = J.Function
 
 getPcodeCfg
   :: (Show a, Hashable a)
-  => (J.Function -> J.ProgramDB -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
+  => (J.Function -> J.ProgramDB -> AddressSpaceMap -> GBB.BasicBlock -> IO [(Address, PcodeOp a)])
   -> GhidraState
   -> Function
   -> CtxId
@@ -150,9 +150,10 @@ getPcodeCfg
 getPcodeCfg getPcode gs fn ctxId = do
   let ctx = Ctx fn ctxId
       prg = gs ^. #program
+      addrSpaceMap = gs ^. #addressSpaceMap
   jfunc <- CGI.toGhidraFunction prg fn
   bbGraph <- runGhidraOrError (BB.getBasicBlockGraph gs jfunc)
-  bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc prg) ctx bb)
+  bbCfNodeTuples <- traverse (\bb -> (bb,) <$> mkCfNodeBasicBlock (getPcode jfunc prg addrSpaceMap) ctx bb)
     $ bbGraph ^. #nodes
   let bbCfNodeMap = Map.fromList bbCfNodeTuples
       edgeSets = getEdgeSets bbGraph
@@ -177,12 +178,13 @@ getRawPcodeCfg = getPcodeCfg $ const getRawPcodeForBasicBlock
 
 getHighPcodeForPcodeBlock
   :: J.ProgramDB
+  -> Var.HighVarCache
+  -> AddressSpaceMap
   -> PB.PcodeBlock
   -> IO [(Address, PcodeOp HighVarNode)]
-getHighPcodeForPcodeBlock prg pb = do
-  xs <- runGhidraOrError $ do
-    addrSpaceMap <- getAddressSpaceMap prg
-    Pcode.getBlockHighPcode prg addrSpaceMap $ pb ^. #handle
+getHighPcodeForPcodeBlock prg cache addrSpaceMap pb = do
+  xs <- runGhidraOrError $
+    Pcode.getBlockHighPcodeCached prg cache addrSpaceMap $ pb ^. #handle
   return $ first convertAddress <$> xs
 
 mkCfNodePcodeBlock :: (PB.PcodeBlock -> IO [(Address, PcodeOp HighVarNode)]) -> Ctx -> PB.PcodeBlock -> IO (CfNode [(Address, PcodeOp HighVarNode)])
@@ -211,8 +213,10 @@ getHighPcodeCfg imp@(GhidraImporter gs _ _) fn ctxId = do
   hfunc <- CGI.getHighFunction imp addr jfunc
   bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
   let ctx = Ctx fn ctxId
+      addrSpaceMap = gs ^. #addressSpaceMap
+  highVarCache <- runGhidraOrError Var.newHighVarCache
   nodePcodeTuples <- traverse
-    (\pb -> (pb,) <$> mkCfNodePcodeBlock (getHighPcodeForPcodeBlock prg) ctx pb)
+    (\pb -> (pb,) <$> mkCfNodePcodeBlock (getHighPcodeForPcodeBlock prg highVarCache addrSpaceMap) ctx pb)
     $ bbGraph ^. #nodes
   let nodeMap = Map.fromList nodePcodeTuples
       bbGraph' = (nodeMap Map.!) <$> bbGraph
