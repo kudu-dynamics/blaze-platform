@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0320a
+- Initial implementation for execution path reasoning
+
 ## Version 0.26.0319b
 - PilCfg loading perf: `calcStrictDescendantsMap` uses SCC decomposition + Integer bitsets instead of N independent BFS traversals (~25x faster for 160 nodes, ~20x for 712 nodes)
 - Hash `CfNode` by UUID only instead of entire statement list (speeds up all PilCfg HashMap/HashSet ops)

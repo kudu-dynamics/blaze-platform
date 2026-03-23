@@ -7,6 +7,9 @@ module Flint.Shell.Commands.Paths
   , tagCommand
   , freeUntaggedCommand
   , expandCommand
+  , findFunction
+  , expandPathToDepth
+  , parseDepthArg
   ) where
 
 import Flint.Prelude
@@ -26,9 +29,11 @@ import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Types.Cfg (CfNode(Call), CallNode)
 import Blaze.Types.Function (Function)
 import Blaze.Pretty (pretty', PStmts(PStmts))
+import Blaze.Types.Cfg.Path (PilPath)
 import qualified Blaze.Types.Cfg.Path as Path
 import qualified Blaze.Types.Path as P
 import qualified Blaze.Types.Pil as Pil
+import Flint.Types.Cfg.Store (CfgStore)
 
 import Numeric (showHex)
 import qualified Data.List.NonEmpty as NE
@@ -42,7 +47,7 @@ sampleCommand = ShellCommand
   { cmdName = "sample"
   , cmdAliases = ["sp"]
   , cmdHelp = "Sample paths from a function"
-  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]]"
+  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N]"
   , cmdAction = samplePaths
   }
 
@@ -131,9 +136,19 @@ findFunction st nameOrAddr = do
           funcs <- Store.getInternalFuncs $ st ^. #cfgStore
           return $ find (\f -> f ^. #address == addr) funcs
 
+-- | Parse --depth N from argument list, returning (depth, remaining args)
+parseDepthArg :: [Text] -> (Int, [Text])
+parseDepthArg [] = (0, [])
+parseDepthArg ("--depth" : n : rest)
+  | Just d <- readMaybe (Text.unpack n) = (d, rest)
+parseDepthArg (x : xs) =
+  let (d, rest) = parseDepthArg xs
+  in (d, x : rest)
+
 samplePaths :: ShellState -> [Text] -> IO CommandResult
-samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]]"
-samplePaths st allArgs = do
+samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N]"
+samplePaths st allArgs' = do
+  let (depth, allArgs) = parseDepthArg allArgs'
   -- Parse optional leading count: if first arg is a number, it's the count
   let (mLeadingCount, afterCount) = case allArgs of
         (n : rest') | Just c <- (readMaybe (Text.unpack n) :: Maybe Int) -> (Just c, rest')
@@ -179,13 +194,20 @@ samplePaths st allArgs = do
                 fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
           timingLog $ "[timing] samplesFromQuery (" <> func ^. #name <> "): "
             <> show (length paths) <> " paths in " <> show samplingTime
-          case paths of
+
+          -- Auto-expand internal calls if --depth was specified
+          expandedPaths <- if depth <= 0
+            then return paths
+            else fmap concat . forM paths $ \path ->
+              expandPathToDepth (st ^. #cfgStore) path depth
+
+          case expandedPaths of
             [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
                   <> if not (null targetAddrs)
                      then " through " <> Text.intercalate ", " (fmap showAddr targetAddrs)
                      else ""
             _ -> do
-              results <- forM paths $ \path -> do
+              results <- forM expandedPaths $ \path -> do
                 (stmts, toStmtsTime) <- timeIt $ do
                   let s = Path.toStmts path
                   _ <- evaluate (length s)
@@ -456,3 +478,48 @@ doExpansions st outerPid outerCp callNode innerPilPaths = do
     [] -> return $ ResultError $ "All expansions failed: "
             <> Text.intercalate ", " errs
     _ -> return $ ResultPaths expanded
+
+-- | Recursively expand all internal call nodes in a path up to the given depth.
+expandPathToDepth
+  :: CfgStore -> PilPath -> Int -> IO [PilPath]
+expandPathToDepth _store path 0 = return [path]
+expandPathToDepth store path dpth = do
+  let allNodes = HashSet.toList $ P.nodes path
+      callNodes = [ cn | Call cn <- allNodes ]
+      expandableNodes = filter (isExpandable . (^. #callDest)) callNodes
+
+  case expandableNodes of
+    [] -> return [path]
+    _ -> do
+      results <- foldM expandOneCall [path] expandableNodes
+      fmap concat . forM results $ \p ->
+        expandPathToDepth store p (dpth - 1)
+
+  where
+    isExpandable callDest = case getCallTargetFunction callDest of
+      Just _func -> True
+      Nothing    -> False
+
+    expandOneCall :: [PilPath] -> CallNode [Pil.Stmt] -> IO [PilPath]
+    expandOneCall currentPaths callNode = do
+      case getCallTargetFunction (callNode ^. #callDest) of
+        Nothing -> return currentPaths
+        Just calleeFunc -> do
+          let q = QueryExpandAll $ QueryExpandAllOpts
+                { callExpandDepthLimit = 0
+                , numSamples = 1
+                }
+          innerPaths <- catch
+            (samplesFromQuery store calleeFunc q)
+            (\(e :: SomeException) -> do
+              warn $ "Expand error for " <> calleeFunc ^. #name <> ": " <> show e
+              return [])
+          case innerPaths of
+            [] -> return currentPaths
+            (innerPath : _) -> do
+              fmap concat . forM currentPaths $ \outerPath -> do
+                uuid <- randomIO
+                mExpanded <- expandCallWithNewInnerPathIds uuid outerPath callNode innerPath
+                case mExpanded of
+                  Nothing -> return [outerPath]
+                  Just expanded -> return [expanded]
