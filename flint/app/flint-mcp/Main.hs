@@ -190,6 +190,8 @@ renderResultText = \case
              : fmap (\(name, mLib) -> "  " <> name <> maybe "" (\l -> " (" <> l <> ")") mLib) externs
         sep = if not (null internals) && not (null externs) then [""] else []
     in Text.unlines $ internalLines <> sep <> externLines
+  ResultTextAndPaths header' paths -> header' <> "\n" <>
+    Text.unlines (fmap (\(pid, summary) -> "[" <> show pid <> "] " <> summary) paths)
   ResultPaths paths ->
     Text.unlines $ fmap (\(pid, summary) -> "[" <> show pid <> "] " <> summary) paths
   ResultSolver results ->
@@ -304,7 +306,7 @@ buildCommandString toolName args = case toolName of
       Just func ->
         let count = lookupArg "count" args
             addrs = lookupArg "addresses" args
-            depthPart = maybe "" (\d -> " --depth " <> d) (lookupArg "depth" args)
+            depthPart = maybe "" (" --depth " <>) (lookupArg "depth" args)
             countPart = maybe "" (" " <>) count
             addrPart = maybe "" (" @ " <>) addrs
         in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart
@@ -377,7 +379,7 @@ buildCommandString toolName args = case toolName of
 
   "input_genesis" ->
     let countPart = maybe "" (" " <>) (lookupArg "count" args)
-        depthPart = maybe "" (\d -> " --depth " <> d) (lookupArg "depth" args)
+        depthPart = maybe "" (" --depth " <>) (lookupArg "depth" args)
     in Right $ "input-genesis" <> countPart <> depthPart
 
   -- These are handled directly in handleToolCall, not via command dispatch
