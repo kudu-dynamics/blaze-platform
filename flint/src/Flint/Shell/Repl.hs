@@ -16,6 +16,7 @@ import Flint.Shell.Commands.WMI (wmisCommand, checkWMICommand)
 import Flint.Shell.Commands.TypeCheck (typecheckCommand)
 import Flint.Shell.Commands.Strings (stringsCommand, stringXrefsCommand)
 import Flint.Shell.Commands.Xrefs (functionsCallingCommand)
+import Flint.Shell.Commands.Input (inputGenesisCommand)
 
 import qualified Data.Text as Text
 import System.Console.Haskeline
@@ -40,6 +41,7 @@ allCommands =
   , functionsCallingCommand
   , stringsCommand
   , stringXrefsCommand
+  , inputGenesisCommand
   ]
 
 runShell :: ShellState -> IO ()
@@ -137,6 +139,10 @@ renderResult = \case
       forM_ externs $ \(name, mLib) ->
         let libText = maybe "" (\l -> " (" <> l <> ")") mLib
         in putText $ "  " <> name <> libText
+  ResultTextAndPaths header paths -> do
+    putText header
+    forM_ paths $ \(pid, summary) ->
+      putText $ "  [" <> show pid <> "] " <> summary
   ResultPaths paths -> do
     forM_ paths $ \(pid, summary) ->
       putText $ "  [" <> show pid <> "] " <> summary

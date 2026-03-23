@@ -158,7 +158,10 @@ serverInfo = McpServerInfo
       , "Use 'show_paths' to view the PIL statements on a sampled path (use N! for raw/unreduced)."
       , "Use 'check_wmi' to check if a path matches a vulnerability pattern."
       , "Use 'list_wmis' to see all available vulnerability patterns."
+      , "Use 'input_detect' to auto-discover common input sources (recv, read, fgets, etc.) in the binary."
+      , "Use 'input_genesis' to sample paths from a function with interprocedural call expansion."
       , "Typical workflow: load_binary -> list_functions -> sample_paths -> show_paths -> check_wmi"
+      , "Input genesis workflow: load_binary -> input_detect -> input_genesis -> show_paths -> check_wmi"
       ]
   }
 
@@ -301,9 +304,10 @@ buildCommandString toolName args = case toolName of
       Just func ->
         let count = lookupArg "count" args
             addrs = lookupArg "addresses" args
+            depthPart = maybe "" (\d -> " --depth " <> d) (lookupArg "depth" args)
             countPart = maybe "" (" " <>) count
             addrPart = maybe "" (" @ " <>) addrs
-        in Right $ "sample" <> countPart <> " " <> func <> addrPart
+        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart
 
   "show_paths" ->
     case lookupArg "path_ids" args of
@@ -371,6 +375,11 @@ buildCommandString toolName args = case toolName of
       Nothing -> Left "Missing required parameter: target"
       Just target -> Right $ "string-xrefs " <> target
 
+  "input_genesis" ->
+    let countPart = maybe "" (" " <>) (lookupArg "count" args)
+        depthPart = maybe "" (\d -> " --depth " <> d) (lookupArg "depth" args)
+    in Right $ "input-genesis" <> countPart <> depthPart
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -421,12 +430,13 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "sample_paths"
-      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are handled via unrolling."
+      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are handled via unrolling. Use --depth to auto-expand internal calls interprocedurally."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x401000')")
               , ("count", InputSchemaDefinitionProperty "string" "Number of paths to sample (optional)")
               , ("addresses", InputSchemaDefinitionProperty "string" "Space-separated hex addresses that paths must pass through (optional)")
+              , ("depth", InputSchemaDefinitionProperty "string" "Auto-expand internal calls N levels deep (optional, e.g. '2')")
               ]
           , required = ["function"]
           }
@@ -580,6 +590,18 @@ toolDefinitions =
       , toolDefinitionDescription = "Shut down the flint-mcp server."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "input_genesis"
+      , toolDefinitionDescription = "Auto-detect common input source functions (recv, read, fgets, scanf, getenv, etc.) in the binary, find all callers, and sample paths through each call site. Reveals how attacker-controlled data flows from input sources through the program."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("count", InputSchemaDefinitionProperty "string" "Number of paths to sample per call site (default 5)")
+              , ("depth", InputSchemaDefinitionProperty "string" "Auto-expand internal calls N levels deep (default 0, try 2 for dispatcher/handler patterns)")
+              ]
           , required = []
           }
       , toolDefinitionTitle = Nothing

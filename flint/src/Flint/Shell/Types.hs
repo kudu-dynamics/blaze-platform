@@ -103,6 +103,8 @@ data ShellState = ShellState
 data CommandResult
   = ResultText Text
   | ResultPaths [(PathId, Text)]
+  | ResultTextAndPaths Text [(PathId, Text)]
+    -- ^ Header text followed by path results
   | ResultSolver [(PathId, Text)]
   | ResultWMIs [(PathId, [Text])]
   | ResultFunctions [(Text, Address)] [(Text, Maybe Text)]
@@ -209,3 +211,4 @@ resolvePathRefs st args = do
 -- | Like resolvePathRefs but returns only PathIds.
 resolvePathIds :: ShellState -> [Text] -> IO [PathId]
 resolvePathIds st args = fmap pathRefId <$> resolvePathRefs st args
+

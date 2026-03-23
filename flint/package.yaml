@@ -162,6 +162,7 @@ library:
   - Flint.Shell.Commands.Strings
   - Flint.Shell.Commands.TypeCheck
   - Flint.Shell.Commands.Xrefs
+  - Flint.Shell.Commands.Input
   - Flint.Shell.Repl
 
 executables:
