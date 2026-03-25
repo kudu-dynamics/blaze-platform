@@ -140,12 +140,16 @@ EOF
 RUN mkdir -p /out
 RUN --mount=type=bind,source=ghidra-haskell/scripts/getGhidraJar.sh,target=/getGhidraJar.sh \
     /getGhidraJar.sh /out/ghidra.jar
+RUN --mount=type=bind,source=ghidra-haskell/java/PcodeHelper.java,target=/PcodeHelper.java \
+    javac -cp /out/ghidra.jar -d /tmp /PcodeHelper.java && \
+    cd /tmp && jar cf /out/pcode-helper.jar PcodeHelper.class
 
 #######################################################################################################
 
 FROM before-base-deps as base
 COPY --from=z3-builder /out/z3 /usr/local/bin/z3
 COPY --from=ghidra-jar-builder /out/ghidra.jar /out/res/ghidra.jar
+COPY --from=ghidra-jar-builder /out/pcode-helper.jar /out/res/pcode-helper.jar
 
 #######################################################################################################
 
@@ -262,6 +266,8 @@ ARG OPTIM=-O0
 
 COPY ./ ./
 RUN ln -s /out/res/ghidra.jar ghidra-haskell/res/ghidra.jar
+RUN ln -s /out/res/pcode-helper.jar ghidra-haskell/res/pcode-helper.jar
+RUN ln -s /out/res/pcode-helper.jar res/pcode-helper.jar
 RUN mkdir -p /out/bin
 # Build all packages that do not depend on binaryninja
 RUN stack --local-bin-path /out/bin build --color always --ghc-options="${OPTIM}" --test --no-run-tests --copy-bins \
@@ -281,6 +287,7 @@ RUN <<EOF
         cp -t /out/test/$1 "$1"/"${dist_dir}"/build/"$2"/"$2"
         cp -r -t /out/test/$1/res $1/res/test_bins || echo "pass"
         if [ ! -f /out/test/$1/res/ghidra.jar ]; then ln -s /out/res/ghidra.jar /out/test/$1/res/ghidra.jar ; fi
+        if [ ! -f /out/test/$1/res/pcode-helper.jar ]; then ln -s /out/res/pcode-helper.jar /out/test/$1/res/pcode-helper.jar ; fi
         echo "( cd $1 && /build/.docker/run_test.py /out/test/$1/$2 \"\$@\" )" >>/out/run-tests
         echo "( cd /out/test/$1 && ./$2 )" >> /out/run-binary-tests
     }
@@ -314,6 +321,7 @@ RUN <<EOF
         cp -t /out/test/$1 "$1"/"${dist_dir}"/build/"$2"/"$2"
         cp -r -t /out/test/$1/res $1/res/test_bins || echo "pass"
         if [ ! -f /out/test/$1/res/ghidra.jar ]; then ln -s /out/res/ghidra.jar /out/test/$1/res/ghidra.jar ; fi
+        if [ ! -f /out/test/$1/res/pcode-helper.jar ]; then ln -s /out/res/pcode-helper.jar /out/test/$1/res/pcode-helper.jar ; fi
         echo "( cd $1 && /build/.docker/run_test.py /out/test/$1/$2 \"\$@\" )" >>/out/run-tests
         echo "( cd /out/test/$1 && ./$2 )" >> /out/run-binary-tests
     }
@@ -330,6 +338,7 @@ FROM base as deliver
 COPY --from=builder /out/bin /out/bin
 COPY --from=builder /out/res /out/res
 COPY --from=builder /build/ghidra-haskell/res/ghidra.jar /out/res/ghidra.jar
+COPY --from=builder /build/ghidra-haskell/res/pcode-helper.jar /out/res/pcode-helper.jar
 WORKDIR /out
 
 #######################################################################################################

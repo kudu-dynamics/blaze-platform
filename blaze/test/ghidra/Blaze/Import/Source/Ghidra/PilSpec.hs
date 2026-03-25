@@ -124,9 +124,9 @@ spec = beforeAll getTestCtx . describe "Blaze.Import.Source.Ghidra.Pil" $ do
       pv1_r ^? _Just . #version `shouldBe` Just (Just 2)
 
     it "should have separate number labels for assignments to the same unique var" $ \_ -> do
-      pv2 ^? _Just . #symbol `shouldBe` Just "unique_3280"
+      pv2 ^? _Just . #symbol `shouldBe` Just "unique_6600"
       pv2 ^? _Just . #version `shouldBe` Just (Just 1)
-      pv3 ^? _Just . #symbol `shouldBe` Just "unique_3280"
+      pv3 ^? _Just . #symbol `shouldBe` Just "unique_6600"
       pv3 ^? _Just . #version `shouldBe` Just (Just 2)
     
     it "should not include version #1 on param names" $ \_ -> do

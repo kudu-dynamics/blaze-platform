@@ -50,6 +50,7 @@ type FullImporter imp =
   , PilImporter imp
   , XrefImporter imp
   , NodeDataType imp ~ PilNode
+  , Typeable imp
   )
 
 -- | Open @file@ using @backend@, if it is specified; otherwise, attempt to

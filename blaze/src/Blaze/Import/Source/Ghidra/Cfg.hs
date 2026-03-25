@@ -214,7 +214,7 @@ getHighPcodeCfg imp@(GhidraImporter gs _ _) fn ctxId = do
   bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
   let ctx = Ctx fn ctxId
       addrSpaceMap = gs ^. #addressSpaceMap
-  highVarCache <- runGhidraOrError Var.newHighVarCache
+  highVarCache <- runGhidraOrError $ Var.newHighVarCache addrSpaceMap
   nodePcodeTuples <- traverse
     (\pb -> (pb,) <$> mkCfNodePcodeBlock (getHighPcodeForPcodeBlock prg highVarCache addrSpaceMap) ctx pb)
     $ bbGraph ^. #nodes

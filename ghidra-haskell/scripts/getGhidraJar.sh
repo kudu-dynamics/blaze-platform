@@ -16,7 +16,7 @@ esac
 
 set -euxo pipefail
 
-GHIDRA_RELEASE_ZIP="https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.3.1_build/ghidra_11.3.1_PUBLIC_20250219.zip"
+GHIDRA_RELEASE_ZIP="https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.0.4_build/ghidra_12.0.4_PUBLIC_20260303.zip"
 # TODO: do we need to check this for security reasons?
 # GHIDRA_SHA256="bcda0a9de8993444766cc255964c65c042b291ddaf6c50d654e316e442b441fa"
 

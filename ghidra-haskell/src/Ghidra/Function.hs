@@ -139,11 +139,26 @@ getFunctions' opts prg = do
 getFunctions :: J.ProgramDB -> Ghidra [J.Function]
 getFunctions = getFunctions' defaultGetFunctionsOptions
 
+-- | Get or create a properly initialized DecompInterface.
+-- Unlike FlatDecompilerAPI.initialize(), this checks whether openProgram
+-- actually succeeded (Ghidra 12 can fail silently, leaving internal state null).
+getOrCreateDecompInterface :: GhidraState -> Ghidra J.DecompInterface
+getOrCreateDecompInterface gs = do
+  flatDecAPI <- State.getFlatDecompilerAPI gs
+  ifc :: J.DecompInterface <- runIO $ Java.call flatDecAPI "getDecompiler"
+  case maybeNull ifc of
+    Just i -> return i
+    Nothing -> do
+      newIfc :: J.DecompInterface <- runIO $ Java.new >>= JNI.newGlobalRef
+      prg <- State.getProgram gs
+      opened :: Bool <- runIO $ Java.call newIfc "openProgram" (coerce prg :: J.Program)
+      unless opened $
+        error "Decompiler failed to open program. Check that ghidra.jar contains the decompiler binary for this architecture."
+      return newIfc
+
 getClangAST :: GhidraState -> J.Function -> Ghidra (ClangAST ClangNode)
 getClangAST gs fn = do
-  flatDecAPI <- State.getFlatDecompilerAPI gs
-  _ :: () <- runIO $ Java.call flatDecAPI "initialize"
-  ifc :: J.DecompInterface <- runIO $ Java.call flatDecAPI "getDecompiler"
+  ifc <- getOrCreateDecompInterface gs
   mon <- State.getTaskMonitor gs
   res :: J.DecompilerResults <- runIO $ Java.call ifc "decompileFunction" fn (0 :: Int32) mon >>= JNI.newGlobalRef
   tokenGroup :: J.ClangTokenGroup <- runIO $ Java.call res "getCCodeMarkup"
@@ -156,9 +171,7 @@ simplStyleStr = Text.toLower . Text.pack . show
 -- | This is expensive and should be performed only once per function.
 decompileFunction_ :: GhidraState -> J.Function -> SimplificationStyle -> Ghidra J.DecompilerResults
 decompileFunction_ gs fn st = do
-  flatDecAPI <- State.getFlatDecompilerAPI gs
-  _ :: () <- runIO $ Java.call flatDecAPI "initialize"
-  ifc :: J.DecompInterface <- runIO $ Java.call flatDecAPI "getDecompiler"
+  ifc <- getOrCreateDecompInterface gs
   let simpStyle = simplStyleStr st
   _ :: Bool <- runIO $ Java.call ifc "setSimplificationStyle" =<< Java.reflect simpStyle
   mon <- State.getTaskMonitor gs
@@ -253,7 +266,7 @@ getFunctionThunkAddresses func = do
         obj :: J.Object <- runIO $ JNI.getObjectArrayElement arr i >>= JNI.newGlobalRef
         return $ coerce obj
 
-getExternalLocation :: J.Function -> Ghidra J.ExternalLocationDB
-getExternalLocation fn = runIO $ coerce (Java.call fn "getExternalLocation" :: IO J.ExternalLocation)
+getExternalLocation :: J.Function -> Ghidra (Maybe J.ExternalLocationDB)
+getExternalLocation fn = runIO $ fmap coerce . maybeNull <$> (Java.call fn "getExternalLocation" :: IO J.ExternalLocation)
 
 

@@ -113,8 +113,9 @@ spec = describe "Ghidra.Function" $ do
       putsIsExtern `shouldBe` True
 
     mPutsLibraryName <- runIO . runGhidraOrError $ do
-      putsExLoc <- Function.getExternalLocation putsExternFunc
-      Function.getLibraryName putsExLoc
+      Function.getExternalLocation putsExternFunc >>= \case
+        Nothing -> return Nothing
+        Just putsExLoc -> Function.getLibraryName putsExLoc
 
     it "should sort-of know 'puts' library name" $
       mPutsLibraryName `shouldBe` Just "<EXTERNAL>"

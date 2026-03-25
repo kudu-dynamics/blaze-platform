@@ -11,6 +11,7 @@ import Ghidra.Types.Address as Exports
 import Ghidra.Types.Internal (Ghidra, runIO)
 import Ghidra.Util (maybeNull)
 import qualified Data.BinaryAnalysis as BA
+import qualified Data.HashMap.Strict as HashMap
 
 import qualified Language.Java as Java
 import qualified Foreign.JNI as JNI
@@ -72,8 +73,15 @@ mkAddress addr = do
   
 
 getAddress :: J.AddressFactory -> Int32 -> Int64 -> Ghidra J.Address
-getAddress af spaceID offset = runIO $ 
+getAddress af spaceID offset = runIO $
   Java.call af "getAddress" spaceID offset
   >>= JNI.newGlobalRef
   >>= Java.reify
+
+-- | Construct a Haskell Address from raw offset and space ID, using a
+-- pre-built AddressSpaceMap. Returns Nothing if the space ID isn't in the map
+-- (caller should fall back to JNI-based mkAddress).
+mkAddressFromParts :: AddressSpaceMap -> Int64 -> AddressSpaceId -> Maybe Address
+mkAddressFromParts spaceMap offset spaceId =
+  Address <$> HashMap.lookup spaceId spaceMap <*> pure offset
 

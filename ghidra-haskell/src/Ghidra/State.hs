@@ -162,7 +162,7 @@ analyze' opts gs = do
       txId :: Int32 <- Java.call prg "startTransaction" =<< Java.reflect ("Analysis" :: Text)
       _ :: () <- Java.call (gs ^. #flatProgramAPI) "analyzeAll" (coerce prg :: J.Program)
       _ :: () <- Java.callStatic "ghidra.program.util.GhidraProgramUtilities" "markProgramAnalyzed" (coerce prg :: J.Program)
-      _ :: () <- Java.call prg "endTransaction" txId True
+      _ :: Bool <- Java.call prg "endTransaction" txId True
       return ()
 
 analyze :: GhidraState -> Ghidra ()
