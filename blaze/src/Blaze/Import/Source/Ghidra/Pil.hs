@@ -355,11 +355,9 @@ varNodeToReference v = do
     VRam n ptrSize -> pure $ Right $ mkGlobalPtr n (getSpecialName v) ptrSize
     VExtern n ptrSize -> pure . Right $ C.externPtr (intToAddr 0) (fromIntegral n :: ByteOffset) Nothing (fromIntegral ptrSize)
     VImmediate n -> throwError $ ExpectedAddressButGotConst n
-    VOther t off
-      | t == "VARIABLE" -> do
-          let name = fromMaybe ("ghidravar_" <> showHex off) specialName
-          pure . Left . pv Nothing name False $ Pil.Code off
-      | otherwise -> throwError $ UnsupportedAddressSpace t
+    VOther t off -> do
+      let name = fromMaybe (t <> "_" <> showHex off) specialName
+      pure . Left . pv Nothing name False $ Pil.Code off
   where
     specialName = getSpecialName v
     stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)

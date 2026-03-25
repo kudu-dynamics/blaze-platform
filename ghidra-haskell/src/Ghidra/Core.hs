@@ -59,11 +59,14 @@ getGhidraJarFiles = fmap encodeUtf8 . jarFiles
 ghidraJarPath :: Text
 ghidraJarPath = "res/ghidra.jar"
 
--- | Default options for starting the JVM. This is still just the "ghidraJars"
--- list but renamed to indicate its intended purpose is to pass multiple options
--- when initializing the JVM.
+-- | JAR containing compiled Java helper classes (PcodeHelper) for JNI batching.
+-- Built by `make res/pcode-helper.jar` in ghidra-haskell/.
+helperJarPath :: Text
+helperJarPath = "res/pcode-helper.jar"
+
+-- | Default options for starting the JVM.
 defaultOptions :: GhidraOptions
-defaultOptions = GhidraOptions { jarFiles = [ghidraJarPath] }
+defaultOptions = GhidraOptions { jarFiles = [ghidraJarPath, helperJarPath] }
 
 -- | You can only call Java.withJVM once in the life of a program, for some reason,
 -- according to the tweag jvm lib docs.

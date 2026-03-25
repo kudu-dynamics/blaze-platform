@@ -34,8 +34,13 @@ Clone `ghidra-haskell` and [binary-analysis](https://github.com/kudu-dynamics/bi
 ```sh
 cd ghidra-haskell
 make res/ghidra.jar
+make res/pcode-helper.jar
 stack build
 stack test
 ```
+
+The `pcode-helper.jar` contains Java helper classes (`PcodeHelper`) that batch
+JNI calls for pcode extraction. It requires `javac` (from the JDK) and is
+compiled against `res/ghidra.jar`.
 
 Distribution A. (Approved for public release; distribution unlimited.)

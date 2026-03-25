@@ -1,5 +1,14 @@
 # Blaze Platform
 
+## Version 0.26.0320b
+- JNI batching: Java helpers (`PcodeHelper.java`) collapse per-varnode and per-op JNI calls into one call per block (`extractBlockData`). Pcode extraction 3.8x faster (20.1s → 5.3s on miniupnpd)
+- Call graph function cache: `getCallGraphCached` pre-builds `HashMap Address Func` from known functions, skipping redundant `getFuncFromJFunction` JNI calls. Call graph 95x faster (26.6s → 0.28s on miniupnpd)
+- Lazy `AddressSpace` caching in `HighVarCache` — unknown spaces fetched once via JNI, then cached
+- `mkAddressFromParts` constructs addresses from packed offset+spaceId using cached `AddressSpaceMap`, avoiding JNI
+- `opcodeMap` maps Ghidra opcode ints to `BarePcodeOp`, replacing `getMnemonic` String round-trips
+- `[timing] getCallGraph` logging in `CfgStore` (forced when `--profileSampling` enabled)
+- Build: `make res/pcode-helper.jar` in ghidra-haskell, Dockerfile updated
+
 ## Version 0.26.0320a
 - Initial implementation for execution path reasoning
 

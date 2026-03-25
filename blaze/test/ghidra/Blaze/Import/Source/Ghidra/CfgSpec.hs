@@ -25,7 +25,7 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
   context "Getting CFGs from DiveLogger" $ do
     imp <- runIO $ G.getImporter diveBin
     funcs <- fmap (mapMaybe (^? #_Internal)) . runIO $ getFunctions imp
-    
+
     context "getRawPcodeCfg" $ do
       cfgs <- fmap catMaybes . runIO $ traverse (\func -> getRawPcodeCfg (imp ^. #ghidraState) func 0) funcs
       let f = HashSet.size . Cfg.nodes
@@ -39,16 +39,14 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
       cfgs <- fmap catMaybes . runIO $ traverse (\func -> getHighPcodeCfg imp func 0) funcs
       let f = HashSet.size . Cfg.nodes
           nodeCounts = f <$> cfgs
-          expected = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5,6,6,6,6,6,6,6,6,6,7,7,8,8,8,8,9,9,9,9,11,11,11,12,13,15,16,24,28,29,29,30,31,98,98]
+          expected = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5,6,6,6,6,6,6,6,6,6,7,7,8,8,8,8,9,9,9,9,11,11,11,12,13,15,16,21,28,29,29,30,31,98,98]
 
       it "should import Cfgs for all functions without crashing" $ do
         sort nodeCounts `shouldBe` expected
 
     context "getPilCfgFromRawPcode" $ do
-      cfgs :: [Maybe (Cfg.Cfg (CfNode [Pil.Stmt]))] <-
-        runIO $ traverse
-          (\func -> view #result <<$>> getPilCfgFromRawPcode imp func 0)
-          funcs
+      cfgs :: [Maybe (Cfg.Cfg (CfNode [Pil.Stmt]))] <- runIO $
+        traverse (\func -> view #result <<$>> getPilCfgFromRawPcode imp func 0) funcs
 
       let f = maybe 0 (HashSet.size . Cfg.nodes)
           nodeCounts = f <$> cfgs
@@ -58,14 +56,12 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
         sort nodeCounts `shouldBe` expected
 
     context "getPilCfgFromHighPcode" $ do
-      cfgs :: [Maybe (Cfg.Cfg (CfNode [Pil.Stmt]))] <-
-        runIO $ traverse
-          (\func -> view #result <<$>> getPilCfgFromHighPcode imp func 0)
-          funcs
+      cfgs :: [Maybe (Cfg.Cfg (CfNode [Pil.Stmt]))] <- runIO $
+        traverse (\func -> view #result <<$>> getPilCfgFromHighPcode imp func 0) funcs
 
       let f = maybe 0 (HashSet.size . Cfg.nodes)
           nodeCounts = f <$> cfgs
-          expected = [1,1,1,1,1,1,1,2,2,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,7,7,7,8,8,8,8,9,9,9,9,9,10,10,10,10,10,12,14,15,15,16,16,16,17,21,22,24,24,27,27,28,28,34,34,34,42,44,47,123,160]
+          expected = [1,1,1,1,1,1,1,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,7,7,7,8,8,8,8,9,9,9,9,9,10,10,10,10,10,11,14,15,15,16,16,16,17,21,22,24,24,25,27,27,28,33,34,34,42,44,47,123,160]
 
       it "should import Cfgs for all functions without crashing" $ do
         sort nodeCounts `shouldBe` expected

@@ -25,10 +25,10 @@ spec = describe "Blaze.Persist.Db" $ do
     (imp :: GhidraImporter) <- fmap unsafeFromRight . runIO $ openBinary "res/test_bins/Dive_Logger/Dive_Logger.gzf"
     funcs <- runIO $ getFunctions imp
     cg <- runIO $ getCallGraph imp funcs
-    mCg' <- runIO $ withSystemTempFile "dive_callgraph.blaze" $ \fp _ -> do
+    mCg' <- runIO $ withSystemTempFile "dive_callgraph.blaze" (\fp _ -> do
       conn <- Db.init fp
       Db.insertCallGraph conn cg
-      Db.loadCallGraph conn
+      Db.loadCallGraph conn)
 
     let reduceGraph g = ( sort . fmap (view _name) . HashSet.toList $ G.nodes g
                         , sort $ G.edges g

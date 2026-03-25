@@ -31,6 +31,8 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (nub)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.BinaryAnalysis as BA
+import qualified Blaze.Types.Graph as G
+import Control.Concurrent.Async (forConcurrently)
 
 
 getFuncAddr :: G.Function -> Address
@@ -138,7 +140,7 @@ mkExternFunc :: J.Function -> Ghidra ExternFunction
 mkExternFunc jfunc = do
   gaddr <- G.getAddress jfunc
   name <- G.getName jfunc -- hopefully will always have name
-  mLibraryName <- G.getExternalLocation jfunc >>= G.getLibraryName
+  mLibraryName <- G.getExternalLocation jfunc >>= maybe (return Nothing) G.getLibraryName
   params <- G.getLowParams jfunc
   let addr = Address
         { BA.space = AddressSpace
@@ -221,3 +223,71 @@ getCallSites imp@(GhidraImporter gs _ _) fn = do
                                    , CG.address = addr
                                    , CG.dest = fn
                                    }
+
+-- | Like 'getCallSites' but uses a pre-built function cache to avoid
+-- expensive JNI round-trips in 'getFuncFromJFunction'. The same caller
+-- function appears in many references; the cache turns ~15 JNI calls per
+-- reference into a single HashMap lookup.
+type FuncCache = HashMap Address Func
+
+getCallSitesCached :: GhidraImporter -> FuncCache -> Func -> IO [CallSite]
+getCallSitesCached (GhidraImporter gs _ _) funcCache fn = do
+  let prg = gs ^. #program
+  mgfunc <- case fn of
+    BFunc.Internal func -> do
+      startAddr <- runGhidraOrError . State.mkAddress prg $ func ^. #address
+      runGhidraOrError $ G.fromAddr prg startAddr
+    BFunc.External func -> do
+      externAddr <- runGhidraOrError
+        . State.mkExternalAddress prg
+        . fromIntegral
+        $ func ^. #address . #offset
+      runGhidraOrError $ G.getFunctionAt prg externAddr
+
+  case mgfunc of
+    Nothing -> error $ "Could not find callee function for func: " <> show fn
+    Just gfunc -> case fn of
+      BFunc.Internal _ ->
+        runGhidraOrError (GRef.getFunctionRefs prg gfunc) >>= mapMaybeM mkCallSiteFromRef
+      BFunc.External _ -> do
+        thunkAddrs <- runGhidraOrError $ G.getFunctionThunkAddresses gfunc
+        thunkRefs <- fmap concat . forM thunkAddrs $ \thunkAddr -> do
+          mthunk <- runGhidraOrError $ G.fromAddr prg thunkAddr
+          case mthunk of
+            Nothing -> return []
+            Just thunkFunc ->
+              runGhidraOrError (GRef.getFunctionRefs prg thunkFunc) >>= mapMaybeM mkCallSiteFromRef
+        directRefs <- runGhidraOrError (GRef.getFunctionRefs prg gfunc) >>= mapMaybeM mkCallSiteFromRef
+        return . nub $ thunkRefs <> directRefs
+  where
+    mkCallSiteFromRef :: GRef.FuncRef -> IO (Maybe CallSite)
+    mkCallSiteFromRef x = do
+      -- Look up the caller by its entry address in the cache instead of
+      -- calling getFuncFromJFunction (~15 JNI calls per reference).
+      let callerEntryAddr = convertAddress $ x ^. #caller . #startAddress
+      case HashMap.lookup callerEntryAddr funcCache of
+        Just (Internal func) -> do
+          let addr = convertAddress $ x ^. #callerAddr
+          return . Just $ CallSite { CG.caller = func
+                                   , CG.address = addr
+                                   , CG.dest = fn
+                                   }
+        _ -> return Nothing  -- external or unknown caller, skip
+
+-- | Build a call graph using a function cache for fast caller lookups.
+-- This avoids redundant JNI calls when the same function appears as a
+-- caller in multiple references.
+getCallGraphCached :: GhidraImporter -> [Func] -> IO CG.CallGraph
+getCallGraphCached imp funcs = do
+  let funcCache :: FuncCache
+      funcCache = HashMap.fromList
+        [ (addr, f)
+        | f <- funcs
+        , let addr = case f of
+                BFunc.Internal func -> func ^. #address
+                BFunc.External func -> func ^. #address
+        ]
+  edges <- fmap concat . forConcurrently funcs $ \callee ->
+    fmap (\callSite -> (Internal $ callSite ^. #caller, callee))
+      <$> getCallSitesCached imp funcCache callee
+  pure . G.addNodes funcs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges

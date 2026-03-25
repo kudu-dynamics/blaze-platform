@@ -7,11 +7,13 @@ import Flint.Prelude
 import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store
-import Flint.Util (offsetUUID)
+import Flint.Util (offsetUUID, timeIt, timingLog, samplingTimingEnabled)
+import Data.IORef (readIORef)
 import qualified Flint.Types.CachedCalc as CC
 import qualified Flint.Types.CachedMap as CM
 
 import qualified Blaze.CallGraph as CG
+import qualified Blaze.Import.Source.Ghidra.CallGraph as GhidraCG
 import qualified Blaze.Cfg.Interprocedural as CfgI
 import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Graph (RouteMakerCtx(RouteMakerCtx))
@@ -55,6 +57,7 @@ init
      , BinaryImporter imp
      , CfgImporter imp
      , XrefImporter imp
+     , Typeable imp
      )
   => Maybe FilePath -> imp -> IO CfgStore
 init mDbFilePath imp = do
@@ -68,6 +71,7 @@ initWithTypeHints
      , BinaryImporter imp
      , CfgImporter imp
      , XrefImporter imp
+     , Typeable imp
      )
   => HashSet Text     -- whitelist for functions we want to have type hints for
   -> HashSet Text     -- blacklist of function names to exclude from analysis
@@ -122,8 +126,12 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   CC.setCalc () (store ^. #funcs) $ return allFuncs
   CC.setCalc () (store ^. #internalFuncs) $ return internalFuncs
   CC.setCalc () (store ^. #callGraphCache) $ do
-    let getCG = CG.getCallGraph imp allFuncs
-    case mDb of
+    -- Use cached call graph builder for GhidraImporter (avoids redundant
+    -- JNI calls when the same function appears as caller in many references).
+    let getCG = case cast imp of
+          Just ghidraImp -> GhidraCG.getCallGraphCached ghidraImp allFuncs
+          Nothing -> CG.getCallGraph imp allFuncs
+    (cg, cgTime) <- timeIt $ case mDb of
       Nothing -> getCG
       Just db -> Db.loadCallGraph db >>= \case
         Nothing -> do
@@ -135,6 +143,8 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
         Just cg -> do
           putText $ "Retrieved CallGraph from db " <> show (length (show cg :: String))
           return cg
+    timingLog $ "[timing] getCallGraph (" <> show (length allFuncs) <> " funcs): " <> show cgTime
+    return cg
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg
@@ -170,6 +180,10 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
       getFuncCfgInfo store func >>= \case
         Nothing -> return Nothing
         Just cfgInfo -> return . Just . makeCfgAcyclic $ cfgInfo ^. #cfg
+
+  -- When profiling is enabled, force call graph computation eagerly so it's timed
+  whenM (readIORef samplingTimingEnabled) $
+    void $ getCallGraph store
 
   return (store, functionToTypeHintsMap)
 

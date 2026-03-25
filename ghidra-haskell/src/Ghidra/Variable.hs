@@ -15,30 +15,53 @@ import qualified Language.Java as Java
 import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
 import Ghidra.Types.Variable
-import Ghidra.Address (Address, mkAddress)
+import Ghidra.Address (Address(Address), AddressSpace, mkAddress, mkAddressSpace, mkAddressFromParts)
+import Ghidra.Types.Address (AddressSpaceMap, AddressSpaceId(..))
+import qualified Data.Vector.Storable as VS
 import Ghidra.Util (maybeNullCall, maybeNull)
 import qualified Data.Text as Text
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import qualified Data.IntMap.Strict as IntMap
+import qualified Data.HashMap.Strict as HashMap
 import qualified Foreign.JNI as JNI
 import Ghidra.Types.GhidraDataTypes (GhidraDataType)
 import Ghidra.GhidraDataTypes (parseDataTypeWithTransaction)
 
 -- | Cache for expensive JNI lookups during high pcode processing.
--- Holds the Address.NO_ADDRESS static field (fetched once instead of per-varnode)
--- and a memoization map for HighVariable objects (many varnodes share the same one).
+-- Holds the Address.NO_ADDRESS static field (fetched once instead of per-varnode),
+-- a memoization map for HighVariable objects (many varnodes share the same one),
+-- and a lazily-extended AddressSpaceMap for spaces not in the initial map.
 data HighVarCache = HighVarCache
   { noAddr :: J.Address
   , highVarMapRef :: IORef (IntMap.IntMap HighVariable)
+  , addrSpaceMapRef :: IORef AddressSpaceMap
   }
 
 -- | Create a new cache. Call once per function, share across all blocks.
-newHighVarCache :: Ghidra HighVarCache
-newHighVarCache = do
+-- Seeds the address space map with the initial map from GhidraState;
+-- unknown spaces encountered during processing are lazily added via JNI.
+newHighVarCache :: AddressSpaceMap -> Ghidra HighVarCache
+newHighVarCache initialMap = do
   na <- runIO $ Java.getStaticField "ghidra.program.model.address.Address" "NO_ADDRESS"
     >>= JNI.newGlobalRef
   ref <- runIO $ newIORef IntMap.empty
-  return $ HighVarCache na ref
+  spaceRef <- runIO $ newIORef initialMap
+  return $ HighVarCache na ref spaceRef
+
+-- | Look up an address space by ID, lazily fetching from JNI on first miss.
+-- Once fetched, the space is cached for future lookups.
+lookupOrFetchSpace :: HighVarCache -> J.VarNodeAST -> Int64 -> Ghidra AddressSpace
+lookupOrFetchSpace cache v spaceIdRaw = do
+  let spaceId = fromIntegral spaceIdRaw :: AddressSpaceId
+  spaceMap <- runIO $ readIORef (addrSpaceMapRef cache)
+  case HashMap.lookup spaceId spaceMap of
+    Just space -> pure space
+    Nothing -> do
+      -- Fetch the real AddressSpace via JNI (once per unknown space ID)
+      jAddr :: J.Address <- runIO $ Java.call v "getAddress"
+      space <- runIO (Java.call jAddr "getAddressSpace") >>= mkAddressSpace
+      runIO $ modifyIORef' (addrSpaceMapRef cache) (HashMap.insert spaceId space)
+      pure space
 
 
 mkVarType :: Either J.VarNode J.VarNodeAST -> Ghidra VarType
@@ -142,47 +165,58 @@ mkHighVarNode prog v = do
         then return Nothing
         else fmap Just $ runIO (JNI.newGlobalRef addr) >>= mkAddress
 
--- | Like 'mkHighVarNode' but uses a cache for NO_ADDRESS lookups and
--- HighVariable deduplication. Multiple varnodes often share the same
--- HighVariable object; caching avoids ~10 redundant JNI calls per duplicate.
+-- | Like 'mkHighVarNode' but uses a cache for HighVariable deduplication and
+-- a Java-side helper to extract all varnode properties in one JNI call.
+-- Multiple varnodes often share the same HighVariable object; caching avoids
+-- ~10 redundant JNI calls per duplicate.
 mkHighVarNodeCached :: J.ProgramDB -> HighVarCache -> J.VarNodeAST -> Ghidra HighVarNode
 mkHighVarNodeCached prog cache v = do
-  sz :: Int32 <- runIO $ Java.call v "getSize"
-  mhv <- maybeNull <$> runIO (Java.call v "getHigh")
-  mhv' <- case mhv of
-    Nothing -> return Nothing
-    Just hv -> do
-      hvRef <- runIO $ JNI.newGlobalRef hv
-      key :: Int32 <- runIO $ Java.call hvRef "hashCode"
-      cached <- runIO $ readIORef (highVarMapRef cache)
-      case IntMap.lookup (fromIntegral key) cached of
-        Just result -> return (Just result)
-        Nothing -> do
-          result <- mkHighVariable prog hvRef
-          runIO $ modifyIORef' (highVarMapRef cache) (IntMap.insert (fromIntegral key) result)
-          return (Just result)
-  HighVarNode <$> mkVarTypeCached (noAddr cache) v <*> pure (fromIntegral sz) <*> getPcAddress <*> pure mhv'
-  where
-    getPcAddress :: Ghidra (Maybe Address)
-    getPcAddress = do
-      addr :: J.Address <- runIO $ Java.call v "getPCAddress"
-      if addr == noAddr cache
-        then return Nothing
-        else fmap Just $ runIO (JNI.newGlobalRef addr) >>= mkAddress
+  -- One JNI call extracts all basic properties (replaces ~8-25 individual calls)
+  basics :: VS.Vector Int64 <- runIO $ Java.callStatic "PcodeHelper" "extractVarNodeBasics" v
+                                 >>= Java.reify
+  let sz        = basics VS.! 0
+      isConst   = basics VS.! 1
+      addrOff   = basics VS.! 2
+      addrSpId  = basics VS.! 3
+      hasPcAddr = basics VS.! 4
+      pcOff     = basics VS.! 5
+      pcSpId    = basics VS.! 6
+      hasHigh   = basics VS.! 7
+      highHash  = basics VS.! 8
 
--- | Like 'mkVarType' for the Right (high varnode) case, but uses a cached NO_ADDRESS.
-mkVarTypeCached :: J.Address -> J.VarNodeAST -> Ghidra VarType
-mkVarTypeCached cachedNoAddr v = runIO (Java.call v "isConstant") >>= \case
-  True -> do
-    addr :: J.Address <- runIO $ Java.call v "getAddress"
-    Const <$> runIO (Java.call addr "getOffset")
-  False -> do
-    Addr
-      <$> (runIO (Java.call v "getAddress" >>= JNI.newGlobalRef) >>= mkAddress)
-      <*> do
-        pcAddr :: J.Address <- runIO (Java.call v "getPCAddress")
-        if pcAddr == cachedNoAddr
-          then pure Nothing
-          else Just <$> do runIO (JNI.newGlobalRef pcAddr) >>= mkAddress
+  -- Helper: build Address from offset + spaceId, lazily caching unknown spaces
+  let mkAddr off spId = do
+        spaceMap <- runIO $ readIORef (addrSpaceMapRef cache)
+        case mkAddressFromParts spaceMap off (fromIntegral spId) of
+          Just a  -> pure a
+          Nothing -> do
+            -- Unknown space — fetch via JNI (once per space, then cached)
+            space <- lookupOrFetchSpace cache v spId
+            pure $ Address space off
+
+  -- Build VarType
+  varType <- if isConst == 1
+    then pure $ Const addrOff
+    else Addr <$> mkAddr addrOff addrSpId
+              <*> (if hasPcAddr == 1 then Just <$> mkAddr pcOff pcSpId else pure Nothing)
+
+  -- PC address for HighVarNode
+  pcAddress <- if hasPcAddr == 1
+    then Just <$> mkAddr pcOff pcSpId
+    else pure Nothing
+
+  -- Handle HighVariable with caching
+  mhv' <- if hasHigh == 0
+    then pure Nothing
+    else do
+      cached <- runIO $ readIORef (highVarMapRef cache)
+      case IntMap.lookup (fromIntegral highHash) cached of
+        Just result -> pure (Just result)
+        Nothing -> do
+          hv <- runIO $ Java.call v "getHigh" >>= JNI.newGlobalRef
+          result <- mkHighVariable prog hv
+          runIO $ modifyIORef' (highVarMapRef cache) (IntMap.insert (fromIntegral highHash) result)
+          pure (Just result)
+  pure $ HighVarNode varType (fromIntegral sz) pcAddress mhv'
 
 

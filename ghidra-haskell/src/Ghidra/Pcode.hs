@@ -5,7 +5,7 @@ module Ghidra.Pcode (
 )
 where
 
-import Ghidra.Prelude hiding (toList, getConst)
+import Ghidra.Prelude hiding (toList, getConst, Const)
 
 
 import qualified Language.Java as Java
@@ -16,14 +16,51 @@ import qualified Ghidra.Types as J
 import Ghidra.Types.Pcode
 import qualified Ghidra.Variable as Var
 import Ghidra.Variable (VarNode, HighVarNode)
+import Ghidra.Types.Variable (HighVarNode(HighVarNode), VarType(Const, Addr))
 import qualified Ghidra.Types.Pcode.Lifted as L
 import Ghidra.Types.Pcode.Lifted (PcodeOp, Input(Input), Output(Output), Destination, LiftPcodeError(..))
-import Ghidra.Address (mkAddress)
-import Ghidra.Types.Address (Address, AddressSpace, AddressSpaceMap)
+import Ghidra.Address (mkAddress, mkAddressSpace, mkAddressFromParts, Address(Address), AddressSpace(AddressSpace), readAddressSpaceName)
+import Ghidra.Types.Address (AddressSpaceMap)
+import qualified Data.Vector.Storable as VS
 import Ghidra.Types.Internal (Ghidra, runIO)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Foreign.JNI as JNI
+import Data.IORef (readIORef, modifyIORef')
+import qualified Data.IntMap.Strict as IntMap
 
+
+-- | Map from Ghidra PcodeOp.getOpcode() int to BarePcodeOp.
+-- Values match ghidra.program.model.pcode.PcodeOp constants.
+opcodeMap :: IntMap.IntMap BarePcodeOp
+opcodeMap = IntMap.fromList
+  [ (0, UNIMPLEMENTED), (1, COPY), (2, LOAD), (3, STORE)
+  , (4, BRANCH), (5, CBRANCH), (6, BRANCHIND)
+  , (7, CALL), (8, CALLIND), (9, CALLOTHER), (10, RETURN)
+  , (11, INT_EQUAL), (12, INT_NOTEQUAL)
+  , (13, INT_SLESS), (14, INT_SLESSEQUAL), (15, INT_LESS), (16, INT_LESSEQUAL)
+  , (17, INT_ZEXT), (18, INT_SEXT)
+  , (19, INT_ADD), (20, INT_SUB), (21, INT_CARRY), (22, INT_SCARRY), (23, INT_SBORROW)
+  , (24, INT_2COMP), (25, INT_NEGATE)
+  , (26, INT_XOR), (27, INT_AND), (28, INT_OR)
+  , (29, INT_LEFT), (30, INT_RIGHT), (31, INT_SRIGHT)
+  , (32, INT_MULT), (33, INT_DIV), (34, INT_SDIV), (35, INT_REM), (36, INT_SREM)
+  , (37, BOOL_NEGATE), (38, BOOL_XOR), (39, BOOL_AND), (40, BOOL_OR)
+  , (41, FLOAT_EQUAL), (42, FLOAT_NOTEQUAL), (43, FLOAT_LESS), (44, FLOAT_LESSEQUAL)
+  -- 45 unused
+  , (46, FLOAT_NAN)
+  , (47, FLOAT_ADD), (48, FLOAT_DIV), (49, FLOAT_MULT), (50, FLOAT_SUB)
+  , (51, FLOAT_NEG), (52, FLOAT_ABS), (53, FLOAT_SQRT)
+  , (54, INT2FLOAT), (55, FLOAT2FLOAT), (56, TRUNC)
+  , (57, FLOAT_CEIL), (58, FLOAT_FLOOR), (59, FLOAT_ROUND)
+  , (60, MULTIEQUAL), (61, INDIRECT), (62, PIECE), (63, SUBPIECE)
+  , (64, CAST), (65, PTRADD), (66, PTRSUB)
+  , (67, SEGMENTOP), (68, CPOOLREF), (69, NEW)
+  , (70, INSERT), (71, EXTRACT), (72, POPCOUNT)
+  , (73, PCODE_MAX)  -- LZCOUNT in newer Ghidra
+  ]
+
+lookupOpcode :: Int64 -> Maybe BarePcodeOp
+lookupOpcode i = IntMap.lookup (fromIntegral i) opcodeMap
 
 getPcode :: J.Instruction -> Ghidra [J.PcodeOp]
 getPcode x = runIO $ Java.call x "getPcode" >>= Java.reify >>= traverse JNI.newGlobalRef
@@ -95,8 +132,8 @@ class CanBeDestination a where
   toDestination :: a -> Destination
 
 instance CanBeDestination Var.VarType where
-  toDestination (Var.Const n) = L.Relative n
-  toDestination (Var.Addr {location}) = L.Absolute location
+  toDestination (Const n) = L.Relative n
+  toDestination (Addr {location}) = L.Absolute location
 
 instance CanBeDestination VarNode where
   toDestination = toDestination . view #varType
@@ -108,8 +145,8 @@ class GetConst a where
   getConst :: a -> Maybe Int64
 
 instance GetConst Var.VarType where
-  getConst (Var.Const n) = Just n
-  getConst (Var.Addr {}) = Nothing
+  getConst (Const n) = Just n
+  getConst (Addr {}) = Nothing
 
 instance GetConst VarNode where
   getConst = getConst . view #varType
@@ -290,7 +327,7 @@ getBlockHighPcode
   -> J.PcodeBlockBasic
   -> Ghidra [(Address, PcodeOp HighVarNode)]
 getBlockHighPcode prog addressSpaceMap block = do
-  cache <- Var.newHighVarCache
+  cache <- Var.newHighVarCache addressSpaceMap
   getBlockHighPcodeCached prog cache addressSpaceMap block
 
 -- | Like 'getBlockHighPcode' but uses an external cache for HighVariable
@@ -303,13 +340,107 @@ getBlockHighPcodeCached
   -> J.PcodeBlockBasic
   -> Ghidra [(Address, PcodeOp HighVarNode)]
 getBlockHighPcodeCached prog cache addressSpaceMap block = do
-  ops :: [J.PcodeOpAST] <- iteratorToList =<< runIO (Java.call block "getIterator")
-  opsWithAddr :: [(Address, J.PcodeOpAST)] <-
-    forM ops $ \op -> do
-      seqnum :: J.SequenceNumber <- runIO $ Java.call op "getSeqnum"
-      addr <- runIO (Java.call seqnum "getTarget") >>= mkAddress
-      pure (addr, op)
-  highInstrs :: [(Address, HighPcodeInstruction)] <- traverse (traverse $ mkHighPcodeInstructionCached prog cache <=< mkBareHighPcodeInstruction) opsWithAddr
+  -- ONE JNI call extracts all op + varnode data for the entire block
+  packed :: VS.Vector Int64 <- runIO $ Java.callStatic "PcodeHelper" "extractBlockData" block
+                                 >>= Java.reify
+  let numOps = fromIntegral (packed VS.! 0) :: Int
+
+      -- Resolve address from packed offset+spaceId, caching unknown spaces
+      resolveAddr :: Int64 -> Int64 -> Ghidra Address
+      resolveAddr off spId = do
+        spaceMap <- runIO $ readIORef (Var.addrSpaceMapRef cache)
+        case mkAddressFromParts spaceMap off (fromIntegral spId) of
+          Just a  -> pure a
+          Nothing -> do
+            af :: J.AddressFactory <- runIO $ Java.call prog "getAddressFactory" >>= JNI.newGlobalRef
+            jSpace :: J.AddressSpace <- runIO $ Java.call af "getAddressSpace" (fromIntegral spId :: Int32) >>= JNI.newGlobalRef
+            case maybeNull jSpace of
+              Nothing -> do
+                -- Unknown address space (e.g. from a null varnode packed as zeros).
+                -- Use a fallback address space.
+                let fallbackSpace = AddressSpace (fromIntegral spId) 0 0 (readAddressSpaceName $ "unknown_" <> show spId)
+                pure $ Address fallbackSpace off
+              Just jSpace' -> do
+                space <- mkAddressSpace jSpace'
+                runIO $ modifyIORef' (Var.addrSpaceMapRef cache) (HashMap.insert (fromIntegral spId) space)
+                pure $ Address space off
+
+      -- Parse a single varnode from 9 packed fields at offset i
+      parseVN :: Int -> Int -> Int -> Ghidra HighVarNode
+      parseVN i opI vnI = do
+        let sz        = packed VS.! i
+            isConst   = packed VS.! (i + 1)
+            addrOff   = packed VS.! (i + 2)
+            addrSpId  = packed VS.! (i + 3)
+            hasPcAddr = packed VS.! (i + 4)
+            pcOff     = packed VS.! (i + 5)
+            pcSpId    = packed VS.! (i + 6)
+            hasHigh   = packed VS.! (i + 7)
+            highHash  = packed VS.! (i + 8)
+
+        varType <- if isConst == 1
+          then pure $ Const addrOff
+          else Addr <$> resolveAddr addrOff addrSpId
+                        <*> (if hasPcAddr == 1 then Just <$> resolveAddr pcOff pcSpId else pure Nothing)
+
+        pcAddress <- if hasPcAddr == 1 then Just <$> resolveAddr pcOff pcSpId else pure Nothing
+
+        mhv' <- if hasHigh == 0
+          then pure Nothing
+          else do
+            cached <- runIO $ readIORef (Var.highVarMapRef cache)
+            case IntMap.lookup (fromIntegral highHash) cached of
+              Just result -> pure (Just result)
+              Nothing -> do
+                hv <- runIO $ Java.callStatic "PcodeHelper" "getBlockVarNodeHigh"
+                        block (fromIntegral opI :: Int32) (fromIntegral vnI :: Int32)
+                case maybeNull hv of
+                  Nothing -> pure Nothing
+                  Just hv' -> do
+                    hvRef <- runIO $ JNI.newGlobalRef hv'
+                    result <- Var.mkHighVariable prog hvRef
+                    runIO $ modifyIORef' (Var.highVarMapRef cache) (IntMap.insert (fromIntegral highHash) result)
+                    pure (Just result)
+
+        pure $ HighVarNode varType (fromIntegral sz) pcAddress mhv'
+
+      -- Parse N consecutive varnodes starting at offset i
+      parseVNs :: Int -> Int -> Int -> Int -> Ghidra ([HighVarNode], Int)
+      parseVNs i 0 _ _ = pure ([], i)
+      parseVNs i n opI vnI = do
+        vn <- parseVN i opI vnI
+        (rest, finalOff) <- parseVNs (i + 9) (n - 1) opI (vnI + 1)
+        pure (vn : rest, finalOff)
+
+      -- Parse all ops from packed array
+      go :: Int -> Int -> Int -> Ghidra [(Address, HighPcodeInstruction)]
+      go _ 0 _ = pure []
+      go off opsLeft opIdx = do
+        let seqOff  = packed VS.! off
+            seqSpId = packed VS.! (off + 1)
+            opcode  = packed VS.! (off + 2)
+            hasOut  = packed VS.! (off + 3)
+
+        addr <- resolveAddr seqOff seqSpId
+        let bareOp = case lookupOpcode opcode of
+              Just op -> op
+              Nothing -> error $ "Unknown pcode opcode: " <> show opcode
+
+        let outStart = off + 4
+        (mOutput, afterOut) <- if hasOut == 1
+          then do
+            vn <- parseVN outStart opIdx (-1)
+            pure (Just vn, outStart + 9)
+          else pure (Nothing, outStart)
+
+        let numInputs = fromIntegral (packed VS.! afterOut) :: Int
+        (inputs, afterInputs) <- parseVNs (afterOut + 1) numInputs opIdx 0
+
+        let instr = PcodeInstruction bareOp mOutput inputs
+        rest <- go afterInputs (opsLeft - 1) (opIdx + 1)
+        pure $ (addr, instr) : rest
+
+  highInstrs <- go 1 numOps 0
   let liftedInstrs = traverse (liftPcodeInstruction addressSpaceMap) <$> highInstrs
       (errs, instrs) = foldr separateError ([],[]) liftedInstrs
   case errs of

@@ -78,7 +78,7 @@ spec = describe "Ghidra.Pcode" $ do
                     , addressableUnitSize = 1
                     , name = BA.Unique
                     }
-                  , offset = 146432
+                  , offset = 325888
                   }
               , pcAddress = Nothing
               }

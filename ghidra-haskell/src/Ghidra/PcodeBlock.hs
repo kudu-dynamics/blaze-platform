@@ -11,6 +11,7 @@ import Ghidra.Address (mkAddress)
 import qualified Ghidra.Types as J
 import Ghidra.Types.Address (Address)
 import Ghidra.Types.Internal (Ghidra, runIO)
+import qualified Foreign.JNI as JNI
 
 
 toBlockBasic :: J.PcodeBlock -> J.PcodeBlockBasic
@@ -24,8 +25,9 @@ mkPcodeBlock jblock = do
 getBlocksFromHighFunction :: J.HighFunction -> Ghidra [PcodeBlock]
 getBlocksFromHighFunction hfunc = do
   blocks :: [J.PcodeBlockBasic] <- runIO (Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks") >>= J.arrayListToList
-  -- blocks :: [J.PcodeBlockBasic] <- Java.call (coerce hfunc :: J.PcodeSyntaxTree) "getBasicBlocks" >>= Java.reify
-  traverse mkPcodeBlock blocks
+  -- Promote to global refs so they survive across runGhidraOrError boundaries
+  blocks' <- runIO $ traverse JNI.newGlobalRef blocks
+  traverse mkPcodeBlock blocks'
 
 getStart :: PcodeBlock -> Ghidra Address
 getStart pb = runIO (Java.call (pb ^. #handle) "getStart") >>= mkAddress

@@ -40,3 +40,8 @@ stack.yaml.lock
 *.cabal
 CLAUDE.md
 .mcp.json
+
+# JNI helper JARs (build artifacts — run `make res/pcode-helper.jar` in ghidra-haskell/)
+ghidra-haskell/res/pcode-helper.jar
+res/pcode-helper.jar
+ghidra-haskell/java/*.class

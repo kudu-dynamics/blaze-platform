@@ -1,6 +1,11 @@
 {- HLINT ignore "Use if" -}
 
-module Flint.Cfg.Path where
+module Flint.Cfg.Path
+  ( module Flint.Cfg.Path
+  , enableSamplingTiming
+  , timingLog
+  , samplingTimingEnabled
+  ) where
 
 import Flint.Prelude
 
@@ -8,7 +13,7 @@ import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths, QueryCallSeq), CallSeqPrep)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore, CfgInfo)
-import Flint.Util (incUUID, timeIt)
+import Flint.Util (incUUID, timeIt, samplingTimingEnabled, enableSamplingTiming, timingLog)
 
 import qualified Blaze.Cfg.Interprocedural as InterCfg
 import Blaze.Cfg.Path (PilPath, SequenceChooserState(..), UnrollLoopState(..), initSequenceChooserState, samplePathContainingSequence_, makeCfgAcyclic)
@@ -25,26 +30,12 @@ import Blaze.Types.Pil (Stmt)
 
 import qualified Data.List.NonEmpty as NE
 
-import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
-import qualified Data.Text.IO as TextIO
+import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.List (nub)
-import System.IO.Unsafe (unsafePerformIO)
 
 type CallDepth = Word64
-
-{-# NOINLINE samplingTimingEnabled #-}
-samplingTimingEnabled :: IORef Bool
-samplingTimingEnabled = unsafePerformIO $ newIORef False
-
-enableSamplingTiming :: IO ()
-enableSamplingTiming = writeIORef samplingTimingEnabled True
-
-timingLog :: MonadIO m => Text -> m ()
-timingLog msg = liftIO $ readIORef samplingTimingEnabled >>= \case
-  False -> return ()
-  True -> TextIO.hPutStrLn stderr msg
 type CallExpansionChooser = Function -> CallDepth -> [CallNode [Stmt]] -> IO [CallNode [Stmt]]
 
 -- | Tracks how many times each function has been used in the current sample.

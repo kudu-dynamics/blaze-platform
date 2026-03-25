@@ -127,7 +127,8 @@ withTransaction p description action = do
         Java.call p "startTransaction" description'
     endTransaction :: Int32 -> Bool -> Ghidra ()
     endTransaction id commit = do
-      runIO $ Java.call p "endTransaction" id commit
+      _ :: Bool <- runIO $ Java.call p "endTransaction" id commit
+      return ()
 
 getFunctionManager :: J.ProgramDB -> Ghidra J.FunctionManagerDB
 getFunctionManager p = runIO $ Java.call p "getFunctionManager" >>= JNI.newGlobalRef
