@@ -382,6 +382,11 @@ buildCommandString toolName args = case toolName of
         depthPart = maybe "" (" --depth " <>) (lookupArg "depth" args)
     in Right $ "input-genesis" <> countPart <> depthPart
 
+  "typecheck" ->
+    case lookupArg "path_ids" args of
+      Nothing -> Left "Missing required parameter: path_ids"
+      Just pids -> Right $ "typecheck " <> pids
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -605,6 +610,17 @@ toolDefinitions =
               , ("depth", InputSchemaDefinitionProperty "string" "Auto-expand internal calls N levels deep (default 0, try 2 for dispatcher/handler patterns)")
               ]
           , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "typecheck"
+      , toolDefinitionDescription = "Type-check paths using the PIL type checker (ConstraintGen + Unify). Shows inferred types for each expression and reports how long type checking took. Useful for profiling type checker performance on paths with complex expressions."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to type-check (e.g. '0 1 2', '0..5')")
+              ]
+          , required = ["path_ids"]
           }
       , toolDefinitionTitle = Nothing
       }

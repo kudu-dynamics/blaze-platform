@@ -74,11 +74,10 @@ failedToUnregister = fmap f thingsYouShouldUnregister
     f ((regName, regArg), (unregName, unregArg)) = BugMatch
       { pathPattern = ordered
           [ Stmt . Call Nothing (CallFunc $ FuncName regName) . argAt regArg $ Bind "handler" Wild
-          , Star
           , AvoidUntil $ AvoidSpec
             { avoid = Stmt . Call Nothing (CallFunc $ FuncName unregName)
                       . argAt unregArg $ Bind "handler" Wild
-            , until = EndOfPath
+            , until = ordered [Star, EndOfPath]
             }
           ]
       , bugName = "Failed Handler Cleanup"

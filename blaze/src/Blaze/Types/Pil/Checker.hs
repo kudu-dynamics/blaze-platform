@@ -20,6 +20,7 @@ import Blaze.Types.Pil (
  )
 import Blaze.Types.Import
 import Blaze.Types.Pil.PilType
+import Blaze.Types.Pil.Expression (IsExpression(..))
 import qualified Blaze.Types.Pil as Pil
 import qualified Data.HashMap.Strict as HashMap
 
@@ -102,6 +103,13 @@ data InfoExpression a = InfoExpression
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable, FromJSON, ToJSON)
 
 instance Hashable a => Hashable (InfoExpression a)
+
+instance IsExpression (InfoExpression (BitWidth, Maybe DeepSymType)) where
+  getExprOp = view #op
+  mkExprLike x op = x & #op .~ op
+  mkExprWithSize sz = InfoExpression (toBits (fromIntegral sz :: Bytes), Nothing)
+  liftVar pv = mkExprWithSize (coerce $ pv ^. #size) (Pil.VAR (Pil.VarOp pv))
+  getExprSize = fromIntegral . toBytes . view (#info . _1)
 
 data SymInfo = SymInfo
   { size :: BitWidth
@@ -192,13 +200,13 @@ emptyConstraintGenCtx :: ConstraintGenCtx
 emptyConstraintGenCtx = ConstraintGenCtx HashMap.empty Nothing HashMap.empty
 
 data ConstraintGenState = ConstraintGenState
-  { currentSym :: Sym
-  , symMap :: HashMap Sym SymExpression
-  , varSymMap :: HashMap PilVar Sym
-  , funcSymMap :: HashMap (FuncVar SymExpression) Sym
+  { currentSym :: !Sym
+  , symMap :: !(HashMap Sym SymExpression)
+  , varSymMap :: !(HashMap PilVar Sym)
+  , funcSymMap :: !(HashMap (FuncVar SymExpression) Sym)
   , constraints :: [Constraint]
-  , currentStmt :: Int
-  , stackAddrSymMap :: HashMap StackOffset Sym
+  , currentStmt :: !Int
+  , stackAddrSymMap :: !(HashMap StackOffset Sym)
   } deriving (Eq, Ord, Show, Generic)
 
 emptyConstraintGenState :: ConstraintGenState
@@ -230,7 +238,7 @@ data UnifyState = UnifyState
                   { constraints :: [Constraint]
 
                   -- solution key syms should all be origins in originMap
-                  , solutions :: HashMap Sym (PilType Sym)
+                  , solutions :: !(HashMap Sym (PilType Sym))
 
                   , errors :: [UnifyConstraintsError Sym]
 
@@ -238,8 +246,8 @@ data UnifyState = UnifyState
                   -- E.g., if you add (a, b), (b, c)
                   -- the map should contain the entries:
                   -- (a, c) and (b, c)
-                  , originMap :: HashMap Sym Sym
-                  , currentStmt :: Int
+                  , originMap :: !(HashMap Sym Sym)
+                  , currentStmt :: !Int
                   } deriving (Eq, Ord, Show, Generic)
 
 

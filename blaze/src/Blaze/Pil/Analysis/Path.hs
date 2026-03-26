@@ -8,15 +8,30 @@ import Blaze.Prelude
 
 import qualified Blaze.Pil.Analysis as PA
 import Blaze.Pil (Stmt, Expression, PilVar)
-import qualified Blaze.Pil.Construct as C
-import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.Pil.Expression (IsExpression(..))
 import Blaze.Util.Analysis (untilFixedPoint)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as Text
 import System.IO.Unsafe (unsafePerformIO)
+
+-- | Extract call args from a Statement, if it's a call-like statement.
+getCallArgs :: Pil.Statement expr -> Maybe [expr]
+getCallArgs = \case
+  Pil.Call (Pil.CallOp _ args) -> Just args
+  Pil.TailCall (Pil.TailCallOp _ args _) -> Just args
+  _ -> Nothing
+
+-- | Check if an ExprOp is a CALL
+isCallOp :: Pil.ExprOp expr -> Bool
+isCallOp (Pil.CALL _) = True
+isCallOp _ = False
+
+-- | Extract args from a CALL ExprOp
+getCallArgsFromOp :: Pil.ExprOp expr -> [expr]
+getCallArgsFromOp (Pil.CALL (Pil.CallOp _ args)) = args
+getCallArgsFromOp _ = []
 
 
 -- | Helper for simplifyVars
@@ -130,81 +145,90 @@ expandVars = expandVars_ HashMap.empty
 -- | Collapse nested ARRAY_ADDR and FIELD_ADDR operations that accumulate
 -- during memory substitution (e.g. when fputc increments stdout's buffer
 -- pointer repeatedly, creating ptr[1][1][1]... instead of ptr[3]).
-simplifyArrayAddr :: Expression -> Expression
+simplifyArrayAddr :: IsExpression expr => expr -> expr
 simplifyArrayAddr = PA.substExprInExpr collapse
   where
-    collapse :: Expression -> Maybe Expression
-    -- ARRAY_ADDR(ARRAY_ADDR(base, i, s), j, s) → ARRAY_ADDR(base, i+j, s)
-    collapse (Pil.Expression sz (Pil.ARRAY_ADDR (Pil.ArrayAddrOp base idx stride)))
-      | Pil.Expression _ (Pil.ARRAY_ADDR (Pil.ArrayAddrOp innerBase innerIdx innerStride)) <- base
-      , stride == innerStride
-      = Just $ Pil.Expression sz
-        (Pil.ARRAY_ADDR (Pil.ArrayAddrOp innerBase (addExprs innerIdx idx) stride))
-    -- FIELD_ADDR(FIELD_ADDR(base, off1), off2) → FIELD_ADDR(base, off1+off2)
-    collapse (Pil.Expression sz (Pil.FIELD_ADDR (Pil.FieldAddrOp base off)))
-      | Pil.Expression _ (Pil.FIELD_ADDR (Pil.FieldAddrOp innerBase innerOff)) <- base
-      = Just $ Pil.Expression sz
-        (Pil.FIELD_ADDR (Pil.FieldAddrOp innerBase (innerOff + off)))
-    collapse _ = Nothing
+    collapse expr = case getExprOp expr of
+      Pil.ARRAY_ADDR (Pil.ArrayAddrOp base idx stride)
+        | Pil.ARRAY_ADDR (Pil.ArrayAddrOp innerBase innerIdx innerStride) <- getExprOp base
+        , stride == innerStride
+        -> Just $ mkExprLike expr
+             (Pil.ARRAY_ADDR (Pil.ArrayAddrOp innerBase (addExprs innerIdx idx) stride))
+      Pil.FIELD_ADDR (Pil.FieldAddrOp base off)
+        | Pil.FIELD_ADDR (Pil.FieldAddrOp innerBase innerOff) <- getExprOp base
+        -> Just $ mkExprLike expr
+             (Pil.FIELD_ADDR (Pil.FieldAddrOp innerBase (innerOff + off)))
+      _ -> Nothing
 
-    addExprs :: Expression -> Expression -> Expression
-    addExprs (Pil.Expression _ (Pil.CONST (Pil.ConstOp a))) (Pil.Expression sz (Pil.CONST (Pil.ConstOp b)))
-      = Pil.Expression sz (Pil.CONST (Pil.ConstOp (a + b)))
-    addExprs a b = C.add a b (a ^. #size)
+addExprs :: IsExpression expr => expr -> expr -> expr
+addExprs a b = case (getExprOp a, getExprOp b) of
+  (Pil.CONST (Pil.ConstOp x), Pil.CONST (Pil.ConstOp y))
+    -> mkExprLike b (Pil.CONST (Pil.ConstOp (x + y)))
+  _ -> mkExprLike a (Pil.ADD (Pil.AddOp a b))
 
 -- Because this substitutes loads, we might erase possible TOCTOU patterns
 -- TODO: once we know which mem addresses are global, we can eliminate the internal
 --       store stmts.
 aggressiveExpand :: [Stmt] -> [Stmt]
-aggressiveExpand = view #processed . aggressiveExpand'
+aggressiveExpand = aggressiveExpand_
 
-type Addr = Expression
+-- | Generic aggressiveExpand that works on any expression/statement type satisfying IsExpression.
+-- The stmt type must be an AddressableStatement parameterized by the expression type.
+aggressiveExpand_
+  :: forall expr. (IsExpression expr, Show (Pil.AddressableStatement expr))
+  => [Pil.AddressableStatement expr] -> [Pil.AddressableStatement expr]
+aggressiveExpand_ = view #processed . aggressiveExpand__
 
 type StmtIndex = Int
-type VarSubstMap = HashMap PilVar (StmtIndex, Expression)
 
-showVarSubstMap :: HashMap PilVar (StmtIndex, Expression) -> Text
-showVarSubstMap
-  = Text.intercalate "\n\n"
-  . fmap (\(pv, (i, expr)) -> show (pretty' pv, (show i :: Text, pretty' expr)))
-  . HashMap.toList
+data AggressiveExpandState expr = AggressiveExpandState
+  { usedVars :: HashSet PilVar
+  , varSubstMap :: HashMap PilVar (StmtIndex, expr)
+  , memSubstMap :: HashMap expr expr
+  , processed :: [Pil.AddressableStatement expr]
+  } deriving (Generic)
 
-data AggressiveExpandState = AggressiveExpandState
-  { usedVars :: HashSet PilVar -- | Vars in stmts that have not been eliminated
-  , varSubstMap :: HashMap PilVar (StmtIndex, Expression)
-  , memSubstMap :: HashMap Addr Expression
-  , processed :: [Stmt]
-  } deriving (Eq, Ord, Show, Generic)
+aggressiveExpand__
+  :: forall expr. (IsExpression expr, Show (Pil.AddressableStatement expr))
+  => [Pil.AddressableStatement expr]
+  -> AggressiveExpandState expr
+aggressiveExpand__ = over #processed reverse
+  . foldl' (flip aggressiveExpand'_)
+      (AggressiveExpandState HashSet.empty HashMap.empty HashMap.empty [])
+  . zip [0..]
 
-aggressiveExpand'
-  :: [Stmt]
-  -> AggressiveExpandState
-aggressiveExpand' = over #processed reverse . foldl' (flip aggressiveExpand'_) (AggressiveExpandState HashSet.empty HashMap.empty HashMap.empty []) . zip [0..]
-
--- | version meant to be used with foldr
+-- | version meant to be used with foldl'
 aggressiveExpand'_
-  :: (StmtIndex, Stmt)
-  -> AggressiveExpandState
-  -> AggressiveExpandState
-aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExpandState{usedVars, varSubstMap, memSubstMap, processed} = case Pil.mkCallStatement stmt of
+  :: forall expr. (IsExpression expr, Show (Pil.AddressableStatement expr))
+  => (StmtIndex, Pil.AddressableStatement expr)
+  -> AggressiveExpandState expr
+  -> AggressiveExpandState expr
+aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExpandState{usedVars, varSubstMap, memSubstMap, processed} = case getCallArgs statement of
   -- | If it's a call statement, remove args from mem subst map because the call
   -- could affect them.
   -- Also, don't add anything to varSubstMap because function calls aren't necessarily pure
   -- so we can't subst the calls in multiple places.
-  Just call -> AggressiveExpandState
+  Just callArgs -> AggressiveExpandState
                usedVars'
                varSubstMap
                (removeFromMemSubstMap args)
                processed'
       where
         usedVars' = addUsedFromStmt stmt'
-        args = substAll <$> call ^. #args
+        args = substAll <$> callArgs
         stmt' = substAll <$> stmt
         processed' = stmt':processed
 
   -- | Handle the non-call statements.
   Nothing ->  case statement of
-    Pil.Def (Pil.DefOp pv expr) -> AggressiveExpandState
+    Pil.Def (Pil.DefOp pv expr)
+      | isCallOp (getExprOp expr) -> AggressiveExpandState
+              -- Call assigned to var: treat like a call (don't inline)
+              (addUsedFromStmt (substAll <$> stmt))
+              varSubstMap
+              (removeFromMemSubstMap (substAll <$> getCallArgsFromOp (getExprOp expr)))
+              ((substAll <$> stmt):processed)
+      | otherwise -> AggressiveExpandState
               usedVars'
               varSubstMap'
               memSubstMap
@@ -255,12 +279,12 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
         [v] -> handleSingleVar v
         -- TODO: does this ever happen? make it warning instead
         (v:_) -> unsafePerformIO $ do
-          warn $ "Path has PHI where multiple src vars have been used already in path: " <> show (pretty' stmt)
+          warn $ "Path has PHI where multiple src vars have been used already in path: " <> show stmt
           return $ handleSingleVar v
         where
           handleSingleVar v = AggressiveExpandState usedVars varSubstMap' memSubstMap processed
             where
-              expr = C.var' v . fromByteBased $ v ^. #size
+              expr = liftVar v
               varSubstMap' = HashMap.insert dest (stmtIndex, expr) varSubstMap
       [(_v, (_si, expr))] -> AggressiveExpandState usedVars varSubstMap' memSubstMap processed
         where
@@ -270,7 +294,7 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
           (_latestVar, (_si, expr)) = maximumBy (\a b-> compare (fst a) (fst b)) varExprs
           varSubstMap' = HashMap.insert dest (stmtIndex, expr) varSubstMap
       where
-        isPreviouslyDefined :: PilVar -> Maybe (StmtIndex, Expression)
+        isPreviouslyDefined :: PilVar -> Maybe (StmtIndex, expr)
         isPreviouslyDefined pv
           | pv == dest = Nothing
           | otherwise = HashMap.lookup pv varSubstMap
@@ -290,41 +314,35 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
                   in
                     AggressiveExpandState usedVars' varSubstMap memSubstMap (stmt':processed)
 
-    substAll :: Expression -> Expression
+    substAll :: expr -> expr
     substAll = simplifyArrayAddr . substMem . substVars
 
-    -- | Substitutes any pre-defined vars with their exprs.
-    substVars :: Expression -> Expression
-    substVars = substVars' -- PA.substVarExprInExpr (`HashMap.lookup` varSubstMap)
-
-    -- | Substitutes any pre-defined vars with their exprs.
-    substVars' :: Expression -> Expression
-    substVars' = PA.substExprInExpr f
+    substVars :: expr -> expr
+    substVars = PA.substExprInExpr f
       where
-        f :: Expression -> Maybe Expression
-        f (Pil.Expression sz expr) = case expr of
+        f :: expr -> Maybe expr
+        f e = case getExprOp e of
           Pil.VAR (Pil.VarOp v) -> snd <$> HashMap.lookup v varSubstMap
           Pil.VAR_FIELD (Pil.VarFieldOp v off) -> Just
-            . Pil.Expression sz
-            . Pil.Extract
+            $ mkExprLike e
+            $ Pil.Extract
             $ Pil.ExtractOp x off
             where
-              x = maybe (Pil.Expression (coerce $ v ^. #size) (Pil.VAR (Pil.VarOp v))) snd
-                  $ HashMap.lookup v varSubstMap
+              x = maybe (liftVar v) snd $ HashMap.lookup v varSubstMap
           _ -> Nothing
 
-
-    -- | Substitutes any loads with previous stores to that location.
-    -- Be sure to call this after running `substVars` on the expr.
-    substMem :: Expression -> Expression
+    substMem :: expr -> expr
     substMem = PA.substExprInExpr substLoad
       where
-        substLoad :: Expression -> Maybe Expression
-        substLoad (Pil.Expression _ (Pil.LOAD (Pil.LoadOp x))) = HashMap.lookup x memSubstMap
-        substLoad _ = Nothing
+        substLoad :: expr -> Maybe expr
+        substLoad e = case getExprOp e of
+          Pil.LOAD (Pil.LoadOp x) -> HashMap.lookup x memSubstMap
+          _ -> Nothing
 
-    removeFromMemSubstMap :: [Expression] -> HashMap Addr Expression
+    removeFromMemSubstMap :: [expr] -> HashMap expr expr
     removeFromMemSubstMap = foldl' (flip HashMap.delete) memSubstMap
 
-    addUsedFromStmt = HashSet.union usedVars . PA.getVarsFromStmt
-    addUsedFromExpr = HashSet.union usedVars . PA.getVarsFromExpr
+    addUsedFromStmt :: Pil.AddressableStatement expr -> HashSet PilVar
+    addUsedFromStmt = HashSet.union usedVars . PA.getVarsFromStmt_
+    addUsedFromExpr :: expr -> HashSet PilVar
+    addUsedFromExpr = HashSet.union usedVars . HashSet.fromList . PA.getVarsFromExpr_'

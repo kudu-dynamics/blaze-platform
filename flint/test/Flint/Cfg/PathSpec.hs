@@ -192,17 +192,12 @@ spec = do
         Nothing -> pendingWith "cgc_strlen not found"
         Just func -> do
           sites <- Store.getCallSitesToFunc (tctx ^. #store) (Func.Internal func)
-          putText $ "cgc_strlen call sites: " <> show (length sites)
           length sites `shouldSatisfy` (> 0)
 
     it "callSitesToFuncCache keys should include extern functions" $ \tctx -> do
-      allFuncs <- Store.getFuncs (tctx ^. #store)
       externs <- Store.getExternalFuncs (tctx ^. #store)
-      putText $ "Total funcs: " <> show (length allFuncs) <> ", externs: " <> show (length externs)
-      -- Try to get call sites for every extern - should not return Nothing (key exists)
       forM_ (take 3 externs) $ \ext -> do
         result <- CC.get (Func.External ext) (tctx ^. #store . #callSitesToFuncCache)
-        putText $ "  " <> ext ^. #name <> ": " <> show (fmap length result)
         result `shouldSatisfy` isJust
 
     context "address-targeted sampling" $ do

@@ -17,9 +17,9 @@ import Flint.Types.CachedCalc (CachedCalc)
 import Flint.Types.CachedMap (CachedMap)
 
 data CfgInfo = CfgInfo
-  { cfg :: PilCfg
-  , strictDescendantsMap :: StrictDescendantsMap PilNode -- based off cfg
-  , nodes :: HashSet PilNode
+  { cfg :: !PilCfg
+  , strictDescendantsMap :: !(StrictDescendantsMap PilNode) -- based off cfg
+  , nodes :: !(HashSet PilNode)
   , calls :: [CallNode [Stmt]]
   }
   deriving (Eq, Ord, Show, Generic)

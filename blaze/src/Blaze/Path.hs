@@ -530,7 +530,7 @@ chooseChildByDescendantCountAndSequence pickFromRange dmap parentNode childrenHa
 
 data SeqAndVisitCounts n = SeqAndVisitCounts
   { reqSeq :: [n]
-  , visitCounts :: VisitCounts n
+  , visitCounts :: !(VisitCounts n)
   } deriving (Eq, Ord, Show, Generic)
 
 chooseChildByVisitedDescendantCountAndSequence

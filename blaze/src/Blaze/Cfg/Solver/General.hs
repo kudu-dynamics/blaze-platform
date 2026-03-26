@@ -24,9 +24,9 @@ import qualified Data.HashMap.Strict as HashMap
 import Blaze.Types.Import (TypeHints)
 
 data DecidedBranchCond = DecidedBranchCond
-  { conditionStatementIndex :: Int
+  { conditionStatementIndex :: !Int
   , condition :: Ch.InfoExpression (Ch.SymInfo, Maybe DeepSymType)
-  , decidedBranch :: Bool
+  , decidedBranch :: !Bool
   } deriving (Eq, Ord, Show, Generic)
 
 -- | Accumulation of branch conditions that should be rechecked during

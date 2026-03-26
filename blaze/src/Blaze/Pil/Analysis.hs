@@ -27,6 +27,7 @@ import Blaze.Types.Pil
     Symbol,
     FieldAddrOp,
   )
+import Blaze.Types.Pil.Expression (IsExpression(..))
 import qualified Prelude as P
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Graph as G
@@ -66,29 +67,37 @@ import qualified Data.Sequence as DSeq
 import qualified Data.Set as Set
 
 
-getDefinedVar :: Stmt -> Maybe PilVar
+getDefinedVar :: Pil.AddressableStatement expr -> Maybe PilVar
 getDefinedVar (Pil.Stmt _ (Def d)) = Just $ d ^. #var
 getDefinedVar (Pil.Stmt _ (Pil.DefPhi d)) = Just $ d ^. #dest
 getDefinedVar _ = Nothing
 
-getDefinedVars :: [Stmt] -> HashSet PilVar
+getDefinedVars :: [Pil.AddressableStatement expr] -> HashSet PilVar
 getDefinedVars = HSet.fromList . mapMaybe getDefinedVar
 
 getVarsFromExpr_ :: Expression -> [PilVar]
-getVarsFromExpr_ e = case e ^. #op of
+getVarsFromExpr_ = getVarsFromExpr_'
+
+-- | Generic version: works on any IsExpression type.
+getVarsFromExpr_' :: IsExpression expr => expr -> [PilVar]
+getVarsFromExpr_' e = case getExprOp e of
   (Pil.VAR vop) -> [vop ^. #src]
   (Pil.VAR_FIELD x) -> [x ^. #src]
   (Pil.VAR_JOIN x) -> [x ^. #high, x ^. #low]
-  x -> concatMap getVarsFromExpr_ x
+  x -> concatMap getVarsFromExpr_' x
 
 getVarsFromExpr :: Expression -> HashSet PilVar
 getVarsFromExpr = HSet.fromList . getVarsFromExpr_
 
 getVarsFromStmt :: Stmt -> HashSet PilVar
-getVarsFromStmt s = foldr f init s
+getVarsFromStmt = getVarsFromStmt_
+
+-- | Generic version: works on any IsExpression type in AddressableStatement.
+getVarsFromStmt_ :: IsExpression expr => Pil.AddressableStatement expr -> HashSet PilVar
+getVarsFromStmt_ s = foldr f init' s
   where
-    init = maybe HSet.empty HSet.singleton $ getDefinedVar s
-    f x = HSet.union (getVarsFromExpr x)
+    init' = maybe HSet.empty HSet.singleton $ getDefinedVar s
+    f x = HSet.union (HSet.fromList $ getVarsFromExpr_' x)
 
 getRefVars_ :: Stmt -> HashSet PilVar
 getRefVars_ (Pil.Stmt _ (Pil.DefPhi defPhiOp)) = HSet.fromList $ defPhiOp ^. #src
@@ -138,10 +147,11 @@ substVarExpr :: (PilVar -> Maybe Expression) -> [Stmt] -> [Stmt]
 substVarExpr f = fmap $ substVarExpr_ f
 
 ---- Expression -> Expression substitution
-substExprInExpr :: (Expression -> Maybe Expression) -> Expression -> Expression
+---- Generalized to work on any IsExpression type (Expression, InfoExpression, etc.)
+substExprInExpr :: IsExpression expr => (expr -> Maybe expr) -> expr -> expr
 substExprInExpr f x = maybe x' identity (f x')
   where
-    x' = x & #op %~ fmap (substExprInExpr f)
+    x' = mkExprLike x $ fmap (substExprInExpr f) (getExprOp x)
 
 substExprInExprM :: (Expression -> Analysis Expression)
                  -> Expression

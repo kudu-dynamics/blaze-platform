@@ -182,7 +182,7 @@ staleReferencePrims =
       , M.Location "create" $ M.CallsPrimitive (view #primType $ headHack subPrims) []
       , M.Star
       , M.Location "store" $ M.CallsPrimitive (view #primType $ subPrims !! 1) []
-      , M.And M.Star . M.AvoidUntil . M.AvoidSpec (M.CallsPrimitive (view #primType $ subPrims !! 2) []) . M.Location "delete" $ M.CallsPrimitive (view #primType $ subPrims !! 3) []
+      , M.AvoidUntil $ M.AvoidSpec (M.CallsPrimitive (view #primType $ subPrims !! 2) []) (M.ordered [M.Star, M.Location "delete" $ M.CallsPrimitive (view #primType $ subPrims !! 3) []])
       ]
 
 -- storedelete nonexistence might also be implied
