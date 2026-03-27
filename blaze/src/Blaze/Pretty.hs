@@ -355,8 +355,9 @@ instance Tokenizable Pil.PilVar where
     vsym <- getVarSym var
     let ctxIdSuff = case var ^. #ctx of
           Nothing -> ""
-          Just ctx -> "@"
-            <> show (fromIntegral $ ctx ^. #ctxId :: Int)
+          Just ctx
+            | ctx ^. #ctxId == 0 -> ""
+            | otherwise -> "@" <> show (fromIntegral $ ctx ^. #ctxId :: Int)
     pure [varToken vsym $ (var ^. #symbol) <> ctxIdSuff]
 
 instance Tokenizable Summary.InputLocation where
@@ -665,11 +666,15 @@ instance
     Pil.Undef -> pure [keywordToken "Undefined"]
     Pil.Nop -> pure [keywordToken "Nop"]
     Pil.Annotation t -> pure [plainToken CommentToken "// ", plainToken CommentToken t]
-    Pil.EnterContext x -> tt "----> Entering "
-      <++> tokenize (x ^. #ctx)
-      <++> [tt " "]
-      <++> tokenizeAsList (x ^. #args)
-    Pil.ExitContext x -> tt "<---- Leaving " <++> tokenize (x ^. #leavingCtx)
+    Pil.EnterContext x
+      | x ^. #ctx . #isLoopCtx -> pure [tt $ "----> loop " <> show (x ^. #ctx . #ctxId)]
+      | otherwise -> tt "----> Entering "
+        <++> tokenize (x ^. #ctx)
+        <++> [tt " "]
+        <++> tokenizeAsList (x ^. #args)
+    Pil.ExitContext x
+      | x ^. #leavingCtx . #isLoopCtx -> pure [tt $ "<---- end loop " <> show (x ^. #leavingCtx . #ctxId)]
+      | otherwise -> tt "<---- Leaving " <++> tokenize (x ^. #leavingCtx)
     Pil.Call callOp -> tokenize callOp
     Pil.DefPhi x ->
       tokenize (x ^. #dest)

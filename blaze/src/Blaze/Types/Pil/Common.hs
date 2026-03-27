@@ -26,6 +26,7 @@ newtype CtxId = CtxId Word64
 data Ctx = Ctx
   { func :: Function
   , ctxId :: CtxId
+  , isLoopCtx :: Bool
   }
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (Hashable, ToJSON, FromJSON)

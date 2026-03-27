@@ -28,7 +28,7 @@ bb ctx startAddr endAddr x =
   uuid = mkUuid2 (addrToInt startAddr) (addrToInt endAddr)
 
 mkDummyCtx :: Word64 -> Ctx
-mkDummyCtx = Ctx (Function Nothing "dummyCtx" (intToAddr 0) []) . fromIntegral
+mkDummyCtx n = Ctx (Function Nothing "dummyCtx" (intToAddr 0) []) (fromIntegral n) False
 
 mkDummyTermNode :: Ctx -> a -> Cfg.CfNode a
 mkDummyTermNode ctx nodeData 

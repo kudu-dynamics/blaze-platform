@@ -27,7 +27,7 @@ import Flint.Util (timeIt)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Types.Cfg (CfNode(Call), CallNode)
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Function, FuncParamInfo(..))
 import Blaze.Pretty (pretty', PStmts(PStmts))
 import Blaze.Types.Cfg.Path (PilPath)
 import qualified Blaze.Types.Cfg.Path as Path
@@ -47,7 +47,7 @@ sampleCommand = ShellCommand
   { cmdName = "sample"
   , cmdAliases = ["sp"]
   , cmdHelp = "Sample paths from a function"
-  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N]"
+  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--unrollLoops]"
   , cmdAction = samplePaths
   }
 
@@ -105,6 +105,10 @@ freeUntaggedCommand = ShellCommand
   , cmdAction = freeUntaggedPaths
   }
 
+getParamName :: FuncParamInfo -> Text
+getParamName (FuncParamInfo p) = p ^. #name
+getParamName (FuncVarArgInfo p) = p ^. #name
+
 -- | Parse a hex address like "0x401000" or a decimal number,
 -- using the given address space (from the binary) for correct pointer size.
 parseAddressWithSpace :: AddressSpace -> Text -> Maybe Address
@@ -145,10 +149,21 @@ parseDepthArg (x : xs) =
   let (d, rest) = parseDepthArg xs
   in (d, x : rest)
 
+-- | Parse --unrollLoops flag from argument list, returning (flag, remaining args)
+parseUnrollLoopsArg :: [Text] -> (Bool, [Text])
+parseUnrollLoopsArg = go False
+  where
+    go found [] = (found, [])
+    go _ ("--unrollLoops" : rest) = go True rest
+    go found (x : xs) =
+      let (f, rest) = go found xs
+      in (f, x : rest)
+
 samplePaths :: ShellState -> [Text] -> IO CommandResult
-samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N]"
+samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--unrollLoops]"
 samplePaths st allArgs' = do
-  let (depth, allArgs) = parseDepthArg allArgs'
+  let (depth, allArgs0) = parseDepthArg allArgs'
+      (useUnrollLoops, allArgs) = parseUnrollLoopsArg allArgs0
   -- Parse optional leading count: if first arg is a number, it's the count
   let (mLeadingCount, afterCount) = case allArgs of
         (n : rest') | Just c <- (readMaybe (Text.unpack n) :: Maybe Int) -> (Just c, rest')
@@ -177,20 +192,30 @@ samplePaths st allArgs' = do
                     { mustReachSome = targets
                     , callExpandDepthLimit = 0  -- intraprocedural only
                     , numSamples = fromIntegral count
+                    , unrollLoops = useUnrollLoops
                     }
               catch
                 (samplesFromQuery (st ^. #cfgStore) func q)
                 (\(e :: SomeException) -> do
                   warn $ "Target sampling error: " <> show e
                   return [])
-            Nothing -> case mCount of
-              Just count -> do
+            Nothing -> case (mCount, useUnrollLoops) of
+              (Just count, _) -> do
                 let q = QueryExpandAll $ QueryExpandAllOpts
                       { callExpandDepthLimit = 0
                       , numSamples = fromIntegral count
+                      , unrollLoops = useUnrollLoops
                       }
                 samplesFromQuery (st ^. #cfgStore) func q
-              Nothing ->
+              (Nothing, True) -> do
+                -- --unrollLoops without a count: use default count so the flag takes effect
+                let q = QueryExpandAll $ QueryExpandAllOpts
+                      { callExpandDepthLimit = 0
+                      , numSamples = 20
+                      , unrollLoops = True
+                      }
+                samplesFromQuery (st ^. #cfgStore) func q
+              (Nothing, False) ->
                 fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
           timingLog $ "[timing] samplesFromQuery (" <> func ^. #name <> "): "
             <> show (length paths) <> " paths in " <> show samplingTime
@@ -246,8 +271,11 @@ showPaths st args = do
         let stmts = resolveStmts cp raw
             rawTag = if raw then " [raw]" else ""
             tagLabel = maybe "" (\t -> " \"" <> t <> "\"") mTag
+            funcName = cp ^. #sourceFunc . #name
+            paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
+            funcSig = funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
             header = "=== Path " <> show pid <> tagLabel <> rawTag
-              <> " (func: " <> (cp ^. #sourceFunc . #name)
+              <> " (func: " <> funcSig
               <> ", " <> show (length stmts) <> " stmts) ==="
         return $ header <> "\n" <> pretty' (PStmts stmts)
   return $ ResultText $ Text.intercalate "\n\n" results
@@ -409,6 +437,7 @@ expandWithSampling st outerPid outerCp callNode calleeFunc count = do
   let q = QueryExpandAll $ QueryExpandAllOpts
         { callExpandDepthLimit = 0
         , numSamples = fromIntegral count
+        , unrollLoops = False
         }
   innerPaths <- catch
     (samplesFromQuery (st ^. #cfgStore) calleeFunc q)
@@ -508,6 +537,7 @@ expandPathToDepth store path dpth = do
           let q = QueryExpandAll $ QueryExpandAllOpts
                 { callExpandDepthLimit = 0
                 , numSamples = 1
+                , unrollLoops = False
                 }
           innerPaths <- catch
             (samplesFromQuery store calleeFunc q)

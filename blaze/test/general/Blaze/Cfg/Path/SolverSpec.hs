@@ -19,13 +19,13 @@ spec = describe "Blaze.Cfg.Path.Solver" $ do
     let solvePath = solvePathWith_ z3 AbortOnError HashMap.empty
 
     it "should solve path with a single empty basic block" $ do
-      let ctx = Ctx func1 0
+      let ctx = Ctx func1 0 False
           bb0 = bbp ctx "bb0" []
           path = Path.build 1 $ Path.start bb0
       (is #_Sat <$> solvePath path) `shouldReturn` True
 
     it "should find path branch constraint depending on branch type" $ do
-      let ctx = Ctx func1 0
+      let ctx = Ctx func1 0 False
           bb0 = bbp ctx "bb0"
             [ C.def "x" $ C.const 54 0x8
             , C.branchCond $ C.cmpE (C.var "x" 8) (C.const 0 8) 8
@@ -38,7 +38,7 @@ spec = describe "Blaze.Cfg.Path.Solver" $ do
       (is #_Sat <$> solvePath pathFalse) `shouldReturn` True
 
     it "should handle path with single store and load" $ do
-      let ctx = Ctx func1 0
+      let ctx = Ctx func1 0 False
           bb0 = bbp ctx "bb0"
             [ C.store (C.var "x" 8) $ C.const 54 0x8
             , C.branchCond $ C.cmpE (C.load (C.var "x" 8) 8) (C.const 54 8) 8
@@ -51,7 +51,7 @@ spec = describe "Blaze.Cfg.Path.Solver" $ do
       (is #_Unsat <$> solvePath pathFalse) `shouldReturn` True
 
     it "should handle path with sequential stores to same var" $ do
-      let ctx = Ctx func1 0
+      let ctx = Ctx func1 0 False
           bb0 = bbp ctx "bb0"
             [ C.store (C.var "x" 8) $ C.const 54 0x8
             , C.branchCond $ C.cmpE (C.load (C.var "x" 8) 8) (C.const 54 8) 8
@@ -66,7 +66,7 @@ spec = describe "Blaze.Cfg.Path.Solver" $ do
       (is #_Sat <$> solvePath path) `shouldReturn` True
 
     it "should handle path with sequential stores to multiple vars" $ do
-      let ctx = Ctx func1 0
+      let ctx = Ctx func1 0 False
           a = C.var "a" 8
           x = C.var "x" 8
           y = C.var "y" 8

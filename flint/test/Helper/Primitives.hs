@@ -28,7 +28,7 @@ var_
   -> expr
 var_ func sym attrs = mkExpr attrs (Pil.VAR . Pil.VarOp $ pilVar_ (getPilVarSize attrs) (Just ctx) sym)
   where
-    ctx = Pil.Ctx func 0
+    ctx = Pil.Ctx func 0 False
 
 memcpy :: Function
 memcpy = Function Nothing "memcpy" (intToAddr 0x111)

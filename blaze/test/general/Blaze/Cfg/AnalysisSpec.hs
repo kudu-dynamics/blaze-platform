@@ -21,7 +21,7 @@ fooCurrentCtxId :: CtxId
 fooCurrentCtxId = 0
 
 fooCtx :: Ctx
-fooCtx = Ctx func fooCurrentCtxId
+fooCtx = Ctx func fooCurrentCtxId False
   where
     func = Function Nothing "foo" (intToAddr 0) []
 

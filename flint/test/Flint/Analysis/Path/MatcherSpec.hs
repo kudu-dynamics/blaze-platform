@@ -716,7 +716,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an expanded call to a named function when pattern expects no return" $ do
-      let ctx0 = Pil.Ctx func0 0
+      let ctx0 = Pil.Ctx func0 0 False
           stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                   ]
@@ -725,8 +725,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
     it "should match on an expanded call to a named function and on its return" $ do
-      let ctx0 = Pil.Ctx func0 0
-          ctx1 = Pil.Ctx func1 1
+      let ctx0 = Pil.Ctx func0 0 False
+          ctx1 = Pil.Ctx func1 1 False
           stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                   , ret $ var "r" 4
@@ -737,8 +737,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       PrettyShow' (pureMatch_ pats stmts) `shouldBe` PrettyShow' expected
 
     it "should fail to match if ret does not match" $ do
-      let ctx0 = Pil.Ctx func0 0
-          ctx1 = Pil.Ctx func1 1
+      let ctx0 = Pil.Ctx func0 0 False
+          ctx1 = Pil.Ctx func1 1 False
           stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                   , ret $ const 888 4
                   , exitContext ctx0 ctx1
@@ -748,8 +748,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
       pureMatch_ pats stmts `shouldBe` expected
 
     it "should match on an expanded call to a named function, not match on any statement inside expanded function body, but match on statement after" $ do
-      let ctx0 = Pil.Ctx func0 0
-          ctx1 = Pil.Ctx func1 1
+      let ctx0 = Pil.Ctx func0 0 False
+          ctx1 = Pil.Ctx func1 1 False
           stmts :: [Pil.Stmt]
           stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
                   , def "x" $ const 42 8
@@ -871,7 +871,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
 
     context "EnterContext and ExitContext statements" $ do
       it "should match EnterContext for AnyCtx with empty arg patterns" $ do
-        let ctx0 = Pil.Ctx func0 0
+        let ctx0 = Pil.Ctx func0 0 False
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
             pats = Stmt $ EnterContext AnyCtx []
@@ -879,7 +879,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         pureMatch_ pats stmts `shouldBe` expected
 
       it "should match EnterContext for AnyCtx with proper arg patterns" $ do
-        let ctx0 = Pil.Ctx func0 0
+        let ctx0 = Pil.Ctx func0 0 False
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
             pats = Stmt $ EnterContext AnyCtx [Var "a", Contains (Var "arg4")]
@@ -887,7 +887,7 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         pureMatch_ pats stmts `shouldBe` expected
 
       it "should not match EnterContext if arg pattern not matched" $ do
-        let ctx0 = Pil.Ctx func0 0
+        let ctx0 = Pil.Ctx func0 0 False
             stmts = [ enterContext ctx0 [var "a" 4, load (var "arg4" 4) 4]
                     ]
             pats = Stmt $ EnterContext AnyCtx [Var "b", Wild]
@@ -895,8 +895,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         pureMatch_ pats stmts `shouldBe` expected
 
       it "should match ExitContext for AnyCtx, AnyCtx" $ do
-        let ctx0 = Pil.Ctx func0 0
-            ctx1 = Pil.Ctx func1 1
+        let ctx0 = Pil.Ctx func0 0 False
+            ctx1 = Pil.Ctx func1 1 False
             stmts = [ exitContext ctx1 ctx0
                     , def "c" $ const 42 8
                     ]
@@ -907,8 +907,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         pureMatch_ pats stmts `shouldBe` expected
 
       it "should match matching bound Ctxs" $ do
-        let ctx0 = Pil.Ctx func0 0
-            ctx1 = Pil.Ctx func1 1
+        let ctx0 = Pil.Ctx func0 0 False
+            ctx1 = Pil.Ctx func1 1 False
             stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
                     , exitContext ctx1 ctx0
                     ]
@@ -920,8 +920,8 @@ spec = describe "Flint.Analysis.Path.Matcher" $ do
         pureMatch_ pats stmts `shouldBe` expected
 
       it "should fail to match non-matching bound Ctxs" $ do
-        let ctx0 = Pil.Ctx func0 0
-            ctx1 = Pil.Ctx func1 1
+        let ctx0 = Pil.Ctx func0 0 False
+            ctx1 = Pil.Ctx func1 1 False
             stmts = [ enterContext ctx1 [var "a" 4, load (var "arg4" 4) 4]
                     , exitContext ctx1 ctx0
                     ]

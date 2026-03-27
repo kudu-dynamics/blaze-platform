@@ -148,7 +148,7 @@ getPcodeCfg
   -> CtxId
   -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp a)])))
 getPcodeCfg getPcode gs fn ctxId = do
-  let ctx = Ctx fn ctxId
+  let ctx = Ctx fn ctxId False
       prg = gs ^. #program
       addrSpaceMap = gs ^. #addressSpaceMap
   jfunc <- CGI.toGhidraFunction prg fn
@@ -212,7 +212,7 @@ getHighPcodeCfg imp@(GhidraImporter gs _ _) fn ctxId = do
   jfunc <- CGI.toGhidraFunction prg fn
   hfunc <- CGI.getHighFunction imp addr jfunc
   bbGraph <- runGhidraOrError $ PB.getPcodeBlockGraph hfunc
-  let ctx = Ctx fn ctxId
+  let ctx = Ctx fn ctxId False
       addrSpaceMap = gs ^. #addressSpaceMap
   highVarCache <- runGhidraOrError $ Var.newHighVarCache addrSpaceMap
   nodePcodeTuples <- traverse
@@ -370,7 +370,7 @@ getPilCfg
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))))
 getPilCfg pcodeCfgGetter imp func ctxId = do
-  let ctx = Ctx func ctxId
+  let ctx = Ctx func ctxId False
   pcodeCfgGetter imp func ctxId >>= \case
     Nothing -> return Nothing
     Just pcodeCfg -> do
@@ -390,7 +390,7 @@ getPilCfgAndTypeHints
   -> CtxId
   -> IO (Maybe (ImportResult (PilPcodeMap VarNode) (Cfg (CfNode [Pil.Stmt]))), TypeHints)
 getPilCfgAndTypeHints pcodeCfgGetter imp func ctxId = do
-  let ctx = Ctx func ctxId
+  let ctx = Ctx func ctxId False
   pcodeCfgGetter imp func ctxId >>= \case
     Nothing -> return (Nothing, HM.empty)
     Just pcodeCfg -> do
