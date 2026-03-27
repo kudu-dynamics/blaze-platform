@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0327b
+- Fix xrefs reporting thunk functions that don't exist in the function list — resolve thunks in string xrefs and follow thunks for internal function call sites (not just externs)
+- Remove `tryResolveAsExternThunk` heuristic that misclassified default-named functions (e.g. `FUN_0042b904`) as externs if they called any extern; trust Ghidra's `isThunk` instead
+
 ## Version 0.26.0327
 - Loop summarization replaces loop unrolling as the default sampler — single abstract iteration with `_looping`/`_exit` vars and entry/exit constraints
 - Indented `----> loop` / `<---- end loop` display with unique CtxIds, nests with interprocedural expansion
