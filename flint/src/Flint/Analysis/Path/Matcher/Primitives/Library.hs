@@ -216,15 +216,16 @@ doubleFreePrim_ = Prim
         [ Location "free1" . Location "free2" . CallsPrimitive doubleFreeSpec $ 
           [ ("ptr", Bind "ptr" Wild) ]
         , ordered
-          [ Location "free1" . SubPrimitive freeHeapPrim_ $ 
+          [ Location "free1" . SubPrimitive freeHeapPrim_ $
             [ ("ptr", Bind "ptr" Wild) ]
-          , Star
           , AvoidUntil $ AvoidSpec
             { avoid = SubPrimitive allocHeapPrim_
                       [("ptr", Bound "ptr")]
-            , until =
-              Location "free2" . SubPrimitive freeHeapPrim_ $
-              [ ("ptr", Bound "ptr") ]
+            , until = ordered
+              [ Star
+              , Location "free2" . SubPrimitive freeHeapPrim_ $
+                [ ("ptr", Bound "ptr") ]
+              ]
             }
           ]
         ]

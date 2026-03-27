@@ -61,22 +61,25 @@ toTypedStmts typeHints stmts = case checkStmtsWithTypeHints typeHints Nothing st
   Left err -> error $ "ConstraintGenError: " <> show err
   Right tr -> stripSymInfo . snd <$> tr ^. #symTypedStmts
 
+-- | Type-check BEFORE aggressiveExpand to avoid O(2^n) blowup.
+-- The raw stmts have VAR references (O(1) for the type checker).
+-- Then aggressiveExpand runs on the already-typed statements.
 instance MkPathPrep TypedStmt [Pil.Stmt] where
   mkPathPrep = mkPathPrepWithTypeHints HM.empty
-  mkPathPrepWithTypeHints typeHints props stmts = tr
-    { untouchedStmts = toTypedStmts typeHints $ tr ^. #untouchedStmts
-    , stmts = toTypedStmts typeHints $ tr ^. #stmts
-    }
+  mkPathPrepWithTypeHints typeHints props stmts =
+    PathPrep typed expanded (mkTaintSet props stmts) codeSummary props
     where
-      tr = mkPathPrepWithTypeHints typeHints props stmts
-  
+      typed = toTypedStmts typeHints stmts
+      expanded = PA.aggressiveExpand_ typed
+      codeSummary = Summary.fromStmts stmts
 
 instance MkPathPrep TypedStmt PilPath where
   mkPathPrep = mkPathPrepWithTypeHints HM.empty
-  mkPathPrepWithTypeHints typeHints props stmts = tr
-    { untouchedStmts = toTypedStmts typeHints $ tr ^. #untouchedStmts
-    , stmts = toTypedStmts typeHints $ tr ^. #stmts
-    }
+  mkPathPrepWithTypeHints typeHints props p =
+    PathPrep typed expanded (mkTaintSet props stmts) codeSummary props
     where
-      tr = mkPathPrepWithTypeHints typeHints props stmts
+      stmts = Path.toStmts p
+      typed = toTypedStmts typeHints stmts
+      expanded = PA.aggressiveExpand_ typed
+      codeSummary = Summary.fromStmts stmts
 

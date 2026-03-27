@@ -160,6 +160,7 @@ library:
   - Blaze.Types.Pil.Analysis
   - Blaze.Types.Pil.Analysis.Subst
   - Blaze.Types.Pil.Checker
+  - Blaze.Types.Pil.Expression
   - Blaze.Types.Pil.Function
   - Blaze.Types.Pil.Solver
   - Blaze.Types.Pil.Summary

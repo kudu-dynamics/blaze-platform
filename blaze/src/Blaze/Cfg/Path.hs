@@ -113,8 +113,8 @@ samplePathContainingSequenceIO = samplePathContainingSequence_ randomIO randomIO
 type DefinedVarVersions = HashMap PilVar Word64
 
 data UnrollLoopState = UnrollLoopState
-  { definedVars :: DefinedVarVersions
-  , visitedNodes :: HashSet PilNode
+  { definedVars :: !DefinedVarVersions
+  , visitedNodes :: !(HashSet PilNode)
   } deriving (Eq, Ord, Show, Generic)
 
 -- | Adds defined vars to state. If one exists, it means it has been previously defined,
@@ -199,8 +199,8 @@ updatePossiblyLoopingNode
 updatePossiblyLoopingNode getNewUUID st n = runStateT (updatePossiblyLoopingNode_ getNewUUID n) st
 
 data SequenceChooserState = SequenceChooserState
-  { seqAndVisitCounts :: P.SeqAndVisitCounts PilNode
-  , unrollLoopState :: UnrollLoopState
+  { seqAndVisitCounts :: !(P.SeqAndVisitCounts PilNode)
+  , unrollLoopState :: !UnrollLoopState
   } deriving (Eq, Ord, Show, Generic)
 
 -- | This chooser gets a path that hits all nodes along a sequence.

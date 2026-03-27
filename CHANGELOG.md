@@ -1,5 +1,13 @@
 # Blaze Platform
 
+## Version 0.26.0326
+- Fix O(2^n) type checker blowup: type-check raw stmts BEFORE aggressiveExpand, so the checker sees VAR references (O(1)) instead of exponentially duplicated expression trees from copy propagation. cgc_malloc paths: 40s -> 14ms. Dive_Logger max live: 1079MB -> 266MB.
+- `IsExpression` typeclass in Blaze enabling `aggressiveExpand` to work on both plain `Expression` and typed `InfoExpression` statements
+- Generalized `substExprInExpr`, `aggressiveExpand`, and related helpers to work on any `IsExpression` type
+- Fix redundant `Star` before `AvoidUntil` in 3 vulnerability pattern definitions (removes O(n^2) matcher behavior)
+- `typecheck` command for flint-shell and flint-mcp (use `N!` for raw/unexpanded comparison)
+- Bang patterns on StateT accumulators in blaze (SequenceChooserState, ConstraintGenState, UnifyState, etc.)
+
 ## Version 0.26.0320b
 - JNI batching: Java helpers (`PcodeHelper.java`) collapse per-varnode and per-op JNI calls into one call per block (`extractBlockData`). Pcode extraction 3.8x faster (20.1s → 5.3s on miniupnpd)
 - Call graph function cache: `getCallGraphCached` pre-builds `HashMap Address Func` from known functions, skipping redundant `getFuncFromJFunction` JNI calls. Call graph 95x faster (26.6s → 0.28s on miniupnpd)
