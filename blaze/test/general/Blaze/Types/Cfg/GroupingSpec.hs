@@ -32,7 +32,7 @@ import qualified Data.HashSet as HashSet
 import Test.Hspec
 
 ctx :: Ctx
-ctx = Ctx func 0
+ctx = Ctx func 0 False
   where
     func = Function Nothing "foo" (intToAddr 0) []
 
@@ -51,7 +51,7 @@ cbb :: Address -> Address -> a -> CfNode a
 (gbb, cbb) = (go Cfg.BasicBlock, go Cfg.BasicBlock)
   where
     go f startAddr endAddr x = f $ BasicBlockNode
-      { ctx = Ctx (Function Nothing "f" (intToAddr 0) []) 0
+      { ctx = Ctx (Function Nothing "f" (intToAddr 0) []) 0 False
       , start = startAddr
       , end = endAddr
       , uuid = uuid'

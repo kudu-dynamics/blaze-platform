@@ -393,6 +393,7 @@ spamDiveLogger = do
       q = QueryExpandAll $ QueryExpandAllOpts
           { callExpandDepthLimit = 0
           , numSamples = 15
+          , unrollLoops = False
           }
       bms :: [BugMatch]
       bms =

@@ -1,5 +1,11 @@
 # Blaze Platform
 
+## Version 0.26.0327
+- Loop summarization replaces loop unrolling as the default sampler — single abstract iteration with `_looping`/`_exit` vars and entry/exit constraints
+- Indented `----> loop` / `<---- end loop` display with unique CtxIds, nests with interprocedural expansion
+- `--unrollLoops` flag to use old unrolling behavior for comparison
+- Function param names in path headers, suppress `@0` on default-context vars
+
 ## Version 0.26.0326
 - Fix O(2^n) type checker blowup: type-check raw stmts BEFORE aggressiveExpand, so the checker sees VAR references (O(1)) instead of exponentially duplicated expression trees from copy propagation. cgc_malloc paths: 40s -> 14ms. Dive_Logger max live: 1079MB -> 266MB.
 - `IsExpression` typeclass in Blaze enabling `aggressiveExpand` to work on both plain `Expression` and typed `InfoExpression` statements

@@ -187,6 +187,7 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
           { callExpandDepthLimit = opts ^. #expandCallDepth
           -- TODO: At some point, we should base the # samples on the size of func
           , numSamples = opts ^. #maxSamplesPerFunc
+          , unrollLoops = False
           }
       bms :: [BugMatch]
       bms = Pat.allPatterns
@@ -213,6 +214,7 @@ primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> d
           { callExpandDepthLimit = opts ^. #expandCallDepth
           -- TODO: At some point, we should base the # samples on the size of func
           , numSamples = opts ^. #maxSamplesPerFunc
+          , unrollLoops = False
           }
       prims :: [Prim]
       prims = []

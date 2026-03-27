@@ -151,6 +151,7 @@ spec = do
         $ QueryExpandAll $ QueryExpandAllOpts
           { callExpandDepthLimit = 0
           , numSamples = 1
+          , unrollLoops = False
           }
       length paths `shouldSatisfy` (> 0)
       let stmts = concatMap Cfg.getNodeData . HashSet.toList . Path.nodes $ expectHead paths
@@ -168,6 +169,7 @@ spec = do
           { mustReachSome = (func, targetAddr) :| []
           , callExpandDepthLimit = 0
           , numSamples = 5
+          , unrollLoops = False
           }
       length targetPaths `shouldSatisfy` (> 0)
 
@@ -234,6 +236,7 @@ spec = do
               { mustReachSome = (func, targetAddr) :| []
               , callExpandDepthLimit = 0
               , numSamples = 5
+              , unrollLoops = False
               }
           length targetPaths `shouldSatisfy` (> 0)
 
@@ -253,6 +256,7 @@ spec = do
           $ QueryExpandAll $ QueryExpandAllOpts
             { callExpandDepthLimit = 0
             , numSamples = 3
+            , unrollLoops = False
             }
         length paths `shouldSatisfy` (> 0)
         let stmts = concatMap Cfg.getNodeData . HashSet.toList . Path.nodes $ expectHead paths
@@ -265,6 +269,7 @@ spec = do
             { mustReachSome = (func, targetAddr) :| []
             , callExpandDepthLimit = 0
             , numSamples = 10
+            , unrollLoops = False
             }
         length targetPaths `shouldSatisfy` (> 0)
 
@@ -292,6 +297,7 @@ spec = do
             { mustReachSome = (func, targetAddr) :| []
             , callExpandDepthLimit = 0
             , numSamples = 1
+            , unrollLoops = False
             }
         when (null targetPaths) $ do
           let stmts = concatMap Cfg.getNodeData matchingNodes :: [Pil.Stmt]

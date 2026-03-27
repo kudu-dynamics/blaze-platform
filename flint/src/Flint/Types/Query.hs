@@ -142,6 +142,7 @@ data QueryTargetOpts func = QueryTargetOpts
   { mustReachSome :: NonEmpty (func, Address) -- addr inside any basic block
   , callExpandDepthLimit :: Word64
   , numSamples :: Word64
+  , unrollLoops :: Bool
   } deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | This just picks one callsite to expand until it reaches a dead-end or its limit.
@@ -153,6 +154,7 @@ data QueryExploreDeepOpts = QueryExploreDeepOpts
 data QueryExpandAllOpts = QueryExpandAllOpts
   { callExpandDepthLimit :: Word64
   , numSamples :: Word64
+  , unrollLoops :: Bool
   } deriving (Eq, Ord, Show, Generic)
 
 data QueryCallSeqOpts = QueryCallSeqOpts

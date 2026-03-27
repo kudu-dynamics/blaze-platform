@@ -138,7 +138,7 @@ initializeStmt :: Pil.Stmt
 initializeStmt = C.store iPilVar' (C.const 0 byteSize)
 
 ctx :: Ctx
-ctx = Ctx func1 (Pil.CtxId 0)
+ctx = Ctx func1 (Pil.CtxId 0) False
 
 func1 :: Function
 func1 = Function

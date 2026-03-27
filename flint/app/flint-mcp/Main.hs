@@ -309,7 +309,10 @@ buildCommandString toolName args = case toolName of
             depthPart = maybe "" (" --depth " <>) (lookupArg "depth" args)
             countPart = maybe "" (" " <>) count
             addrPart = maybe "" (" @ " <>) addrs
-        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart
+            unrollPart = case lookupArg "unroll_loops" args of
+              Just "true" -> " --unrollLoops"
+              _ -> ""
+        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart <> unrollPart
 
   "show_paths" ->
     case lookupArg "path_ids" args of
@@ -437,13 +440,14 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "sample_paths"
-      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are handled via unrolling. Use --depth to auto-expand internal calls interprocedurally."
+      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are summarized into a single abstract iteration by default; use unroll_loops to get the old unrolling behavior for comparison. Use --depth to auto-expand internal calls interprocedurally."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x401000')")
               , ("count", InputSchemaDefinitionProperty "string" "Number of paths to sample (optional)")
               , ("addresses", InputSchemaDefinitionProperty "string" "Space-separated hex addresses that paths must pass through (optional)")
               , ("depth", InputSchemaDefinitionProperty "string" "Auto-expand internal calls N levels deep (optional, e.g. '2')")
+              , ("unroll_loops", InputSchemaDefinitionProperty "string" "Set to 'true' to use old loop unrolling instead of loop summarization (optional)")
               ]
           , required = ["function"]
           }

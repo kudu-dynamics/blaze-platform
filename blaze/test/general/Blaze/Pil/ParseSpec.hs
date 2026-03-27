@@ -73,14 +73,17 @@ spec = do
           Ctx
             (Function (Just (Symbol "f0" "f0")) "f0" (intToAddr 0x4000) [])
             (CtxId 0)
+            False
         ctx1 =
           Ctx
             (Function (Just (Symbol "f1" "f1")) "f1" (intToAddr 0x4001) [])
             (CtxId 1)
+            False
         ctx2 =
           Ctx
             (Function (Just (Symbol "f2" "f2")) "f2" (intToAddr 0x4002) [])
             (CtxId 2)
+            False
         ctxs = Bimap.fromList [(0, ctx0), (1, ctx1), (2, ctx2)]
         parserCtx = ParserCtx ctxs
     it "recognizes valid context indices" $ do

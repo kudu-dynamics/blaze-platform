@@ -750,7 +750,7 @@ convertAndGetTypeHints imp ctx pcodeOps = do
 
 getFuncStatementsFromRawPcode :: GhidraImporter -> Function -> CtxId -> IO [Either ConverterError (MappedStmt Address)]
 getFuncStatementsFromRawPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId
+  let ctx = Ctx func ctxId False
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
   let addrSpaceMap = gs ^. #addressSpaceMap
@@ -759,7 +759,7 @@ getFuncStatementsFromRawPcode imp@(GhidraImporter gs _ _) func ctxId = do
 
 getFuncStatementsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO [Either ConverterError (MappedStmt Address)]
 getFuncStatementsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId
+  let ctx = Ctx func ctxId False
       addr = func ^. #address
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
@@ -771,7 +771,7 @@ getFuncStatementsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
 
 getFuncStatementsWithTypeHintsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO ([Either ConverterError (MappedStmt Address)], TypeHints)
 getFuncStatementsWithTypeHintsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId
+  let ctx = Ctx func ctxId False
       addr = func ^. #address
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
@@ -785,7 +785,7 @@ getFuncStatementsWithTypeHintsFromHighPcode imp@(GhidraImporter gs _ _) func ctx
 {-
 getTypeHintsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO TypeHints
 getTypeHintsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId
+  let ctx = Ctx func ctxId False
       addr = func ^. #address
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
@@ -802,7 +802,7 @@ getCodeRefStatementsFromRawPcode
   -> CodeReference Address
   -> IO [Either ConverterError (MappedStmt Address)]
 getCodeRefStatementsFromRawPcode imp@(GhidraImporter gs _ _) ctxId ref = do
-  let ctx = Ctx (ref ^. #function) ctxId
+  let ctx = Ctx (ref ^. #function) ctxId False
       prg = gs ^. #program
       addrSpaceMap = gs ^. #addressSpaceMap
   pcodeOps <- runGhidraOrError $ do
@@ -820,7 +820,7 @@ getCodeRefStatementsFromHighPcode
 getCodeRefStatementsFromHighPcode imp@(GhidraImporter gs _ _) ctxId ref = do
   let fn = ref ^. #function
       addr = fn ^. #address
-      ctx = Ctx fn ctxId
+      ctx = Ctx fn ctxId False
       prg = gs ^. #program
   let addrSpaceMap = gs ^. #addressSpaceMap
   jfunc <- GCG.toGhidraFunction prg $ ref ^. #function

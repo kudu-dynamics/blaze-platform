@@ -149,6 +149,7 @@ inputGenesisAction st args = do
                 { mustReachSome = targets
                 , callExpandDepthLimit = 0
                 , numSamples = fromIntegral count
+                , unrollLoops = False
                 }
 
           (paths, samplingTime) <- timeIt $

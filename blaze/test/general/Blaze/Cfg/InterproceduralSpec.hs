@@ -55,13 +55,13 @@ callerCurrentCtxId :: CtxId
 callerCurrentCtxId = CtxId 0
 
 callerCtx :: Ctx
-callerCtx = Ctx callerFunc callerCurrentCtxId
+callerCtx = Ctx callerFunc callerCurrentCtxId False
 
 targetCurrentCtxId :: CtxId
 targetCurrentCtxId = CtxId 1
 
 targetCtx :: Ctx
-targetCtx = Ctx targetFunc targetCurrentCtxId
+targetCtx = Ctx targetFunc targetCurrentCtxId False
 
 callerCfg :: PilCfg
 callNode :: Cfg.CallNode [Pil.Stmt]

@@ -741,7 +741,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
       uuidClean <- randomIO
       uuidBbEnd <- randomIO
       let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" (intToAddr 0) []
-          lifeCtx = Pil.Ctx lifecycleFunc 0
+          lifeCtx = Pil.Ctx lifecycleFunc 0 False
           initDest = Pil.CallFunc initFunc
           cleanDest = Pil.CallFunc cleanupFunc
           callNodeInit
@@ -782,6 +782,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
               { callExpandDepthLimit = expandCallDepth + 1
               -- TODO: At some point, we should base the # samples on the size of func
               , numSamples = maxSamplesPerFunc
+              , unrollLoops = False
               }
           bms :: [BugMatch]
           bms = Pat.kernelModulePatterns
@@ -817,7 +818,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
       uuidClean <- randomIO
       uuidBbEnd <- randomIO
       let lifecycleFunc = Func.Function Nothing "_kernel_module_lifecycle" (intToAddr 0) []
-          lifeCtx = Pil.Ctx lifecycleFunc 0
+          lifeCtx = Pil.Ctx lifecycleFunc 0 False
           initDest = Pil.CallFunc initFunc
           cleanDest = Pil.CallFunc cleanupFunc
           callNodeInit
@@ -858,6 +859,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
               { callExpandDepthLimit = expandCallDepth + 1
               -- TODO: At some point, we should base the # samples on the size of func
               , numSamples = maxSamplesPerFunc
+              , unrollLoops = False
               }
           prims :: [Prim]
           --- TODO: add these kernel prims back in
@@ -1074,6 +1076,7 @@ onionSampleBasedOnFuncSize multiplier store func = CfgStore.getFuncCfgInfo store
         q = QueryExpandAll $ QueryExpandAllOpts
             { callExpandDepthLimit = 0
             , numSamples = numSamples
+            , unrollLoops = False
             }
     paths <- nub <$> samplesFromQuery store func q
     return $ Just paths

@@ -16,12 +16,13 @@ import Flint.Types.Cfg.Store (CfgStore, CfgInfo)
 import Flint.Util (incUUID, timeIt, samplingTimingEnabled, enableSamplingTiming, timingLog)
 
 import qualified Blaze.Cfg.Interprocedural as InterCfg
-import Blaze.Cfg.Path (PilPath, SequenceChooserState(..), UnrollLoopState(..), initSequenceChooserState, samplePathContainingSequence_, makeCfgAcyclic)
+import Blaze.Cfg.Path (PilPath, SequenceChooserState(..), initSequenceChooserState, samplePathContainingSequence_, makeCfgAcyclic)
 import qualified Blaze.Cfg.Path as CfgPath
+import qualified Blaze.Cfg.Path.LoopSampler as LoopSampler
 import Blaze.Graph (StrictDescendantsMap, Route)
 import qualified Blaze.Graph as G
 import qualified Blaze.Path as Path
-import Blaze.Path (SampleRandomPathError', VisitCounts(..), SeqAndVisitCounts(..), pickFromListFp)
+import Blaze.Path (SampleRandomPathError', VisitCounts(..), pickFromListFp)
 import Blaze.Pretty (pretty', FullCfNode(FullCfNode))
 import Blaze.Types.Function (Function)
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
@@ -139,10 +140,11 @@ exploreFromStartingFunc_ pickFromRange expansionChooser currentDepth store start
 expandAllStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
+  -> Bool                    -- ^ use old loop unrolling instead of summarization
   -> CfgStore
   -> UsedFuncsRef
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
-expandAllStrategy _pickFromRange expandDepthLimit store usedFuncsRef func currentDepth
+expandAllStrategy _pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef func currentDepth
   | currentDepth > expandDepthLimit = return Nothing
   | otherwise = do
       (mCfgInfo, cfgInfoTime) <- liftIO $ timeIt $ getSmartCfgInfo store usedFuncsRef func
@@ -157,14 +159,28 @@ expandAllStrategy _pickFromRange expandDepthLimit store usedFuncsRef func curren
             [] -> return Nothing -- TODO: shouldn't be error, should just snip
             (r:rs) -> do
               retNode <- pickFromList randomRIO $ r :| rs
-              let seqState = initSequenceChooserState [retNode]
-              (rpath, sampleTime) <- liftIO $ timeIt $ CfgPath.samplePathContainingSequenceIO
-                            (cfgInfo ^. #strictDescendantsMap)
-                            seqState rootNode (cfgInfo ^. #cfg)
+              (mpath, sampleTime) <- liftIO $ timeIt $
+                if useUnrollLoops
+                then do
+                  let seqState = initSequenceChooserState [retNode]
+                  result <- CfgPath.samplePathContainingSequenceIO
+                    (cfgInfo ^. #strictDescendantsMap)
+                    seqState rootNode (cfgInfo ^. #cfg)
+                  return $ case result of
+                    Left _ -> Nothing
+                    Right (p, _) -> Just p
+                else do
+                  result <- LoopSampler.sampleWithLoopSummarizationIO
+                    (cfgInfo ^. #strictDescendantsMap)
+                    [retNode] Path.emptyVisitCounts
+                    rootNode (cfgInfo ^. #cfg)
+                  return $ case result of
+                    Left _ -> Nothing
+                    Right (p, _) -> Just p
               liftIO . timingLog $ "[timing] samplePath (" <> func ^. #name <> "): " <> show sampleTime
-              case rpath of
-                Left _err -> return Nothing
-                Right (path, _sst) -> do
+              case mpath of
+                Nothing -> return Nothing
+                Just path -> do
                   let expCalls = fmap (ExpandCall (currentDepth + 1))
                                  . mapMaybe (^? #_Call)
                                  . HashSet.toList
@@ -206,12 +222,13 @@ pickFromList picker (x :| xs) = do
 expandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
+  -> Bool                    -- ^ use old loop unrolling instead of summarization
   -> CfgStore
   -> UsedFuncsRef
   -> HashSet Function
   -> NonEmpty Address
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
-expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets targets func currentDepth =
+expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef funcsThatLeadToTargets targets func currentDepth =
   if currentDepth > expandDepthLimit then
     return Nothing
   else liftIO (getSmartCfgInfo store usedFuncsRef func) >>= \case
@@ -246,24 +263,39 @@ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsT
                   retNode <- lift $ pickFromList pickFromRange (r :| rs)
                   return [targetNode, retNode]
             _ -> return [targetNode]
-          let seqState = initSequenceChooserState seqNodes
-          rpath <- liftIO $ CfgPath.samplePathContainingSequenceIO
-                        (cfgInfo ^. #strictDescendantsMap)
-                        seqState rootNode cfg
-          case rpath of
-            Left _err -> return Nothing
-            Right (path, _sst) -> return $ Just (path, expandLater)
+          mpath <- liftIO $
+            if useUnrollLoops
+            then do
+              let seqState = initSequenceChooserState seqNodes
+              result <- CfgPath.samplePathContainingSequenceIO
+                (cfgInfo ^. #strictDescendantsMap)
+                seqState rootNode cfg
+              return $ case result of
+                Left _ -> Nothing
+                Right (p, _) -> Just p
+            else do
+              result <- LoopSampler.sampleWithLoopSummarizationIO
+                (cfgInfo ^. #strictDescendantsMap)
+                seqNodes Path.emptyVisitCounts
+                rootNode cfg
+              return $ case result of
+                Left _ -> Nothing
+                Right (p, _) -> Just p
+          case mpath of
+            Nothing -> return Nothing
+            Just path -> return $ Just (path, expandLater)
 
 mkExpandToTargetsStrategy
   :: ((Int, Int) -> IO Int)
   -> CallDepth
+  -> Bool                    -- ^ use old loop unrolling instead of summarization
   -> CfgStore
   -> UsedFuncsRef
   -> NonEmpty (Function, Address)
   -> IO (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO)
-mkExpandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef targets = do
+mkExpandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef targets = do
   funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
-  return $ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
+  return $ expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
@@ -290,7 +322,7 @@ mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store usedFuncsRef p
     Just (y:ys) -> do
       let targets = fmap (\x -> (x ^. #caller, x ^. #address)) $ y :| ys
       funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
-      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
+      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit False store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
@@ -319,7 +351,7 @@ mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store usedFuncsRef prep
     Nothing -> return Nothing
     Just targets -> do
       funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
-      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
+      return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit False store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
     addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
     addAncestors s func = do
@@ -400,14 +432,14 @@ samplesFromQuery store startFunc = \case
   QueryTarget opts -> do
     let action = do
           usedFuncsRef <- liftIO $ newIORef HashMap.empty
-          strat <- liftIO $ mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) store usedFuncsRef (opts ^. #mustReachSome)
+          strat <- liftIO $ mkExpandToTargetsStrategy randomRIO (opts ^. #callExpandDepthLimit) (opts ^. #unrollLoops) store usedFuncsRef (opts ^. #mustReachSome)
           exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
   QueryExpandAll opts -> do
     let action = do
           usedFuncsRef <- liftIO $ newIORef HashMap.empty
-          let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) store usedFuncsRef
+          let strat = expandAllStrategy randomRIO (opts ^. #callExpandDepthLimit) (opts ^. #unrollLoops) store usedFuncsRef
           exploreForward_ incUUID' strat 0 startFunc
     collectSamples (opts ^. #numSamples) action
 
@@ -599,14 +631,11 @@ sampleSinglePathWithVisitCounts store func visitCounts =
         [] -> return Nothing
         (r:rs) -> do
           retNode <- pickFromList randomRIO $ r :| rs
-          let seqState = SequenceChooserState
-                (SeqAndVisitCounts [retNode] visitCounts)
-                (UnrollLoopState HashMap.empty HashSet.empty)
-          rpath <- CfgPath.samplePathContainingSequenceIO
+          rpath <- LoopSampler.sampleWithLoopSummarizationIO
                         (cfgInfo ^. #strictDescendantsMap)
-                        seqState rootNode (cfgInfo ^. #cfg)
+                        [retNode] visitCounts
+                        rootNode (cfgInfo ^. #cfg)
           case rpath of
             Left _err -> return Nothing
-            Right (path, sst) ->
-              let updatedVisitCounts = sst ^. #seqAndVisitCounts . #visitCounts
-              in return $ Just (path, updatedVisitCounts)
+            Right (path, updatedVisitCounts) ->
+              return $ Just (path, updatedVisitCounts)

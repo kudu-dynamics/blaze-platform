@@ -101,6 +101,7 @@ library:
   - Blaze.Cfg.Loop
   - Blaze.CfgDot
   - Blaze.Cfg.Path
+  - Blaze.Cfg.Path.LoopSampler
   - Blaze.Cfg.Path.Solver
   - Blaze.Cfg.Solver.BranchContext
   - Blaze.Cfg.Solver.General

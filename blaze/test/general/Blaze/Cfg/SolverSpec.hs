@@ -56,10 +56,10 @@ targetFunc = Function
   }
 
 callerCtx :: Ctx
-callerCtx = Ctx callerFunc 0
+callerCtx = Ctx callerFunc 0 False
 
 targetCtx :: Ctx
-targetCtx = Ctx targetFunc 1
+targetCtx = Ctx targetFunc 1 False
 
 spec :: Spec
 spec = describe "Blaze.Cfg.Solver" $ do

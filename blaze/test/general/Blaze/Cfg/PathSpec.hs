@@ -62,7 +62,7 @@ bbn :: Text -> CfNode Text
 bbn name = bb ctx x x name
   where
     func = Function Nothing "foo" (intToAddr 0) []
-    ctx = Ctx func 0
+    ctx = Ctx func 0 False
     x = intToAddr . fromIntegral . hash $ name
 
 cfgSingleNode :: Cfg (CfNode Text)
@@ -252,7 +252,7 @@ func0ctx :: (CtxId -> Ctx)
   )
   where
     mkCtx :: CtxId -> Ctx
-    mkCtx = Ctx func0
+    mkCtx ctxId_ = Ctx func0 ctxId_ False
     [x, y, r1, r2] = (\t ctxId -> pilVar' (mkCtx ctxId) t) <$> ["x", "y", "r1", "r2"]
     bb0 i = bbp (mkCtx i) "bb0"
       [ C.def' (x i) $ C.const 54 0x8
@@ -283,7 +283,7 @@ func1ctx :: (CtxId -> Ctx)
   )
   where
     mkCtx :: CtxId -> Ctx
-    mkCtx = Ctx func1
+    mkCtx ctxId_ = Ctx func1 ctxId_ False
     [x, y, r] = (\t ctxId -> pilVar' (mkCtx ctxId) t) <$> ["x", "y", "r"]
     bb0 i = bbp (mkCtx i) "bb0"
       [ C.def' (x i) $ C.const 54 0x8
@@ -314,7 +314,7 @@ func2ctx :: (CtxId -> Ctx)
   )
   where
     mkCtx :: CtxId -> Ctx
-    mkCtx = Ctx func2
+    mkCtx ctxId_ = Ctx func2 ctxId_ False
     [arg1, arg2, x, r, z] = (\t ctxId -> pilVar' (mkCtx ctxId) t) <$> ["arg1", "arg2", "x", "r", "z"]
     bb0 i = bbp (mkCtx i) "bb0"
       [ C.branchCond $ C.cmpSlt (C.var' (arg1 i) 8) (C.var' (arg2 i) 8) 8
@@ -341,7 +341,7 @@ func3ctx :: (CtxId -> Ctx)
   )
   where
     mkCtx :: CtxId -> Ctx
-    mkCtx = Ctx func3
+    mkCtx ctxId_ = Ctx func3 ctxId_ False
     [arg1, x] = (\t ctxId -> pilVar' (mkCtx ctxId) t) <$> ["arg1", "x"]
     bb0 i = bbp (mkCtx i) "bb0"
       [ C.def' (x i) $ C.add (C.var' (arg1 i) 8) (C.var' (arg1 i) 8)  8
@@ -358,7 +358,7 @@ func3ctxNoRet :: (CtxId -> Ctx)
   )
   where
     mkCtx :: CtxId -> Ctx
-    mkCtx = Ctx func3
+    mkCtx ctxId_ = Ctx func3 ctxId_ False
     [arg1, x] = (\t ctxId -> pilVar' (mkCtx ctxId) t) <$> ["arg1", "x"]
     bb0 i = bbp (mkCtx i) "bb0"
       [ C.def' (x i) $ C.add (C.var' (arg1 i) 8) (C.var' (arg1 i) 8)  8
@@ -423,7 +423,7 @@ func5ctx :: Ctx
   )
   where
     ctx :: Ctx
-    ctx = Ctx func5 0
+    ctx = Ctx func5 0 False
     [arg1, arg2, x, r0, r1, r2, i0, i1, i2, rax] = (\t loopUseCount -> C.pilVar' 8 ctx $ updatePilVarName_ loopUseCount t) <$> ["arg1", "arg2", "x", "r0", "r1", "r2", "i0", "i1", "i2", "rax"]
     bb1 = bbp' ctx "bb1"
       [ C.def' (x 0) (C.var' (arg1 0) 8)
@@ -866,7 +866,7 @@ spec = describe "Blaze.Cfg.Path" $ do
   context "updatePossiblyLoopingNode" $ do
     it "should add unvisited defined vars in unvisted node to state " $ do
       let newUuid = return $ mkUuid1 (88 :: Int)
-          node = bbp (Ctx func0 0) "loopnode0"
+          node = bbp (Ctx func0 0 False) "loopnode0"
                  [ C.def' (C.pilVar 0x8 "x") $ C.const 778 0x8
                  , C.def' (C.pilVar 0x8 "y") $ C.const 8888 0x8
                  ]
@@ -886,7 +886,7 @@ spec = describe "Blaze.Cfg.Path" $ do
 
     it "should change names of visited vars in unvisited node" $ do
       let newUuid = return $ mkUuid1 (88 :: Int)
-          node = bbp (Ctx func0 0) "loopnode0"
+          node = bbp (Ctx func0 0 False) "loopnode0"
                  [ C.store (C.var' (C.pilVar 0x8 "x") 0x8) $ C.var' (C.pilVar 0x8 "y") 0x8
                  ]
           st = UnrollLoopState

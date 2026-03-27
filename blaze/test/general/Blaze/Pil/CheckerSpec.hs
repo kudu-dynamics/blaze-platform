@@ -333,7 +333,7 @@ spec = describe "Blaze.Pil.Checker" $ do
   context "getRootFunctionParamInfo" $ do
     let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.Unknown ]
         ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" (intToAddr 0xf00) params
-        ctx = Ctx ctxFunc 0
+        ctx = Ctx ctxFunc 0 False
         paramInfo = getRootFunctionParamInfo ctx
         callTarget = Pil.CallTarget { dest = Pil.CallFunc ctxFunc }
         expected = RootFunctionParamInfo
@@ -348,7 +348,7 @@ spec = describe "Blaze.Pil.Checker" $ do
   context "addAllConstraints" $ do
     let params = [ Func.FuncParamInfo $ Func.ParamInfo "arg1" Nothing Func.Unknown ]
         ctxFunc = Function (Just $ BA.Symbol "foo" "foo") "foo" (intToAddr 0xf00) params
-        ctx = Ctx ctxFunc 0
+        ctx = Ctx ctxFunc 0 False
         pvX = pilVar' 8 ctx "x"
         pvArg1 = pilVar' 8 ctx "arg1"
         rootFuncParamInfo = getRootFunctionParamInfo ctx

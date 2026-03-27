@@ -18,7 +18,7 @@ ia :: Int64 -> Address
 ia = intToAddr
 
 ctx :: Ctx
-ctx = Ctx func 0
+ctx = Ctx func 0 False
   where
     func = Function Nothing "foo" (ia 0x00) []
 
