@@ -30,11 +30,15 @@ getXrefsTo imp@(GhidraImporter gs _ _) addr = do
     case mJFunc of
       Nothing -> return Nothing
       Just jfunc -> do
-        isExt <- runGhidraOrError $ GFunc.isExternal jfunc
+        -- Resolve thunks: if the containing function is a thunk,
+        -- attribute the xref to the real (dethunked) function so it
+        -- matches what's in the CfgStore function list.
+        dethunkedJFunc <- runGhidraOrError $ GFunc.resolveThunk jfunc
+        isExt <- runGhidraOrError $ GFunc.isExternal dethunkedJFunc
         if isExt
           then return Nothing
           else do
-            func <- mkInternalFunc imp jfunc
+            func <- mkInternalFunc imp dethunkedJFunc
             return $ Just Xref
               { Xref.function = func
               , Xref.address = convertAddress fromAddr
