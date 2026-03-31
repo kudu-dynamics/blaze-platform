@@ -21,3 +21,7 @@ class BinaryImporter a where
   getOriginalBinaryPath :: a -> IO FilePath
   -- | Returns a map of addresses to their string contents from the binary.
   getStringsMap :: a -> IO (HashMap Address Text)
+  -- | Inspect the raw instruction and P-code at a given address.
+  -- Returns Nothing if the address doesn't contain an instruction.
+  inspectAddress :: a -> Address -> IO (Maybe Text)
+  inspectAddress _ _ = return Nothing

@@ -17,6 +17,7 @@ import Flint.Shell.Commands.TypeCheck (typecheckCommand)
 import Flint.Shell.Commands.Strings (stringsCommand, stringXrefsCommand)
 import Flint.Shell.Commands.Xrefs (functionsCallingCommand)
 import Flint.Shell.Commands.Input (inputGenesisCommand)
+import Flint.Shell.Commands.Inspect (inspectCommand, saveCommand)
 
 import qualified Data.Text as Text
 import System.Console.Haskeline
@@ -42,6 +43,8 @@ allCommands =
   , stringsCommand
   , stringXrefsCommand
   , inputGenesisCommand
+  , inspectCommand
+  , saveCommand
   ]
 
 runShell :: ShellState -> IO ()

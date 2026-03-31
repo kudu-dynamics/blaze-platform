@@ -1,5 +1,11 @@
 # Blaze Platform
 
+## Version 0.26.0330
+- Fix target sampling (`sample func @ 0xaddr`) failing when xref addresses point to raw instructions folded into high P-code CALL operations by the decompiler
+- BasicBlock address ranges now extend to cover all raw instruction addresses via varnode `pcAddress` fields (`mkCfNodePcodeBlock`) and gap-filling after call splitting (`inheritOrigBounds`)
+- Acyclic `StrictDescendantsMap` cache in `CfgStore` — used by `expandToTargetsStrategy` so the loop sampler's `filterReachable` doesn't claim nodes are reachable through back edges it won't follow
+- `inspect` shell command and `inspect_address` MCP tool — shows raw instruction, Ghidra basic block range, and P-code at any address (`Ghidra.Inspect` module, `BinaryImporter.inspectAddress` typeclass method)
+
 ## Version 0.26.0327b
 - Fix xrefs reporting thunk functions that don't exist in the function list — resolve thunks in string xrefs and follow thunks for internal function call sites (not just externs)
 - Remove `tryResolveAsExternThunk` heuristic that misclassified default-named functions (e.g. `FUN_0042b904`) as externs if they called any extern; trust Ghidra's `isThunk` instead

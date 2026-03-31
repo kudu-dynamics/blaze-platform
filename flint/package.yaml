@@ -163,6 +163,7 @@ library:
   - Flint.Shell.Commands.TypeCheck
   - Flint.Shell.Commands.Xrefs
   - Flint.Shell.Commands.Input
+  - Flint.Shell.Commands.Inspect
   - Flint.Shell.Repl
 
 executables:

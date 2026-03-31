@@ -30,6 +30,7 @@ TODO: make this into sqlite db
 data CfgStore = CfgStore
   { cfgCache :: CachedCalc Function (Maybe CfgInfo)
   , acyclicCfgCache :: CachedCalc Function (Maybe PilCfg)
+  , acyclicDescendantsCache :: CachedCalc Function (Maybe (StrictDescendantsMap PilNode))
   , ancestorsCache :: CachedCalc Func (HashSet Func)
   , descendantsCache :: CachedCalc Func (HashSet Func)
   , funcs :: CachedCalc () [Func] -- result of `getFunctions` from CallGraph importer

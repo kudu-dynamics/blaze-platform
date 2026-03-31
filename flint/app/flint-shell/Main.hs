@@ -10,7 +10,7 @@ import qualified Flint.Cfg.Store as Store
 import Flint.Shell.Types (initShellState)
 import Flint.Shell.Repl (runShell)
 
-import Blaze.Import.Binary (getBase)
+import Blaze.Import.Binary (getBase, inspectAddress, saveToDb)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -107,7 +107,7 @@ main = do
     typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
     (store, _funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
     base <- getBase imp
-    shellState <- initShellState store base (not $ opts ^. #doNotUseSolver)
+    shellState <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)
     putText "Flint interactive shell. Type 'help' for available commands."
     runShell shellState
   where

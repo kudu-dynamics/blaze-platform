@@ -98,6 +98,8 @@ data ShellState = ShellState
   , useSolver   :: IORef Bool
   , baseOffset  :: Address
   , pathTags    :: IORef (HashMap PathId Text, HashMap Text PathId)
+  , inspectAddr :: Maybe (Address -> IO (Maybe Text))
+  , saveToDb    :: Maybe (FilePath -> IO (Either Text FilePath))
   } deriving (Generic)
 
 data CommandResult
@@ -113,8 +115,12 @@ data CommandResult
   | ResultError Text
   deriving (Eq, Show, Generic)
 
-initShellState :: CfgStore -> Address -> Bool -> IO ShellState
-initShellState store base solver = do
+initShellState
+  :: CfgStore -> Address -> Bool
+  -> Maybe (Address -> IO (Maybe Text))
+  -> Maybe (FilePath -> IO (Either Text FilePath))
+  -> IO ShellState
+initShellState store base solver mInspect mSave = do
   cache <- newIORef HashMap.empty
   nextId <- newIORef 0
   solverRef <- newIORef solver
@@ -126,6 +132,8 @@ initShellState store base solver = do
     , useSolver = solverRef
     , baseOffset = base
     , pathTags = tags
+    , inspectAddr = mInspect
+    , saveToDb = mSave
     }
 
 allocPathId :: ShellState -> IO PathId

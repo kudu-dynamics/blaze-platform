@@ -10,6 +10,7 @@ module Flint.Shell.Commands.Paths
   , findFunction
   , expandPathToDepth
   , parseDepthArg
+  , parseAddress
   ) where
 
 import Flint.Prelude

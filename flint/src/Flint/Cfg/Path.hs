@@ -274,8 +274,10 @@ expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store used
                 Left _ -> Nothing
                 Right (p, _) -> Just p
             else do
+              mAcyclicDmap <- CfgStore.getAcyclicDescendantsMap store func
+              let dmap = fromMaybe (cfgInfo ^. #strictDescendantsMap) mAcyclicDmap
               result <- LoopSampler.sampleWithLoopSummarizationIO
-                (cfgInfo ^. #strictDescendantsMap)
+                dmap
                 seqNodes Path.emptyVisitCounts
                 rootNode cfg
               return $ case result of

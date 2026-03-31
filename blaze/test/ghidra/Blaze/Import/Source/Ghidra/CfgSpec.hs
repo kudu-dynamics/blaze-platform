@@ -9,16 +9,38 @@ import Blaze.Prelude hiding (Symbol)
 import Blaze.Import.CallGraph (CallGraphImporter (getFunctions))
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Cfg as Cfg
-import Blaze.Types.Cfg (CfNode)
+import Blaze.Types.Cfg (CfNode(..))
 import qualified Blaze.Import.Source.Ghidra as G
 import Blaze.Import.Source.Ghidra.Cfg (getRawPcodeCfg, getHighPcodeCfg, getPilCfgFromRawPcode, getPilCfgFromHighPcode)
 
 import qualified Data.HashSet as HashSet
+import qualified Data.List as List
 import Test.Hspec
 
 
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
+
+-- | Get (start, end) ranges for all BasicBlock nodes in a CFG.
+bbRanges :: (Hashable a) => Cfg.Cfg (CfNode a) -> [(Address, Address)]
+bbRanges cfg =
+  [ (bb ^. #start, bb ^. #end)
+  | BasicBlock bb <- HashSet.toList . Cfg.nodes $ cfg
+  ]
+
+-- | Check that an address is covered by some node in the CFG.
+-- BasicBlocks use range check, Call nodes use the Cfg.nodeContainsAddress check.
+addrCoveredByNode :: (Hashable a) => Cfg.Cfg (CfNode a) -> Address -> Bool
+addrCoveredByNode cfg addr =
+  any (Cfg.nodeContainsAddress addr) . HashSet.toList . Cfg.nodes $ cfg
+
+-- | Get all statement addresses from a raw P-code CFG's BasicBlock nodes.
+rawBBStmtAddrs :: (Hashable a) => Cfg.Cfg (CfNode [(Address, a)]) -> [Address]
+rawBBStmtAddrs cfg =
+  [ addr
+  | BasicBlock bb <- HashSet.toList . Cfg.nodes $ cfg
+  , (addr, _) <- bb ^. #nodeData
+  ]
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
@@ -65,3 +87,19 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
 
       it "should import Cfgs for all functions without crashing" $ do
         sort nodeCounts `shouldBe` expected
+
+    context "BasicBlock address ranges in PIL CFG" $ do
+      let removeDive = List.find (\f -> f ^. #name == "cgc_RemoveDive") funcs
+
+      it "BasicBlock ranges should cover xref addresses folded into calls in cgc_RemoveDive" $ do
+        let func = fromJust removeDive
+            addrSpace = func ^. #address . #space
+            mkAddr n = intToAddr n & #space .~ addrSpace
+        pilCfg <- view #result . fromJust <$> getPilCfgFromHighPcode imp func 0
+        let ranges = bbRanges pilCfg
+        -- 0x804d509 and 0x804d518: LEA instructions loading the string argument
+        -- for cgc_SelectDive, folded into the CALL by the decompiler
+        length ranges `shouldSatisfy` (> 0)
+        addrCoveredByNode pilCfg (mkAddr 0x804d509) `shouldBe` True
+        addrCoveredByNode pilCfg (mkAddr 0x804d518) `shouldBe` True
+
