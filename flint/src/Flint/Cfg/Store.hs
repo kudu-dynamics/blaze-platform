@@ -91,6 +91,7 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   store <- CfgStore
     <$> atomically CC.create
     <*> atomically CC.create -- acyclicCfgCache
+    <*> atomically CC.create -- acyclicDescendantsCache
     <*> atomically CC.create
     <*> atomically CC.create
     <*> atomically CC.create
@@ -180,6 +181,12 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
       getFuncCfgInfo store func >>= \case
         Nothing -> return Nothing
         Just cfgInfo -> return . Just . makeCfgAcyclic $ cfgInfo ^. #cfg
+
+    -- Set up lazy acyclic descendants map computation
+    CC.setCalc func (store ^. #acyclicDescendantsCache) $
+      getAcyclicCfg store func >>= \case
+        Nothing -> return Nothing
+        Just acfg -> return . Just . calcStrictDescendantsMap $ acfg
 
   -- When profiling is enabled, force call graph computation eagerly so it's timed
   whenM (readIORef samplingTimingEnabled) $
@@ -468,6 +475,11 @@ getOffsetFuncCfgInfo store func n = getFuncCfgInfo store func >>= \case
 -- | Gets the acyclic CFG for a function from the cache.
 getAcyclicCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
 getAcyclicCfg store func = join <$> CC.get func (store ^. #acyclicCfgCache)
+
+-- | Gets the strict descendants map computed from the acyclic CFG.
+-- This is the correct map to use with LoopSampler, which doesn't follow back edges.
+getAcyclicDescendantsMap :: CfgStore -> Function -> IO (Maybe (StrictDescendantsMap PilNode))
+getAcyclicDescendantsMap store func = join <$> CC.get func (store ^. #acyclicDescendantsCache)
 
 -- | Gets the acyclic CFG with fresh random UUIDs.
 getFreshAcyclicCfg :: CfgStore -> Function -> IO (Maybe PilCfg)

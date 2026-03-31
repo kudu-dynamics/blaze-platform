@@ -83,6 +83,12 @@ getFuncCfgInfo store' name = do
     Just func -> Store.getFuncCfgInfo store' func
 
 
+-- | Get the address space from a node (for constructing test addresses)
+getNodeSpace :: Cfg.PilNode -> Maybe AddressSpace
+getNodeSpace (Cfg.BasicBlock bb) = Just $ bb ^. #start . #space
+getNodeSpace (Cfg.Call cn) = Just $ cn ^. #start . #space
+getNodeSpace _ = Nothing
+
 -- | Get all node start addresses from a CfgInfo (cyclic CFG)
 cfgNodeAddresses :: CfgInfo -> [Address]
 cfgNodeAddresses cfgInfo =
@@ -239,6 +245,32 @@ spec = do
               , unrollLoops = False
               }
           length targetPaths `shouldSatisfy` (> 0)
+
+      it "should find nodes for xref addresses folded into calls in cgc_RemoveDive" $ \tctx -> do
+        -- 0x804d509 and 0x804d518 are string xref addresses in cgc_RemoveDive.
+        -- They are LEA instructions that load the string address for cgc_SelectDive's
+        -- second argument. The decompiler folds them into the CALL, so the PIL has no
+        -- statement at these addresses. The BasicBlock's range must cover them.
+        mcfgInfo <- getFuncCfgInfo (tctx ^. #store) "cgc_RemoveDive"
+        let cfgInfo = fromJust mcfgInfo
+            addrSpace = expectHead . mapMaybe getNodeSpace . HashSet.toList . Cfg.nodes $ cfgInfo ^. #cfg
+            mkAddr offset = intToAddr offset & #space .~ addrSpace
+        canFindNodeForAddress cfgInfo (mkAddr 0x804d509) `shouldBe` True
+        canFindNodeForAddress cfgInfo (mkAddr 0x804d518) `shouldBe` True
+
+      it "should sample paths through xref address 0x804d509 in cgc_RemoveDive" $ \tctx -> do
+        mfunc <- findFunc (tctx ^. #store) "cgc_RemoveDive"
+        let func = fromJust mfunc
+            addrSpace = func ^. #address . #space
+            targetAddr = intToAddr 0x804d509 & #space .~ addrSpace
+        targetPaths <- samplesFromQuery (tctx ^. #store) func
+          $ QueryTarget $ QueryTargetOpts
+            { mustReachSome = (func, targetAddr) :| []
+            , callExpandDepthLimit = 0
+            , numSamples = 5
+            , unrollLoops = False
+            }
+        length targetPaths `shouldSatisfy` (> 0)
 
       it "address space must match for node lookup (32-bit binary)" $ \tctx -> do
         mcfgInfo <- getFuncCfgInfo (tctx ^. #store) "cgc_SetParam"

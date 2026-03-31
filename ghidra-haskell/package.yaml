@@ -83,6 +83,7 @@ library:
     - Ghidra.Function
     - Ghidra.Clang
     - Ghidra.GhidraDataTypes
+    - Ghidra.Inspect
     - Ghidra.Instruction
     - Ghidra.Pcode
     - Ghidra.PcodeBlock

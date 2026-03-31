@@ -12,7 +12,7 @@ import Flint.Shell.Types (ShellState, CommandResult(..), initShellState)
 import Flint.Shell.Command (dispatchCommand)
 import Flint.Shell.Repl (allCommands)
 
-import Blaze.Import.Binary (getBase)
+import Blaze.Import.Binary (getBase, inspectAddress, saveToDb)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -226,7 +226,7 @@ loadBinary mcpSt fp = do
           typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
           (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
           base <- getBase imp
-          st <- initShellState store base (not $ opts ^. #doNotUseSolver)
+          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)
           writeIORef (mcpSt ^. #shellStateRef) (Just st)
           SIO.hPutStrLn stderr $ "Binary loaded: " <> fp
           putMVar readyMVar (Right ())
@@ -389,6 +389,16 @@ buildCommandString toolName args = case toolName of
     case lookupArg "path_ids" args of
       Nothing -> Left "Missing required parameter: path_ids"
       Just pids -> Right $ "typecheck " <> pids
+
+  "inspect_address" ->
+    case lookupArg "address" args of
+      Nothing -> Left "Missing required parameter: address"
+      Just addr -> Right $ "inspect " <> addr
+
+  "save_binary" ->
+    case lookupArg "file_path" args of
+      Nothing -> Left "Missing required parameter: file_path"
+      Just fp -> Right $ "save " <> fp
 
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
@@ -625,6 +635,28 @@ toolDefinitions =
               [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to type-check (e.g. '0 1 2', '0..5')")
               ]
           , required = ["path_ids"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "inspect_address"
+      , toolDefinitionDescription = "Inspect the raw instruction and P-code at a given address. Shows the assembly instruction, which Ghidra basic block contains it, and the raw P-code operations. Useful for understanding how binary addresses map to the PIL IR."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("address", InputSchemaDefinitionProperty "string" "Hex address to inspect (e.g. '0x804d509')")
+              ]
+          , required = ["address"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "save_binary"
+      , toolDefinitionDescription = "Save the currently loaded binary as a .gzf file. This is a serialized Ghidra database that can be loaded later without needing the original binary or Ghidra analysis."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("file_path", InputSchemaDefinitionProperty "string" "Output file path (e.g. '/tmp/binary.gzf'). A .gzf extension is added if not present.")
+              ]
+          , required = ["file_path"]
           }
       , toolDefinitionTitle = Nothing
       }

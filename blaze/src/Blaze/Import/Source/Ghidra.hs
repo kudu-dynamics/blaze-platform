@@ -18,6 +18,7 @@ import Ghidra.Core (runGhidraOrError, stopJVMIfRunning)
 import Ghidra.Program qualified as GProg
 import Ghidra.State qualified as GState
 import Ghidra.Address qualified as GAddr
+import qualified Ghidra.Inspect as GInspect
 
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
@@ -82,6 +83,9 @@ instance BinaryImporter GhidraImporter where
     return $ cs binPath
 
   getStringsMap = return . view #stringsMap
+
+  inspectAddress (GhidraImporter gs _ _) addr =
+    runGhidraOrError $ GInspect.inspectAddress gs addr
 
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction

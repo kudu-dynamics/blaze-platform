@@ -193,7 +193,19 @@ mkCfNodePcodeBlock getPcode ctx pb = do
   pcode <- getPcode pb
   startAddr <- runGhidraOrError $ convertAddress <$> PB.getStart pb
   endAddr <- runGhidraOrError $ convertAddress <$> PB.getStop pb
-  return . BasicBlock $ BasicBlockNode ctx startAddr endAddr uuid pcode
+  -- Extend the block's address range to cover all raw instruction addresses
+  -- that the decompiler folded into high P-code operations (e.g. call argument
+  -- setup instructions whose addresses precede or follow the high P-code op's
+  -- own address). Each HighVarNode carries a pcAddress indicating which raw
+  -- instruction defined it.
+  let (startAddr', endAddr') = foldl' extendRange (startAddr, endAddr)
+        [ convertAddress a
+        | (_, op) <- pcode
+        , vn <- toList op
+        , Just a <- [vn ^. #pcAddress]
+        ]
+      extendRange (!lo, !hi) addr = (min lo addr, max hi addr)
+  return . BasicBlock $ BasicBlockNode ctx startAddr' endAddr' uuid pcode
 
 mkCfEdgeFromPcodeBlockEdge :: (PB.BranchType, (a, a)) -> CfEdge a
 mkCfEdgeFromPcodeBlockEdge (bt, edges) = Cfg.fromTupleEdge $ case bt of
@@ -309,13 +321,18 @@ splitCallsInCfg ctx cfg = foldM splitAndReplace cfg . Cfg.nodes $ cfg
         return $ Cfg.substNode cfg' node splitCfg $ NEList.last allNodesNE
 
 -- | Splits basic blocks that have calls. Returns Nothing if no change was made.
+-- When splitting, the first sub-node inherits the original BasicBlock's start
+-- address, and the last sub-node inherits its end address. This preserves the
+-- full address range, preventing gaps where raw instruction addresses (e.g. call
+-- argument setup) got folded into the CALL by the decompiler's high P-code.
 splitNodeOnCalls
   :: Ctx
   -> CfNode [Pil.Stmt]
   -> IO (Maybe (NonEmpty (CfNode [Pil.Stmt])))
 splitNodeOnCalls ctx' cnode = do
   xs <- groupNodes . fmap isCallOrNot . Cfg.getNodeData $ cnode
-  return $ case xs of
+  let xs' = inheritOrigBounds cnode xs
+  return $ case xs' of
     [] -> Nothing
     -- There's an 'if' and `==` here because an input CfNode could have a single
     -- call instr and thus be changed into a CallNode.
@@ -361,6 +378,28 @@ splitNodeOnCalls ctx' cnode = do
 
     isCallOrNot :: Pil.Stmt -> Either Pil.Stmt Pil.CallStatement
     isCallOrNot stmt = maybe (Left stmt) Right $ Pil.mkCallStatement stmt
+
+-- | After splitting a BasicBlock into sub-nodes, ensure every raw instruction
+-- address from the original block is covered. Each BasicBlock is extended to
+-- span from the previous node's start address to the next node's start address
+-- (or the original block's start/end for the first/last node). This handles
+-- raw instructions folded into CALL arguments (before) or return-value handling
+-- (after) by the decompiler.
+inheritOrigBounds :: CfNode a -> [CfNode a] -> [CfNode a]
+inheritOrigBounds (Cfg.BasicBlock origBB) nodes =
+  zipWith adjust nodes (zip loBounds hiBounds)
+  where
+    origStart = origBB ^. #start
+    origEnd = origBB ^. #end
+    starts = mapMaybe nodeStart nodes
+    loBounds = origStart : starts
+    hiBounds = drop 1 starts <> [origEnd]
+    nodeStart (Cfg.BasicBlock bb) = Just $ bb ^. #start
+    nodeStart (Cfg.Call cn) = Just $ cn ^. #start
+    nodeStart _ = Nothing
+    adjust (Cfg.BasicBlock bb) (lo, hi) = Cfg.BasicBlock $ bb & #start %~ min lo & #end %~ max hi
+    adjust n _ = n
+inheritOrigBounds _ nodes = nodes
 
 getPilCfg
   :: (IsVariable a, Show a)
