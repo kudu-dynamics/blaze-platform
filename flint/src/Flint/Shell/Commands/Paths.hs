@@ -239,16 +239,13 @@ samplePaths st allArgs' = do
                   _ <- evaluate (length s)
                   return s
                 (prep, expandTime) <- timeIt $ do
-                  let p = mkPathPrep [] stmts
+                  tps <- getAllTaintPropagators st
+                  let p = mkPathPrep tps stmts
                   _ <- evaluate (length $ p ^. #stmts)
                   return p
                 let reducedStmts = asStmts $ prep ^. #stmts
-                pid <- insertPath st CachedPath
-                  { pilPath = stmts
-                  , fullPath = path
-                  , sourceFunc = func
-                  , pathPrep = Just prep
-                  }
+                cp <- mkCachedPath st stmts path func (Just prep)
+                pid <- insertPath st cp
                 timingLog $ "[timing] path " <> show pid <> ": toStmts=" <> show toStmtsTime
                   <> " (" <> show (length stmts) <> " raw stmts)"
                   <> ", aggressiveExpand=" <> show expandTime
@@ -490,15 +487,12 @@ doExpansions st outerPid outerCp callNode innerPilPaths = do
     case mExpanded of
       Nothing -> return $ Left "Expansion failed (call node not found in path)"
       Just expandedPath -> do
+        tps <- getAllTaintPropagators st
         let stmts = Path.toStmts expandedPath
-            prep = mkPathPrep [] stmts
+            prep = mkPathPrep tps stmts
             reducedStmts = asStmts $ prep ^. #stmts
-        pid <- insertPath st CachedPath
-          { pilPath = stmts
-          , fullPath = expandedPath
-          , sourceFunc = outerFunc
-          , pathPrep = Just prep
-          }
+        cp <- mkCachedPath st stmts expandedPath outerFunc (Just prep)
+        pid <- insertPath st cp
         let summary = "path " <> show pid
               <> " (" <> show (length reducedStmts) <> " stmts"
               <> ", expanded from path " <> show outerPid <> ")"

@@ -163,6 +163,9 @@ library:
   - Flint.Shell.Commands.TypeCheck
   - Flint.Shell.Commands.Xrefs
   - Flint.Shell.Commands.Input
+  - Flint.Shell.Commands.Taint
+  - Flint.Shell.Commands.PrimDef
+  - Flint.Shell.Commands.StdLib
   - Flint.Shell.Commands.Inspect
   - Flint.Shell.Repl
 

@@ -220,6 +220,7 @@ loadBinary mcpSt fp = do
       shutdownMVar <- newEmptyMVar :: IO (MVar ())
 
       SIO.hPutStrLn stderr $ "Loading " <> fp <> "..."
+      setVerbosity VDebug
 
       _ <- forkIO $
         withBackend (opts ^. #backend) fp (\imp -> do
@@ -399,6 +400,49 @@ buildCommandString toolName args = case toolName of
     case lookupArg "file_path" args of
       Nothing -> Left "Missing required parameter: file_path"
       Just fp -> Right $ "save " <> fp
+
+  -- prim-def commands
+  "prim_def" ->
+    case lookupArg "definition" args of
+      Nothing -> Left "Missing required parameter: definition"
+      Just def' -> Right $ "prim-def " <> def'
+
+  "prim_list" -> Right "prim-list"
+
+  "prim_remove" ->
+    case lookupArg "name" args of
+      Nothing -> Left "Missing required parameter: name"
+      Just name -> Right $ "prim-remove " <> name
+
+  "prim_reset" -> Right "prim-reset"
+
+  -- taint commands
+  "taint_add" ->
+    case lookupArg "command" args of
+      Nothing -> Left "Missing required parameter: command"
+      Just cmd -> Right $ "taint-add " <> cmd
+
+  "taint_list" -> Right "taint-list"
+
+  "taint_remove" ->
+    case lookupArg "function" args of
+      Nothing -> Left "Missing required parameter: function"
+      Just func -> Right $ "taint-remove " <> func
+
+  "taint_reset" -> Right "taint-reset"
+
+  -- stdlib commands
+  "stdlib_add" ->
+    case lookupArg "command" args of
+      Nothing -> Left "Missing required parameter: command"
+      Just cmd -> Right $ "stdlib-add " <> cmd
+
+  "stdlib_list" -> Right "stdlib-list"
+
+  "stdlib_remove" ->
+    case lookupArg "function" args of
+      Nothing -> Left "Missing required parameter: function"
+      Just func -> Right $ "stdlib-remove " <> func
 
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
@@ -657,6 +701,120 @@ toolDefinitions =
               [ ("file_path", InputSchemaDefinitionProperty "string" "Output file path (e.g. '/tmp/binary.gzf'). A .gzf extension is added if not present.")
               ]
           , required = ["file_path"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  -- prim-def commands
+  , ToolDefinition
+      { toolDefinitionName = "prim_def"
+      , toolDefinitionDescription = "Define a custom WMI vulnerability primitive using the prim-def DSL. The pattern can then be checked against paths with check_wmi. Syntax: 'Name { stmt ; stmt ; ... }' where statements can be: '* ' (wildcard), 'label: ...' (labeled), 'def dst = call func(args)', 'call func(args)', 'store dst val', 'ret expr', 'constraint expr'. Use '@name' to reuse bindings, 'name[tainted]' for taint checks."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("definition", InputSchemaDefinitionProperty "string" "Full prim-def definition, e.g. 'MyPrim { * ; alloc: def p = call malloc(sz) ; * ; copy: call memcpy(@p, src, len) }'")
+              ]
+          , required = ["definition"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "prim_list"
+      , toolDefinitionDescription = "List all user-defined custom WMI primitives (defined via prim_def)."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "prim_remove"
+      , toolDefinitionDescription = "Remove a user-defined WMI primitive by name."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("name", InputSchemaDefinitionProperty "string" "Name of the primitive to remove")
+              ]
+          , required = ["name"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "prim_reset"
+      , toolDefinitionDescription = "Remove all user-defined WMI primitives."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  -- taint commands
+  , ToolDefinition
+      { toolDefinitionName = "taint_add"
+      , toolDefinitionDescription = "Add a custom taint propagation rule for a function. Tells Flint that the function propagates attacker-controlled data from a source to a destination. Parameter forms: 'arg:N', 'src:N', 'dst:N', 'ret', 'other:<name>'."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("command", InputSchemaDefinitionProperty "string" "Taint rule: '<func_name> <from> <to>', e.g. 'custom_read src:0 ret' or 'recv_packet src:0 ret'")
+              ]
+          , required = ["command"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "taint_list"
+      , toolDefinitionDescription = "List all custom taint propagation rules."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "taint_remove"
+      , toolDefinitionDescription = "Remove a custom taint propagation rule by function name."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("function", InputSchemaDefinitionProperty "string" "Name of the function to remove taint rule for")
+              ]
+          , required = ["function"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "taint_reset"
+      , toolDefinitionDescription = "Remove all custom taint propagation rules."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  -- stdlib commands
+  , ToolDefinition
+      { toolDefinitionName = "stdlib_add"
+      , toolDefinitionDescription = "Register a function as a known semantic primitive. Use when a custom function is a wrapper around a standard operation (allocator, copy, free, etc.). This is preferred over prim_def for simple wrappers."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("command", InputSchemaDefinitionProperty "string" "Registration: '<func> <primType> <var>=<mapping> ...', e.g. 'my_alloc allocHeap ptr=ret size=arg:0' or 'my_copy copyMem dest_ptr=arg:0 src_ptr=arg:1 len=arg:2'")
+              ]
+          , required = ["command"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "stdlib_list"
+      , toolDefinitionDescription = "List all registered known function semantic mappings (both built-in and user-added via stdlib_add)."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "stdlib_remove"
+      , toolDefinitionDescription = "Remove a user-registered known function mapping by function name."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("function", InputSchemaDefinitionProperty "string" "Name of the function to remove")
+              ]
+          , required = ["function"]
           }
       , toolDefinitionTitle = Nothing
       }

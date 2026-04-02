@@ -10,6 +10,7 @@ import Flint.Types.Analysis.Path.Matcher.Primitives
 
 import Blaze.Pil.Construct hiding (not)
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 
 allPrims :: [Prim]
@@ -609,3 +610,27 @@ escapedDataFromLock =
         , Location "unlock" . Stmt $ Call Nothing (CallFunc $ FuncName "mutex_unlock") [Wild]
         ]
     }
+
+-----------------------------------------------------------
+-- Registry for stdlib-add PrimSpec lookups
+-----------------------------------------------------------
+
+primSpecRegistry :: HashMap Text PrimSpec
+primSpecRegistry = HashMap.fromList
+  [ ("allocHeap", allocHeapSpec)
+  , ("copyMem", copyMemSpec)
+  , ("freeHeap", freeHeapSpec)
+  , ("write", writeSpec)
+  , ("writeWhatWhere", writeWhatWhereSpec)
+  , ("controlledFormatString", controlledFormatStringSpec)
+  , ("controlledIndirectCall", controlledIndirectCallSpec)
+  , ("copyPtr", copyPtrSpec)
+  , ("danglingPtr", danglingPtrSpec)
+  , ("returnsFreedPointer", returnsFreedPointerSpec)
+  , ("copy", copySpec)
+  , ("integerOverflow", integerOverflowSpec)
+  , ("doubleFree", doubleFreeSpec)
+  , ("detectStackExec", detectStackExecSpec)
+  , ("unboundedCopyFromUser", unboundedCopyFromUserSpec)
+  , ("writeToKernelGlobal", writeToKernelGlobalSpec)
+  ]

@@ -128,17 +128,42 @@ bindType = bind_ #boundTypes
 
 matchFuncPatWithFunc :: Monad m => Func -> BFunc.Function -> MatcherT expr stmt m ()
 matchFuncPatWithFunc (FuncName name) func = insist
-  $ func ^. #name == name
-  || func ^? #symbol . #_Just . #_symbolName == Just name
+  $ funcNameMatches name (func ^. #name)
+  || maybeFuncNameMatches name (func ^? #symbol . #_Just . #_symbolName)
 matchFuncPatWithFunc (FuncNames names) func = insist
-  $ (func ^. #name) `HashSet.member` names
+  $ funcNameSetMatches names (func ^. #name)
+  || maybeFuncNameSetMatches names (func ^? #symbol . #_Just . #_symbolName)
 matchFuncPatWithFunc (FuncAddr addr) func = insist $ addr == func ^. #address
 matchFuncPatWithFunc (FuncNameRegex rpat) func = insist
-  $ regexIsIn rpat (func ^. #name)
-  || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
+  $ funcNameRegexMatches rpat (func ^. #name)
+  || maybeFuncNameRegexMatches rpat (func ^? #symbol . #_Just . #_symbolName)
 
 regexIsIn :: Text -> Text -> Bool
 regexIsIn a b = b =~ a
+
+normalizeFuncName :: Text -> Text
+normalizeFuncName = Prim.cleanFuncName
+
+funcNameMatches :: Text -> Text -> Bool
+funcNameMatches expected actual =
+  normalizeFuncName expected == normalizeFuncName actual
+
+maybeFuncNameMatches :: Text -> Maybe Text -> Bool
+maybeFuncNameMatches expected = maybe False (funcNameMatches expected)
+
+funcNameSetMatches :: HashSet Text -> Text -> Bool
+funcNameSetMatches expected actual =
+  any (`funcNameMatches` actual) (HashSet.toList expected)
+
+maybeFuncNameSetMatches :: HashSet Text -> Maybe Text -> Bool
+maybeFuncNameSetMatches expected = maybe False (funcNameSetMatches expected)
+
+funcNameRegexMatches :: Text -> Text -> Bool
+funcNameRegexMatches pat actual =
+  regexIsIn pat actual || regexIsIn pat (normalizeFuncName actual)
+
+maybeFuncNameRegexMatches :: Text -> Maybe Text -> Bool
+maybeFuncNameRegexMatches pat = maybe False (funcNameRegexMatches pat)
 
 matchCtx :: Monad m => M.CtxPattern -> Pil.Ctx -> MatcherT expr stmt m ()
 matchCtx pat ctx = case pat of
@@ -666,21 +691,21 @@ matchCallDest
 matchCallDest pat cdest = case pat of
   M.CallFunc funcPat -> case (funcPat, cdest) of
     (FuncName name, Pil.CallFunc func) ->
-      insist $ func ^. #name == name
-            || func ^? #symbol . #_Just . #_symbolName == Just name
+      insist $ funcNameMatches name (func ^. #name)
+            || maybeFuncNameMatches name (func ^? #symbol . #_Just . #_symbolName)
     (FuncName name, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
-      insist $ Just name == mSym
+      insist $ maybeFuncNameMatches name mSym
     (FuncName name, Pil.CallExtern extFunc) ->
-      insist $ name == extFunc ^. #name
+      insist $ funcNameMatches name (extFunc ^. #name)
 
     (FuncNames names, Pil.CallFunc func) ->
-      insist $ HashSet.member (func ^. #name) names
-            || maybe False (`HashSet.member` names) (func ^? #symbol . #_Just . #_symbolName)
+      insist $ funcNameSetMatches names (func ^. #name)
+            || maybeFuncNameSetMatches names (func ^? #symbol . #_Just . #_symbolName)
     (FuncNames names, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
-      insist $ maybe False (`HashSet.member` names) mSym
+      insist $ maybeFuncNameSetMatches names mSym
     (FuncNames names, Pil.CallExtern extFunc) ->
-      insist $ HashSet.member (extFunc ^. #name) names
-            || maybe False (`HashSet.member` names) (extFunc ^? #symbol . #_Just . #_symbolName)
+      insist $ funcNameSetMatches names (extFunc ^. #name)
+            || maybeFuncNameSetMatches names (extFunc ^? #symbol . #_Just . #_symbolName)
     (FuncAddr addr, Pil.CallFunc func) ->
       insist $ addr == func ^. #address
     (FuncAddr addr, Pil.CallAddr (Pil.ConstFuncPtrOp addr' _)) ->
@@ -688,13 +713,13 @@ matchCallDest pat cdest = case pat of
     (FuncAddr _, Pil.CallExtern _) -> bad
 
     (FuncNameRegex rpat, Pil.CallFunc func) ->
-      insist $ regexIsIn rpat (func ^. #name)
-            || (regexIsIn rpat <$> func ^? #symbol . #_Just . #_symbolName) == Just True
+      insist $ funcNameRegexMatches rpat (func ^. #name)
+            || maybeFuncNameRegexMatches rpat (func ^? #symbol . #_Just . #_symbolName)
     (FuncNameRegex rpat, Pil.CallAddr (Pil.ConstFuncPtrOp _ mSym)) ->
-      insist $ (regexIsIn rpat <$> mSym) == Just True
+      insist $ maybeFuncNameRegexMatches rpat mSym
     (FuncNameRegex rpat, Pil.CallExtern extFunc) ->
-      insist $ regexIsIn rpat (extFunc ^. #name)
-            || (regexIsIn rpat <$> extFunc ^? #symbol . #_Just . #_symbolName) == Just True
+      insist $ funcNameRegexMatches rpat (extFunc ^. #name)
+            || maybeFuncNameRegexMatches rpat (extFunc ^? #symbol . #_Just . #_symbolName)
 
     _ -> bad
 

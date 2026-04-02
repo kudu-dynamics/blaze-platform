@@ -170,15 +170,12 @@ inputGenesisAction st args = do
               expandPathToDepth store path depth
 
           forM expandedPaths $ \path -> do
+            tps <- getAllTaintPropagators st
             let stmts = Path.toStmts path
-                prep = mkPathPrep [] stmts
+                prep = mkPathPrep tps stmts
                 reducedStmts = asStmts $ prep ^. #stmts
-            pid <- insertPath st CachedPath
-              { pilPath = stmts
-              , fullPath = path
-              , sourceFunc = caller
-              , pathPrep = Just prep
-              }
+            cp <- mkCachedPath st stmts path caller (Just prep)
+            pid <- insertPath st cp
             let summary = "path " <> show pid
                   <> " (" <> show (length reducedStmts) <> " stmts"
                   <> ", input: " <> funcName
