@@ -83,11 +83,20 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     Nothing -> return Nothing
     Just fp -> Just <$> Db.init fp
 
+  debug "  [store] Getting strings..."
   smap <- Binary.getStringsMap imp
-  sxrefs <- fmap HashMap.fromList . forM (HashMap.keys smap) $ \addr -> do
+  debug $ "  [store] Found " <> show (HashMap.size smap) <> " strings."
+
+  debug "  [store] Getting string xrefs..."
+  let strAddrs = HashMap.keys smap
+      totalStrs = length strAddrs
+  sxrefs <- fmap HashMap.fromList . forM (zip [(1::Int)..] strAddrs) $ \(i, addr) -> do
+    debug $ "  [store] xrefs " <> show i <> "/" <> show totalStrs
     xrefs <- Xref.getXrefsTo imp addr
     return (addr, xrefs)
+  debug $ "  [store] Got " <> show (HashMap.size sxrefs) <> " xrefs."
 
+  debug "  [store] Creating caches..."
   store <- CfgStore
     <$> atomically CC.create
     <*> atomically CC.create -- acyclicCfgCache
@@ -106,11 +115,13 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     <*> pure smap
     <*> pure sxrefs
 
+  debug "  [store] Getting functions..."
   allFuncs <- CG.getFunctions imp
 
   let internalFuncs :: [Function]
       internalFuncs = filter (\f -> not $ HashSet.member (f ^. #name) blacklist)
                     $ mapMaybe (^? #_Internal) allFuncs
+  debug $ "  [store] Got " <> show (length allFuncs) <> " functions (" <> show (length internalFuncs) <> " internal)."
 
   -- Only eagerly fetch CFGs for functions in the type hints whitelist.
   -- All other CFGs are computed lazily on demand.
@@ -150,7 +161,11 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     cg <- getCallGraph store
     return $ G.transpose cg
   -- Set up calcs for ancestors and call sites to each function
-  forM_ allFuncs $ \func -> do
+  let totalFuncs = length allFuncs
+      totalInternal = length internalFuncs
+  debug "  [store] Setting up function caches..."
+  forM_ (zip [(1::Int)..] allFuncs) $ \(i, func) -> do
+    debug $ "  [store] func caches " <> show i <> "/" <> show totalFuncs
     CC.setCalc func (store ^. #ancestorsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
       return $ G.getStrictDescendants func cg
@@ -159,7 +174,9 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
       return $ G.getStrictDescendants func cg
     CC.setCalc func (store ^. #callSitesToFuncCache) $
       CG.getCallSites imp func
-  forM_ internalFuncs $ \func -> do
+  debug "  [store] Setting up CFG caches..."
+  forM_ (zip [(1::Int)..] internalFuncs) $ \(i, func) -> do
+    debug $ "  [store] CFG caches " <> show i <> "/" <> show totalInternal
     CC.setCalc func (store ^. #callSitesInFuncCache) $ do
       -- Compute call sites lazily from the CFG
       getFuncCfgInfo store func >>= \case
@@ -752,4 +769,34 @@ populateInitialPrimitives sprims store = do
   funcs <- getFuncs store
   CM.putSnapshot (getInitialWMIs sprims funcs) $ store ^. #callablePrims
 
+-- | Add new KnownFuncs to the existing callable primitives (merge, not replace).
+addKnownFuncs
+  :: [KnownFunc]
+  -> CfgStore
+  -> IO ()
+addKnownFuncs newFuncs store = do
+  funcs <- getFuncs store
+  existing <- CM.getSnapshot $ store ^. #callablePrims
+  let newWMIs = getInitialWMIs newFuncs funcs
+      merged = HashMap.unionWith HashSet.union existing newWMIs
+  CM.putSnapshot merged $ store ^. #callablePrims
 
+-- | Replace the set of known-function-derived primitives while preserving
+-- any primitives learned dynamically during analysis.
+replaceKnownFuncsPreservingLearned
+  :: [KnownFunc]
+  -> [KnownFunc]
+  -> CfgStore
+  -> IO ()
+replaceKnownFuncsPreservingLearned oldFuncs newFuncs store = do
+  funcs <- getFuncs store
+  existing <- CM.getSnapshot $ store ^. #callablePrims
+  let oldWMIs = getInitialWMIs oldFuncs funcs
+      newWMIs = getInitialWMIs newFuncs funcs
+      learnedOnly = HashMap.differenceWith dropInitial existing oldWMIs
+      merged = HashMap.unionWith HashSet.union learnedOnly newWMIs
+  CM.putSnapshot merged $ store ^. #callablePrims
+  where
+    dropInitial current initial =
+      let remaining = HashSet.difference current initial
+      in if HashSet.null remaining then Nothing else Just remaining

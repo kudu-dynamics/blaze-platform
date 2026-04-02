@@ -13,7 +13,6 @@ import Flint.Types.Analysis.Path.Matcher (Prim)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
 import Flint.Analysis.Path.Matcher (TypedStmt)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI)
-import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import Flint.Query (matchAndReturnCallablePrim, chooseSolver)
 import qualified Flint.Types.CachedMap as CM
 
@@ -44,9 +43,9 @@ checkWMICommand = ShellCommand
   }
 
 listWMIs :: ShellState -> [Text] -> IO CommandResult
-listWMIs _st _args = do
-  let prims = PrimLib.allPrims
-      rows = fmap formatPrim prims
+listWMIs st _args = do
+  prims <- getAllPrims st
+  let rows = fmap formatPrim prims
   return $ ResultText $ Text.unlines rows
   where
     formatPrim :: Prim -> Text
@@ -63,17 +62,18 @@ listWMIs _st _args = do
                  $ spec ^. #locations
       in "  " <> name <> "  vars: {" <> vars <> "}  locations: {" <> locs <> "}"
 
-findPrimByName :: Text -> Maybe Prim
-findPrimByName name =
-  find (\p -> Text.toLower (p ^. #primType . #name) == Text.toLower name) PrimLib.allPrims
+findPrimByName :: [Prim] -> Text -> Maybe Prim
+findPrimByName prims name =
+  find (\p -> Text.toLower (p ^. #primType . #name) == Text.toLower name) (reverse prims)
 
 checkWMIs :: ShellState -> [Text] -> IO CommandResult
 checkWMIs _st [] = return $ ResultError "Usage: check-wmi <wmi_name|all> <path_ids>"
 checkWMIs _st [_] = return $ ResultError "Usage: check-wmi <wmi_name|all> <path_ids>"
 checkWMIs st (wmiName : pidArgs) = do
+  allPrims' <- getAllPrims st
   primsToCheck <- case Text.toLower wmiName of
-    "all" -> return $ Right PrimLib.allPrims
-    _ -> case findPrimByName wmiName of
+    "all" -> return $ Right allPrims'
+    _ -> case findPrimByName allPrims' wmiName of
       Nothing -> return $ Left $
         "Unknown WMI: " <> wmiName <> ". Use 'wmis' to list available primitives, or 'all' to check all."
       Just prim -> return $ Right [prim]
@@ -89,16 +89,17 @@ checkWMIs st (wmiName : pidArgs) = do
         case mPath of
           Nothing -> return (pid, ["Path not found"])
           Just cp -> do
-            let prep :: PathPrep TypedStmt
-                prep = if raw
-                  then mkPathPrep [] (cp ^. #pilPath)
-                  else case cp ^. #pathPrep of
-                    Just existing -> existing
-                    Nothing -> mkPathPrep [] (cp ^. #pilPath)
+            prep <- if raw
+              then do
+                tps <- getAllTaintPropagators st
+                return $ mkPathPrep tps (cp ^. #pilPath)
+              else ensureCurrentPathPrep st pid cp
+            let prep' :: PathPrep TypedStmt
+                prep' = prep
                 func = cp ^. #sourceFunc
             allMatches <- fmap concat . forM prims $ \prim ->
               catch
-                (matchAndReturnCallablePrim 10 solver callablePrimSnapshot func prep prim)
+                (matchAndReturnCallablePrim 10 solver callablePrimSnapshot func prep' prim)
                 (\(e :: SomeException) -> do
                   warn $ "Error checking WMI: " <> show e
                   return [])

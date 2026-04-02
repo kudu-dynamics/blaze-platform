@@ -914,7 +914,8 @@ checkPathForPrim_
   -> Prim
   -> m [CallableWMI]
 checkPathForPrim_ maxResultsPerPath mctx mstate func codeSummary prim = do
-  mapMaybe f <$> M.match_ (fromIntegral maxResultsPerPath) mctx mstate (prim ^. #stmtPattern)
+  matches <- M.match_ (fromIntegral maxResultsPerPath) mctx mstate (prim ^. #stmtPattern)
+  return . nub $ mapMaybe f matches
     where
       f :: (M.MatcherState expr stmt, [stmt])
         -> Maybe CallableWMI

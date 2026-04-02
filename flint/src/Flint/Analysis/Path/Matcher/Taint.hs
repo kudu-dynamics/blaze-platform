@@ -8,8 +8,10 @@ import Flint.Types.Analysis (Parameter(..), Taint(..), TaintPropagator(..))
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil (Size(Size))
 import Blaze.Pil.Construct (var')
+import Flint.Analysis.Path.Matcher.Primitives (cleanFuncName)
 
 import qualified Data.HashSet as HashSet
+
 
 -- TODO: add more TODOs for things
 -- TODO more bit-taint specific helper functions later?
@@ -30,22 +32,29 @@ union (BitSet a) (BitSet b) = BitSet (a .|. b)
 intersection :: BitSet -> BitSet -> BitSet
 intersection (BitSet a) (BitSet b) = BitSet (a .&. b)
 
--- | Transitive closure of a 'HashSet Taint'
+-- | Transitive closure of a 'HashSet Taint'.
+-- Iterates until the taint set stops growing, capped at 10 iterations.
 taintTransClos :: HashSet Taint -> HashSet Taint
-taintTransClos ts =
-  HashSet.fromList $ do
-    t1 <- HashSet.toList ts
-    t2 <- HashSet.toList ts
-    if t1 == t2
-      then [t1]
-      else case (t1, t2) of
-        (Tainted src1 (Left dst1), Tainted src2 dst2)
-          | Just dst1 == src2 ^? #op . #_VAR . #_VarOp -> [t1, Tainted src1 dst2]
-        (Tainted src1 (Right dst1), Tainted src2 (Left dst2))
-          | dst1 == src2 -> [t1, Tainted src1 (Right $ var' dst2 (coerce $ dst2 ^. #size :: Size Pil.Expression))]
-        (Tainted src1 (Right dst1), Tainted src2 (Right dst2))
-          | dst1 == src2 -> [t1, Tainted src1 (Right dst2)]
-        _ -> [t1]
+taintTransClos = go (10 :: Int)
+  where
+    go 0 ts = ts
+    go n ts =
+      let ts' = step ts
+      in if HashSet.size ts' == HashSet.size ts then ts else go (n - 1) ts'
+    step ts =
+      HashSet.fromList $ do
+        t1 <- HashSet.toList ts
+        t2 <- HashSet.toList ts
+        if t1 == t2
+          then [t1]
+          else case (t1, t2) of
+            (Tainted src1 (Left dst1), Tainted src2 dst2)
+              | Just dst1 == src2 ^? #op . #_VAR . #_VarOp -> [t1, Tainted src1 dst2]
+            (Tainted src1 (Right dst1), Tainted src2 (Left dst2))
+              | dst1 == src2 -> [t1, Tainted src1 (Right $ var' dst2 (coerce $ dst2 ^. #size :: Size Pil.Expression))]
+            (Tainted src1 (Right dst1), Tainted src2 (Right dst2))
+              | dst1 == src2 -> [t1, Tainted src1 (Right dst2)]
+            _ -> [t1]
 
 -- | Collect any taints from the expression if it matches one or more
 -- 'TaintPropagator's.
@@ -65,7 +74,7 @@ mkTaintPropagatorTaintSet tps mRetVar =
       HashSet.fromList $ do
         tps >>= \case
           FunctionCallPropagator propName (Parameter (atMay args -> Just fromExpr)) toParam
-            | name == propName ->
+            | cleanFuncName name == cleanFuncName propName ->
                 case toParam of
                   Parameter (atMay args -> Just toExpr) -> [Tainted fromExpr (Right toExpr)]
                   ReturnParameter ->

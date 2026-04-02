@@ -17,6 +17,9 @@ import Flint.Shell.Commands.TypeCheck (typecheckCommand)
 import Flint.Shell.Commands.Strings (stringsCommand, stringXrefsCommand)
 import Flint.Shell.Commands.Xrefs (functionsCallingCommand)
 import Flint.Shell.Commands.Input (inputGenesisCommand)
+import Flint.Shell.Commands.Taint (taintAddCommand, taintListCommand, taintRemoveCommand, taintResetCommand)
+import Flint.Shell.Commands.PrimDef (primDefCommand, primListCommand, primRemoveCommand, primResetCommand)
+import Flint.Shell.Commands.StdLib (stdlibAddCommand, stdlibListCommand, stdlibRemoveCommand)
 import Flint.Shell.Commands.Inspect (inspectCommand, saveCommand)
 
 import qualified Data.Text as Text
@@ -43,6 +46,17 @@ allCommands =
   , stringsCommand
   , stringXrefsCommand
   , inputGenesisCommand
+  , taintAddCommand
+  , taintListCommand
+  , taintRemoveCommand
+  , taintResetCommand
+  , primDefCommand
+  , primListCommand
+  , primRemoveCommand
+  , primResetCommand
+  , stdlibAddCommand
+  , stdlibListCommand
+  , stdlibRemoveCommand
   , inspectCommand
   , saveCommand
   ]

@@ -9,6 +9,7 @@ import Flint.Cfg.Path (enableSamplingTiming)
 import qualified Flint.Cfg.Store as Store
 import Flint.Shell.Types (initShellState)
 import Flint.Shell.Repl (runShell)
+import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
 
 import Blaze.Import.Binary (getBase, inspectAddress, saveToDb)
 
@@ -106,6 +107,7 @@ main = do
   withBackend (opts ^. #backend) fp $ \imp -> do
     typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
     (store, _funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
+    Store.populateInitialPrimitives allStdLibPrims store
     base <- getBase imp
     shellState <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)
     putText "Flint interactive shell. Type 'help' for available commands."

@@ -165,7 +165,7 @@ fromKnownFunc x func = CallableWMI
 getInitialWMIsForFunc :: Func -> [KnownFunc] -> [CallableWMI]
 getInitialWMIsForFunc func = mapMaybe f
   where
-    f sprim = if cleanFuncName (func ^. _name) == sprim ^. #funcName
+    f sprim = if cleanFuncName (func ^. _name) == cleanFuncName (sprim ^. #funcName)
       then Just $ fromKnownFunc sprim func
       else Nothing
 

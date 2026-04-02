@@ -4,8 +4,13 @@ import Flint.Prelude
 
 import Data.IORef
 
-import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
+import Flint.Types.Analysis (TaintPropagator)
+import Flint.Types.Analysis.Path.Matcher (Prim)
 import Flint.Analysis.Path.Matcher (TypedStmt, asStmts)
+import qualified Flint.Analysis.LibC as LibC
+import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
+import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store (CfgStore)
 
 import Blaze.Cfg.Path (PilPath)
@@ -89,6 +94,7 @@ data CachedPath = CachedPath
   , fullPath    :: PilPath
   , sourceFunc  :: Function
   , pathPrep    :: Maybe (PathPrep TypedStmt)
+  , pathPrepTaintVersion :: Int
   } deriving (Generic)
 
 data ShellState = ShellState
@@ -98,6 +104,10 @@ data ShellState = ShellState
   , useSolver   :: IORef Bool
   , baseOffset  :: Address
   , pathTags    :: IORef (HashMap PathId Text, HashMap Text PathId)
+  , userTaintPropagators :: IORef [TaintPropagator]
+  , userPrims :: IORef [Prim]
+  , userKnownFuncs :: IORef [KnownFunc]
+  , taintConfigVersion :: IORef Int
   , inspectAddr :: Maybe (Address -> IO (Maybe Text))
   , saveToDb    :: Maybe (FilePath -> IO (Either Text FilePath))
   } deriving (Generic)
@@ -125,6 +135,10 @@ initShellState store base solver mInspect mSave = do
   nextId <- newIORef 0
   solverRef <- newIORef solver
   tags <- newIORef (HashMap.empty, HashMap.empty)
+  userTaints <- newIORef []
+  userPrimsRef <- newIORef []
+  userKnownFuncsRef <- newIORef []
+  taintVersionRef <- newIORef 0
   return ShellState
     { cfgStore = store
     , pathCache = cache
@@ -132,9 +146,51 @@ initShellState store base solver mInspect mSave = do
     , useSolver = solverRef
     , baseOffset = base
     , pathTags = tags
+    , userTaintPropagators = userTaints
+    , userPrims = userPrimsRef
+    , userKnownFuncs = userKnownFuncsRef
+    , taintConfigVersion = taintVersionRef
     , inspectAddr = mInspect
     , saveToDb = mSave
     }
+
+currentTaintConfigVersion :: ShellState -> IO Int
+currentTaintConfigVersion st = readIORef (st ^. #taintConfigVersion)
+
+bumpTaintConfigVersion :: ShellState -> IO ()
+bumpTaintConfigVersion st = modifyIORef' (st ^. #taintConfigVersion) (+ 1)
+
+mkCachedPath
+  :: ShellState
+  -> [Pil.Stmt]
+  -> PilPath
+  -> Function
+  -> Maybe (PathPrep TypedStmt)
+  -> IO CachedPath
+mkCachedPath st stmts fullPath' sourceFunc' pathPrep' = do
+  taintVersion <- currentTaintConfigVersion st
+  return CachedPath
+    { pilPath = stmts
+    , fullPath = fullPath'
+    , sourceFunc = sourceFunc'
+    , pathPrep = pathPrep'
+    , pathPrepTaintVersion = taintVersion
+    }
+
+ensureCurrentPathPrep :: ShellState -> PathId -> CachedPath -> IO (PathPrep TypedStmt)
+ensureCurrentPathPrep st pid cp = do
+  taintVersion <- currentTaintConfigVersion st
+  case cp ^. #pathPrep of
+    Just prep
+      | cp ^. #pathPrepTaintVersion == taintVersion -> return prep
+    _ -> do
+      tps <- getAllTaintPropagators st
+      let prep = mkPathPrep tps (cp ^. #pilPath)
+          cp' = cp
+            & (#pathPrep ?~ prep)
+            & #pathPrepTaintVersion .~ taintVersion
+      modifyIORef' (st ^. #pathCache) (HashMap.adjust (const cp') pid)
+      return prep
 
 allocPathId :: ShellState -> IO PathId
 allocPathId st = do
@@ -220,3 +276,14 @@ resolvePathRefs st args = do
 resolvePathIds :: ShellState -> [Text] -> IO [PathId]
 resolvePathIds st args = fmap pathRefId <$> resolvePathRefs st args
 
+-- | Get all active taint propagators (LibC defaults + user-added).
+getAllTaintPropagators :: ShellState -> IO [TaintPropagator]
+getAllTaintPropagators st = do
+  user <- readIORef (st ^. #userTaintPropagators)
+  return $ LibC.taintPropagators <> user
+
+-- | Get all prims (built-in + user-defined).
+getAllPrims :: ShellState -> IO [Prim]
+getAllPrims st = do
+  user <- readIORef (st ^. #userPrims)
+  return $ PrimLib.allPrims <> user

@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0402
+- Added dynamic taint propagation in `flint-shell` and `flint-mcp`
+- Added dynamic pattern generation in `flint-shell` and `flint-mcp`
+
 ## Version 0.26.0330
 - Fix target sampling (`sample func @ 0xaddr`) failing when xref addresses point to raw instructions folded into high P-code CALL operations by the decompiler
 - BasicBlock address ranges now extend to cover all raw instruction addresses via varnode `pcAddress` fields (`mkCfNodePcodeBlock`) and gap-filling after call splitting (`inheritOrigBounds`)
