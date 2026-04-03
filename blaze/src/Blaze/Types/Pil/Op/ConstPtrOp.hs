@@ -7,6 +7,6 @@ import Blaze.Prelude
 
 data ConstPtrOp expr = ConstPtrOp
   { constant :: Int64
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (ConstPtrOp a)

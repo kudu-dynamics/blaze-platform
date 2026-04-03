@@ -4,7 +4,7 @@ import Flint.Prelude
 
 import Flint.App (withBackend, Backend)
 import qualified Flint.Cfg.Store as Store
-import qualified Flint.Types.CachedCalc as CC
+import qualified Blaze.Types.PersistentCalc as PC
 
 import qualified Blaze.Persist.Db as Db
 
@@ -51,7 +51,7 @@ main = do
   opts <- execParser optsParser
   withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
     store <- Store.init Nothing imp
-    (Just cg) <- CC.get () $ store ^. #callGraphCache
+    (Just cg) <- PC.get () $ store ^. #callGraphCache
     catch (removeFile $ opts ^. #outputFlintDbFilePath) $ \(_ :: SomeException) -> return ()
     conn <- Db.init $ opts ^. #outputFlintDbFilePath
     Db.insertCallGraph conn cg

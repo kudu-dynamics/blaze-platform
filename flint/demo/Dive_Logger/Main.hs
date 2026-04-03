@@ -15,6 +15,7 @@ import Flint.Analysis.Path.Matcher.Stub (StubSpec(StubSpec))
 import qualified Flint.Analysis.Path.Matcher.Stub as Stub
 import qualified Flint.Cfg.Store as Store
 import qualified Flint.Types.CachedCalc as CC
+import qualified Blaze.Types.PersistentCalc as PC
 import Flint.Types.Analysis.Path.Matcher.Func
 import Flint.Types.Query
 import Flint.Query
@@ -153,7 +154,7 @@ demoDbSave = do
   putText "Loaded Dive_Logger.gzf"
   store' <- Store.init Nothing imp
 
-  (Just cg) <- CC.get () $ store' ^. #callGraphCache
+  (Just cg) <- PC.get () $ store' ^. #callGraphCache
   conn <- Db.init "/tmp/divelogger.flint"
   Db.insertCallGraph conn cg
 

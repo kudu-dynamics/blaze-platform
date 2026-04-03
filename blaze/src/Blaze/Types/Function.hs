@@ -10,7 +10,7 @@ import Blaze.Types.Graph (NodeId (NodeId), Identifiable (getNodeId))
 
 data Access = In | Out | InOut | Unknown
   deriving (Enum, Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
+  deriving anyclass (Hashable, FromJSON, ToJSON, Serialize)
 
 data ParamInfo = ParamInfo
   { name :: Text
@@ -18,7 +18,7 @@ data ParamInfo = ParamInfo
   , access :: Access
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
+  deriving anyclass (Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Parameter positions start at position 1.
 newtype ParamPosition = ParamPosition Int
@@ -29,7 +29,7 @@ data FuncParamInfo
   = FuncParamInfo ParamInfo
   | FuncVarArgInfo ParamInfo
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, FromJSON, ToJSON)
+  deriving anyclass (Hashable, FromJSON, ToJSON, Serialize)
 
 data VarArgParameter
   = VarArgParameter
@@ -63,7 +63,7 @@ mkFuncInfo name' rawName =
 data Func
   = Internal Function
   | External ExternFunction
-  deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON, Serialize)
 
 -- | lenses for common fields in Func
 -- I tried really hard to get #name etc to work for Func, but it seems impossible.
@@ -105,7 +105,7 @@ data Function = Function
   , params :: [FuncParamInfo]
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+  deriving anyclass (FromJSON, ToJSON, Serialize)
 
 -- | Hash by address only — unique per function, avoids traversing params list.
 instance Hashable Function where
@@ -124,7 +124,7 @@ data FunctionRef = FunctionRef
   , address :: Address
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+  deriving anyclass (FromJSON, ToJSON, Serialize)
 
 -- | Hash by address only, consistent with Function.
 instance Hashable FunctionRef where
@@ -150,7 +150,7 @@ data ExternFunction = ExternFunction
   , params :: [FuncParamInfo]
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+  deriving anyclass (FromJSON, ToJSON, Serialize)
 
 instance Hashable ExternFunction where
   hashWithSalt salt f = hashWithSalt salt (f ^. #address)
@@ -170,7 +170,7 @@ toExternFunctionRef f = FunctionRef
 data FuncRef
   = InternalRef FunctionRef
   | ExternalRef FunctionRef
-  deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON, Serialize)
 
 instance Identifiable FuncRef Int where
   getNodeId f = NodeId $ hash f

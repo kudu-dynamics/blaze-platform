@@ -8,9 +8,13 @@ import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIsFromStore)
 import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store
 import Flint.Util (offsetUUID, timeIt, timingLog, samplingTimingEnabled)
-import Data.IORef (readIORef)
+import Data.IORef (readIORef, newIORef, atomicModifyIORef')
 import qualified Flint.Types.CachedCalc as CC
 import qualified Flint.Types.CachedMap as CM
+import qualified Blaze.Types.PersistentCalc as PC
+import qualified Blaze.Concurrent as Conc
+import Blaze.Types.PersistentCalc (PersistLayer(..), mkPersistLayer)
+import qualified Blaze.Persist.Lmdb as Lmdb
 
 import qualified Blaze.CallGraph as CG
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GhidraCG
@@ -18,7 +22,6 @@ import qualified Blaze.Cfg.Interprocedural as CfgI
 import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Graph (RouteMakerCtx(RouteMakerCtx))
 import qualified Blaze.Graph as G
-import qualified Blaze.Persist.Db as Db
 import Blaze.Types.Function (Function, Func, FuncRef, FunctionRef, toFunctionRef, toExternFunctionRef)
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Graph (calcStrictDescendantsMap, StrictDescendantsMap(StrictDescendantsMap))
@@ -33,16 +36,79 @@ import Blaze.Import.Cfg (CfgImporter, NodeDataType)
 import Blaze.Import.Xref (XrefImporter)
 import qualified Blaze.Import.Xref as Xref
 
-import Blaze.Types.CallGraph (CallGraph, CallSite)
+import Blaze.Types.CallGraph (CallGraph, CallSite(..))
+import qualified Blaze.Types.CallGraph as CGT
 import Blaze.Types.Cfg (PilCfg, PilNode)
 import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Util (getMemoized)
 import Blaze.Types.Import (TypeHints)
 
-
+import qualified Data.Serialize as Serialize
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Control.Exception as Ex
+import System.Directory (removeFile)
 
+
+-- | PersistLayer for cfgCache: serializes CfgInfo as CfgTransport PilNode (cereal binary).
+-- Only the PilCfg is persisted; CfgInfo fields are reconstructed on load.
+mkCfgPersistLayer :: Lmdb.LmdbStore -> PersistLayer Function (Maybe CfgInfo)
+mkCfgPersistLayer store = PersistLayer
+  { lmdbStore = store
+  , encodeKey = Serialize.encode
+  , decodeKey = either (const Nothing) Just . Serialize.decode
+  , encodeVal = Serialize.encode . fmap (Cfg.toTransport . view #cfg)
+  , decodeVal = either (const Nothing) (Just . fmap (calcCfgInfo . Cfg.fromTransport))
+              . Serialize.decode
+  }
+
+-- | PersistLayer for callGraphCache: serializes via CallGraphTransport (cereal binary).
+mkCallGraphPersistLayer :: Lmdb.LmdbStore -> PersistLayer () CallGraph
+mkCallGraphPersistLayer store = PersistLayer
+  { lmdbStore = store
+  , encodeKey = const "cg"
+  , decodeKey = \bs -> if bs == "cg" then Just () else Nothing
+  , encodeVal = Serialize.encode . CGT.toCallGraphTransport
+  , decodeVal = either (const Nothing) (Just . CGT.fromCallGraphTransport) . Serialize.decode
+  }
+
+-- | Resolve the analysis DB path. If an explicit path is given, use it.
+-- Otherwise, auto-derive from the binary path (e.g., @foo.gzf@ -> @foo.gzf.flintdb@).
+resolveAnalysisDb :: Maybe FilePath -> FilePath -> IO (Maybe FilePath)
+resolveAnalysisDb (Just explicitDb) _binaryPath = return $ Just explicitDb
+resolveAnalysisDb Nothing binaryPath = return . Just $ binaryPath <> ".flintdb"
+
+-- | Try to open an LMDB environment. If it fails (corruption, format change, etc.),
+-- print a warning, delete the old file, and create a fresh one. If that also fails,
+-- give up and return Nothing (no persistence).
+openLmdbSafe :: FilePath -> IO (Maybe Lmdb.LmdbEnv)
+openLmdbSafe fp = do
+  result <- Ex.try $ Lmdb.openEnv fp
+  case result of
+    Right env -> do
+      putText $ "  [store] Using analysis DB: " <> cs fp
+      return $ Just env
+    Left (ex :: Ex.SomeException) -> do
+      putText ""
+      putText "  ============================================================"
+      putText $ "  WARNING: Failed to open analysis DB: " <> cs fp
+      putText $ "  Error: " <> show ex
+      putText "  This may be due to a data format change or corruption."
+      putText "  Deleting old DB and creating a fresh one..."
+      putText "  ============================================================"
+      putText ""
+      -- Delete old file and lock file, then retry
+      Ex.catch (removeFile fp) (\(_ :: Ex.SomeException) -> return ())
+      Ex.catch (removeFile $ fp <> "-lock") (\(_ :: Ex.SomeException) -> return ())
+      retryResult <- Ex.try $ Lmdb.openEnv fp
+      case retryResult of
+        Right env -> do
+          putText $ "  [store] Created fresh analysis DB: " <> cs fp
+          return $ Just env
+        Left (ex2 :: Ex.SomeException) -> do
+          putText $ "  [store] ERROR: Could not create analysis DB: " <> show ex2
+          putText "  [store] Continuing without persistence."
+          return Nothing
 
 -- This is a cache of Cfgs for functions.
 -- This version only supports functions from a single binary.
@@ -79,9 +145,18 @@ initWithTypeHints
   -> imp
   -> IO (CfgStore, HashMap Function TypeHints)
 initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
-  mDb <- case mDbFilePath of
+  -- Open LMDB environment and named stores if a DB path is provided.
+  mLmdbEnv <- case mDbFilePath of
     Nothing -> return Nothing
-    Just fp -> Just <$> Db.init fp
+    Just fp -> openLmdbSafe fp
+  mFuncCalcStore <- traverse (`Lmdb.openStore` "funcCalc") mLmdbEnv
+  mCfgStore <- traverse (`Lmdb.openStore` "cfgCache") mLmdbEnv
+  mCallGraphStore <- traverse (`Lmdb.openStore` "callGraph") mLmdbEnv
+
+  -- Build PersistLayers for each persistent cache.
+  let funcCalcPL = fmap mkPersistLayer mFuncCalcStore
+      cfgPL = fmap mkCfgPersistLayer mCfgStore
+      callGraphPL = fmap mkCallGraphPersistLayer mCallGraphStore
 
   debug "  [store] Getting strings..."
   smap <- Binary.getStringsMap imp
@@ -98,21 +173,22 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
 
   debug "  [store] Creating caches..."
   store <- CfgStore
-    <$> atomically CC.create                  -- cfgCache
+    <$> atomically (PC.create cfgPL)          -- cfgCache (persistent)
     <*> atomically CC.create                  -- acyclicCfgCache
     <*> atomically CC.create                  -- acyclicDescendantsCache
     <*> atomically CC.create                  -- ancestorsCache
     <*> atomically CC.create                  -- descendantsCache
     <*> atomically CC.create                  -- funcs
     <*> atomically CC.create                  -- internalFuncs
-    <*> atomically CC.create                  -- funcCalc
+    <*> atomically (PC.create funcCalcPL)     -- funcCalc (persistent)
     <*> atomically CC.create                  -- externFuncCalc
-    <*> atomically CC.create                  -- callGraphCache
+    <*> atomically (PC.create callGraphPL)    -- callGraphCache (persistent)
     <*> atomically CC.create                  -- transposedCallGraphCache
     <*> atomically CC.create                  -- callSitesInFuncCache
     <*> atomically CC.create                  -- callSitesToFuncCache
     <*> atomically (CM.create [])             -- pathSamples
     <*> atomically (CM.create HashSet.empty)  -- callablePrims
+    <*> Conc.newAutoWorkerPool                -- workerPool
     <*> Binary.getBase imp                    -- baseOffset
     <*> pure smap                             -- stringsMap
     <*> pure sxrefs                           -- stringXrefs
@@ -147,7 +223,7 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
         putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> funcName <> " ------------"
         print e
         return Nothing
-  CC.setDefault (\func -> do
+  PC.setDefault (\func -> do
     mcfg <- ImpCfg.getCfg_ imp func 0
     flip catch (handleCfgException $ func ^. #name) . evaluate . fmap calcCfgInfo $ mcfg
     ) (store ^. #cfgCache)
@@ -171,15 +247,15 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   CC.setCalc () (store ^. #internalFuncs) $ return internalFuncRefs
 
   -- Register lazy decompilation for each internal function.
-  forM_ internalFuncRefs $ \marker ->
-    CC.setCalc marker (store ^. #funcCalc) $
-      CG.getFunction imp (marker ^. #address) >>= \case
+  forM_ internalFuncRefs $ \fref ->
+    PC.setCalc fref (store ^. #funcCalc) $
+      CG.getFunction imp (fref ^. #address) >>= \case
         Just (Func.Internal fullFunc) -> return fullFunc
-        _ -> error $ "Could not resolve function at " <> show (marker ^. #address)
+        _ -> error $ "Could not resolve function at " <> show (fref ^. #address)
 
   -- Seed funcCalc with already-resolved whitelisted functions.
   forM_ funcToTypeHints $ \(func, _hints) ->
-    CC.set (toFunctionRef func) func (store ^. #funcCalc)
+    PC.set (toFunctionRef func) func (store ^. #funcCalc)
 
   -- Register lazy extern resolution for each external function.
   -- Uses getFunction which handles EXTERNAL address space via mkExternalAddress.
@@ -192,25 +268,15 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
 
   -- Pre-populate cfgCache for whitelisted functions (already computed).
   forM_ (HashMap.toList eagerCfgMap) $ \(func, cfg) ->
-    CC.set func (Just $ calcCfgInfo cfg) (store ^. #cfgCache)
+    PC.set func (Just $ calcCfgInfo cfg) (store ^. #cfgCache)
 
-  -- Call graph and topology caches (marker-layer, no decompilation).
-  CC.setCalc () (store ^. #callGraphCache) $ do
+  -- Call graph (no decompilation).
+  -- PersistentCalc handles DB load/store transparently.
+  PC.setCalc () (store ^. #callGraphCache) $ do
     let getCG = case cast imp of
           Just ghidraImp -> GhidraCG.getCallGraphCached ghidraImp allFuncRefs
           Nothing -> CG.getCallGraph imp allFuncRefs
-    (cg, cgTime) <- timeIt $ case mDb of
-      Nothing -> getCG
-      Just db -> Db.loadCallGraph db >>= \case
-        Nothing -> do
-          putText "Creating new call graph"
-          cg <- getCG
-          Db.insertCallGraph db cg
-          putText $ "Stored CallGraph in db " <> show (length (show cg :: String))
-          return cg
-        Just cg -> do
-          putText $ "Retrieved CallGraph from db " <> show (length (show cg :: String))
-          return cg
+    (cg, cgTime) <- timeIt getCG
     timingLog $ "[timing] getCallGraph (" <> show (length allFuncRefs) <> " funcs): " <> show cgTime
     return cg
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
@@ -224,7 +290,7 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
       return $ G.getStrictDescendants funcRef cg
     CC.setCalc funcRef (store ^. #descendantsCache) $ do
-      cg <- fromJust <$> CC.get () (store ^. #callGraphCache)
+      cg <- fromJust <$> PC.get () (store ^. #callGraphCache)
       return $ G.getStrictDescendants funcRef cg
     CC.setCalc funcRef (store ^. #callSitesToFuncCache) $
       CG.getCallSites imp funcRef
@@ -241,8 +307,8 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
 -- | Convert a CallNode to a CallSite with the given Function as the caller.
 toCallSite :: Function -> Cfg.CallNode [Pil.Stmt] -> Maybe CallSite
 toCallSite func n = case n ^. #callDest of
-  Pil.CallFunc destFunc -> Just $ CG.CallSite (toFunctionRef func) (n ^. #start) (Func.InternalRef $ toFunctionRef destFunc)
-  Pil.CallExtern destExtern -> Just $ CG.CallSite (toFunctionRef func) (n ^. #start) (Func.ExternalRef $ toExternFunctionRef destExtern)
+  Pil.CallFunc destFunc -> Just $ CallSite (toFunctionRef func) (n ^. #start) (Func.InternalRef $ toFunctionRef destFunc)
+  Pil.CallExtern destExtern -> Just $ CallSite (toFunctionRef func) (n ^. #start) (Func.ExternalRef $ toExternFunctionRef destExtern)
   _ -> Nothing
 
 -- | Returns a list of all the functions in the binary that we can make a Cfg for.
@@ -555,7 +621,7 @@ randomNode n = do
 
 -- | Gets the CfgInfo for a function, computing on demand via defaultCalc.
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
-getFuncCfgInfo store func = join <$> CC.get func (store ^. #cfgCache)
+getFuncCfgInfo store func = join <$> PC.get func (store ^. #cfgCache)
 
 -- | Gets call sites contained within a function (caller's CFG), computing on demand.
 getCallSitesInFunc :: CfgStore -> Function -> IO [CallSite]
@@ -583,7 +649,7 @@ getFuncCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
 getFuncCfg store func = fmap (view #cfg) <$> getFuncCfgInfo store func
 
 getCallGraph :: CfgStore -> IO CallGraph
-getCallGraph store = fromJust <$> CC.get () (store ^. #callGraphCache)
+getCallGraph store = fromJust <$> PC.get () (store ^. #callGraphCache)
 
 getFuncs :: CfgStore -> IO [FuncRef]
 getFuncs store = fromJust <$> CC.get () (store ^. #funcs)
@@ -596,7 +662,7 @@ getExternalFuncs store = mapMaybe (^? #_ExternalRef) <$> getFuncs store
 
 -- | Resolve a FunctionRef to a full Function via the lazy decompilation cache.
 resolveFunction :: CfgStore -> FunctionRef -> IO (Maybe Function)
-resolveFunction store marker = CC.get marker (store ^. #funcCalc)
+resolveFunction store fref = PC.get fref (store ^. #funcCalc)
 
 -- | Resolve a FuncRef to a full Func. Internal functions go through the
 -- lazy decompilation cache; external functions go through the extern cache.
@@ -612,6 +678,58 @@ getInternalFullFuncs store = do
   markers <- getInternalFuncs store
   catMaybes <$> mapM (resolveFunction store) markers
 
+-- | Pre-analyze all internal functions: force decompilation (funcCalc) and
+-- CFG construction (cfgCache) for every function, plus the call graph.
+-- With a PersistentCalc backend, all results are persisted to the DB.
+-- Uses the store's shared WorkerPool for bounded parallelism.
+-- Returns the number of functions successfully analyzed.
+analyzeAll :: CfgStore -> IO Int
+analyzeAll store = do
+  let pool = store ^. #workerPool
+  putText "  [analyze-all] Building call graph..."
+  void $ getCallGraph store
+
+  frefs <- getInternalFuncs store
+  let total = length frefs
+  putText $ "  [analyze-all] Analyzing " <> show total <> " internal functions"
+    <> " (" <> show (Conc.poolWorkerCount pool) <> " workers)..."
+
+  succeededRef <- newIORef (0 :: Int)
+  failedRef <- newIORef (0 :: Int)
+  progressRef <- newIORef (0 :: Int)
+
+  void $ Conc.pooledForConcurrently pool frefs $ \fref -> do
+    ok <- analyzeOne store fref
+    if ok
+      then atomicModifyIORef' succeededRef (\n -> (n + 1, ()))
+      else atomicModifyIORef' failedRef (\n -> (n + 1, ()))
+    done <- atomicModifyIORef' progressRef (\n -> (n + 1, n + 1))
+    when (done `mod` 50 == 0 || done == total) $
+      putText $ "  [analyze-all] Progress: " <> show done <> "/" <> show total
+
+  succeeded <- readIORef succeededRef
+  failed <- readIORef failedRef
+  putText $ "  [analyze-all] Done. Analyzed " <> show succeeded <> "/" <> show total
+    <> if failed > 0 then " (" <> show failed <> " failed)" else ""
+  return succeeded
+
+-- | Analyze a single function: resolve FunctionRef -> Function, then build CfgInfo.
+-- Returns True on success.
+analyzeOne :: CfgStore -> FunctionRef -> IO Bool
+analyzeOne store fref = do
+  mFunc <- resolveFunction store fref
+  case mFunc of
+    Nothing -> do
+      putText $ "  [analyze-all] WARNING: Could not resolve " <> fref ^. #name
+      return False
+    Just func -> do
+      mCfgInfo <- getFuncCfgInfo store func
+      case mCfgInfo of
+        Nothing -> do
+          putText $ "  [analyze-all] WARNING: Could not get CFG for " <> func ^. #name
+          return False
+        Just _ -> return True
+
 -- | Get call sites that target a given function (callee → callers)
 getCallSitesToFunc :: CfgStore -> FuncRef -> IO [CallSite]
 getCallSitesToFunc store func = fromMaybe [] <$> CC.get func (store ^. #callSitesToFuncCache)
@@ -622,7 +740,7 @@ getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallG
 -- | Adds a pre-computed cfg to the store.
 addFunc'
   :: CfgStore -> Function -> Maybe PilCfg -> IO ()
-addFunc' store func mcfg = CC.setCalc func (store ^. #cfgCache) $ do
+addFunc' store func mcfg = PC.setCalc func (store ^. #cfgCache) $ do
   flip catch handleException . evaluate . fmap calcCfgInfo $ mcfg
   where
     handleException :: SomeException -> IO (Maybe CfgInfo)
@@ -634,7 +752,7 @@ addFunc' store func mcfg = CC.setCalc func (store ^. #cfgCache) $ do
 -- | Eagerly triggers CFG computation for a function. With defaultCalc
 -- set on cfgCache, this is equivalent to just calling getFuncCfgInfo.
 addFunc :: CfgStore -> Function -> IO ()
-addFunc store func = void $ CC.get func (store ^. #cfgCache)
+addFunc store func = void $ PC.get func (store ^. #cfgCache)
 
 -- | Adds a func/cfg to the store.
 -- Overwrites existing function Cfg.
@@ -659,7 +777,7 @@ getRouteMakerCtx'
         )
 getRouteMakerCtx' maxCallSearchDepth store = do
   cfgInfos :: HashMap Function CfgInfo <- fmap catHashMapMaybes
-                                          . CC.getSnapshot
+                                          . PC.getSnapshot
                                           $ store ^. #cfgCache
   let funcInnerNodes = view #nodes <$> cfgInfos
       startNodes = Cfg.getRootNode . view #cfg <$> cfgInfos
@@ -683,7 +801,7 @@ getRouteMakerCtx' maxCallSearchDepth store = do
   return (ctx, funcInnerNodes, allNodes)
 
   where
-    lookupFunc addrMap marker = HashMap.lookup (marker ^. #address) addrMap
+    lookupFunc addrMap fref = HashMap.lookup (fref ^. #address) addrMap
     toFunctionAncestorMap :: HashMap Address Function -> HashMap FuncRef (HashSet FuncRef) -> HashMap Function (HashSet Function)
     toFunctionAncestorMap addrMap = HashMap.fromList
       . mapMaybe (\(fm, s) -> fm ^? #_InternalRef >>= lookupFunc addrMap >>= \function ->
@@ -699,8 +817,8 @@ getRouteMakerCtx' maxCallSearchDepth store = do
 
 getFuncNameMapping :: CfgStore -> IO (HashMap Text FunctionRef)
 getFuncNameMapping store = do
-  markers <- getInternalFuncs store
-  return . foldl' (\m marker -> HashMap.insert (marker ^. #name) marker m) HashMap.empty $ markers
+  frefs <- getInternalFuncs store
+  return . foldl' (\m fref -> HashMap.insert (fref ^. #name) fref m) HashMap.empty $ frefs
 
 
 -- TODO: get shiffyFunc to work with new Extern/internal Func type

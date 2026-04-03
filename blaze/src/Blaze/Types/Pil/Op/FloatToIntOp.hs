@@ -7,6 +7,6 @@ import Blaze.Prelude
 
 data FloatToIntOp expr = FloatToIntOp
   { src :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (FloatToIntOp a)

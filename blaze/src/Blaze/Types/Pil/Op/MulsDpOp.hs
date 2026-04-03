@@ -7,6 +7,6 @@ import Blaze.Prelude
 data MulsDpOp expr = MulsDpOp
   { left :: expr
   , right :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (MulsDpOp a)

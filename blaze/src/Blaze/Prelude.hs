@@ -86,6 +86,7 @@ import Control.Lens.Extras as Exports (is)
 import Control.Monad.Trans.Class as Exports (MonadTrans)
 import Control.Monad.Trans.Maybe as Exports (MaybeT (MaybeT), runMaybeT)
 import Data.Aeson as Exports (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
+import Data.Serialize as Exports (Serialize)
 import Data.BinaryAnalysis as Exports
   ( Address (Address),
     AddressSpace (AddressSpace),
@@ -118,6 +119,7 @@ import Data.String.Conversions as Exports (cs)
 import qualified Data.Text.Lazy as LT (Text)
 import Data.UUID as Exports (UUID)
 import Control.Monad.Extra as Exports (whenJust, mapMaybeM)
+import qualified Data.Serialize as Serialize
 import qualified Data.UUID as UUID
 import Protolude as Exports hiding ( Bits
                                    , Fixity
@@ -137,6 +139,12 @@ import Prelude as Exports
     error,
   )
 import qualified Data.Text as Text
+
+-- Orphan Serialize instance for UUID (cereal doesn't provide one)
+instance Serialize UUID where
+  put uuid = let (w1, w2, w3, w4) = UUID.toWords uuid
+             in Serialize.put w1 >> Serialize.put w2 >> Serialize.put w3 >> Serialize.put w4
+  get = UUID.fromWords <$> Serialize.get <*> Serialize.get <*> Serialize.get <*> Serialize.get
 
 -- | Convert a 'Maybe' computation to 'MaybeT'.
 hoistMaybe :: (Applicative m) => Maybe b -> MaybeT m b

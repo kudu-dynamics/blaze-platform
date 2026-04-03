@@ -7,6 +7,6 @@ import Blaze.Prelude
 
 data ImportOp expr = ImportOp
   { constant :: Int64
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (ImportOp a)

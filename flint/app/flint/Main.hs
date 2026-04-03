@@ -319,7 +319,8 @@ onionCheck opts = do
   withBackend (opts ^. #backend) fp $ \imp -> do
     typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #typeHintsFile
     blacklist <- maybe (pure HashSet.empty) getFuncsFromFile $ opts ^. #blacklistFile
-    (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist blacklist (opts ^. #analysisDb) imp
+    analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
+    (store, funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist blacklist analysisDbPath imp
     base <- getBase imp
     -- warns on no refs spec option
     eRefKinds :: Either String [PseudoReferenceKind] <- maybe (return $ Left "nofile") (\x -> fmap eitherDecode $ liftIO . C8.readFile $ x) $ opts ^. #referencesSpecFile

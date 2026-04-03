@@ -105,14 +105,14 @@ data ExprOp expr
     | CONST_BOOL (ConstBoolOp expr)
     | UNIT
     | ARRAY_ADDR (ArrayAddrOp expr)
-    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+    deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data Expression = Expression
   { size :: Size Expression
   , op :: ExprOp Expression
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 widthToSize :: Bits -> Size a
 widthToSize x = Size $ toBytes x
@@ -125,17 +125,17 @@ sizeToWidth (Size x) = toBits x
 {- HLINT ignore VarOp "Use newtype instead of data" -}
 data VarOp expr = VarOp
   { src :: PilVar
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data VarFieldOp expr = VarFieldOp
   { src :: PilVar
   , offset :: ByteOffset
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data VarJoinOp expr = VarJoinOp
   { high :: PilVar
   , low :: PilVar
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 --TODO: address_of and address_of_field
 ---------------
@@ -143,72 +143,72 @@ data VarJoinOp expr = VarJoinOp
 data CallOp expr = CallOp
   { dest :: CallDest expr
   , args :: [expr]
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data ExtractOp expr = ExtractOp
   { src :: expr
   , offset :: ByteOffset
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data StrCmpOp expr = StrCmpOp
   { left :: expr
   , right :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data StrNCmpOp expr = StrNCmpOp
   { left :: expr
   , right :: expr
   , len :: Int
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data MemCmpOp expr = MemCmpOp
   { left :: expr
   , right :: expr
   , size :: Bytes
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore ConstStrOp "Use newtype instead of data" -}
 data ConstStrOp expr = ConstStrOp
   { value :: Text
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data ConstFuncPtrOp = ConstFuncPtrOp
   { address :: Address
   , symbol :: Maybe Symbol
-  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data ExternPtrOp = ExternPtrOp
   { address :: Address
   , offset :: ByteOffset
   , symbol :: Maybe Symbol
-  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore StackLocalAddrOp "Use newtype instead of data" -}
 data StackLocalAddrOp expr = StackLocalAddrOp
   { stackOffset :: StackOffset
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data UpdateVarOp expr = UpdateVarOp
   { dest :: expr
   , offset :: ByteOffset
   , src :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data FieldAddrOp expr = FieldAddrOp
   { baseAddr :: expr
   , offset :: ByteOffset
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore ConstBoolOp "Use newtype instead of data" -}
 data ConstBoolOp expr = ConstBoolOp
   { constant :: Bool
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data ArrayAddrOp expr = ArrayAddrOp
   { base :: expr
   , index :: expr
   , stride :: Word64
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 
 ---- Statements
@@ -216,65 +216,65 @@ data ArrayAddrOp expr = ArrayAddrOp
 data DefOp expr = DefOp
   { var :: PilVar
   , value :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data StoreOp expr = StoreOp
   { addr :: expr
   , value :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore ConstraintOp "Use newtype instead of data" -}
 data ConstraintOp expr = ConstraintOp
   { condition :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore UnimplMemOp "Use newtype instead of data" -}
 data UnimplMemOp expr = UnimplMemOp
   { src :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore EnterContextOp "Use newtype instead of data" -}
 data EnterContextOp expr = EnterContextOp
   { ctx :: Ctx
   , args :: [expr]
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data ExitContextOp expr = ExitContextOp
   { leavingCtx :: Ctx
   , returningToCtx :: Ctx
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data DefPhiOp expr = DefPhiOp
   { dest :: PilVar
   , src :: [PilVar]
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data DefMemPhiOp expr = DefMemPhiOp
   { destMemory :: Int64
   , srcMemory :: [Int64]
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore BranchCondOp "Use newtype instead of data" -}
 data BranchCondOp expr = BranchCondOp
   { cond :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore JumpOp "Use newtype instead of data" -}
 data JumpOp expr = JumpOp
   { dest :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 {- HLINT ignore JumpToOp "Use newtype instead of data" -}
 data JumpToOp expr = JumpToOp
   { dest :: expr
   , targets :: [Address]
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 newtype RetOp expr = RetOp
   { value :: expr
   }
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
   deriving newtype (ToJSON, FromJSON)
 
 data TailCallOp expr = TailCallOp
@@ -282,7 +282,7 @@ data TailCallOp expr = TailCallOp
   , args :: [expr]
   , ret :: Maybe (PilVar, Size Expression)
   }
-  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data GotoOp expr = GotoOp
 
@@ -299,7 +299,7 @@ type Stmt = AddressableStatement Expression
 data AddressableStatement expr = Stmt
     { addr :: Address
     , statement :: Statement expr
-    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+    } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data Statement expr
   = Def (DefOp expr)
@@ -326,7 +326,7 @@ data Statement expr
   | Exit
   | TailCall (TailCallOp expr)
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 data MappedStatement a expr = MappedStatement
   { ref :: a
@@ -473,7 +473,7 @@ data CallDest expr = CallAddr ConstFuncPtrOp
                    | CallExprs [expr]
                    | CallExtern ExternFunction
                    | CallUnk
-  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data CallSite = CallSite
   { caller :: Function

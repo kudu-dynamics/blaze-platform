@@ -27,6 +27,7 @@ dependencies:
   - bimap
   - bv
   - bytestring
+  - cereal
   - casing
   - constraints
   - containers
@@ -41,6 +42,7 @@ dependencies:
   - hashable
   - lens
   - list-t
+  - lmdb
   - megaparsec
   - mtl
   - newtype
@@ -94,6 +96,7 @@ library:
   - src
   exposed-modules:
   - Blaze.CallGraph
+  - Blaze.Concurrent
   - Blaze.Cfg
   - Blaze.Cfg.Analysis
   - Blaze.Cfg.Checker
@@ -122,6 +125,7 @@ library:
   - Blaze.IndirectCallResolution
   - Blaze.Path
   - Blaze.Persist.Db
+  - Blaze.Persist.Lmdb
   - Blaze.Pil
   - Blaze.Pil.Analysis
   - Blaze.Pil.Analysis.Path
@@ -140,6 +144,7 @@ library:
   - Blaze.Search
   - Blaze.Pil.Solver
   - Blaze.Types.CachedCalc
+  - Blaze.Types.PersistentCalc
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
   - Blaze.Types.Cfg.Analysis

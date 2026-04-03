@@ -21,6 +21,7 @@ import Flint.Shell.Commands.Taint (taintAddCommand, taintListCommand, taintRemov
 import Flint.Shell.Commands.PrimDef (primDefCommand, primListCommand, primRemoveCommand, primResetCommand)
 import Flint.Shell.Commands.StdLib (stdlibAddCommand, stdlibListCommand, stdlibRemoveCommand)
 import Flint.Shell.Commands.Inspect (inspectCommand, saveCommand)
+import Flint.Shell.Commands.Analyze (analyzeAllCommand)
 
 import qualified Data.Text as Text
 import System.Console.Haskeline
@@ -59,6 +60,7 @@ allCommands =
   , stdlibRemoveCommand
   , inspectCommand
   , saveCommand
+  , analyzeAllCommand
   ]
 
 runShell :: ShellState -> IO ()
