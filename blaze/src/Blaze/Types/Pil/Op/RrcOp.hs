@@ -8,6 +8,6 @@ data RrcOp expr = RrcOp
   { left :: expr
   , right :: expr
   , carry :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (RrcOp a)

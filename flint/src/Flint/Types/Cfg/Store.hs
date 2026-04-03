@@ -15,6 +15,8 @@ import Blaze.Types.Graph (StrictDescendantsMap)
 import Blaze.Types.Pil (Stmt)
 import Flint.Types.CachedCalc (CachedCalc)
 import Flint.Types.CachedMap (CachedMap)
+import Blaze.Types.PersistentCalc (PersistentCalc)
+import Blaze.Concurrent (WorkerPool)
 
 data CfgInfo = CfgInfo
   { cfg :: !PilCfg
@@ -28,16 +30,16 @@ data CfgInfo = CfgInfo
 TODO: make this into sqlite db
 -}
 data CfgStore = CfgStore
-  { cfgCache :: CachedCalc Function (Maybe CfgInfo)
+  { cfgCache :: PersistentCalc Function (Maybe CfgInfo)
   , acyclicCfgCache :: CachedCalc Function (Maybe PilCfg)
   , acyclicDescendantsCache :: CachedCalc Function (Maybe (StrictDescendantsMap PilNode))
   , ancestorsCache :: CachedCalc FuncRef (HashSet FuncRef)
   , descendantsCache :: CachedCalc FuncRef (HashSet FuncRef)
   , funcs :: CachedCalc () [FuncRef]
   , internalFuncs :: CachedCalc () [FunctionRef]
-  , funcCalc :: CachedCalc FunctionRef Function -- lazy decompilation cache
+  , funcCalc :: PersistentCalc FunctionRef Function
   , externFuncCalc :: CachedCalc FunctionRef ExternFunction -- lazy extern resolution cache
-  , callGraphCache :: CachedCalc () CallGraph
+  , callGraphCache :: PersistentCalc () CallGraph
     -- CallGraph, but all the edges are reversed. Useful for getting ancestors
   , transposedCallGraphCache :: CachedCalc () CallGraph
     -- Call sites contained within a function (caller → [CallSite])
@@ -53,6 +55,7 @@ data CfgStore = CfgStore
 
     -- will undergo signficant change.
     -- tuple indicates arbitrary (create, store, delete) capability
+  , workerPool :: WorkerPool
   , baseOffset :: Address
   , stringsMap :: HashMap Address Text
   , stringXrefs :: HashMap Address [Xref]

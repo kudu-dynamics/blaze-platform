@@ -7,6 +7,6 @@ import Blaze.Prelude
 
 data FtruncOp expr = FtruncOp
   { src :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (FtruncOp a)

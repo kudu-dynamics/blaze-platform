@@ -225,7 +225,8 @@ loadBinary mcpSt fp = do
       _ <- forkIO $
         withBackend (opts ^. #backend) fp (\imp -> do
           typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
-          (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
+          analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
+          (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
           base <- getBase imp
           st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)
           writeIORef (mcpSt ^. #shellStateRef) (Just st)
@@ -443,6 +444,8 @@ buildCommandString toolName args = case toolName of
     case lookupArg "function" args of
       Nothing -> Left "Missing required parameter: function"
       Just func -> Right $ "stdlib-remove " <> func
+
+  "analyze_all" -> Right "analyze-all"
 
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
@@ -701,6 +704,15 @@ toolDefinitions =
               [ ("file_path", InputSchemaDefinitionProperty "string" "Output file path (e.g. '/tmp/binary.gzf'). A .gzf extension is added if not present.")
               ]
           , required = ["file_path"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "analyze_all"
+      , toolDefinitionDescription = "Pre-analyze all internal functions: decompile and build CFGs for every function. Results are persisted to the analysis DB (.flintdb) so future sessions load instantly. This can take a while for large binaries."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
           }
       , toolDefinitionTitle = Nothing
       }

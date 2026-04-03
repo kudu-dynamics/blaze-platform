@@ -37,6 +37,7 @@ dependencies:
   - blaze
   - bv
   - bytestring
+  - cereal
   - casing
   - constraints
   - containers
@@ -149,12 +150,14 @@ library:
   - Flint.Types.Analysis.Path.Matcher.Primitives
   - Flint.Types.CachedMap
   - Flint.Types.CachedCalc
+  - Flint.Types.PersistentCalc
   - Flint.Types.Cfg.Store
   - Flint.Types.Query
   - Flint.Types.Symbol
   - Flint.Util
   - Flint.Shell.Types
   - Flint.Shell.Command
+  - Flint.Shell.Commands.Analyze
   - Flint.Shell.Commands.Functions
   - Flint.Shell.Commands.Paths
   - Flint.Shell.Commands.Solver

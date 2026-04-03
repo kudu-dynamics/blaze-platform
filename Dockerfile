@@ -168,6 +168,7 @@ RUN <<EOF
 
         # Haskell dependencies
         git                      # Cloning inline-java and binary-analysis
+        liblmdb-dev              # LMDB persistent analysis cache (FlintDB)
         openjdk-21-jdk           # All we need this for is jni.h. Sigh
         pkg-config
         yq                       # Determining ghc version from stack.yaml

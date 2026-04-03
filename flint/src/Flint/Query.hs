@@ -20,7 +20,7 @@ import qualified Flint.Types.CachedMap as CM
 import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIsFromStore, squashCallableWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, KnownFunc, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
-import qualified Flint.Types.CachedCalc as CC
+import qualified Blaze.Types.PersistentCalc as PC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
@@ -47,6 +47,7 @@ import qualified Blaze.Types.Function as Func
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Types.Pil.Solver as Solver
 import Blaze.Types.Import (TypeHints)
+import qualified Blaze.Concurrent as Conc
 
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import Data.List (nub)
@@ -153,9 +154,10 @@ getCallSeqPreps
   -> IO [CallSeqPrep]
 getCallSeqPreps store restrictStartFuncs g = do
   let starts = HashSet.toList $ G.sources g
-  fmap concat . forConcurrently starts $ \start -> do
+  let pool = store ^. #workerPool
+  fmap concat . Conc.pooledForConcurrently pool starts $ \start -> do
     let (callSeqs :: [NonEmpty Function]) = (view #function <$>) <$> (Path.toNodeList <$> (Path.getAllPaths (const identity) 1 start g :: [AlgaPath () Int (FuncNode Function)]) :: [NonEmpty (FuncNode Function)])
-    forConcurrently callSeqs $ \callSeq -> do
+    Conc.pooledForConcurrently pool callSeqs $ \callSeq -> do
       let firstCall_ = NE.head callSeq
           lastCall_ = NE.last callSeq
           callSet_ = HashSet.fromList . NE.toList $ callSeq
@@ -171,7 +173,7 @@ getCallSeqPreps store restrictStartFuncs g = do
       -- enable diagnostic output would be preferable. - Hazmat
       -- putText $ "Callers of first call: " <> show (length callersOfFirstCall)
       let callSetRefs = HashSet.map toFunctionRef callSet_
-      (reachList :: [Maybe Function]) <- forConcurrently callersOfFirstCall $ \func -> do
+      (reachList :: [Maybe Function]) <- Conc.pooledForConcurrently pool callersOfFirstCall $ \func -> do
         CfgStore.getDescendants' store (toFunctionRef func) >>= \case
           Nothing -> return Nothing
           Just descs -> case callSetRefs `HashSet.isSubsetOf` descs of
@@ -473,7 +475,7 @@ instance Tokenizable AllRoutes where
 
 getAllCfgs :: CfgStore -> IO (HashMap Function PilCfg)
 getAllCfgs store = do
-  cfgInfos <- fmap catHashMapMaybes . CC.getSnapshot $ store ^. #cfgCache
+  cfgInfos <- fmap catHashMapMaybes . PC.getSnapshot $ store ^. #cfgCache
   return $ view #cfg <$> cfgInfos
 
 data RouteStart func node = RouteStart
@@ -545,7 +547,7 @@ data SampleRoutePrep = SampleRoutePrep
 
 getSampleRoutePrep :: CfgStore -> IO SampleRoutePrep
 getSampleRoutePrep store = do
-  cfgInfos <- fmap catHashMapMaybes . CC.getSnapshot $ store ^. #cfgCache
+  cfgInfos <- fmap catHashMapMaybes . PC.getSnapshot $ store ^. #cfgCache
   let dmaps = view #strictDescendantsMap <$> cfgInfos
       cfgs = view #cfg <$> cfgInfos
   return $ SampleRoutePrep cfgs dmaps
@@ -581,11 +583,12 @@ sampleRoutes
   -> Word64           -- maxSamplesPerRoute
   -> [(func, Route func node)]
   -> IO [((func, Route func node), [PilPath])]
-sampleRoutes imp store pprep maxSamplesPerRoute routes = mapConcurrently f routes
+sampleRoutes imp store pprep maxSamplesPerRoute routes = Conc.pooledMapConcurrently pool f routes
   where
+    pool = store ^. #workerPool
     f flatRoute
       = fmap ((flatRoute,) . catMaybes)
-      . mapConcurrently (uncurry $ sampleRoute imp store pprep)
+      . Conc.pooledMapConcurrently pool (uncurry $ sampleRoute imp store pprep)
       . replicate (fromIntegral maxSamplesPerRoute)
       $ flatRoute
 
@@ -687,7 +690,7 @@ checkFuncs
   -> HashSet Function       -- start funcs
   -> IO ()
 checkFuncs actuallySolve store q bugMatches streamResults funcs = do
-  mapConcurrently_ (checkFunc actuallySolve store q bugMatches streamResults) . HashSet.toList $ funcs
+  Conc.pooledMapConcurrently_ (store ^. #workerPool) (checkFunc actuallySolve store q bugMatches streamResults) . HashSet.toList $ funcs
 
 checkFunc
   :: Bool                   -- actually use SMT solver?
@@ -698,10 +701,11 @@ checkFunc
   -> Function               -- start func
   -> IO ()
 checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch reportError $ do
+  let pool = store ^. #workerPool
   paths <- samplesFromQuery store startFunc q
   -- putText $ "Got Some paths: " <> show (length paths)
-  forConcurrently_ paths $ \path -> do
-    forConcurrently_ bugMatches $ \bugMatch -> do
+  Conc.pooledForConcurrently_ pool paths $ \path -> do
+    Conc.pooledForConcurrently_ pool bugMatches $ \bugMatch -> do
       M.singleMatch solver (bugMatch ^. #pathPattern) (mkPathPrep [] path) >>= \case
         Nothing -> return ()
         Just (ms, stmtsWithAssertions) -> do
@@ -794,7 +798,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
             , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
             ]
           lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
-      CC.set lifecycleFunc (Just lifeCfgInfo) (store ^. #cfgCache)
+      PC.set lifecycleFunc (Just lifeCfgInfo) (store ^. #cfgCache)
 
       let q :: Query Function
           q = QueryExpandAll $ QueryExpandAllOpts
@@ -870,7 +874,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
             , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
             ]
           lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
-      CC.set lifecycleFunc (Just lifeCfgInfo) (store ^. #cfgCache)
+      PC.set lifecycleFunc (Just lifeCfgInfo) (store ^. #cfgCache)
 
       let q :: Query Function
           q = QueryExpandAll $ QueryExpandAllOpts
@@ -983,12 +987,13 @@ checkFuncForPrims
   -> Function               -- start func
   -> IO ()
 checkFuncForPrims actuallySolve store q prims streamResults func = flip catch reportError $ do
+  let pool = store ^. #workerPool
   paths <- samplesFromQuery store func q
   debug $ "Got Some paths: " <> show (length paths)
-  forConcurrently_ paths $ \path -> do
+  Conc.pooledForConcurrently_ pool paths $ \path -> do
     let pathPrep = mkPathPrep [] path
         codeSum = Summary.fromStmts $ pathPrep ^. #stmts
-    forConcurrently_ prims $ \prim -> do
+    Conc.pooledForConcurrently_ pool prims $ \prim -> do
       checkPathForPrim solver func pathPrep codeSum prim >>= \case
         Nothing -> return ()
         Just (Left cprimError) -> do
@@ -1023,12 +1028,13 @@ checkFuncForPrims'
   -> Function               -- start func
   -> IO [MatchingPrim]
 checkFuncForPrims' actuallySolve store q prims func = do
+  let pool = store ^. #workerPool
   paths <- nub <$> samplesFromQuery store func q
   -- putText $ "Got Some paths: " <> show (length paths)
-  fmap concat . forConcurrently paths $ \path -> do
+  fmap concat . Conc.pooledForConcurrently pool paths $ \path -> do
     let pathPrep = mkPathPrep [] path
         codeSum = Summary.fromStmts $ pathPrep ^. #stmts
-    fmap catMaybes . forConcurrently prims $ \prim -> do
+    fmap catMaybes . Conc.pooledForConcurrently pool prims $ \prim -> do
       checkPathForPrim solver func pathPrep codeSum prim >>= \case
         Nothing -> return Nothing
         Just (Left cprimError) -> do
@@ -1057,7 +1063,7 @@ checkFuncsForPrims
   -> HashSet Function
   -> IO ()
 checkFuncsForPrims actuallySolve store q prims streamResults funcs = do
-  mapConcurrently_ (checkFuncForPrims actuallySolve store q prims streamResults) . HashSet.toList $ funcs
+  Conc.pooledMapConcurrently_ (store ^. #workerPool) (checkFuncForPrims actuallySolve store q prims streamResults) . HashSet.toList $ funcs
   debug "Finished checkFuncsForPrims"
 
 -- | Convenient function to query multiple functions and check for callable primitives
@@ -1069,7 +1075,7 @@ checkFuncsForPrims'
   -> HashSet Function
   -> IO [MatchingPrim]
 checkFuncsForPrims' actuallySolve store q prims funcs = do
-  r <- mapConcurrently (checkFuncForPrims' actuallySolve store q prims)
+  r <- Conc.pooledMapConcurrently (store ^. #workerPool) (checkFuncForPrims' actuallySolve store q prims)
     . HashSet.toList
     $ funcs
   debug "Finished checkFuncsForPrims'"
@@ -1195,7 +1201,7 @@ onionCheckFunc maxResultsPerPath solver store callablePrimSnapshot prims pathSam
   let typeHints = fromMaybe HashMap.empty (HashMap.lookup func funcToTypeHintsMap)
       pathPreps = mkPathPrepWithTypeHints typeHints taintProps <$> paths
       pathPrimCombos = (,) <$> pathPreps <*> prims
-  forConcurrently_ pathPrimCombos $
+  Conc.pooledForConcurrently_ (store ^. #workerPool) pathPrimCombos $
     uncurry (onionCheckPathForPrim maxResultsPerPath solver store callablePrimSnapshot func)
 
 -- | Does a single pass over all the funcs.
@@ -1267,7 +1273,7 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor s
   when doSquash $ do
     debug "Squashing the rest of the duplicate CallableWMIs"
     snapshot <- CM.getSnapshot (store ^. #callablePrims)
-    squashed <- fmap HashMap.fromList . mapConcurrently (\(k, v) -> pure (k, squashCallableWMIs v)) $ HashMap.toList snapshot
+    squashed <- fmap HashMap.fromList . Conc.pooledMapConcurrently (store ^. #workerPool) (\(k, v) -> pure (k, squashCallableWMIs v)) $ HashMap.toList snapshot
     CM.putSnapshot squashed $ store ^. #callablePrims
   where
     solver = chooseSolver actuallyUseSolver
@@ -1426,7 +1432,7 @@ steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor stor
                 cprimsSnapshot <- CM.getSnapshot $ store ^. #callablePrims
 
                 -- Check path against all prims concurrently
-                forConcurrently_ prims $ \prim ->
+                Conc.pooledForConcurrently_ (store ^. #workerPool) prims $ \prim ->
                   steadyStateCheckPathForPrim maxResultsPerPath solver store cprimsSnapshot func pprep prim doSquash
 
             -- Increment sample count

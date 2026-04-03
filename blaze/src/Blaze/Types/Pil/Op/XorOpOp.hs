@@ -7,6 +7,6 @@ import Blaze.Prelude
 data XorOpOp expr = XorOpOp
   { _left :: expr
   , _right :: expr
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable a => Hashable (XorOpOp a)

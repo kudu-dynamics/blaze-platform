@@ -18,18 +18,19 @@ import qualified Data.IntSet as ISet
 newtype NodeId a = NodeId a
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Hashable, NFData, ToJSON, FromJSON)
+  deriving anyclass (Serialize)
 
 data Edge node = Edge
   { src :: node
   , dst :: node
   } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 data LEdge label node = LEdge
   { label :: label
   , edge :: Edge node
   } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 toTupleEdge :: Edge node -> (node, node)
 toTupleEdge e = (e ^. #src, e ^. #dst)

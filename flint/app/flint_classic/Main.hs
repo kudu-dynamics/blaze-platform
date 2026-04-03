@@ -179,7 +179,8 @@ printMatchingPrimJSON res = do
 -- | Checks for bugs by blindly sampling paths from every function
 defaultCheck :: MonadIO m => Options -> m ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
-  store <- Store.init (opts ^. #analysisDb) imp
+  analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) (opts ^. #inputFile)
+  store <- Store.init analysisDbPath imp
   funcs <- Store.getInternalFullFuncs store
   
   let q :: Query Function
@@ -206,7 +207,8 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
 -- | Checks for bugs by blindly sampling paths from every function
 primCheck :: MonadIO m => Options -> m ()
 primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
-  store <- Store.init (opts ^. #analysisDb) imp
+  analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) (opts ^. #inputFile)
+  store <- Store.init analysisDbPath imp
   funcs <- Store.getInternalFullFuncs store
 
   let q :: Query Function

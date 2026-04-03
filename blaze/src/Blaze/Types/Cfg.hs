@@ -26,6 +26,7 @@ import Blaze.Util (getMemoized)
 
 import Control.Arrow ((&&&))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import qualified Data.Serialize as Serialize
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
 import Prelude qualified as P
@@ -42,7 +43,7 @@ data BranchType
   = TrueBranch
   | FalseBranch
   | UnconditionalBranch
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Serialize)
 
 instance Hashable BranchType
 
@@ -54,7 +55,7 @@ data BasicBlockNode a = BasicBlockNode
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 data CallNode a = CallNode
   { ctx :: Ctx
@@ -64,7 +65,7 @@ data CallNode a = CallNode
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 data EnterFuncNode a = EnterFuncNode
   { prevCtx :: Ctx
@@ -74,7 +75,7 @@ data EnterFuncNode a = EnterFuncNode
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 data LeaveFuncNode a = LeaveFuncNode
   { prevCtx :: Ctx
@@ -84,7 +85,7 @@ data LeaveFuncNode a = LeaveFuncNode
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 -- | A node type that represents a "grouped" sub-CFG within a larger CFG
 data GroupingNode a = GroupingNode
@@ -94,7 +95,7 @@ data GroupingNode a = GroupingNode
   , nodeData :: a
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 {- |Terminal nodes are nodes in CFG that have no successor.
 In a function, these nodes correspond to either: a return statement that
@@ -156,7 +157,7 @@ data CfNode a
   | EnterFunc (EnterFuncNode a)
   | LeaveFunc (LeaveFuncNode a)
   | Grouping (GroupingNode a)
-  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable, Serialize)
 
 -- | Hash only the UUID (unique per node) instead of the entire structure.
 -- Generic-derived Hashable would traverse the full statement list, making
@@ -177,7 +178,7 @@ data CfEdge a = CfEdge
   , branchType :: BranchType
   }
   deriving (Eq, Ord, Show, Generic, Functor, FromJSON, ToJSON, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 fromTupleEdge :: (BranchType, (a, a)) -> CfEdge a
 fromTupleEdge (bt, (x, y)) = CfEdge x y bt
@@ -328,6 +329,10 @@ instance (Identifiable n UUID, Hashable n, ToJSON n) => ToJSON (Cfg n) where
 
 instance (Identifiable n UUID, Hashable n, FromJSON n) => FromJSON (Cfg n) where
  parseJSON = fmap fromTransport . parseJSON
+
+instance (Identifiable n UUID, Hashable n, Serialize n) => Serialize (Cfg n) where
+  put = Serialize.put . toTransport
+  get = fromTransport <$> Serialize.get
 
 
 mkCfg ::
@@ -671,7 +676,7 @@ data CfgTransport n = CfgTransport
   , transportNextCtxIndex :: CtxId
   }
   deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Functor, Foldable, Traversable)
-  deriving anyclass (Hashable)
+  deriving anyclass (Hashable, Serialize)
 
 toTransport ::
   forall n.

@@ -8,7 +8,7 @@ import Blaze.Types.Graph (Identifiable (getNodeId), NodeId (NodeId))
 newtype StmtIndex = StmtIndex { val :: Int }
   deriving (Eq, Ord, Show, Generic)
   deriving newtype Num
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 type Symbol = Text
 
@@ -16,11 +16,11 @@ type Symbol = Text
 newtype Size a = Size Bytes
   deriving (Eq, Ord, Show, Generic)
   deriving newtype (Num, Real, Enum, Integral, ByteBased)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 newtype CtxId = CtxId Word64
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
   deriving newtype (Num, Real, Enum, Integral)
 
 data Ctx = Ctx
@@ -29,7 +29,7 @@ data Ctx = Ctx
   , isLoopCtx :: Bool
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 type RegName = Text
 type Offset = Int64
@@ -41,7 +41,7 @@ data VarLocation
   | Code Offset 
   | UnknownLocation
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey, Serialize)
 
 type SSAVersion = Int
 
@@ -65,7 +65,7 @@ data PilVar = PilVar
   , location :: VarLocation
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+  deriving anyclass (Hashable, ToJSON, FromJSON, ToJSONKey, FromJSONKey, Serialize)
 
 
 instance Identifiable PilVar Int where
@@ -75,15 +75,15 @@ newtype Storage = Storage
   { label :: Label
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable, ToJSON, FromJSON)
+  deriving anyclass (Hashable, ToJSON, FromJSON, Serialize)
 
 data StackOffset = StackOffset
   { ctx :: Ctx
   , offset :: ByteOffset
-  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 type Keyword = Text
 
 data Label = StackOffsetLabel StackOffset
            | KeywordLabel Keyword
-           deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON)
+           deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Serialize)

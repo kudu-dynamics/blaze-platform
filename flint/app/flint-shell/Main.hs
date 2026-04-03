@@ -106,7 +106,8 @@ main = do
   putText $ "Loading " <> Text.pack fp <> "..."
   withBackend (opts ^. #backend) fp $ \imp -> do
     typeHintsWhitelist <- maybe (pure HashSet.empty) getFuncsFromFile (opts ^. #typeHintsFile)
-    (store, _funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty (opts ^. #analysisDb) imp
+    analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
+    (store, _funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
     Store.populateInitialPrimitives allStdLibPrims store
     base <- getBase imp
     shellState <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)

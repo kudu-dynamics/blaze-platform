@@ -1,5 +1,15 @@
 # Blaze Platform
 
+## Version 0.26.0403
+- FlintDB persistent analysis cache — decompilation results survive across sessions via LMDB + cereal binary serialization (`.flintdb` files auto-created next to `.gzf`)
+- `PersistentCalc` type wraps `CachedCalc` with optional LMDB persistence layer; drop-in replacement API
+- `Blaze.Persist.Lmdb` module — LMDB wrapper with dedicated bound writer thread for safe concurrent writes
+- `Blaze.Concurrent.WorkerPool` — shared bounded parallelism via QSem, auto-sized to CPUs - 2
+- `analyze-all` command in flint-shell and flint-mcp — parallel pre-analysis of all functions
+- `Serialize` instances (cereal) for the full PIL/Cfg type hierarchy (~100 types)
+- Warm load benchmarks: Dive_Logger 82 funcs in 4s, udapi-server 643 funcs in 16s, curl 1866 funcs in 43s — no Ghidra needed
+- DB sizes ~3x smaller than JSON: Dive_Logger 5MB, udapi-server 253MB, curl 860MB
+
 ## Version 0.26.0402
 - Renamed `FunctionMarker`/`FuncMarker` → `FunctionRef`/`FuncRef` throughout
 - CFG cache keys reverted to `Function` (not `FunctionRef`) — CFG computation requires decompilation anyway, so marker keys added needless `toFunctionRef`/`resolveFunction` roundtrips

@@ -10,6 +10,7 @@ packages:
   - binary-analysis
 
 extra-deps:
+  - lmdb-0.2.5
   - git: https://github.com/kudu-dynamics/inline-java
     commit : 8915275dae15ddd280bf45e891ccb2b3d11522ae
     subdirs:

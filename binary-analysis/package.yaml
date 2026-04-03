@@ -38,6 +38,8 @@ default-extensions:
 dependencies:
 - aeson
 - base >= 4.7 && < 5
+- bytestring
+- cereal
 - containers
 - generic-deriving
 - generic-lens

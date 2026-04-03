@@ -45,3 +45,7 @@ CLAUDE.md
 ghidra-haskell/res/pcode-helper.jar
 res/pcode-helper.jar
 ghidra-haskell/java/*.class
+
+# FlintDB analysis cache files
+*.flintdb
+*.flintdb-lock
