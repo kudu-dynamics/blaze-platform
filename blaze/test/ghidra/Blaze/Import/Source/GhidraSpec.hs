@@ -5,7 +5,7 @@
 module Blaze.Import.Source.GhidraSpec where
 
 import Blaze.CallGraph (getCallGraph)
-import Blaze.Function (Func, _name)
+import Blaze.Function (FuncRef, funcRefName)
 import Blaze.Import.Binary (BinaryImporter (getEnd, getStart, getStringsMap, openBinary, rebaseBinary))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunctions))
 import Blaze.Import.Source.Ghidra (GhidraImporter)
@@ -20,8 +20,8 @@ import Test.Hspec
 diveBin :: FilePath
 diveBin = "res/test_bins/Dive_Logger/Dive_Logger.gzf"
 
-findFunc :: Text -> [Func] -> Maybe Func
-findFunc funcName = find ((== funcName) . (^. _name))
+findFuncRef :: Text -> [FuncRef] -> Maybe FuncRef
+findFuncRef name = find ((== name) . funcRefName)
 
 spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra" $ do
@@ -56,9 +56,9 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
     it "should import all functions" $ do
       length funcs `shouldBe` 94
 
-    let changeDiveFunc = fromJust $ findFunc "cgc_ChangeDive" funcs
+    let changeDiveFunc = fromJust $ findFuncRef "cgc_ChangeDive" funcs
     changeDiveCalls <- runIO $ getCallSites importer changeDiveFunc
-    let printfFunc = fromJust $ findFunc "cgc_printf" funcs
+    let printfFunc = fromJust $ findFuncRef "cgc_printf" funcs
     printfCalls <- runIO $ getCallSites importer printfFunc
     it "should import call sites" $ do
       length changeDiveCalls `shouldBe` 3
@@ -66,7 +66,7 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
 
     -- Test that extern call sites have actual call instruction addresses,
     -- not the caller function's start address (bug fix)
-    let cgcPowFunc = fromJust $ findFunc "cgc_pow" funcs
+    let cgcPowFunc = fromJust $ findFuncRef "cgc_pow" funcs
     cgcPowCalls <- runIO $ getCallSites importer cgcPowFunc
     let cgcRoundCalls = filter (\callSite -> callSite ^. #caller . #name == "cgc_round") cgcPowCalls
         cgcRoundAddr = 0x8049d20 :: Int64  -- cgc_round's function start address
@@ -83,4 +83,4 @@ spec = describe "Blaze.Import.Source.Ghidra" $ do
       all ((/= cgcRoundAddr) . addrToInt . view #address) cgcRoundCalls `shouldBe` True
 
     it "should get a call graph" $ do
-      (sort . HashSet.toList . Graph.nodes <$> getCallGraph importer funcs) `shouldReturn` funcs
+      (sort . HashSet.toList . Graph.nodes <$> getCallGraph importer funcs) `shouldReturn` sort funcs

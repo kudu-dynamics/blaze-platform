@@ -10,7 +10,7 @@ import qualified Flint.Types.Analysis.Path.Matcher.Func as MFunc
 import Flint.Types.Analysis.Path.Matcher.Primitives
 import Flint.Types.Symbol (Symbol)
 
-import Blaze.Types.Function (ExternFunction, FuncParamInfo, Func, _name, _params)
+import Blaze.Types.Function (ExternFunction, FuncParamInfo, Func, FuncRef, _name, _params, funcRefName)
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Pil (PilVar, Stmt)
 import qualified Blaze.Types.Pil as Pil
@@ -179,3 +179,24 @@ getInitialWMIs
 getInitialWMIs sprims
   = foldr addCallableWMI_ HashMap.empty
   . foldMap (`getInitialWMIsForFunc` sprims)
+
+-- | Like 'getInitialWMIs' but uses the CfgStore to get the function list
+-- as refs and lazily resolve only the matching subset to full Funcs.
+getInitialWMIsFromStore
+  :: IO [FuncRef]              -- ^ get all func refs (e.g. CfgStore.getFuncs)
+  -> (FuncRef -> IO (Maybe Func))  -- ^ resolve ref to full Func
+  -> [KnownFunc]
+  -> IO (HashMap (PrimSpec, Func) (HashSet CallableWMI))
+getInitialWMIsFromStore getRefs resolveFunc sprims = do
+  refs <- getRefs
+  let matchingRefs =
+        [ (sprim, fm)
+        | fm <- refs
+        , sprim <- sprims
+        , cleanFuncName (funcRefName fm) == sprim ^. #funcName
+        ]
+  wmis <- forM matchingRefs $ \(sprim, fm) ->
+    resolveFunc fm >>= \case
+      Just func -> return [fromKnownFunc sprim func]
+      Nothing -> return []
+  return . foldr addCallableWMI_ HashMap.empty . concat $ wmis

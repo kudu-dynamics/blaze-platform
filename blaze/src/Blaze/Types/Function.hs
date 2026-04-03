@@ -114,6 +114,32 @@ instance Hashable Function where
 instance Identifiable Function Int where
   getNodeId f = NodeId $ hash f
 
+-- | Lightweight version of 'Function' without params.
+-- Getting params requires decompilation which is expensive, so this type
+-- is used for function lists and call graphs where we just need to mark
+-- where a function is and its name.
+data FunctionRef = FunctionRef
+  { symbol :: Maybe Symbol
+  , name :: Text
+  , address :: Address
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
+
+-- | Hash by address only, consistent with Function.
+instance Hashable FunctionRef where
+  hashWithSalt salt f = hashWithSalt salt (f ^. #address)
+
+instance Identifiable FunctionRef Int where
+  getNodeId f = NodeId $ hash f
+
+toFunctionRef :: Function -> FunctionRef
+toFunctionRef f = FunctionRef
+  { symbol = f ^. #symbol
+  , name = f ^. #name
+  , address = f ^. #address
+  }
+
 -- | These are functions externally defined and referred to in a binary
 -- Important note, for Ghidra the offset field in address refers to the externalIndex
 data ExternFunction = ExternFunction
@@ -126,9 +152,40 @@ data ExternFunction = ExternFunction
   deriving (Eq, Ord, Show, Generic)
   deriving anyclass (FromJSON, ToJSON)
 
--- | Hash by address only — unique per extern function (offset = externalIndex).
 instance Hashable ExternFunction where
   hashWithSalt salt f = hashWithSalt salt (f ^. #address)
 
 instance Identifiable ExternFunction Int where
   getNodeId f = NodeId $ hash f
+
+toExternFunctionRef :: ExternFunction -> FunctionRef
+toExternFunctionRef f = FunctionRef
+  { symbol = f ^. #symbol
+  , name = f ^. #name
+  , address = f ^. #address
+  }
+
+-- | Lightweight version of 'Func' without params, for use in call graphs
+-- and function lists where decompilation is not needed.
+data FuncRef
+  = InternalRef FunctionRef
+  | ExternalRef FunctionRef
+  deriving (Eq, Ord, Show, Generic, Hashable, FromJSON, ToJSON)
+
+instance Identifiable FuncRef Int where
+  getNodeId f = NodeId $ hash f
+
+toFuncRef :: Func -> FuncRef
+toFuncRef = \case
+  Internal f -> InternalRef $ toFunctionRef f
+  External f -> ExternalRef $ toExternFunctionRef f
+
+funcRefAddress :: FuncRef -> Address
+funcRefAddress = \case
+  InternalRef f -> f ^. #address
+  ExternalRef f -> f ^. #address
+
+funcRefName :: FuncRef -> Text
+funcRefName = \case
+  InternalRef f -> f ^. #name
+  ExternalRef f -> f ^. #name

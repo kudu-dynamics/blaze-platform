@@ -33,9 +33,9 @@ functionsCallingAction st args = case args of
     -- Search both extern and internal functions
     externs <- Store.getExternalFuncs store
     internals <- Store.getInternalFuncs store
-    let matchingExterns = Func.External <$>
+    let matchingExterns = Func.ExternalRef <$>
           filter (\e -> Text.toLower (e ^. #name) == lowerName) externs
-        matchingInternals = Func.Internal <$>
+        matchingInternals = Func.InternalRef <$>
           filter (\f -> Text.toLower (f ^. #name) == lowerName) internals
         matchingFuncs = matchingExterns <> matchingInternals
     case matchingFuncs of

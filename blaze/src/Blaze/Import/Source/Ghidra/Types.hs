@@ -3,7 +3,7 @@ module Blaze.Import.Source.Ghidra.Types where
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (CodeReference)
 import Blaze.Types.Pil (PilVar)
-import Blaze.Types.CachedMap (CachedMap)
+import Blaze.Types.CachedCalc (CachedCalc)
 
 import Ghidra.State (GhidraState)
 import Ghidra.Types (HighFunction)
@@ -30,6 +30,6 @@ newtype PilPcodeMap a = PilPcodeMap
 
 data GhidraImporter = GhidraImporter
   { ghidraState :: GhidraState
-  , highFnCache :: CachedMap Address (Maybe HighFunction)
+  , highFnCalc :: CachedCalc Address HighFunction
   , stringsMap :: HashMap Address Text
   } deriving (Show, Generic)

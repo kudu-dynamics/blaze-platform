@@ -197,10 +197,14 @@ instance GetFunction Address where
 
 instance GetFunction Text where
   getFunction imp name = do
-    funcs <- toInternal <<$>> Cg.getFunctions imp
-    case filter (\fn -> fn ^. #name == name) funcs of
+    funcRefs <- Cg.getFunctions imp
+    case filter (\fm -> Func.funcRefName fm == name) funcRefs of
       [] -> error $ "Could not find a function named " <> show name
-      [x] -> return x
+      [fm] -> do
+        let addr = Func.funcRefAddress fm
+        Cg.getFunction imp addr >>= \case
+          Nothing -> error $ "Could not resolve function at " <> show addr
+          Just func -> return $ toInternal func
       _ -> error $ "Found more than one function named " <> show name
 
 instance GetFunction FuncConfig where

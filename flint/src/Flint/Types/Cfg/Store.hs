@@ -6,7 +6,7 @@ import Flint.Types.Analysis.Path.Matcher (TypedStmt)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
 
-import Blaze.Types.Function (Func, Function)
+import Blaze.Types.Function (ExternFunction, Func, Function, FuncRef, FunctionRef)
 
 import Blaze.Import.Xref (Xref)
 import Blaze.Types.CallGraph (CallGraph, CallSite)
@@ -31,17 +31,19 @@ data CfgStore = CfgStore
   { cfgCache :: CachedCalc Function (Maybe CfgInfo)
   , acyclicCfgCache :: CachedCalc Function (Maybe PilCfg)
   , acyclicDescendantsCache :: CachedCalc Function (Maybe (StrictDescendantsMap PilNode))
-  , ancestorsCache :: CachedCalc Func (HashSet Func)
-  , descendantsCache :: CachedCalc Func (HashSet Func)
-  , funcs :: CachedCalc () [Func] -- result of `getFunctions` from CallGraph importer
-  , internalFuncs :: CachedCalc () [Function]
+  , ancestorsCache :: CachedCalc FuncRef (HashSet FuncRef)
+  , descendantsCache :: CachedCalc FuncRef (HashSet FuncRef)
+  , funcs :: CachedCalc () [FuncRef]
+  , internalFuncs :: CachedCalc () [FunctionRef]
+  , funcCalc :: CachedCalc FunctionRef Function -- lazy decompilation cache
+  , externFuncCalc :: CachedCalc FunctionRef ExternFunction -- lazy extern resolution cache
   , callGraphCache :: CachedCalc () CallGraph
     -- CallGraph, but all the edges are reversed. Useful for getting ancestors
   , transposedCallGraphCache :: CachedCalc () CallGraph
     -- Call sites contained within a function (caller → [CallSite])
   , callSitesInFuncCache :: CachedCalc Function [CallSite]
     -- Call sites targeting a function (callee → [CallSite])
-  , callSitesToFuncCache :: CachedCalc Func [CallSite]
+  , callSitesToFuncCache :: CachedCalc FuncRef [CallSite]
   , pathSamples :: CachedMap Function [PathPrep TypedStmt]
   , callablePrims :: CachedMap (PrimSpec, Func) (HashSet CallableWMI)
     -- -- If this is too slow or uses too much memory, we could do just calls or landmarks

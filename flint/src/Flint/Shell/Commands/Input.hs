@@ -72,7 +72,7 @@ runtimeFunctions = HashSet.fromList
 -- callers have their own callers, we skip the current level and recurse.
 -- This avoids sampling from thin wrappers like net_recv when event_loop
 -- is available higher up the chain.
-walkUpCallers :: CfgStore -> [Func.Func] -> Int -> HashSet Func.Function -> IO [CallSite]
+walkUpCallers :: CfgStore -> [Func.FuncRef] -> Int -> HashSet Func.FunctionRef -> IO [CallSite]
 walkUpCallers _store _funcs 0 _visited = return []
 walkUpCallers _store [] _ _visited = return []
 walkUpCallers store funcs maxLevels visited = do
@@ -94,7 +94,7 @@ walkUpCallers store funcs maxLevels visited = do
 
       -- Try to walk up further from the current callers
       higherResults <- walkUpCallers store
-        (fmap Func.Internal uniqueCallers) (maxLevels - 1) visited'
+        (fmap Func.InternalRef uniqueCallers) (maxLevels - 1) visited'
 
       -- Only return this level if we couldn't go any higher
       if null higherResults
@@ -132,9 +132,9 @@ inputGenesisAction st args = do
       -- For each detected source, walk up the call chain and sample
       internals <- Store.getInternalFuncs store
       allResults <- fmap concat . forM detected $ \(funcName, _param, _desc) -> do
-        let matchingExterns = Func.External <$>
+        let matchingExterns = Func.ExternalRef <$>
               filter (\e -> Text.toLower (e ^. #name) == Text.toLower funcName) externs
-            matchingInternals = Func.Internal <$>
+            matchingInternals = Func.InternalRef <$>
               filter (\f -> Text.toLower (f ^. #name) == Text.toLower funcName) internals
             matchingFuncs = matchingExterns <> matchingInternals
 
@@ -142,46 +142,53 @@ inputGenesisAction st args = do
         callSites <- walkUpCallers store matchingFuncs 5 HashSet.empty
 
         fmap concat . forM callSites $ \callSite -> do
-          let caller = callSite ^. #caller
+          let callerRef = callSite ^. #caller
               callAddr = callSite ^. #address
-              targets = NE.singleton (caller, callAddr)
-              q = QueryTarget $ QueryTargetOpts
-                { mustReachSome = targets
-                , callExpandDepthLimit = 0
-                , numSamples = fromIntegral count
-                , unrollLoops = False
-                }
+          -- Resolve the FunctionRef to a full Function for sampling/query
+          mCallerFunc <- Store.resolveFunction store callerRef
+          case mCallerFunc of
+            Nothing -> do
+              warn $ "Could not resolve function for " <> callerRef ^. #name
+              return []
+            Just caller -> do
+              let targets = NE.singleton (caller, callAddr)
+                  q = QueryTarget $ QueryTargetOpts
+                    { mustReachSome = targets
+                    , callExpandDepthLimit = 0
+                    , numSamples = fromIntegral count
+                    , unrollLoops = False
+                    }
 
-          (paths, samplingTime) <- timeIt $
-            catch
-              (samplesFromQuery store caller q)
-              (\(e :: SomeException) -> do
-                warn $ "Sampling error for " <> caller ^. #name <> ": " <> show e
-                return [])
+              (paths, samplingTime) <- timeIt $
+                catch
+                  (samplesFromQuery store caller q)
+                  (\(e :: SomeException) -> do
+                    warn $ "Sampling error for " <> caller ^. #name <> ": " <> show e
+                    return [])
 
-          timingLog $ "[timing] input-genesis (" <> caller ^. #name <> " @ "
-            <> show callAddr <> "): "
-            <> show (length paths) <> " paths in " <> show samplingTime
+              timingLog $ "[timing] input-genesis (" <> caller ^. #name <> " @ "
+                <> show callAddr <> "): "
+                <> show (length paths) <> " paths in " <> show samplingTime
 
-          -- Auto-expand calls if depth > 0
-          expandedPaths <- if depth <= 0
-            then return paths
-            else fmap concat . forM paths $ \path ->
-              expandPathToDepth store path depth
+              -- Auto-expand calls if depth > 0
+              expandedPaths <- if depth <= 0
+                then return paths
+                else fmap concat . forM paths $ \path ->
+                  expandPathToDepth store path depth
 
-          forM expandedPaths $ \path -> do
-            tps <- getAllTaintPropagators st
-            let stmts = Path.toStmts path
-                prep = mkPathPrep tps stmts
-                reducedStmts = asStmts $ prep ^. #stmts
-            cp <- mkCachedPath st stmts path caller (Just prep)
-            pid <- insertPath st cp
-            let summary = "path " <> show pid
-                  <> " (" <> show (length reducedStmts) <> " stmts"
-                  <> ", input: " <> funcName
-                  <> ", caller: " <> caller ^. #name
-                  <> " @ " <> showAddr callAddr <> ")"
-            return (pid, summary)
+              forM expandedPaths $ \path -> do
+                tps <- getAllTaintPropagators st
+                let stmts = Path.toStmts path
+                    prep = mkPathPrep tps stmts
+                    reducedStmts = asStmts $ prep ^. #stmts
+                cp <- mkCachedPath st stmts path caller (Just prep)
+                pid <- insertPath st cp
+                let summary = "path " <> show pid
+                      <> " (" <> show (length reducedStmts) <> " stmts"
+                      <> ", input: " <> funcName
+                      <> ", caller: " <> caller ^. #name
+                      <> " @ " <> showAddr callAddr <> ")"
+                return (pid, summary)
 
       let headerText = Text.unlines (detectHeader : detectLines)
       case allResults of

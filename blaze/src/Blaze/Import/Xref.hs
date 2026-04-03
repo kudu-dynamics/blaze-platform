@@ -1,12 +1,12 @@
 module Blaze.Import.Xref where
 
 import Blaze.Prelude
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (FunctionRef)
 
 
 -- | A reference to an address from within a function.
 data Xref = Xref
-  { function :: Function
+  { function :: FunctionRef
   , address  :: Address    -- ^ The instruction address where the reference occurs
   } deriving (Eq, Ord, Show, Generic)
 

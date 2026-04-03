@@ -130,16 +130,20 @@ showAddr addr = "0x" <> Text.pack (showHex (addrToInt addr) "")
 -- | Find a function by name or address
 findFunction :: ShellState -> Text -> IO (Maybe Function)
 findFunction st nameOrAddr = do
-  funcMap <- Store.getFuncNameMapping (st ^. #cfgStore)
-  case HashMap.lookup nameOrAddr funcMap of
-    Just f -> return (Just f)
+  let store = st ^. #cfgStore
+  funcMap <- Store.getFuncNameMapping store
+  mRef <- case HashMap.lookup nameOrAddr funcMap of
+    Just fm -> return (Just fm)
     Nothing -> do
-      let addrSpace = st ^. #cfgStore . #baseOffset . #space
+      let addrSpace = store ^. #baseOffset . #space
       case parseAddressWithSpace addrSpace nameOrAddr of
         Nothing -> return Nothing
         Just addr -> do
-          funcs <- Store.getInternalFuncs $ st ^. #cfgStore
-          return $ find (\f -> f ^. #address == addr) funcs
+          refs <- Store.getInternalFuncs store
+          return $ find (\fm -> fm ^. #address == addr) refs
+  case mRef of
+    Nothing -> return Nothing
+    Just ref' -> Store.resolveFunction store ref'
 
 -- | Parse --depth N from argument list, returning (depth, remaining args)
 parseDepthArg :: [Text] -> (Int, [Text])

@@ -70,7 +70,7 @@ getGzfTestCtx = do
 -- | Find a function by name in the store
 findFunc :: CfgStore -> Text -> IO (Maybe Function)
 findFunc store' name = do
-  funcs <- Store.getInternalFuncs store'
+  funcs <- Store.getInternalFullFuncs store'
   return $ List.find (\f -> f ^. #name == name) funcs
 
 
@@ -187,7 +187,7 @@ spec = do
       case mAllocate of
         Nothing -> pendingWith "cgc_allocate extern not found"
         Just ext -> do
-          sites <- Store.getCallSitesToFunc (tctx ^. #store) (Func.External ext)
+          sites <- Store.getCallSitesToFunc (tctx ^. #store) (Func.ExternalRef ext)
           -- cgc_allocate should have callers (malloc/calloc wrappers use it)
           putText $ "cgc_allocate call sites: " <> show (length sites)
           -- Even if 0, this test helps debug; we'll also check an internal func
@@ -199,13 +199,13 @@ spec = do
       case mStrlen of
         Nothing -> pendingWith "cgc_strlen not found"
         Just func -> do
-          sites <- Store.getCallSitesToFunc (tctx ^. #store) (Func.Internal func)
+          sites <- Store.getCallSitesToFunc (tctx ^. #store) (Func.InternalRef func)
           length sites `shouldSatisfy` (> 0)
 
     it "callSitesToFuncCache keys should include extern functions" $ \tctx -> do
       externs <- Store.getExternalFuncs (tctx ^. #store)
       forM_ (take 3 externs) $ \ext -> do
-        result <- CC.get (Func.External ext) (tctx ^. #store . #callSitesToFuncCache)
+        result <- CC.get (Func.ExternalRef ext) (tctx ^. #store . #callSitesToFuncCache)
         result `shouldSatisfy` isJust
 
     context "address-targeted sampling" $ do

@@ -11,7 +11,7 @@ import Blaze.Types.Persist.Db as Db
 
 import qualified Blaze.Types.CallGraph as CG
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Function (Func(Internal, External))
+import Blaze.Types.Function (FuncRef)
 import qualified Blaze.Types.Function as Func
 
 import qualified Data.HashMap.Strict as HashMap
@@ -35,33 +35,31 @@ insertCallGraph conn cg = do
     insert_ functionTable funcs
     insert_ callGraphEdgeTable edges
   where
-    toCGFunc :: Func -> Db.Function
-    toCGFunc (Internal func) = Db.Function
-      { address = Blob $ func ^. #address
-      , name = func ^. #name
-      , symbol = Blob <$> func ^. #symbol
+    toCGFunc :: FuncRef -> Db.Function
+    toCGFunc (Func.InternalRef fm) = Db.Function
+      { address = Blob $ fm ^. #address
+      , name = fm ^. #name
+      , symbol = Blob <$> fm ^. #symbol
       , library = Nothing
       , isExtern = False
-      , params = Blob $ func ^. #params
+      , params = Blob []
       }
-    toCGFunc (External func) = Db.Function
-      -- Rudy TODO: ask matt about this case and how it plays with External func
-      { address = Blob $ func ^. #address
-      , name = func ^. #name
-      , symbol = Blob <$> func ^. #symbol
-      , library = func ^. #library
+    toCGFunc (Func.ExternalRef fm) = Db.Function
+      { address = Blob $ fm ^. #address
+      , name = fm ^. #name
+      , symbol = Blob <$> fm ^. #symbol
+      , library = Nothing
       , isExtern = True
-      , params = Blob $ func ^. #params
+      , params = Blob []
       }
 
     toCGEdge (a, b) = CallGraphEdge def (toBlobAddr a) (isExtern a) (toBlobAddr b) (isExtern b)
 
-    -- Rudy TODO: how can i fold these into the same case?
-    toBlobAddr (External func) = Blob $ func ^. #address
-    toBlobAddr (Internal func) = Blob $ func ^. #address
+    toBlobAddr (Func.ExternalRef fm) = Blob $ fm ^. #address
+    toBlobAddr (Func.InternalRef fm) = Blob $ fm ^. #address
 
-    isExtern (External _) = True
-    isExtern (Internal _) = False
+    isExtern (Func.ExternalRef _) = True
+    isExtern (Func.InternalRef _) = False
 
 type IsExtern = Bool
 
@@ -77,13 +75,13 @@ loadCallGraph conn = do
   case mResult of
     Nothing -> return Nothing
     Just (dbFuncs, edges) -> do
-      let funcs = toFunc <$> dbFuncs
-          getFullAddress :: Func -> (IsExtern, Address)
-          getFullAddress (Internal func) = (False, func ^. #address)
-          getFullAddress (External func) = (True, func ^. #address)
-          funcMap :: HashMap (IsExtern, Address) Func
+      let funcs = toFuncRef <$> dbFuncs
+          getFullAddress :: FuncRef -> (IsExtern, Address)
+          getFullAddress (Func.InternalRef fm) = (False, fm ^. #address)
+          getFullAddress (Func.ExternalRef fm) = (True, fm ^. #address)
+          funcMap :: HashMap (IsExtern, Address) FuncRef
           funcMap = HashMap.fromList . fmap (\fn -> (getFullAddress fn, fn)) $ funcs
-          getFunc :: (IsExtern, Address) -> Func
+          getFunc :: (IsExtern, Address) -> FuncRef
           getFunc = fromJust . flip HashMap.lookup funcMap
           ledges = (\e -> G.fromTupleLEdge ((), ( getFunc (e ^. #srcFuncIsExtern, unBlob $ e ^. #srcFunc)
                                                 , getFunc (e ^. #destFuncIsExtern, unBlob $ e ^. #destFunc)
@@ -91,18 +89,15 @@ loadCallGraph conn = do
                    <$> edges
       return . Just . G.addNodes funcs $ G.fromEdges ledges
   where
-    toFunc :: Function -> Func
-    toFunc dbFunc
-      | dbFunc ^. #isExtern = External $ Func.ExternFunction
+    toFuncRef :: Function -> FuncRef
+    toFuncRef dbFunc
+      | dbFunc ^. #isExtern = Func.ExternalRef $ Func.FunctionRef
         { symbol = unBlob <$> dbFunc ^. #symbol
         , name = dbFunc ^. #name
-        , library = dbFunc ^. #library
         , address = unBlob $ dbFunc ^. #address
-        , params = unBlob $ dbFunc ^. #params
         }
-      | otherwise = Internal $ Func.Function
+      | otherwise = Func.InternalRef $ Func.FunctionRef
         { symbol = unBlob <$> dbFunc ^. #symbol
         , name = dbFunc ^. #name
         , address = unBlob $ dbFunc ^. #address
-        , params = unBlob $ dbFunc ^. #params
         }

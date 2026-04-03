@@ -4,7 +4,7 @@ module Flint.Cfg.Store where
 
 import Flint.Prelude
 
-import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
+import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIsFromStore)
 import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store
 import Flint.Util (offsetUUID, timeIt, timingLog, samplingTimingEnabled)
@@ -19,7 +19,7 @@ import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Graph (RouteMakerCtx(RouteMakerCtx))
 import qualified Blaze.Graph as G
 import qualified Blaze.Persist.Db as Db
-import Blaze.Types.Function (Function, Func)
+import Blaze.Types.Function (Function, Func, FuncRef, FunctionRef, toFunctionRef, toExternFunctionRef)
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.Graph (calcStrictDescendantsMap, StrictDescendantsMap(StrictDescendantsMap))
 import qualified Blaze.Types.Pil as Pil
@@ -98,51 +98,107 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
 
   debug "  [store] Creating caches..."
   store <- CfgStore
-    <$> atomically CC.create
-    <*> atomically CC.create -- acyclicCfgCache
-    <*> atomically CC.create -- acyclicDescendantsCache
-    <*> atomically CC.create
-    <*> atomically CC.create
-    <*> atomically CC.create
-    <*> atomically CC.create
-    <*> atomically CC.create
-    <*> atomically CC.create
-    <*> atomically CC.create -- callSitesInFuncCache
-    <*> atomically CC.create -- callSitesToFuncCache
-    <*> atomically (CM.create [])
-    <*> atomically (CM.create HashSet.empty)
-    <*> Binary.getBase imp
-    <*> pure smap
-    <*> pure sxrefs
+    <$> atomically CC.create                  -- cfgCache
+    <*> atomically CC.create                  -- acyclicCfgCache
+    <*> atomically CC.create                  -- acyclicDescendantsCache
+    <*> atomically CC.create                  -- ancestorsCache
+    <*> atomically CC.create                  -- descendantsCache
+    <*> atomically CC.create                  -- funcs
+    <*> atomically CC.create                  -- internalFuncs
+    <*> atomically CC.create                  -- funcCalc
+    <*> atomically CC.create                  -- externFuncCalc
+    <*> atomically CC.create                  -- callGraphCache
+    <*> atomically CC.create                  -- transposedCallGraphCache
+    <*> atomically CC.create                  -- callSitesInFuncCache
+    <*> atomically CC.create                  -- callSitesToFuncCache
+    <*> atomically (CM.create [])             -- pathSamples
+    <*> atomically (CM.create HashSet.empty)  -- callablePrims
+    <*> Binary.getBase imp                    -- baseOffset
+    <*> pure smap                             -- stringsMap
+    <*> pure sxrefs                           -- stringXrefs
 
   debug "  [store] Getting functions..."
-  allFuncs <- CG.getFunctions imp
+  allFuncRefs <- CG.getFunctions imp
 
-  let internalFuncs :: [Function]
-      internalFuncs = filter (\f -> not $ HashSet.member (f ^. #name) blacklist)
-                    $ mapMaybe (^? #_Internal) allFuncs
-  debug $ "  [store] Got " <> show (length allFuncs) <> " functions (" <> show (length internalFuncs) <> " internal)."
+  let internalFuncRefs :: [FunctionRef]
+      internalFuncRefs = filter (\fm -> not $ HashSet.member (fm ^. #name) blacklist)
+                          $ mapMaybe (^? #_InternalRef) allFuncRefs
+  debug $ "  [store] Got " <> show (length allFuncRefs) <> " functions (" <> show (length internalFuncRefs) <> " internal)."
 
-  -- Only eagerly fetch CFGs for functions in the type hints whitelist.
-  -- All other CFGs are computed lazily on demand.
+  -- Type hints require full Functions with params (eager decompilation for whitelisted funcs only).
   (eagerCfgMap, funcToTypeHints) <- if HashSet.null typeHintsWhitelist
     then return (HashMap.empty, [])
     else do
-      (cfgs, hints) <- getFuncsWithCfgsAndTypeHints imp typeHintsWhitelist
-                        (filter (\f -> HashSet.member (f ^. #name) typeHintsWhitelist) internalFuncs)
+      let whitelistedRefs = filter (\fm -> HashSet.member (fm ^. #name) typeHintsWhitelist) internalFuncRefs
+      whitelistedFuncs <- forM whitelistedRefs $ \fm ->
+        CG.getFunction imp (fm ^. #address) >>= \case
+          Just (Func.Internal f) -> return f
+          _ -> error $ "Could not resolve function at " <> show (fm ^. #address)
+      (cfgs, hints) <- getFuncsWithCfgsAndTypeHints imp typeHintsWhitelist whitelistedFuncs
       return (HashMap.fromList cfgs, hints)
 
   let functionToTypeHintsMap :: HashMap Function TypeHints
       functionToTypeHintsMap = HashMap.fromList funcToTypeHints
 
-  CC.setCalc () (store ^. #funcs) $ return allFuncs
-  CC.setCalc () (store ^. #internalFuncs) $ return internalFuncs
+  -- Set default computations for CFG-layer caches.
+  -- These fire on-demand when `get` is called with an unknown Function key.
+  let handleCfgException :: Text -> SomeException -> IO (Maybe CfgInfo)
+      handleCfgException funcName e = do
+        putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> funcName <> " ------------"
+        print e
+        return Nothing
+  CC.setDefault (\func -> do
+    mcfg <- ImpCfg.getCfg_ imp func 0
+    flip catch (handleCfgException $ func ^. #name) . evaluate . fmap calcCfgInfo $ mcfg
+    ) (store ^. #cfgCache)
+  CC.setDefault (getFuncCfgInfo store >=>
+    (\case
+      Nothing -> return Nothing
+      Just cfgInfo -> return . Just . makeCfgAcyclic $ cfgInfo ^. #cfg)
+    ) (store ^. #acyclicCfgCache)
+  CC.setDefault (getAcyclicCfg store >=>
+    (\case
+      Nothing -> return Nothing
+      Just acfg -> return . Just . calcStrictDescendantsMap $ acfg)
+    ) (store ^. #acyclicDescendantsCache)
+  CC.setDefault (\func ->
+    getFuncCfgInfo store func >>= \case
+      Nothing -> return []
+      Just cfgInfo -> return $ mapMaybe (toCallSite func) (cfgInfo ^. #calls)
+    ) (store ^. #callSitesInFuncCache)
+
+  CC.setCalc () (store ^. #funcs) $ return allFuncRefs
+  CC.setCalc () (store ^. #internalFuncs) $ return internalFuncRefs
+
+  -- Register lazy decompilation for each internal function.
+  forM_ internalFuncRefs $ \marker ->
+    CC.setCalc marker (store ^. #funcCalc) $
+      CG.getFunction imp (marker ^. #address) >>= \case
+        Just (Func.Internal fullFunc) -> return fullFunc
+        _ -> error $ "Could not resolve function at " <> show (marker ^. #address)
+
+  -- Seed funcCalc with already-resolved whitelisted functions.
+  forM_ funcToTypeHints $ \(func, _hints) ->
+    CC.set (toFunctionRef func) func (store ^. #funcCalc)
+
+  -- Register lazy extern resolution for each external function.
+  -- Uses getFunction which handles EXTERNAL address space via mkExternalAddress.
+  let externRefs = mapMaybe (^? #_ExternalRef) allFuncRefs
+  forM_ externRefs $ \ref' ->
+    CC.setCalc ref' (store ^. #externFuncCalc) $
+      CG.getFunction imp (ref' ^. #address) >>= \case
+        Just (Func.External ef) -> return ef
+        _ -> error $ "Could not resolve extern function at " <> show (ref' ^. #address)
+
+  -- Pre-populate cfgCache for whitelisted functions (already computed).
+  forM_ (HashMap.toList eagerCfgMap) $ \(func, cfg) ->
+    CC.set func (Just $ calcCfgInfo cfg) (store ^. #cfgCache)
+
+  -- Call graph and topology caches (marker-layer, no decompilation).
   CC.setCalc () (store ^. #callGraphCache) $ do
-    -- Use cached call graph builder for GhidraImporter (avoids redundant
-    -- JNI calls when the same function appears as caller in many references).
     let getCG = case cast imp of
-          Just ghidraImp -> GhidraCG.getCallGraphCached ghidraImp allFuncs
-          Nothing -> CG.getCallGraph imp allFuncs
+          Just ghidraImp -> GhidraCG.getCallGraphCached ghidraImp allFuncRefs
+          Nothing -> CG.getCallGraph imp allFuncRefs
     (cg, cgTime) <- timeIt $ case mDb of
       Nothing -> getCG
       Just db -> Db.loadCallGraph db >>= \case
@@ -155,61 +211,39 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
         Just cg -> do
           putText $ "Retrieved CallGraph from db " <> show (length (show cg :: String))
           return cg
-    timingLog $ "[timing] getCallGraph (" <> show (length allFuncs) <> " funcs): " <> show cgTime
+    timingLog $ "[timing] getCallGraph (" <> show (length allFuncRefs) <> " funcs): " <> show cgTime
     return cg
   CC.setCalc () (store ^. #transposedCallGraphCache) $ do
     cg <- getCallGraph store
     return $ G.transpose cg
-  -- Set up calcs for ancestors and call sites to each function
-  let totalFuncs = length allFuncs
-      totalInternal = length internalFuncs
+
+  -- Ancestors, descendants, and callSitesToFunc per FuncRef (call-graph layer).
   debug "  [store] Setting up function caches..."
-  forM_ (zip [(1::Int)..] allFuncs) $ \(i, func) -> do
-    debug $ "  [store] func caches " <> show i <> "/" <> show totalFuncs
-    CC.setCalc func (store ^. #ancestorsCache) $ do
+  forM_ allFuncRefs $ \funcRef -> do
+    CC.setCalc funcRef (store ^. #ancestorsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
-      return $ G.getStrictDescendants func cg
-    CC.setCalc func (store ^. #descendantsCache) $ do
+      return $ G.getStrictDescendants funcRef cg
+    CC.setCalc funcRef (store ^. #descendantsCache) $ do
       cg <- fromJust <$> CC.get () (store ^. #callGraphCache)
-      return $ G.getStrictDescendants func cg
-    CC.setCalc func (store ^. #callSitesToFuncCache) $
-      CG.getCallSites imp func
-  debug "  [store] Setting up CFG caches..."
-  forM_ (zip [(1::Int)..] internalFuncs) $ \(i, func) -> do
-    debug $ "  [store] CFG caches " <> show i <> "/" <> show totalInternal
-    CC.setCalc func (store ^. #callSitesInFuncCache) $ do
-      -- Compute call sites lazily from the CFG
-      getFuncCfgInfo store func >>= \case
-        Nothing -> return []
-        Just cfgInfo -> return $ mapMaybe toCallSite (cfgInfo ^. #calls)
-          where
-            toCallSite n = case n ^. #callDest of
-                Pil.CallFunc destFunc -> Just
-                  $ CG.CallSite func (n ^. #start) (Func.Internal destFunc)
-                Pil.CallExtern destExtern -> Just
-                  $ CG.CallSite func (n ^. #start) (Func.External destExtern)
-                _ -> Nothing
-    -- Use pre-computed CFG for whitelisted functions, lazy for the rest
-    case HashMap.lookup func eagerCfgMap of
-      Just cfg -> addFunc' store func (Just cfg)
-      Nothing  -> addFunc imp store func
-    -- Set up lazy acyclic CFG computation
-    CC.setCalc func (store ^. #acyclicCfgCache) $
-      getFuncCfgInfo store func >>= \case
-        Nothing -> return Nothing
-        Just cfgInfo -> return . Just . makeCfgAcyclic $ cfgInfo ^. #cfg
+      return $ G.getStrictDescendants funcRef cg
+    CC.setCalc funcRef (store ^. #callSitesToFuncCache) $
+      CG.getCallSites imp funcRef
 
-    -- Set up lazy acyclic descendants map computation
-    CC.setCalc func (store ^. #acyclicDescendantsCache) $
-      getAcyclicCfg store func >>= \case
-        Nothing -> return Nothing
-        Just acfg -> return . Just . calcStrictDescendantsMap $ acfg
+  -- CFG-layer caches (cfgCache, acyclicCfgCache, acyclicDescendantsCache,
+  -- callSitesInFuncCache) are NOT pre-registered per function. They use
+  -- getOrCompute on demand via the getter functions below.
 
-  -- When profiling is enabled, force call graph computation eagerly so it's timed
   whenM (readIORef samplingTimingEnabled) $
     void $ getCallGraph store
 
   return (store, functionToTypeHintsMap)
+
+-- | Convert a CallNode to a CallSite with the given Function as the caller.
+toCallSite :: Function -> Cfg.CallNode [Pil.Stmt] -> Maybe CallSite
+toCallSite func n = case n ^. #callDest of
+  Pil.CallFunc destFunc -> Just $ CG.CallSite (toFunctionRef func) (n ^. #start) (Func.InternalRef $ toFunctionRef destFunc)
+  Pil.CallExtern destExtern -> Just $ CG.CallSite (toFunctionRef func) (n ^. #start) (Func.ExternalRef $ toExternFunctionRef destExtern)
+  _ -> Nothing
 
 -- | Returns a list of all the functions in the binary that we can make a Cfg for.
 getFuncsWithCfgs
@@ -489,7 +523,7 @@ getOffsetFuncCfgInfo store func n = getFuncCfgInfo store func >>= \case
       , nodes = nodes'
       }
 
--- | Gets the acyclic CFG for a function from the cache.
+-- | Gets the acyclic CFG for a function, computing on demand via defaultCalc.
 getAcyclicCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
 getAcyclicCfg store func = join <$> CC.get func (store ^. #acyclicCfgCache)
 
@@ -519,26 +553,30 @@ randomNode n = do
   new <- randomIO
   return $ Cfg.setNodeUUID new n
 
--- | Gets the stored Cfg for a function, if it exists in the store.
+-- | Gets the CfgInfo for a function, computing on demand via defaultCalc.
 getFuncCfgInfo :: CfgStore -> Function -> IO (Maybe CfgInfo)
 getFuncCfgInfo store func = join <$> CC.get func (store ^. #cfgCache)
 
-getAncestors :: CfgStore -> Func -> IO (Maybe (HashSet Func))
+-- | Gets call sites contained within a function (caller's CFG), computing on demand.
+getCallSitesInFunc :: CfgStore -> Function -> IO [CallSite]
+getCallSitesInFunc store func = fromMaybe [] <$> CC.get func (store ^. #callSitesInFuncCache)
+
+getAncestors :: CfgStore -> FuncRef -> IO (Maybe (HashSet FuncRef))
 getAncestors store func = CC.get func $ store ^. #ancestorsCache
 
--- | Temporary convenience function for functions that still work with Function instead of Func
-getAncestors' :: CfgStore -> Function -> IO (Maybe (HashSet Function))
-getAncestors' store func = mapMaybeHashSet (^? #_Internal)
-  <<$>> getAncestors store (Func.Internal func)
+-- | Convenience function that extracts internal FunctionRefs from ancestors.
+getAncestors' :: CfgStore -> FunctionRef -> IO (Maybe (HashSet FunctionRef))
+getAncestors' store fm = mapMaybeHashSet (^? #_InternalRef)
+  <<$>> getAncestors store (Func.InternalRef fm)
 
 
-getDescendants :: CfgStore -> Func -> IO (Maybe (HashSet Func))
+getDescendants :: CfgStore -> FuncRef -> IO (Maybe (HashSet FuncRef))
 getDescendants store func = CC.get func $ store ^. #descendantsCache
 
--- | Temporary convenience function for functions that still work with Function instead of Func
-getDescendants' :: CfgStore -> Function -> IO (Maybe (HashSet Function))
-getDescendants' store func = mapMaybeHashSet (^? #_Internal)
-  <<$>> getDescendants store (Func.Internal func)
+-- | Convenience function that extracts internal FunctionRefs from descendants.
+getDescendants' :: CfgStore -> FunctionRef -> IO (Maybe (HashSet FunctionRef))
+getDescendants' store fm = mapMaybeHashSet (^? #_InternalRef)
+  <<$>> getDescendants store (Func.InternalRef fm)
 
 
 getFuncCfg :: CfgStore -> Function -> IO (Maybe PilCfg)
@@ -547,25 +585,41 @@ getFuncCfg store func = fmap (view #cfg) <$> getFuncCfgInfo store func
 getCallGraph :: CfgStore -> IO CallGraph
 getCallGraph store = fromJust <$> CC.get () (store ^. #callGraphCache)
 
-getFuncs :: CfgStore -> IO [Func]
+getFuncs :: CfgStore -> IO [FuncRef]
 getFuncs store = fromJust <$> CC.get () (store ^. #funcs)
 
-getInternalFuncs :: CfgStore -> IO [Function]
+getInternalFuncs :: CfgStore -> IO [FunctionRef]
 getInternalFuncs store = fromJust <$> CC.get () (store ^. #internalFuncs)
 
-getExternalFuncs :: CfgStore -> IO [Func.ExternFunction]
-getExternalFuncs store = mapMaybe (^? #_External) <$> getFuncs store
+getExternalFuncs :: CfgStore -> IO [FunctionRef]
+getExternalFuncs store = mapMaybe (^? #_ExternalRef) <$> getFuncs store
+
+-- | Resolve a FunctionRef to a full Function via the lazy decompilation cache.
+resolveFunction :: CfgStore -> FunctionRef -> IO (Maybe Function)
+resolveFunction store marker = CC.get marker (store ^. #funcCalc)
+
+-- | Resolve a FuncRef to a full Func. Internal functions go through the
+-- lazy decompilation cache; external functions go through the extern cache.
+resolveFuncRef :: CfgStore -> FuncRef -> IO (Maybe Func)
+resolveFuncRef store = \case
+  Func.InternalRef fm -> fmap Func.Internal <$> resolveFunction store fm
+  Func.ExternalRef fm -> fmap Func.External <$> CC.get fm (store ^. #externFuncCalc)
+
+-- | Get full internal Functions (with params), resolved from funcCalc.
+-- Use sparingly — prefer targeted resolution when only a subset is needed.
+getInternalFullFuncs :: CfgStore -> IO [Function]
+getInternalFullFuncs store = do
+  markers <- getInternalFuncs store
+  catMaybes <$> mapM (resolveFunction store) markers
 
 -- | Get call sites that target a given function (callee → callers)
-getCallSitesToFunc :: CfgStore -> Func -> IO [CallSite]
+getCallSitesToFunc :: CfgStore -> FuncRef -> IO [CallSite]
 getCallSitesToFunc store func = fromMaybe [] <$> CC.get func (store ^. #callSitesToFuncCache)
 
 getTransposedCallGraph :: CfgStore -> IO CallGraph
 getTransposedCallGraph store = fromJust <$> CC.get () (store ^. #transposedCallGraphCache)
 
--- | Adds a func/cfg to the store.
--- Overwrites existing function Cfg.
--- Any Cfgs in the store should have a CtxId of 0
+-- | Adds a pre-computed cfg to the store.
 addFunc'
   :: CfgStore -> Function -> Maybe PilCfg -> IO ()
 addFunc' store func mcfg = CC.setCalc func (store ^. #cfgCache) $ do
@@ -576,25 +630,11 @@ addFunc' store func mcfg = CC.setCalc func (store ^. #cfgCache) $ do
       putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> func ^. #name <> " ------------"
       print e
       return Nothing
-    
 
-
--- | Adds a func/cfg to the store.
--- Overwrites existing function Cfg.
--- Any Cfgs in the store should have a CtxId of 0
-addFunc
-  :: ( CfgImporter a
-     , NodeDataType a ~ PilNode)
-  => a -> CfgStore -> Function -> IO ()
-addFunc imp store func = CC.setCalc func (store ^. #cfgCache) $ do
-  cfg <- ImpCfg.getCfg imp func 0
-  flip catch handleException . evaluate . fmap (calcCfgInfo . view #result) $ cfg
-  where
-    handleException :: SomeException -> IO (Maybe CfgInfo)
-    handleException e = do
-      putText $ "\n---------- ERROR in Store: adding CfgInfo failed for " <> func ^. #name <> " ------------"
-      print e
-      return Nothing
+-- | Eagerly triggers CFG computation for a function. With defaultCalc
+-- set on cfgCache, this is equivalent to just calling getFuncCfgInfo.
+addFunc :: CfgStore -> Function -> IO ()
+addFunc store func = void $ CC.get func (store ^. #cfgCache)
 
 -- | Adds a func/cfg to the store.
 -- Overwrites existing function Cfg.
@@ -624,9 +664,11 @@ getRouteMakerCtx' maxCallSearchDepth store = do
   let funcInnerNodes = view #nodes <$> cfgInfos
       startNodes = Cfg.getRootNode . view #cfg <$> cfgInfos
       dmaps = view #strictDescendantsMap <$> cfgInfos
-  callAncestors <- fmap toFunctionAncestorMap . CC.getSnapshot $ store ^. #ancestorsCache
-  
-  let outerNodeDescendants = G.calcOuterNodeDescendants (fromMaybe HashSet.empty . flip HashMap.lookup funcInnerNodes) callAncestors
+      addrToFunc = HashMap.fromList [(f ^. #address, f) | f <- HashMap.keys cfgInfos]
+  ancestorsSnapshot <- CC.getSnapshot $ store ^. #ancestorsCache
+  let callAncestors = toFunctionAncestorMap addrToFunc ancestorsSnapshot
+
+      outerNodeDescendants = G.calcOuterNodeDescendants (fromMaybe HashSet.empty . flip HashMap.lookup funcInnerNodes) callAncestors
 
       ctx = RouteMakerCtx
         { getTransNodeContext = getCallTargetFunc
@@ -637,17 +679,17 @@ getRouteMakerCtx' maxCallSearchDepth store = do
         }
 
       allNodes = HashSet.unions . HashMap.elems $ funcInnerNodes
-        
+
   return (ctx, funcInnerNodes, allNodes)
 
   where
-    toFunction = (^? #_Internal)
-    toFunctionAncestorMap :: HashMap Func (HashSet Func) -> HashMap Function (HashSet Function)
-    toFunctionAncestorMap = HashMap.fromList
-      . mapMaybe (\(func, s) -> func ^? #_Internal >>= \function ->
+    lookupFunc addrMap marker = HashMap.lookup (marker ^. #address) addrMap
+    toFunctionAncestorMap :: HashMap Address Function -> HashMap FuncRef (HashSet FuncRef) -> HashMap Function (HashSet Function)
+    toFunctionAncestorMap addrMap = HashMap.fromList
+      . mapMaybe (\(fm, s) -> fm ^? #_InternalRef >>= lookupFunc addrMap >>= \function ->
                      return ( function
                             , HashSet.fromList
-                              . mapMaybe toFunction
+                              . mapMaybe ((^? #_InternalRef) >=> lookupFunc addrMap)
                               . HashSet.toList
                               $ s))
       . HashMap.toList
@@ -655,14 +697,10 @@ getRouteMakerCtx' maxCallSearchDepth store = do
     getCallTargetFunc (Cfg.Call n) = CfgI.getTargetFunc n
     getCallTargetFunc _ = Nothing
 
-getFuncNameMapping :: CfgStore -> IO (HashMap Text Function)
-getFuncNameMapping
-  = fmap (foldl'
-          (\m func -> HashMap.insert (func ^. #name) func m)
-          HashMap.empty
-         )
-  . CC.getKeys
-  . view #cfgCache
+getFuncNameMapping :: CfgStore -> IO (HashMap Text FunctionRef)
+getFuncNameMapping store = do
+  markers <- getInternalFuncs store
+  return . foldl' (\m marker -> HashMap.insert (marker ^. #name) marker m) HashMap.empty $ markers
 
 
 -- TODO: get shiffyFunc to work with new Extern/internal Func type
@@ -766,8 +804,8 @@ populateInitialPrimitives
   -> CfgStore
   -> IO ()
 populateInitialPrimitives sprims store = do
-  funcs <- getFuncs store
-  CM.putSnapshot (getInitialWMIs sprims funcs) $ store ^. #callablePrims
+  prims <- getInitialWMIsFromStore (getFuncs store) (resolveFuncRef store) sprims
+  CM.putSnapshot prims $ store ^. #callablePrims
 
 -- | Add new KnownFuncs to the existing callable primitives (merge, not replace).
 addKnownFuncs
@@ -775,10 +813,9 @@ addKnownFuncs
   -> CfgStore
   -> IO ()
 addKnownFuncs newFuncs store = do
-  funcs <- getFuncs store
   existing <- CM.getSnapshot $ store ^. #callablePrims
-  let newWMIs = getInitialWMIs newFuncs funcs
-      merged = HashMap.unionWith HashSet.union existing newWMIs
+  newWMIs <- getInitialWMIsFromStore (getFuncs store) (resolveFuncRef store) newFuncs
+  let merged = HashMap.unionWith HashSet.union existing newWMIs
   CM.putSnapshot merged $ store ^. #callablePrims
 
 -- | Replace the set of known-function-derived primitives while preserving
@@ -789,11 +826,10 @@ replaceKnownFuncsPreservingLearned
   -> CfgStore
   -> IO ()
 replaceKnownFuncsPreservingLearned oldFuncs newFuncs store = do
-  funcs <- getFuncs store
   existing <- CM.getSnapshot $ store ^. #callablePrims
-  let oldWMIs = getInitialWMIs oldFuncs funcs
-      newWMIs = getInitialWMIs newFuncs funcs
-      learnedOnly = HashMap.differenceWith dropInitial existing oldWMIs
+  oldWMIs <- getInitialWMIsFromStore (getFuncs store) (resolveFuncRef store) oldFuncs
+  newWMIs <- getInitialWMIsFromStore (getFuncs store) (resolveFuncRef store) newFuncs
+  let learnedOnly = HashMap.differenceWith dropInitial existing oldWMIs
       merged = HashMap.unionWith HashSet.union learnedOnly newWMIs
   CM.putSnapshot merged $ store ^. #callablePrims
   where

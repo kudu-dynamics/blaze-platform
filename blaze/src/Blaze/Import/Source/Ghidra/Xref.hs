@@ -2,8 +2,8 @@ module Blaze.Import.Source.Ghidra.Xref where
 
 import Blaze.Prelude hiding (Symbol)
 
-import Blaze.Import.Source.Ghidra.Types (convertAddress, GhidraImporter(GhidraImporter))
-import Blaze.Import.Source.Ghidra.CallGraph (mkInternalFunc)
+import Blaze.Import.Source.Ghidra.Types (convertAddress, GhidraImporter)
+import Blaze.Import.Source.Ghidra.CallGraph (mkFunctionRef)
 import Blaze.Import.Xref (Xref(Xref))
 import qualified Blaze.Import.Xref as Xref
 
@@ -16,8 +16,8 @@ import qualified Ghidra.State as State
 
 -- | Get all xrefs to an address, returning only those from internal functions.
 getXrefsTo :: GhidraImporter -> Address -> IO [Xref]
-getXrefsTo imp@(GhidraImporter gs _ _) addr = do
-  let prg = gs ^. #program
+getXrefsTo imp addr = do
+  let prg = imp ^. #ghidraState . #program
   refsWithAddrs <- runGhidraOrError $ do
     jaddr <- State.mkAddress prg addr
     refs <- GRef.getReferencesToAddress prg jaddr
@@ -38,7 +38,7 @@ getXrefsTo imp@(GhidraImporter gs _ _) addr = do
         if isExt
           then return Nothing
           else do
-            func <- mkInternalFunc imp dethunkedJFunc
+            func <- mkFunctionRef dethunkedJFunc
             return $ Just Xref
               { Xref.function = func
               , Xref.address = convertAddress fromAddr
