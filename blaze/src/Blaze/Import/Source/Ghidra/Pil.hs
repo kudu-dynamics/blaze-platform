@@ -40,7 +40,7 @@ import Ghidra.Types.Variable (HighVarNode, VarNode, VarType(..))
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GCG
 import Blaze.Import.Source.Ghidra.Types (
   convertAddress,
-  GhidraImporter(GhidraImporter),
+  GhidraImporter,
   ghidraState
   )
 import Blaze.Import.Source.Ghidra.DataTypeConversions (convertGhidraDataTypeToImpType)
@@ -749,8 +749,9 @@ convertAndGetTypeHints imp ctx pcodeOps = do
 -}
 
 getFuncStatementsFromRawPcode :: GhidraImporter -> Function -> CtxId -> IO [Either ConverterError (MappedStmt Address)]
-getFuncStatementsFromRawPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId False
+getFuncStatementsFromRawPcode imp func ctxId = do
+  let gs = imp ^. #ghidraState
+      ctx = Ctx func ctxId False
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
   let addrSpaceMap = gs ^. #addressSpaceMap
@@ -758,8 +759,9 @@ getFuncStatementsFromRawPcode imp@(GhidraImporter gs _ _) func ctxId = do
   convertPcodeOps imp ctx pcodeOps
 
 getFuncStatementsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO [Either ConverterError (MappedStmt Address)]
-getFuncStatementsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId False
+getFuncStatementsFromHighPcode imp func ctxId = do
+  let gs = imp ^. #ghidraState
+      ctx = Ctx func ctxId False
       addr = func ^. #address
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
@@ -770,8 +772,9 @@ getFuncStatementsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
   convertPcodeOps imp ctx pcodeOps
 
 getFuncStatementsWithTypeHintsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO ([Either ConverterError (MappedStmt Address)], TypeHints)
-getFuncStatementsWithTypeHintsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId False
+getFuncStatementsWithTypeHintsFromHighPcode imp func ctxId = do
+  let gs = imp ^. #ghidraState
+      ctx = Ctx func ctxId False
       addr = func ^. #address
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
@@ -784,8 +787,9 @@ getFuncStatementsWithTypeHintsFromHighPcode imp@(GhidraImporter gs _ _) func ctx
 
 {-
 getTypeHintsFromHighPcode :: GhidraImporter -> Function -> CtxId -> IO TypeHints
-getTypeHintsFromHighPcode imp@(GhidraImporter gs _ _) func ctxId = do
-  let ctx = Ctx func ctxId False
+getTypeHintsFromHighPcode imp func ctxId = do
+  let gs = imp ^. #ghidraState
+      ctx = Ctx func ctxId False
       addr = func ^. #address
       prg = gs ^. #program
   jfunc <- GCG.toGhidraFunction prg func
@@ -801,8 +805,9 @@ getCodeRefStatementsFromRawPcode
   -> CtxId
   -> CodeReference Address
   -> IO [Either ConverterError (MappedStmt Address)]
-getCodeRefStatementsFromRawPcode imp@(GhidraImporter gs _ _) ctxId ref = do
-  let ctx = Ctx (ref ^. #function) ctxId False
+getCodeRefStatementsFromRawPcode imp ctxId ref = do
+  let gs = imp ^. #ghidraState
+      ctx = Ctx (ref ^. #function) ctxId False
       prg = gs ^. #program
       addrSpaceMap = gs ^. #addressSpaceMap
   pcodeOps <- runGhidraOrError $ do
@@ -817,8 +822,9 @@ getCodeRefStatementsFromHighPcode
   -> CtxId
   -> CodeReference Address
   -> IO [Either ConverterError (MappedStmt Address)]
-getCodeRefStatementsFromHighPcode imp@(GhidraImporter gs _ _) ctxId ref = do
-  let fn = ref ^. #function
+getCodeRefStatementsFromHighPcode imp ctxId ref = do
+  let gs = imp ^. #ghidraState
+      fn = ref ^. #function
       addr = fn ^. #address
       ctx = Ctx fn ctxId False
       prg = gs ^. #program

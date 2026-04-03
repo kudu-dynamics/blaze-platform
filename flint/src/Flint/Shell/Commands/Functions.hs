@@ -49,7 +49,7 @@ listFunctions st args = do
       funcs <- Store.getExternalFuncs (st ^. #cfgStore)
       let filtered = filter (\f -> matchesFilter (f ^. #name)) funcs
           sorted = sortOn (view #name) filtered
-      return $ fmap (\f -> (f ^. #name, f ^. #library)) sorted
+      return $ fmap (\f -> (f ^. #name, Nothing)) sorted
 
   case (internals, externs) of
     ([], []) -> return $ ResultOk "No functions found."

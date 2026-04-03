@@ -17,14 +17,14 @@ import Blaze.Path (VisitCounts(..), emptyVisitCounts)
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
 import qualified Flint.Types.CachedMap as CM
-import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIs, squashCallableWMIs)
+import Flint.Analysis.Path.Matcher.Primitives (mkCallableWMI, getInitialWMIsFromStore, squashCallableWMIs)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, MkCallableWMIError, KnownFunc, PrimSpec)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Cfg.Store (CfgStore)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Query
-import Flint.Analysis.References as R
+-- import Flint.Analysis.References as R
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Cfg.Path (PilPath)
@@ -39,7 +39,7 @@ import qualified Blaze.Pil.Construct as C
 import Blaze.Pil.Solver (solveStmtsWithZ3)
 import Blaze.Types.Cfg (PilNode, PilCfg)
 import qualified Blaze.Types.Cfg as Cfg
-import Blaze.Types.Function (Function, Func)
+import Blaze.Types.Function (Function, Func, toFunctionRef)
 import Blaze.Types.Graph (LEdge(LEdge), Edge(Edge))
 import Blaze.Types.Path.Alga (AlgaPath)
 import qualified Blaze.Path as Path
@@ -160,18 +160,21 @@ getCallSeqPreps store restrictStartFuncs g = do
           lastCall_ = NE.last callSeq
           callSet_ = HashSet.fromList . NE.toList $ callSeq
       callersOfFirstCall <-
-        CfgStore.getAncestors' store firstCall_ >>= \case
+        CfgStore.getAncestors' store (toFunctionRef firstCall_) >>= \case
           Nothing -> return ([] :: [Function])
-          Just s -> return
-            . maybe identity (\sfuncs -> filter (`HashSet.member` sfuncs)) restrictStartFuncs
-            $ HashSet.toList s
+          Just s -> do
+            resolved <- catMaybes <$> mapM (CfgStore.resolveFunction store) (HashSet.toList s)
+            return
+              . maybe identity (\sfuncs -> filter (`HashSet.member` sfuncs)) restrictStartFuncs
+              $ resolved
       -- Trying to limit unnecessary STDOUT output. Having a debug flag to
       -- enable diagnostic output would be preferable. - Hazmat
       -- putText $ "Callers of first call: " <> show (length callersOfFirstCall)
+      let callSetRefs = HashSet.map toFunctionRef callSet_
       (reachList :: [Maybe Function]) <- forConcurrently callersOfFirstCall $ \func -> do
-        CfgStore.getDescendants' store (func :: Function) >>= \case
+        CfgStore.getDescendants' store (toFunctionRef func) >>= \case
           Nothing -> return Nothing
-          Just descs -> case callSet_ `HashSet.isSubsetOf` descs of
+          Just descs -> case callSetRefs `HashSet.isSubsetOf` descs of
             False -> return Nothing
             True -> return $ Just func
       return $ CallSeqPrep
@@ -726,6 +729,20 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
                 <> show e
       warn msg
 
+-- | Look up a single function by name in a marker list and resolve to full Function.
+resolveByName :: CfgStore -> [Func.FunctionRef] -> Text -> IO (Maybe Function)
+resolveByName store markers name =
+  case filter (\fm -> fm ^. #name == name) markers of
+    [] -> return Nothing
+    (fm:_) -> CfgStore.resolveFunction store fm
+
+-- | Like resolveByName but matches against any name in the set.
+resolveByNames :: CfgStore -> [Func.FunctionRef] -> HashSet Text -> IO (Maybe Function)
+resolveByNames store markers names =
+  case filter (\fm -> HashSet.member (fm ^. #name) names) markers of
+    [] -> return Nothing
+    (fm:_) -> CfgStore.resolveFunction store fm
+
 checkKernelLifecycle
   :: Bool
   -> CfgStore
@@ -734,8 +751,10 @@ checkKernelLifecycle
   -> (MatchingResult -> IO ())
   -> IO ()
 checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth streamResults = do
-  funcs <- CfgStore.getInternalFuncs store
-  case (findFuncByName funcs "init_module", findFuncByName funcs "cleanup_module") of
+  markers <- CfgStore.getInternalFuncs store
+  initFuncM <- resolveByName store markers "init_module"
+  cleanupFuncM <- resolveByName store markers "cleanup_module"
+  case (initFuncM, cleanupFuncM) of
     (Just initFunc, Just cleanupFunc) -> do
       uuidInit <- randomIO
       uuidClean <- randomIO
@@ -775,7 +794,7 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
             , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
             ]
           lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
-      CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
+      CC.set lifecycleFunc (Just lifeCfgInfo) (store ^. #cfgCache)
 
       let q :: Query Function
           q = QueryExpandAll $ QueryExpandAllOpts
@@ -800,8 +819,6 @@ checkKernelLifecycle actuallyUseSolver store maxSamplesPerFunc expandCallDepth s
     _ -> do
       putText "Failed to find both `init_module` and `cleanup_module` for kernel"
       return ()
-  where
-    findFuncByName funcs t = headMay . filter (\func -> func ^. #name == t) $ funcs  
 
 checkKernelLifecycleForPrims'
   :: Bool
@@ -810,9 +827,10 @@ checkKernelLifecycleForPrims'
   -> Word64
   -> IO [MatchingPrim]
 checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCallDepth = do
-  funcs <- CfgStore.getInternalFuncs store
-  case ( findFuncByName funcs $ HashSet.fromList ["_init_module", "init_module", "__pfx_init_module"]
-       , findFuncByName funcs $ HashSet.fromList ["_cleanup_module", "cleanup_module", "__pfx_cleanup_module"]) of
+  markers <- CfgStore.getInternalFuncs store
+  initFuncM <- resolveByNames store markers $ HashSet.fromList ["_init_module", "init_module", "__pfx_init_module"]
+  cleanupFuncM <- resolveByNames store markers $ HashSet.fromList ["_cleanup_module", "cleanup_module", "__pfx_cleanup_module"]
+  case (initFuncM, cleanupFuncM) of
     (Just initFunc, Just cleanupFunc) -> do
       uuidInit <- randomIO
       uuidClean <- randomIO
@@ -852,7 +870,7 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
             , Cfg.CfEdge callNodeCleanup bbEnd Cfg.UnconditionalBranch
             ]
           lifeCfgInfo = CfgStore.calcCfgInfo lifeCfg
-      CC.setCalc lifecycleFunc (store ^. #cfgCache) . return $ Just lifeCfgInfo
+      CC.set lifecycleFunc (Just lifeCfgInfo) (store ^. #cfgCache)
 
       let q :: Query Function
           q = QueryExpandAll $ QueryExpandAllOpts
@@ -875,9 +893,6 @@ checkKernelLifecycleForPrims' actuallyUseSolver store maxSamplesPerFunc expandCa
     _ ->
       -- TODO: WARN
       return []
-  where
-    findFuncByName :: [Function] -> HashSet Text -> Maybe Function
-    findFuncByName funcs s = headMay . filter (\func -> HashSet.member (func ^. #name) s) $ funcs  
 
 -- checkPathForPrim_
 --   :: Monad m
@@ -1237,17 +1252,17 @@ onionFlow
   -> [(Text, Prim)]   -- ref sub-prim pairs
   -> [TaintPropagator]  -- taint propagators for func calls
   -> IO ()              -- it writes results into CfgStore and hopefully DB
-onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash attackSurface attackSurfaceDepth pRefSubPrimPairs taintProps = do
-  allFuncs <- CfgStore.getFuncs store
-  internalFuncs <- CfgStore.getInternalFuncs store
+onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash attackSurface attackSurfaceDepth _pRefSubPrimPairs taintProps = do
+  internalRefs <- CfgStore.getInternalFuncs store
   funcs <- if HashSet.null attackSurface
-    then return internalFuncs
-    else computeAttackSurfaceWorkingSet store internalFuncs attackSurface attackSurfaceDepth
+    then catMaybes <$> mapM (CfgStore.resolveFunction store) internalRefs
+    else computeAttackSurfaceWorkingSet store internalRefs attackSurface attackSurfaceDepth
   debug $ "Onion working set: " <> show (length funcs) <> " functions"
-  let stdlibPrims = getInitialWMIs stdLibPrims allFuncs
-      morePrims = getInitialPseudoRefSubPrims pRefSubPrimPairs allFuncs
-      initialPrims = HashMap.union stdlibPrims morePrims
-  CM.putSnapshot initialPrims $ store ^. #callablePrims
+  stdlibPrims <- getInitialWMIsFromStore (CfgStore.getFuncs store) (CfgStore.resolveFuncRef store) stdLibPrims
+  -- TODO: convert getInitialPseudoRefSubPrims to use markers like getInitialWMIsFromStore
+  -- let morePrims = getInitialPseudoRefSubPrims pRefSubPrimPairs allFuncs
+  --     initialPrims = HashMap.union stdlibPrims morePrims
+  CM.putSnapshot stdlibPrims $ store ^. #callablePrims
   replicateM_ (fromIntegral maxIterations) $ onionSinglePass maxResultsPerPath solver store prims funcs doSquash pathSamplingFactor funcToTypeHintsMap taintProps
   when doSquash $ do
     debug "Squashing the rest of the duplicate CallableWMIs"
@@ -1260,10 +1275,10 @@ onionFlow maxResultsPerPath actuallyUseSolver maxIterations pathSamplingFactor s
 -- | Compute the set of functions reachable from attack surface entry points
 -- via BFS through CfgInfo calls, up to a given depth.
 computeAttackSurfaceWorkingSet
-  :: CfgStore -> [Function] -> HashSet Text -> Word64 -> IO [Function]
-computeAttackSurfaceWorkingSet store internalFuncs entryNames maxDepth = do
-  let nameToFunc = HashMap.fromList [(f ^. #name, f) | f <- internalFuncs]
-      entryFuncs = mapMaybe (`HashMap.lookup` nameToFunc) . HashSet.toList $ entryNames
+  :: CfgStore -> [Func.FunctionRef] -> HashSet Text -> Word64 -> IO [Function]
+computeAttackSurfaceWorkingSet store markers entryNames maxDepth = do
+  let entryRefs = filter (\fm -> HashSet.member (fm ^. #name) entryNames) markers
+  entryFuncs <- catMaybes <$> mapM (CfgStore.resolveFunction store) entryRefs
   visitedRef <- newIORef (HashSet.fromList entryFuncs :: HashSet Function)
   queueRef <- newIORef [(f, 0 :: Word64) | f <- entryFuncs]
   let go = readIORef queueRef >>= \case
@@ -1349,20 +1364,20 @@ steadyStateOnionFlow
   -> Word64            -- report interval
   -> IO ()             -- output callback
   -> IO ()
-steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash attackSurface attackSurfaceDepth pRefSubPrimPairs taintProps reportInterval outputCallback = do
-  allFuncs <- CfgStore.getFuncs store
-  internalFuncs <- CfgStore.getInternalFuncs store
+steadyStateOnionFlow maxResultsPerPath actuallyUseSolver pathSamplingFactor store stdLibPrims prims funcToTypeHintsMap doSquash attackSurface attackSurfaceDepth _pRefSubPrimPairs taintProps reportInterval outputCallback = do
+  internalRefs <- CfgStore.getInternalFuncs store
 
-  -- Initialize WMIs from stdlib prims
-  let stdlibPrims = getInitialWMIs stdLibPrims allFuncs
-      morePrims = getInitialPseudoRefSubPrims pRefSubPrimPairs allFuncs
-      initialPrims = HashMap.union stdlibPrims morePrims
-  CM.putSnapshot initialPrims $ store ^. #callablePrims
+  -- Initialize WMIs from stdlib prims (lazy: only resolves matching funcs)
+  stdlibPrims <- getInitialWMIsFromStore (CfgStore.getFuncs store) (CfgStore.resolveFuncRef store) stdLibPrims
+  -- TODO: convert getInitialPseudoRefSubPrims to use markers like getInitialWMIsFromStore
+  -- let morePrims = getInitialPseudoRefSubPrims pRefSubPrimPairs allFuncs
+  --     initialPrims = HashMap.union stdlibPrims morePrims
+  CM.putSnapshot stdlibPrims $ store ^. #callablePrims
 
   -- Compute working set
   workingSet <- if HashSet.null attackSurface
-    then return internalFuncs
-    else computeAttackSurfaceWorkingSet store internalFuncs attackSurface attackSurfaceDepth
+    then catMaybes <$> mapM (CfgStore.resolveFunction store) internalRefs
+    else computeAttackSurfaceWorkingSet store internalRefs attackSurface attackSurfaceDepth
   debug $ "Steady-state working set: " <> show (length workingSet) <> " functions"
 
   -- Pre-compute function weights (target samples per func based on node count)

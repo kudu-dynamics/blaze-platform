@@ -866,6 +866,25 @@ instance Tokenizable Func.Func where
   tokenize (Func.Internal x) = tokenize x
   tokenize (Func.External x) = tokenize x
 
+instance Tokenizable Func.FuncRef where
+  tokenize (Func.InternalRef x) = tokenize x
+  tokenize (Func.ExternalRef x) = tokenize x
+
+instance Tokenizable Func.FunctionRef where
+  tokenize fm =
+    pure
+      [ Token
+          { tokenType = CodeSymbolToken
+          , text = fm ^. #name
+          , value = fromIntegral $ addrToInt (fm ^. #address)
+          , size = 0
+          , operand = 0xffffffff
+          , context = NoTokenContext
+          , address = intToAddr 0
+          , typeSym = Nothing
+          }
+      ]
+
 instance Tokenizable Cg.CallSite where
   tokenize x =
     tokenize (x ^. #caller)

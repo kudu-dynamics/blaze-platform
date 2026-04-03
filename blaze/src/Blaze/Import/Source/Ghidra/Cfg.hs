@@ -218,8 +218,9 @@ getHighPcodeCfg
   -> Function
   -> CtxId
   -> IO (Maybe (Cfg (CfNode [(Address, PcodeOp HighVarNode)])))
-getHighPcodeCfg imp@(GhidraImporter gs _ _) fn ctxId = do
-  let prg = gs ^. #program
+getHighPcodeCfg imp fn ctxId = do
+  let gs = imp ^. #ghidraState
+      prg = gs ^. #program
       addr = fn ^. #address
   jfunc <- CGI.toGhidraFunction prg fn
   hfunc <- CGI.getHighFunction imp addr jfunc

@@ -9,7 +9,7 @@ import Blaze.Prelude
 import Blaze.Types.CallGraph as Exports
 import Blaze.Import.CallGraph (CallGraphImporter, getCallSites)
 import qualified Blaze.Types.Graph as G
-import Blaze.Types.Function (Func(Internal))
+import Blaze.Types.Function (FuncRef(InternalRef))
 
 import Control.Concurrent.Async (forConcurrently)
 
@@ -20,8 +20,9 @@ getUndirectedCallGraph cg = G.addNodes (toList $ G.nodes cg) . G.fromEdges . fma
     edges = snd . G.toTupleLEdge <$> G.edges cg
     inverseEdge (a,b) = (b,a)
 
-getCallGraph :: CallGraphImporter a => a -> [Func] -> IO CallGraph
-getCallGraph importer funcs = do
-  edges <- fmap concat . forConcurrently funcs $ \callee ->
-    fmap (\callSite -> (Internal $ callSite ^. #caller, callee)) <$> getCallSites importer callee
-  pure . G.addNodes funcs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges
+getCallGraph :: CallGraphImporter a => a -> [FuncRef] -> IO CallGraph
+getCallGraph importer funcRefs = do
+  edges <- fmap concat . forConcurrently funcRefs $
+    fmap (fmap (\callSite -> (InternalRef $ callSite ^. #caller, callSite ^. #dest)))
+      . getCallSites importer
+  pure . G.addNodes funcRefs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges

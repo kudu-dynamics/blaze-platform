@@ -1,8 +1,23 @@
 # Blaze Platform
 
 ## Version 0.26.0402
+- Renamed `FunctionMarker`/`FuncMarker` → `FunctionRef`/`FuncRef` throughout
+- CFG cache keys reverted to `Function` (not `FunctionRef`) — CFG computation requires decompilation anyway, so marker keys added needless `toFunctionRef`/`resolveFunction` roundtrips
+- `CachedCalc.defaultCalc` — optional `(k -> IO v)` fallback for unknown keys, so caches auto-compute on demand without pre-registering every key
+- CfgStore CFG-layer caches (`cfgCache`, `acyclicCfgCache`, `acyclicDescendantsCache`, `callSitesInFuncCache`) use `defaultCalc` instead of pre-registered `setCalc` per function
+- `CfgStore.getCallSitesInFunc` getter for call sites within a function's CFG
+- `getFunction` handles `EXTERNAL` address space via `mkExternalAddress` — previously failed for extern addresses, breaking `externFuncCalc` resolution
+- `computeAttackSurfaceWorkingSet` takes `[FunctionRef]` and resolves lazily — only decompiles attack surface entry points + BFS callees, not all functions
 - Added dynamic taint propagation in `flint-shell` and `flint-mcp`
 - Added dynamic pattern generation in `flint-shell` and `flint-mcp`
+
+## Version 0.26.0401
+- `FunctionRef` / `FuncRef` types in Blaze — lightweight function refs without params, used for call graphs and CfgStore function lists
+- Lazy decompilation: `getFunctions` no longer decompiles every function at startup; params are resolved on demand through `CfgStore.funcCalc` when a function's CFG is first accessed
+- `CachedCalc` migrated from Flint to Blaze with deadlock fix: `TMVar v` → `TMVar (Either SomeException v)` so waiting threads always wake up on error; stderr logging before re-throw
+- `CachedCalc.getOrCompute` — compute-once semantics with caller-supplied computation
+- GhidraImporter uses `CachedCalc` for `highFnCalc` instead of `CachedMap`; pattern matches replaced with lens access throughout Ghidra import modules
+- `CfgStore.funcCalc :: CachedCalc FunctionRef Function` for lazy ref-to-full-function resolution
 
 ## Version 0.26.0330
 - Fix target sampling (`sample func @ 0xaddr`) failing when xref addresses point to raw instructions folded into high P-code CALL operations by the decompiler

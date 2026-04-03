@@ -26,7 +26,7 @@ spec = describe "Blaze.Persist.Db" $ do
     cg <- runIO $ getCallGraph imp funcs
     mCg' <- runIO $ withSystemTempFile "dive_callgraph.blaze" $ \fp _ -> do
       conn <- Db.init fp
-      Db.insertCallGraph conn cg
+      Db.insertCallGraph conn cg funcs
       Db.loadCallGraph conn
 
     let reduceGraph g = ( sort . fmap (view #name) . HashSet.toList $ G.nodes g

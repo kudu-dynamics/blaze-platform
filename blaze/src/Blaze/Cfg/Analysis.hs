@@ -303,8 +303,8 @@ getCallNodeDistances ctx tgt =
     . mapMaybe
         (\callNode ->
            case callNode ^. #callDest of
-             Pil.CallFunc fn -> Just (callNode, shortestPath $ Func.Internal fn)
-             Pil.CallExtern fn -> Just (callNode, shortestPath $ Func.External fn)
+             Pil.CallFunc fn -> Just (callNode, shortestPath . Func.InternalRef $ Func.toFunctionRef fn)
+             Pil.CallExtern fn -> Just (callNode, shortestPath . Func.ExternalRef $ Func.toExternFunctionRef fn)
              _ -> Nothing
         )
   where

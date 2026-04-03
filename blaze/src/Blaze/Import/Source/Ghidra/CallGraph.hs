@@ -4,15 +4,16 @@ import Blaze.Prelude hiding (Symbol)
 
 import Blaze.Import.Source.Ghidra.Types (
   convertAddress,
-  GhidraImporter(GhidraImporter)
+  GhidraImporter
   )
 import Blaze.Types.CallGraph (CallSite(CallSite))
-import qualified Blaze.Types.CachedMap as CM
+import qualified Blaze.Types.CachedCalc as CC
 import qualified Blaze.Types.CallGraph as CG
 import Blaze.Types.Function (
   ExternFunction,
   Function,
   Func (Internal, External),
+  FuncRef (InternalRef),
   FuncParamInfo (FuncParamInfo, FuncVarArgInfo),
   ParamInfo (ParamInfo),
  )
@@ -48,8 +49,21 @@ getJFunction prg addr = runGhidraOrError $ do
   jaddr <- State.mkAddress prg addr
   G.fromAddr prg jaddr
 
-getFuncFromJFunction_ :: GhidraImporter -> J.Function -> IO Func
-getFuncFromJFunction_ imp jfunc = do
+-- | Convert a JFunction to a FuncRef WITHOUT decompiling.
+-- Used by 'getFunctions' for the initial function list and call graph construction.
+getFuncRefFromJFunction :: J.Function -> IO BFunc.FuncRef
+getFuncRefFromJFunction jfunc = do
+  (dethunkedJFunc, isExt) <- runGhidraOrError $ do
+    dethunkedJFunc <- G.resolveThunk jfunc
+    isExt <- G.isExternal dethunkedJFunc
+    return (dethunkedJFunc, isExt)
+  case isExt of
+    True -> fmap (BFunc.ExternalRef . BFunc.toExternFunctionRef) . runGhidraOrError $ mkExternFunc dethunkedJFunc
+    False -> BFunc.InternalRef <$> mkFunctionRef dethunkedJFunc
+
+-- | Convert a JFunction to a Func WITH full decompilation for params.
+getFuncFromJFunction :: GhidraImporter -> J.Function -> IO Func
+getFuncFromJFunction imp jfunc = do
   (dethunkedJFunc, isExt) <- runGhidraOrError $ do
     dethunkedJFunc <- G.resolveThunk jfunc
     isExt <- G.isExternal dethunkedJFunc
@@ -58,27 +72,29 @@ getFuncFromJFunction_ imp jfunc = do
     True -> fmap External . runGhidraOrError $ mkExternFunc dethunkedJFunc
     False -> Internal <$> mkInternalFunc imp dethunkedJFunc
 
-getFuncFromJFunction :: GhidraImporter -> J.Function -> IO Func
-getFuncFromJFunction = getFuncFromJFunction_
-
 getFunction :: GhidraImporter -> Address -> IO (Maybe Func)
-getFunction imp@(GhidraImporter gs _ _) addr = getJFunction (gs ^. #program) addr >>= \case
-  Nothing -> return Nothing
-  Just jfunc -> Just <$> getFuncFromJFunction imp jfunc
+getFunction imp addr = do
+  let prg = imp ^. #ghidraState . #program
+  mjfunc <- case addr ^. #space . #name of
+    BA.EXTERNAL -> runGhidraOrError
+      $ State.mkExternalAddress prg (fromIntegral $ addr ^. #offset)
+      >>= G.getFunctionAt prg
+    _ -> getJFunction prg addr
+  case mjfunc of
+    Nothing -> return Nothing
+    Just jfunc -> Just <$> getFuncFromJFunction imp jfunc
 
 getHighFunction :: GhidraImporter -> Address -> J.Function -> IO J.HighFunction
-getHighFunction (GhidraImporter gs fc _) addr fn = CM.get addr fc >>= \case
-  Nothing -> do
-    hf <- runGhidraOrError $ G.getHighFunction gs fn
-    CM.set addr (Just hf) fc
-    return hf
-  Just cachedFn -> return cachedFn
+getHighFunction imp addr jfunc =
+  CC.getOrCompute addr computeHF (imp ^. #highFnCalc)
+  where
+    computeHF = runGhidraOrError $ G.getHighFunction (imp ^. #ghidraState) jfunc
 
 convertRawParam :: G.Parameter -> BFunc.FuncParamInfo
 convertRawParam p = BFunc.FuncParamInfo $ BFunc.ParamInfo (p ^. #name) Nothing BFunc.Unknown
 
--- | Converts Ghidra function to a Blaze internal (not extern) Function
--- G.isExternal must be True
+-- | Converts Ghidra function to a Blaze internal (not extern) Function,
+-- with full params from decompilation.
 mkInternalFunc :: GhidraImporter -> J.Function -> IO Function
 mkInternalFunc imp jfunc = do
   addr <- convertAddress <$> runGhidraOrError (G.getAddress jfunc)
@@ -98,6 +114,17 @@ mkInternalFunc imp jfunc = do
         , address = addr
         , params = params
         }
+
+-- | Lightweight marker from a Ghidra function — no decompilation needed.
+mkFunctionRef :: J.Function -> IO BFunc.FunctionRef
+mkFunctionRef jfunc = runGhidraOrError $ do
+  addr <- convertAddress <$> G.getAddress jfunc
+  name <- G.getName jfunc
+  return BFunc.FunctionRef
+    { symbol = Nothing
+    , name = name
+    , address = addr
+    }
 
 -- | Converts Ghidra function to a Blaze ExternFunction
 -- G.isExternal must be True
@@ -123,10 +150,10 @@ mkExternFunc jfunc = do
     , params = convertRawParam <$> params
     }
 
-getFunctions :: GhidraImporter -> IO [Func]
-getFunctions imp@(GhidraImporter gs _ _) = do
-  fmap nub $ runGhidraOrError (G.getFunctions' opts $ gs ^. #program)
-    >>= traverse (getFuncFromJFunction_ imp)
+getFunctions :: GhidraImporter -> IO [BFunc.FuncRef]
+getFunctions imp = do
+  fmap nub $ runGhidraOrError (G.getFunctions' opts $ imp ^. #ghidraState . #program)
+    >>= traverse getFuncRefFromJFunction
   where
     -- Are these sensible options for blaze?
     opts = G.GetFunctionsOptions
@@ -139,18 +166,18 @@ getFunctions imp@(GhidraImporter gs _ _) = do
 
 -- | Gets all callsites that call fn.
 -- Uses reference-based lookup plus thunk-following for both internal and extern functions.
-getCallSites :: GhidraImporter -> Func -> IO [CallSite]
-getCallSites imp@(GhidraImporter gs _ _) fn = do
-  let prg = gs ^. #program
+getCallSites :: GhidraImporter -> BFunc.FuncRef -> IO [CallSite]
+getCallSites imp fn = do
+  let prg = imp ^. #ghidraState . #program
   mgfunc <- case fn of
-    BFunc.Internal func -> do
-      startAddr <- runGhidraOrError . State.mkAddress prg $ func ^. #address
+    BFunc.InternalRef fm -> do
+      startAddr <- runGhidraOrError . State.mkAddress prg $ fm ^. #address
       runGhidraOrError $ G.fromAddr prg startAddr
-    BFunc.External func -> do
+    BFunc.ExternalRef fm -> do
       externAddr <- runGhidraOrError
         . State.mkExternalAddress prg
         . fromIntegral
-        $ func ^. #address . #offset
+        $ fm ^. #address . #offset
       runGhidraOrError $ G.getFunctionAt prg externAddr
 
   case mgfunc of
@@ -171,34 +198,34 @@ getCallSites imp@(GhidraImporter gs _ _) fn = do
   where
     mkCallSiteFromRef :: GRef.FuncRef -> IO (Maybe CallSite)
     mkCallSiteFromRef x = do
-      caller <- getFuncFromJFunction imp $ x ^. #caller . #handle
-      case caller of
-        External _ -> return Nothing
-        Internal func -> do
+      callerRef <- getFuncRefFromJFunction $ x ^. #caller . #handle
+      case callerRef of
+        BFunc.ExternalRef _ -> return Nothing
+        BFunc.InternalRef fm -> do
           let addr = convertAddress $ x ^. #callerAddr
-          return . Just $ CallSite { CG.caller = func
+          return . Just $ CallSite { CG.caller = fm
                                    , CG.address = addr
                                    , CG.dest = fn
                                    }
 
--- | Like 'getCallSites' but uses a pre-built function cache to avoid
--- expensive JNI round-trips in 'getFuncFromJFunction'. The same caller
--- function appears in many references; the cache turns ~15 JNI calls per
--- reference into a single HashMap lookup.
-type FuncCache = HashMap Address Func
+-- | Like 'getCallSites' but uses a pre-built FuncRef cache to avoid
+-- expensive JNI round-trips. The same caller function appears in many
+-- references; the cache turns multiple JNI calls per reference into a
+-- single HashMap lookup.
+type FuncRefCache = HashMap Address BFunc.FuncRef
 
-getCallSitesCached :: GhidraImporter -> FuncCache -> Func -> IO [CallSite]
-getCallSitesCached (GhidraImporter gs _ _) funcCache fn = do
-  let prg = gs ^. #program
+getCallSitesCached :: GhidraImporter -> FuncRefCache -> BFunc.FuncRef -> IO [CallSite]
+getCallSitesCached imp funcCache fn = do
+  let prg = imp ^. #ghidraState . #program
   mgfunc <- case fn of
-    BFunc.Internal func -> do
-      startAddr <- runGhidraOrError . State.mkAddress prg $ func ^. #address
+    BFunc.InternalRef fm -> do
+      startAddr <- runGhidraOrError . State.mkAddress prg $ fm ^. #address
       runGhidraOrError $ G.fromAddr prg startAddr
-    BFunc.External func -> do
+    BFunc.ExternalRef fm -> do
       externAddr <- runGhidraOrError
         . State.mkExternalAddress prg
         . fromIntegral
-        $ func ^. #address . #offset
+        $ fm ^. #address . #offset
       runGhidraOrError $ G.getFunctionAt prg externAddr
 
   case mgfunc of
@@ -216,32 +243,25 @@ getCallSitesCached (GhidraImporter gs _ _) funcCache fn = do
   where
     mkCallSiteFromRef :: GRef.FuncRef -> IO (Maybe CallSite)
     mkCallSiteFromRef x = do
-      -- Look up the caller by its entry address in the cache instead of
-      -- calling getFuncFromJFunction (~15 JNI calls per reference).
       let callerEntryAddr = convertAddress $ x ^. #caller . #startAddress
       case HashMap.lookup callerEntryAddr funcCache of
-        Just (Internal func) -> do
+        Just (BFunc.InternalRef fm) -> do
           let addr = convertAddress $ x ^. #callerAddr
-          return . Just $ CallSite { CG.caller = func
+          return . Just $ CallSite { CG.caller = fm
                                    , CG.address = addr
                                    , CG.dest = fn
                                    }
         _ -> return Nothing  -- external, thunk, or unknown caller, skip
 
--- | Build a call graph using a function cache for fast caller lookups.
--- This avoids redundant JNI calls when the same function appears as a
--- caller in multiple references.
-getCallGraphCached :: GhidraImporter -> [Func] -> IO CG.CallGraph
-getCallGraphCached imp funcs = do
-  let funcCache :: FuncCache
+-- | Build a call graph using a function marker cache for fast caller lookups.
+getCallGraphCached :: GhidraImporter -> [BFunc.FuncRef] -> IO CG.CallGraph
+getCallGraphCached imp funcRefs = do
+  let funcCache :: FuncRefCache
       funcCache = HashMap.fromList
-        [ (addr, f)
-        | f <- funcs
-        , let addr = case f of
-                BFunc.Internal func -> func ^. #address
-                BFunc.External func -> func ^. #address
+        [ (BFunc.funcRefAddress fm, fm)
+        | fm <- funcRefs
         ]
-  edges <- fmap concat . forConcurrently funcs $ \callee ->
-    fmap (\callSite -> (Internal $ callSite ^. #caller, callee))
-      <$> getCallSitesCached imp funcCache callee
-  pure . G.addNodes funcs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges
+  edges <- fmap concat . forConcurrently funcRefs $
+    fmap (fmap (\callSite -> (InternalRef $ callSite ^. #caller, callSite ^. #dest)))
+      . getCallSitesCached imp funcCache
+  pure . G.addNodes funcRefs . G.fromEdges . fmap (G.fromTupleLEdge . ((),)) $ edges

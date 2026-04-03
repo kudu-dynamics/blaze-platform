@@ -5,14 +5,13 @@ module Flint.QuerySpec where
 import Flint.Prelude hiding (sym, const, until)
 
 import Flint.Analysis.Path.Matcher
-import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIs)
+import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIsFromStore)
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library.PrimSpec as PrimSpec
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library.StdLib as StdLibPrims
 -- import Flint.Cfg.Path (samplesFromQuery)
 import qualified Flint.Cfg.Store as Store
 import Flint.Query
--- import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep, PathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI)
 import qualified Flint.Types.CachedMap as CM
 import Flint.Types.Cfg.Store (CfgStore)
@@ -61,10 +60,10 @@ spec = beforeAll getTestCtx . describe "Flint.Query" $ do
   context "onionFlow" $ do
     it "should find initial callable prims for controlled format string prim" $ \tctx -> do
       let stdLibPrims = StdLibPrims.controlledFormatStringPrims
+          store = tctx ^. #dirtyStore
           action = do
-            funcs <- Store.getFuncs $ tctx ^. #dirtyStore
-            let cprims = getInitialWMIs stdLibPrims funcs
-                cprims' = asOldCallableWMIsMap cprims
+            cprims <- getInitialWMIsFromStore (Store.getFuncs store) (Store.resolveFuncRef store) stdLibPrims
+            let cprims' = asOldCallableWMIsMap cprims
 
             return $ do
               (s :: HashSet CallableWMI) <- HashMap.lookup PrimSpec.controlledFormatStringSpec cprims'

@@ -139,6 +139,7 @@ library:
   - Blaze.Pretty
   - Blaze.Search
   - Blaze.Pil.Solver
+  - Blaze.Types.CachedCalc
   - Blaze.Types.CallGraph
   - Blaze.Types.Cfg
   - Blaze.Types.Cfg.Analysis

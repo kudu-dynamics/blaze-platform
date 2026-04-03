@@ -41,13 +41,20 @@ data TestCtx = TestCtx
     , annotatedPilMaps :: [TypeHints]
     } deriving (Generic)
 
+-- | Resolve FuncRef list from getFunctions to internal Function list.
+resolveInternalFuncs :: CallGraphImporter a => a -> IO [Function]
+resolveInternalFuncs imp = do
+  markers <- getFunctions imp
+  let internalRefs = mapMaybe (^? #_InternalRef) markers
+  mapMaybeM (\fm -> fmap (>>= (^? #_Internal)) . getFunction imp $ fm ^. #address) internalRefs
+
 getTestCtx :: IO TestCtx
 getTestCtx = do
     diveLoggerImp <- getImporter diveBin
-    diveLoggerFuncs <- mapMaybe (^? #_Internal) <$> getFunctions diveLoggerImp
+    diveLoggerFuncs <- resolveInternalFuncs diveLoggerImp
     (diveLoggerFuncStmts, diveLoggerPilMaps) <- (fmap unzip . getFuncStmtsWithTypeHints diveLoggerImp) diveLoggerFuncs
     annotatedImp <- getImporter annotatedTestBin
-    annotatedFuncs <- mapMaybe (^? #_Internal) <$> getFunctions annotatedImp
+    annotatedFuncs <- resolveInternalFuncs annotatedImp
     (annotatedFuncStmts, annotatedPilMaps) <- (fmap unzip . getFuncStmtsWithTypeHints annotatedImp) annotatedFuncs
     --annotatedFuncStmts <- getFuncStmts annotatedImp annotatedFuncs
     --annotatedPilMaps <- getPVMaps annotatedImp annotatedFuncs
@@ -74,7 +81,7 @@ spec = beforeAll getTestCtx . describe "Blaze.Import.Source.Ghidra.Pil" $ do
     -- was 8 bytes.
     let action = do
           imp <- G.getImporter onionTestBin
-          funcs <- mapMaybe (^? #_Internal) <$> getFunctions imp
+          funcs <- resolveInternalFuncs imp
           let intOverflowFunc = fromJust . headMay . filter ((== "int_overflow_func") . view #name) $ funcs
           (stmt0:stmt1:_) <- getFuncStatements imp intOverflowFunc 0
           let addr0 = stmt0 ^?! #statement . #_Def . #value . #op . #_ADD . #left . #op . #_LOAD . #src

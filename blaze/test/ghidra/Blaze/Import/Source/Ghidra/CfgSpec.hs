@@ -6,7 +6,7 @@ module Blaze.Import.Source.Ghidra.CfgSpec where
 
 import Blaze.Prelude hiding (Symbol)
 
-import Blaze.Import.CallGraph (CallGraphImporter (getFunctions))
+import Blaze.Import.CallGraph (CallGraphImporter (getFunctions, getFunction))
 import qualified Blaze.Types.Pil as Pil
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg (CfNode(..))
@@ -46,7 +46,9 @@ spec :: Spec
 spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
   context "Getting CFGs from DiveLogger" $ do
     imp <- runIO $ G.getImporter diveBin
-    funcs <- fmap (mapMaybe (^? #_Internal)) . runIO $ getFunctions imp
+    allFuncRefs <- runIO $ getFunctions imp
+    let internalRefs = mapMaybe (^? #_InternalRef) allFuncRefs
+    funcs <- runIO $ mapMaybeM (\fm -> fmap (>>= (^? #_Internal)) . getFunction imp $ fm ^. #address) internalRefs
 
     context "getRawPcodeCfg" $ do
       cfgs <- fmap catMaybes . runIO $ traverse (\func -> getRawPcodeCfg (imp ^. #ghidraState) func 0) funcs

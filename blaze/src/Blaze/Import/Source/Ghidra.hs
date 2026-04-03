@@ -23,7 +23,7 @@ import qualified Ghidra.Inspect as GInspect
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
 import Blaze.Types.Cfg (PilNode)
-import Blaze.Types.CachedMap qualified as CM
+import Blaze.Types.CachedCalc qualified as CC
 import Ghidra.Types.Variable (VarNode)
 import Text.Pretty.Simple (pHPrint)
 import qualified Data.HashMap.Strict as HashMap
@@ -35,57 +35,65 @@ filterStringsMap = HashMap.mapKeys intToAddr . HashMap.filterWithKey (\k _ -> k 
 
 getImporter :: FilePath -> IO GhidraImporter
 getImporter fp = do
-  highFnCache <- atomically $ CM.create Nothing
+  highFnCalc <- atomically CC.create
   runGhidraOrError $
     GState.openDatabase fp >>= \case
       Left err -> error $ "Could not open binary: " <> show err
       Right gs -> do
         GState.analyze gs
         smap <- GState.getDefinedStrings (gs ^. #program)
-        return $ GhidraImporter gs highFnCache (filterStringsMap smap)
+        return $ GhidraImporter gs highFnCalc (filterStringsMap smap)
 
 instance BinaryImporter GhidraImporter where
   openBinary fp = do
-    highFnCache <- atomically $ CM.create Nothing
+    highFnCalc <- atomically CC.create
     runGhidraOrError $
       GState.openDatabase fp >>= \case
         Left err -> return . error $ "Could not open binary: " <> show err
         Right gs -> do
           GState.analyze gs
           smap <- GState.getDefinedStrings (gs ^. #program)
-          return . Right $ GhidraImporter gs highFnCache (filterStringsMap smap)
+          return . Right $ GhidraImporter gs highFnCalc (filterStringsMap smap)
 
   shutdown = stopJVMIfRunning
 
-  saveToDb fp (GhidraImporter gs _ _) = do
+  saveToDb fp imp = do
     let fp' = fp <> if ".gzf" `isSuffixOf` fp then "" else ".gzf"
+        gs = imp ^. #ghidraState
     runGhidraOrError $ GState.saveDatabase gs fp'
     return $ Right fp'
 
   -- uh, won't this invalidate the cache??
-  rebaseBinary (GhidraImporter gs fc _) off = runGhidraOrError $ do
-    GProg.withTransaction (gs ^. #program) "BinaryImporter: Set Image Base" $ do
-      GProg.setImageBase (gs ^. #program) (addrToInt off) True
-      GState.analyze gs
-    smap <- GState.getDefinedStrings (gs ^. #program)
-    return $ GhidraImporter gs fc (filterStringsMap smap)
+  rebaseBinary imp off = do
+    let gs = imp ^. #ghidraState
+    runGhidraOrError $ do
+      GProg.withTransaction (gs ^. #program) "BinaryImporter: Set Image Base" $ do
+        GProg.setImageBase (gs ^. #program) (addrToInt off) True
+        GState.analyze gs
+      smap <- GState.getDefinedStrings (gs ^. #program)
+      return $ imp { stringsMap = filterStringsMap smap }
 
-  getBase (GhidraImporter gs _ _) = runGhidraOrError $ do
-    prg <- GState.getProgram gs
-    fmap convertAddress $ GState.getImageBase prg >>= GAddr.mkAddress
+  getBase imp = do
+    let gs = imp ^. #ghidraState
+    runGhidraOrError $ do
+      prg <- GState.getProgram gs
+      fmap convertAddress $ GState.getImageBase prg >>= GAddr.mkAddress
 
-  getStart (GhidraImporter gs _ _) = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
+  getStart imp = fmap convertAddress . runGhidraOrError $ GProg.getMinAddress (gs ^. #program)
+    where gs = imp ^. #ghidraState
 
-  getEnd (GhidraImporter gs _ _) = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
+  getEnd imp = fmap convertAddress . runGhidraOrError $ GProg.getMaxAddress (gs ^. #program)
+    where gs = imp ^. #ghidraState
 
-  getOriginalBinaryPath (GhidraImporter gs _ _) = do
+  getOriginalBinaryPath imp = do
+    let gs = imp ^. #ghidraState
     binPath <- runGhidraOrError $ GProg.getExecutablePath (gs ^. #program)
     return $ cs binPath
 
   getStringsMap = return . view #stringsMap
 
-  inspectAddress (GhidraImporter gs _ _) addr =
-    runGhidraOrError $ GInspect.inspectAddress gs addr
+  inspectAddress imp addr =
+    runGhidraOrError $ GInspect.inspectAddress (imp ^. #ghidraState) addr
 
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction

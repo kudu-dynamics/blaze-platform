@@ -180,7 +180,7 @@ printMatchingPrimJSON res = do
 defaultCheck :: MonadIO m => Options -> m ()
 defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-  funcs <- Store.getInternalFuncs store
+  funcs <- Store.getInternalFullFuncs store
   
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts
@@ -207,7 +207,7 @@ defaultCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -
 primCheck :: MonadIO m => Options -> m ()
 primCheck opts = withBackend (opts ^. #backend) (opts ^. #inputFile) $ \imp -> do
   store <- Store.init (opts ^. #analysisDb) imp
-  funcs <- Store.getInternalFuncs store
+  funcs <- Store.getInternalFullFuncs store
 
   let q :: Query Function
       q = QueryExpandAll $ QueryExpandAllOpts

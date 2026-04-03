@@ -46,7 +46,7 @@ getUndirectedCg imp = do
   cg <- Cgi.getFunctions imp >>= Cg.getCallGraph imp
   return $ Cg.getUndirectedCallGraph cg
 
-getEdgeList :: Cg.CallGraph -> [(Func.Func, Func.Func)]
+getEdgeList :: Cg.CallGraph -> [(Func.FuncRef, Func.FuncRef)]
 getEdgeList g = G.toTupleEdge . view #edge <$> G.edges g
 
 extractFuncsFromConstructors :: [ClassConstructor] -> [Func.Function]

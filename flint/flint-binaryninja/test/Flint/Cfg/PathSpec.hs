@@ -54,7 +54,7 @@ spec = do
         store <- do
           allFuncs <- Cg.getFunctions bv
           cfgStore <- CfgStore.init Nothing bv
-          addCfgStoreForBinary bv allFuncs cfgStore
+          addCfgStoreForBinary allFuncs cfgStore
           return cfgStore
         singlePathFunc <- getFunction bv $ FuncSym "single_path_no_calls"
         outerAFunc <- getFunction bv $ FuncSym "outer_a"

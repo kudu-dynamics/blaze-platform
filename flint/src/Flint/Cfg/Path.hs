@@ -9,7 +9,6 @@ module Flint.Cfg.Path
 
 import Flint.Prelude
 
-import qualified Flint.Types.CachedCalc as CC
 import Flint.Types.Query (Query(QueryTarget, QueryExpandAll, QueryExploreDeep, QueryAllPaths, QueryCallSeq), CallSeqPrep)
 import qualified Flint.Cfg.Store as CfgStore
 import Flint.Types.Cfg.Store (CfgStore, CfgInfo)
@@ -24,7 +23,7 @@ import qualified Blaze.Graph as G
 import qualified Blaze.Path as Path
 import Blaze.Path (SampleRandomPathError', VisitCounts(..), pickFromListFp)
 import Blaze.Pretty (pretty', FullCfNode(FullCfNode))
-import Blaze.Types.Function (Function)
+import Blaze.Types.Function (Function, FunctionRef, toFunctionRef)
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Pil (Stmt)
@@ -225,7 +224,7 @@ expandToTargetsStrategy
   -> Bool                    -- ^ use old loop unrolling instead of summarization
   -> CfgStore
   -> UsedFuncsRef
-  -> HashSet Function
+  -> HashSet FunctionRef
   -> NonEmpty Address
   -> ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO
 expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef funcsThatLeadToTargets targets func currentDepth =
@@ -238,7 +237,7 @@ expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store used
           nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` cfg) . NE.toList $ targets
           callNodesThatLeadToTargets :: [CallNode [Stmt]]
           callNodesThatLeadToTargets
-            = filter (maybe False (`HashSet.member` funcsThatLeadToTargets) . getCallNodeFunc)
+            = filter (maybe False ((`HashSet.member` funcsThatLeadToTargets) . toFunctionRef) . getCallNodeFunc)
             $ cfgInfo ^. #calls
           combined = (Left <$> nodesContainingTargets) <> (Right <$> callNodesThatLeadToTargets)
       case NE.nonEmpty combined of
@@ -296,15 +295,15 @@ mkExpandToTargetsStrategy
   -> NonEmpty (Function, Address)
   -> IO (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO)
 mkExpandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef targets = do
-  funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
+  funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap (toFunctionRef . fst) $ targets
   return $ expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
-    addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
-    addAncestors s func = do
-      ancestors <- CfgStore.getAncestors' store func >>= \case
-        Nothing -> error $ "Could not find func ancestors for " <> show func
+    addAncestors :: HashSet FunctionRef -> FunctionRef -> IO (HashSet FunctionRef)
+    addAncestors s fm = do
+      ancestors <- CfgStore.getAncestors' store fm >>= \case
+        Nothing -> error $ "Could not find func ancestors for " <> show fm
         Just ancestors -> return ancestors
-      return . HashSet.insert func $ HashSet.union ancestors s
+      return . HashSet.insert fm $ HashSet.union ancestors s
 
 -- | For now, we take the indolent approach and use ExpandToTarget
 -- to reach a callsite for the last function in the CallSeq, ignoring all
@@ -318,20 +317,20 @@ mkExpandAlongCallSeqStrategy
   -> CallSeqPrep
   -> IO (Maybe (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO))
 mkExpandAlongCallSeqStrategy pickFromRange expandDepthLimit store usedFuncsRef prep = do
-  CC.get (prep ^. #lastCall) (store ^. #callSitesInFuncCache) >>= \case
-    Nothing -> error $ "Could not find func call sites cache for " <> show (prep ^. #lastCall)
-    Just [] -> return Nothing
-    Just (y:ys) -> do
+  callSites <- CfgStore.getCallSitesInFunc store (prep ^. #lastCall)
+  case callSites of
+    [] -> return Nothing
+    (y:ys) -> do
       let targets = fmap (\x -> (x ^. #caller, x ^. #address)) $ y :| ys
       funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
       return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit False store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
-    addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
-    addAncestors s func = do
-      ancestors <- CfgStore.getAncestors' store func >>= \case
-        Nothing -> error $ "Could not find func ancestors for " <> show func
+    addAncestors :: HashSet FunctionRef -> FunctionRef -> IO (HashSet FunctionRef)
+    addAncestors s fm = do
+      ancestors <- CfgStore.getAncestors' store fm >>= \case
+        Nothing -> error $ "Could not find func ancestors for " <> show fm
         Just ancestors -> return ancestors
-      return . HashSet.insert func $ HashSet.union ancestors s
+      return . HashSet.insert fm $ HashSet.union ancestors s
 
 -- | For now, we take the indolent approach and use ExpandToTarget
 -- to reach a callsite for the last function in the CallSeq, ignoring all
@@ -346,21 +345,20 @@ mkFanAlongCallSeqStrategy
   -> IO (Maybe (ExplorationStrategy CallDepth (SampleRandomPathError' PilNode) IO))
 mkFanAlongCallSeqStrategy pickFromRange expandDepthLimit store usedFuncsRef prep = do
   mtargets <- fmap NE.nonEmpty . flip concatMapM (NE.toList $ prep ^. #callSeq) $ \func -> do
-    CC.get func (store ^. #callSitesInFuncCache) >>= \case
-      Nothing -> error $ "Could not find func call sites cache for " <> show (prep ^. #lastCall)
-      Just xs -> return $ (\x -> (x ^. #caller, x ^. #address)) <$> xs
+    callSites <- CfgStore.getCallSitesInFunc store func
+    return $ (\x -> (x ^. #caller, x ^. #address)) <$> callSites
   case mtargets of
     Nothing -> return Nothing
     Just targets -> do
       funcsThatLeadToTargets <- foldM addAncestors HashSet.empty . fmap fst $ targets
       return . Just $ expandToTargetsStrategy pickFromRange expandDepthLimit False store usedFuncsRef funcsThatLeadToTargets (snd <$> targets)
   where
-    addAncestors :: HashSet Function -> Function -> IO (HashSet Function)
-    addAncestors s func = do
-      ancestors <- CfgStore.getAncestors' store func >>= \case
-        Nothing -> error $ "Could not find func ancestors for " <> show func
+    addAncestors :: HashSet FunctionRef -> FunctionRef -> IO (HashSet FunctionRef)
+    addAncestors s fm = do
+      ancestors <- CfgStore.getAncestors' store fm >>= \case
+        Nothing -> error $ "Could not find func ancestors for " <> show fm
         Just ancestors -> return ancestors
-      return . HashSet.insert func $ HashSet.union ancestors s
+      return . HashSet.insert fm $ HashSet.union ancestors s
 
 getCallsFromPath :: PilPath -> [CallNode [Stmt]]
 getCallsFromPath = mapMaybe (^? #_Call) . HashSet.toList . Path.nodes

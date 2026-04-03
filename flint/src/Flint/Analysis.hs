@@ -14,10 +14,10 @@ import Blaze.Types.Function (Function)
 
 import Blaze.Import.CallGraph (CallGraphImporter)
 import qualified Blaze.Import.Cfg as ImpCfg
-import Blaze.Import.Cfg (CfgImporter, NodeDataType)
+import Blaze.Import.Cfg (CfgImporter)
 
 import qualified Blaze.Cfg as Cfg
-import Blaze.Types.Cfg (CfNode, PilNode)
+import Blaze.Types.Cfg (CfNode)
 import qualified Blaze.Cfg.Path as Path
 import Blaze.Cfg.Path (Path, PilPath)
 import qualified Blaze.Pil.Summary as Summary
@@ -196,14 +196,10 @@ showBugMatch ((ms, _stmts), bm) = do
     resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
 
 addCfgStoreForBinary
-  :: ( CfgImporter imp
-     , NodeDataType imp ~ PilNode
-     )
-  => imp
-  -> [Function]
+  :: [Function]
   -> CfgStore
   -> IO ()
-addCfgStoreForBinary imp funcs store = mapM_ (CfgStore.addFunc imp store) funcs
+addCfgStoreForBinary funcs store = mapM_ (CfgStore.addFunc store) funcs
 
 type FlintSearchConfig bin func = [BinarySearchConfig bin func]
 
