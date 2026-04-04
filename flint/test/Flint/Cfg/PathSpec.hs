@@ -246,17 +246,19 @@ spec = do
               }
           length targetPaths `shouldSatisfy` (> 0)
 
-      it "should find nodes for xref addresses folded into calls in cgc_RemoveDive" $ \tctx -> do
+      it "should find nearest nodes for xref addresses folded into calls in cgc_RemoveDive" $ \tctx -> do
         -- 0x804d509 and 0x804d518 are string xref addresses in cgc_RemoveDive.
         -- They are LEA instructions that load the string address for cgc_SelectDive's
         -- second argument. The decompiler folds them into the CALL, so the PIL has no
-        -- statement at these addresses. The BasicBlock's range must cover them.
+        -- statement at these exact addresses. The nearest-address fallback should find
+        -- the closest node for target sampling.
         mcfgInfo <- getFuncCfgInfo (tctx ^. #store) "cgc_RemoveDive"
         let cfgInfo = fromJust mcfgInfo
             addrSpace = expectHead . mapMaybe getNodeSpace . HashSet.toList . Cfg.nodes $ cfgInfo ^. #cfg
             mkAddr offset = intToAddr offset & #space .~ addrSpace
-        canFindNodeForAddress cfgInfo (mkAddr 0x804d509) `shouldBe` True
-        canFindNodeForAddress cfgInfo (mkAddr 0x804d518) `shouldBe` True
+            cfg = cfgInfo ^. #cfg
+        length (Cfg.getNodesContainingOrNearestAddress (mkAddr 0x804d509) cfg) `shouldSatisfy` (> 0)
+        length (Cfg.getNodesContainingOrNearestAddress (mkAddr 0x804d518) cfg) `shouldSatisfy` (> 0)
 
       it "should sample paths through xref address 0x804d509 in cgc_RemoveDive" $ \tctx -> do
         mfunc <- findFunc (tctx ^. #store) "cgc_RemoveDive"

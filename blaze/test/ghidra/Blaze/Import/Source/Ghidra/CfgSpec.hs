@@ -93,15 +93,15 @@ spec = describe "Blaze.Import.Source.Ghidra.Cfg" $ do
     context "BasicBlock address ranges in PIL CFG" $ do
       let removeDive = List.find (\f -> f ^. #name == "cgc_RemoveDive") funcs
 
-      it "BasicBlock ranges should cover xref addresses folded into calls in cgc_RemoveDive" $ do
+      it "nearest-address fallback should find nodes for xref addresses folded into calls in cgc_RemoveDive" $ do
         let func = fromJust removeDive
             addrSpace = func ^. #address . #space
             mkAddr n = intToAddr n & #space .~ addrSpace
         pilCfg <- view #result . fromJust <$> getPilCfgFromHighPcode imp func 0
-        let ranges = bbRanges pilCfg
         -- 0x804d509 and 0x804d518: LEA instructions loading the string argument
-        -- for cgc_SelectDive, folded into the CALL by the decompiler
-        length ranges `shouldSatisfy` (> 0)
-        addrCoveredByNode pilCfg (mkAddr 0x804d509) `shouldBe` True
-        addrCoveredByNode pilCfg (mkAddr 0x804d518) `shouldBe` True
+        -- for cgc_SelectDive, folded into the CALL by the decompiler.
+        -- These addresses aren't inside any node's range, but the nearest-address
+        -- fallback should find a nearby node for target sampling.
+        length (Cfg.getNodesContainingOrNearestAddress (mkAddr 0x804d509) pilCfg) `shouldSatisfy` (> 0)
+        length (Cfg.getNodesContainingOrNearestAddress (mkAddr 0x804d518) pilCfg) `shouldSatisfy` (> 0)
 

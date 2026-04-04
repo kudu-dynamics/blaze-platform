@@ -234,7 +234,7 @@ expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store used
     Nothing -> return Nothing
     Just cfgInfo -> do
       let cfg = cfgInfo ^. #cfg
-          nodesContainingTargets = concatMap (`Cfg.getNodesContainingAddress` cfg) . NE.toList $ targets
+          nodesContainingTargets = concatMap (`Cfg.getNodesContainingOrNearestAddress` cfg) . NE.toList $ targets
           callNodesThatLeadToTargets :: [CallNode [Stmt]]
           callNodesThatLeadToTargets
             = filter (maybe False ((`HashSet.member` funcsThatLeadToTargets) . toFunctionRef) . getCallNodeFunc)
