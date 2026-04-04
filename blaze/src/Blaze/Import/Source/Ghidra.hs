@@ -19,6 +19,7 @@ import Ghidra.Program qualified as GProg
 import Ghidra.State qualified as GState
 import Ghidra.Address qualified as GAddr
 import qualified Ghidra.Inspect as GInspect
+import qualified Ghidra.Symbol as GSym
 
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
@@ -94,6 +95,13 @@ instance BinaryImporter GhidraImporter where
 
   inspectAddress imp addr =
     runGhidraOrError $ GInspect.inspectAddress (imp ^. #ghidraState) addr
+
+  lookupGlobalSymbol imp name = do
+    let prg = imp ^. #ghidraState . #program
+    mAddr <- runGhidraOrError $ GSym.lookupGlobalAddress prg name
+    case mAddr of
+      Nothing -> return Nothing
+      Just jAddr -> Just . convertAddress <$> runGhidraOrError (GAddr.mkAddress jAddr)
 
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction

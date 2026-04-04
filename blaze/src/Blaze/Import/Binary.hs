@@ -25,3 +25,6 @@ class BinaryImporter a where
   -- Returns Nothing if the address doesn't contain an instruction.
   inspectAddress :: a -> Address -> IO (Maybe Text)
   inspectAddress _ _ = return Nothing
+  -- | Look up a global symbol by name and return its address.
+  lookupGlobalSymbol :: a -> Text -> IO (Maybe Address)
+  lookupGlobalSymbol _ _ = return Nothing

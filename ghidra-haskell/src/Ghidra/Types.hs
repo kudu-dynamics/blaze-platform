@@ -141,6 +141,10 @@ type Composite = J('Java.Iface "ghidra.program.model.data.Composite")
 type LocalSymbolMap = J ('Java.Class "ghidra.program.model.pcode.LocalSymbolMap")
 type GlobalSymbolMap = J ('Java.Class "ghidra.program.model.pcode.GlobalSymbolMap")
 type Pointer = J ('Java.Iface "ghidra.program.model.data.Pointer")
+type SymbolTable = J ('Java.Iface "ghidra.program.model.symbol.SymbolTable")
+type Symbol = J ('Java.Iface "ghidra.program.model.symbol.Symbol")
+type Namespace = J ('Java.Iface "ghidra.program.model.symbol.Namespace")
+type SymbolList = J ('Java.Class "java.util.List")
 
 class Addressable a where
   toAddr :: a -> Ghidra Address
