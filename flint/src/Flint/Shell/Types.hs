@@ -14,6 +14,7 @@ import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store (CfgStore)
 
 import Blaze.Cfg.Path (PilPath)
+import Blaze.Import.Xref (Xref)
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil as Pil
 
@@ -110,6 +111,8 @@ data ShellState = ShellState
   , taintConfigVersion :: IORef Int
   , inspectAddr :: Maybe (Address -> IO (Maybe Text))
   , saveToDb    :: Maybe (FilePath -> IO (Either Text FilePath))
+  , xrefsTo     :: Maybe (Address -> IO [Xref])
+  , lookupSymbol :: Maybe (Text -> IO (Maybe Address))
   } deriving (Generic)
 
 data CommandResult
@@ -129,8 +132,10 @@ initShellState
   :: CfgStore -> Address -> Bool
   -> Maybe (Address -> IO (Maybe Text))
   -> Maybe (FilePath -> IO (Either Text FilePath))
+  -> Maybe (Address -> IO [Xref])
+  -> Maybe (Text -> IO (Maybe Address))
   -> IO ShellState
-initShellState store base solver mInspect mSave = do
+initShellState store base solver mInspect mSave mXrefs mLookupSym = do
   cache <- newIORef HashMap.empty
   nextId <- newIORef 0
   solverRef <- newIORef solver
@@ -152,6 +157,8 @@ initShellState store base solver mInspect mSave = do
     , taintConfigVersion = taintVersionRef
     , inspectAddr = mInspect
     , saveToDb = mSave
+    , xrefsTo = mXrefs
+    , lookupSymbol = mLookupSym
     }
 
 currentTaintConfigVersion :: ShellState -> IO Int

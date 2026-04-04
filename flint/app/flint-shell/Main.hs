@@ -11,7 +11,8 @@ import Flint.Shell.Types (initShellState)
 import Flint.Shell.Repl (runShell)
 import Flint.Analysis.Path.Matcher.Primitives.Library.StdLib (allStdLibPrims)
 
-import Blaze.Import.Binary (getBase, inspectAddress, saveToDb)
+import Blaze.Import.Binary (getBase, inspectAddress, saveToDb, lookupGlobalSymbol)
+import Blaze.Import.Xref (getXrefsTo)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -110,7 +111,7 @@ main = do
     (store, _funcToTypeHintsMap) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
     Store.populateInitialPrimitives allStdLibPrims store
     base <- getBase imp
-    shellState <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)
+    shellState <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
     putText "Flint interactive shell. Type 'help' for available commands."
     runShell shellState
   where

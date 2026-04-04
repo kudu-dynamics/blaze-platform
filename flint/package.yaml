@@ -170,6 +170,8 @@ library:
   - Flint.Shell.Commands.PrimDef
   - Flint.Shell.Commands.StdLib
   - Flint.Shell.Commands.Inspect
+  - Flint.Shell.Commands.Psum
+  - Flint.Shell.Commands.GlobalXrefs
   - Flint.Shell.Repl
 
 executables:

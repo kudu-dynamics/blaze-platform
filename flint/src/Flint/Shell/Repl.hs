@@ -22,6 +22,8 @@ import Flint.Shell.Commands.PrimDef (primDefCommand, primListCommand, primRemove
 import Flint.Shell.Commands.StdLib (stdlibAddCommand, stdlibListCommand, stdlibRemoveCommand)
 import Flint.Shell.Commands.Inspect (inspectCommand, saveCommand)
 import Flint.Shell.Commands.Analyze (analyzeAllCommand)
+import Flint.Shell.Commands.Psum (psumCommand)
+import Flint.Shell.Commands.GlobalXrefs (globalXrefsCommand)
 
 import qualified Data.Text as Text
 import System.Console.Haskeline
@@ -61,6 +63,8 @@ allCommands =
   , inspectCommand
   , saveCommand
   , analyzeAllCommand
+  , psumCommand
+  , globalXrefsCommand
   ]
 
 runShell :: ShellState -> IO ()

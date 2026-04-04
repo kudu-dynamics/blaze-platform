@@ -1,6 +1,13 @@
 # Blaze Platform
 
-## Version 0.26.0403
+## Version 0.26.0403b
+- `psum` command (shell + MCP) — path summary showing only calls and non-stack-local memory ops, filtering out scalar comparisons, loop counters, and stack bookkeeping
+- `global_xrefs` command (shell + MCP) — find functions referencing a global address or named symbol via Ghidra's reference manager (no decompilation needed)
+- `Ghidra.Symbol` module — JNI bindings to Ghidra's SymbolTable for global symbol lookup by name
+- `BinaryImporter.lookupGlobalSymbol` — resolve symbol names to addresses
+- `ShellState` gains `xrefsTo` and `lookupSymbol` callbacks for on-demand Ghidra queries
+
+## Version 0.26.0403a
 - FlintDB persistent analysis cache — decompilation results survive across sessions via LMDB + cereal binary serialization (`.flintdb` files auto-created next to `.gzf`)
 - `PersistentCalc` type wraps `CachedCalc` with optional LMDB persistence layer; drop-in replacement API
 - `Blaze.Persist.Lmdb` module — LMDB wrapper with dedicated bound writer thread for safe concurrent writes

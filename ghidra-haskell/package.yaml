@@ -92,6 +92,7 @@ library:
     - Ghidra.Reference
     - Ghidra.Register
     - Ghidra.State
+    - Ghidra.Symbol
     - Ghidra.Types
     - Ghidra.Types.GhidraDataTypes
     - Ghidra.Types.Address

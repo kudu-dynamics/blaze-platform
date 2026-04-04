@@ -12,7 +12,8 @@ import Flint.Shell.Types (ShellState, CommandResult(..), initShellState)
 import Flint.Shell.Command (dispatchCommand)
 import Flint.Shell.Repl (allCommands)
 
-import Blaze.Import.Binary (getBase, inspectAddress, saveToDb)
+import Blaze.Import.Binary (getBase, inspectAddress, saveToDb, lookupGlobalSymbol)
+import Blaze.Import.Xref (getXrefsTo)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -228,7 +229,7 @@ loadBinary mcpSt fp = do
           analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
           (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
           base <- getBase imp
-          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp)
+          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
           writeIORef (mcpSt ^. #shellStateRef) (Just st)
           SIO.hPutStrLn stderr $ "Binary loaded: " <> fp
           putMVar readyMVar (Right ())
@@ -446,6 +447,15 @@ buildCommandString toolName args = case toolName of
       Just func -> Right $ "stdlib-remove " <> func
 
   "analyze_all" -> Right "analyze-all"
+
+  "psum_paths" ->
+    let pids = lookupArg "path_ids" args
+    in Right $ "psum" <> maybe "" (" " <>) pids
+
+  "global_xrefs" ->
+    case lookupArg "address" args of
+      Nothing -> Left "Missing required parameter: address"
+      Just addr -> Right $ "global-xrefs " <> addr
 
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
@@ -827,6 +837,28 @@ toolDefinitions =
               [ ("function", InputSchemaDefinitionProperty "string" "Name of the function to remove")
               ]
           , required = ["function"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "psum_paths"
+      , toolDefinitionDescription = "Show path summary: only statements involving calls or non-stack-local memory operations (loads/stores through pointer dereferences). Filters out local bookkeeping (loop counters, scalar comparisons, stack-local struct zeroing) to reveal the external behavior — calls made and persistent state read/written. Use N! suffix for raw/unreduced. No args = all paths."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to summarize (e.g. '0 1 2', '0..5', '[0,1,2]', '0!' for raw). Omit for all paths.")
+              ]
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "global_xrefs"
+      , toolDefinitionDescription = "Find functions that reference a given address or named global symbol. Uses Ghidra's reference manager — no decompilation needed, instant results. Accepts a hex address (e.g. '0x604020') or a symbol name (e.g. 'CFG_FILE'). Output format: 'FuncName @ 0xAddress'."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("address", InputSchemaDefinitionProperty "string" "Hex address (e.g. '0x604020') or global symbol name (e.g. 'CFG_FILE')")
+              ]
+          , required = ["address"]
           }
       , toolDefinitionTitle = Nothing
       }
