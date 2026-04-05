@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0404
+- Revert pcAddress range extension and `inheritOrigBounds` gap-filling — BasicBlock and CallNode addresses now use Ghidra's defaults, fixing callsite address mismatches where Ghidra's xref returns the actual CALL address
+- `getNodesContainingOrNearestAddress` — falls back to the nearest BasicBlock or CallNode (within 64 bytes) when an xref address isn't inside any node's range, handling arg-prep instructions folded into high P-code CALLs
+
 ## Version 0.26.0403b
 - `psum` command (shell + MCP) — path summary showing only calls and non-stack-local memory ops, filtering out scalar comparisons, loop counters, and stack bookkeeping
 - `global_xrefs` command (shell + MCP) — find functions referencing a global address or named symbol via Ghidra's reference manager (no decompilation needed)

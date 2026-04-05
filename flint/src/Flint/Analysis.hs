@@ -46,7 +46,7 @@ getFuncPathsContainingAddrs
 getFuncPathsContainingAddrs importer func addrs = do
   (Just r) <- ImpCfg.getCfg importer func 0
   let cfg = r ^. #result
-      ns = concatMap (`Cfg.getNodesContainingAddress` cfg) addrs
+      ns = concatMap (`Cfg.getNodesContainingOrNearestAddress` cfg) addrs
       -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
   Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
 
@@ -59,7 +59,7 @@ getFuncPathsContainingAddrsWithTypeHints
 getFuncPathsContainingAddrsWithTypeHints importer func addrs = do
   (Just r, typeHints) <- ImpCfg.getCfgWithTypeHints importer func 0
   let cfg = r ^. #result
-      ns = concatMap (`Cfg.getNodesContainingAddress` cfg) addrs
+      ns = concatMap (`Cfg.getNodesContainingOrNearestAddress` cfg) addrs
       -- paths = Path.getSimplePathsContaining (HashSet.fromList ns) cfg
   paths <- Path.sampleRandomPathsContaining (HashSet.fromList ns) 200 cfg
   return (paths, typeHints)

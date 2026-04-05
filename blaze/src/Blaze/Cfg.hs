@@ -272,3 +272,34 @@ getNodesContainingAddress addr
   = filter (nodeContainsAddress addr)
   . HashSet.toList
   . G.nodes
+
+-- | Like 'getNodesContainingAddress', but falls back to the nearest node
+-- when no exact match exists (within 64 bytes). This handles xref addresses
+-- that point to raw instructions (e.g. call argument setup) whose addresses
+-- were folded into a different high P-code operation by the decompiler.
+getNodesContainingOrNearestAddress :: Hashable a => Address -> Cfg (CfNode a) -> [CfNode a]
+getNodesContainingOrNearestAddress addr cfg =
+  case getNodesContainingAddress addr cfg of
+    [] -> case sortOn (nodeAddressDistance addr) candidates of
+      (n:_) | nodeAddressDistance addr n <= maxNearestDistance -> [n]
+      _ -> []
+    xs -> xs
+  where
+    maxNearestDistance = 64
+    candidates = filter hasAddress . HashSet.toList . G.nodes $ cfg
+    hasAddress (BasicBlock _) = True
+    hasAddress (Call _) = True
+    hasAddress _ = False
+
+-- | Distance from an address to a node's address range.
+nodeAddressDistance :: Address -> CfNode a -> Int64
+nodeAddressDistance addr = \case
+  BasicBlock x ->
+    let s = x ^. #start . #offset
+        e = x ^. #end . #offset
+        a = addr ^. #offset
+    in if a < s then s - a
+       else if a > e then a - e
+       else 0
+  Call x -> abs $ addr ^. #offset - x ^. #start . #offset
+  _ -> maxBound
