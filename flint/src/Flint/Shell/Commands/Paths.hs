@@ -10,6 +10,7 @@ module Flint.Shell.Commands.Paths
   , findFunction
   , expandPathToDepth
   , parseDepthArg
+  , parseContextDepthArg
   , parseAddress
   ) where
 
@@ -18,7 +19,7 @@ import Flint.Prelude
 import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
 import qualified Flint.Cfg.Store as Store
-import Flint.Cfg.Path (samplesFromQuery, timingLog)
+import Flint.Cfg.Path (samplesFromQuery, sampleWithCallerContext, timingLog)
 import Blaze.Cfg.Path (expandCallWithNewInnerPathIds)
 import Flint.Query (onionSampleBasedOnFuncSize)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
@@ -48,7 +49,7 @@ sampleCommand = ShellCommand
   { cmdName = "sample"
   , cmdAliases = ["sp"]
   , cmdHelp = "Sample paths from a function"
-  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--unrollLoops]"
+  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--context-depth N] [--unrollLoops]"
   , cmdAction = samplePaths
   }
 
@@ -154,6 +155,15 @@ parseDepthArg (x : xs) =
   let (d, rest) = parseDepthArg xs
   in (d, x : rest)
 
+-- | Parse --context-depth N from argument list, returning (depth, remaining args)
+parseContextDepthArg :: [Text] -> (Int, [Text])
+parseContextDepthArg [] = (0, [])
+parseContextDepthArg ("--context-depth" : n : rest)
+  | Just d <- readMaybe (Text.unpack n) = (d, rest)
+parseContextDepthArg (x : xs) =
+  let (d, rest) = parseContextDepthArg xs
+  in (d, x : rest)
+
 -- | Parse --unrollLoops flag from argument list, returning (flag, remaining args)
 parseUnrollLoopsArg :: [Text] -> (Bool, [Text])
 parseUnrollLoopsArg = go False
@@ -165,10 +175,11 @@ parseUnrollLoopsArg = go False
       in (f, x : rest)
 
 samplePaths :: ShellState -> [Text] -> IO CommandResult
-samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--unrollLoops]"
+samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--context-depth N] [--unrollLoops]"
 samplePaths st allArgs' = do
   let (depth, allArgs0) = parseDepthArg allArgs'
-      (useUnrollLoops, allArgs) = parseUnrollLoopsArg allArgs0
+      (contextDepth, allArgs1) = parseContextDepthArg allArgs0
+      (useUnrollLoops, allArgs) = parseUnrollLoopsArg allArgs1
   -- Parse optional leading count: if first arg is a number, it's the count
   let (mLeadingCount, afterCount) = case allArgs of
         (n : rest') | Just c <- (readMaybe (Text.unpack n) :: Maybe Int) -> (Just c, rest')
@@ -180,120 +191,180 @@ samplePaths st allArgs' = do
       case mFunc of
         Nothing -> return $ ResultError $ "Function not found: " <> funcArg
         Just func -> do
-          let rest' = rest
-          -- Split remaining args on "@": after = [addrs]
-          let (_, afterAt) = break (== "@") rest'
+          let -- Split remaining args on "@": after = [addrs]
+              (_, afterAt) = break (== "@") rest
               mCount = mLeadingCount
               addrSpace = func ^. #address . #space
               targetAddrs = case afterAt of
                 ("@" : addrArgs) -> mapMaybe (parseAddressWithSpace addrSpace) addrArgs
                 _ -> []
-          (paths, samplingTime) <- timeIt $ case NE.nonEmpty targetAddrs of
-            Just addrs -> do
-              -- Targeted sampling: paths must go through these addresses
-              let count = fromMaybe 20 mCount
-                  targets = fmap (func,) addrs
-                  q = QueryTarget $ QueryTargetOpts
-                    { mustReachSome = targets
-                    , callExpandDepthLimit = 0  -- intraprocedural only
-                    , numSamples = fromIntegral count
-                    , unrollLoops = useUnrollLoops
-                    }
-              catch
-                (samplesFromQuery (st ^. #cfgStore) func q)
-                (\(e :: SomeException) -> do
-                  warn $ "Target sampling error: " <> show e
-                  return [])
-            Nothing -> case (mCount, useUnrollLoops) of
-              (Just count, _) -> do
-                let q = QueryExpandAll $ QueryExpandAllOpts
-                      { callExpandDepthLimit = 0
-                      , numSamples = fromIntegral count
-                      , unrollLoops = useUnrollLoops
-                      }
-                samplesFromQuery (st ^. #cfgStore) func q
-              (Nothing, True) -> do
-                -- --unrollLoops without a count: use default count so the flag takes effect
-                let q = QueryExpandAll $ QueryExpandAllOpts
-                      { callExpandDepthLimit = 0
-                      , numSamples = 20
-                      , unrollLoops = True
-                      }
-                samplesFromQuery (st ^. #cfgStore) func q
-              (Nothing, False) ->
-                fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
-          timingLog $ "[timing] samplesFromQuery (" <> func ^. #name <> "): "
-            <> show (length paths) <> " paths in " <> show samplingTime
+          -- If --context-depth is specified, use caller context sampling
+          if contextDepth > 0
+            then samplePathsWithContext st func (fromMaybe 10 mCount)
+                   contextDepth depth targetAddrs useUnrollLoops
+            else do
+              (paths, samplingTime) <- timeIt $ case NE.nonEmpty targetAddrs of
+                Just addrs -> do
+                  -- Targeted sampling: paths must go through these addresses
+                  let count = fromMaybe 20 mCount
+                      targets = fmap (func,) addrs
+                      q = QueryTarget $ QueryTargetOpts
+                        { mustReachSome = targets
+                        , callExpandDepthLimit = 0  -- intraprocedural only
+                        , numSamples = fromIntegral count
+                        , unrollLoops = useUnrollLoops
+                        }
+                  catch
+                    (samplesFromQuery (st ^. #cfgStore) func q)
+                    (\(e :: SomeException) -> do
+                      warn $ "Target sampling error: " <> show e
+                      return [])
+                Nothing -> case (mCount, useUnrollLoops) of
+                  (Just count, _) -> do
+                    let q = QueryExpandAll $ QueryExpandAllOpts
+                          { callExpandDepthLimit = 0
+                          , numSamples = fromIntegral count
+                          , unrollLoops = useUnrollLoops
+                          }
+                    samplesFromQuery (st ^. #cfgStore) func q
+                  (Nothing, True) -> do
+                    -- --unrollLoops without a count: use default count so the flag takes effect
+                    let q = QueryExpandAll $ QueryExpandAllOpts
+                          { callExpandDepthLimit = 0
+                          , numSamples = 20
+                          , unrollLoops = True
+                          }
+                    samplesFromQuery (st ^. #cfgStore) func q
+                  (Nothing, False) ->
+                    fromMaybe [] <$> onionSampleBasedOnFuncSize 1.0 (st ^. #cfgStore) func
+              timingLog $ "[timing] samplesFromQuery (" <> func ^. #name <> "): "
+                <> show (length paths) <> " paths in " <> show samplingTime
 
-          -- Auto-expand internal calls if --depth was specified
-          expandedPaths <- if depth <= 0
-            then return paths
-            else fmap concat . forM paths $ \path ->
-              expandPathToDepth (st ^. #cfgStore) path depth
+              -- Auto-expand internal calls if --depth was specified
+              expandedPaths <- if depth <= 0
+                then return paths
+                else fmap concat . forM paths $ \path ->
+                  expandPathToDepth (st ^. #cfgStore) path depth
 
-          case expandedPaths of
-            [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
-                  <> if not (null targetAddrs)
-                     then " through " <> Text.intercalate ", " (fmap showAddr targetAddrs)
-                     else ""
-            _ -> do
-              results <- forM expandedPaths $ \path -> do
-                (stmts, toStmtsTime) <- timeIt $ do
-                  let s = Path.toStmts path
-                  _ <- evaluate (length s)
-                  return s
-                (prep, expandTime) <- timeIt $ do
-                  tps <- getAllTaintPropagators st
-                  let p = mkPathPrep tps stmts
-                  _ <- evaluate (length $ p ^. #stmts)
-                  return p
-                let reducedStmts = asStmts $ prep ^. #stmts
-                cp <- mkCachedPath st stmts path func (Just prep)
-                pid <- insertPath st cp
-                timingLog $ "[timing] path " <> show pid <> ": toStmts=" <> show toStmtsTime
-                  <> " (" <> show (length stmts) <> " raw stmts)"
-                  <> ", aggressiveExpand=" <> show expandTime
-                  <> " (" <> show (length reducedStmts) <> " reduced stmts)"
-                let summary = "path " <> show pid
-                      <> " (" <> show (length reducedStmts) <> " stmts"
-                      <> ", func: " <> func ^. #name <> ")"
-                return (pid, summary)
-              return $ ResultPaths results
+              case expandedPaths of
+                [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
+                      <> if not (null targetAddrs)
+                         then " through " <> Text.intercalate ", " (fmap showAddr targetAddrs)
+                         else ""
+                _ -> cacheAndReturnPaths st func expandedPaths Nothing
+
+-- | Sample paths with caller context and cache them.
+samplePathsWithContext
+  :: ShellState -> Function -> Int -> Int -> Int
+  -> [Address]  -- ^ Target addresses (from @ args)
+  -> Bool       -- ^ Use loop unrolling
+  -> IO CommandResult
+samplePathsWithContext st func count contextDepth calleeDepth targetAddrs useUnrollLoops = do
+  (results, samplingTime) <- timeIt $
+    sampleWithCallerContext (st ^. #cfgStore) func (fromIntegral count)
+      contextDepth targetAddrs useUnrollLoops
+  timingLog $ "[timing] sampleWithCallerContext (" <> func ^. #name <> "): "
+    <> show (length results) <> " paths in " <> show samplingTime
+  case results of
+    [] -> return $ ResultOk $ "No paths sampled from " <> func ^. #name
+          <> " with context-depth " <> show contextDepth
+    _ -> do
+      -- Optionally expand callee calls within the full paths
+      expandedResults <- if calleeDepth <= 0
+        then return results
+        else fmap concat . forM results $ \(path, addrs, bindings) -> do
+          expanded <- expandPathToDepth (st ^. #cfgStore) path calleeDepth
+          return $ fmap (, addrs, bindings) expanded
+      let mContexts = fmap (\(_, addrs, bindings) ->
+            CallerContext { innerStmtAddrs = addrs, resolvedParams = bindings })
+            expandedResults
+          paths = fmap (\(p, _, _) -> p) expandedResults
+      cacheAndReturnPaths st func paths (Just mContexts)
+
+-- | Cache a list of paths and return ResultPaths.
+cacheAndReturnPaths
+  :: ShellState -> Function -> [PilPath]
+  -> Maybe [CallerContext]  -- ^ If present, one per path
+  -> IO CommandResult
+cacheAndReturnPaths _st func [] _ =
+  return $ ResultOk $ "No paths sampled from " <> func ^. #name
+cacheAndReturnPaths st func paths mContexts = do
+  results <- forM (zip paths [0..]) $ \(path, i :: Int) -> do
+    (stmts, toStmtsTime) <- timeIt $ do
+      let s = Path.toStmts path
+      _ <- evaluate (length s)
+      return s
+    (prep, expandTime) <- timeIt $ do
+      tps <- getAllTaintPropagators st
+      let p = mkPathPrep tps stmts
+      _ <- evaluate (length $ p ^. #stmts)
+      return p
+    let reducedStmts = asStmts $ prep ^. #stmts
+    cp <- case mContexts >>= (!!? i) of
+      Just ctx -> mkCachedPathWithContext st stmts path func (Just prep) ctx
+      Nothing  -> mkCachedPath st stmts path func (Just prep)
+    pid <- insertPath st cp
+    timingLog $ "[timing] path " <> show pid <> ": toStmts=" <> show toStmtsTime
+      <> " (" <> show (length stmts) <> " raw stmts)"
+      <> ", aggressiveExpand=" <> show expandTime
+      <> " (" <> show (length reducedStmts) <> " reduced stmts)"
+    let summary = "path " <> show pid
+          <> " (" <> show (length reducedStmts) <> " stmts"
+          <> ", func: " <> func ^. #name <> ")"
+    return (pid, summary)
+  return $ ResultPaths results
+
+-- | Safe list indexing
+(!!?) :: [a] -> Int -> Maybe a
+(!!?) xs i
+  | i < 0 = Nothing
+  | i >= length xs = Nothing
+  | otherwise = Just (xs !! i)
 
 showPaths :: ShellState -> [Text] -> IO CommandResult
-showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw, or tag names)"
+showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw, 0!! for context-stripped)"
 showPaths st args = do
   refs <- resolvePathRefs st args
-  results <- forM refs $ \(PathRef pid raw) -> do
+  results <- forM refs $ \(PathRef pid mode) -> do
     mPath <- lookupPath st pid
     mTag <- lookupTag st pid
     case mPath of
       Nothing -> return $ "Path " <> show pid <> ": not found"
       Just cp -> do
-        let stmts = resolveStmts cp raw
-            rawTag = if raw then " [raw]" else ""
+        let stmts = resolveStmts cp mode
+            modeTag = case mode of
+              ViewRaw -> " [raw]"
+              ViewContextStripped -> " [context-stripped]"
+              ViewReduced -> ""
             tagLabel = maybe "" (\t -> " \"" <> t <> "\"") mTag
             funcName = cp ^. #sourceFunc . #name
-            paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
-            funcSig = funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
-            header = "=== Path " <> show pid <> tagLabel <> rawTag
+            funcSig = case (mode, cp ^. #callerContext) of
+              (ViewContextStripped, Just ctx)
+                | not (null $ ctx ^. #resolvedParams) ->
+                  let paramBindings = fmap (\(n, e) -> n <> "=" <> pretty' e)
+                                    $ ctx ^. #resolvedParams
+                  in funcName <> "(" <> Text.intercalate ", " paramBindings <> ")"
+              _ ->
+                let paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
+                in funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
+            header = "=== Path " <> show pid <> tagLabel <> modeTag
               <> " (func: " <> funcSig
               <> ", " <> show (length stmts) <> " stmts) ==="
         return $ header <> "\n" <> pretty' (PStmts stmts)
   return $ ResultText $ Text.intercalate "\n\n" results
 
 pshowStmts :: ShellState -> [Text] -> IO CommandResult
-pshowStmts _st [] = return $ ResultError "Usage: pshow <path_id> [addr ...] (use N! for raw, or tag name)"
+pshowStmts _st [] = return $ ResultError "Usage: pshow <path_id> [addr ...] (use N! for raw, N!! for context-stripped)"
 pshowStmts st (pidArg : addrArgs) = do
   refs <- resolvePathRefs st [pidArg]
   case refs of
     [] -> return $ ResultError $ "Invalid path id: " <> pidArg
-    (PathRef pid raw : _) -> do
+    (PathRef pid mode : _) -> do
       mPath <- lookupPath st pid
       case mPath of
         Nothing -> return $ ResultError $ "Path " <> show pid <> " not found"
         Just cp -> do
-          let stmts = resolveStmts cp raw
+          let stmts = resolveStmts cp mode
               addrSpace = cp ^. #sourceFunc . #address . #space
               filterAddrs = mapMaybe (parseAddressWithSpace addrSpace) addrArgs
               filtered
@@ -338,7 +409,7 @@ listPaths st _args = do
     entries -> do
       let sorted = sortOn fst entries
       rows <- forM sorted $ \(pid, cp) -> do
-        let stmts = resolveStmts cp False
+        let stmts = resolveStmts cp ViewReduced
             funcName = cp ^. #sourceFunc . #name
         mTag <- lookupTag st pid
         let tagLabel = maybe "" (\t -> " [" <> t <> "]") mTag

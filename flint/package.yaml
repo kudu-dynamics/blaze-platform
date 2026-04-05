@@ -93,6 +93,7 @@ default-extensions:
   - NoMonomorphismRestriction
   - OverloadedLabels
   - OverloadedStrings
+  - TupleSections
   - TypeFamilies
   - ViewPatterns
 

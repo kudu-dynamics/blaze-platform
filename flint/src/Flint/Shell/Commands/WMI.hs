@@ -84,12 +84,12 @@ checkWMIs st (wmiName : pidArgs) = do
       useSolve <- readIORef (st ^. #useSolver)
       let solver = chooseSolver useSolve
       callablePrimSnapshot <- CM.getSnapshot $ st ^. (#cfgStore . #callablePrims)
-      results <- forM refs $ \(PathRef pid raw) -> do
+      results <- forM refs $ \(PathRef pid mode) -> do
         mPath <- lookupPath st pid
         case mPath of
           Nothing -> return (pid, ["Path not found"])
           Just cp -> do
-            prep <- if raw
+            prep <- if mode == ViewRaw
               then do
                 tps <- getAllTaintPropagators st
                 return $ mkPathPrep tps (cp ^. #pilPath)

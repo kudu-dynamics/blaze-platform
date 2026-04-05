@@ -12,6 +12,7 @@ import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Expression (IsExpression(..))
 import Blaze.Util.Analysis (untilFixedPoint)
 
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
 import System.IO.Unsafe (unsafePerformIO)
@@ -179,6 +180,30 @@ aggressiveExpand_
   => [Pil.AddressableStatement expr] -> [Pil.AddressableStatement expr]
 aggressiveExpand_ = view #processed . aggressiveExpand__
 
+-- | Maximum unfolded node count for expressions in the substitution maps.
+-- When copy-propagation creates expressions that exceed this count, they are
+-- not inlined (Defs are kept as named variables; Stores are not cached for
+-- future LOAD substitution). This prevents exponential blowup from shared
+-- sub-expressions: e.g. in a heap allocator, @alloc_size@ is read, masked,
+-- used to compute a neighbor address, then written back — each cycle doubles
+-- the unfolded tree because the same sub-expression appears in two operands.
+maxSubstExprNodes :: Int
+maxSubstExprNodes = 64
+
+-- | Count nodes in the unfolded expression tree, with a budget that stops
+-- traversal early. Returns the count up to @budget+1@.
+-- Even with Haskell sharing (DAG), this counts the unfolded tree because
+-- each shared child is recursed into independently from each parent.
+exprNodeCount :: IsExpression expr => Int -> expr -> Int
+exprNodeCount budget e
+  | budget <= 0 = 1
+  | otherwise =
+      let children = F.toList (getExprOp e)
+      in fst $ foldl' (\(!acc, !remaining) child ->
+           let count = exprNodeCount remaining child
+           in (acc + count, remaining - count))
+         (1, budget - 1) children
+
 type StmtIndex = Int
 
 data AggressiveExpandState expr = AggressiveExpandState
@@ -228,6 +253,17 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
               varSubstMap
               (removeFromMemSubstMap (substAll <$> getCallArgsFromOp (getExprOp expr)))
               ((substAll <$> stmt):processed)
+      | exprNodeCount maxSubstExprNodes expr' > maxSubstExprNodes ->
+              -- Expression too large to inline: keep the Def in output as a named
+              -- variable. This prevents exponential blowup when a variable whose
+              -- definition is already large gets used in multiple operands.
+              -- Remove any previous binding for pv so later uses see the variable
+              -- name, not a stale old value.
+              AggressiveExpandState
+              (HashSet.insert pv $ addUsedFromExpr expr')
+              (HashMap.delete pv varSubstMap)
+              memSubstMap
+              (Pil.Stmt stmtAddr (Pil.Def (Pil.DefOp pv expr')) : processed)
       | otherwise -> AggressiveExpandState
               usedVars'
               varSubstMap'
@@ -250,7 +286,14 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
         stmt' = Pil.Stmt stmtAddr $ Pil.Store (Pil.StoreOp addr' expr')
         addr' = substAll addr
         expr' = substAll expr
-        memSubstMap' = HashMap.insert addr' expr' memSubstMap
+        -- Don't cache expressions whose unfolded tree exceeds the node limit.
+        -- This prevents exponential blowup from repeated store-load cycles
+        -- on the same memory location (e.g. heap allocator alloc_size field).
+        -- Remove any previous entry for addr' so later loads see the raw LOAD,
+        -- not a stale old value.
+        memSubstMap' = if exprNodeCount maxSubstExprNodes expr' > maxSubstExprNodes
+                       then HashMap.delete addr' memSubstMap
+                       else HashMap.insert addr' expr' memSubstMap
 
     Pil.UnimplInstr _ -> defaultProp
 

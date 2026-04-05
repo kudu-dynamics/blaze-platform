@@ -30,12 +30,12 @@ solvePaths _st [] = return $ ResultError "Usage: solve <path_ids>  (e.g. 0 1 2, 
 solvePaths st args = do
   refs <- resolvePathRefs st args
   solver <- readIORef (st ^. #useSolver)
-  results <- forM refs $ \(PathRef pid raw) -> do
+  results <- forM refs $ \(PathRef pid mode) -> do
     mPath <- lookupPath st pid
     case mPath of
       Nothing -> return (pid, "not found")
       Just cp -> do
-        let stmts = resolveStmts cp raw
+        let stmts = resolveStmts cp mode
         if not solver
           then return (pid, "Solver disabled. Use 'set solver on' to enable.")
           else do
