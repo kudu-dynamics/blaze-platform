@@ -32,14 +32,14 @@ typecheckPaths :: ShellState -> [Text] -> IO CommandResult
 typecheckPaths _st [] = return $ ResultError "Usage: typecheck <path_ids>  (use N! to skip aggressiveExpand)"
 typecheckPaths st args = do
   let refs = parsePathRefs args
-  results <- forM refs $ \(PathRef pid raw) -> do
+  results <- forM refs $ \(PathRef pid mode) -> do
     mPath <- lookupPath st pid
     case mPath of
       Nothing -> return $ "Path " <> show pid <> ": not found"
       Just cp -> do
         let pilStmts = cp ^. #pilPath
             nStmts = length pilStmts
-        if raw
+        if mode == ViewRaw
           then do
             t0 <- getCurrentTime
             let typedStmts = toTypedStmts HashMap.empty pilStmts

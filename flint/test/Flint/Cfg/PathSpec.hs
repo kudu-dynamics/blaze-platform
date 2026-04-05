@@ -11,12 +11,13 @@ import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Function as Func
 import qualified Blaze.Path as Path
 
-import Flint.Cfg.Path (samplesFromQuery)
+import Flint.Cfg.Path (samplesFromQuery, sampleWithCallerContext)
 import Flint.Types.Query
   ( Query(QueryTarget, QueryExpandAll)
   , QueryTargetOpts(..)
   , QueryExpandAllOpts(..)
   )
+import qualified Blaze.Types.Cfg.Path as CfgPath
 import qualified Flint.Cfg.Store as Store
 import Flint.Types.Cfg.Store (CfgStore, CfgInfo)
 import qualified Flint.Types.CachedCalc as CC
@@ -306,6 +307,53 @@ spec = do
             , unrollLoops = False
             }
         length targetPaths `shouldSatisfy` (> 0)
+
+ beforeAll getGzfTestCtx . describe "Flint.Cfg.Path (caller context sampling)" $ do
+    it "every context-depth 1 sample should include caller stmts" $ \tctx -> do
+      -- cgc_strlen is called by multiple functions, making it a good target
+      mfunc <- findFunc (tctx ^. #store) "cgc_strlen"
+      case mfunc of
+        Nothing -> pendingWith "cgc_strlen not found"
+        Just func -> do
+          results <- sampleWithCallerContext (tctx ^. #store) func 3 1 [] False
+          length results `shouldSatisfy` (> 0)
+          -- Every result must have caller context (more addrs than target alone)
+          forM_ results $ \(fullPath, targetAddrs, _paramBindings) -> do
+            let fullStmtAddrs = HashSet.fromList
+                  . fmap (view #addr)
+                  . CfgPath.toStmts
+                  $ fullPath
+            HashSet.isSubsetOf targetAddrs fullStmtAddrs `shouldBe` True
+            HashSet.size fullStmtAddrs `shouldSatisfy` (> HashSet.size targetAddrs)
+
+    it "should return just the target path when no callers exist" $ \tctx -> do
+      -- main typically has no callers in the call graph
+      mfunc <- findFunc (tctx ^. #store) "main"
+      case mfunc of
+        Nothing -> pendingWith "main not found"
+        Just func -> do
+          results <- sampleWithCallerContext (tctx ^. #store) func 3 1 [] False
+          -- Should still get results (falls back to target-only path)
+          length results `shouldSatisfy` (> 0)
+          -- With no callers, param bindings should be empty
+          forM_ results $ \(_, _, paramBindings) ->
+            paramBindings `shouldBe` []
+
+    it "every context-depth 2 sample should include caller stmts" $ \tctx -> do
+      -- context depth is a max, so depth 2 should still get at least depth 1
+      mfunc <- findFunc (tctx ^. #store) "cgc_strlen"
+      case mfunc of
+        Nothing -> pendingWith "cgc_strlen not found"
+        Just func -> do
+          results <- sampleWithCallerContext (tctx ^. #store) func 3 2 [] False
+          length results `shouldSatisfy` (> 0)
+          -- Every result must have caller context
+          forM_ results $ \(fullPath, targetAddrs, _) -> do
+            let fullStmtAddrs = HashSet.fromList
+                  . fmap (view #addr)
+                  . CfgPath.toStmts
+                  $ fullPath
+            HashSet.size fullStmtAddrs `shouldSatisfy` (> HashSet.size targetAddrs)
 
  beforeAll getLoopTestCtx . describe "Flint.Cfg.Path (address-targeted sampling on loop_test ELF)" $ do
     it "should sample paths through every BasicBlock address in simple_count" $ \tctx -> do

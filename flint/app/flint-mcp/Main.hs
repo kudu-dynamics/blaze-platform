@@ -310,12 +310,13 @@ buildCommandString toolName args = case toolName of
         let count = lookupArg "count" args
             addrs = lookupArg "addresses" args
             depthPart = maybe "" (" --depth " <>) (lookupArg "depth" args)
+            contextDepthPart = maybe "" (" --context-depth " <>) (lookupArg "context_depth" args)
             countPart = maybe "" (" " <>) count
             addrPart = maybe "" (" @ " <>) addrs
             unrollPart = case lookupArg "unroll_loops" args of
               Just "true" -> " --unrollLoops"
               _ -> ""
-        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart <> unrollPart
+        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart <> contextDepthPart <> unrollPart
 
   "show_paths" ->
     case lookupArg "path_ids" args of
@@ -507,13 +508,14 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "sample_paths"
-      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are summarized into a single abstract iteration by default; use unroll_loops to get the old unrolling behavior for comparison. Use --depth to auto-expand internal calls interprocedurally."
+      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are summarized into a single abstract iteration by default; use unroll_loops to get the old unrolling behavior for comparison. Use depth to auto-expand internal calls (callees). Use context_depth to include calling context (callers) — view with N!! suffix to see target function only with propagated caller args."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x401000')")
               , ("count", InputSchemaDefinitionProperty "string" "Number of paths to sample (optional)")
               , ("addresses", InputSchemaDefinitionProperty "string" "Space-separated hex addresses that paths must pass through (optional)")
               , ("depth", InputSchemaDefinitionProperty "string" "Auto-expand internal calls N levels deep (optional, e.g. '2')")
+              , ("context_depth", InputSchemaDefinitionProperty "string" "Include N levels of calling context (callers). Use N!! suffix in show/psum to see target-only view with resolved args (optional, e.g. '1')")
               , ("unroll_loops", InputSchemaDefinitionProperty "string" "Set to 'true' to use old loop unrolling instead of loop summarization (optional)")
               ]
           , required = ["function"]
@@ -522,7 +524,7 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "show_paths"
-      , toolDefinitionDescription = "Show PIL (Platform Independent Language) statements for cached paths. Shows reduced view by default; use N! suffix for raw/unreduced (e.g. '0!' for raw path 0)."
+      , toolDefinitionDescription = "Show PIL (Platform Independent Language) statements for cached paths. Shows reduced view by default; use N! suffix for raw/unreduced, N!! for context-stripped (target func only with caller args propagated)."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to show (e.g. '0 1 2', '0..5', '[0,1,2]', '0!' for raw)")
@@ -842,7 +844,7 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "psum_paths"
-      , toolDefinitionDescription = "Show path summary: only statements involving calls or non-stack-local memory operations (loads/stores through pointer dereferences). Filters out local bookkeeping (loop counters, scalar comparisons, stack-local struct zeroing) to reveal the external behavior — calls made and persistent state read/written. Use N! suffix for raw/unreduced. No args = all paths."
+      , toolDefinitionDescription = "Show path summary: only statements involving calls or non-stack-local memory operations (loads/stores through pointer dereferences). Filters out local bookkeeping (loop counters, scalar comparisons, stack-local struct zeroing) to reveal the external behavior — calls made and persistent state read/written. Use N! for raw/unreduced, N!! for context-stripped (target func only with caller args). No args = all paths."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("path_ids", InputSchemaDefinitionProperty "string" "Path IDs to summarize (e.g. '0 1 2', '0..5', '[0,1,2]', '0!' for raw). Omit for all paths.")

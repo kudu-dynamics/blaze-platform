@@ -1,8 +1,13 @@
 # Blaze Platform
 
-## Version 0.26.0404
-- Revert pcAddress range extension and `inheritOrigBounds` gap-filling — BasicBlock and CallNode addresses now use Ghidra's defaults, fixing callsite address mismatches where Ghidra's xref returns the actual CALL address
-- `getNodesContainingOrNearestAddress` — falls back to the nearest BasicBlock or CallNode (within 64 bytes) when an xref address isn't inside any node's range, handling arg-prep instructions folded into high P-code CALLs
+## Version 0.26.0405
+- `--context-depth N` option for `sample` command (shell + MCP) — samples paths entering the target function through N levels of callers, using reverse call graph traversal and targeted callsite sampling
+- `!!` view suffix for `show` and `psum` — strips outer calling context stmts, shows only the target function with resolved caller args in the header (e.g. `process_auth(ctx=conn, hdr=buf+sVar3)`)
+- `PathViewMode` type (`ViewReduced` / `ViewRaw` / `ViewContextStripped`) replaces the boolean raw flag in `PathRef`
+- `CallerContext` type in `CachedPath` stores target function stmt addresses and param bindings for the `!!` view
+- Fix exponential expression blowup in `aggressiveExpand` — `exprNodeCount` caps unfolded tree size at 64 nodes for both `varSubstMap` and `memSubstMap`; oversized Defs kept as named variables instead of inlined
+- Fix `expandToTargetsStrategy` failing on Call node targets — Call nodes no longer require a random return node in the path sequence, which caused ~60% failure rate on functions with multiple returns
+- `context_depth` parameter for `sample_paths` MCP tool
 
 ## Version 0.26.0403b
 - `psum` command (shell + MCP) — path summary showing only calls and non-stack-local memory ops, filtering out scalar comparisons, loop counters, and stack bookkeeping

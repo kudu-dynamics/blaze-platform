@@ -30,25 +30,35 @@ psumPaths st args = do
   refs <- case args of
     [] -> do
       cache <- allPaths st
-      return . fmap (`PathRef` False) . sort $ HashMap.keys cache
+      return . fmap (`PathRef` ViewReduced) . sort $ HashMap.keys cache
     _ -> resolvePathRefs st args
   case refs of
     [] -> return $ ResultOk "No paths loaded."
     _ -> do
-      results <- forM refs $ \(PathRef pid raw) -> do
+      results <- forM refs $ \(PathRef pid mode) -> do
         mPath <- lookupPath st pid
         mTag <- lookupTag st pid
         case mPath of
           Nothing -> return $ "Path " <> show pid <> ": not found"
           Just cp -> do
-            let stmts = resolveStmts cp raw
+            let stmts = resolveStmts cp mode
                 filtered = filter includeInPsum stmts
-                rawTag = if raw then " [raw]" else ""
+                modeTag = case mode of
+                  ViewRaw -> " [raw]"
+                  ViewContextStripped -> " [context-stripped]"
+                  ViewReduced -> ""
                 tagLabel = maybe "" (\t -> " \"" <> t <> "\"") mTag
                 funcName = cp ^. #sourceFunc . #name
-                paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
-                funcSig = funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
-                header = "=== Path " <> show pid <> tagLabel <> rawTag
+                funcSig = case (mode, cp ^. #callerContext) of
+                  (ViewContextStripped, Just ctx)
+                    | not (null $ ctx ^. #resolvedParams) ->
+                      let paramBindings = fmap (\(n, e) -> n <> "=" <> pretty' e)
+                                        $ ctx ^. #resolvedParams
+                      in funcName <> "(" <> Text.intercalate ", " paramBindings <> ")"
+                  _ ->
+                    let paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
+                    in funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
+                header = "=== Path " <> show pid <> tagLabel <> modeTag
                   <> " (func: " <> funcSig
                   <> ", " <> show (length filtered) <> "/" <> show (length stmts) <> " stmts) ==="
             return $ header <> "\n" <> pretty' (PStmts filtered)

@@ -25,12 +25,26 @@ import qualified Data.Text as Text
 
 type PathId = Int
 
--- | A path reference with an optional raw modifier.
---   @PathRef 3 False@ = reduced (default), @PathRef 3 True@ = raw/unreduced (3!)
+-- | How to display a path.
+data PathViewMode
+  = ViewReduced         -- ^ Default: copy-propagated/reduced view
+  | ViewRaw             -- ^ @!@ suffix: raw/unreduced PIL
+  | ViewContextStripped -- ^ @!!@ suffix: target function only, with propagated caller args
+  deriving (Eq, Show, Generic)
+
+-- | A path reference with a view mode.
+--   @PathRef 3 ViewReduced@ = reduced (default)
+--   @PathRef 3 ViewRaw@ = raw/unreduced (3!)
+--   @PathRef 3 ViewContextStripped@ = context-stripped (3!!)
 data PathRef = PathRef
   { pathRefId :: PathId
-  , wantRaw   :: Bool
+  , viewMode  :: PathViewMode
   } deriving (Eq, Show, Generic)
+
+-- | For backwards compatibility
+wantRaw :: PathRef -> Bool
+wantRaw (PathRef _ ViewRaw) = True
+wantRaw _ = False
 
 -- | Parse path references from command arguments. Supports:
 --   Individual args:   1 2 3       (reduced by default)
@@ -48,9 +62,15 @@ parsePathRefs args =
             $ stripped
   in concatMap parseRefPart parts
 
--- | Backwards-compatible: parse path IDs, ignoring any ! modifiers
+-- | Backwards-compatible: parse path IDs, ignoring any modifiers
 parsePathIds :: [Text] -> [PathId]
 parsePathIds = fmap pathRefId . parsePathRefs
+
+-- | Parse a suffix like @!@ or @!!@ into a PathViewMode.
+parseSuffix :: Text -> PathViewMode
+parseSuffix "!!" = ViewContextStripped
+parseSuffix "!"  = ViewRaw
+parseSuffix _    = ViewReduced
 
 parseRefPart :: Text -> [PathRef]
 parseRefPart t
@@ -59,16 +79,16 @@ parseRefPart t
   , not (Text.null rest)
   , Just lo <- readMaybe (Text.unpack . Text.strip . Text.dropWhileEnd (== '!') $ a)
   , Just hi <- readMaybe (Text.unpack . Text.strip . Text.dropWhileEnd (== '!') $ Text.drop 2 rest)
-  = fmap (`PathRef` False) [lo..hi]
+  = fmap (`PathRef` ViewReduced) [lo..hi]
   -- Try "a-b" range (only if both sides are digits, to avoid negative numbers)
   | Just (a, b) <- splitRange (Text.dropWhileEnd (== '!') t)
   , Just lo <- readMaybe (Text.unpack a)
   , Just hi <- readMaybe (Text.unpack b)
-  = fmap (`PathRef` False) [lo..hi]
-  -- Single number, possibly with ! suffix
+  = fmap (`PathRef` ViewReduced) [lo..hi]
+  -- Single number, possibly with ! or !! suffix
   | (numPart, suffix) <- Text.span isDigit t
   , Just n <- readMaybe (Text.unpack numPart)
-  = [PathRef n (suffix == "!")]
+  = [PathRef n (parseSuffix suffix)]
   | otherwise = []
   where
     -- Split "3-10" but not "-3" (negative number)
@@ -81,14 +101,27 @@ parseRefPart t
            Just ('-', rest) | not (Text.null rest) -> Just (digits, rest)
            _ -> Nothing
 
+-- | Caller context info, stored when a path was sampled with --context-depth.
+data CallerContext = CallerContext
+  { innerStmtAddrs  :: HashSet Address
+    -- ^ Statement addresses from the target function's intraprocedural path.
+    --   Used to filter the reduced stmts for the @!!@ view.
+  , resolvedParams  :: [(Text, Pil.Expression)]
+    -- ^ @(paramName, argExpression)@ pairs from the immediate caller.
+  } deriving (Show, Generic)
+
 -- | Resolve which statements to show for a cached path.
---   Raw = original PIL, otherwise = reduced (falling back to original if no prep).
-resolveStmts :: CachedPath -> Bool -> [Pil.Stmt]
-resolveStmts cp raw
-  | raw       = cp ^. #pilPath
-  | otherwise = case cp ^. #pathPrep of
-      Just prep -> asStmts $ prep ^. #stmts
-      Nothing   -> cp ^. #pilPath
+resolveStmts :: CachedPath -> PathViewMode -> [Pil.Stmt]
+resolveStmts cp ViewRaw = cp ^. #pilPath
+resolveStmts cp ViewReduced = case cp ^. #pathPrep of
+  Just prep -> asStmts $ prep ^. #stmts
+  Nothing   -> cp ^. #pilPath
+resolveStmts cp ViewContextStripped = case cp ^. #callerContext of
+  Just ctx ->
+    let allStmts = resolveStmts cp ViewReduced
+        targetAddrs = ctx ^. #innerStmtAddrs
+    in filter (\s -> HashSet.member (s ^. #addr) targetAddrs) allStmts
+  Nothing -> resolveStmts cp ViewReduced
 
 data CachedPath = CachedPath
   { pilPath     :: [Pil.Stmt]
@@ -96,6 +129,7 @@ data CachedPath = CachedPath
   , sourceFunc  :: Function
   , pathPrep    :: Maybe (PathPrep TypedStmt)
   , pathPrepTaintVersion :: Int
+  , callerContext :: Maybe CallerContext
   } deriving (Generic)
 
 data ShellState = ShellState
@@ -182,7 +216,20 @@ mkCachedPath st stmts fullPath' sourceFunc' pathPrep' = do
     , sourceFunc = sourceFunc'
     , pathPrep = pathPrep'
     , pathPrepTaintVersion = taintVersion
+    , callerContext = Nothing
     }
+
+mkCachedPathWithContext
+  :: ShellState
+  -> [Pil.Stmt]
+  -> PilPath
+  -> Function
+  -> Maybe (PathPrep TypedStmt)
+  -> CallerContext
+  -> IO CachedPath
+mkCachedPathWithContext st stmts fullPath' sourceFunc' pathPrep' ctx = do
+  cp <- mkCachedPath st stmts fullPath' sourceFunc' pathPrep'
+  return $ cp { callerContext = Just ctx }
 
 ensureCurrentPathPrep :: ShellState -> PathId -> CachedPath -> IO (PathPrep TypedStmt)
 ensureCurrentPathPrep st pid cp = do
@@ -268,9 +315,12 @@ taggedPathIds st = do
 resolvePathRefs :: ShellState -> [Text] -> IO [PathRef]
 resolvePathRefs st args = do
   (_, nameToId) <- readIORef (st ^. #pathTags)
-  let resolve part = case HashMap.lookup (Text.dropWhileEnd (== '!') part) nameToId of
-        Just pid -> [PathRef pid (Text.isSuffixOf "!" part)]
-        Nothing  -> parseRefPart part
+  let resolve part =
+        let tagName = Text.dropWhileEnd (== '!') part
+            suffix = Text.drop (Text.length tagName) part
+        in case HashMap.lookup tagName nameToId of
+          Just pid -> [PathRef pid (parseSuffix suffix)]
+          Nothing  -> parseRefPart part
       joined = Text.intercalate " " args
       stripped = Text.filter (\c -> c /= '[' && c /= ']') joined
       parts = filter (not . Text.null)
