@@ -702,7 +702,7 @@ isTokenGroup _ = False
 
 -- | Get children of a Branch node, or empty for Leaf
 astChildren :: ClangAST ClangNode -> [ClangAST ClangNode]
-astChildren (Branch _ cs) = cs
+astChildren (Branch _ xs) = xs
 astChildren (Leaf _) = []
 
 -- | Find the first non-whitespace child's OpToken in a list
@@ -735,12 +735,12 @@ convertBlock nodes = go (filter (not . isBreak) nodes)
           Just Do        -> parseDoWhile children : go rest
           Just If        -> parseIfChain children rest
           Just Switch    -> parseSwitchStmt children : go rest
-          Just Return    -> let inner = convertBlock children in inner <> go rest
+          Just Return    -> let blk = convertBlock children in blk <> go rest
           _ -> case convertBlock children of
             []    -> go rest  -- skip empty blocks
             -- If block is only comments, inline them (don't wrap in { })
-            inner | all isCommentStmt inner -> inner <> go rest
-            inner -> CBlock (nodesAnn children) inner : go rest
+            blk | all isCommentStmt blk -> blk <> go rest
+            blk -> CBlock (nodesAnn children) blk : go rest
 
       -- A Statement: expression statement
       Branch (ClangStatement _) children ->
@@ -893,7 +893,7 @@ parseDoWhile :: [ClangAST ClangNode] -> CStmt
 parseDoWhile children =
   let noWS = filter (not . isWhitespace) children
       afterDo = drop 1 $ dropWhile (not . isOpToken Do) noWS
-      (bodyTokens, whilePart) = span (not . isOpToken While) afterDo
+      (bodyTokens, whilePart) = break (isOpToken While) afterDo
       body = extractBody bodyTokens
       afterWhile = drop 1 whilePart
       afterOpen = drop 1 $ dropWhile (not . isSyntaxText "(") afterWhile
@@ -955,13 +955,13 @@ parseCases [] = []
 parseCases nodes =
   let clean = filter (not . isWhitespace) nodes
       -- Remove outer { }
-      inner = case clean of
+      body = case clean of
         (n : ns) | isSyntaxText "{" n ->
           case reverse ns of
             (l : ls) | isSyntaxText "}" l -> reverse ls
             _ -> ns
         _ -> clean
-  in parseCaseList inner
+  in parseCaseList body
 
 parseCaseList :: [ClangAST ClangNode] -> [CCase]
 parseCaseList [] = []
@@ -1147,19 +1147,19 @@ convertExpr nodes =
 
     -- Parenthesized expression: ( expr ) possibly followed by more
     (p : rest) | isSyntaxText "(" p ->
-      let (inner, after) = splitAtCloseParen rest
+      let (parenBody, after) = splitAtCloseParen rest
           cleanAfter = cleanExpr after
       in case cleanAfter of
-        -- Cast: (type)expr or (type *)expr — isCastContents confirms inner is a type,
+        -- Cast: (type)expr or (type *)expr — isCastContents confirms parenBody is a type,
         -- so operators like & (address-of) and * (dereference) after the cast are fine
-        _ | isCastContents inner && not (null cleanAfter) ->
-          let typeName = T.strip $ mconcat (fmap clangText inner)
+        _ | isCastContents parenBody && not (null cleanAfter) ->
+          let typeName = T.strip $ mconcat (fmap clangText parenBody)
           in convertExprWithLeading (CCast ann typeName (convertExpr cleanAfter)) []
         -- Parenthesized then trailing stuff (field access, indexing, etc.)
         _ | not (null cleanAfter) ->
-          convertExprWithLeading (convertExpr inner) after
+          convertExprWithLeading (convertExpr parenBody) after
         -- Just unwrap parens
-        _ -> convertExpr inner
+        _ -> convertExpr parenBody
 
     -- Function call: FuncNameToken followed by parens
     (Leaf (ClangFuncNameToken fOpts) : rest)
@@ -1275,12 +1275,12 @@ findFieldAccess :: [ClangAST ClangNode] -> Maybe ([ClangAST ClangNode], Text, Bo
 findFieldAccess nodes = goArrow nodes <|> goDot nodes
   where
     -- Find last -> to handle chained access like a->b->c (split at last for left-assoc)
-    goArrow ns = findLastFieldSep "->" True ns
-    goDot ns = findLastFieldSep "." False ns
+    goArrow = findLastFieldSep "->" True
+    goDot = findLastFieldSep "." False
 
     findLastFieldSep sep isArrow ns =
-      let indexed = zip [0 :: Int ..] ns
-          sepPositions = [i | (i, n) <- indexed, isTokenText sep n]
+      let indexedNs = zip [0 :: Int ..] ns
+          sepPositions = [i | (i, n) <- indexedNs, isTokenText sep n]
       in case sepPositions of
         [] -> Nothing
         _ -> let pos = last' sepPositions  -- use the LAST one for left-associativity
@@ -1341,7 +1341,7 @@ findBinaryOp = findOpBy isBinOp
 
 -- | Generic helper to find an operator in a token list and split around it
 findOpBy :: (ClangAST ClangNode -> Bool) -> [ClangAST ClangNode] -> Maybe ([ClangAST ClangNode], Text, [ClangAST ClangNode])
-findOpBy predicate nodes = go [] nodes
+findOpBy predicate = go []
   where
     go _ [] = Nothing
     go acc (n : rest)

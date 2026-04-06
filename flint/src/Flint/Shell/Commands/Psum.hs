@@ -110,7 +110,7 @@ isInteresting = \case
 
 -- | Check if any expression within a statement (recursively) is a call or non-stack load.
 anyExprInteresting :: Pil.Statement Pil.Expression -> Bool
-anyExprInteresting s = any (any isInterestingExpr . allExprs) (F.toList s)
+anyExprInteresting = any (any isInterestingExpr . allExprs)
 
 -- | An expression is interesting if it's a non-__stack_chk_fail call
 --   or a load from non-stack-local memory.
@@ -142,12 +142,12 @@ isStackChkFail = \case
 referencesFSOffset :: Pil.Expression -> Bool
 referencesFSOffset expr = case expr ^. #op of
   Pil.VAR (Pil.VarOp v) -> v ^. #symbol == "in_FS_OFFSET"
-  _ -> any referencesFSOffset (F.toList (expr ^. #op))
+  _ -> any referencesFSOffset (expr ^. #op)
 
 -- | Check if any expression in a statement references in_FS_OFFSET.
 stmtReferencesFSOffset :: Pil.Statement Pil.Expression -> Bool
-stmtReferencesFSOffset = any (any referencesFSOffset . allExprs) . F.toList
+stmtReferencesFSOffset = any (any referencesFSOffset . allExprs)
 
 -- | All sub-expressions of an expression (self + all descendants).
 allExprs :: Pil.Expression -> [Pil.Expression]
-allExprs expr = expr : concatMap allExprs (F.toList (expr ^. #op))
+allExprs expr = expr : concatMap allExprs (expr ^. #op)
