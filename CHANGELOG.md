@@ -1,8 +1,6 @@
 # Blaze Platform
 
-
-
-## Version 0.26.0406
+## Version 0.26.0406b
 - C AST decompiler: new `CStmt`/`CExpr` types (14 statement constructors, 14 expression constructors) that transform Ghidra's raw ClangAST token stream into structured, readable C99 source code
   + `convertFunction` / `convertBlock` / `convertExpr` — recursive transformer handling nested control flow, multi-arg function calls, prefix/postfix/binary operators, casts, pointer/array/field access, compound assignments, for-loop init declarations
   + `renderStmts` / `renderExpr` — indented C source renderer
@@ -11,6 +9,9 @@
 - `decompile_function` MCP tool and `decomp` shell command — takes function name or hex address, returns decompiled C with full control flow structure (for, while, do-while, if/else, switch/case)
 - `BinaryImporter.decompileFunction` typeclass method with Ghidra backend implementation
 - Test binary (`loop-test.gzf`) and 16 new tests: unit tests for C AST construction + integration tests decompiling real functions (nested_for, bubble_sort, find_first_negative, classify, test_switch, process)
+
+## Version 0.26.0406a
+- Update `DevelopersGuide.md` to include dependency introduced by LMDB
 
 ## Version 0.26.0405
 - `--context-depth N` option for `sample` command (shell + MCP) — samples paths entering the target function through N levels of callers, using reverse call graph traversal and targeted callsite sampling
