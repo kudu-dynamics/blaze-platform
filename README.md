@@ -17,12 +17,7 @@ Otherwise, leave it unset.
 
 ### From source
 
-System dependencies (Ubuntu/Debian):
-```
-sudo apt install liblmdb-dev
-```
-
-Then `stack run { TARGET } [ ARGS... ]`. See each package's `README.md` for more information.
+`stack run { TARGET } [ ARGS... ]`. See each package's `README.md` for more information.
 
 ## Building
 

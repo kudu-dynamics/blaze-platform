@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0406a
+- Update `DevelopersGuide.md` to include dependency introduced by LMDB
+
 ## Version 0.26.0405
 - `--context-depth N` option for `sample` command (shell + MCP) — samples paths entering the target function through N levels of callers, using reverse call graph traversal and targeted callsite sampling
 - `!!` view suffix for `show` and `psum` — strips outer calling context stmts, shows only the target function with resolved caller args in the header (e.g. `process_auth(ctx=conn, hdr=buf+sVar3)`)
