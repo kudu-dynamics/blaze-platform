@@ -12,7 +12,7 @@ import Flint.Shell.Types (ShellState, CommandResult(..), initShellState)
 import Flint.Shell.Command (dispatchCommand)
 import Flint.Shell.Repl (allCommands)
 
-import Blaze.Import.Binary (getBase, inspectAddress, saveToDb, lookupGlobalSymbol)
+import Blaze.Import.Binary (getBase, inspectAddress, decompileFunction, saveToDb, lookupGlobalSymbol)
 import Blaze.Import.Xref (getXrefsTo)
 
 import qualified Data.HashSet as HashSet
@@ -229,7 +229,7 @@ loadBinary mcpSt fp = do
           analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
           (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
           base <- getBase imp
-          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
+          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ decompileFunction imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
           writeIORef (mcpSt ^. #shellStateRef) (Just st)
           SIO.hPutStrLn stderr $ "Binary loaded: " <> fp
           putMVar readyMVar (Right ())
@@ -398,6 +398,11 @@ buildCommandString toolName args = case toolName of
     case lookupArg "address" args of
       Nothing -> Left "Missing required parameter: address"
       Just addr -> Right $ "inspect " <> addr
+
+  "decompile_function" ->
+    case lookupArg "function" args of
+      Nothing -> Left "Missing required parameter: function"
+      Just f -> Right $ "decomp " <> f
 
   "save_binary" ->
     case lookupArg "file_path" args of
@@ -705,6 +710,17 @@ toolDefinitions =
               [ ("address", InputSchemaDefinitionProperty "string" "Hex address to inspect (e.g. '0x804d509')")
               ]
           , required = ["address"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "decompile_function"
+      , toolDefinitionDescription = "Decompile a function to C source code. Takes a function name or hex address and returns the decompiled C with control flow structures (for loops, while loops, if/else, switch/case, etc.)."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x100003e44')")
+              ]
+          , required = ["function"]
           }
       , toolDefinitionTitle = Nothing
       }

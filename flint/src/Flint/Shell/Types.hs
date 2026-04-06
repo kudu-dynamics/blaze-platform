@@ -144,6 +144,7 @@ data ShellState = ShellState
   , userKnownFuncs :: IORef [KnownFunc]
   , taintConfigVersion :: IORef Int
   , inspectAddr :: Maybe (Address -> IO (Maybe Text))
+  , decompFunc  :: Maybe (Address -> IO (Maybe Text))
   , saveToDb    :: Maybe (FilePath -> IO (Either Text FilePath))
   , xrefsTo     :: Maybe (Address -> IO [Xref])
   , lookupSymbol :: Maybe (Text -> IO (Maybe Address))
@@ -165,11 +166,12 @@ data CommandResult
 initShellState
   :: CfgStore -> Address -> Bool
   -> Maybe (Address -> IO (Maybe Text))
+  -> Maybe (Address -> IO (Maybe Text))
   -> Maybe (FilePath -> IO (Either Text FilePath))
   -> Maybe (Address -> IO [Xref])
   -> Maybe (Text -> IO (Maybe Address))
   -> IO ShellState
-initShellState store base solver mInspect mSave mXrefs mLookupSym = do
+initShellState store base solver mInspect mDecomp mSave mXrefs mLookupSym = do
   cache <- newIORef HashMap.empty
   nextId <- newIORef 0
   solverRef <- newIORef solver
@@ -190,6 +192,7 @@ initShellState store base solver mInspect mSave mXrefs mLookupSym = do
     , userKnownFuncs = userKnownFuncsRef
     , taintConfigVersion = taintVersionRef
     , inspectAddr = mInspect
+    , decompFunc = mDecomp
     , saveToDb = mSave
     , xrefsTo = mXrefs
     , lookupSymbol = mLookupSym

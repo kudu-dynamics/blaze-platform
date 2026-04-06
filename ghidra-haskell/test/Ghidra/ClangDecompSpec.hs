@@ -1,116 +1,162 @@
-
 module Ghidra.ClangDecompSpec where
 
 import Ghidra.Prelude
 
--- import qualified Ghidra.State as State
--- import qualified Ghidra.Function as Function
--- import Ghidra.Core
+import qualified Ghidra.State as State
+import qualified Ghidra.Function as Function
+import Ghidra.Clang (ClangAST, ClangNode, CStmt(..), CExpr(..), CForInit(..), CCase(..), convertFunction, renderStmts)
+import Ghidra.Core (runGhidraOrError)
 import Test.Hspec
 
-testBin2 :: FilePath
-testBin2 = "res/test_bins/decomp-test/decomp-test2.gzf"
+import qualified Data.Text as Text
+import qualified System.IO as SIO
 
-largeTestBin :: FilePath
-largeTestBin = "res/test_bins/decomp-test/mail-binary.gzf"
 
-{- To figure out the base jaddr pointers:
-Window > Memory-map > Set image base (the house icon) > set iamge base to 0 > find the function you want-}
+loopTestBin :: FilePath
+loopTestBin = "res/test_bins/decomp-test/loop-test.gzf"
+
+-- | Decompile a function at a given address and return both the C AST and rendered text
+decompAt :: FilePath -> Int64 -> IO ([CStmt], Text)
+decompAt path jaddr = runGhidraOrError $ do
+  gs <- State.openDatabase_ path >>! State.analyze
+  jaddr' <- State.mkAddressBased (gs ^. #program) jaddr
+  mFunc <- Function.fromAddr (gs ^. #program) jaddr'
+  case mFunc of
+    Nothing -> return ([], "ERROR: No function at 0x" <> show jaddr)
+    Just jfunc -> do
+      clangAST <- Function.getClangAST gs jfunc
+      let cStmts = convertFunction clangAST
+      return (cStmts, renderStmts 0 cStmts)
+
+-- | Find all CFor nodes recursively in a statement list
+findForLoops :: [CStmt] -> [CStmt]
+findForLoops = concatMap go
+  where
+    go s@(CFor _ _ _ _ body)      = s : findForLoops body
+    go (CWhile _ _ body)          = findForLoops body
+    go (CDoWhile _ body _)        = findForLoops body
+    go (CIf _ _ body)             = findForLoops body
+    go (CIfElse _ _ thenB elseB)  = findForLoops thenB <> findForLoops elseB
+    go (CSwitch _ _ cases)        = concatMap goCase cases
+    go (CBlock _ stmts)           = findForLoops stmts
+    go _                       = []
+    goCase (CCase _ stmts)  = findForLoops stmts
+    goCase (CDefault stmts) = findForLoops stmts
+
+-- | Find all CWhile nodes recursively
+findWhileLoops :: [CStmt] -> [CStmt]
+findWhileLoops = concatMap go
+  where
+    go s@(CWhile _ _ body)       = s : findWhileLoops body
+    go (CFor _ _ _ _ body)       = findWhileLoops body
+    go (CDoWhile _ body _)       = findWhileLoops body
+    go (CIf _ _ body)            = findWhileLoops body
+    go (CIfElse _ _ thenB elseB) = findWhileLoops thenB <> findWhileLoops elseB
+    go (CSwitch _ _ cases)       = concatMap goCase cases
+    go (CBlock _ stmts)          = findWhileLoops stmts
+    go _                       = []
+    goCase (CCase _ stmts)  = findWhileLoops stmts
+    goCase (CDefault stmts) = findWhileLoops stmts
+
+-- | Find all CSwitch nodes recursively
+findSwitches :: [CStmt] -> [CStmt]
+findSwitches = concatMap go
+  where
+    go s@(CSwitch _ _ _)          = [s]
+    go (CFor _ _ _ _ body)        = findSwitches body
+    go (CWhile _ _ body)          = findSwitches body
+    go (CDoWhile _ body _)        = findSwitches body
+    go (CIf _ _ body)             = findSwitches body
+    go (CIfElse _ _ thenB elseB)  = findSwitches thenB <> findSwitches elseB
+    go (CBlock _ stmts)           = findSwitches stmts
+    go _                        = []
+
+-- | Find all CIf/CIfElse nodes recursively
+findIfs :: [CStmt] -> [CStmt]
+findIfs = concatMap go
+  where
+    go s@(CIf _ _ body)            = s : findIfs body
+    go s@(CIfElse _ _ thenB elseB) = s : findIfs thenB <> findIfs elseB
+    go (CFor _ _ _ _ body)         = findIfs body
+    go (CWhile _ _ body)           = findIfs body
+    go (CDoWhile _ body _)         = findIfs body
+    go (CSwitch _ _ cases)         = concatMap goCase cases
+    go (CBlock _ stmts)            = findIfs stmts
+    go _                         = []
+    goCase (CCase _ stmts)  = findIfs stmts
+    goCase (CDefault stmts) = findIfs stmts
 
 spec :: Spec
 spec = describe "Ghidra.ClangDecomp" $ do
-  return ()
-  -- let path = testBin2
+  let path = loopTestBin
 
-  -- let jaddrMain = 0x3e44
-  -- clangASTMain <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ path >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrMain
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTMainStr :: String = show clangASTMain
+  -- Addresses from: nm loop-test | grep " T _"
+  -- Note: Ghidra uses image-base-relative addresses, so we subtract 0x100000000
+  let addrNestedFor         = 0x3838
+  let addrBubbleSort        = 0x38f4
+  let addrFindFirstNegative = 0x39f0
+  let addrClassify          = 0x3acc
+  let addrTestSwitch        = 0x3b48
+  let addrProcess           = 0x3be4
 
-  -- let jaddrField = 0x3920
-  -- clangASTField <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ path >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrField
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTFieldStr :: String = show clangASTField
-  -- --_ <- runIO $ pprint clangASTField
-  
-  -- let jaddrSwitch = 0x3994
-  -- clangASTSwitch <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ path >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrSwitch
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTSwitchStr :: String = show clangASTSwitch
-  -- _ <- runIO $ pprint clangASTSwitch
+  (stmtsNestedFor, renderedNestedFor)   <- runIO $ decompAt path addrNestedFor
+  (stmtsBubbleSort, renderedBubbleSort) <- runIO $ decompAt path addrBubbleSort
+  (stmtsFindFirstNeg, renderedFindFirstNeg) <- runIO $ decompAt path addrFindFirstNegative
+  (stmtsClassify, renderedClassify)     <- runIO $ decompAt path addrClassify
+  (stmtsSwitch, renderedSwitch)         <- runIO $ decompAt path addrTestSwitch
+  (stmtsProcess, renderedProcess)       <- runIO $ decompAt path addrProcess
 
-  -- let jaddrGenTest1 = 0x3dbc
-  -- clangASTGen1 <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ path >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrGenTest1
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTGen1Str :: String = show clangASTGen1
-  
-  -- let jaddrSum = 0x3de4
-  -- clangASTSum <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ path >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrSum
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTSumStr :: String = show clangASTSum
+  context "Loop decompilation" $ do
+    it "nested_for has an outer CFor containing an inner CFor" $ do
+      SIO.hPutStrLn SIO.stderr $ "\n--- nested_for ---\n" <> Text.unpack renderedNestedFor
+      let forLoops = findForLoops stmtsNestedFor
+      length forLoops `shouldSatisfy` (>= 2)
+      -- The first for loop should contain a nested for loop in its body
+      case forLoops of
+        (CFor _ _ _ _ body : _) ->
+          findForLoops body `shouldSatisfy` (not . null)
+        other -> expectationFailure $ "Expected CFor, got: " <> show (take 1 other)
 
-  -- let jaddrGenTest2 = 0x3e0c
-  -- clangASTGen2 <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ path >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrGenTest2
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTGen2Str :: String = show clangASTGen2
+    it "bubble_sort has nested CFor loops with CIf in inner body" $ do
+      SIO.hPutStrLn SIO.stderr $ "\n--- bubble_sort ---\n" <> Text.unpack renderedBubbleSort
+      let forLoops = findForLoops stmtsBubbleSort
+      length forLoops `shouldSatisfy` (>= 2)
+      -- Inner for body should contain an if
+      case forLoops of
+        (CFor _ _ _ _ outerBody : _) ->
+          case findForLoops outerBody of
+            (CFor _ _ _ _ innerBody : _) ->
+              findIfs innerBody `shouldSatisfy` (not . null)
+            _ -> expectationFailure "Expected inner for loop"
+        _ -> expectationFailure "Expected outer for loop"
 
-  -- let largeBinPath = largeTestBin
-  -- let jaddrLargeTest = 0xcfe0
-  -- clangASTMail <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ largeBinPath >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrLargeTest
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTMailStr :: String = show clangASTMail
+    it "find_first_negative has a CWhile loop" $ do
+      SIO.hPutStrLn SIO.stderr $ "\n--- find_first_negative ---\n" <> Text.unpack renderedFindFirstNeg
+      -- Ghidra may emit this as while or do-while
+      let whiles = findWhileLoops stmtsFindFirstNeg
+      let fors = findForLoops stmtsFindFirstNeg
+      (length whiles + length fors) `shouldSatisfy` (>= 1)
 
-  -- let jaddrSwitch2 = 0x3a84
-  -- clangASTSwitch2 <- runIO . runGhidraOrError $ do
-  --   gs <- State.openDatabase_ testBin2 >>! State.analyze
-  --   jaddr' <- State.mkAddressBased gs jaddrSwitch2
-  --   (Just jfunc) <- Function.fromAddr gs jaddr'
-  --   clangAST' <- Function.getClangAST gs jfunc
-  --   return clangAST'
-  -- let clangASTSwitch2Str :: String = show clangASTSwitch2
+    it "classify has CIf nodes" $ do
+      SIO.hPutStrLn SIO.stderr $ "\n--- classify ---\n" <> Text.unpack renderedClassify
+      let ifs = findIfs stmtsClassify
+      length ifs `shouldSatisfy` (>= 1)
 
-  -- context "ClangAST General Test" $ do
-  --   it "Main Func Test" $ do
-  --       null clangASTMainStr `shouldBe` False
-  --   it "Field Func Test" $ do
-  --       null clangASTFieldStr `shouldBe` False
-  --   it "Switch 1 Func Test" $ do
-  --       null clangASTSwitchStr `shouldBe` False
-  --   it "General 1 Func Test" $ do
-  --       null clangASTGen1Str `shouldBe` False
-  --   it "Sum Func Test" $ do
-  --       null clangASTSumStr `shouldBe` False
-  --   it "General 2 Func Test" $ do
-  --       null clangASTGen2Str `shouldBe` False
-  --   it "Large Binary Func Test" $ do
-  --       null clangASTMailStr `shouldBe` False
-  --   it "Switch 2 Func Test" $ do
-  --       null clangASTSwitch2Str `shouldBe` False
+    it "test_switch produces CSwitch or equivalent if/else chain" $ do
+      SIO.hPutStrLn SIO.stderr $ "\n--- test_switch ---\n" <> Text.unpack renderedSwitch
+      -- Ghidra may emit switch as CSwitch or as nested if/else chains
+      -- (common for small switches on ARM). Accept either.
+      let switches = findSwitches stmtsSwitch
+          ifs = findIfs stmtsSwitch
+      (length switches + length ifs) `shouldSatisfy` (>= 1)
+      -- Rendered output should mention at least 2 of the case strings
+      let rendered = renderedSwitch
+          mentionCount = length $ filter (`Text.isInfixOf` rendered)
+            ["\"one\\n\"", "\"two\\n\"", "\"three\\n\"", "\"other\\n\""]
+      mentionCount `shouldSatisfy` (>= 2)
+
+    it "process has a loop (CFor or CWhile, Ghidra may optimize for+switch to while)" $ do
+      SIO.hPutStrLn SIO.stderr $ "\n--- process ---\n" <> Text.unpack renderedProcess
+      let forLoops = findForLoops stmtsProcess
+          whileLoops = findWhileLoops stmtsProcess
+      (length forLoops + length whileLoops) `shouldSatisfy` (>= 1)

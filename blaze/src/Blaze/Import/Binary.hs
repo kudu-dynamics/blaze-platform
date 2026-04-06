@@ -28,3 +28,7 @@ class BinaryImporter a where
   -- | Look up a global symbol by name and return its address.
   lookupGlobalSymbol :: a -> Text -> IO (Maybe Address)
   lookupGlobalSymbol _ _ = return Nothing
+  -- | Decompile the function at the given address to C source text.
+  -- Returns Nothing if no function exists at that address.
+  decompileFunction :: a -> Address -> IO (Maybe Text)
+  decompileFunction _ _ = return Nothing

@@ -20,6 +20,8 @@ import Ghidra.State qualified as GState
 import Ghidra.Address qualified as GAddr
 import qualified Ghidra.Inspect as GInspect
 import qualified Ghidra.Symbol as GSym
+import qualified Ghidra.Clang as GClang
+import qualified Ghidra.Function as GFunction
 
 import Blaze.Import.Source.Ghidra.Types as Exports
 import Blaze.Prelude hiding (Symbol)
@@ -102,6 +104,16 @@ instance BinaryImporter GhidraImporter where
     case mAddr of
       Nothing -> return Nothing
       Just jAddr -> Just . convertAddress <$> runGhidraOrError (GAddr.mkAddress jAddr)
+
+  decompileFunction (GhidraImporter gs _ _) addr =
+    runGhidraOrError $ do
+      jaddr <- GState.mkAddress (gs ^. #program) addr
+      GFunction.fromAddr (gs ^. #program) jaddr >>= \case
+        Nothing -> return Nothing
+        Just jfunc -> do
+          clangAST <- GFunction.getClangAST gs jfunc
+          let cStmts = GClang.convertFunction clangAST
+          return $ Just (GClang.renderStmts 0 cStmts)
 
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction
