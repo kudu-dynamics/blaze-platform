@@ -8,6 +8,7 @@ module Flint.Shell.Commands.Paths
   , freeUntaggedCommand
   , expandCommand
   , findFunction
+  , findFunc
   , expandPathToDepth
   , parseDepthArg
   , parseContextDepthArg
@@ -19,7 +20,7 @@ import Flint.Prelude
 import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
 import qualified Flint.Cfg.Store as Store
-import Flint.Cfg.Path (samplesFromQuery, sampleWithCallerContext, timingLog)
+import Flint.Cfg.Path (samplesFromQuery, sampleWithCallerContext, sampleExcludeSelfContext, timingLog)
 import Blaze.Cfg.Path (expandCallWithNewInnerPathIds)
 import Flint.Query (onionSampleBasedOnFuncSize)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
@@ -29,7 +30,7 @@ import Flint.Util (timeIt)
 
 import Blaze.Cfg.Interprocedural (getCallTargetFunction)
 import Blaze.Types.Cfg (CfNode(Call), CallNode)
-import Blaze.Types.Function (Function, FuncParamInfo(..))
+import Blaze.Types.Function (Function, Func(..), FuncRef(..), FuncParamInfo(..), toFunctionRef)
 import Blaze.Pretty (pretty', PStmts(PStmts))
 import Blaze.Types.Cfg.Path (PilPath)
 import qualified Blaze.Types.Cfg.Path as Path
@@ -49,7 +50,7 @@ sampleCommand = ShellCommand
   { cmdName = "sample"
   , cmdAliases = ["sp"]
   , cmdHelp = "Sample paths from a function"
-  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--context-depth N] [--unrollLoops]"
+  , cmdUsage = "sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--context-depth N] [--unrollLoops] [--exclude-self]"
   , cmdAction = samplePaths
   }
 
@@ -146,6 +147,30 @@ findFunction st nameOrAddr = do
     Nothing -> return Nothing
     Just ref' -> Store.resolveFunction store ref'
 
+-- | Find a function by name or address, searching both internal and extern functions.
+-- Returns the resolved Func (Internal or External) and its FuncRef.
+findFunc :: ShellState -> Text -> IO (Maybe (Func, FuncRef))
+findFunc st nameOrAddr = do
+  let store = st ^. #cfgStore
+  -- Try internal first
+  mInternal <- findFunction st nameOrAddr
+  case mInternal of
+    Just func -> return $ Just (Internal func, InternalRef $ toFunctionRef func)
+    Nothing -> do
+      -- Search externs by name (case-insensitive) or address
+      let lowerName = Text.toLower nameOrAddr
+      externs <- Store.getExternalFuncs store
+      let mRef = find (\e -> Text.toLower (e ^. #name) == lowerName) externs
+            <|> do
+              let addrSpace = store ^. #baseOffset . #space
+              addr <- parseAddressWithSpace addrSpace nameOrAddr
+              find (\e -> e ^. #address == addr) externs
+      case mRef of
+        Nothing -> return Nothing
+        Just ref' -> do
+          mFunc <- Store.resolveFuncRef store (ExternalRef ref')
+          return $ fmap (, ExternalRef ref') mFunc
+
 -- | Parse --depth N from argument list, returning (depth, remaining args)
 parseDepthArg :: [Text] -> (Int, [Text])
 parseDepthArg [] = (0, [])
@@ -174,12 +199,23 @@ parseUnrollLoopsArg = go False
       let (f, rest) = go found xs
       in (f, x : rest)
 
+-- | Parse --exclude-self flag from argument list, returning (flag, remaining args)
+parseExcludeSelfArg :: [Text] -> (Bool, [Text])
+parseExcludeSelfArg = go False
+  where
+    go found [] = (found, [])
+    go _ ("--exclude-self" : rest) = go True rest
+    go found (x : xs) =
+      let (f, rest) = go found xs
+      in (f, x : rest)
+
 samplePaths :: ShellState -> [Text] -> IO CommandResult
-samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--context-depth N] [--unrollLoops]"
+samplePaths _st [] = return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]] [--depth N] [--context-depth N] [--unrollLoops] [--exclude-self]"
 samplePaths st allArgs' = do
   let (depth, allArgs0) = parseDepthArg allArgs'
       (contextDepth, allArgs1) = parseContextDepthArg allArgs0
-      (useUnrollLoops, allArgs) = parseUnrollLoopsArg allArgs1
+      (useUnrollLoops, allArgs2) = parseUnrollLoopsArg allArgs1
+      (excludeSelf_, allArgs) = parseExcludeSelfArg allArgs2
   -- Parse optional leading count: if first arg is a number, it's the count
   let (mLeadingCount, afterCount) = case allArgs of
         (n : rest') | Just c <- (readMaybe (Text.unpack n) :: Maybe Int) -> (Just c, rest')
@@ -187,30 +223,66 @@ samplePaths st allArgs' = do
   case afterCount of
     [] -> return $ ResultError "Usage: sample [count] <func> [@ <addr> [addr ...]]"
     (funcArg : rest) -> do
-      mFunc <- findFunction st funcArg
+      mFunc <- findFunc st funcArg
       case mFunc of
         Nothing -> return $ ResultError $ "Function not found: " <> funcArg
-        Just func -> do
+        Just (funcUnion, funcRef) -> do
           let -- Split remaining args on "@": after = [addrs]
               (_, afterAt) = break (== "@") rest
               mCount = mLeadingCount
-              addrSpace = func ^. #address . #space
+              funcName' = case funcUnion of
+                Internal f -> f ^. #name
+                External f -> f ^. #name
+              funcParams = case funcUnion of
+                Internal f -> f ^. #params
+                External f -> f ^. #params
+              addrSpace = case funcUnion of
+                Internal f -> f ^. #address . #space
+                External f -> f ^. #address . #space
               targetAddrs = case afterAt of
                 ("@" : addrArgs) -> mapMaybe (parseAddressWithSpace addrSpace) addrArgs
                 _ -> []
-          -- If --context-depth is specified, use caller context sampling
-          if contextDepth > 0
-            then samplePathsWithContext st func (fromMaybe 10 mCount)
-                   contextDepth depth targetAddrs useUnrollLoops
-            else do
+              isExtern = case funcUnion of
+                External _ -> True
+                Internal _ -> False
+              needExcludeSelf = excludeSelf_ || isExtern
+
+          -- Dispatch based on function type and flags
+          case (funcUnion, needExcludeSelf, contextDepth > 0) of
+            -- Extern without context-depth (and not exclude-self): show signature
+            (External _, False, _) -> do
+              let paramNames = fmap getParamName funcParams
+                  sig = funcName' <> "(" <> Text.intercalate ", " paramNames <> ") [extern]"
+              return . ResultOk $ sig
+                <> "\nUse --context-depth N to sample caller paths."
+
+            -- Extern or exclude-self WITHOUT context-depth: just show signature
+            (_, True, False) -> do
+              let paramNames = fmap getParamName funcParams
+                  sig = funcName' <> "(" <> Text.intercalate ", " paramNames <> ")"
+                  label = if isExtern then " [extern]" else ""
+              return . ResultOk $ sig <> label
+                <> "\nUse --context-depth N to sample caller paths."
+
+            -- Extern or exclude-self WITH context-depth: sample callers only
+            (_, True, True) ->
+              sampleExcludeSelfPaths st funcRef funcName' funcParams
+                (fromMaybe 10 mCount) contextDepth depth useUnrollLoops
+
+            -- Internal, no exclude-self, with context-depth: existing behavior
+            (Internal func, False, True) ->
+              samplePathsWithContext st func (fromMaybe 10 mCount)
+                contextDepth depth targetAddrs useUnrollLoops
+
+            -- Internal, no exclude-self, no context-depth: existing behavior
+            (Internal func, False, False) -> do
               (paths, samplingTime) <- timeIt $ case NE.nonEmpty targetAddrs of
                 Just addrs -> do
-                  -- Targeted sampling: paths must go through these addresses
                   let count = fromMaybe 20 mCount
                       targets = fmap (func,) addrs
                       q = QueryTarget $ QueryTargetOpts
                         { mustReachSome = targets
-                        , callExpandDepthLimit = 0  -- intraprocedural only
+                        , callExpandDepthLimit = 0
                         , numSamples = fromIntegral count
                         , unrollLoops = useUnrollLoops
                         }
@@ -228,7 +300,6 @@ samplePaths st allArgs' = do
                           }
                     samplesFromQuery (st ^. #cfgStore) func q
                   (Nothing, True) -> do
-                    -- --unrollLoops without a count: use default count so the flag takes effect
                     let q = QueryExpandAll $ QueryExpandAllOpts
                           { callExpandDepthLimit = 0
                           , numSamples = 20
@@ -272,14 +343,66 @@ samplePathsWithContext st func count contextDepth calleeDepth targetAddrs useUnr
       -- Optionally expand callee calls within the full paths
       expandedResults <- if calleeDepth <= 0
         then return results
-        else fmap concat . forM results $ \(path, addrs, bindings) -> do
+        else fmap concat . forM results $ \(path, addrs, bindings, outerName) -> do
           expanded <- expandPathToDepth (st ^. #cfgStore) path calleeDepth
-          return $ fmap (, addrs, bindings) expanded
-      let mContexts = fmap (\(_, addrs, bindings) ->
-            CallerContext { innerStmtAddrs = addrs, resolvedParams = bindings })
+          return $ fmap (, addrs, bindings, outerName) expanded
+      let mContexts = fmap (\(_, addrs, bindings, outerName) ->
+            CallerContext { innerStmtAddrs = addrs, resolvedParams = bindings
+                        , excludeSelf = False, targetName = Nothing
+                        , outerFuncName = outerName })
             expandedResults
-          paths = fmap (\(p, _, _) -> p) expandedResults
+          paths = fmap (\(p, _, _, _) -> p) expandedResults
       cacheAndReturnPaths st func paths (Just mContexts)
+
+-- | Sample caller paths for an extern or --exclude-self target and cache them.
+-- The target function is NOT expanded; paths show the caller's context only.
+sampleExcludeSelfPaths
+  :: ShellState -> FuncRef -> Text -> [FuncParamInfo] -> Int -> Int -> Int -> Bool
+  -> IO CommandResult
+sampleExcludeSelfPaths st funcRef tgtName tgtParams count contextDepth calleeDepth useUnrollLoops = do
+  (results, samplingTime) <- timeIt $
+    sampleExcludeSelfContext (st ^. #cfgStore) funcRef tgtParams
+      (fromIntegral count) contextDepth useUnrollLoops
+  timingLog $ "[timing] sampleExcludeSelfContext (" <> tgtName <> "): "
+    <> show (length results) <> " paths in " <> show samplingTime
+  case results of
+    [] -> return $ ResultOk $ "No caller paths found for " <> tgtName
+    _ -> do
+      -- Optionally expand callee calls within the caller paths
+      expandedResults <- if calleeDepth <= 0
+        then return results
+        else do
+          let skipAddr = case funcRef of
+                InternalRef fr -> HashSet.singleton (fr ^. #address)
+                ExternalRef fr -> HashSet.singleton (fr ^. #address)
+          fmap concat . forM results $ \(path, callAddr, callerFunc, bindings) -> do
+            expanded <- expandPathToDepth' (st ^. #cfgStore) skipAddr path calleeDepth
+            return $ fmap (, callAddr, callerFunc, bindings) expanded
+      -- Cache each path with its actual caller as sourceFunc
+      pathResults <- forM expandedResults $ \(path, callAddr, callerFunc, bindings) -> do
+        (stmts, _) <- timeIt $ do
+          let s = Path.toStmts path
+          _ <- evaluate (length s)
+          return s
+        (prep, _) <- timeIt $ do
+          tps <- getAllTaintPropagators st
+          let p = mkPathPrep tps stmts
+          _ <- evaluate (length $ p ^. #stmts)
+          return p
+        let reducedStmts = asStmts $ prep ^. #stmts
+            paramNames = fmap fst bindings
+            resolvedParams' = resolveParamsFromCallStmt callAddr paramNames reducedStmts
+            ctx = CallerContext
+              { innerStmtAddrs = HashSet.singleton callAddr
+              , resolvedParams = resolvedParams'
+              , excludeSelf = True
+              , targetName = Just tgtName
+              , outerFuncName = Nothing
+              }
+        cp <- mkCachedPathWithContext st stmts path callerFunc (Just prep) ctx
+        pid <- insertPath st cp
+        return (pid, formatPathSummary cp)
+      return $ ResultPaths pathResults
 
 -- | Cache a list of paths and return ResultPaths.
 cacheAndReturnPaths
@@ -301,17 +424,28 @@ cacheAndReturnPaths st func paths mContexts = do
       return p
     let reducedStmts = asStmts $ prep ^. #stmts
     cp <- case mContexts >>= (!!? i) of
-      Just ctx -> mkCachedPathWithContext st stmts path func (Just prep) ctx
+      Just ctx ->
+        -- Re-resolve param bindings from the reduced (copy-propagated) stmts.
+        -- The original bindings came from the raw call node before reduction,
+        -- so they may contain unresolved variable names like "unique_*".
+        let paramNames = fmap fst (ctx ^. #resolvedParams)
+            resolvedParams' =
+              if ctx ^. #excludeSelf
+              then case HashSet.toList (ctx ^. #innerStmtAddrs) of
+                -- Exclude-self/extern: extract from Call stmt at callsite address
+                [callAddr] -> resolveParamsFromCallStmt callAddr paramNames reducedStmts
+                _ -> ctx ^. #resolvedParams
+              -- Normal context-depth: extract from EnterContext stmt
+              else resolveParamsFromStmts func reducedStmts
+            resolvedCtx = ctx & #resolvedParams .~ resolvedParams'
+        in mkCachedPathWithContext st stmts path func (Just prep) resolvedCtx
       Nothing  -> mkCachedPath st stmts path func (Just prep)
     pid <- insertPath st cp
     timingLog $ "[timing] path " <> show pid <> ": toStmts=" <> show toStmtsTime
       <> " (" <> show (length stmts) <> " raw stmts)"
       <> ", aggressiveExpand=" <> show expandTime
       <> " (" <> show (length reducedStmts) <> " reduced stmts)"
-    let summary = "path " <> show pid
-          <> " (" <> show (length reducedStmts) <> " stmts"
-          <> ", func: " <> func ^. #name <> ")"
-    return (pid, summary)
+    return (pid, formatPathSummary cp)
   return $ ResultPaths results
 
 -- | Safe list indexing
@@ -320,6 +454,32 @@ cacheAndReturnPaths st func paths mContexts = do
   | i < 0 = Nothing
   | i >= length xs = Nothing
   | otherwise = Just (xs !! i)
+
+-- | Extract param bindings from reduced (copy-propagated) stmts by finding
+-- the EnterContext for the target function. Falls back to empty if not found.
+resolveParamsFromStmts :: Function -> [Pil.Stmt] -> [(Text, Pil.Expression)]
+resolveParamsFromStmts targetFunc stmts =
+  case [ op ^. #args
+       | Pil.Stmt _ (Pil.EnterContext op) <- stmts
+       , op ^. #ctx . #func . #address == targetFunc ^. #address
+       ] of
+    [] -> []
+    (args:_) -> zip (fmap getParamName' $ targetFunc ^. #params) args
+  where
+    getParamName' (FuncParamInfo p) = p ^. #name
+    getParamName' (FuncVarArgInfo p) = p ^. #name
+
+-- | Extract param bindings from a Call statement at a given address in reduced stmts.
+-- Used for exclude-self/extern paths where there is no EnterContext.
+resolveParamsFromCallStmt :: Address -> [Text] -> [Pil.Stmt] -> [(Text, Pil.Expression)]
+resolveParamsFromCallStmt callAddr paramNames stmts =
+  case [ callStmt ^. #args
+       | s <- stmts
+       , s ^. #addr == callAddr
+       , Just callStmt <- [Pil.mkCallStatement s]
+       ] of
+    [] -> []
+    (args:_) -> zip paramNames args
 
 showPaths :: ShellState -> [Text] -> IO CommandResult
 showPaths _st [] = return $ ResultError "Usage: show <path_ids>  (e.g. 0 1 2, [0,1,2], [0..5], 0! for raw, 0!! for context-stripped)"
@@ -339,18 +499,20 @@ showPaths st args = do
             tagLabel = maybe "" (\t -> " \"" <> t <> "\"") mTag
             funcName = cp ^. #sourceFunc . #name
             funcSig = case (mode, cp ^. #callerContext) of
-              (ViewContextStripped, Just ctx)
-                | not (null $ ctx ^. #resolvedParams) ->
-                  let paramBindings = fmap (\(n, e) -> n <> "=" <> pretty' e)
-                                    $ ctx ^. #resolvedParams
-                  in funcName <> "(" <> Text.intercalate ", " paramBindings <> ")"
+              (ViewContextStripped, Just ctx) ->
+                let allStmts = resolveStmts cp ViewReduced
+                    outerName = fromMaybe funcName (ctx ^. #outerFuncName)
+                    tgtName = ctx ^. #targetName
+                in buildCallChain allStmts outerName tgtName
               _ ->
                 let paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
                 in funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
+            stmtCount = case mode of
+              ViewContextStripped -> ""
+              _ -> ", " <> show (length stmts) <> " stmts"
             header = "=== Path " <> show pid <> tagLabel <> modeTag
-              <> " (func: " <> funcSig
-              <> ", " <> show (length stmts) <> " stmts) ==="
-        return $ header <> "\n" <> pretty' (PStmts stmts)
+              <> " (" <> funcSig <> stmtCount <> ") ==="
+        return $ header <> "\n" <> Text.stripEnd (pretty' (PStmts stmts))
   return $ ResultText $ Text.intercalate "\n\n" results
 
 pshowStmts :: ShellState -> [Text] -> IO CommandResult
@@ -409,11 +571,9 @@ listPaths st _args = do
     entries -> do
       let sorted = sortOn fst entries
       rows <- forM sorted $ \(pid, cp) -> do
-        let stmts = resolveStmts cp ViewReduced
-            funcName = cp ^. #sourceFunc . #name
         mTag <- lookupTag st pid
         let tagLabel = maybe "" (\t -> " [" <> t <> "]") mTag
-        return (pid, "func: " <> funcName <> ", " <> show (length stmts) <> " stmts" <> tagLabel)
+        return (pid, formatPathSummary cp <> tagLabel)
       return $ ResultPaths rows
 
 tagPathCmd :: ShellState -> [Text] -> IO CommandResult
@@ -579,10 +739,16 @@ doExpansions st outerPid outerCp callNode innerPilPaths = do
     _ -> return $ ResultPaths expanded
 
 -- | Recursively expand all internal call nodes in a path up to the given depth.
+-- The @skipAddrs@ set contains function addresses that should NOT be expanded
+-- (e.g. the target function in --exclude-self mode).
 expandPathToDepth
   :: CfgStore -> PilPath -> Int -> IO [PilPath]
-expandPathToDepth _store path 0 = return [path]
-expandPathToDepth store path dpth = do
+expandPathToDepth store = expandPathToDepth' store HashSet.empty
+
+expandPathToDepth'
+  :: CfgStore -> HashSet Address -> PilPath -> Int -> IO [PilPath]
+expandPathToDepth' _store _skip path 0 = return [path]
+expandPathToDepth' store skip path dpth = do
   let allNodes = HashSet.toList $ P.nodes path
       callNodes = [ cn | Call cn <- allNodes ]
       expandableNodes = filter (isExpandable . (^. #callDest)) callNodes
@@ -592,12 +758,12 @@ expandPathToDepth store path dpth = do
     _ -> do
       results <- foldM expandOneCall [path] expandableNodes
       fmap concat . forM results $ \p ->
-        expandPathToDepth store p (dpth - 1)
+        expandPathToDepth' store skip p (dpth - 1)
 
   where
     isExpandable callDest = case getCallTargetFunction callDest of
-      Just _func -> True
-      Nothing    -> False
+      Just func -> not $ HashSet.member (func ^. #address) skip
+      Nothing   -> False
 
     expandOneCall :: [PilPath] -> CallNode [Pil.Stmt] -> IO [PilPath]
     expandOneCall currentPaths callNode = do

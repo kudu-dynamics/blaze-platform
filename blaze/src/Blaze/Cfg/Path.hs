@@ -267,11 +267,18 @@ expandCall leaveFuncUuid outerPath callNode innerPath
       . CfgI.mkEnterFuncNode (callNode ^. #uuid) (outerPath ^. #outerCtx) innerPathCtx'
 
     -- | Return expression of inner path.
-    --   Returns Nothing if last stmt of last node is not ret
+    --   Checks for Ret (normal return), or Def in a LeaveFunc end node
+    --   (from a previous expansion level where the callee already returned).
     retExpr :: Maybe Expression
-    retExpr = (lastMay . Cfg.getNodeData $ P.end innerPath') >>= \case
-      Pil.Stmt _ (Pil.Ret x) -> return $ x ^. #value
-      _ -> Nothing
+    retExpr = case P.end innerPath' of
+      Cfg.LeaveFunc _ ->
+        (lastMay . Cfg.getNodeData $ P.end innerPath') >>= \case
+          Pil.Stmt _ (Pil.Def x) -> return $ x ^. #value
+          _ -> Nothing
+      _ ->
+        (lastMay . Cfg.getNodeData $ P.end innerPath') >>= \case
+          Pil.Stmt _ (Pil.Ret x) -> return $ x ^. #value
+          _ -> Nothing
 
     mkLeaveNodePath :: CallStatement -> Maybe PilPath
     mkLeaveNodePath = fmap (build outerPathNextCtxIndex' . P.start) . mkLeaveNode

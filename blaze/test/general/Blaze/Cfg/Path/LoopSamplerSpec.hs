@@ -161,8 +161,9 @@ spec = describe "Blaze.Cfg.Path.LoopSampler" $ do
   describe "sampleWithLoopSummarization" $ do
     it "should produce a path through a simple loop CFG" $ do
       let dmap = G.calcStrictDescendantsMap cfg
+          doms = Cfg.getDominators cfg
       result <- sampleWithLoopSummarizationIO
-        dmap [exitNode] emptyVisitCounts
+        doms dmap [exitNode] emptyVisitCounts
         entryNode cfg
       result `shouldSatisfy` isRight
       let Right (path, _vc) = result
@@ -172,8 +173,9 @@ spec = describe "Blaze.Cfg.Path.LoopSampler" $ do
 
     it "should not contain _loopN variable names in the path" $ do
       let dmap = G.calcStrictDescendantsMap cfg
+          doms = Cfg.getDominators cfg
       result <- sampleWithLoopSummarizationIO
-        dmap [exitNode] emptyVisitCounts
+        doms dmap [exitNode] emptyVisitCounts
         entryNode cfg
       let Right (path, _) = result
           allStmts = concatMap Cfg.getNodeData . HashSet.toList $ Path.nodes path

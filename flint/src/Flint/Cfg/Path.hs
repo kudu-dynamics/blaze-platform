@@ -23,7 +23,7 @@ import qualified Blaze.Graph as G
 import qualified Blaze.Path as Path
 import Blaze.Path (SampleRandomPathError', VisitCounts(..), pickFromListFp)
 import Blaze.Pretty (pretty', FullCfNode(FullCfNode))
-import Blaze.Types.Function (Function, FunctionRef, FuncParamInfo(..), toFunctionRef)
+import Blaze.Types.Function (Function, FunctionRef, FuncRef, FuncParamInfo(..), toFunctionRef)
 import qualified Blaze.Types.Function as Func
 import Blaze.Types.CallGraph ()
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
@@ -173,6 +173,7 @@ expandAllStrategy _pickFromRange expandDepthLimit useUnrollLoops store usedFuncs
                     Right (p, _) -> Just p
                 else do
                   result <- LoopSampler.sampleWithLoopSummarizationIO
+                    (cfgInfo ^. #dominators)
                     (cfgInfo ^. #strictDescendantsMap)
                     [retNode] Path.emptyVisitCounts
                     rootNode (cfgInfo ^. #cfg)
@@ -283,6 +284,7 @@ expandToTargetsStrategy pickFromRange expandDepthLimit useUnrollLoops store used
               mAcyclicDmap <- CfgStore.getAcyclicDescendantsMap store func
               let dmap = fromMaybe (cfgInfo ^. #strictDescendantsMap) mAcyclicDmap
               result <- LoopSampler.sampleWithLoopSummarizationIO
+                (cfgInfo ^. #dominators)
                 dmap
                 seqNodes Path.emptyVisitCounts
                 rootNode cfg
@@ -639,6 +641,7 @@ sampleSinglePathWithVisitCounts store func visitCounts =
         (r:rs) -> do
           retNode <- pickFromList randomRIO $ r :| rs
           rpath <- LoopSampler.sampleWithLoopSummarizationIO
+                        (cfgInfo ^. #dominators)
                         (cfgInfo ^. #strictDescendantsMap)
                         [retNode] visitCounts
                         rootNode (cfgInfo ^. #cfg)
@@ -660,7 +663,8 @@ sampleWithCallerContext
   -> Int            -- ^ Context depth (max levels of callers to include)
   -> [Address]      -- ^ Target addresses paths must pass through (from @ args)
   -> Bool           -- ^ Use loop unrolling instead of summarization
-  -> IO [(PilPath, HashSet Address, [(Text, Expression)])]
+  -> IO [(PilPath, HashSet Address, [(Text, Expression)], Maybe Text)]
+  -- ^ Returns (path, innerAddrs, paramBindings, outerCallerName)
 sampleWithCallerContext store targetFunc numSamples contextDepth targetAddrs useUnrollLoops = do
   rawResults <- replicateConcurrently (fromIntegral numSamples) $
     catch
@@ -668,10 +672,10 @@ sampleWithCallerContext store targetFunc numSamples contextDepth targetAddrs use
       (\(e :: SomeException) -> do
         putText $ "ERROR in caller context sampling: " <> show e
         return Nothing)
-  let results = nubBy (\(a,_,_) (b,_,_) -> a == b) . catMaybes $ rawResults
+  let results = nubBy (\(a,_,_,_) (b,_,_,_) -> a == b) . catMaybes $ rawResults
       -- Prefer results that actually got caller context (non-empty param bindings).
       -- Only fall back to target-only results if no wrapped results exist.
-      (wrapped, unwrapped) = partition (\(_, _, bs) -> not (null bs)) results
+      (wrapped, unwrapped) = partition (\(_, _, bs, _) -> not (null bs)) results
   return $ if null wrapped then unwrapped else wrapped
 
 sampleOneWithContext
@@ -680,7 +684,7 @@ sampleOneWithContext
   -> Int
   -> [Address]      -- ^ Target addresses (from @ args)
   -> Bool           -- ^ Use loop unrolling
-  -> IO (Maybe (PilPath, HashSet Address, [(Text, Expression)]))
+  -> IO (Maybe (PilPath, HashSet Address, [(Text, Expression)], Maybe Text))
 sampleOneWithContext store targetFunc contextDepth mustReachAddrs useUnrollLoops = do
   -- Sample the target function, optionally targeting specific addresses
   targetPaths <- case NE.nonEmpty mustReachAddrs of
@@ -705,7 +709,12 @@ sampleOneWithContext store targetFunc contextDepth mustReachAddrs useUnrollLoops
             . TypedPath.toStmts
             $ targetPath
       -- Walk up the call graph and wrap with callers
-      wrapWithCallers store targetFunc targetPath targetStmtAddrs [] contextDepth
+      fmap (\(p, a, b, outerFunc) ->
+        let mOuterName = if outerFunc ^. #address == targetFunc ^. #address
+              then Nothing  -- no wrapping happened
+              else Just (outerFunc ^. #name)
+        in (p, a, b, mOuterName))
+        <$> wrapWithCallers store targetFunc targetPath targetStmtAddrs [] contextDepth useUnrollLoops
 
 wrapWithCallers
   :: CfgStore
@@ -714,10 +723,12 @@ wrapWithCallers
   -> HashSet Address  -- ^ Target function's stmt addresses (for !! view)
   -> [(Text, Expression)]  -- ^ Param bindings (set at first wrap, carried through)
   -> Int              -- ^ Remaining context depth
-  -> IO (Maybe (PilPath, HashSet Address, [(Text, Expression)]))
-wrapWithCallers _store _func path addrs bindings 0 =
-  return $ Just (path, addrs, bindings)
-wrapWithCallers store func innerPath addrs bindings depth = do
+  -> Bool             -- ^ Use loop unrolling
+  -> IO (Maybe (PilPath, HashSet Address, [(Text, Expression)], Function))
+  -- ^ Returns (wrappedPath, innerAddrs, paramBindings, outermostCaller)
+wrapWithCallers _store func path addrs bindings 0 _ =
+  return $ Just (path, addrs, bindings, func)
+wrapWithCallers store func innerPath addrs bindings depth useUnrollLoops = do
   -- Look up the original FunctionRef from the store to use as the cache key.
   -- FunctionRef's Eq (derived Generic) compares all fields including symbol,
   -- but toFunctionRef may produce a different symbol than the importer's original.
@@ -726,7 +737,7 @@ wrapWithCallers store func innerPath addrs bindings depth = do
       funcRef = maybe (Func.InternalRef $ toFunctionRef func) Func.InternalRef mOrigRef
   callSites <- CfgStore.getCallSitesToFunc store funcRef
   case callSites of
-    [] -> return $ Just (innerPath, addrs, bindings)
+    [] -> return $ Just (innerPath, addrs, bindings, func)
     _ -> do
       -- Pick a random caller
       idx <- randomRIO (0, length callSites - 1)
@@ -735,7 +746,7 @@ wrapWithCallers store func innerPath addrs bindings depth = do
           callAddr = chosenSite ^. #address :: Address
       mCallerFunc <- CfgStore.resolveFunction store callerFuncRef
       case mCallerFunc of
-        Nothing -> return $ Just (innerPath, addrs, bindings)
+        Nothing -> return $ Just (innerPath, addrs, bindings, func)
         Just callerFunc -> do
           -- Sample a path through the caller that reaches the callsite
           callerPaths <- catch
@@ -744,21 +755,21 @@ wrapWithCallers store func innerPath addrs bindings depth = do
                 { mustReachSome = (callerFunc, callAddr) :| []
                 , callExpandDepthLimit = 0
                 , numSamples = 1
-                , unrollLoops = False
+                , unrollLoops = useUnrollLoops
                 })
             (\(e :: SomeException) -> do
               timingLog $ "[context-depth] Caller sampling error for "
                 <> callerFunc ^. #name <> ": " <> show e
               return [])
           case callerPaths of
-            [] -> return $ Just (innerPath, addrs, bindings)
+            [] -> return $ Just (innerPath, addrs, bindings, func)
             (callerPath:_) -> do
               -- Find the Call node at callAddr in the caller's path
               let callNodes = mapMaybe (^? #_Call) . HashSet.toList
                             . Path.nodes $ callerPath
                   matchingCalls = filter (\cn -> cn ^. #start == callAddr) callNodes
               case matchingCalls of
-                [] -> return $ Just (innerPath, addrs, bindings)
+                [] -> return $ Just (innerPath, addrs, bindings, func)
                 (callNode:_) -> do
                   -- Extract param bindings at the first wrap only
                   let bindings' = if null bindings
@@ -769,21 +780,95 @@ wrapWithCallers store func innerPath addrs bindings depth = do
                   mExpanded <- CfgPath.expandCallWithNewInnerPathIds
                     uuid callerPath callNode innerPath
                   case mExpanded of
-                    Nothing -> return $ Just (innerPath, addrs, bindings')
+                    Nothing -> return $ Just (innerPath, addrs, bindings', func)
                     Just expanded ->
                       wrapWithCallers store callerFunc expanded
-                        addrs bindings' (depth - 1)
+                        addrs bindings' (depth - 1) useUnrollLoops
 
--- | Extract parameter name/argument expression bindings from a call node.
-extractParamBindings :: Function -> CallNode [Stmt] -> [(Text, Expression)]
-extractParamBindings targetFunc callNode =
+-- | Sample caller paths targeting a function without expanding into it.
+-- Used for extern functions and the --exclude-self flag.
+-- Returns (callerPath, callsiteAddr, rawParamBindings) triples.
+sampleExcludeSelfContext
+  :: CfgStore
+  -> FuncRef           -- ^ Target function ref (can be ExternalRef or InternalRef)
+  -> [FuncParamInfo]   -- ^ Target function's params (for binding names)
+  -> Word64            -- ^ Number of samples
+  -> Int               -- ^ Context depth (>= 1)
+  -> Bool              -- ^ Use loop unrolling
+  -> IO [(PilPath, Address, Function, [(Text, Expression)])]
+  -- ^ Returns (callerPath, callsiteAddr, immediateCaller, rawParamBindings)
+sampleExcludeSelfContext store targetRef targetParams numSamples contextDepth useUnrollLoops = do
+  callSites <- CfgStore.getCallSitesToFunc store targetRef
+  case callSites of
+    [] -> return []
+    _ -> do
+      rawResults <- replicateConcurrently (fromIntegral numSamples) $
+        catch
+          (sampleOneExcludeSelf callSites)
+          (\(e :: SomeException) -> do
+            putText $ "ERROR in exclude-self sampling: " <> show e
+            return Nothing)
+      return . nubBy (\(a,_,_,_) (b,_,_,_) -> a == b) . catMaybes $ rawResults
+  where
+    sampleOneExcludeSelf callSites' = do
+      -- Pick a random callsite
+      idx <- randomRIO (0, length callSites' - 1)
+      let chosenSite = callSites' !! idx
+          callerFuncRef = chosenSite ^. #caller :: FunctionRef
+          callAddr = chosenSite ^. #address :: Address
+      mCallerFunc <- CfgStore.resolveFunction store callerFuncRef
+      case mCallerFunc of
+        Nothing -> return Nothing
+        Just callerFunc -> do
+          -- Sample a path through the caller targeting the callsite
+          callerPaths <- catch
+            (samplesFromQuery store callerFunc
+              . QueryTarget $ QueryTargetOpts
+                { mustReachSome = (callerFunc, callAddr) :| []
+                , callExpandDepthLimit = 0
+                , numSamples = 1
+                , unrollLoops = useUnrollLoops
+                })
+            (\(e :: SomeException) -> do
+              timingLog $ "[exclude-self] Caller sampling error for "
+                <> callerFunc ^. #name <> ": " <> show e
+              return [])
+          case callerPaths of
+            [] -> return Nothing
+            (callerPath:_) -> do
+              -- Extract param bindings from the Call node at callAddr
+              let callNodes = mapMaybe (^? #_Call) . HashSet.toList
+                            . Path.nodes $ callerPath
+                  matchingCalls = filter (\cn -> cn ^. #start == callAddr) callNodes
+              case matchingCalls of
+                [] -> return Nothing  -- path didn't reach the callsite
+                (callNode:_) -> do
+                  let bindings = extractParamBindingsFromParams targetParams callNode
+                  -- Wrap with additional callers if context_depth > 1
+                  if contextDepth > 1
+                    then do
+                      mWrapped <- wrapWithCallers store callerFunc callerPath
+                        (HashSet.singleton callAddr) bindings (contextDepth - 1) useUnrollLoops
+                      case mWrapped of
+                        Nothing -> return $ Just (callerPath, callAddr, callerFunc, bindings)
+                        Just (wrapped, _, bindings', outerFunc) ->
+                          return $ Just (wrapped, callAddr, outerFunc, bindings')
+                    else
+                      return $ Just (callerPath, callAddr, callerFunc, bindings)
+
+-- | Extract param bindings using explicit param info (works for both internal and extern targets).
+extractParamBindingsFromParams :: [FuncParamInfo] -> CallNode [Stmt] -> [(Text, Expression)]
+extractParamBindingsFromParams params' callNode =
   case InterCfg.getCallStmt callNode of
     Nothing -> []
     Just callStmt ->
-      let paramNames = fmap getParamName' (targetFunc ^. #params)
+      let paramNames = fmap getParamName' params'
           args = callStmt ^. #args
       in zip paramNames args
   where
-    getParamName' :: FuncParamInfo -> Text
     getParamName' (FuncParamInfo p) = p ^. #name
     getParamName' (FuncVarArgInfo p) = p ^. #name
+
+-- | Extract parameter name/argument expression bindings from a call node.
+extractParamBindings :: Function -> CallNode [Stmt] -> [(Text, Expression)]
+extractParamBindings targetFunc = extractParamBindingsFromParams (targetFunc ^. #params)

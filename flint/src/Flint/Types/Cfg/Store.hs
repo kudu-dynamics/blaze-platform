@@ -11,7 +11,7 @@ import Blaze.Types.Function (ExternFunction, Func, Function, FuncRef, FunctionRe
 import Blaze.Import.Xref (Xref)
 import Blaze.Types.CallGraph (CallGraph, CallSite)
 import Blaze.Types.Cfg (CallNode, PilCfg, PilNode)
-import Blaze.Types.Graph (StrictDescendantsMap)
+import Blaze.Types.Graph (Dominators, StrictDescendantsMap)
 import Blaze.Types.Pil (Stmt)
 import Flint.Types.CachedCalc (CachedCalc)
 import Flint.Types.CachedMap (CachedMap)
@@ -21,6 +21,7 @@ import Blaze.Concurrent (WorkerPool)
 data CfgInfo = CfgInfo
   { cfg :: !PilCfg
   , strictDescendantsMap :: !(StrictDescendantsMap PilNode) -- based off cfg
+  , dominators :: !(Dominators PilNode) -- for loop back edge detection
   , nodes :: !(HashSet PilNode)
   , calls :: [CallNode [Stmt]]
   }

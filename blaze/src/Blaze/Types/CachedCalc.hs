@@ -66,8 +66,14 @@ get_ = fmap fromJust . get ()
 -- | Retrieves the cached calc. Returns Nothing if the key cannot be found
 -- and no defaultCalc is set. If a defaultCalc is set, unknown keys are
 -- computed on demand using it.
+--
+-- Uses 'mask' to ensure the TMVar is always filled even if the computing
+-- thread receives an async exception (e.g. from forConcurrently cancellation).
+-- Without this, the TMVar can be left empty, causing all waiters to deadlock
+-- with "thread blocked indefinitely in an MVar/STM operation" and losing
+-- the original exception.
 get :: Hashable k => k -> CachedCalc k v -> IO (Maybe v)
-get k (CachedCalc cc dc) = do
+get k (CachedCalc cc dc) = Ex.mask $ \restore -> do
   mer <- atomically $ do
     m <- readTVar cc
     case HashMap.lookup k m of
@@ -85,14 +91,14 @@ get k (CachedCalc cc dc) = do
   case mer of
     Nothing -> return Nothing
     Just (Right tmv) -> do
-      result <- atomically $ readTMVar tmv
+      result <- restore $ atomically $ readTMVar tmv
       case result of
         Left ex -> do
           hPutStrLn stderr $ "CachedCalc computation failed (re-raised): " <> Ex.displayException ex
           Ex.throwIO ex
         Right v -> return $ Just v
     Just (Left (calc, tmv)) -> do
-      result <- try calc
+      result <- Ex.try (restore calc)
       atomically $ putTMVar tmv result
       case result of
         Left (ex :: Ex.SomeException) -> do

@@ -28,7 +28,7 @@ mkVar name = Leaf $ ClangVariableToken ClangVariableTokenOpts
 
 mkType :: Text -> ClangAST ClangNode
 mkType name = Leaf $ ClangTypeToken ClangTypeTokenOpts
-  { text = name, datatype = undefined, isVarRef = False }
+  { text = name, datatype = error "mkType: datatype not needed in test", isVarRef = False }
 
 mkBreak :: ClangAST ClangNode
 mkBreak = Leaf $ ClangBreak ClangBreakOpts { indent = 0 }
@@ -38,16 +38,16 @@ mkFuncName name = Leaf $ ClangFuncNameToken ClangFuncNameTokenOpts
   { text = name, addrRange = Nothing, pcodeOp = Nothing }
 
 mkStmt :: [ClangAST ClangNode] -> ClangAST ClangNode
-mkStmt children = Branch (ClangStatement ClangStatementOpts
-  { addrRange = Nothing, pcodeOp = Nothing }) children
+mkStmt = Branch (ClangStatement ClangStatementOpts
+  { addrRange = Nothing, pcodeOp = Nothing })
 
 mkGroup :: [ClangAST ClangNode] -> ClangAST ClangNode
-mkGroup children = Branch (ClangTokenGroup ClangTokenGroupOpts
-  { addrRange = Nothing }) children
+mkGroup = Branch (ClangTokenGroup ClangTokenGroupOpts
+  { addrRange = Nothing })
 
 mkFunc :: [ClangAST ClangNode] -> ClangAST ClangNode
-mkFunc children = Branch (ClangFunction ClangFunctionOpts
-  { addrRange = undefined }) children
+mkFunc = Branch (ClangFunction ClangFunctionOpts
+  { addrRange = error "mkFunc: addrRange not needed in test" })
 
 mkProto :: ClangAST ClangNode
 mkProto = Branch (ClangFuncProto ClangFuncProtoOpts) []
@@ -121,7 +121,7 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
       -- Should produce a single CFor statement
       length stmts `shouldBe` 1
       case stmts of
-        [CFor _ _ _ _ _] -> return ()
+        [CFor {}] -> return ()
         other -> expectationFailure $ "Expected CFor, got: " <> show other
 
     it "handles nested for loops" $ do
@@ -146,8 +146,8 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
         [CFor _ _ _ _ body] -> do
           -- Body should contain a nested CFor and an expression statement
           length body `shouldSatisfy` (>= 1)
-          case head body of
-            CFor {} -> return ()
+          case body of
+            (CFor {} : _) -> return ()
             other -> expectationFailure $ "Expected nested CFor, got: " <> show other
         other -> expectationFailure $ "Expected CFor, got: " <> show other
 
@@ -336,7 +336,7 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
 
       -- Should extract nested for loops
       case stmts of
-        (CFor _ initC condC incrC body : _) -> do
+        (CFor _ initC condC _incrC body : _) -> do
           -- Outer for init: local_18 = 0
           case initC of
             CForInitExpr (Just (CAssign _ "=" (CIdent _ "local_18") (CIdent _ "0"))) -> return ()
@@ -359,7 +359,7 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
                 other' -> expectationFailure $ "Inner cond: " <> show other'
               -- Inner body should have printf
               length innerBody `shouldSatisfy` (>= 1)
-            [] -> expectationFailure $ "No CFor found in body: " <> show body
+            _ -> expectationFailure $ "No CFor found in body: " <> show body
         other -> expectationFailure $ "Expected CFor, got: " <> show other
 
       -- Debug: print the rendered output

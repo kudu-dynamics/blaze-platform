@@ -8,7 +8,7 @@ import Blaze.Types.Cfg (Cfg, PilNode, BranchType(FalseBranch, UnconditionalBranc
 import qualified Blaze.Cfg as Cfg
 import Blaze.Types.Cfg.Path (Path)
 import qualified Blaze.Types.Cfg.Path as CfgPath
-import Blaze.Types.Graph (StrictDescendantsMap)
+import Blaze.Types.Graph (Dominators(..), StrictDescendantsMap)
 import qualified Blaze.Types.Graph as G
 import Blaze.Path (VisitCounts, getVisitCount, updateVisitCounts,
                    stochasticChoiceFp, getStrictDescendants)
@@ -63,12 +63,35 @@ data SamplerError
   deriving (Eq, Ord, Show, Generic)
 
 -- | Internal sampler accumulator state.
+--
+-- Design note: the sampler operates with two notions of node identity:
+--
+--   * 'visitedNodes' tracks /original/ CFG node identity — used for graph
+--     navigation (getSuccs), back-edge detection (isLoopBackEdge), and
+--     visit-count diversity.
+--
+--   * 'pathUUIDs' tracks /path-level/ identity (possibly freshened) — used
+--     solely to satisfy the Path builder's unique-node invariant.
+--
+-- When the walk revisits a merge/convergence point (not a loop back edge),
+-- the node gets a fresh UUID for path construction via 'twaddleUUID', but
+-- its context ('Pil.Ctx') is NOT rewritten.  This means the freshened node
+-- is a path-identity fix only — it does not represent a genuinely different
+-- loop context the way 'EnterContext'/'ExitContext' do for summarized loops.
+--
+-- A proper context-sensitive path model would make (UUID, Ctx) the node
+-- identity and recontextualize nodes at convergence points.  That is a
+-- larger refactor of the Path/Graph types; the current approach is a
+-- pragmatic fix that preserves path construction while leaving the
+-- context model unchanged.
 data LoopSamplerState = LoopSamplerState
   { visitedNodes :: !(HashSet PilNode)
   , pathAcc      :: ![(BranchType, PilNode)]  -- ^ reverse order (most recent first)
+  , pathUUIDs    :: !(HashSet UUID)            -- ^ UUIDs already in pathAcc (for dup detection)
   , reqSeq       :: ![PilNode]
   , visitCounts  :: !(VisitCounts PilNode)
   , nextLoopCtxId :: !Pil.CtxId               -- ^ next context ID to allocate for loops
+  , nextFreshId  :: !Word32                    -- ^ counter for twaddleUUID on convergence revisits
   } deriving (Eq, Ord, Show, Generic)
 
 
@@ -82,21 +105,24 @@ data LoopSamplerState = LoopSamplerState
 sampleWithLoopSummarization
   :: forall m. Monad m
   => m Double                         -- ^ random double [0,1) for stochastic choice
+  -> Dominators PilNode               -- ^ precomputed dominators (for back edge detection)
   -> StrictDescendantsMap PilNode
   -> [PilNode]                        -- ^ required sequence of nodes to visit
   -> VisitCounts PilNode              -- ^ accumulated visit counts (for diversity)
   -> PilNode                          -- ^ start node
   -> Cfg PilNode                      -- ^ cyclic CFG (backedges intact)
   -> m (Either SamplerError (Path PilNode, VisitCounts PilNode))
-sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
+sampleWithLoopSummarization randDouble (Dominators domMap) dmap reqSeq0 visitCounts0 startNode cfg
   | not (G.hasNode startNode cfg) = return $ Left StartNodeNotInGraph
   | otherwise = do
       let initState = LoopSamplerState
             { visitedNodes = HashSet.empty
             , pathAcc = []
+            , pathUUIDs = HashSet.empty
             , reqSeq = reqSeq0
             , visitCounts = visitCounts0
             , nextLoopCtxId = cfg ^. #nextCtxIndex + 1
+            , nextFreshId = 1
             }
       result <- walk startNode Nothing initState
       return $ case result of
@@ -106,6 +132,14 @@ sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
           Just path -> Right (path, st ^. #visitCounts)
   where
     graph = cfg ^. #graph
+
+    -- | Check if an edge from src to dst is a real loop back edge
+    --   (dst dominates src), as opposed to a convergence/merge edge.
+    isLoopBackEdge :: PilNode -> PilNode -> Bool
+    isLoopBackEdge src dst =
+      case HashMap.lookup src domMap of
+        Nothing -> False
+        Just doms -> HashSet.member dst doms
 
     -- | Get successors of a node as (BranchType, PilNode) pairs.
     getSuccs :: PilNode -> [(BranchType, PilNode)]
@@ -120,9 +154,21 @@ sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
       -> m (Either SamplerError LoopSamplerState)
     walk currentNode mLabel st = do
       let lbl = fromMaybe UnconditionalBranch mLabel
-          st' = st
+          currentUUID = Cfg.getNodeUUID currentNode
+          -- If this node's UUID is already in the path (convergence revisit),
+          -- give it a fresh UUID for path construction.  Only the UUID changes;
+          -- the node's Ctx is left as-is (see design note on LoopSamplerState).
+          -- The original node is still used for graph queries below.
+          (pathNode, st0)
+            | HashSet.member currentUUID (st ^. #pathUUIDs) =
+                let fid = st ^. #nextFreshId
+                    n'  = Cfg.setNodeUUID (twaddleUUID fid currentUUID) currentNode
+                in (n', st & #nextFreshId %~ (+ 1))
+            | otherwise = (currentNode, st)
+          st' = st0
             & #visitedNodes %~ HashSet.insert currentNode
-            & #pathAcc %~ ((lbl, currentNode) :)
+            & #pathAcc %~ ((lbl, pathNode) :)
+            & #pathUUIDs %~ HashSet.insert (Cfg.getNodeUUID pathNode)
             & #visitCounts %~ updateVisitCounts currentNode
             & #reqSeq %~ advanceSeq currentNode
 
@@ -130,7 +176,7 @@ sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
       if null (st' ^. #reqSeq)
         then return $ Right st'
         else do
-          let children = getSuccs currentNode
+          let children = getSuccs currentNode  -- use original for graph lookup
               remainingReqs = HashSet.fromList (st' ^. #reqSeq)
               validChildren = filterReachable dmap remainingReqs children
           case validChildren of
@@ -138,6 +184,7 @@ sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
             cs' -> do
               chosen <- pickChild randDouble dmap (st' ^. #visitCounts) cs'
               if HashSet.member (snd chosen) (st' ^. #visitedNodes)
+                     && isLoopBackEdge currentNode (snd chosen)
                 then handleBackedge (snd chosen) (fst chosen) st'
                 else walk (snd chosen) (Just $ fst chosen) st'
 
@@ -168,8 +215,10 @@ sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
               summaryNode = mkSummaryNode header (Cfg.getNodeUUID header) summaryStmts
               -- Replace the loop body in pathAcc with the summary node
               exitLabel = FalseBranch  -- exit is typically the false branch
+              newPathAcc = (exitLabel, summaryNode) : prePath
               st' = st
-                & #pathAcc .~ ((exitLabel, summaryNode) : prePath)
+                & #pathAcc .~ newPathAcc
+                & #pathUUIDs .~ HashSet.fromList (fmap (Cfg.getNodeUUID . snd) newPathAcc)
                 & #nextLoopCtxId %~ (+ 1)
           continueFromExit header bodyNodeSet st'
 
@@ -185,10 +234,13 @@ sampleWithLoopSummarization randDouble dmap reqSeq0 visitCounts0 startNode cfg
         Just (exitLbl, exitNode) -> walk exitNode (Just exitLbl) st
 
     -- | Find the exit edge from the loop header (the successor NOT in the loop body).
+    --   Compare by UUID rather than structural equality, because bodyNodeSet may
+    --   contain summary nodes (same UUID as original CFG nodes but different stmts).
     findExitEdge :: PilNode -> HashSet PilNode -> Maybe (BranchType, PilNode)
     findExitEdge header bodyNodeSet =
       let headerSuccs = getSuccs header
-      in find (\(_, n) -> not (HashSet.member n bodyNodeSet)) headerSuccs
+          bodyUUIDs = HashSet.map Cfg.getNodeUUID bodyNodeSet
+      in find (\(_, n) -> not (HashSet.member (Cfg.getNodeUUID n) bodyUUIDs)) headerSuccs
 
 
 -----------------------------------------------------------------------
@@ -505,6 +557,9 @@ mkSummaryNode headerNode uuid stmts =
 
 -- | Split the reversed pathAcc at the loop header, returning
 --   (loop body in forward order, pre-loop in reverse order).
+--   Compare by UUID rather than structural equality, because the header in
+--   pathAcc may have been replaced by a summary node (same UUID, different stmts)
+--   during a prior loop summarization pass.
 splitLoopBody
   :: PilNode
   -> [(BranchType, PilNode)]           -- ^ pathAcc (reversed)
@@ -512,7 +567,8 @@ splitLoopBody
      , [(BranchType, PilNode)]         -- ^ pre-loop path (still reversed)
      )
 splitLoopBody header revAcc =
-  let (bodyAfterHeaderRev, headerAndPre) = span (\(_, n) -> n /= header) revAcc
+  let headerUUID = Cfg.getNodeUUID header
+      (bodyAfterHeaderRev, headerAndPre) = span (\(_, n) -> Cfg.getNodeUUID n /= headerUUID) revAcc
   in case headerAndPre of
     [] -> ([], revAcc)  -- header not found (shouldn't happen)
     (headerEntry : prePath) ->
@@ -609,7 +665,8 @@ pickChild randDouble dmap vc children =
 -----------------------------------------------------------------------
 
 sampleWithLoopSummarizationIO
-  :: StrictDescendantsMap PilNode
+  :: Dominators PilNode
+  -> StrictDescendantsMap PilNode
   -> [PilNode]
   -> VisitCounts PilNode
   -> PilNode

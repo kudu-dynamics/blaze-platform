@@ -316,7 +316,10 @@ buildCommandString toolName args = case toolName of
             unrollPart = case lookupArg "unroll_loops" args of
               Just "true" -> " --unrollLoops"
               _ -> ""
-        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart <> contextDepthPart <> unrollPart
+            excludeSelfPart = case lookupArg "exclude_self" args of
+              Just "true" -> " --exclude-self"
+              _ -> ""
+        in Right $ "sample" <> countPart <> " " <> func <> addrPart <> depthPart <> contextDepthPart <> unrollPart <> excludeSelfPart
 
   "show_paths" ->
     case lookupArg "path_ids" args of
@@ -513,15 +516,16 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "sample_paths"
-      , toolDefinitionDescription = "Sample execution paths from a function. Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are summarized into a single abstract iteration by default; use unroll_loops to get the old unrolling behavior for comparison. Use depth to auto-expand internal calls (callees). Use context_depth to include calling context (callers) — view with N!! suffix to see target function only with propagated caller args."
+      , toolDefinitionDescription = "Sample execution paths from a function (internal or extern). Paths are reduced (copy/constant propagation) by default and cached by path ID. Loops are summarized into a single abstract iteration by default; use unroll_loops to get the old unrolling behavior for comparison. Use depth to auto-expand internal calls (callees). Use context_depth to include calling context (callers) — view with N!! suffix to see target function only with propagated caller args. For extern functions, context_depth is required (samples caller paths targeting the extern call). Use exclude_self to sample caller paths without entering the target function."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
-              [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x401000')")
+              [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main', '0x401000', or extern like 'malloc')")
               , ("count", InputSchemaDefinitionProperty "string" "Number of paths to sample (optional)")
               , ("addresses", InputSchemaDefinitionProperty "string" "Space-separated hex addresses that paths must pass through (optional)")
               , ("depth", InputSchemaDefinitionProperty "string" "Auto-expand internal calls N levels deep (optional, e.g. '2')")
-              , ("context_depth", InputSchemaDefinitionProperty "string" "Include N levels of calling context (callers). Use N!! suffix in show/psum to see target-only view with resolved args (optional, e.g. '1')")
+              , ("context_depth", InputSchemaDefinitionProperty "string" "Include N levels of calling context (callers). Use N!! suffix in show/psum to see target-only view with resolved args (optional, e.g. '1'). Required for extern functions.")
               , ("unroll_loops", InputSchemaDefinitionProperty "string" "Set to 'true' to use old loop unrolling instead of loop summarization (optional)")
+              , ("exclude_self", InputSchemaDefinitionProperty "string" "Set to 'true' to sample caller paths without entering the target function. Shows how callers invoke the function. Use with context_depth (optional)")
               ]
           , required = ["function"]
           }

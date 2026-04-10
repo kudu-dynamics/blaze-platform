@@ -11,7 +11,6 @@ import Flint.Shell.Command (ShellCommand(..))
 import Blaze.Pretty (pretty', PStmts(PStmts))
 import Blaze.Types.Function (FuncParamInfo(..))
 import qualified Blaze.Types.Pil as Pil
-import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
@@ -50,17 +49,19 @@ psumPaths st args = do
                 tagLabel = maybe "" (\t -> " \"" <> t <> "\"") mTag
                 funcName = cp ^. #sourceFunc . #name
                 funcSig = case (mode, cp ^. #callerContext) of
-                  (ViewContextStripped, Just ctx)
-                    | not (null $ ctx ^. #resolvedParams) ->
-                      let paramBindings = fmap (\(n, e) -> n <> "=" <> pretty' e)
-                                        $ ctx ^. #resolvedParams
-                      in funcName <> "(" <> Text.intercalate ", " paramBindings <> ")"
+                  (ViewContextStripped, Just ctx) ->
+                    let allStmts = resolveStmts cp ViewReduced
+                        outerName = fromMaybe funcName (ctx ^. #outerFuncName)
+                        tgtName = ctx ^. #targetName
+                    in buildCallChain allStmts outerName tgtName
                   _ ->
                     let paramNames = fmap getParamName $ cp ^. #sourceFunc . #params
                     in funcName <> "(" <> Text.intercalate ", " paramNames <> ")"
+                stmtCount = case mode of
+                  ViewContextStripped -> ""
+                  _ -> ", " <> show (length filtered) <> "/" <> show (length stmts) <> " stmts"
                 header = "=== Path " <> show pid <> tagLabel <> modeTag
-                  <> " (func: " <> funcSig
-                  <> ", " <> show (length filtered) <> "/" <> show (length stmts) <> " stmts) ==="
+                  <> " (" <> funcSig <> stmtCount <> ") ==="
             return $ header <> "\n" <> pretty' (PStmts filtered)
       return . ResultText $ Text.intercalate "\n\n" results
 

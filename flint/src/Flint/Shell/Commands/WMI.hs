@@ -10,11 +10,11 @@ import Data.IORef
 import Flint.Shell.Types
 import Flint.Shell.Command (ShellCommand(..))
 import Flint.Types.Analysis.Path.Matcher (Prim)
-import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
-import Flint.Analysis.Path.Matcher (TypedStmt)
+import Flint.Types.Analysis.Path.Matcher.PathPrep (mkPathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI)
 import Flint.Query (matchAndReturnCallablePrim, chooseSolver)
 import qualified Flint.Types.CachedMap as CM
+import qualified Blaze.Concurrent as Conc
 
 import Blaze.Pretty (pretty')
 import qualified Blaze.Types.Function as Func
@@ -83,30 +83,43 @@ checkWMIs st (wmiName : pidArgs) = do
       refs <- resolvePathRefs st pidArgs
       useSolve <- readIORef (st ^. #useSolver)
       let solver = chooseSolver useSolve
+          pool = st ^. #cfgStore . #workerPool
       callablePrimSnapshot <- CM.getSnapshot $ st ^. (#cfgStore . #callablePrims)
-      results <- forM refs $ \(PathRef pid mode) -> do
+      -- Prepare all paths (sequential — needs ShellState IO for cache)
+      preparedPaths <- forM refs $ \(PathRef pid mode) -> do
         mPath <- lookupPath st pid
         case mPath of
-          Nothing -> return (pid, ["Path not found"])
+          Nothing -> return (pid, Nothing)
           Just cp -> do
             prep <- if mode == ViewRaw
               then do
                 tps <- getAllTaintPropagators st
                 return $ mkPathPrep tps (cp ^. #pilPath)
               else ensureCurrentPathPrep st pid cp
-            let prep' :: PathPrep TypedStmt
-                prep' = prep
-                func = cp ^. #sourceFunc
-            allMatches <- fmap concat . forM prims $ \prim ->
-              catch
-                (matchAndReturnCallablePrim 10 solver callablePrimSnapshot func prep' prim)
-                (\(e :: SomeException) -> do
-                  warn $ "Error checking WMI: " <> show e
-                  return [])
-            case allMatches of
-              [] -> return (pid, ["No match"])
-              xs -> return (pid, fmap formatCallableWMI xs)
-      return $ ResultWMIs results
+            return (pid, Just (prep, cp ^. #sourceFunc))
+      -- Build all (path, prim) combos and check concurrently
+      let combos = [ (pid, prep', func, prim)
+                   | (pid, Just (prep', func)) <- preparedPaths
+                   , prim <- prims
+                   ]
+      matchResults <- Conc.pooledForConcurrently pool combos $
+        \(pid, prep', func, prim) ->
+          catch
+            ((pid,) <$> matchAndReturnCallablePrim 10 solver callablePrimSnapshot func prep' prim)
+            (\(e :: SomeException) -> do
+              warn $ "Error checking WMI: " <> show e
+              return (pid, []))
+      -- Group results by path ID
+      let notFound = [(pid, ["Path not found"]) | (pid, Nothing) <- preparedPaths]
+          grouped :: [(Int, [CallableWMI])]
+          grouped = HashMap.toList
+                  . fmap concat
+                  . HashMap.fromListWith (<>)
+                  $ fmap (\(pid, ms) -> (pid, [ms])) matchResults
+          formatted = fmap (\(pid, ms) -> case ms of
+            [] -> (pid, ["No match"])
+            xs -> (pid, fmap formatCallableWMI xs)) grouped
+      return . ResultWMIs $ notFound <> formatted
 
 formatCallableWMI :: CallableWMI -> Text
 formatCallableWMI cwmi =

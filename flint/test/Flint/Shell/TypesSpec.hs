@@ -94,6 +94,9 @@ spec = describe "Flint.Shell.Types" $ do
         ctxInfo = CallerContext
           { innerStmtAddrs = targetAddrs
           , resolvedParams = [("arg0", Pil.Expression 8 (Pil.CONST (Pil.ConstOp 42)))]
+          , excludeSelf = False
+          , targetName = Nothing
+          , outerFuncName = Nothing
           }
 
         cp = CachedPath
