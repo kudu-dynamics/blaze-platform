@@ -4,7 +4,7 @@ import Ghidra.Prelude
 
 import qualified Ghidra.State as State
 import qualified Ghidra.Function as Function
-import Ghidra.Clang (ClangAST, ClangNode, CStmt(..), CExpr(..), CForInit(..), CCase(..), convertFunction, renderStmts)
+import Ghidra.Clang (CStmt(..), CCase(..), convertFunction, renderStmts)
 import Ghidra.Core (runGhidraOrError)
 import Test.Hspec
 
@@ -62,7 +62,7 @@ findWhileLoops = concatMap go
 findSwitches :: [CStmt] -> [CStmt]
 findSwitches = concatMap go
   where
-    go s@(CSwitch _ _ _)          = [s]
+    go s@CSwitch {}               = [s]
     go (CFor _ _ _ _ body)        = findSwitches body
     go (CWhile _ _ body)          = findSwitches body
     go (CDoWhile _ body _)        = findSwitches body

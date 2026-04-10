@@ -18,6 +18,7 @@ import qualified Blaze.Persist.Lmdb as Lmdb
 
 import qualified Blaze.CallGraph as CG
 import qualified Blaze.Import.Source.Ghidra.CallGraph as GhidraCG
+import qualified Blaze.Cfg as Cfg
 import qualified Blaze.Cfg.Interprocedural as CfgI
 import Blaze.Cfg.Path (makeCfgAcyclic)
 import Blaze.Graph (RouteMakerCtx(RouteMakerCtx))
@@ -39,7 +40,6 @@ import qualified Blaze.Import.Xref as Xref
 import Blaze.Types.CallGraph (CallGraph, CallSite(..))
 import qualified Blaze.Types.CallGraph as CGT
 import Blaze.Types.Cfg (PilCfg, PilNode)
-import qualified Blaze.Types.Cfg as Cfg
 import Blaze.Util (getMemoized)
 import Blaze.Types.Import (TypeHints)
 
@@ -562,6 +562,7 @@ getFreshFuncCfgInfo store func = getFuncCfgInfo store func >>= \case
     return . Just $ CfgInfo
       { cfg = cfg'
       , strictDescendantsMap = sdmap'
+      , dominators = Cfg.getDominators cfg'
       , calls = calls'
       , nodes = nodes'
       }
@@ -585,6 +586,7 @@ getOffsetFuncCfgInfo store func n = getFuncCfgInfo store func >>= \case
     return . Just $ CfgInfo
       { cfg = cfg'
       , strictDescendantsMap = sdmap'
+      , dominators = Cfg.getDominators cfg'
       , calls = calls'
       , nodes = nodes'
       }
@@ -762,6 +764,7 @@ calcCfgInfo cfg =
   CfgInfo
     { cfg = cfg
     , strictDescendantsMap = calcStrictDescendantsMap cfg
+    , dominators = Cfg.getDominators cfg
     , nodes = G.nodes cfg
     , calls = mapMaybe (^? #_Call) . HashSet.toList . G.nodes $ cfg
     }

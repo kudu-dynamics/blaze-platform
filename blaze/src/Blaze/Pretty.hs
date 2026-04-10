@@ -668,13 +668,15 @@ instance
     Pil.Annotation t -> pure [plainToken CommentToken "// ", plainToken CommentToken t]
     Pil.EnterContext x
       | x ^. #ctx . #isLoopCtx -> pure [tt $ "----> loop " <> show (x ^. #ctx . #ctxId)]
-      | otherwise -> tt "----> Entering "
-        <++> tokenize (x ^. #ctx)
-        <++> [tt " "]
-        <++> tokenizeAsList (x ^. #args)
+      | otherwise -> tt "----> Entering ctx "
+        <++> tokenize (x ^. #ctx . #func)
+        <++> [tt $ "@" <> show (fromIntegral (x ^. #ctx . #ctxId) :: Word64)]
+        <++> tokenizeAsTuple (x ^. #args)
     Pil.ExitContext x
       | x ^. #leavingCtx . #isLoopCtx -> pure [tt $ "<---- end loop " <> show (x ^. #leavingCtx . #ctxId)]
-      | otherwise -> tt "<---- Leaving " <++> tokenize (x ^. #leavingCtx)
+      | otherwise -> tt "<---- Leaving ctx "
+        <++> tokenize (x ^. #leavingCtx . #func)
+        <++> [tt $ "@" <> show (fromIntegral (x ^. #leavingCtx . #ctxId) :: Word64)]
     Pil.Call callOp -> tokenize callOp
     Pil.DefPhi x ->
       tokenize (x ^. #dest)
@@ -759,7 +761,7 @@ tokenizeStmtsWithIndents = \case
     -- Last Stmt
     go i [stmt@(Pil.Stmt _ statement)] = case statement of
       Pil.ExitContext _ -> spaces (i - 1) <++> tokenize stmt
-      _ -> tokenize stmt
+      _ -> spaces i <++> tokenize stmt
     -- Middle statements
     go i (stmt@(Pil.Stmt _ statement):stmts) = case statement of
       Pil.EnterContext _ ->

@@ -74,23 +74,31 @@ parseSuffix _    = ViewReduced
 
 parseRefPart :: Text -> [PathRef]
 parseRefPart t
-  -- Try "a..b" range first
-  | (a, rest) <- Text.breakOn ".." t
+  -- Try "a..b" range, possibly with trailing ! or !!
+  | let (base, suffix) = stripSuffix t
+  , (a, rest) <- Text.breakOn ".." base
   , not (Text.null rest)
-  , Just lo <- readMaybe (Text.unpack . Text.strip . Text.dropWhileEnd (== '!') $ a)
-  , Just hi <- readMaybe (Text.unpack . Text.strip . Text.dropWhileEnd (== '!') $ Text.drop 2 rest)
-  = fmap (`PathRef` ViewReduced) [lo..hi]
-  -- Try "a-b" range (only if both sides are digits, to avoid negative numbers)
-  | Just (a, b) <- splitRange (Text.dropWhileEnd (== '!') t)
+  , Just lo <- readMaybe (Text.unpack . Text.strip $ a)
+  , Just hi <- readMaybe (Text.unpack . Text.strip . Text.drop 2 $ rest)
+  = fmap (`PathRef` parseSuffix suffix) [lo..hi]
+  -- Try "a-b" range with trailing ! or !!
+  | let (base, suffix) = stripSuffix t
+  , Just (a, b) <- splitRange base
   , Just lo <- readMaybe (Text.unpack a)
   , Just hi <- readMaybe (Text.unpack b)
-  = fmap (`PathRef` ViewReduced) [lo..hi]
+  = fmap (`PathRef` parseSuffix suffix) [lo..hi]
   -- Single number, possibly with ! or !! suffix
   | (numPart, suffix) <- Text.span isDigit t
   , Just n <- readMaybe (Text.unpack numPart)
   = [PathRef n (parseSuffix suffix)]
   | otherwise = []
   where
+    -- Split trailing ! or !! suffix from the rest
+    stripSuffix :: Text -> (Text, Text)
+    stripSuffix s =
+      let suffix = Text.takeWhileEnd (== '!') s
+          base = Text.dropEnd (Text.length suffix) s
+      in (base, suffix)
     -- Split "3-10" but not "-3" (negative number)
     splitRange :: Text -> Maybe (Text, Text)
     splitRange s =
@@ -106,8 +114,17 @@ data CallerContext = CallerContext
   { innerStmtAddrs  :: HashSet Address
     -- ^ Statement addresses from the target function's intraprocedural path.
     --   Used to filter the reduced stmts for the @!!@ view.
+    --   For exclude-self\/extern paths, contains just the callsite address.
   , resolvedParams  :: [(Text, Pil.Expression)]
     -- ^ @(paramName, argExpression)@ pairs from the immediate caller.
+  , excludeSelf     :: Bool
+    -- ^ True for extern or --exclude-self paths (no inner function body).
+  , targetName      :: Maybe Text
+    -- ^ Overrides 'sourceFunc' name in the @!!@ header display.
+    --   Set for exclude-self\/extern paths where 'sourceFunc' is the caller.
+  , outerFuncName   :: Maybe Text
+    -- ^ Name of the outermost caller in the path. Used for call chain display
+    --   when 'sourceFunc' is the target (regular context-depth paths).
   } deriving (Show, Generic)
 
 -- | Resolve which statements to show for a cached path.
@@ -120,8 +137,50 @@ resolveStmts cp ViewContextStripped = case cp ^. #callerContext of
   Just ctx ->
     let allStmts = resolveStmts cp ViewReduced
         targetAddrs = ctx ^. #innerStmtAddrs
-    in filter (\s -> HashSet.member (s ^. #addr) targetAddrs) allStmts
+        targetFuncAddr = cp ^. #sourceFunc . #address
+        -- For non-exclude-self, also include the Enter/ExitContext for the
+        -- target function so the args and indentation are preserved.
+        isRelevant s
+          -- Exclude-self: only show the call stmt at the callsite address
+          | ctx ^. #excludeSelf =
+              HashSet.member (s ^. #addr) targetAddrs
+              && isJust (Pil.mkCallStatement s)
+          -- Normal context-depth: inner stmts + Enter/ExitContext for the target
+          | otherwise =
+              HashSet.member (s ^. #addr) targetAddrs
+              || isTargetCtxBoundary s
+        isTargetCtxBoundary (Pil.Stmt _ (Pil.EnterContext op)) =
+          op ^. #ctx . #func . #address == targetFuncAddr
+        isTargetCtxBoundary (Pil.Stmt _ (Pil.ExitContext op)) =
+          op ^. #leavingCtx . #func . #address == targetFuncAddr
+        isTargetCtxBoundary _ = False
+    in filter isRelevant allStmts
   Nothing -> resolveStmts cp ViewReduced
+
+-- | Build a call chain like "foo -> bar -> target" from the EnterContext stmts.
+-- The outermost function is 'outerName'. Each EnterContext adds a link.
+-- If 'mTarget' is set, it's appended as the final link.
+buildCallChain :: [Pil.Stmt] -> Text -> Maybe Text -> Text
+buildCallChain stmts outerName mTarget =
+  let ctxNames = [ ctx ^. #func . #name
+                 | Pil.Stmt _ (Pil.EnterContext op) <- stmts
+                 , let ctx = op ^. #ctx
+                 ]
+      chain = outerName : ctxNames <> maybeToList mTarget
+  in Text.intercalate " -> " chain
+
+-- | Format the one-line summary for a cached path, used in sample results,
+-- path listings, and expand results.
+formatPathSummary :: CachedPath -> Text
+formatPathSummary cp =
+  let stmts = resolveStmts cp ViewReduced
+      funcName = cp ^. #sourceFunc . #name
+      chain = case cp ^. #callerContext of
+        Just ctx ->
+          let outerName = fromMaybe funcName (ctx ^. #outerFuncName)
+          in buildCallChain stmts outerName (ctx ^. #targetName)
+        Nothing -> funcName
+  in "(" <> show (length stmts) <> " stmts) " <> chain
 
 data CachedPath = CachedPath
   { pilPath     :: [Pil.Stmt]

@@ -22,14 +22,14 @@ extra-deps:
       - selda
       - selda-sqlite
 
-extra-lib-dirs:
-  - /opt/homebrew/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home/lib/server
-  - /opt/homebrew/Cellar/lmdb/0.9.35/lib
-
-extra-include-dirs:
-  - /opt/homebrew/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home/include
-  - /opt/homebrew/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home/include/darwin
-  - /opt/homebrew/Cellar/lmdb/0.9.35/include
+# Uncomment for macOS with Homebrew:
+# extra-lib-dirs:
+#   - /opt/homebrew/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home/lib/server
+#   - /opt/homebrew/Cellar/lmdb/0.9.35/lib
+# extra-include-dirs:
+#   - /opt/homebrew/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home/include
+#   - /opt/homebrew/Cellar/openjdk@21/21.0.9/libexec/openjdk.jdk/Contents/Home/include/darwin
+#   - /opt/homebrew/Cellar/lmdb/0.9.35/include
 
 rebuild-ghc-options: true
 ghc-options:

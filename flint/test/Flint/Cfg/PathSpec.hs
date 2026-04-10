@@ -318,7 +318,7 @@ spec = do
           results <- sampleWithCallerContext (tctx ^. #store) func 3 1 [] False
           length results `shouldSatisfy` (> 0)
           -- Every result must have caller context (more addrs than target alone)
-          forM_ results $ \(fullPath, targetAddrs, _paramBindings) -> do
+          forM_ results $ \(fullPath, targetAddrs, _paramBindings, _callerName) -> do
             let fullStmtAddrs = HashSet.fromList
                   . fmap (view #addr)
                   . CfgPath.toStmts
@@ -336,7 +336,7 @@ spec = do
           -- Should still get results (falls back to target-only path)
           length results `shouldSatisfy` (> 0)
           -- With no callers, param bindings should be empty
-          forM_ results $ \(_, _, paramBindings) ->
+          forM_ results $ \(_, _, paramBindings, _) ->
             paramBindings `shouldBe` []
 
     it "every context-depth 2 sample should include caller stmts" $ \tctx -> do
@@ -348,7 +348,7 @@ spec = do
           results <- sampleWithCallerContext (tctx ^. #store) func 3 2 [] False
           length results `shouldSatisfy` (> 0)
           -- Every result must have caller context
-          forM_ results $ \(fullPath, targetAddrs, _) -> do
+          forM_ results $ \(fullPath, targetAddrs, _, _) -> do
             let fullStmtAddrs = HashSet.fromList
                   . fmap (view #addr)
                   . CfgPath.toStmts

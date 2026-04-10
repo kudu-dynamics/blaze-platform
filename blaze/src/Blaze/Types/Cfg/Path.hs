@@ -152,8 +152,16 @@ build nextCtxIndex_ pb = Path
     p = P.build pb
 
 toStmts :: PilPath -> [Stmt]
-toStmts p = concatMap getStmtsFromEdge (snd $ P.toEdgeList p) <> Cfg.getNodeData (P.end p)
+toStmts p = concatMap getStmtsFromEdge (snd $ P.toEdgeList p) <> endNodeStmts
   where
+    endNodeStmts = case P.end p of
+      Cfg.LeaveFunc x ->
+        Cfg.getNodeData (P.end p)
+        <> [ Pil.Stmt (x ^. #callSiteAddress)
+             . Pil.ExitContext
+             $ Pil.ExitContextOp (x ^. #prevCtx) (x ^. #nextCtx)
+           ]
+      _ -> Cfg.getNodeData (P.end p)
     getStmtsFromEdge :: LEdge Cfg.BranchType (CfNode [Stmt]) -> [Stmt]
     getStmtsFromEdge (LEdge lbl (Edge a _)) = case lbl of
       Cfg.UnconditionalBranch -> ndata

@@ -1,5 +1,18 @@
 # Blaze Platform
 
+## Version 0.26.0410
+- Fix `CachedCalc.get` deadlock — wrap critical section in `mask` so async exceptions (e.g. from `forConcurrently` cancellation) can't kill a thread between TMVar creation and `try`, which left the TMVar permanently empty and caused "thread blocked indefinitely in an MVar/STM operation" errors with the original exception lost
+- Fix `--exclude-self` + `--depth` re-entering the excluded target — `expandPathToDepth` now takes a skip set of function addresses to not expand, used by the exclude-self path
+- Fix `--unroll-loops` being ignored for caller context frames — `wrapWithCallers` now threads the flag through instead of hardcoding `False`
+- Fix `-Werror` warnings across codebase: unused imports, eta-reduce, incomplete patterns, name shadowing, missing record fields in tests
+
+## Version 0.26.0407a
+- Fix "Cannot build path with duplicate node" crash in loop summarization for nested loops (ShowStrip, ShowTile, ThunderDecodeRow, PixarLogDecode, NeXTDecode)
+  + Use dominator-based back edge detection instead of naive "already visited" check — only real loop back edges (where target dominates source) trigger `handleBackedge`, preventing convergence/merge points from being misidentified as loop headers
+  + Fix `splitLoopBody` and `findExitEdge` to compare nodes by UUID rather than structural equality — `CfNode` has UUID-only `Hashable` but structural `Eq`, so summary nodes (same UUID, different stmts) were invisible to `HashSet.member` checks
+  + Freshen UUIDs for convergence revisits at point of creation in `walk` — when the walk reaches a merge point already in the path (different dynamic context, e.g. post-loop vs pre-loop), the node gets a fresh identity via `twaddleUUID`; `Path.build`'s duplicate-node error remains as a safety net for unexpected bugs
+  + Precompute `Dominators` in `CfgInfo` (once per function) instead of per-sample — avoids O(V*(V+E)) recomputation on every path sample
+
 ## Version 0.26.0406b
 - C AST decompiler: new `CStmt`/`CExpr` types (14 statement constructors, 14 expression constructors) that transform Ghidra's raw ClangAST token stream into structured, readable C99 source code
   + `convertFunction` / `convertBlock` / `convertExpr` — recursive transformer handling nested control flow, multi-arg function calls, prefix/postfix/binary operators, casts, pointer/array/field access, compound assignments, for-loop init declarations

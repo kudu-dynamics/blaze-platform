@@ -105,9 +105,20 @@ mkHighVariableType hv = do
     Nothing -> error "Class name invalid"
     Just cname -> case cname of
       "HighConstant" -> do
-        s :: J.Scalar <- runIO $ Java.call (coerce hv :: J.HighConstant) "getScalar"
-                  >>= JNI.newGlobalRef
-        HighConstant <$> runIO (Java.call s "getValue")
+        -- HighConstant.getScalar() calls new Scalar(bitLength, value) which
+        -- throws if bitLength == 0.  Some Ghidra HighConstants (e.g. void-typed
+        -- pointer constants) have size 0.  Guard against this by checking size
+        -- first and falling back to the representative varnode's address offset.
+        sz :: Int32 <- runIO $ Java.call hv "getSize"
+        if sz > 0
+          then do
+            s :: J.Scalar <- runIO $ Java.call (coerce hv :: J.HighConstant) "getScalar"
+                      >>= JNI.newGlobalRef
+            HighConstant <$> runIO (Java.call s "getValue")
+          else do
+            rep :: J.VarNode <- runIO $ Java.call hv "getRepresentative" >>= JNI.newGlobalRef
+            addr :: J.Address <- runIO $ Java.call rep "getAddress" >>= JNI.newGlobalRef
+            HighConstant <$> runIO (Java.call addr "getOffset")
       "HighGlobal" -> return HighGlobal
       "HighLocal" -> return HighLocal
       "HighParam" -> do
