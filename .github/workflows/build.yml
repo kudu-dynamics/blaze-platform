@@ -20,6 +20,8 @@ jobs:
           target: just-deps
   build:
     runs-on: ubuntu-24.04
+    steps:
+      - run: echo "build"
 #    outputs:
 #
 #    steps:
@@ -27,7 +29,8 @@ jobs:
   test:
     needs: build
     runs-on: ubuntu-24.04
-
+    steps:
+      - run: echo "test"
 #on:
 #  pull_request:
 #    branches:
