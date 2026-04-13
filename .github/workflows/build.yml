@@ -16,7 +16,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           outputs: type=cacheonly
-          tags: myimage:pipeline-${GITHUB_RUN_ID}
+          tags: myimage:pipeline
           target: just-deps
   build:
     runs-on: ubuntu-24.04
