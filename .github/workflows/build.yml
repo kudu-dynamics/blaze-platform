@@ -1,0 +1,34 @@
+name: build
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      - name: docker
+        uses docker/build-push-action@v7
+        with:
+          outputs: type=cacheonly
+          tags: myimage:pipeline-${{GITHUB_RUN_ID}}
+          target: just-deps
+#  build:
+#    runs-on: ubuntu-24.04
+#    outputs:
+#
+#    steps:
+#      
+  test:
+    needs: build
+    runs-on: ubuntu-24.04
+
+#on:
+#  pull_request:
+#    branches:
+#      - main
