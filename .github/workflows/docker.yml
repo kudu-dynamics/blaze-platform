@@ -1,6 +1,7 @@
 name: image
 on:
   workflow_dispatch:
+  pull_request: # comment this out
 permissions:
   contents: read
 jobs:
