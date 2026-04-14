@@ -23,3 +23,7 @@ jobs:
         with:
           name: myimage
           path: /tmp/myimage.tar
+#      - name: summary
+#        run: |
+#          echo "#COPY THIS" > $GITHUB_STEP_SUMMARY
+#          echo $GITHUB_RUN_ID >> $GITHUB_STEP_SUMMARY
