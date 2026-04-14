@@ -14,7 +14,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           outputs: type=docker,dest=/tmp/myimage.tar
-          tags: myimage:pipeline-$GITHUB_RUN_ID
+          tags: myimage:latest
           target: just-deps
       - name: upload
         uses: actions/upload-artifact@v7
