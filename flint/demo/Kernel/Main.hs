@@ -28,6 +28,7 @@ doubleFreeBug = BugMatch
   , bugDescription =
     "This path frees " <> TextExpr "ptr" <> " twice. This may result in a memory leak or a write-what-where."
   , mitigationAdvice = "Ensure that " <> TextExpr "ptr" <> " is freed only once."
+  , cwe = Just 415  -- CWE-415: Double Free
   }
 
 memAllocatedWithMallocFreedWithKfreeBug :: BugMatch
@@ -39,6 +40,7 @@ memAllocatedWithMallocFreedWithKfreeBug = BugMatch
   , bugName = "Mem Allocated with `malloc` freed with `kfree`"
   , bugDescription = "`" <> TextExpr "ptr" <> "` is allocated with `malloc`, but freed with `kfree`. From the `kfree` man page: Don't free memory not originally allocated by `kmalloc` or you will run into trouble."
   , mitigationAdvice = "Allocate " <> TextExpr "ptr" <> " with `kmalloc`."
+  , cwe = Just 762  -- CWE-762: Mismatched Memory Management Routines
   }
 
 kernelBugs :: [BugMatch]

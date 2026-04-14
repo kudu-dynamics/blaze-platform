@@ -673,6 +673,14 @@ resolveFuncRef store = \case
   Func.InternalRef fm -> fmap Func.Internal <$> resolveFunction store fm
   Func.ExternalRef fm -> fmap Func.External <$> CC.get fm (store ^. #externFuncCalc)
 
+-- | Get FunctionRefs for functions that have already been analyzed
+-- (i.e., have entries in the cfgCache). This returns a subset of
+-- getInternalFuncs — only those for which CFG analysis has been run.
+getAnalyzedFunctionRefs :: CfgStore -> IO [FunctionRef]
+getAnalyzedFunctionRefs store = do
+  funcs <- PC.getKeys (store ^. #cfgCache)
+  return $ fmap toFunctionRef funcs
+
 -- | Get full internal Functions (with params), resolved from funcCalc.
 -- Use sparingly — prefer targeted resolution when only a subset is needed.
 getInternalFullFuncs :: CfgStore -> IO [Function]

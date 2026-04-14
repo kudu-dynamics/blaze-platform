@@ -8,8 +8,10 @@ module Blaze.Import.Source.Ghidra (
 import Blaze.Import.Binary (BinaryImporter (..))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
+import Blaze.Import.Decomp (DecompImporter (..))
 import Blaze.Import.Pil (PilImporter (..))
 import Blaze.Import.Xref (XrefImporter (..))
+import Blaze.Import.Source.Ghidra.CAst (toBlazeCStmts)
 import Blaze.Import.Source.Ghidra.CallGraph qualified as CallGraph
 import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
 import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
@@ -105,15 +107,12 @@ instance BinaryImporter GhidraImporter where
       Nothing -> return Nothing
       Just jAddr -> Just . convertAddress <$> runGhidraOrError (GAddr.mkAddress jAddr)
 
-  decompileFunction (GhidraImporter gs _ _) addr =
-    runGhidraOrError $ do
-      jaddr <- GState.mkAddress (gs ^. #program) addr
-      GFunction.fromAddr (gs ^. #program) jaddr >>= \case
-        Nothing -> return Nothing
-        Just jfunc -> do
-          clangAST <- GFunction.getClangAST gs jfunc
-          let cStmts = GClang.convertFunction clangAST
-          return $ Just (GClang.renderStmts 0 cStmts)
+instance DecompImporter GhidraImporter where
+  decompileFunctionText imp addr =
+    fmap (fmap GClang.renderFunction) (withClangAST imp addr)
+
+  decompileFunctionAst imp addr =
+    fmap (fmap (toBlazeCStmts . GClang.convertFunction)) (withClangAST imp addr)
 
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction
@@ -170,4 +169,14 @@ instance PilImporter GhidraImporter where
 
 instance XrefImporter GhidraImporter where
   getXrefsTo = Xref.getXrefsTo
+
+-- | Shared helper: decompile a function to its raw ClangAST.
+-- Used by both decompileFunction (text) and decompileFunctionAst (structured).
+withClangAST :: GhidraImporter -> Address -> IO (Maybe (GClang.ClangAST GClang.ClangNode))
+withClangAST (GhidraImporter gs _ _) addr =
+  runGhidraOrError $ do
+    jaddr <- GState.mkAddress (gs ^. #program) addr
+    GFunction.fromAddr (gs ^. #program) jaddr >>= \case
+      Nothing -> return Nothing
+      Just jfunc -> Just <$> GFunction.getClangAST gs jfunc
 

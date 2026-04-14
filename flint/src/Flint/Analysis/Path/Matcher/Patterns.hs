@@ -84,6 +84,7 @@ failedToUnregister = fmap f thingsYouShouldUnregister
       , bugDescription =
           "There is a path through the lifecyle of this kernel module where the handler `" <> PureText regName <> "` is called, but `" <> PureText unregName <> "` is never called to clean up `" <> TextExpr "handler" <> "`."
       , mitigationAdvice = "Call " <> PureText unregName
+      , cwe = Just 772  -- CWE-772: Missing Release of Resource after Effective Lifetime
       }
 
 incrementWithoutCheck :: BugMatch
@@ -106,6 +107,7 @@ incrementWithoutCheck = BugMatch
   , bugDescription =
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
   , mitigationAdvice = "Add a bounds check."
+  , cwe = Just 190  -- CWE-190: Integer Overflow or Wraparound
   }
 
 oobWrite :: Func -> BugMatch
@@ -119,6 +121,7 @@ oobWrite mallocFunc = BugMatch
   , bugDescription =
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
   , mitigationAdvice = "Add a bounds check."
+  , cwe = Just 787  -- CWE-787: Out-of-bounds Write
   }
 
 writeToGlobal :: BugMatch
@@ -133,6 +136,7 @@ writeToGlobal = BugMatch
   , bugDescription =
     "This path shows that possibly user-controllable memory from " <> TextExpr "in" <> " is written to a global in the kernel module: `" <> TextExpr "out" <> "`."
   , mitigationAdvice = "Try harder."
+  , cwe = Just 123  -- CWE-123: Write-what-where Condition
   }
 
 inputDataCopiedToStack :: BugMatch
@@ -152,6 +156,7 @@ inputDataCopiedToStack = BugMatch
   , bugDescription =
     "This path shows that possibly user-controllable memory from " <> TextExpr "src" <> " is written to memory on the stack: `" <> TextExpr "stackVar" <> "`."
   , mitigationAdvice = "Try harder."
+  , cwe = Just 121  -- CWE-121: Stack-based Buffer Overflow
   }
   where
     stackVar = NotPattern (isGlobal .|| Contains isArg)
@@ -166,6 +171,7 @@ inputControlledIndirectCall = BugMatch
   , bugDescription =
     "This path shows an indirect call to `" <> TextExpr "callTarget" <> "` which is controlled by an input to the function."
   , mitigationAdvice = "Be careful."
+  , cwe = Just 822  -- CWE-822: Untrusted Pointer Dereference
   }
   where
     inputDest = Contains isArg .|| load isGlobal ()
@@ -179,6 +185,7 @@ stackSetToExecutable = BugMatch
   , bugName = "Stack Set to Executable"
   , bugDescription = "The stack might be set to executable in this function."
   , mitigationAdvice = "Be careful."
+  , cwe = Just 269  -- CWE-269: Improper Privilege Management
   }
 
 stackSetToExecutable' :: BugMatch
@@ -189,6 +196,7 @@ stackSetToExecutable' = BugMatch
   , bugName = "Stack Set to Executable"
   , bugDescription = "The stack might be set to executable in this function."
   , mitigationAdvice = "Be careful."
+  , cwe = Just 269  -- CWE-269: Improper Privilege Management
   }
 
 -----------------------
@@ -224,6 +232,7 @@ bufferOverflow = BugMatch
   , bugDescription =
     "The buffer at `" <> TextExpr "dest" <> "` can be overflowed by `" <> TextExpr "src" <> "` because the copy function has no bounds limit and `" <> TextExpr "src" <> "` could be user-controlled."
   , mitigationAdvice = "Limit the length of the copy."
+  , cwe = Just 120  -- CWE-120: Buffer Copy without Checking Size of Input
   }
 
 formatStringCallPattern :: Symbol Pil.Expression -> ExprPattern -> StmtPattern
@@ -323,6 +332,7 @@ formatStringVulnerability = BugMatch
   , bugDescription =
     "The format string for printf is controlled by `" <> TextExpr "arg" <> "`, which could be user controlled."
   , mitigationAdvice = "Don't do it."
+  , cwe = Just 134  -- CWE-134: Use of Externally-Controlled Format String
   }
 
 -- This is really stupid...
@@ -390,6 +400,7 @@ useAfterFree = BugMatch
   , bugDescription =
     "The pointer `" <> TextExpr "ptr" <> "` is freed and is later used."
   , mitigationAdvice = "Don't."
+  , cwe = Just 416  -- CWE-416: Use After Free
   }
 
 shouldn'tGetPassedNullPtr :: ExprPattern -> StmtPattern
@@ -485,6 +496,7 @@ nullPointerDereference = BugMatch
   , bugDescription =
     "The pointer `" <> TextExpr "ptr" <> "` is null and is dereferenced."
   , mitigationAdvice = "Don't do it."
+  , cwe = Just 476  -- CWE-476: NULL Pointer Dereference
   }
 
 -- Here are some funcs that copy between two buffers.
@@ -515,4 +527,5 @@ stackBasedBufferOverflow = BugMatch
   , bugDescription =
     "There might be an overflow. Sorry."
   , mitigationAdvice = "Don't do it."
+  , cwe = Just 121  -- CWE-121: Stack-based Buffer Overflow
   }

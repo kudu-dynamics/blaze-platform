@@ -7,6 +7,7 @@ import Data.IORef
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep, mkPathPrep)
 import Flint.Types.Analysis (TaintPropagator)
 import Flint.Types.Analysis.Path.Matcher (Prim)
+import Flint.Types.Analysis.CAst.Matcher (CAstCheck)
 import Flint.Analysis.Path.Matcher (TypedStmt, asStmts)
 import qualified Flint.Analysis.LibC as LibC
 import qualified Flint.Analysis.Path.Matcher.Primitives.Library as PrimLib
@@ -17,6 +18,7 @@ import Blaze.Cfg.Path (PilPath)
 import Blaze.Import.Xref (Xref)
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil as Pil
+import Blaze.Types.CAst (CStmt)
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -202,8 +204,10 @@ data ShellState = ShellState
   , userPrims :: IORef [Prim]
   , userKnownFuncs :: IORef [KnownFunc]
   , taintConfigVersion :: IORef Int
+  , userCAstChecks :: IORef [CAstCheck]
   , inspectAddr :: Maybe (Address -> IO (Maybe Text))
   , decompFunc  :: Maybe (Address -> IO (Maybe Text))
+  , decompFuncAst :: Maybe (Address -> IO (Maybe [CStmt]))
   , saveToDb    :: Maybe (FilePath -> IO (Either Text FilePath))
   , xrefsTo     :: Maybe (Address -> IO [Xref])
   , lookupSymbol :: Maybe (Text -> IO (Maybe Address))
@@ -226,11 +230,12 @@ initShellState
   :: CfgStore -> Address -> Bool
   -> Maybe (Address -> IO (Maybe Text))
   -> Maybe (Address -> IO (Maybe Text))
+  -> Maybe (Address -> IO (Maybe [CStmt]))
   -> Maybe (FilePath -> IO (Either Text FilePath))
   -> Maybe (Address -> IO [Xref])
   -> Maybe (Text -> IO (Maybe Address))
   -> IO ShellState
-initShellState store base solver mInspect mDecomp mSave mXrefs mLookupSym = do
+initShellState store base solver mInspect mDecomp mDecompAst mSave mXrefs mLookupSym = do
   cache <- newIORef HashMap.empty
   nextId <- newIORef 0
   solverRef <- newIORef solver
@@ -238,6 +243,7 @@ initShellState store base solver mInspect mDecomp mSave mXrefs mLookupSym = do
   userTaints <- newIORef []
   userPrimsRef <- newIORef []
   userKnownFuncsRef <- newIORef []
+  userCAstChecksRef <- newIORef []
   taintVersionRef <- newIORef 0
   return ShellState
     { cfgStore = store
@@ -249,9 +255,11 @@ initShellState store base solver mInspect mDecomp mSave mXrefs mLookupSym = do
     , userTaintPropagators = userTaints
     , userPrims = userPrimsRef
     , userKnownFuncs = userKnownFuncsRef
+    , userCAstChecks = userCAstChecksRef
     , taintConfigVersion = taintVersionRef
     , inspectAddr = mInspect
     , decompFunc = mDecomp
+    , decompFuncAst = mDecompAst
     , saveToDb = mSave
     , xrefsTo = mXrefs
     , lookupSymbol = mLookupSym
