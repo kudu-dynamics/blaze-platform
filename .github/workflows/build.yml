@@ -7,21 +7,33 @@ on:
 permissions:
   contents: read
 jobs:
-  lint:
+  docker:
     runs-on: ubuntu-24.04
     steps:
-      - name: checkout
-        uses: actions/checkout@v6
-      - name: docker
-        uses: docker/build-push-action@v7
+      - name: setup # remove this step if deemed unnecessary
+        uses: docker/setup-buildx-action@v4
+      - name: download
+        uses: actions/download-artifact@v8
         with:
-          outputs: type=cacheonly
-          tags: myimage:pipeline
-          target: just-deps
+          name: myimage
+          path: /tmp
+      - name: load
+        run:
+          docker load --input /tmp/myimage.tar
+          docker image ls -a
+  lint:
+    runs-on: ubuntu-24.04
+    needs: docker
+    steps:
       - name: hlint
         run: just hlint --color=always
+      - name: warnings
+        run:
+          stack clean
+          stack --color always build --test --no-run-tests --pedantic --fast
   build:
     runs-on: ubuntu-24.04
+    needs: docker
     steps:
       - run: echo build-$GITHUB_RUN_ID
 #    outputs:
