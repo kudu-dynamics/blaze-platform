@@ -16,6 +16,8 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: myimage
+          run-id: 24422167052
+          github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: load
         run:
