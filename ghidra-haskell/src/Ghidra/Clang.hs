@@ -8,6 +8,7 @@ import Ghidra.Prelude hiding (replace)
 import Data.List (span)
 import Data.Text (replace)
 import qualified Data.Text as T
+import qualified Numeric
 import qualified Language.Java as Java
 import qualified Ghidra.Types as J
 import Ghidra.Types.Internal (Ghidra, runIO)
@@ -702,7 +703,7 @@ isTokenGroup _ = False
 
 -- | Get children of a Branch node, or empty for Leaf
 astChildren :: ClangAST ClangNode -> [ClangAST ClangNode]
-astChildren (Branch _ xs) = xs
+astChildren (Branch _ children') = children'
 astChildren (Leaf _) = []
 
 -- | Find the first non-whitespace child's OpToken in a list
@@ -735,12 +736,14 @@ convertBlock nodes = go (filter (not . isBreak) nodes)
           Just Do        -> parseDoWhile children : go rest
           Just If        -> parseIfChain children rest
           Just Switch    -> parseSwitchStmt children : go rest
-          Just Return    -> let blk = convertBlock children in blk <> go rest
+          Just Return    -> let retStmts = convertBlock children in retStmts <> go rest
           _ -> case convertBlock children of
             []    -> go rest  -- skip empty blocks
             -- If block is only comments, inline them (don't wrap in { })
-            blk | all isCommentStmt blk -> blk <> go rest
-            blk -> CBlock (nodesAnn children) blk : go rest
+            blkStmts | all isCommentStmt blkStmts -> blkStmts <> go rest
+            -- Single statement: inline it (avoids spurious { return; } etc.)
+            [single] -> single : go rest
+            blkStmts -> CBlock (nodesAnn children) blkStmts : go rest
 
       -- A Statement: expression statement
       Branch (ClangStatement _) children ->
@@ -955,13 +958,13 @@ parseCases [] = []
 parseCases nodes =
   let clean = filter (not . isWhitespace) nodes
       -- Remove outer { }
-      body = case clean of
+      caseBody = case clean of
         (n : ns) | isSyntaxText "{" n ->
           case reverse ns of
             (l : ls) | isSyntaxText "}" l -> reverse ls
             _ -> ns
         _ -> clean
-  in parseCaseList body
+  in parseCaseList caseBody
 
 parseCaseList :: [ClangAST ClangNode] -> [CCase]
 parseCaseList [] = []
@@ -1107,6 +1110,40 @@ cleanExpr :: [ClangAST ClangNode] -> [ClangAST ClangNode]
 cleanExpr = filter (\n -> not (isWhitespace n) && not (isComment n))
 
 
+-- | Promote a token's text to a C literal node when it looks like one;
+-- otherwise fall back to CIdent. Ghidra emits string and integer constants
+-- as plain tokens whose text happens to be a C literal (including the
+-- surrounding quotes for strings), so we need to classify here rather than
+-- treat every token as an identifier.
+mkTokenValue :: CAnn -> Text -> CExpr
+mkTokenValue ann t
+  | isCStringLiteral t = CLitString ann (stripStringQuotes t)
+  | Just i <- parseCIntLiteral t = CLitInt ann i
+  | otherwise = CIdent ann t
+
+isCStringLiteral :: Text -> Bool
+isCStringLiteral t = T.length t >= 2 && T.head t == '"' && T.last t == '"'
+
+stripStringQuotes :: Text -> Text
+stripStringQuotes = T.dropEnd 1 . T.drop 1
+
+-- | Parse a C-style integer literal. Handles decimal, hex (0x/0X), and a
+-- leading minus sign. Type suffixes (L, U, etc.) are not expected in Ghidra
+-- output and are not handled.
+parseCIntLiteral :: Text -> Maybe Integer
+parseCIntLiteral t = case T.unpack t of
+  '-':rest -> negate <$> parseUnsignedInt rest
+  s        -> parseUnsignedInt s
+
+parseUnsignedInt :: String -> Maybe Integer
+parseUnsignedInt ('0':'x':rest) | not (null rest), all isHexDigit rest =
+  fst <$> listToMaybe (Numeric.readHex rest)
+parseUnsignedInt ('0':'X':rest) | not (null rest), all isHexDigit rest =
+  fst <$> listToMaybe (Numeric.readHex rest)
+parseUnsignedInt s | not (null s), all isDigit s =
+  fst <$> listToMaybe (Numeric.readDec s)
+parseUnsignedInt _ = Nothing
+
 -- | Convert ClangAST nodes into a CExpr.
 -- Uses structural pattern matching with RawExpr as fallback.
 convertExpr :: [ClangAST ClangNode] -> CExpr
@@ -1117,11 +1154,15 @@ convertExpr nodes =
   in case clean of
     [] -> CRawExpr ann []
 
-    -- Single variable
-    [Leaf (ClangVariableToken opts)] -> CIdent (nodeAnn (Leaf (ClangVariableToken opts))) (opts ^. #text)
+    -- Single variable (may hold a numeric or string constant — Ghidra puts
+    -- literals in the variable-token class when they originate from a
+    -- variable-sized Varnode)
+    [Leaf (ClangVariableToken opts)] ->
+      mkTokenValue (nodeAnn (Leaf (ClangVariableToken opts))) (opts ^. #text)
 
     -- Single token (might be a literal or identifier)
-    [Leaf (ClangToken opts)] -> CIdent (nodeAnn (Leaf (ClangToken opts))) (opts ^. #text)
+    [Leaf (ClangToken opts)] ->
+      mkTokenValue (nodeAnn (Leaf (ClangToken opts))) (opts ^. #text)
 
     -- Single func name
     [Leaf (ClangFuncNameToken opts)] -> CIdent (nodeAnn (Leaf (ClangFuncNameToken opts))) (opts ^. #text)
@@ -1134,7 +1175,7 @@ convertExpr nodes =
 
     -- Single syntax token as value (Ghidra uses SyntaxToken for some numeric constants)
     [Leaf (ClangSyntaxToken opts)] | not (isSyntaxPunctuation (opts ^. #text)) ->
-      CIdent (nodeAnn (Leaf (ClangSyntaxToken opts))) (opts ^. #text)
+      mkTokenValue (nodeAnn (Leaf (ClangSyntaxToken opts))) (opts ^. #text)
 
     -- Single statement: recurse into its children
     [Branch (ClangStatement _) children] -> convertExpr children
@@ -1147,19 +1188,19 @@ convertExpr nodes =
 
     -- Parenthesized expression: ( expr ) possibly followed by more
     (p : rest) | isSyntaxText "(" p ->
-      let (parenBody, after) = splitAtCloseParen rest
+      let (parenContent, after) = splitAtCloseParen rest
           cleanAfter = cleanExpr after
       in case cleanAfter of
-        -- Cast: (type)expr or (type *)expr — isCastContents confirms parenBody is a type,
+        -- Cast: (type)expr or (type *)expr — isCastContents confirms parenContent is a type,
         -- so operators like & (address-of) and * (dereference) after the cast are fine
-        _ | isCastContents parenBody && not (null cleanAfter) ->
-          let typeName = T.strip $ mconcat (fmap clangText parenBody)
+        _ | isCastContents parenContent && not (null cleanAfter) ->
+          let typeName = T.strip $ mconcat (fmap clangText parenContent)
           in convertExprWithLeading (CCast ann typeName (convertExpr cleanAfter)) []
         -- Parenthesized then trailing stuff (field access, indexing, etc.)
         _ | not (null cleanAfter) ->
-          convertExprWithLeading (convertExpr parenBody) after
+          convertExprWithLeading (convertExpr parenContent) after
         -- Just unwrap parens
-        _ -> convertExpr parenBody
+        _ -> convertExpr parenContent
 
     -- Function call: FuncNameToken followed by parens
     (Leaf (ClangFuncNameToken fOpts) : rest)
@@ -1279,8 +1320,8 @@ findFieldAccess nodes = goArrow nodes <|> goDot nodes
     goDot = findLastFieldSep "." False
 
     findLastFieldSep sep isArrow ns =
-      let indexedNs = zip [0 :: Int ..] ns
-          sepPositions = [i | (i, n) <- indexedNs, isTokenText sep n]
+      let numberedNodes = zip [0 :: Int ..] ns
+          sepPositions = [i | (i, n) <- numberedNodes, isTokenText sep n]
       in case sepPositions of
         [] -> Nothing
         _ -> let pos = last' sepPositions  -- use the LAST one for left-associativity
@@ -1440,6 +1481,24 @@ dropSemicolon (n : rest) | isSyntaxText ";" n = rest
 dropSemicolon nodes = nodes
 
 -- * Pretty-printing
+
+-- | Render a full function (header + body) from the raw ClangAST.
+-- Extracts the function prototype (return type, name, params) and renders
+-- the body indented inside braces.
+renderFunction :: ClangAST ClangNode -> Text
+renderFunction ast@(Branch (ClangFunction _) children) =
+  let protoText = case filter isFuncProto children of
+        (proto : _) -> T.strip (clangText proto)
+        []          -> ""
+      bodyStmts = convertFunction ast
+      body = renderStmts 1 bodyStmts
+  in if T.null protoText
+     then renderStmts 0 bodyStmts
+     else protoText <> " {\n" <> body <> "}\n"
+  where
+    isFuncProto (Branch (ClangFuncProto _) _) = True
+    isFuncProto _ = False
+renderFunction ast = renderStmts 0 (convertFunction ast)
 
 -- | Render a list of C statements as text (for debugging)
 renderStmts :: Int -> [CStmt] -> Text

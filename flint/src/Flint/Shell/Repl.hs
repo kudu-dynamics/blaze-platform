@@ -25,10 +25,27 @@ import Flint.Shell.Commands.Analyze (analyzeAllCommand)
 import Flint.Shell.Commands.Psum (psumCommand)
 import Flint.Shell.Commands.GlobalXrefs (globalXrefsCommand)
 import Flint.Shell.Commands.Decomp (decompCommand)
+import Flint.Shell.Commands.CAst
+  ( checkCAstCommand, castScanCommand
+  , castPatternAddCommand, castPatternListCommand
+  , castPatternRemoveCommand, castPatternResetCommand
+  , castPatternSaveCommand, castPatternLoadCommand
+  , castPatternShowCommand
+  )
 
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TIO
 import System.Console.Haskeline
 import System.IO (hIsTerminalDevice, hSetBuffering, BufferMode(..), hFlush, isEOF)
+
+
+-- | Print to real stdout. Used by the interactive shell for user-facing
+-- output so it lands on the terminal (and on piped stdout). The library's
+-- 'putText' writes to stderr (see Flint.Prelude) to keep flint-mcp's
+-- JSON-RPC channel clean — the shell has to opt back into stdout explicitly
+-- via this helper.
+shellOut :: Text -> IO ()
+shellOut = TIO.putStrLn
 
 
 allCommands :: [ShellCommand]
@@ -67,6 +84,15 @@ allCommands =
   , analyzeAllCommand
   , psumCommand
   , globalXrefsCommand
+  , checkCAstCommand
+  , castScanCommand
+  , castPatternAddCommand
+  , castPatternListCommand
+  , castPatternRemoveCommand
+  , castPatternResetCommand
+  , castPatternSaveCommand
+  , castPatternLoadCommand
+  , castPatternShowCommand
   ]
 
 runShell :: ShellState -> IO ()
@@ -89,7 +115,7 @@ haskelineLoop :: ShellState -> InputT IO ()
 haskelineLoop st = do
   minput <- getInputLine "flint> "
   case minput of
-    Nothing -> liftIO $ putText "Goodbye."
+    Nothing -> liftIO $ shellOut "Goodbye."
     Just input -> do
       let trimmed = Text.strip $ Text.pack input
       if Text.null trimmed
@@ -110,7 +136,7 @@ basicLoop st = do
   hFlush stdout
   eof <- isEOF
   if eof
-    then putText "Goodbye."
+    then shellOut "Goodbye."
     else do
       input <- Text.strip <$> getLine
       if Text.null input
@@ -122,10 +148,10 @@ basicLoop st = do
 handleInput :: ShellState -> Text -> IO Bool
 handleInput st input
   | input `elem` ["quit", "exit", ":q"] = do
-      putText "Goodbye."
+      shellOut "Goodbye."
       return False
   | input == "help" || input == "?" = do
-      putText $ formatHelp allCommands
+      shellOut $ formatHelp allCommands
       return True
   | "set " `Text.isPrefixOf` input = do
       handleSet st (Text.words $ Text.drop 4 input)
@@ -141,43 +167,43 @@ handleSet :: ShellState -> [Text] -> IO ()
 handleSet st ["solver", val]
   | val `elem` ["on", "true", "1"] = do
       writeIORef (st ^. #useSolver) True
-      putText "Solver enabled."
+      shellOut "Solver enabled."
   | val `elem` ["off", "false", "0"] = do
       writeIORef (st ^. #useSolver) False
-      putText "Solver disabled."
-  | otherwise = putText "Usage: set solver on|off"
-handleSet _st _ = putText "Usage: set solver on|off"
+      shellOut "Solver disabled."
+  | otherwise = shellOut "Usage: set solver on|off"
+handleSet _st _ = shellOut "Usage: set solver on|off"
 
 renderResult :: CommandResult -> IO ()
 renderResult = \case
-  ResultText t -> putText t
-  ResultOk t -> putText t
-  ResultError t -> putText $ "Error: " <> t
+  ResultText t -> shellOut t
+  ResultOk t -> shellOut t
+  ResultError t -> shellOut $ "Error: " <> t
   ResultFunctions internals externs -> do
     unless (null internals) $ do
-      putText "Internal Functions:"
+      shellOut "Internal Functions:"
       forM_ internals $ \(name, addr) ->
-        putText $ "  " <> padAddr addr <> "  " <> name
+        shellOut $ "  " <> padAddr addr <> "  " <> name
     unless (null externs) $ do
-      unless (null internals) $ putText ""
-      putText "External Functions:"
+      unless (null internals) $ shellOut ""
+      shellOut "External Functions:"
       forM_ externs $ \(name, mLib) ->
         let libText = maybe "" (\l -> " (" <> l <> ")") mLib
-        in putText $ "  " <> name <> libText
+        in shellOut $ "  " <> name <> libText
   ResultTextAndPaths header paths -> do
-    putText header
+    shellOut header
     forM_ paths $ \(pid, summary) ->
-      putText $ "  [" <> show pid <> "] " <> summary
+      shellOut $ "  [" <> show pid <> "] " <> summary
   ResultPaths paths -> do
     forM_ paths $ \(pid, summary) ->
-      putText $ "  [" <> show pid <> "] " <> summary
+      shellOut $ "  [" <> show pid <> "] " <> summary
   ResultSolver results -> do
     forM_ results $ \(pid, res) ->
-      putText $ "  [" <> show pid <> "] " <> res
+      shellOut $ "  [" <> show pid <> "] " <> res
   ResultWMIs results -> do
     forM_ results $ \(pid, msgs) -> do
-      putText $ "  [" <> show pid <> "]"
-      forM_ msgs putText
+      shellOut $ "  [" <> show pid <> "]"
+      forM_ msgs shellOut
 
 padAddr :: Address -> Text
 padAddr = show

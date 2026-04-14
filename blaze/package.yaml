@@ -114,9 +114,11 @@ library:
   - Blaze.Import.Binary
   - Blaze.Import.CallGraph
   - Blaze.Import.Cfg
+  - Blaze.Import.Decomp
   - Blaze.Import.Pil
   - Blaze.Import.Xref
   - Blaze.Import.Source.Ghidra
+  - Blaze.Import.Source.Ghidra.CAst
   - Blaze.Import.Source.Ghidra.Pil
   - Blaze.Import.Source.Ghidra.CallGraph
   - Blaze.Import.Source.Ghidra.Cfg
@@ -143,6 +145,7 @@ library:
   - Blaze.Pretty
   - Blaze.Search
   - Blaze.Pil.Solver
+  - Blaze.Types.CAst
   - Blaze.Types.CachedCalc
   - Blaze.Types.PersistentCalc
   - Blaze.Types.CallGraph

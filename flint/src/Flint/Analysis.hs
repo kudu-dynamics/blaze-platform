@@ -187,13 +187,16 @@ showBugMatch
   => ((MatcherState expr stmt, [stmt]), BugMatch)
   -> IO ()
 showBugMatch ((ms, _stmts), bm) = do
-  putText $ bm ^. #bugName <> ":"
+  putText $ bm ^. #bugName <> cweTag <> ":"
   putText "Found Primitive:"
   putText $ resolveText $ bm ^. #bugDescription
   putText "\nSuggested Mitigation:"
-  putText $ resolveText $ bm ^. #mitigationAdvice      
+  putText $ resolveText $ bm ^. #mitigationAdvice
   where
     resolveText = Matcher.resolveBoundText (ms ^. #boundSyms)
+    cweTag = case bm ^. #cwe of
+      Just n  -> " (CWE-" <> show n <> ")"
+      Nothing -> ""
 
 addCfgStoreForBinary
   :: [Function]

@@ -10,9 +10,11 @@ import qualified Flint.Cfg.Store as Store
 import Data.IORef
 import Flint.Shell.Types (ShellState, CommandResult(..), initShellState)
 import Flint.Shell.Command (dispatchCommand)
+import Flint.Shell.Commands.CAst (castPatternAddCommand)
 import Flint.Shell.Repl (allCommands)
 
-import Blaze.Import.Binary (getBase, inspectAddress, decompileFunction, saveToDb, lookupGlobalSymbol)
+import Blaze.Import.Binary (getBase, inspectAddress, saveToDb, lookupGlobalSymbol)
+import Blaze.Import.Decomp (decompileFunctionText, decompileFunctionAst)
 import Blaze.Import.Xref (getXrefsTo)
 
 import qualified Data.HashSet as HashSet
@@ -229,7 +231,7 @@ loadBinary mcpSt fp = do
           analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
           (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
           base <- getBase imp
-          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ decompileFunction imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
+          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ decompileFunctionText imp) (Just $ decompileFunctionAst imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
           writeIORef (mcpSt ^. #shellStateRef) (Just st)
           SIO.hPutStrLn stderr $ "Binary loaded: " <> fp
           putMVar readyMVar (Right ())
@@ -264,6 +266,25 @@ handleToolCall mcpSt "load_binary" args =
   case lookupArg "file_path" args of
     Nothing -> pure $ Left $ InvalidParams "Missing required parameter: file_path"
     Just fp -> loadBinary mcpSt (cs fp)
+-- cast_pattern_add takes a JSON blob that must survive whitespace intact
+-- (embedded newlines, pretty-printed input, string literals with spaces).
+-- Routing it through the shell tokenizer would split on whitespace and
+-- corrupt the payload, so we call the command's action directly with a
+-- single-element args list.
+handleToolCall mcpSt "cast_pattern_add" args =
+  case lookupArg "pattern_json" args of
+    Nothing -> pure $ Left $ InvalidParams "Missing required parameter: pattern_json"
+    Just json -> do
+      eSt <- requireBinary mcpSt
+      case eSt of
+        Left err -> pure $ Left err
+        Right st -> do
+          result <- catch
+            ((castPatternAddCommand ^. #cmdAction) st [json])
+            (\(e :: SomeException) -> pure $ ResultError $ "Error: " <> show e)
+          case result of
+            ResultError msg -> pure $ Left $ InternalError msg
+            other           -> pure $ Right $ ContentText $ renderResultText other
 handleToolCall mcpSt "set_solver" args =
   case lookupArg "enabled" args of
     Nothing -> pure $ Left $ InvalidParams "Missing required parameter: enabled"
@@ -406,6 +427,50 @@ buildCommandString toolName args = case toolName of
     case lookupArg "function" args of
       Nothing -> Left "Missing required parameter: function"
       Just f -> Right $ "decomp " <> f
+
+  "check_cast" ->
+    case (lookupArg "pattern" args, lookupArg "function" args) of
+      (Nothing, _) -> Left "Missing required parameter: pattern"
+      (_, Nothing) -> Left "Missing required parameter: function"
+      (Just p, Just f) -> Right $ "check-cast " <> p <> " " <> f
+
+  "cast_scan" ->
+    let allFlag = case lookupArg "scan_all" args of
+          Just "true" -> "--all "
+          _           -> ""
+        pat = fromMaybe "" (lookupArg "pattern" args)
+    in Right $ "cast-scan " <> allFlag <> pat
+
+  -- cast_pattern_add is handled directly in handleToolCall to bypass
+  -- the shell tokenizer, which would mangle whitespace in the JSON blob.
+
+  "cast_pattern_list" ->
+    let allFlag = case lookupArg "show_all" args of
+          Just v | v `elem` ["true", "1"] -> " --all"
+          _ -> ""
+    in Right $ "cast-pattern-list" <> allFlag
+
+  "cast_pattern_remove" ->
+    case lookupArg "name" args of
+      Nothing -> Left "Missing required parameter: name"
+      Just name -> Right $ "cast-pattern-remove " <> name
+
+  "cast_pattern_reset" -> Right "cast-pattern-reset"
+
+  "cast_pattern_save" ->
+    case lookupArg "file_path" args of
+      Nothing -> Left "Missing required parameter: file_path"
+      Just fp -> Right $ "cast-pattern-save " <> fp
+
+  "cast_pattern_load" ->
+    case lookupArg "file_path" args of
+      Nothing -> Left "Missing required parameter: file_path"
+      Just fp -> Right $ "cast-pattern-load " <> fp
+
+  "cast_pattern_show" ->
+    case lookupArg "name" args of
+      Nothing -> Left "Missing required parameter: name"
+      Just name -> Right $ "cast-pattern-show " <> name
 
   "save_binary" ->
     case lookupArg "file_path" args of
@@ -725,6 +790,106 @@ toolDefinitions =
               [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x100003e44')")
               ]
           , required = ["function"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "check_cast"
+      , toolDefinitionDescription = "Run C AST vulnerability pattern checks on a function. Patterns detect loop-based bugs (array OOB, off-by-one, use-after-free, double-free, memory leaks) and dangerous function calls. Use 'all' to run all checks, or specify a pattern name."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("pattern", InputSchemaDefinitionProperty "string" "Pattern name or 'all'. Available: loop-array-oob, loop-off-by-one, loop-accumulating-write, loop-use-after-free, loop-double-free, loop-memory-leak, loop-unbounded-input, loop-missing-bounds-check, dangerous-function, unchecked-alloc")
+              , ("function", InputSchemaDefinitionProperty "string" "Function name or hex address")
+              ]
+          , required = ["pattern", "function"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_scan"
+      , toolDefinitionDescription = "Scan functions for C AST vulnerability patterns. By default scans only already-analyzed functions (from analyze-all cache). Use scan_all=true to scan every function."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("pattern", InputSchemaDefinitionProperty "string" "Optional pattern name to filter (default: all patterns)")
+              , ("scan_all", InputSchemaDefinitionProperty "string" "Set to 'true' to scan all internal functions, not just analyzed ones (default: false)")
+              ]
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  -- cast-pattern commands: dynamic C AST pattern management
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_add"
+      , toolDefinitionDescription = "Add a user-defined C AST vulnerability pattern from JSON. The pattern is available immediately for check-cast and cast-scan. Example JSON: {\"checkName\":\"my-check\",\"severity\":\"high\",\"description\":\"...\",\"pattern\":{\"seq\":[{\"star\":true},{\"expr\":{\"contains\":{\"callNames\":[\"dangerous_func\"],\"args\":[]}}}]}}"
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("pattern_json", InputSchemaDefinitionProperty "string" "JSON string defining the CAstCheck. Required fields: checkName, severity, pattern. Optional: description, explanation, remediation, cwe.")
+              ]
+          , required = ["pattern_json"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_list"
+      , toolDefinitionDescription = "List C AST patterns. By default shows only user-defined patterns. Pass show_all=true to include the 11 built-in patterns."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("show_all", InputSchemaDefinitionProperty "boolean" "If true, list built-in patterns too (default: false, user-defined only)")
+              ]
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_remove"
+      , toolDefinitionDescription = "Remove a user-defined C AST pattern by name."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("name", InputSchemaDefinitionProperty "string" "Name of the pattern to remove")
+              ]
+          , required = ["name"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_reset"
+      , toolDefinitionDescription = "Remove all user-defined C AST patterns."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties = []
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_save"
+      , toolDefinitionDescription = "Save all user-defined C AST patterns to a JSON file for later reuse."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("file_path", InputSchemaDefinitionProperty "string" "Output file path (e.g. 'patterns.json')")
+              ]
+          , required = ["file_path"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_load"
+      , toolDefinitionDescription = "Load C AST patterns from a JSON file. Loaded patterns are added to the user pattern store and available for check-cast and cast-scan."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("file_path", InputSchemaDefinitionProperty "string" "Path to JSON file containing pattern definitions")
+              ]
+          , required = ["file_path"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "cast_pattern_show"
+      , toolDefinitionDescription = "Show the JSON definition of a C AST pattern (built-in or user-defined). Useful for understanding existing patterns or as a starting point for new ones."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("name", InputSchemaDefinitionProperty "string" "Name of the pattern to show")
+              ]
+          , required = ["name"]
           }
       , toolDefinitionTitle = Nothing
       }

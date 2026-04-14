@@ -45,6 +45,7 @@ userControlledStrnCpyLen = BugMatch
   , bugDescription =
     "The function arg `" <> TextExpr "arg" <> "` is passed into the length argument of `strncpy` as the expression `" <> TextExpr "n" <> "`."
   , mitigationAdvice = "Ensure the third arg to `strncpy` can't be controlled by a user."
+  , cwe = Just 120  -- CWE-120: Buffer Copy without Checking Size of Input
   }
 
 userControlledStrcpySecondArg :: BugMatch
@@ -58,6 +59,7 @@ userControlledStrcpySecondArg = BugMatch
   , bugDescription =
     "The function arg `" <> TextExpr "arg" <> "` is passed into the src arg of `strcpy` as the expression `" <> TextExpr "src" <> "`."
   , mitigationAdvice = "Ensure the second arg to `strcpy` can't be controlled by a user."
+  , cwe = Just 120  -- CWE-120: Buffer Copy without Checking Size of Input
   }
 
 doubleFree :: BugMatch
@@ -70,6 +72,7 @@ doubleFree = BugMatch
   , bugDescription =
     "Bad: `" <> TextExpr "DivePtr" <> "`"
   , mitigationAdvice = "Bad job."
+  , cwe = Just 415  -- CWE-415: Double Free
   }
 
 useAfterFree :: BugMatch
@@ -83,6 +86,7 @@ useAfterFree = BugMatch
   , bugDescription =
     "Bad: `" <> TextExpr "ptr" <> "`"
   , mitigationAdvice = "Bad job."
+  , cwe = Just 416  -- CWE-416: Use After Free
   }
 
 incrementWithoutCheck :: BugMatch
@@ -103,6 +107,7 @@ incrementWithoutCheck = BugMatch
   , bugDescription =
     "This path shows an increment of " <> TextExpr "n" <> " to the memory location `" <> TextExpr "ptr" <> "` without a bounds check. This could lead to an integer overflow."
   , mitigationAdvice = "Add a bounds check."
+  , cwe = Just 190  -- CWE-190: Integer Overflow or Wraparound
   }
 
 oobWrite :: BugMatch
@@ -123,6 +128,7 @@ oobWrite = BugMatch
   , bugDescription = "The pointer " <> TextExpr "ptr" <> " allocated by malloc was " <> TextExpr "ptrSize" <> " wide, but there is a write access to " <> TextExpr "ptrAccess" <> ", which might exceed its size."
 --    "Bad: `" <> TextExpr "DivePtr" <> "`"
   , mitigationAdvice = "Bad job."
+  , cwe = Just 787  -- CWE-787: Out-of-bounds Write
   }
 
 oobRead :: BugMatch
@@ -144,6 +150,7 @@ oobRead = BugMatch
   , bugDescription = "The pointer " <> TextExpr "ptr" <> " allocated by malloc was " <> TextExpr "ptrSize" <> " wide, but there is a read access to " <> TextExpr "ptrAccess" <> " in the expr " <> TextExpr "fullExpr" <> " which might exceed its size."
 --    "Bad: `" <> TextExpr "DivePtr" <> "`"
   , mitigationAdvice = "Bad job."
+  , cwe = Just 125  -- CWE-125: Out-of-bounds Read
   }
 
 demoDbSave :: IO ()

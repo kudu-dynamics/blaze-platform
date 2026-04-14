@@ -7,6 +7,7 @@ import Flint.Prelude
 import Blaze.Import.Binary (BinaryImporter, openBinary, shutdown)
 import Blaze.Import.CallGraph (CallGraphImporter)
 import Blaze.Import.Cfg (CfgImporter, NodeDataType)
+import Blaze.Import.Decomp (DecompImporter)
 import Blaze.Import.Pil (PilImporter)
 import Blaze.Import.Xref (XrefImporter)
 
@@ -47,6 +48,7 @@ type FullImporter imp =
   ( BinaryImporter imp
   , CallGraphImporter imp
   , CfgImporter imp
+  , DecompImporter imp
   , PilImporter imp
   , XrefImporter imp
   , NodeDataType imp ~ PilNode

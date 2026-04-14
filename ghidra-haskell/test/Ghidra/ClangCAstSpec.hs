@@ -4,7 +4,21 @@ import Ghidra.Prelude
 
 import Test.Hspec
 import Ghidra.Clang
+import Ghidra.Types.GhidraDataTypes (GhidraDataType(..))
+import Ghidra.Address (readAddressSpaceName)
+import qualified Ghidra.Types.Address as GAddr
 import qualified Data.Text as T
+
+-- | Dummy address range for test construction (never inspected in unit tests).
+dummyAddrRange :: AddrRange
+dummyAddrRange =
+  let sp = GAddr.AddressSpace (GAddr.AddressSpaceId 0) 8 1 (readAddressSpaceName "ram")
+      addr = GAddr.Address sp 0
+  in AddrRange addr addr
+
+-- | Dummy data type for test construction (never inspected in unit tests).
+dummyDataType :: GhidraDataType
+dummyDataType = UnknownType
 
 -- Helper to create default opts for test construction
 
@@ -28,7 +42,7 @@ mkVar name = Leaf $ ClangVariableToken ClangVariableTokenOpts
 
 mkType :: Text -> ClangAST ClangNode
 mkType name = Leaf $ ClangTypeToken ClangTypeTokenOpts
-  { text = name, datatype = error "mkType: datatype not needed in test", isVarRef = False }
+  { text = name, datatype = dummyDataType, isVarRef = False }
 
 mkBreak :: ClangAST ClangNode
 mkBreak = Leaf $ ClangBreak ClangBreakOpts { indent = 0 }
@@ -47,7 +61,7 @@ mkGroup = Branch (ClangTokenGroup ClangTokenGroupOpts
 
 mkFunc :: [ClangAST ClangNode] -> ClangAST ClangNode
 mkFunc = Branch (ClangFunction ClangFunctionOpts
-  { addrRange = error "mkFunc: addrRange not needed in test" })
+  { addrRange = dummyAddrRange })
 
 mkProto :: ClangAST ClangNode
 mkProto = Branch (ClangFuncProto ClangFuncProtoOpts) []
@@ -146,8 +160,9 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
         [CFor _ _ _ _ body] -> do
           -- Body should contain a nested CFor and an expression statement
           length body `shouldSatisfy` (>= 1)
-          case body of
-            (CFor {} : _) -> return ()
+          let firstStmt = headMay body
+          case firstStmt of
+            Just (CFor {}) -> return ()
             other -> expectationFailure $ "Expected nested CFor, got: " <> show other
         other -> expectationFailure $ "Expected CFor, got: " <> show other
 
@@ -163,11 +178,11 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
         [CFor _ initC condC incrC _body] -> do
           -- Init should be an expression (i = 0)
           case initC of
-            CForInitExpr (Just (CAssign [] "=" (CIdent [] "i") (CIdent [] "0"))) -> return ()
+            CForInitExpr (Just (CAssign [] "=" (CIdent [] "i") (CLitInt [] 0))) -> return ()
             other -> expectationFailure $ "Expected CForInitExpr with assignment, got: " <> show other
           -- Cond should be i < 10
           case condC of
-            Just (CBinaryOp [] "<" (CIdent [] "i") (CIdent [] "10")) -> return ()
+            Just (CBinaryOp [] "<" (CIdent [] "i") (CLitInt [] 10)) -> return ()
             other -> expectationFailure $ "Expected binary < condition, got: " <> show other
           -- Incr should be i++
           case incrC of
@@ -339,11 +354,11 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
         (CFor _ initC condC _incrC body : _) -> do
           -- Outer for init: local_18 = 0
           case initC of
-            CForInitExpr (Just (CAssign _ "=" (CIdent _ "local_18") (CIdent _ "0"))) -> return ()
+            CForInitExpr (Just (CAssign _ "=" (CIdent _ "local_18") (CLitInt _ 0))) -> return ()
             other -> expectationFailure $ "Outer init: " <> show other
           -- Outer for cond: local_18 < 3
           case condC of
-            Just (CBinaryOp _ "<" (CIdent _ "local_18") (CIdent _ "3")) -> return ()
+            Just (CBinaryOp _ "<" (CIdent _ "local_18") (CLitInt _ 3)) -> return ()
             other -> expectationFailure $ "Outer cond: " <> show other
           -- Body should contain an inner for loop (may have empty CBlocks before it)
           let forStmts = [s | s@(CFor {}) <- body]
@@ -351,11 +366,11 @@ spec = describe "Ghidra.Clang C AST Conversion" $ do
             (CFor _ innerInit innerCond _ innerBody : _) -> do
               -- Inner for init: local_1c = 0
               case innerInit of
-                CForInitExpr (Just (CAssign _ "=" (CIdent _ "local_1c") (CIdent _ "0"))) -> return ()
+                CForInitExpr (Just (CAssign _ "=" (CIdent _ "local_1c") (CLitInt _ 0))) -> return ()
                 other' -> expectationFailure $ "Inner init: " <> show other'
               -- Inner for cond: local_1c < 3
               case innerCond of
-                Just (CBinaryOp _ "<" (CIdent _ "local_1c") (CIdent _ "3")) -> return ()
+                Just (CBinaryOp _ "<" (CIdent _ "local_1c") (CLitInt _ 3)) -> return ()
                 other' -> expectationFailure $ "Inner cond: " <> show other'
               -- Inner body should have printf
               length innerBody `shouldSatisfy` (>= 1)

@@ -173,6 +173,12 @@ library:
   - Flint.Shell.Commands.Inspect
   - Flint.Shell.Commands.Psum
   - Flint.Shell.Commands.GlobalXrefs
+  - Flint.Shell.Commands.CAst
+  - Flint.Shell.Commands.Decomp
+  - Flint.Types.Analysis.CAst.Finding
+  - Flint.Types.Analysis.CAst.Matcher
+  - Flint.Analysis.CAst.Matcher
+  - Flint.Analysis.CAst.Patterns
   - Flint.Shell.Repl
 
 executables:

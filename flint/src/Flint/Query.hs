@@ -717,6 +717,7 @@ checkFunc actuallySolve store q bugMatches streamResults startFunc = flip catch 
             , bugName = bugMatch ^. #bugName
             , bugDescription = resolveText $ bugMatch ^. #bugDescription
             , mitigationAdvice = resolveText $ bugMatch ^. #mitigationAdvice
+            , cwe = bugMatch ^. #cwe
             }
             where
               resolveText = M.resolveBoundText $ ms ^. #boundSyms
