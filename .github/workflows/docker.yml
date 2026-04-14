@@ -15,18 +15,29 @@ jobs:
         uses: actions/checkout@v6
       - name: driver
         uses: docker/setup-buildx-action@v4
-      - name: docker
+      - name: haskell
         uses: docker/build-push-action@v7
         with:
-          outputs: type=docker,dest=/tmp/myimage.tar
-          tags: myimage:latest
+          outputs: type=docker,dest=/tmp/haskell.tar
+          tags: haskell:latest
+          target: haskell
+      - name: just-deps
+        uses: docker/build-push-action@v7
+        with:
+          outputs: type=docker,dest=/tmp/just-deps.tar
+          tags: just-deps:latest
           target: just-deps
-      - name: upload
+      - name: upload haskell
         uses: actions/upload-artifact@v7
         with:
-          name: myimage
-          path: /tmp/myimage.tar
-#      - name: summary
-#        run: |
-#          echo "#COPY THIS" > $GITHUB_STEP_SUMMARY
-#          echo $GITHUB_RUN_ID >> $GITHUB_STEP_SUMMARY
+          name: haskell
+          path: /tmp/haskell.tar
+      - name: upload just-deps
+        uses: actions/upload-artifact@v7
+        with:
+          name: just-deps
+          path: /tmp/just-deps.tar
+      - name: summary
+        run: |
+          echo "#COPY THIS" > $GITHUB_STEP_SUMMARY
+          echo $GITHUB_RUN_ID >> $GITHUB_STEP_SUMMARY
