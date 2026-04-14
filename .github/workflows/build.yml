@@ -16,11 +16,11 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: myimage
-          run-id: 24422167052
+          run-id: 24422167052 # make this a variable updated every run of docker.yml
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: load
-        run:
+        run: |
           docker load --input /tmp/myimage.tar
           docker image ls -a
   lint:
@@ -30,7 +30,7 @@ jobs:
       - name: hlint
         run: just hlint --color=always
       - name: warnings
-        run:
+        run: |
           stack clean
           stack --color always build --test --no-run-tests --pedantic --fast
   build:
