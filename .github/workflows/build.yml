@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 jobs:
-  docker:
+  lint:
     runs-on: ubuntu-24.04
     steps:
 #      - name: setup # remove this step if deemed unnecessary
@@ -23,37 +23,30 @@ jobs:
         run: |
           docker load --input /tmp/myimage.tar
           docker image ls -a
-  lint:
-    runs-on: ubuntu-24.04
-    needs: docker
-    steps:
       - name: hlint
-        run: just hlint --color=always
+        run: |
+          docker run myimage:latest just hlint --color=always
       - name: warnings
         run: |
-          stack clean
-          stack --color always build --test --no-run-tests --pedantic --fast
+          docker run myimage:latest stack clean
+          docker run --rm stack --color always build --test --no-run-tests --pedantic --fast
   build:
     runs-on: ubuntu-24.04
-    needs: docker
+#    needs: docker # technically not true
     steps:
       - name: checkout
         uses: actions/checkout@v6
-      - name: docker
+      - name: builder # look into cache-to, cache-from with artifacts
         uses: docker/build-push-action@v7
         with:
           target: builder
           build-args: OPTIM="-O0" # make this an env variable
-#    outputs:
-#
-#    steps:
-#      
+#      - name: deliver
+#        uses: docker/build-push-action@v7
+#        with:
+#          target: deliver
   test:
     needs: build
     runs-on: ubuntu-24.04
     steps:
-      - run: echo "test"
-#on:
-#  pull_request:
-#    branches:
-#      - main
+      - run: /out/run-tests --color
