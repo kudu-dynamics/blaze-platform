@@ -18,10 +18,12 @@ jobs:
           outputs: type=cacheonly
           tags: myimage:pipeline
           target: just-deps
+      - name: hlint
+        run: just hlint --color=always
   build:
     runs-on: ubuntu-24.04
     steps:
-      - run: echo "build"
+      - run: echo build-$GITHUB_RUN_ID
 #    outputs:
 #
 #    steps:
