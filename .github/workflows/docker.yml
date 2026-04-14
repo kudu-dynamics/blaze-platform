@@ -1,0 +1,22 @@
+name: image
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      - name: docker
+        uses: docker/build-push-action@v7
+        with:
+          outputs: type=docker,dest=/tmp/myimage.tar
+          tags: myimage:pipeline-$GITHUB_RUN_ID
+          target: just-deps
+      - name: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: myimage
+          path: /tmp/myimage.tar
