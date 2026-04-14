@@ -10,9 +10,9 @@ jobs:
   docker:
     runs-on: ubuntu-24.04
     steps:
-      - name: setup # remove this step if deemed unnecessary
-        uses: docker/setup-buildx-action@v4
-      - name: download
+#      - name: setup # remove this step if deemed unnecessary
+#        uses: docker/setup-buildx-action@v4
+      - name: download # suggest rerunning docker.yml if this fails
         uses: actions/download-artifact@v8
         with:
           name: myimage
@@ -37,7 +37,13 @@ jobs:
     runs-on: ubuntu-24.04
     needs: docker
     steps:
-      - run: echo build-$GITHUB_RUN_ID
+      - name: checkout
+        uses: actions/checkout@v6
+      - name: docker
+        uses: docker/build-push-action@v7
+        with:
+          target: builder
+          build-args: OPTIM="-O0" # make this an env variable
 #    outputs:
 #
 #    steps:
