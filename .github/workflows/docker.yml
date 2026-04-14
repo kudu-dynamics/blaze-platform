@@ -10,10 +10,12 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v6
+      - name: driver
+        uses: docker/setup-buildx-action@v4
       - name: docker
         uses: docker/build-push-action@v7
         with:
-          outputs: type=oci,dest=/tmp/myimage.tar
+          outputs: type=docker,dest=/tmp/myimage.tar
           tags: myimage:latest
           target: just-deps
       - name: upload
