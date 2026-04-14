@@ -1,7 +1,7 @@
 name: image
 on:
   workflow_dispatch:
-  push: # comment this out upon push to main
+  #push: # comment this out upon push to main
 permissions:
   contents: read
 jobs:
