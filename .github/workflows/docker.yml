@@ -18,12 +18,14 @@ jobs:
       - name: haskell
         uses: docker/build-push-action@v7
         with:
+          context: .
           outputs: type=docker,dest=/tmp/haskell.tar
           tags: haskell:latest
           target: haskell
       - name: just-deps
         uses: docker/build-push-action@v7
         with:
+          context: .
           outputs: type=docker,dest=/tmp/just-deps.tar
           tags: just-deps:latest
           target: just-deps
@@ -32,12 +34,6 @@ jobs:
         with:
           name: haskell
           path: /tmp/haskell.tar
-      - name: ls
-        run: |
-          docker load --input /tmp/just-deps.tar
-          docker load --input /tmp/haskell.tar
-          docker run --rm just-deps:latest ls -l
-          docker run --rm haskell:latest ls -l
       - name: upload just-deps
         uses: actions/upload-artifact@v7
         with:
