@@ -13,6 +13,8 @@ jobs:
   warnings:
     runs-on: ubuntu-24.04
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
       - name: download # suggest rerunning docker.yml if this fails
         id: download
         uses: actions/download-artifact@v8
@@ -42,6 +44,8 @@ jobs:
   hlint:
     runs-on: ubuntu-24.04
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
       - name: download
         uses: actions/download-artifact@v8
         with:
@@ -54,7 +58,7 @@ jobs:
           docker load --input /tmp/haskell.tar
           ls -l
           docker run -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest ls -l
-          docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest haskell:latest just hlint --color=always
+          docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest just hlint --color=always
   build:
     runs-on: ubuntu-24.04
 #    needs: docker # technically not true
