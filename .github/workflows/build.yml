@@ -21,8 +21,9 @@ jobs:
         run: docker load --input /tmp/just-deps.tar
       - name: warnings
         run: |
+          docker run just-deps:latest ls -l
           docker run just-deps:latest stack clean
-          docker run --rm just-deps stack --color always build --test --no-run-tests --pedantic --fast
+          docker run --rm just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
   hlint: # cache this image too
     runs-on: ubuntu-22.04
     steps:
@@ -36,7 +37,9 @@ jobs:
       - name: load
         run: docker load --input /tmp/haskell.tar
       - name: hlint
-        run: docker run --rm haskell:latest just hlint --color=always
+        run: |
+          docker run haskell:latest ls -l
+          docker run --rm haskell:latest just hlint --color=always
   build:
     runs-on: ubuntu-24.04
 #    needs: docker # technically not true
@@ -44,7 +47,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v6
       - name: setup
-        uses: docker/setupt-buildx-action@v4
+        uses: docker/setup-buildx-action@v4
       - name: builder # look into cache-to, cache-from with artifacts
         uses: docker/build-push-action@v7
         with:
@@ -53,7 +56,10 @@ jobs:
           tags: builder:latest
           outputs: type=docker,dest=/tmp/builder.tar
       - name: test
-        run: docker run --rm builder:latest /out/run-tests --color
+        run: |
+          docker load --input /tmp/builder.tar
+          docker run builder:latest ls -l
+          docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
 #        with:
