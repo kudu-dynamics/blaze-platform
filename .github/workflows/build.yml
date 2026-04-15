@@ -6,7 +6,8 @@ on:
       - main
 env:
   HASKELL_OPTIM: "-O0"
-  DOCKER_RUN_ID: 24477541928 # update this every run of docker.yml
+  # not working yet
+  #DOCKER_RUN_ID: 24477541928 # update this every run of docker.yml
 permissions:
   contents: read
 jobs:
@@ -17,7 +18,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: just-deps
-          run-id: $DOCKER_RUN_ID
+          run-id: 24477541928
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: docker
@@ -44,7 +45,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: haskell
-          run-id: $DOCKER_RUN_ID
+          run-id: 24477541928
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: hlint
