@@ -5,7 +5,7 @@ on:
     branches:
       - main
 env:
-  HASKELL_OPTIM: "-O0"
+  HASKELL_OPTIM: ${{ "-O0" }}
   DOCKER_RUN_ID: ${{ 24477541928 }} # update this every run of docker.yml
 permissions:
   contents: read
@@ -55,15 +55,15 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - name: checkout
-        uses: actions/checkout@v6
+#      - name: checkout
+#        uses: actions/checkout@v6
       - name: setup
         uses: docker/setup-buildx-action@v4
       - name: builder # look into cache-to, cache-from with artifacts
         uses: docker/build-push-action@v7
         with:
           target: builder
-          build-args: OPTIM=$HASKELL_OPTIM
+          build-args: OPTIM=${{ env.HASKELL_OPTIM }}
           tags: builder:latest
           outputs: type=docker,dest=/tmp/builder.tar
       - name: test
