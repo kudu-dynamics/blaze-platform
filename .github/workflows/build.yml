@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: download # suggest rerunning docker.yml if this fails
+        id: download
         uses: actions/download-artifact@v8
         with:
           name: just-deps
@@ -27,11 +28,11 @@ jobs:
           docker run just-deps:latest ls -l
       - name: warnings
         run: |
-          docker run just-deps:latest pwd
-          docker run --mount type=bind,src=$(pwd),dst=/ just-deps:latest stack clean
-          docker run --rm --mount type=bind,src=$(pwd),dst=/ just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
+          ls -l
+          docker run -w /mnt --mount type=bind,src=$(pwd),dst=/mnt just-deps:latest stack clean
+          docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
       - name: suggest
-        if: ${{ failure() && steps.docker.conclusion == 'failure' }}
+        if: ${{ failure() && (steps.docker.conclusion == 'failure' || steps.download.conclusion == 'failure')  }}
         run: |
           echo "This probably failed because there is an " > $GITHUB_STEP_SUMMARY
           echo "issue with the cached docker image. Rerun " >> $GITHUB_STEP_SUMMARY
@@ -51,9 +52,9 @@ jobs:
       - name: hlint
         run: |
           docker load --input /tmp/haskell.tar
-          docker run haskell:latest pwd
-          docker run --mount type=bind,src=$(pwd),dst=/ haskell:latest ls -l
-          docker run --rm --mount type=bind,src=$(pwd),dst=/ haskell:latest haskell:latest just hlint --color=always
+          ls -l
+          docker run -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest ls -l
+          docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest haskell:latest just hlint --color=always
   build:
     runs-on: ubuntu-24.04
 #    needs: docker # technically not true
