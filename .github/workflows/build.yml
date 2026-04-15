@@ -27,8 +27,9 @@ jobs:
           docker run just-deps:latest ls -l
       - name: warnings
         run: |
-          docker run --mount type=bind,src=$(pwd),dst=/ haskell:latest just-deps:latest stack clean
-          docker run --rm --mount type=bind,src=$(pwd),dst=/ haskell:latest just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
+          docker run just-deps:latest pwd
+          docker run --mount type=bind,src=$(pwd),dst=/ just-deps:latest stack clean
+          docker run --rm --mount type=bind,src=$(pwd),dst=/ just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
       - name: suggest
         if: ${{ failure() && steps.docker.conclusion == 'failure' }}
         run: |
@@ -50,6 +51,7 @@ jobs:
       - name: hlint
         run: |
           docker load --input /tmp/haskell.tar
+          docker run haskell:latest pwd
           docker run --mount type=bind,src=$(pwd),dst=/ haskell:latest ls -l
           docker run --rm --mount type=bind,src=$(pwd),dst=/ haskell:latest haskell:latest just hlint --color=always
   build:
