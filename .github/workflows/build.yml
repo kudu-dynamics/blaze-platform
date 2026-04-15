@@ -7,7 +7,7 @@ on:
 env:
   HASKELL_OPTIM: "-O0"
   # not working yet
-  #DOCKER_RUN_ID: 24477541928 # update this every run of docker.yml
+  DOCKER_RUN_ID: ${{ 24477541928 }} # update this every run of docker.yml
 permissions:
   contents: read
 jobs:
@@ -18,7 +18,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: just-deps
-          run-id: 24477541928
+          run-id: $DOCKER_RUN_ID
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: docker
@@ -28,8 +28,8 @@ jobs:
           docker run just-deps:latest ls -l
       - name: warnings
         run: |
-          docker run just-deps:latest stack clean
-          docker run --rm just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
+          docker run --mount type=bind,src=./,dst=./ haskell:latest just-deps:latest stack clean
+          docker run --rm --mount type=bind,src=./,dst=./ haskell:latest just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
       - name: suggest
         if: ${{ failure() && steps.docker.conclusion == 'failure' }}
         run: |
@@ -45,14 +45,14 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: haskell
-          run-id: 24477541928
+          run-id: $DOCKER_RUN_ID
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: hlint
         run: |
           docker load --input /tmp/haskell.tar
-          docker run haskell:latest ls -l
-          docker run --rm haskell:latest just hlint --color=always
+          docker run --mount type=bind,src=./,dst=./ haskell:latest ls -l
+          docker run --rm --mount type=bind,src=./,dst=./ haskell:latest haskell:latest just hlint --color=always
   build:
     runs-on: ubuntu-24.04
 #    needs: docker # technically not true
