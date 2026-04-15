@@ -7,46 +7,59 @@ on:
 permissions:
   contents: read
 jobs:
-  lint:
+  warnings:
     runs-on: ubuntu-24.04
     steps:
-#      - name: setup # remove this step if deemed unnecessary
-#        uses: docker/setup-buildx-action@v4
       - name: download # suggest rerunning docker.yml if this fails
         uses: actions/download-artifact@v8
         with:
-          name: myimage
-          run-id: 24422167052 # make this a variable updated every run of docker.yml
+          name: just-deps
+          run-id: 24428073880 # make this a variable updated every run of docker.yml
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: load
-        run: |
-          docker load --input /tmp/myimage.tar
-          docker image ls -a
-      - name: hlint
-        run: |
-          docker run myimage:latest just hlint --color=always
+        run: docker load --input /tmp/just-deps.tar
       - name: warnings
         run: |
-          docker run myimage:latest stack clean
-          docker run --rm stack --color always build --test --no-run-tests --pedantic --fast
+          docker run just-deps:latest stack clean
+          docker run --rm just-deps stack --color always build --test --no-run-tests --pedantic --fast
+  hlint: # cache this image too
+    runs-on: ubuntu-22.04
+    steps:
+      - name: download
+        uses: actions/download-artifact@v8
+        with:
+          name: haskell
+          run-id: 24428073880
+          github-token: ${{ secrets.GITHUB_TOKEN }} 
+          path: /tmp
+      - name: load
+        run: docker load --input /tmp/haskell.tar
+      - name: hlint
+        run: docker run --rm haskell:latest just hlint --color=always
   build:
     runs-on: ubuntu-24.04
 #    needs: docker # technically not true
     steps:
       - name: checkout
         uses: actions/checkout@v6
+      - name: setup
+        uses: docker/setupt-buildx-action@v4
       - name: builder # look into cache-to, cache-from with artifacts
         uses: docker/build-push-action@v7
         with:
           target: builder
           build-args: OPTIM="-O0" # make this an env variable
+          tags: builder:latest
+          outputs: type=docker,dest=/tmp/builder.tar
+      - name: test
+        run: docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
 #        with:
 #          target: deliver
-  test:
-    needs: build
-    runs-on: ubuntu-24.04
-    steps:
-      - run: /out/run-tests --color
+#  test:
+#    needs: build
+#    runs-on: ubuntu-24.04
+#    steps:
+#      - run: /out/run-tests --color
