@@ -17,10 +17,9 @@ jobs:
           run-id: 24428073880 # make this a variable updated every run of docker.yml
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
-      - name: load
-        run: docker load --input /tmp/just-deps.tar
       - name: warnings
         run: |
+          docker load --input /tmp/just-deps.tar
           docker run just-deps:latest ls -l
           docker run just-deps:latest stack clean
           docker run --rm just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
@@ -34,10 +33,9 @@ jobs:
           run-id: 24428073880
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
-      - name: load
-        run: docker load --input /tmp/haskell.tar
       - name: hlint
         run: |
+          docker load --input /tmp/haskell.tar
           docker run haskell:latest ls -l
           docker run --rm haskell:latest just hlint --color=always
   build:
@@ -59,6 +57,9 @@ jobs:
         run: |
           docker load --input /tmp/builder.tar
           docker run builder:latest ls -l
+          docker run builder:latest ls -l /out
+          docker run builder:latest file /out/run-tests
+          dockre run builder:latest uname -a
           docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
