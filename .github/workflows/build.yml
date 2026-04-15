@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+env:
+  HASKELL_OPTIM: "-O0"
+  DOCKER_RUN_ID: 24477541928 # update this every run of docker.yml
 permissions:
   contents: read
 jobs:
@@ -14,23 +17,34 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: just-deps
-          run-id: 24428073880 # make this a variable updated every run of docker.yml
+          run-id: $DOCKER_RUN_ID
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
-      - name: warnings
+      - name: docker
+        id: docker
         run: |
           docker load --input /tmp/just-deps.tar
           docker run just-deps:latest ls -l
+      - name: warnings
+        run: |
           docker run just-deps:latest stack clean
           docker run --rm just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast
-  hlint: # cache this image too
-    runs-on: ubuntu-22.04
+      - name: suggest
+        if: ${{ failure() && steps.docker.conclusion == 'failure' }}
+        run: |
+          echo "This probably failed because there is an " > $GITHUB_STEP_SUMMARY
+          echo "issue with the cached docker image. Rerun " >> $GITHUB_STEP_SUMMARY
+          echo "`image` workflow and copy the run ID into " >> $GITHUB_STEP_SUMMARY
+          echo "`.github/workflows/build.yml` as the " >> $GITHUB_STEP_SUMMARY
+          echo "\$DOCKER_RUN_ID env variable." >> $GITHUB_STEP_SUMMARY
+  hlint:
+    runs-on: ubuntu-24.04
     steps:
       - name: download
         uses: actions/download-artifact@v8
         with:
           name: haskell
-          run-id: 24428073880
+          run-id: $DOCKER_RUN_ID
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           path: /tmp
       - name: hlint
@@ -42,15 +56,15 @@ jobs:
     runs-on: ubuntu-24.04
 #    needs: docker # technically not true
     steps:
-      - name: checkout
-        uses: actions/checkout@v6
+#      - name: checkout
+#        uses: actions/checkout@v6
       - name: setup
         uses: docker/setup-buildx-action@v4
       - name: builder # look into cache-to, cache-from with artifacts
         uses: docker/build-push-action@v7
         with:
           target: builder
-          build-args: OPTIM="-O0" # make this an env variable
+          build-args: OPTIM=$HASKELL_OPTIM
           tags: builder:latest
           outputs: type=docker,dest=/tmp/builder.tar
       - name: test
