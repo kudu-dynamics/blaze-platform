@@ -15,6 +15,7 @@ import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
 import Flint.Types.Cfg.Store (CfgStore)
 
 import Blaze.Cfg.Path (PilPath)
+import Blaze.Import.Binary (Stage)
 import Blaze.Import.Xref (Xref)
 import Blaze.Types.Function (Function)
 import qualified Blaze.Types.Pil as Pil
@@ -205,7 +206,8 @@ data ShellState = ShellState
   , userKnownFuncs :: IORef [KnownFunc]
   , taintConfigVersion :: IORef Int
   , userCAstChecks :: IORef [CAstCheck]
-  , inspectAddr :: Maybe (Address -> IO (Maybe Text))
+  , inspectAddr :: Maybe (Address -> Stage -> IO (Maybe Text))
+  , dumpLift    :: Maybe (Address -> Stage -> Maybe (Address, Address) -> IO (Either Text Text))
   , decompFunc  :: Maybe (Address -> IO (Maybe Text))
   , decompFuncAst :: Maybe (Address -> IO (Maybe [CStmt]))
   , saveToDb    :: Maybe (FilePath -> IO (Either Text FilePath))
@@ -228,14 +230,15 @@ data CommandResult
 
 initShellState
   :: CfgStore -> Address -> Bool
-  -> Maybe (Address -> IO (Maybe Text))
+  -> Maybe (Address -> Stage -> IO (Maybe Text))
+  -> Maybe (Address -> Stage -> Maybe (Address, Address) -> IO (Either Text Text))
   -> Maybe (Address -> IO (Maybe Text))
   -> Maybe (Address -> IO (Maybe [CStmt]))
   -> Maybe (FilePath -> IO (Either Text FilePath))
   -> Maybe (Address -> IO [Xref])
   -> Maybe (Text -> IO (Maybe Address))
   -> IO ShellState
-initShellState store base solver mInspect mDecomp mDecompAst mSave mXrefs mLookupSym = do
+initShellState store base solver mInspect mDumpLift mDecomp mDecompAst mSave mXrefs mLookupSym = do
   cache <- newIORef HashMap.empty
   nextId <- newIORef 0
   solverRef <- newIORef solver
@@ -258,6 +261,7 @@ initShellState store base solver mInspect mDecomp mDecompAst mSave mXrefs mLooku
     , userCAstChecks = userCAstChecksRef
     , taintConfigVersion = taintVersionRef
     , inspectAddr = mInspect
+    , dumpLift = mDumpLift
     , decompFunc = mDecomp
     , decompFuncAst = mDecompAst
     , saveToDb = mSave
