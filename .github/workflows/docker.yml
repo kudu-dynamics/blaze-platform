@@ -32,6 +32,12 @@ jobs:
         with:
           name: haskell
           path: /tmp/haskell.tar
+      - name: ls
+        run: |
+          docker load --input /tmp/just-deps.tar
+          docker load --input /tmp/haskell.tar
+          docker run --rm just-deps:latest ls -l
+          docker run --rm haskell:latest ls -l
       - name: upload just-deps
         uses: actions/upload-artifact@v7
         with:
@@ -39,5 +45,5 @@ jobs:
           path: /tmp/just-deps.tar
       - name: summary
         run: |
-          echo "#COPY THIS" > $GITHUB_STEP_SUMMARY
+          echo "# COPY THIS" > $GITHUB_STEP_SUMMARY
           echo $GITHUB_RUN_ID >> $GITHUB_STEP_SUMMARY
