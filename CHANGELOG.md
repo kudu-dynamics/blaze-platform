@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0415
+- `BackendDescriptor` + `Stage` on `BinaryImporter` — descriptor carries backend display name and low/high IR stage names (Ghidra: `"Raw P-code"` / `"High P-code"`). `inspectAddress` now takes a `Stage`; new `dumpLift` class method dumps low+high IR for a whole function with an optional address range
+- `inspect_address` tool gains `stage=low|high|both` (default `both`) and labels come from the descriptor. New `dump-lift` shell command + `dump_lift` MCP tool: per-instruction interleaved low/high dump so lifter gaps are visible at a glance, with optional `addresses=LO-HI` filter. Primary use: debugging flint features at both IR levels without dropping into Ghidra's scripting bridge
+
 ## Version 0.26.0410
 - Fix `CachedCalc.get` deadlock — wrap critical section in `mask` so async exceptions (e.g. from `forConcurrently` cancellation) can't kill a thread between TMVar creation and `try`, which left the TMVar permanently empty and caused "thread blocked indefinitely in an MVar/STM operation" errors with the original exception lost
 - Fix `--exclude-self` + `--depth` re-entering the excluded target — `expandPathToDepth` now takes a skip set of function addresses to not expand, used by the exclude-self path

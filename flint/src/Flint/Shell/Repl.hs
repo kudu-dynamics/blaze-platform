@@ -21,6 +21,7 @@ import Flint.Shell.Commands.Taint (taintAddCommand, taintListCommand, taintRemov
 import Flint.Shell.Commands.PrimDef (primDefCommand, primListCommand, primRemoveCommand, primResetCommand)
 import Flint.Shell.Commands.StdLib (stdlibAddCommand, stdlibListCommand, stdlibRemoveCommand)
 import Flint.Shell.Commands.Inspect (inspectCommand, saveCommand)
+import Flint.Shell.Commands.DumpLift (dumpLiftCommand)
 import Flint.Shell.Commands.Analyze (analyzeAllCommand)
 import Flint.Shell.Commands.Psum (psumCommand)
 import Flint.Shell.Commands.GlobalXrefs (globalXrefsCommand)
@@ -79,6 +80,7 @@ allCommands =
   , stdlibListCommand
   , stdlibRemoveCommand
   , inspectCommand
+  , dumpLiftCommand
   , decompCommand
   , saveCommand
   , analyzeAllCommand

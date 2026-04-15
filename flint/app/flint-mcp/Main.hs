@@ -13,7 +13,7 @@ import Flint.Shell.Command (dispatchCommand)
 import Flint.Shell.Commands.CAst (castPatternAddCommand)
 import Flint.Shell.Repl (allCommands)
 
-import Blaze.Import.Binary (getBase, inspectAddress, saveToDb, lookupGlobalSymbol)
+import Blaze.Import.Binary (getBase, inspectAddress, dumpLift, saveToDb, lookupGlobalSymbol)
 import Blaze.Import.Decomp (decompileFunctionText, decompileFunctionAst)
 import Blaze.Import.Xref (getXrefsTo)
 
@@ -231,7 +231,7 @@ loadBinary mcpSt fp = do
           analysisDbPath <- Store.resolveAnalysisDb (opts ^. #analysisDb) fp
           (store, _) <- Store.initWithTypeHints typeHintsWhitelist HashSet.empty analysisDbPath imp
           base <- getBase imp
-          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ decompileFunctionText imp) (Just $ decompileFunctionAst imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
+          st <- initShellState store base (not $ opts ^. #doNotUseSolver) (Just $ inspectAddress imp) (Just $ dumpLift imp) (Just $ decompileFunctionText imp) (Just $ decompileFunctionAst imp) (Just $ \outPath -> saveToDb outPath imp) (Just $ getXrefsTo imp) (Just $ lookupGlobalSymbol imp)
           writeIORef (mcpSt ^. #shellStateRef) (Just st)
           SIO.hPutStrLn stderr $ "Binary loaded: " <> fp
           putMVar readyMVar (Right ())
@@ -421,7 +421,17 @@ buildCommandString toolName args = case toolName of
   "inspect_address" ->
     case lookupArg "address" args of
       Nothing -> Left "Missing required parameter: address"
-      Just addr -> Right $ "inspect " <> addr
+      Just addr ->
+        let stageArg = maybe "" (" stage=" <>) (lookupArg "stage" args)
+        in Right $ "inspect " <> addr <> stageArg
+
+  "dump_lift" ->
+    case lookupArg "function" args of
+      Nothing -> Left "Missing required parameter: function"
+      Just fn ->
+        let stageArg = maybe "" (" stage=" <>) (lookupArg "stage" args)
+            addrsArg = maybe "" (" addresses=" <>) (lookupArg "addresses" args)
+        in Right $ "dump-lift " <> fn <> stageArg <> addrsArg
 
   "decompile_function" ->
     case lookupArg "function" args of
@@ -773,12 +783,26 @@ toolDefinitions =
       }
   , ToolDefinition
       { toolDefinitionName = "inspect_address"
-      , toolDefinitionDescription = "Inspect the raw instruction and P-code at a given address. Shows the assembly instruction, which Ghidra basic block contains it, and the raw P-code operations. Useful for understanding how binary addresses map to the PIL IR."
+      , toolDefinitionDescription = "Inspect the instruction and IR at a given address. Shows the assembly instruction, the containing basic block range, and the low (raw P-code) and/or high (decompiled P-code) IR operations. Labels are backend-specific — for Ghidra, low IR is 'Raw P-code' and high IR is 'High P-code'. Primary use: debugging the gap between low and high IR when a flint feature misbehaves on a specific instruction."
       , toolDefinitionInputSchema = InputSchemaDefinitionObject
           { properties =
               [ ("address", InputSchemaDefinitionProperty "string" "Hex address to inspect (e.g. '0x804d509')")
+              , ("stage", InputSchemaDefinitionProperty "string" "Which IR level(s) to show: 'low', 'high', or 'both' (default: 'both')")
               ]
           , required = ["address"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "dump_lift"
+      , toolDefinitionDescription = "Dump the low and/or high IR for an entire function, interleaved per instruction address so the low->high gap is visible at a glance. Primary use: debugging flint features against a specific function at both IR levels. Supports 'addresses' to narrow the dump to a contiguous range — recommended for large functions. Output is for human/LLM consumption and not guaranteed stable across versions."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address (e.g. 'main' or '0x100003e44')")
+              , ("stage", InputSchemaDefinitionProperty "string" "Which IR level(s) to show: 'low', 'high', or 'both' (default: 'both')")
+              , ("addresses", InputSchemaDefinitionProperty "string" "Optional contiguous address range 'LO-HI' (e.g. '0x42b904-0x42b920') to restrict the dump")
+              ]
+          , required = ["function"]
           }
       , toolDefinitionTitle = Nothing
       }

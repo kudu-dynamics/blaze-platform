@@ -5,7 +5,7 @@ module Blaze.Import.Source.Ghidra (
   module Exports,
 ) where
 
-import Blaze.Import.Binary (BinaryImporter (..))
+import Blaze.Import.Binary (BinaryImporter (..), BackendDescriptor (..), Stage (..))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
 import Blaze.Import.Decomp (DecompImporter (..))
@@ -37,6 +37,31 @@ import qualified Data.HashMap.Strict as HashMap
 -- that Ghidra's hasStringValue() incorrectly reports as strings).
 filterStringsMap :: HashMap Int64 Text -> HashMap Address Text
 filterStringsMap = HashMap.mapKeys intToAddr . HashMap.filterWithKey (\k _ -> k >= 0x100)
+
+-- | Labels + display name for the Ghidra backend, used by the
+-- 'describeBackend' instance method and passed into the ghidra-haskell
+-- rendering helpers in 'Ghidra.Inspect'.
+ghidraBackendDescriptor :: BackendDescriptor
+ghidraBackendDescriptor = BackendDescriptor
+  { backendName = "Ghidra"
+  , lowIrName = "Raw P-code"
+  , highIrName = "High P-code"
+  }
+
+-- | Unpack a 'BackendDescriptor' + 'Stage' into the string+enum params
+-- expected by 'GInspect.inspectAddress' / 'GInspect.dumpFunctionLift'.
+-- The indirection exists because ghidra-haskell sits below blaze in the
+-- package graph and can't reference blaze-level types directly.
+toInspectParams :: BackendDescriptor -> Stage -> GInspect.InspectParams
+toInspectParams desc s = GInspect.InspectParams
+  { lowLabel = desc ^. #lowIrName
+  , highLabel = desc ^. #highIrName
+  , backendLabel = desc ^. #backendName
+  , stage = case s of
+      StageLow -> GInspect.IStageLow
+      StageHigh -> GInspect.IStageHigh
+      StageBoth -> GInspect.IStageBoth
+  }
 
 getImporter :: FilePath -> IO GhidraImporter
 getImporter fp = do
@@ -97,8 +122,22 @@ instance BinaryImporter GhidraImporter where
 
   getStringsMap = return . view #stringsMap
 
-  inspectAddress imp addr =
-    runGhidraOrError $ GInspect.inspectAddress (imp ^. #ghidraState) addr
+  describeBackend _ = ghidraBackendDescriptor
+
+  inspectAddress imp addr stage =
+    runGhidraOrError $
+      GInspect.inspectAddress
+        (toInspectParams ghidraBackendDescriptor stage)
+        (imp ^. #ghidraState)
+        addr
+
+  dumpLift imp fnAddr stage mRange =
+    runGhidraOrError $
+      GInspect.dumpFunctionLift
+        (toInspectParams ghidraBackendDescriptor stage)
+        (imp ^. #ghidraState)
+        fnAddr
+        mRange
 
   lookupGlobalSymbol imp name = do
     let prg = imp ^. #ghidraState . #program
