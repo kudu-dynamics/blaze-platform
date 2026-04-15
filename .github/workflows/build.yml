@@ -72,8 +72,8 @@ jobs:
           docker load --input /tmp/builder.tar
           docker run builder:latest ls -l
           docker run builder:latest ls -l /out
-          docker run builder:latest file /out/run-tests
-          dockre run builder:latest uname -a
+          #docker run builder:latest file /out/run-tests
+          docker run builder:latest uname -a
           docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
