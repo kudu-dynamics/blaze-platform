@@ -74,7 +74,7 @@ jobs:
           #docker run builder:latest file /out/run-tests
           docker run builder:latest uname -a
           docker info --format '{{.Architecture}}'
-          docker inspect builder:builder --format '{{.Architecture}}'
+          docker inspect builder:latest --format '{{.Architecture}}'
           docker manifest inspect builder:latest
           docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
