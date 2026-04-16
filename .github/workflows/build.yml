@@ -29,7 +29,7 @@ jobs:
           docker run -w /mnt --mount type=bind,src=$(pwd),dst=/mnt just-deps:latest stack clean --allow-different-user
           docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast --allow-different-user
       - name: suggest
-        if: ${{ failure() && steps.download.conclusion == 'failure'  }}
+        if: ${{ failure() && steps.download.conclusion == 'failure' }}
         run: |
           echo "This probably failed because there is an " > $GITHUB_STEP_SUMMARY
           echo "issue with the cached docker image. Rerun " >> $GITHUB_STEP_SUMMARY
