@@ -1,16 +1,14 @@
 name: build
 on:
-  push: # consider only running this on changes to *.hs, *.project, and *.yaml (possibly also Makefiles, and *.sh)
+  push:
+    paths-ignore:
+      - '**.md'
   pull_request:
     branches:
       - main
 env:
   HASKELL_OPTIM: ${{ '-O0' }}
-  # replace with actions/cache
-  # key should be hash of Dockerfile, .github/workflows/build.yml,
-  # stack.yaml, binary-analysis/package.yaml, ghidra-haskell/package.yaml,
-  # blaze/package.yaml, and flint/package.yaml
-  DOCKER_RUN_ID: ${{ 24531044890 }} # update this every run of docker.yml
+#  DOCKER_RUN_ID: ${{ 24531044890 }} # update this every run of docker.yml
 permissions:
   contents: read
 jobs:
@@ -25,7 +23,7 @@ jobs:
         with:
           path: |
             ${{ runner.temp }}/haskell.tar
-            ${{ runner.temp }}/cache
+            #${{ runner.temp }}/cache
             ${{ runner.temp }}/just-deps.tar
           key: ${{ hashFiles('Dockerfile', '.github/workflows/build.yml', 'stack.yaml', 'binary-analysis/package.yaml', 'ghidra-haskell/package.yaml', 'blaze/package.yaml', 'flint/package.yaml') }}
       - name: driver
@@ -46,7 +44,8 @@ jobs:
         with:
           platforms: linux/amd64
           cache-from: type=local,src=${{ runner.temp }}/haskellcache
-          cache-to: type=local,dest=${{ runner.temp }}/cache
+          #cache-to: type=local,dest=${{ runner.temp }}/cache,mode=max
+          cache-to: type=gha,mode=max
           outputs: type=docker,dest=${{ runner.temp }}/just-deps.tar
           tags: just-deps:latest
           target: just-deps
@@ -61,18 +60,18 @@ jobs:
         with:
           name: just-deps
           path: ${{ runner.temp }}/just-deps.tar
-      - name: upload cache
-        uses: actions/upload-artifact@v7
-        with:
-          name: cache
-          path: ${{ runner.temp }}/cache
+#      - name: upload cache
+#        uses: actions/upload-artifact@v7
+#        with:
+#          name: cache
+#          path: ${{ runner.temp }}/cache
   warnings:
     needs: docker
     runs-on: ubuntu-24.04
     steps:
       - name: checkout
         uses: actions/checkout@v6
-      - name: download # suggest rerunning docker.yml if this fails
+      - name: download
         id: download
         uses: actions/download-artifact@v8
         with:
@@ -128,28 +127,25 @@ jobs:
       - name: builder
         uses: docker/build-push-action@v7
         with:
+          platforms: linux/amd64
+          #cache-from: type=local,src=${{ runner.temp }}/cache
+          cache-from: type=gha
           target: builder
           build-args: OPTIM=${{ env.HASKELL_OPTIM }}
           tags: builder:latest
           outputs: type=docker,dest=${{ runner.temp }}/builder.tar
-          platforms: linux/amd64
-          cache-from: type=local,src=${{ runner.temp }}/cache
       - name: test
         run: |
           docker load --input ${{ runner.temp }}/builder.tar
           docker run builder:latest ls -l
           docker run builder:latest ls -l /out
-          #docker run builder:latest file /out/run-tests
           docker run builder:latest uname -a
           docker info --format '{{.Architecture}}'
           docker image inspect builder:latest
+          docker run builder:latest apt install -yq --no-install-recommends file
+          docker run builder:latest file /out/run-tests
           docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
 #        with:
 #          target: deliver
-#  test:
-#    needs: build
-#    runs-on: ubuntu-24.04
-#    steps:
-#      - run: /out/run-tests --color
