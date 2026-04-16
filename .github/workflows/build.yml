@@ -67,6 +67,7 @@ jobs:
           name: cache
           path: ${{ runner.temp }}/cache
   warnings:
+    needs: docker
     runs-on: ubuntu-24.04
     steps:
       - name: checkout
@@ -76,23 +77,24 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: just-deps
-          run-id: ${{ env.DOCKER_RUN_ID }}
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
-          path: /tmp
+          #run-id: ${{ env.DOCKER_RUN_ID }}
+          #github-token: ${{ secrets.GITHUB_TOKEN }} 
+          path: ${{ runner.temp }}
       - name: warnings
         run: |
-          docker load --input /tmp/just-deps.tar
+          docker load --input ${{ runner.temp }}/just-deps.tar
           docker run -w /mnt --mount type=bind,src=$(pwd),dst=/mnt just-deps:latest stack clean --allow-different-user
           docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt just-deps:latest stack --color always build --test --no-run-tests --pedantic --fast --allow-different-user
-      - name: suggest
-        if: ${{ failure() && steps.download.conclusion == 'failure' }}
-        run: |
-          echo "This probably failed because there is an " > $GITHUB_STEP_SUMMARY
-          echo "issue with the cached docker image. Rerun " >> $GITHUB_STEP_SUMMARY
-          echo "`image` workflow and copy the run ID into " >> $GITHUB_STEP_SUMMARY
-          echo "`.github/workflows/build.yml` as the " >> $GITHUB_STEP_SUMMARY
-          echo "\$DOCKER_RUN_ID env variable." >> $GITHUB_STEP_SUMMARY
+#      - name: suggest
+#        if: ${{ failure() && steps.download.conclusion == 'failure' }}
+#        run: |
+#          echo "This probably failed because there is an " > $GITHUB_STEP_SUMMARY
+#          echo "issue with the cached docker image. Rerun " >> $GITHUB_STEP_SUMMARY
+#          echo "`image` workflow and copy the run ID into " >> $GITHUB_STEP_SUMMARY
+#          echo "`.github/workflows/build.yml` as the " >> $GITHUB_STEP_SUMMARY
+#          echo "\$DOCKER_RUN_ID env variable." >> $GITHUB_STEP_SUMMARY
   hlint:
+    needs: docker
     runs-on: ubuntu-24.04
     steps:
       - name: checkout
@@ -101,14 +103,15 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: haskell
-          run-id: ${{ env.DOCKER_RUN_ID }}
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
-          path: /tmp
+          #run-id: ${{ env.DOCKER_RUN_ID }}
+          #github-token: ${{ secrets.GITHUB_TOKEN }} 
+          path: ${{ runner.temp }}
       - name: hlint
         run: |
-          docker load --input /tmp/haskell.tar
+          docker load --input ${{ runner.temp }}/haskell.tar
           docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest just hlint --color=always
   build:
+    needs: docker
     runs-on: ubuntu-24.04
     steps:
 #      - name: checkout
@@ -119,27 +122,28 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: cache
-          run-id: ${{ env.DOCKER_RUN_ID }}
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
-          path: /tmp
-      - name: builder # look into cache-to, cache-from with artifacts
+          #run-id: ${{ env.DOCKER_RUN_ID }}
+          #github-token: ${{ secrets.GITHUB_TOKEN }} 
+          path: ${{ runner.temp }}
+      - name: builder
         uses: docker/build-push-action@v7
         with:
           target: builder
           build-args: OPTIM=${{ env.HASKELL_OPTIM }}
           tags: builder:latest
-          outputs: type=docker,dest=/tmp/builder.tar
+          outputs: type=docker,dest=${{ runner.temp }}/builder.tar
           platforms: linux/amd64
-          cache-from: type=local,src=/tmp/cache
+          cache-from: type=local,src=${{ runner.temp }}/cache
       - name: test
         run: |
-          docker load --input /tmp/builder.tar
+          docker load --input ${{ runner.temp }}/builder.tar
           docker run builder:latest ls -l
           docker run builder:latest ls -l /out
           #docker run builder:latest file /out/run-tests
           docker run builder:latest uname -a
           docker info --format '{{.Architecture}}'
-          docker image inspect builder:latest ; docker run --rm builder:latest /out/run-tests --color
+          docker image inspect builder:latest
+          docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
 #        with:
