@@ -1,8 +1,5 @@
 # Blaze Platform
 
-## Version 0.26.0417a
-- Added github ci
-
 ## Version 0.26.0415
 - `BackendDescriptor` + `Stage` on `BinaryImporter` — descriptor carries backend display name and low/high IR stage names (Ghidra: `"Raw P-code"` / `"High P-code"`). `inspectAddress` now takes a `Stage`; new `dumpLift` class method dumps low+high IR for a whole function with an optional address range
 - `inspect_address` tool gains `stage=low|high|both` (default `both`) and labels come from the descriptor. New `dump-lift` shell command + `dump_lift` MCP tool: per-instruction interleaved low/high dump so lifter gaps are visible at a glance, with optional `addresses=LO-HI` filter. Primary use: debugging flint features at both IR levels without dropping into Ghidra's scripting bridge
