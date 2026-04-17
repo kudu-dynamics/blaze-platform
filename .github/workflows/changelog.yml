@@ -12,8 +12,11 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
       - name: validate
         run: |
           echo $GITHUB_HEAD_REF
           echo $GITHUB_BASE_REF
+          git fetch origin $GITHUB_BASE_REF --depth 1
           git diff $GITHUB_HEAD_REF $GITHUB_BASE_REF -- CHANGELOG.md | grep "[[:alnum:]]"
