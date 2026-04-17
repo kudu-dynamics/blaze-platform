@@ -1,0 +1,19 @@
+name: validate changelog
+on:
+  push: # delete this line before merge
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      - name: validate
+        run: |
+          echo ${{ github.head_ref }}
+          echo ${{ github.base_ref }}
+          git diff ${{ github.head_ref }} ${{ github.base_ref }} -- CHANGELOG.md | grep "[[:alnum:]]"
