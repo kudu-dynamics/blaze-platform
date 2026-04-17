@@ -175,16 +175,17 @@ RUN <<EOF
         zlib1g-dev
 
         # Running tests
+        just
         python3
     )
     apt install -yq --no-install-recommends "${packages[@]}"
 EOF
 
-RUN <<EOF
-    set -euxo pipefail
-    curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
-    | bash -s -- --to /usr/local/bin
-EOF
+#RUN <<EOF
+#    set -euxo pipefail
+#    curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
+#    | bash -s -- --to /usr/local/bin
+#EOF
 
 ENV PATH="/root/.cabal/bin:/root/.ghcup/bin:/root/.local/bin${PATH:+:$PATH}"
 RUN --mount=type=bind,source=stack.yaml,target=/stack.yaml \
