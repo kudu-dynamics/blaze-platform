@@ -20,5 +20,5 @@ jobs:
           echo $GITHUB_BASE_REF
           git branch -vv
           git fetch origin $GITHUB_BASE_REF --depth 1
-          git checkout origin/${{ github.base_ref }}
+          git checkout origin/main
           git diff $GITHUB_HEAD_REF $GITHUB_BASE_REF -- CHANGELOG.md | grep "[[:alnum:]]"
