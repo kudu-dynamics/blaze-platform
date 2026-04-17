@@ -286,13 +286,13 @@ tokenizeExprOp msym exprOp size = case exprOp of
 
   -------- bookmark ---------------
   (Pil.SBB op) -> tokenizeBinop msym "sbb" op
-  (Pil.STACK_LOCAL_ADDR op) ->
+  (Pil.STACK_ADDR stackOff) ->
     pure . paren $
       [ tt "DEREF"
       , tt " "
       , decimalToken (Pil.sizeToWidth size)
       , tt " "
-      , varToken Nothing $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
+      , varToken Nothing $ showStackLocalByteOffset (stackOff ^. #offset)
       ]
   (Pil.SUB op) -> tokenizeBinop msym "bvsub" op
   (Pil.SUB_WILL_OVERFLOW op) -> tokenizeBinop msym "subOF" op

@@ -116,8 +116,7 @@ varToStackLocalAddr v = do
   ctx' <- use #ctx
   addrSize' <- addessWidthToOperationSize <$> use #addrSize
   return $ Expression addrSize'
-    . Pil.STACK_LOCAL_ADDR
-    . Pil.StackLocalAddrOp
+    . Pil.STACK_ADDR
     . Pil.StackOffset ctx'
     . fromIntegral
     $ v ^. BNVar.storage

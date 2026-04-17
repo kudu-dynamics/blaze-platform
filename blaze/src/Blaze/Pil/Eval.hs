@@ -200,7 +200,7 @@ simplifyPilExpr expr@(Expression sz ops) = case ops of
   StrNCmp _ ->          unimplemented
   MemCmp _ ->           unimplemented
   ExternPtr _ ->        unimplemented
-  STACK_LOCAL_ADDR _ -> unimplemented
+  STACK_ADDR _ ->       unimplemented
   UPDATE_VAR _ ->       unimplemented
   FIELD_ADDR _ ->       unimplemented
   UNIT ->               unimplemented

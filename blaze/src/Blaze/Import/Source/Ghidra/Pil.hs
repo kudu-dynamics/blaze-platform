@@ -173,7 +173,7 @@ instance IsVariable a => IsVariable (P.Input a) where
 data VarNodeType
   = VUnique {offset :: Int64, pcAddress :: Maybe Int64}
   | VReg {offset :: Int64, pcAddress :: Maybe Int64}
-  | VStack {offset :: Int64, pcAddress :: Maybe Int64}
+  | VStack {offset :: Int64, pcAddress :: Maybe Int64, ptrSize :: Bytes}
   | VRam {offset :: Int64, ptrSize :: Bytes}
   -- | VConstAddr Int64
   | VExtern {offset :: Int64, ptrSize :: Bytes}
@@ -199,7 +199,7 @@ getVarNodeType v = case getVarType v of
     BA.Const -> error "Got a varnode that was not .isConstant() but whose address space was 'const'"
     BA.Ram -> VRam{offset = off, ptrSize = ptrSize}
     BA.Register -> VReg{offset = off, pcAddress = pcAddressOffset}
-    BA.Stack -> VStack{offset = off, pcAddress = pcAddressOffset}
+    BA.Stack -> VStack{offset = off, pcAddress = pcAddressOffset, ptrSize = ptrSize}
     BA.Unique -> VUnique{offset = off, pcAddress = pcAddressOffset}
     BA.Other t -> VOther t off
     where
@@ -343,11 +343,9 @@ varNodeToReference v = do
       let regName = getRegisterName offset size reg
       let name = fromMaybe regName specialName
       pure . Left . pv version name (HashSet.member name paramNames) $ Pil.Register regName
-    VStack{offset, pcAddress} -> do
-      version <- lift $ internVarnode (SSAStack offset) pcAddress
-      let stackName = stackVarName offset
-      let name = fromMaybe stackName specialName
-      pure . Left . pv version name (HashSet.member name paramNames) $ Pil.StackMemory offset
+    VStack{offset, ptrSize = ptrSz} -> do
+      let stackOff = Pil.StackOffset ctx' (ByteOffset $ fromIntegral offset)
+      pure . Right $ Expression (fromIntegral ptrSz) (Pil.STACK_ADDR stackOff)
     VUnique{offset, pcAddress} -> do
       version <- lift $ internVarnode (SSAUnique offset) pcAddress
       let baseName = fromMaybe ("unique_" <> showHex offset) specialName
@@ -360,7 +358,6 @@ varNodeToReference v = do
       pure . Left . pv Nothing name False $ Pil.Code off
   where
     specialName = getSpecialName v
-    stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
 
 
 maybeInsert :: Hashable k => k -> Maybe v -> HashMap k v -> HashMap k v
@@ -400,9 +397,11 @@ varNodeToValueExpr v = do
     VReg{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
-    VStack{} -> do
-      pv <- varNodeToPilVar v
-      pure $ C.var' pv operSize
+    VStack{offset, ptrSize = ptrSz} -> do
+      ctx' <- use #ctx
+      let stackOff = Pil.StackOffset ctx' (ByteOffset $ fromIntegral offset)
+          addr = Expression (fromIntegral ptrSz) (Pil.STACK_ADDR stackOff)
+      pure $ Expression operSize (Pil.LOAD $ Pil.LoadOp addr)
     VUnique{} -> do
       pv <- varNodeToPilVar v
       pure $ C.var' pv operSize
@@ -547,8 +546,8 @@ convertPcodeOpToPilStatement = \case
   P.MULTIEQUAL out in0 in1 rest -> do
     -- TODO: memory phi statements are just silently ignored here
     flip catchError (\_ -> pure []) $ do
-      pout <- varNodeToPilVar out
-      pins <- traverse varNodeToPilVar (in0:in1:rest)
+      pout <- phiVarNode out
+      pins <- traverse phiVarNode (in0:in1:rest)
       pure [Pil.DefPhi . Pil.DefPhiOp pout $ pins]
   P.NEW _out _in0 _inputs -> pure [Pil.UnimplInstr "NEW"]
   P.PCODE_MAX -> pure [Pil.UnimplInstr "PCODE_MAX"]
@@ -579,9 +578,14 @@ convertPcodeOpToPilStatement = \case
                                BA.Register -> x ^. #offset == fromIntegral sp -- conversion is fine since register space is small
                                _ -> False
     ctx <- use #ctx
-    if isSP then
-        requireConst offset >>=
-        mkDef out . Pil.STACK_LOCAL_ADDR . Pil.StackLocalAddrOp . Pil.StackOffset ctx . ByteOffset
+    if isSP then do
+        raw <- requireConst offset
+        let ptrBytes = fromIntegral (getSize out) :: Int
+            signExtended
+              | ptrBytes >= 8 = raw
+              | testBit raw (ptrBytes * 8 - 1) = raw .|. complement (bit (ptrBytes * 8) - 1)
+              | otherwise = raw .&. (bit (ptrBytes * 8) - 1)
+        mkDef out . Pil.STACK_ADDR . Pil.StackOffset ctx . ByteOffset $ signExtended
     else
       case getVarNodeType base of
         VImmediate 0 -> case getVarNodeType offset of
@@ -623,6 +627,26 @@ convertPcodeOpToPilStatement = \case
     pure [Pil.UnimplInstr "unimpl"]
 
   where
+    -- | Like 'varNodeToPilVar', but for VStack varnodes creates a
+    -- PilVar directly instead of failing. This keeps phi nodes for
+    -- stack locals alive so that promoteStackLocals can integrate
+    -- them later.
+    phiVarNode :: IsVariable b => b -> ExceptT ConverterError Converter PilVar
+    phiVarNode v = case getVarNodeType v of
+      VStack{offset, pcAddress, ptrSize = _} -> do
+        ctx' <- use #ctx
+        paramNames' <- use #paramNames
+        version <- lift $ internVarnode (SSAStack offset) pcAddress
+        let sz = fromByteBased (getSize v :: Bytes)
+            name = stackVarName offset
+            pv = C.pilVar__ sz (Just ctx') version name (HashSet.member name paramNames') $ Pil.StackMemory offset
+        #pvTypeHints %= maybeInsert pv (getDataType v)
+        pure pv
+      _ -> varNodeToPilVar v
+
+    stackVarName :: Int64 -> Text
+    stackVarName n = (if n < 0 then "var_" else "arg_") <> showHex (abs n)
+
     mkDef :: P.Output a -> Pil.ExprOp Expression -> ExceptT ConverterError Converter [Pil.Statement Pil.Expression]
     mkDef v xop = do
       assignment <- varNodeToAssignment v

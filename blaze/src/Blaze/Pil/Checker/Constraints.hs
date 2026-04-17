@@ -600,10 +600,9 @@ addExprTypeConstraints (InfoExpression (SymInfo sz r) op') = case op' of
     --add =<< integralExtendOp Nothing x
     addChildConstraints
 
-  Pil.STACK_LOCAL_ADDR x -> do
-    s <- getStackOffsetSym (x ^. #stackOffset)
+  Pil.STACK_ADDR stackOff -> do
+    s <- getStackOffsetSym stackOff
     add [(r, CSType $ TPointer jSz (CSVar s))]
-    addChildConstraints
   Pil.UNIT -> add [ (r, CSType TUnit) ]
 
   where

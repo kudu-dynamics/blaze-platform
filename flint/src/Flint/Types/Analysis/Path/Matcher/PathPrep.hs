@@ -67,19 +67,21 @@ toTypedStmts typeHints stmts = case checkStmtsWithTypeHints typeHints Nothing st
 instance MkPathPrep TypedStmt [Pil.Stmt] where
   mkPathPrep = mkPathPrepWithTypeHints HM.empty
   mkPathPrepWithTypeHints typeHints props stmts =
-    PathPrep typed expanded (mkTaintSet props stmts) codeSummary props
+    PathPrep typed expanded (mkTaintSet props stmts') codeSummary props
     where
-      typed = toTypedStmts typeHints stmts
+      stmts' = PA.promoteStackLocals stmts
+      typed = toTypedStmts typeHints stmts'
       expanded = PA.aggressiveExpand_ typed
-      codeSummary = Summary.fromStmts stmts
+      codeSummary = Summary.fromStmts stmts'
 
 instance MkPathPrep TypedStmt PilPath where
   mkPathPrep = mkPathPrepWithTypeHints HM.empty
   mkPathPrepWithTypeHints typeHints props p =
-    PathPrep typed expanded (mkTaintSet props stmts) codeSummary props
+    PathPrep typed expanded (mkTaintSet props stmts') codeSummary props
     where
       stmts = Path.toStmts p
-      typed = toTypedStmts typeHints stmts
+      stmts' = PA.promoteStackLocals stmts
+      typed = toTypedStmts typeHints stmts'
       expanded = PA.aggressiveExpand_ typed
-      codeSummary = Summary.fromStmts stmts
+      codeSummary = Summary.fromStmts stmts'
 

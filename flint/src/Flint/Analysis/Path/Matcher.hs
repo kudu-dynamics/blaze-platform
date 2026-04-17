@@ -113,12 +113,7 @@ sortaEqual
   => expr1
   -> expr2
   -> Bool
-sortaEqual a b = case (asExpression a, asExpression b) of
-  (Pil.Expression _ (Pil.STACK_LOCAL_ADDR stackOp), Pil.Expression _ (Pil.VAR varOp)) ->
-    Just (stackOp ^. #stackOffset . #offset) == (fromIntegral <$> varOp ^? #src . #location . #_StackMemory)
-  (Pil.Expression _ (Pil.VAR varOp), Pil.Expression _ (Pil.STACK_LOCAL_ADDR stackOp)) ->
-    Just (stackOp ^. #stackOffset . #offset) == (fromIntegral <$> varOp ^? #src . #location . #_StackMemory)
-  (x, y) -> x == y
+sortaEqual a b = asExpression a == asExpression b
 
 bindCtx :: Monad m => Symbol Pil.Ctx -> Pil.Ctx -> MatcherT expr stmt m ()
 bindCtx = bind_ #boundCtxSyms

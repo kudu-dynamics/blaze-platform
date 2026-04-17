@@ -531,10 +531,10 @@ tokenizeExprOp msym exprOp size = case exprOp of
   -- TODO: Need to add carry
   (Pil.RRC op) -> tokenizeBinop msym "rrc" op
   (Pil.SBB op) -> tokenizeBinop msym "sbb" op
-  (Pil.STACK_LOCAL_ADDR op) ->
+  (Pil.STACK_ADDR stackOff) ->
     pure
       [ tt "&"
-      , varToken Nothing $ showStackLocalByteOffset (op ^. #stackOffset . #offset)
+      , varToken Nothing $ showStackLocalByteOffset (stackOff ^. #offset)
       ]
   (Pil.SUB op) -> tokenizeBinopInfix msym "-" op
   (Pil.SUB_WILL_OVERFLOW op) -> tokenizeBinop msym "subOF" op

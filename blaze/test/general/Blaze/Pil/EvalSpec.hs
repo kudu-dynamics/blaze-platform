@@ -427,7 +427,7 @@ spec = describe "Blaze.Pil.Analysis.Eval" $ do
     StrNCmp
     MemCmp
     ExternPtr
-    STACK_LOCAL_ADDR
+    STACK_ADDR
     UPDATE_VAR
     FIELD_ADDR
     UNIT

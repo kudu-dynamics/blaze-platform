@@ -25,7 +25,7 @@ instance NeedsParens (Pil.ExprOp a) where
     Pil.CONST_PTR _ -> False
     Pil.CONST_FLOAT _ -> False
     Pil.LOAD _ -> False
-    Pil.STACK_LOCAL_ADDR _ -> False
+    Pil.STACK_ADDR _ -> False
     Pil.VAR _ -> False
     Pil.VAR_FIELD _ -> False
     Pil.ConstStr _ -> False
@@ -319,7 +319,7 @@ dispExprOp exprOp size = case exprOp of
   -- TODO: Need to add carry
   (Pil.RRC op) -> dispBinop "rrc" op size
   (Pil.SBB op) -> dispBinop "sbb" op size
-  (Pil.STACK_LOCAL_ADDR op) -> "stackLocalAddr" <-> paren (disp $ op ^. #stackOffset)
+  (Pil.STACK_ADDR stackOff) -> "stackAddr" <-> paren (disp stackOff)
   (Pil.SUB op) -> dispBinop "sub" op size
   (Pil.SUB_WILL_OVERFLOW op) -> dispBinop "subWillOverflow" op size
   (Pil.SX op) -> dispUnop "sx" op size

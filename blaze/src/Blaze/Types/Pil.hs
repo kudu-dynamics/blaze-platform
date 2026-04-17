@@ -98,7 +98,7 @@ data ExprOp expr
     | ExternPtr ExternPtrOp
     | ConstStr (ConstStrOp expr)
     | ConstFuncPtr ConstFuncPtrOp
-    | STACK_LOCAL_ADDR (StackLocalAddrOp expr)
+    | STACK_ADDR StackOffset
     | UPDATE_VAR (UpdateVarOp expr)
     -- memory address specifier ops
     | FIELD_ADDR (FieldAddrOp expr)  -- struct
@@ -183,10 +183,6 @@ data ExternPtrOp = ExternPtrOp
   , symbol :: Maybe Symbol
   } deriving (Eq, Ord, Show, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
-{- HLINT ignore StackLocalAddrOp "Use newtype instead of data" -}
-data StackLocalAddrOp expr = StackLocalAddrOp
-  { stackOffset :: StackOffset
-  } deriving (Eq, Ord, Show, Functor, Foldable, Traversable, Generic, Hashable, ToJSON, FromJSON, Serialize)
 
 data UpdateVarOp expr = UpdateVarOp
   { dest :: expr
