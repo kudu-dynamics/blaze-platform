@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0417a
+- Added github ci
+
 ## Version 0.26.0416
 - Fix dual-identity stack local bug: unify `STACK_LOCAL_ADDR` and `PilVar{StackMemory}` into a single `STACK_ADDR StackOffset` form. Stack slots accessed both directly and by address (e.g. `asprintf(&buf, ...); system(buf)`) no longer get stale values from copy-prop. Escaped slots stay as Store/Load; non-escaped slots are promoted back to Def/Var by a new `promoteStackLocals` (mem2reg) pass. Sign-extend PTRSUB constants on 32-bit targets to match VStack sign convention. Rewrite DefPhi for stack locals to use the promoted PilVar identity, with ctx-safe lookup.
 
