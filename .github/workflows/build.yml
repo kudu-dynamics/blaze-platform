@@ -24,6 +24,7 @@ jobs:
             ${{ runner.temp }}/haskell.tar
             ${{ runner.temp }}/just-deps.tar
 #            ${{ runner.temp }}/cache
+          # probably okay to leave out cabal.project
           key: ${{ hashFiles('Dockerfile', '.github/workflows/build.yml', 'stack.yaml', 'binary-analysis/package.yaml', 'ghidra-haskell/package.yaml', 'blaze/package.yaml', 'flint/package.yaml') }}
       - name: driver
         if: steps.cache.outputs.cache-hit != 'true'
@@ -43,8 +44,8 @@ jobs:
         with:
 #          platforms: linux/amd64
 #          cache-from: type=local,src=${{ runner.temp }}/haskellcache
-#          cache-to: type=local,dest=${{ runner.temp }}/cache,mode=max
-          cache-to: type=gha,mode=max
+#          cache-to: type=local,dest=${{ runner.temp }}/cache
+          cache-to: type=gha
           outputs: type=docker,dest=${{ runner.temp }}/just-deps.tar
           tags: just-deps:latest
           target: just-deps
