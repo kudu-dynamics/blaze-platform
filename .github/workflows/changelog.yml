@@ -16,9 +16,7 @@ jobs:
           ref: ${{ github.head_ref }}
       - name: validate
         run: |
-          echo $GITHUB_HEAD_REF
-          echo $GITHUB_BASE_REF
-          git branch -vv
-          git fetch origin $GITHUB_BASE_REF --depth 1
+          # should use $GITHUB_BASE_REF instead of hardcoding main
+          git fetch origin main --depth 1
           git checkout origin/main
-          git diff $GITHUB_HEAD_REF $GITHUB_BASE_REF -- CHANGELOG.md | grep "[[:alnum:]]"
+          git diff $GITHUB_HEAD_REF main -- CHANGELOG.md | grep "[[:alnum:]]"
