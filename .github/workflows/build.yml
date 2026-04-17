@@ -50,7 +50,6 @@ jobs:
           tags: just-deps:latest
           target: just-deps
       - name: upload haskell
-        if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: haskell
