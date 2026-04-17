@@ -1,5 +1,9 @@
 # Blaze Platform
 
+## Version 0.26.0415
+- `BackendDescriptor` + `Stage` on `BinaryImporter` — descriptor carries backend display name and low/high IR stage names (Ghidra: `"Raw P-code"` / `"High P-code"`). `inspectAddress` now takes a `Stage`; new `dumpLift` class method dumps low+high IR for a whole function with an optional address range
+- `inspect_address` tool gains `stage=low|high|both` (default `both`) and labels come from the descriptor. New `dump-lift` shell command + `dump_lift` MCP tool: per-instruction interleaved low/high dump so lifter gaps are visible at a glance, with optional `addresses=LO-HI` filter. Primary use: debugging flint features at both IR levels without dropping into Ghidra's scripting bridge
+
 ## Version 0.26.0410
 - Fix `CachedCalc.get` deadlock — wrap critical section in `mask` so async exceptions (e.g. from `forConcurrently` cancellation) can't kill a thread between TMVar creation and `try`, which left the TMVar permanently empty and caused "thread blocked indefinitely in an MVar/STM operation" errors with the original exception lost
 - Fix `--exclude-self` + `--depth` re-entering the excluded target — `expandPathToDepth` now takes a skip set of function addresses to not expand, used by the exclude-self path
@@ -12,6 +16,24 @@
   + Fix `splitLoopBody` and `findExitEdge` to compare nodes by UUID rather than structural equality — `CfNode` has UUID-only `Hashable` but structural `Eq`, so summary nodes (same UUID, different stmts) were invisible to `HashSet.member` checks
   + Freshen UUIDs for convergence revisits at point of creation in `walk` — when the walk reaches a merge point already in the path (different dynamic context, e.g. post-loop vs pre-loop), the node gets a fresh identity via `twaddleUUID`; `Path.build`'s duplicate-node error remains as a safety net for unexpected bugs
   + Precompute `Dominators` in `CfgInfo` (once per function) instead of per-sample — avoids O(V*(V+E)) recomputation on every path sample
+
+## Version 0.26.0407
+- C AST pattern matcher: `CExprPat`/`CStmtPat`/`ForPat` DSL for structural matching on decompiled C code, with `LogicT`-based backtracking engine (`Flint.Analysis.CAst.Matcher`)
+  + `CExprPat` — 22 constructors: `CWild`, `CBind`/`CBound`/`CUses` for named bindings, `CNamePat`/`CNameRegex` for identifiers, `CCallPat`/`CCallNamesPat` for function calls, `CIndexPat`/`CArrowPat`/`CDotPat` for access patterns, `CBinOpPat`/`CAnyCmpPat`/`CAssignPat`/`CUnaryPat`/`CCastPat` for operators, `CContains` for recursive expr search, `CNotPat`/`COrPat`/`CAndPat` for logic
+  + `CStmtPat` — 14 constructors: `CForPat` with structured `ForPat` (init/cond/incr/body), `CWhilePat`/`CDoWhilePat`/`CAnyLoopPat` for loops, `CStar` for skip-any, `CSequence` for ordered matching, `CBodyContains` for recursive block search, `CAvoidUntil` for path-sensitive sequencing
+  + Matcher binds expressions to names (`CBind "ptr" CWild`), then checks references (`CBound "ptr"`) or containment (`CUses "ptr"`) — enables cross-statement dataflow patterns
+  + `runCheckOnStmts` now walks every stmt list in the AST (top-level + nested bodies of `if`/`for`/`while`/`switch`/`block`) via `allStmtLists`, so patterns written as `CSequence [CStar, target]` find matches regardless of control-flow nesting
+  + `CAstFinding.cSource` renders the statements that actually matched (tracked via a new `matchedStmts` field on `CMatcherState`) instead of the consumed prefix — previously `CStar`-skipped stmts and nested-body matches produced misleading snippets
+  + Results deduped (`HashSet`-backed `takeUniqueUpTo`, cancelling `CStar`-backtracking duplicates) and capped per check at `maxFindingsPerCheck` = 20; capped checks surface a truncation marker in `check-cast`/`cast-scan` output instead of silently dropping results
+- 11 built-in vulnerability patterns (`Flint.Analysis.CAst.Patterns`), each tagged with severity + CWE number:
+  + Loop-focused (8): `loop-array-oob`, `loop-off-by-one`, `loop-accumulating-write`, `loop-use-after-free`, `loop-double-free`, `loop-memory-leak`, `loop-unbounded-input`, `loop-missing-bounds-check`
+  + General (3): `dangerous-function`, `unchecked-alloc`, `format-string`
+- `check-cast` shell command and `check_cast` MCP tool — run C AST checks on a single function
+- `cast-scan` shell command and `cast_scan` MCP tool — scan internal functions, reporting decompile/match timing per function. Honors its documented "analyzed functions only" default instead of silently falling back to scanning every function on an empty cache; `--all` opts into the whole-binary scan
+- `cast-pattern-{add,list,remove,reset,save,load,show}` shell commands and matching `cast_pattern_*` MCP tools — define, persist, and reload CAst checks at runtime via JSON. `cast-pattern-list --all` shows built-in patterns alongside user-defined ones. MCP `cast_pattern_add` bypasses the shell tokenizer so pretty-printed JSON payloads (with embedded whitespace/newlines) survive intact
+- Backend-agnostic C-AST types: new `Blaze.Types.CAst` module (`CStmt`/`CExpr`/`CForInit`/`CCase`/`CAnn`/`AddrRange`) replacing direct use of `Ghidra.Clang` types in downstream code. Fully serializable (derives `Serialize`); `CRawStmt`/`CRawExpr` catch-alls now carry rendered source text instead of JNI subtrees. New `Blaze.Import.Decomp` typeclass (`DecompImporter`) with `decompileFunctionText` / `decompileFunctionAst`, split out of `BinaryImporter` (which no longer imports `Ghidra.Clang`). The Ghidra importer provides `DecompImporter GhidraImporter` via `Blaze.Import.Source.Ghidra.CAst.toBlazeCStmts`, which walks the parser-internal `Ghidra.Clang` AST, normalizes Ghidra addresses to `Data.BinaryAnalysis.Address`, and materializes any unparsed subtrees to text via `clangText`
+- Ghidra parser now promotes literal-looking token text to proper `CLitString`/`CLitInt` nodes via `mkTokenValue` (in single-token branches of `convertExpr`). Previously string literals surfaced as `CIdent` whose text included the quotes, which made `CLitStringPat` never match and caused `format-string` to fire on 100% of `printf`-family calls
+- `flint-mcp` stdout protocol safety: `Flint.Prelude.putText` now writes to stderr, so analysis-library status/debug messages can't corrupt the JSON-RPC frame stream. `Flint.Shell.Repl.shellOut` explicitly routes user-facing REPL output back to stdout — shell UX unchanged, flint-mcp's stdout is now strictly JSON-RPC
 
 ## Version 0.26.0406b
 - C AST decompiler: new `CStmt`/`CExpr` types (14 statement constructors, 14 expression constructors) that transform Ghidra's raw ClangAST token stream into structured, readable C99 source code

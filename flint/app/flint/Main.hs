@@ -237,6 +237,7 @@ printJSON res = do
         , bugName = res ^. #bugName
         , mitigationAdvice = res ^. #mitigationAdvice
         , bugDescription = res ^. #bugDescription
+        , cwe = res ^. #cwe
         }
   sequentialPutText . Text.pack . unpack . encodePretty . toJSON $ blob
 

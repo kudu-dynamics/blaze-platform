@@ -34,6 +34,7 @@ data BugMatch = BugMatch
   , bugName :: Text
   , bugDescription :: BoundText
   , mitigationAdvice :: BoundText
+  , cwe :: Maybe Int             -- ^ CWE identifier (e.g. 121 for CWE-121)
   } deriving (Eq, Ord, Show, Generic)
 
 -- | A path that matches a bug pattern
@@ -44,10 +45,11 @@ data MatchingResult = MatchingResult
   , bugName :: Text
   , bugDescription :: Text
   , mitigationAdvice :: Text
+  , cwe :: Maybe Int
   } deriving (Eq, Ord, Show, Generic)
 
 instance Tokenizable MatchingResult where
-  tokenize x = tt ("\n---==== Found " <> x ^. #bugName <> " ====---\n")
+  tokenize x = tt ("\n---==== Found " <> x ^. #bugName <> cweTag <> " ====---\n")
                <++> tt ("Function: " <> x ^. #func . #name)
                <++> tt "\n\n"
                <++> tt "---- Path:\n"
@@ -59,6 +61,10 @@ instance Tokenizable MatchingResult where
                <++> tt "Suggested Mitigation:\n"
                <++> tt (x ^. #mitigationAdvice)
                <++> tt "\n------------------------------------\n"
+    where
+      cweTag = case x ^. #cwe of
+        Just n  -> " (CWE-" <> show n <> ")"
+        Nothing -> ""
 
 -- | A simpler version of MatchingResult for printing in JSON format
 data MatchingResultBlob = MatchingResultBlob
@@ -67,6 +73,7 @@ data MatchingResultBlob = MatchingResultBlob
   , bugName :: Text
   , bugDescription :: Text
   , mitigationAdvice :: Text
+  , cwe :: Maybe Int
   } deriving (Eq, Ord, Show, Generic, ToJSON)
 
 -- | A path that matches a bug pattern

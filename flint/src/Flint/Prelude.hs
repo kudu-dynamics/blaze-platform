@@ -5,16 +5,28 @@ module Flint.Prelude
   , hoistMaybeM
   , mapMaybeConcurrently
   , mapMaybeHashSet
+  , putText
   , removeNth
   , tryError
   ) where
 
-import Blaze.Prelude as Exports hiding (Symbol)
+-- We hide Protolude's @putText@ (via Blaze.Prelude) and shadow it with one
+-- that writes to stderr. Rationale: flint-mcp uses stdout as the JSON-RPC
+-- frame channel, so ANY non-JSON output on stdout — including analysis
+-- progress messages from deep in the library — corrupts the protocol and
+-- breaks the MCP client. Routing @putText@ through stderr keeps the shell
+-- experience identical on a terminal (stdout+stderr interleave visually)
+-- while making flint-mcp safe.
+import Blaze.Prelude as Exports hiding (Symbol, putText)
 
 import Control.Concurrent.Async as Exports (replicateConcurrently, forConcurrently, forConcurrently_, mapConcurrently_)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import qualified Data.Text.IO as TIO
 import Data.Vector as Exports (Vector)
+
+putText :: MonadIO m => Text -> m ()
+putText = liftIO . TIO.hPutStrLn stderr
 
 
 hoistMaybeM :: Monad m => m (Maybe a) -> MaybeT m a

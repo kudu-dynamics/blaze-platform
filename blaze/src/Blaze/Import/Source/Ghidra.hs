@@ -5,11 +5,13 @@ module Blaze.Import.Source.Ghidra (
   module Exports,
 ) where
 
-import Blaze.Import.Binary (BinaryImporter (..))
+import Blaze.Import.Binary (BinaryImporter (..), BackendDescriptor (..), Stage (..))
 import Blaze.Import.CallGraph (CallGraphImporter (getCallSites, getFunction, getFunctions))
 import Blaze.Import.Cfg (CfgImporter (..))
+import Blaze.Import.Decomp (DecompImporter (..))
 import Blaze.Import.Pil (PilImporter (..))
 import Blaze.Import.Xref (XrefImporter (..))
+import Blaze.Import.Source.Ghidra.CAst (toBlazeCStmts)
 import Blaze.Import.Source.Ghidra.CallGraph qualified as CallGraph
 import Blaze.Import.Source.Ghidra.Cfg qualified as Cfg
 import Blaze.Import.Source.Ghidra.Pil qualified as PilImp
@@ -35,6 +37,31 @@ import qualified Data.HashMap.Strict as HashMap
 -- that Ghidra's hasStringValue() incorrectly reports as strings).
 filterStringsMap :: HashMap Int64 Text -> HashMap Address Text
 filterStringsMap = HashMap.mapKeys intToAddr . HashMap.filterWithKey (\k _ -> k >= 0x100)
+
+-- | Labels + display name for the Ghidra backend, used by the
+-- 'describeBackend' instance method and passed into the ghidra-haskell
+-- rendering helpers in 'Ghidra.Inspect'.
+ghidraBackendDescriptor :: BackendDescriptor
+ghidraBackendDescriptor = BackendDescriptor
+  { backendName = "Ghidra"
+  , lowIrName = "Raw P-code"
+  , highIrName = "High P-code"
+  }
+
+-- | Unpack a 'BackendDescriptor' + 'Stage' into the string+enum params
+-- expected by 'GInspect.inspectAddress' / 'GInspect.dumpFunctionLift'.
+-- The indirection exists because ghidra-haskell sits below blaze in the
+-- package graph and can't reference blaze-level types directly.
+toInspectParams :: BackendDescriptor -> Stage -> GInspect.InspectParams
+toInspectParams desc s = GInspect.InspectParams
+  { lowLabel = desc ^. #lowIrName
+  , highLabel = desc ^. #highIrName
+  , backendLabel = desc ^. #backendName
+  , stage = case s of
+      StageLow -> GInspect.IStageLow
+      StageHigh -> GInspect.IStageHigh
+      StageBoth -> GInspect.IStageBoth
+  }
 
 getImporter :: FilePath -> IO GhidraImporter
 getImporter fp = do
@@ -95,8 +122,22 @@ instance BinaryImporter GhidraImporter where
 
   getStringsMap = return . view #stringsMap
 
-  inspectAddress imp addr =
-    runGhidraOrError $ GInspect.inspectAddress (imp ^. #ghidraState) addr
+  describeBackend _ = ghidraBackendDescriptor
+
+  inspectAddress imp addr stage =
+    runGhidraOrError $
+      GInspect.inspectAddress
+        (toInspectParams ghidraBackendDescriptor stage)
+        (imp ^. #ghidraState)
+        addr
+
+  dumpLift imp fnAddr stage mRange =
+    runGhidraOrError $
+      GInspect.dumpFunctionLift
+        (toInspectParams ghidraBackendDescriptor stage)
+        (imp ^. #ghidraState)
+        fnAddr
+        mRange
 
   lookupGlobalSymbol imp name = do
     let prg = imp ^. #ghidraState . #program
@@ -105,15 +146,12 @@ instance BinaryImporter GhidraImporter where
       Nothing -> return Nothing
       Just jAddr -> Just . convertAddress <$> runGhidraOrError (GAddr.mkAddress jAddr)
 
-  decompileFunction (GhidraImporter gs _ _) addr =
-    runGhidraOrError $ do
-      jaddr <- GState.mkAddress (gs ^. #program) addr
-      GFunction.fromAddr (gs ^. #program) jaddr >>= \case
-        Nothing -> return Nothing
-        Just jfunc -> do
-          clangAST <- GFunction.getClangAST gs jfunc
-          let cStmts = GClang.convertFunction clangAST
-          return $ Just (GClang.renderStmts 0 cStmts)
+instance DecompImporter GhidraImporter where
+  decompileFunctionText imp addr =
+    fmap (fmap GClang.renderFunction) (withClangAST imp addr)
+
+  decompileFunctionAst imp addr =
+    fmap (fmap (toBlazeCStmts . GClang.convertFunction)) (withClangAST imp addr)
 
 instance CallGraphImporter GhidraImporter where
   getFunction = CallGraph.getFunction
@@ -170,4 +208,14 @@ instance PilImporter GhidraImporter where
 
 instance XrefImporter GhidraImporter where
   getXrefsTo = Xref.getXrefsTo
+
+-- | Shared helper: decompile a function to its raw ClangAST.
+-- Used by both decompileFunction (text) and decompileFunctionAst (structured).
+withClangAST :: GhidraImporter -> Address -> IO (Maybe (GClang.ClangAST GClang.ClangNode))
+withClangAST (GhidraImporter gs _ _) addr =
+  runGhidraOrError $ do
+    jaddr <- GState.mkAddress (gs ^. #program) addr
+    GFunction.fromAddr (gs ^. #program) jaddr >>= \case
+      Nothing -> return Nothing
+      Just jfunc -> Just <$> GFunction.getClangAST gs jfunc
 
