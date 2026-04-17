@@ -17,6 +17,6 @@ jobs:
       - name: validate
         run: |
           # should use $GITHUB_BASE_REF instead of hardcoding main
-          #git fetch origin main --depth 1
+          git fetch origin main --depth 1
           #git checkout origin/main
           git diff $GITHUB_HEAD_REF origin/main -- CHANGELOG.md | grep "[[:alnum:]]"
