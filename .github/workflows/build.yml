@@ -33,7 +33,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           platforms: linux/amd64
-          cache-to: type=local,dest=${{ runner.temp }}/haskellcache
+          #cache-to: type=local,dest=${{ runner.temp }}/haskellcache
           outputs: type=docker,dest=${{ runner.temp }}/haskell.tar
           tags: haskell:latest
           target: haskell
@@ -42,7 +42,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           platforms: linux/amd64
-          cache-from: type=local,src=${{ runner.temp }}/haskellcache
+          #cache-from: type=local,src=${{ runner.temp }}/haskellcache
           #cache-to: type=local,dest=${{ runner.temp }}/cache,mode=max
           cache-to: type=gha,mode=max
           outputs: type=docker,dest=${{ runner.temp }}/just-deps.tar
