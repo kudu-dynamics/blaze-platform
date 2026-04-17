@@ -22,8 +22,8 @@ jobs:
         with:
           path: |
             ${{ runner.temp }}/haskell.tar
-            #${{ runner.temp }}/cache
             ${{ runner.temp }}/just-deps.tar
+#            ${{ runner.temp }}/cache
           key: ${{ hashFiles('Dockerfile', '.github/workflows/build.yml', 'stack.yaml', 'binary-analysis/package.yaml', 'ghidra-haskell/package.yaml', 'blaze/package.yaml', 'flint/package.yaml') }}
       - name: driver
         if: steps.cache.outputs.cache-hit != 'true'
@@ -32,8 +32,8 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         uses: docker/build-push-action@v7
         with:
-          platforms: linux/amd64
-          #cache-to: type=local,dest=${{ runner.temp }}/haskellcache
+#          platforms: linux/amd64
+#          cache-to: type=local,dest=${{ runner.temp }}/haskellcache
           outputs: type=docker,dest=${{ runner.temp }}/haskell.tar
           tags: haskell:latest
           target: haskell
@@ -41,9 +41,9 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         uses: docker/build-push-action@v7
         with:
-          platforms: linux/amd64
-          #cache-from: type=local,src=${{ runner.temp }}/haskellcache
-          #cache-to: type=local,dest=${{ runner.temp }}/cache,mode=max
+#          platforms: linux/amd64
+#          cache-from: type=local,src=${{ runner.temp }}/haskellcache
+#          cache-to: type=local,dest=${{ runner.temp }}/cache,mode=max
           cache-to: type=gha,mode=max
           outputs: type=docker,dest=${{ runner.temp }}/just-deps.tar
           tags: just-deps:latest
@@ -96,12 +96,10 @@ jobs:
         run: |
           docker load --input ${{ runner.temp }}/haskell.tar
           docker run --rm -w /mnt --mount type=bind,src=$(pwd),dst=/mnt haskell:latest just hlint --color=always
-  build:
+  build_and_test:
     needs: docker
     runs-on: ubuntu-24.04
     steps:
-#      - name: checkout
-#        uses: actions/checkout@v6
       - name: setup
         uses: docker/setup-buildx-action@v4
 #      - name: cache
@@ -109,11 +107,11 @@ jobs:
 #        with:
 #          name: cache
 #          path: ${{ runner.temp }}
-      - name: builder
+      - name: build
         uses: docker/build-push-action@v7
         with:
-          platforms: linux/amd64
-          #cache-from: type=local,src=${{ runner.temp }}/cache
+#          platforms: linux/amd64
+#          cache-from: type=local,src=${{ runner.temp }}/cache
           cache-from: type=gha
           target: builder
           build-args: OPTIM=${{ env.HASKELL_OPTIM }}
@@ -122,17 +120,4 @@ jobs:
       - name: test
         run: |
           docker load --input ${{ runner.temp }}/builder.tar
-          docker run builder:latest ls -l
-          docker run builder:latest ls -l /out
-          docker run builder:latest uname -a
-          docker info --format '{{.Architecture}}'
-          docker image inspect builder:latest
-          docker run builder:latest dpkg --print-architecture
-          docker run builder:latest apt install -yq --no-install-recommends file
-          #docker run builder:latest dpkg -L file
-          #docker run builder:latest /usr/bin/file /out/run-tests
           docker run --rm builder:latest /out/run-tests --color
-#      - name: deliver
-#        uses: docker/build-push-action@v7
-#        with:
-#          target: deliver
