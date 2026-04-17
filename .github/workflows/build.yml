@@ -129,8 +129,8 @@ jobs:
           docker image inspect builder:latest
           docker run builder:latest dpkg --print-architecture
           docker run builder:latest apt install -yq --no-install-recommends file
-          docker run builder:latest dpkg -L file
-          docker run builder:latest /usr/bin/file /out/run-tests
+          #docker run builder:latest dpkg -L file
+          #docker run builder:latest /usr/bin/file /out/run-tests
           docker run --rm builder:latest /out/run-tests --color
 #      - name: deliver
 #        uses: docker/build-push-action@v7
