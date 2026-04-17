@@ -850,7 +850,7 @@ solveExpr_ solveExprRec (Ch.InfoExpression (Ch.SymInfo sz xsym, mdst) op) = catc
   Pil.StrCmp _ -> unhandled "StrCmp"
   Pil.StrNCmp _ -> unhandled "StrNCmp"
 
-  Pil.STACK_LOCAL_ADDR _ -> unhandled "STACK_LOCAL_ADDR"
+  Pil.STACK_ADDR _ -> unhandled "STACK_ADDR"
   Pil.FIELD_ADDR _ -> unhandled "FIELD_ADDR"
 
   Pil.SUB x -> integralBinOpMatchSecondArgToFirst x svMinus

@@ -17,10 +17,10 @@ import Test.Hspec
 sz :: Pil.Size Pil.Expression
 sz = 8
 
--- | Helper: make a STACK_LOCAL_ADDR expression
+-- | Helper: make a STACK_ADDR expression
 stackLocal :: ByteOffset -> Pil.Expression
-stackLocal off = Pil.Expression 8 . Pil.STACK_LOCAL_ADDR $ Pil.StackLocalAddrOp
-  (Pil.StackOffset (Pil.Ctx dummyFunc 0 False) off)
+stackLocal off = Pil.Expression 8 . Pil.STACK_ADDR $
+  Pil.StackOffset (Pil.Ctx dummyFunc 0 False) off
 
 dummyFunc :: Function
 dummyFunc = Function Nothing "test_func" (intToAddr 0x1000)

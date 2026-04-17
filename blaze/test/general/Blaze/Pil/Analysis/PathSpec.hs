@@ -4,10 +4,12 @@ module Blaze.Pil.Analysis.PathSpec where
 
 import Blaze.Prelude hiding (const, sym)
 
-import Blaze.Pil.Analysis.Path (expandVars, aggressiveExpand, simplifyArrayAddr)
+import Blaze.Pil.Analysis.Path (expandVars, aggressiveExpand, simplifyArrayAddr, promoteStackLocals)
 import Blaze.Pil.Construct
-import Blaze.Types.Pil (Stmt)
+import Blaze.Types.Pil (Stmt, Expression(Expression))
 import qualified Blaze.Types.Pil as Pil
+import qualified Blaze.Types.Function as Func
+import qualified Numeric
 
 import Test.Hspec
 
@@ -165,4 +167,123 @@ spec = describe "Blaze.Pil.Analysis" $ do
           nested = load (arrayAddr (arrayAddr ptr (const 1 4) 1 4) (const 1 4) 1 4) 4
           expected = load (arrayAddr ptr (const 2 4) 1 4) 4
       (simplifyArrayAddr nested :: Pil.Expression) `shouldBe` expected
+
+  context "promoteStackLocals" $ do
+    let dummyFunc = Func.Function Nothing "test_func" (intToAddr 0x1000) []
+        dummyCtx = Pil.Ctx dummyFunc 0 False
+        stackAddr off = Expression 4 . Pil.STACK_ADDR $ Pil.StackOffset dummyCtx off
+        storeStack off = store (stackAddr off)
+        loadStack off = load (stackAddr off)
+        -- The promoted PilVar that promoteStackLocals should create
+        stackPv off ver sz = pilVar__ (getPilVarSize sz) (Just dummyCtx) ver
+                               ((if off < 0 then "var_" else "arg_") <> cs (Numeric.showHex (abs off) ""))
+                               (off >= 0) (Pil.StackMemory off)
+
+    it "should promote a non-escaped stack local from Store/Load to Def/Var" $ do
+      let stmts =
+            [ storeStack (-0x28) (const 42 4)
+            , def "a0" (loadStack (-0x28) 4)
+            ]
+          pv1 = stackPv (-0x28) (Just 1) (4 :: Pil.Size Expression)
+          expected =
+            [ def' pv1 (const 42 4)
+            , def "a0" (var' pv1 4)
+            ]
+      promoteStackLocals stmts `shouldBe` expected
+
+    it "should NOT promote an escaped stack local (address taken)" $ do
+      let stmts =
+            [ storeStack (-0x28) (const 42 4)
+            , def "a0" (stackAddr (-0x28))  -- bare STACK_ADDR → escaped
+            , def "a1" (loadStack (-0x28) 4)
+            ]
+      -- Escaped: stmts unchanged
+      promoteStackLocals stmts `shouldBe` stmts
+
+    it "should NOT promote a stack local with mixed-width accesses" $ do
+      let stmts =
+            [ storeStack (-0x28) (const 42 1)  -- byte store
+            , def "a0" (loadStack (-0x28) 4)   -- word load
+            ]
+      -- Width mismatch: stmts unchanged
+      promoteStackLocals stmts `shouldBe` stmts
+
+    it "should promote non-escaped while leaving escaped untouched" $ do
+      let stmts =
+            [ storeStack (-0x28) (const 1 4)   -- non-escaped
+            , storeStack (-0x30) (const 2 4)   -- will be escaped
+            , def "a0" (stackAddr (-0x30))      -- escapes -0x30
+            , def "a1" (loadStack (-0x28) 4)   -- reads non-escaped
+            , def "a2" (loadStack (-0x30) 4)   -- reads escaped
+            ]
+          pv28_v1 = stackPv (-0x28) (Just 1) (4 :: Pil.Size Expression)
+          expected =
+            [ def' pv28_v1 (const 1 4)
+            , storeStack (-0x30) (const 2 4)
+            , def "a0" (stackAddr (-0x30))
+            , def "a1" (var' pv28_v1 4)
+            , def "a2" (loadStack (-0x30) 4)
+            ]
+      promoteStackLocals stmts `shouldBe` expected
+
+    it "should rewrite DefPhi vars to match promoted stack locals" $ do
+      -- Simulate what the lifter produces: Store (from VStack output),
+      -- DefPhi (from MULTIEQUAL via phiVarNode with SSA versions),
+      -- and Load (from VStack input).
+      let versionedPv ver = pilVar__ (getPilVarSize (4 :: Pil.Size Expression)) (Just dummyCtx)
+                              (Just ver) "var_28" False (Pil.StackMemory (-0x28))
+          phiOut = versionedPv 3
+          phiIn1 = versionedPv 1
+          phiIn2 = versionedPv 2
+          stmts =
+            [ storeStack (-0x28) (const 42 4)
+            , defPhi' phiOut [phiIn1, phiIn2]
+            , def "a0" (loadStack (-0x28) 4)
+            ]
+          -- Store gets version 1. The phi and Load are rewritten to
+          -- version 1 (the current version at their position).
+          pv1 = stackPv (-0x28) (Just 1) (4 :: Pil.Size Expression)
+          expected =
+            [ def' pv1 (const 42 4)
+            , defPhi' pv1 [pv1, pv1]
+            , def "a0" (var' pv1 4)
+            ]
+      promoteStackLocals stmts `shouldBe` expected
+
+    it "should not confuse same-offset stack locals from different contexts" $ do
+      -- In an expanded path, caller and callee both have offset -0x28
+      -- but different Ctx. They must be promoted independently.
+      let callerFunc = Func.Function Nothing "caller" (intToAddr 0x2000) []
+          calleeFunc = Func.Function Nothing "callee" (intToAddr 0x3000) []
+          callerCtx = Pil.Ctx callerFunc 0 False
+          calleeCtx = Pil.Ctx calleeFunc 1 False
+          callerAddr off = Expression 4 . Pil.STACK_ADDR $ Pil.StackOffset callerCtx off
+          calleeAddr off = Expression 4 . Pil.STACK_ADDR $ Pil.StackOffset calleeCtx off
+          callerPv off ver sz = pilVar__ (getPilVarSize sz) (Just callerCtx) ver
+                                 ((if off < 0 then "var_" else "arg_") <> cs (Numeric.showHex (abs off) ""))
+                                 (off >= 0) (Pil.StackMemory off)
+          calleePv off ver sz = pilVar__ (getPilVarSize sz) (Just calleeCtx) ver
+                                 ((if off < 0 then "var_" else "arg_") <> cs (Numeric.showHex (abs off) ""))
+                                 (off >= 0) (Pil.StackMemory off)
+          -- Phi vars from callee's context
+          calleePhiPv ver = pilVar__ (getPilVarSize (4 :: Pil.Size Expression)) (Just calleeCtx)
+                              (Just ver) "var_28" False (Pil.StackMemory (-0x28))
+          stmts =
+            [ store (callerAddr (-0x28)) (const 1 4)          -- caller's -0x28
+            , store (calleeAddr (-0x28)) (const 2 4)          -- callee's -0x28
+            , defPhi' (calleePhiPv 3) [calleePhiPv 1, calleePhiPv 2]
+            , def "r1" (load (callerAddr (-0x28)) 4)          -- read caller's
+            , def "r2" (load (calleeAddr (-0x28)) 4)          -- read callee's
+            ]
+          -- Each context gets its own version counter: caller v1, callee v1
+          pvCaller1 = callerPv (-0x28) (Just 1) (4 :: Pil.Size Expression)
+          pvCallee1 = calleePv (-0x28) (Just 1) (4 :: Pil.Size Expression)
+          expected =
+            [ def' pvCaller1 (const 1 4)
+            , def' pvCallee1 (const 2 4)
+            , defPhi' pvCallee1 [pvCallee1, pvCallee1]
+            , def "r1" (var' pvCaller1 4)
+            , def "r2" (var' pvCallee1 4)
+            ]
+      promoteStackLocals stmts `shouldBe` expected
 

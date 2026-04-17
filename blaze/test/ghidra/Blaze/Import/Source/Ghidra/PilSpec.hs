@@ -99,48 +99,40 @@ spec = beforeAll getTestCtx . describe "Blaze.Import.Source.Ghidra.Pil" $ do
     let func = mFunc ^?! _Just . #_Internal
     stmts <- runIO $ getFuncStatements importer func 0
 
-    -- stmt0: zf_1#1@10 = eax_4#1@10 == 0x0
-    -- stmt1: var_14#4@10 = var_14#2@10
-    -- stmt2: unique_1d00#1@10 = esp_4#1@10 + offset 0xffffffac
-    -- stmt3: unique_1d00#2@10 = esp_4#1@10 + offset 0xffffffac
-    let stmt00 = unsafeHead stmts
-    let stmt0 = stmts !! 5
-    let stmt1 = stmts !! 11
-    let stmt2 = stmts !! 14
-    let stmt3 = stmts !! 20
+    -- After STACK_ADDR unification, stack vars are Store/Load, not Def/Var.
+    -- Stack phis are preserved by phiVarNode with SSA versions.
+    -- stmt10: DefPhi var_14#1 [var_14#2, var_14#3]   (stack phi)
+    -- stmt11: unique_6600#1 = STACK_ADDR(-84)        (PTRSUB)
+    -- stmt16: unique_6600#2 = STACK_ADDR(-84)        (PTRSUB at different pc)
+    let stmtPhi = stmts !! 10
+    let stmt_u1 = stmts !! 11
+    let stmt_u2 = stmts !! 16
 
-    
-    let _pv0 = stmt0 ^? #statement . #_Def . #value . #op . #_CMP_E . #left . #op . #_VAR . #src
-    let pv1_l = stmt1 ^? #statement . #_Def . #var
-    let pv1_r = stmt1 ^? #statement . #_Def . #value . #op . #_VAR . #src
-    let pv2 = stmt2 ^? #statement . #_Def . #var
-    -- let pv2_val_l = stmt2 ^? #statement . #_Def . #value . #op . #_FIELD_ADDR . #baseAddr . #op . #_VAR . #src
-    let pv3 = stmt3 ^? #statement . #_Def . #var
+    let phiDest = stmtPhi ^? #statement . #_DefPhi . #dest
+    let phiSrcs = stmtPhi ^? #statement . #_DefPhi . #src
+    let pv_u1 = stmt_u1 ^? #statement . #_Def . #var
+    let pv_u2 = stmt_u2 ^? #statement . #_Def . #var
 
-    let pv_param = stmt00 ^? #statement . #_Def . #value . #op . #_VAR . #src
-
--- TODO: make a test binary so these tests can be used
-    -- it "should use register names for symbols" $ do
-      -- pv2_val_l ^? _Just . #symbol `shouldBe` Just "esp_4"
-      -- pv2_val_l ^? _Just . #version `shouldBe` Just (Just 1)
-
-    it "should have separate number labels for assignments to the same stack var" $ \_ -> do
-      pv1_l ^? _Just . #symbol `shouldBe` Just "temp"
-      pv1_l ^? _Just . #version `shouldBe` Just (Just 4)
-      pv1_r ^? _Just . #symbol `shouldBe` Just "temp"
-      pv1_r ^? _Just . #version `shouldBe` Just (Just 2)
+    it "should have versioned stack vars in DefPhi from phiVarNode" $ \_ -> do
+      phiDest ^? _Just . #symbol `shouldBe` Just "var_14"
+      phiDest ^? _Just . #version `shouldBe` Just (Just 1)
+      phiDest ^? _Just . #location `shouldBe` Just (StackMemory (-20))
+      -- Phi inputs should have different versions
+      let srcVersions = fmap (view #version) <$> phiSrcs
+      srcVersions `shouldBe` Just [Just 2, Just 3]
 
     it "should have separate number labels for assignments to the same unique var" $ \_ -> do
-      pv2 ^? _Just . #symbol `shouldBe` Just "unique_6600"
-      pv2 ^? _Just . #version `shouldBe` Just (Just 1)
-      pv3 ^? _Just . #symbol `shouldBe` Just "unique_6600"
-      pv3 ^? _Just . #version `shouldBe` Just (Just 2)
-    
-    it "should not include version #1 on param names" $ \_ -> do
-      pv_param ^? _Just . #symbol `shouldBe` Just "len"
+      pv_u1 ^? _Just . #symbol `shouldBe` Just "unique_6600"
+      pv_u1 ^? _Just . #version `shouldBe` Just (Just 1)
+      pv_u2 ^? _Just . #symbol `shouldBe` Just "unique_6600"
+      pv_u2 ^? _Just . #version `shouldBe` Just (Just 2)
 
-    it "param should be labelled as a param" $ \_ -> do
-      pv_param ^? _Just . #isParam `shouldBe` Just True
+    it "stack params should appear as LOAD from positive-offset STACK_ADDR" $ \_ -> do
+      -- stmt0 is: Store [STACK_ADDR(-20)] (Load [STACK_ADDR(+12)] 4)
+      -- The Load source is a positive-offset stack addr (param area)
+      let stmt0 = unsafeHead stmts
+          paramLoad = stmt0 ^? #statement . #_Store . #value . #op . #_LOAD . #src . #op . #_STACK_ADDR . #offset
+      paramLoad `shouldBe` Just 12
     
   context "importer datatype constraints" $ do
     it "seeing the variables of a highfunction" $ \tctx -> do

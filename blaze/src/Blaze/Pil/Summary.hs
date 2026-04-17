@@ -59,8 +59,7 @@ isArgLoad _ _ = False
 
 isStackLocalLoad :: LoadExpr -> Bool
 isStackLocalLoad load =
-  isJust $
-    load ^? #expr . #op . _Ctor @"LOAD" . #src . #op . _Ctor @"STACK_LOCAL_ADDR"
+  isJust $ load ^? #expr . #op . _Ctor @"LOAD" . #src . #op . _Ctor @"STACK_ADDR"
 
 getRetVal :: Stmt -> Maybe Expression
 getRetVal (Pil.Stmt _ (Ret (RetOp x))) = Just x

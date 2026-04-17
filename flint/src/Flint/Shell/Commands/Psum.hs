@@ -77,7 +77,7 @@ getParamName (FuncVarArgInfo p) = p ^. #name
 --
 -- A statement is included if it contains:
 --   1. A call expression (not __stack_chk_fail)
---   2. A LOAD or STORE whose address does NOT root at STACK_LOCAL_ADDR
+--   2. A LOAD or STORE whose address does NOT root at STACK_ADDR
 --
 -- Excluded unconditionally: Ret, NoRet, Exit, Nop, Undef,
 -- and any statement referencing in_FS_OFFSET (stack canary boilerplate).
@@ -121,11 +121,11 @@ isInterestingExpr expr = case expr ^. #op of
   Pil.LOAD (Pil.LoadOp src) -> not (addrRootsAtStackLocal src)
   _ -> False
 
--- | Check if the root of an address computation is STACK_LOCAL_ADDR.
+-- | Check if the root of an address computation is STACK_ADDR.
 -- Walks the left/base spine of address arithmetic (ADD, FIELD_ADDR, ARRAY_ADDR).
 addrRootsAtStackLocal :: Pil.Expression -> Bool
 addrRootsAtStackLocal expr = case expr ^. #op of
-  Pil.STACK_LOCAL_ADDR _ -> True
+  Pil.STACK_ADDR _ -> True
   Pil.ADD (Pil.AddOp l _) -> addrRootsAtStackLocal l
   Pil.FIELD_ADDR (Pil.FieldAddrOp base _) -> addrRootsAtStackLocal base
   Pil.ARRAY_ADDR (Pil.ArrayAddrOp base _ _) -> addrRootsAtStackLocal base

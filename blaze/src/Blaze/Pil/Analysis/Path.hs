@@ -7,7 +7,8 @@ module Blaze.Pil.Analysis.Path
 import Blaze.Prelude
 
 import qualified Blaze.Pil.Analysis as PA
-import Blaze.Pil (Stmt, Expression, PilVar)
+import qualified Blaze.Pil.Construct as C
+import Blaze.Pil (Stmt, Expression(..), PilVar)
 import qualified Blaze.Types.Pil as Pil
 import Blaze.Types.Pil.Expression (IsExpression(..))
 import Blaze.Util.Analysis (untilFixedPoint)
@@ -15,6 +16,7 @@ import Blaze.Util.Analysis (untilFixedPoint)
 import qualified Data.Foldable as F
 import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict as HashMap
+import qualified Numeric
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | Extract call args from a Statement, if it's a call-like statement.
@@ -171,7 +173,7 @@ addExprs a b = case (getExprOp a, getExprOp b) of
 -- TODO: once we know which mem addresses are global, we can eliminate the internal
 --       store stmts.
 aggressiveExpand :: [Stmt] -> [Stmt]
-aggressiveExpand = aggressiveExpand_
+aggressiveExpand = aggressiveExpand_ . promoteStackLocals
 
 -- | Generic aggressiveExpand that works on any expression/statement type satisfying IsExpression.
 -- The stmt type must be an AddressableStatement parameterized by the expression type.
@@ -389,3 +391,167 @@ aggressiveExpand'_ (stmtIndex, stmt@(Pil.Stmt stmtAddr statement)) AggressiveExp
     addUsedFromStmt = HashSet.union usedVars . PA.getVarsFromStmt_
     addUsedFromExpr :: expr -> HashSet PilVar
     addUsedFromExpr = HashSet.union usedVars . HashSet.fromList . PA.getVarsFromExpr_'
+
+-- --------------------------------------------------------------------------
+-- mem2reg: promote non-escaped stack slots from Store/Load to Def/Var
+-- --------------------------------------------------------------------------
+
+-- | Promote non-escaped stack slots from Store/Load through STACK_ADDR
+-- back to Def/Var form. A slot is "escaped" if its STACK_ADDR appears
+-- anywhere other than as the immediate address of a Store or Load.
+-- Slots with inconsistent access widths are also excluded.
+promoteStackLocals :: [Stmt] -> [Stmt]
+promoteStackLocals stmts
+  | HashSet.null promotable = stmts
+  | otherwise = rewriteStmts promotable varMap stmts
+  where
+    escaped = findEscapedOffsets stmts
+    allOffsets = findAllStackAddrOffsets stmts
+    mixedWidth = findMixedWidthOffsets stmts
+    promotable = allOffsets `HashSet.difference` escaped `HashSet.difference` mixedWidth
+    varMap = mkStackVarMap promotable stmts
+
+-- | Find all StackOffset values that appear in STACK_ADDR expressions.
+findAllStackAddrOffsets :: [Stmt] -> HashSet Pil.StackOffset
+findAllStackAddrOffsets = foldMap (foldMap collectFromExpr)
+  where
+    collectFromExpr :: Expression -> HashSet Pil.StackOffset
+    collectFromExpr (Expression _ op) = case op of
+      Pil.STACK_ADDR off -> HashSet.singleton off
+      other -> foldMap collectFromExpr other
+
+-- | Find stack offsets that are "escaped" — their STACK_ADDR appears in
+-- a context other than the immediate address of a Store or Load.
+findEscapedOffsets :: [Stmt] -> HashSet Pil.StackOffset
+findEscapedOffsets = foldMap goStmt
+  where
+    goStmt :: Stmt -> HashSet Pil.StackOffset
+    goStmt (Pil.Stmt _ stmt) = case stmt of
+      Pil.Store (Pil.StoreOp addr value) ->
+        case addr ^. #op of
+          -- Store [STACK_ADDR K] value — addr is safe, but scan value for escapes
+          Pil.STACK_ADDR _ -> escapedInExpr value
+          -- Store [other] value — scan both addr and value
+          _ -> escapedInExpr addr <> escapedInExpr value
+      -- For all other statement types, scan child expressions
+      other -> F.foldMap escapedInExpr other
+
+    -- | A STACK_ADDR inside a LOAD is safe (it's just reading the slot).
+    -- A bare STACK_ADDR anywhere else means the address escapes.
+    escapedInExpr :: Expression -> HashSet Pil.StackOffset
+    escapedInExpr (Expression _ op) = case op of
+      Pil.STACK_ADDR off -> HashSet.singleton off
+      Pil.LOAD (Pil.LoadOp src) -> case src ^. #op of
+        Pil.STACK_ADDR _ -> mempty
+        _ -> escapedInExpr src
+      other -> foldMap escapedInExpr other
+
+-- | Find stack offsets that are accessed at multiple different widths.
+-- A byte store plus a word load to the same offset must not be promoted.
+findMixedWidthOffsets :: [Stmt] -> HashSet Pil.StackOffset
+findMixedWidthOffsets stmts = HashMap.keysSet . HashMap.filter (> 1) $ widthCounts
+  where
+    widthCounts :: HashMap Pil.StackOffset Int
+    widthCounts = HashMap.map HashSet.size $ foldl' collectWidths HashMap.empty stmts
+
+    collectWidths :: HashMap Pil.StackOffset (HashSet (Pil.Size Expression)) -> Stmt -> HashMap Pil.StackOffset (HashSet (Pil.Size Expression))
+    collectWidths acc (Pil.Stmt _ stmt) = case stmt of
+      Pil.Store (Pil.StoreOp addr value)
+        | Pil.STACK_ADDR off <- addr ^. #op
+        -> HashMap.insertWith (<>) off (HashSet.singleton $ value ^. #size) acc'
+        where acc' = foldl' collectFromExpr acc stmt
+      _ -> foldl' collectFromExpr acc stmt
+
+    collectFromExpr :: HashMap Pil.StackOffset (HashSet (Pil.Size Expression)) -> Expression -> HashMap Pil.StackOffset (HashSet (Pil.Size Expression))
+    collectFromExpr acc (Expression sz op) = case op of
+      Pil.LOAD (Pil.LoadOp (Expression _ (Pil.STACK_ADDR off)))
+        -> foldl' collectFromExpr (HashMap.insertWith (<>) off (HashSet.singleton sz) acc) op
+      _ -> foldl' collectFromExpr acc op
+
+-- | Build a map from promotable StackOffset to the PilVar that will represent it.
+-- Uses the first Store's value size to determine the variable width.
+mkStackVarMap :: HashSet Pil.StackOffset -> [Stmt] -> HashMap Pil.StackOffset PilVar
+mkStackVarMap promotable = foldl' go HashMap.empty
+  where
+    go :: HashMap Pil.StackOffset PilVar -> Stmt -> HashMap Pil.StackOffset PilVar
+    go acc (Pil.Stmt _ stmt) = case stmt of
+      Pil.Store (Pil.StoreOp addr value)
+        | Pil.STACK_ADDR off <- addr ^. #op
+        , HashSet.member off promotable
+        , not (HashMap.member off acc)
+        -> HashMap.insert off (mkStackPilVar off (value ^. #size) Nothing) acc
+      _ -> acc
+
+mkStackPilVar :: Pil.StackOffset -> Pil.Size Expression -> Maybe Pil.SSAVersion -> PilVar
+mkStackPilVar stackOff dataSize ver = C.pilVar__
+  (C.getPilVarSize dataSize)
+  (Just $ stackOff ^. #ctx)
+  ver
+  (stackVarName off)
+  (off >= 0)  -- positive offset = stack-passed argument
+  (Pil.StackMemory . fromIntegral $ off)
+  where off = stackOff ^. #offset
+
+stackVarName :: ByteOffset -> Pil.Symbol
+stackVarName (ByteOffset n) =
+  (if n < 0 then "var_" else "arg_") <> cs (Numeric.showHex (abs n) "")
+
+-- | Rewrite statements with sequential SSA versions per offset:
+--   Store [STACK_ADDR K] v → Def var_K_vN = v  (bumps version)
+--   Load [STACK_ADDR K]   → VAR var_K_vN       (uses current version)
+--   DefPhi with StackMemory vars → rewritten to current version
+rewriteStmts :: HashSet Pil.StackOffset -> HashMap Pil.StackOffset PilVar -> [Stmt] -> [Stmt]
+rewriteStmts promotable baseVarMap stmts = reverse . view #rsOut $ foldl' go initState stmts
+  where
+    initState = RewriteState HashMap.empty []
+
+    go :: RewriteState -> Stmt -> RewriteState
+    go st (Pil.Stmt addr stmt) = case stmt of
+      Pil.Store (Pil.StoreOp storeAddr value)
+        | Pil.STACK_ADDR off <- storeAddr ^. #op
+        , HashSet.member off promotable
+        , Just basePv <- HashMap.lookup off baseVarMap
+        -> let (pv, st') = bumpVersion off basePv st
+           in st' & #rsOut %~ (Pil.Stmt addr (Pil.Def . Pil.DefOp pv $ rewriteExpr st' value) :)
+      Pil.DefPhi (Pil.DefPhiOp dest srcs)
+        | Just pv <- rewritePhiVar st dest
+        -> st & #rsOut %~ (Pil.Stmt addr (Pil.DefPhi . Pil.DefPhiOp pv $ map (\s -> fromMaybe s (rewritePhiVar st s)) srcs) :)
+      other -> st & #rsOut %~ (Pil.Stmt addr (fmap (rewriteExpr st) other) :)
+
+    bumpVersion :: Pil.StackOffset -> PilVar -> RewriteState -> (PilVar, RewriteState)
+    bumpVersion off basePv st =
+      let ver = maybe 1 (+ 1) $ HashMap.lookup off (st ^. #rsVersions)
+          pv = basePv & #version ?~ ver
+          st' = st & #rsVersions %~ HashMap.insert off ver
+      in (pv, st')
+
+    currentPv :: RewriteState -> Pil.StackOffset -> Maybe PilVar
+    currentPv st off = do
+      basePv <- HashMap.lookup off baseVarMap
+      let ver = HashMap.lookup off (st ^. #rsVersions)
+      pure $ basePv & #version .~ ver
+
+    -- | Map a PilVar with StackMemory location to its promoted counterpart.
+    -- Reconstructs the full StackOffset (ctx + offset) from the PilVar's
+    -- own fields so that multi-context paths don't collide.
+    rewritePhiVar :: RewriteState -> PilVar -> Maybe PilVar
+    rewritePhiVar st pv = do
+      ctx <- pv ^. #ctx
+      off <- case pv ^. #location of
+        Pil.StackMemory o -> Just o
+        _ -> Nothing
+      currentPv st (Pil.StackOffset ctx (fromIntegral off))
+
+    rewriteExpr :: RewriteState -> Expression -> Expression
+    rewriteExpr st (Expression sz op) = case op of
+      Pil.LOAD (Pil.LoadOp src)
+        | Pil.STACK_ADDR off <- src ^. #op
+        , HashSet.member off promotable
+        , Just pv <- currentPv st off
+        -> Expression sz . Pil.VAR $ Pil.VarOp pv
+      other -> Expression sz $ fmap (rewriteExpr st) other
+
+data RewriteState = RewriteState
+  { rsVersions :: HashMap Pil.StackOffset Pil.SSAVersion
+  , rsOut :: [Stmt]
+  } deriving (Generic)

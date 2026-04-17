@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0416
+- Fix dual-identity stack local bug: unify `STACK_LOCAL_ADDR` and `PilVar{StackMemory}` into a single `STACK_ADDR StackOffset` form. Stack slots accessed both directly and by address (e.g. `asprintf(&buf, ...); system(buf)`) no longer get stale values from copy-prop. Escaped slots stay as Store/Load; non-escaped slots are promoted back to Def/Var by a new `promoteStackLocals` (mem2reg) pass. Sign-extend PTRSUB constants on 32-bit targets to match VStack sign convention. Rewrite DefPhi for stack locals to use the promoted PilVar identity, with ctx-safe lookup.
+
 ## Version 0.26.0415
 - `BackendDescriptor` + `Stage` on `BinaryImporter` — descriptor carries backend display name and low/high IR stage names (Ghidra: `"Raw P-code"` / `"High P-code"`). `inspectAddress` now takes a `Stage`; new `dumpLift` class method dumps low+high IR for a whole function with an optional address range
 - `inspect_address` tool gains `stage=low|high|both` (default `both`) and labels come from the descriptor. New `dump-lift` shell command + `dump_lift` MCP tool: per-instruction interleaved low/high dump so lifter gaps are visible at a glance, with optional `addresses=LO-HI` filter. Primary use: debugging flint features at both IR levels without dropping into Ghidra's scripting bridge
