@@ -83,6 +83,8 @@ parseOutputToFile = strOption $
   <> metavar "OUTPUT_TO_FILE"
   <> help "Output results to file"
 
+deleteMe = head [1, 2, 3] + [1, 2, 3] !! 0
+
 parseVerbosity :: Parser VerbosityLevel
 parseVerbosity = option auto $
   long "verbosity"
