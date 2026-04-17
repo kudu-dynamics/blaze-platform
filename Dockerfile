@@ -272,7 +272,7 @@ RUN mkdir -p /out/test
 RUN <<EOF
     set -euxo pipefail
 
-    echo '#!/usr/bin/sh' >/out/run-tests
+    echo '#!/usr/bin/bash' >/out/run-tests
     echo 'set -euxo pipefail' >>/out/run-tests
     echo 'set -euxo pipefail' >/out/run-binary-tests
     echo 'cd /build' >>/out/run-tests
