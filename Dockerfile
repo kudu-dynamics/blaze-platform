@@ -175,15 +175,10 @@ RUN <<EOF
         zlib1g-dev
 
         # Running tests
+        just
         python3
     )
     apt install -yq --no-install-recommends "${packages[@]}"
-EOF
-
-RUN <<EOF
-    set -euxo pipefail
-    curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
-    | bash -s -- --to /usr/local/bin
 EOF
 
 ENV PATH="/root/.cabal/bin:/root/.ghcup/bin:/root/.local/bin${PATH:+:$PATH}"
@@ -277,7 +272,8 @@ RUN mkdir -p /out/test
 RUN <<EOF
     set -euxo pipefail
 
-    echo 'set -euxo pipefail' >/out/run-tests
+    echo '#!/usr/bin/bash' >/out/run-tests
+    echo 'set -euxo pipefail' >>/out/run-tests
     echo 'set -euxo pipefail' >/out/run-binary-tests
     echo 'cd /build' >>/out/run-tests
     chmod 755 /out/run-tests
