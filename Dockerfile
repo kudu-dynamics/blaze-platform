@@ -2,7 +2,7 @@
 
 ARG BINARYNINJA_CHANNEL=release
 ARG BINARYNINJA_VERSION=3.4.4271
-ARG HLINT_VERSION=3.6.1
+ARG HLINT_VERSION=3.8
 # ARG BINARYNINJA_API_VERSION=v3.4.4271-stable
 
 #######################################################################################################

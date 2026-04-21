@@ -2,6 +2,7 @@
 - [Installing Java and Setting Environment Variables](#installing-java-and-setting-environment-variables)
 - [Building blaze-platform Monorepo](#building-blaze-platform-monorepo)
 - [Rapid Prototyping with Hspec library](#rapid-prototyping-with-hspec-library)
+- [Contributing to blaze-platform](#contributing-to-blaze-platform)
 - [blaze-platform Versioning](#blaze-platform-versioning)
 - [How To Actually Run flint](#how-to-actually-run-flint)
 - [Miscellaneous Build Instructions](#miscellaneous-build-instructions)
@@ -134,6 +135,14 @@ You can run all test with `stack test`. However, its best to just run specific t
 ```bash
 stack test --test-arguments "--match MatcherSpec"
 ```
+
+---
+
+## Contributing to `blaze-platform`
+
+Make sure to check tests and warnings before making a PR by runnning `just ci`.
+
+The dependencies for this can be installed with `sudo apt install hlint just`.
 
 ---
 

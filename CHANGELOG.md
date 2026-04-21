@@ -1,5 +1,8 @@
 # Blaze Platform
 
+## Version 0.26.0421a
+- Added local "ci" and increased `hlint` version in container
+
 ## Version 0.26.0417a
 - Added github ci
 
