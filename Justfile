@@ -13,7 +13,13 @@ default:
 build:
     stack {{stack_options}} build --test --no-run-tests {{stack_build_options}}
 
-test-all: test-ghidra test-blaze test-flint
+warn-build:
+    stack --color always {{stack_options}} build --test --no-run-tests --pedantic {{stack_build_options}}
+
+test-all: test-binary-analysis test-ghidra test-blaze test-flint
+
+test-binary-analysis: (test "binary-analysis:binary-analysis-test")
+
 test-ghidra: (test "ghidra:ghidra-test")
 
 test-blaze: test-blaze-general test-blaze-ghidra
@@ -55,5 +61,12 @@ sub-tags: tags
     cp TAGS ghidra-haskell/TAGS
     cp TAGS binary-analysis/TAGS
 
+changelog:
+    git diff origin/main -- CHANGELOG.md | grep "[[:alnum:]]"
+    echo passed
+
 clean:
     stack {{stack_options}} clean
+
+ci: hlint clean warn-build test-all changelog
+    echo "don't worry about \"forkOS_entry: interrupted\""
