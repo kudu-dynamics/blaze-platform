@@ -180,6 +180,11 @@ library:
   - Flint.Types.Analysis.CAst.Matcher
   - Flint.Analysis.CAst.Matcher
   - Flint.Analysis.CAst.Patterns
+  - Flint.Types.Analysis.Dataflow
+  - Flint.Analysis.Dataflow.Summary
+  - Flint.Analysis.Dataflow.Query
+  - Flint.Analysis.Dataflow.DangerScan
+  - Flint.Shell.Commands.Dataflow
   - Flint.Shell.Repl
 
 executables:

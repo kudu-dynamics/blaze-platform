@@ -5,6 +5,7 @@ import Flint.Prelude
 import Flint.Types.Analysis.Path.Matcher (TypedStmt)
 import Flint.Types.Analysis.Path.Matcher.PathPrep (PathPrep)
 import Flint.Types.Analysis.Path.Matcher.Primitives (CallableWMI, PrimSpec)
+import Flint.Types.Analysis.Dataflow (FuncSummary, DataflowStore)
 
 import Blaze.Types.Function (ExternFunction, Func, Function, FuncRef, FunctionRef)
 
@@ -49,6 +50,16 @@ data CfgStore = CfgStore
   , callSitesToFuncCache :: CachedCalc FuncRef [CallSite]
   , pathSamples :: CachedMap Function [PathPrep TypedStmt]
   , callablePrims :: CachedMap (PrimSpec, Func) (HashSet CallableWMI)
+    -- | Per-function intra-procedural dataflow summaries. LMDB-backed;
+    -- computed lazily on first access via 'setupDataflowCache' in
+    -- Flint.Analysis.Dataflow.Summary.
+  , dataflowCache :: PersistentCalc FuncRef FuncSummary
+    -- | In-memory cache of the fully-composed 'DataflowStore'. Derived
+    -- from 'dataflowCache' plus the call graph; cheap to recompose
+    -- when the intras are warm. Lives here (not in ShellState) so
+    -- every 'CfgStore' consumer — flint CLI, flint-shell, flint-mcp —
+    -- shares one composed store per binary load.
+  , composedDataflowCache :: CachedCalc () DataflowStore
     -- -- If this is too slow or uses too much memory, we could do just calls or landmarks
     -- , funcNodeDescendantsCache :: CachedCalc () (HashMap Function PilNode)
     -- , planMakerCtx :: CachedCalc () (PlanMakerCtx Function PilNode)

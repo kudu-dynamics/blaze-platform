@@ -6,6 +6,11 @@ import Flint.Prelude
 
 import Flint.Analysis.Path.Matcher.Primitives (getInitialWMIsFromStore)
 import Flint.Types.Analysis.Path.Matcher.Primitives (KnownFunc)
+import Flint.Types.Analysis.Dataflow
+  ( FuncSummary
+  , summaryToTransport
+  , summaryFromTransport
+  )
 import Flint.Types.Cfg.Store
 import Flint.Util (offsetUUID, timeIt, timingLog, samplingTimingEnabled)
 import Data.IORef (readIORef, newIORef, atomicModifyIORef')
@@ -70,6 +75,19 @@ mkCallGraphPersistLayer store = PersistLayer
   , decodeKey = \bs -> if bs == "cg" then Just () else Nothing
   , encodeVal = Serialize.encode . CGT.toCallGraphTransport
   , decodeVal = either (const Nothing) (Just . CGT.fromCallGraphTransport) . Serialize.decode
+  }
+
+-- | PersistLayer for dataflowCache: serialises 'FuncSummary' via the
+-- 'FuncSummaryTransport' mirror so the HashMap/HashSet fields round-trip
+-- correctly through cereal (which has no native instances for those).
+mkDataflowPersistLayer :: Lmdb.LmdbStore -> PersistLayer FuncRef FuncSummary
+mkDataflowPersistLayer store = PersistLayer
+  { lmdbStore = store
+  , encodeKey = Serialize.encode
+  , decodeKey = either (const Nothing) Just . Serialize.decode
+  , encodeVal = Serialize.encode . summaryToTransport
+  , decodeVal = either (const Nothing) (Just . summaryFromTransport)
+              . Serialize.decode
   }
 
 -- | Resolve the analysis DB path. If an explicit path is given, use it.
@@ -152,11 +170,13 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
   mFuncCalcStore <- traverse (`Lmdb.openStore` "funcCalc") mLmdbEnv
   mCfgStore <- traverse (`Lmdb.openStore` "cfgCache") mLmdbEnv
   mCallGraphStore <- traverse (`Lmdb.openStore` "callGraph") mLmdbEnv
+  mDataflowStore <- traverse (`Lmdb.openStore` "dataflowCache") mLmdbEnv
 
   -- Build PersistLayers for each persistent cache.
   let funcCalcPL = fmap mkPersistLayer mFuncCalcStore
       cfgPL = fmap mkCfgPersistLayer mCfgStore
       callGraphPL = fmap mkCallGraphPersistLayer mCallGraphStore
+      dataflowPL = fmap mkDataflowPersistLayer mDataflowStore
 
   debug "  [store] Getting strings..."
   smap <- Binary.getStringsMap imp
@@ -188,6 +208,8 @@ initWithTypeHints typeHintsWhitelist blacklist mDbFilePath imp = do
     <*> atomically CC.create                  -- callSitesToFuncCache
     <*> atomically (CM.create [])             -- pathSamples
     <*> atomically (CM.create HashSet.empty)  -- callablePrims
+    <*> atomically (PC.create dataflowPL)     -- dataflowCache (persistent)
+    <*> atomically CC.create                  -- composedDataflowCache (in-memory)
     <*> Conc.newAutoWorkerPool                -- workerPool
     <*> Binary.getBase imp                    -- baseOffset
     <*> pure smap                             -- stringsMap
