@@ -33,6 +33,7 @@ import Flint.Shell.Commands.CAst
   , castPatternSaveCommand, castPatternLoadCommand
   , castPatternShowCommand
   )
+import Flint.Shell.Commands.Dataflow (dataflowSummaryCommand, dataflowScanCommand, dataflowQueryCommand)
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TIO
@@ -95,6 +96,9 @@ allCommands =
   , castPatternSaveCommand
   , castPatternLoadCommand
   , castPatternShowCommand
+  , dataflowSummaryCommand
+  , dataflowScanCommand
+  , dataflowQueryCommand
   ]
 
 runShell :: ShellState -> IO ()

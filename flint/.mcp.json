@@ -2,8 +2,8 @@
   "mcpServers": {
     "flint-mcp": {
       "type": "stdio",
-      "command": "stack",
-      "args": ["exec", "flint-mcp", "--"],
+      "command": "/root/flint/blaze-platform/flint/run-mcp.sh",
+      "args": [],
       "cwd": "/root/flint/blaze-platform/flint"
     }
   }

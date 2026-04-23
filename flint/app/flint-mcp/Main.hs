@@ -541,6 +541,31 @@ buildCommandString toolName args = case toolName of
       Nothing -> Left "Missing required parameter: address"
       Just addr -> Right $ "global-xrefs " <> addr
 
+  -- Dataflow analysis commands
+  "dataflow_summary" ->
+    case lookupArg "function" args of
+      Nothing -> Left "Missing required parameter: function"
+      Just f -> Right $ "dataflow-summary " <> f
+
+  "dataflow_scan" ->
+    let verboseFlag = case lookupArg "verbose" args of
+          Just "true" -> " --verbose"
+          _           -> ""
+        includeLibcFlag = case lookupArg "include_libc" args of
+          Just "true" -> " --include-libc"
+          _           -> ""
+    in Right $ "dataflow-scan" <> verboseFlag <> includeLibcFlag
+
+  "dataflow_query" ->
+    case (lookupArg "source_function" args, lookupArg "source_param" args,
+          lookupArg "sink_function" args, lookupArg "sink_param" args) of
+      (Nothing, _, _, _) -> Left "Missing required parameter: source_function"
+      (_, Nothing, _, _) -> Left "Missing required parameter: source_param"
+      (_, _, Nothing, _) -> Left "Missing required parameter: sink_function"
+      (_, _, _, Nothing) -> Left "Missing required parameter: sink_param"
+      (Just sf, Just sp, Just df, Just dp) ->
+        Right $ "dataflow-query " <> sf <> " " <> sp <> " " <> df <> " " <> dp
+
   -- These are handled directly in handleToolCall, not via command dispatch
   "set_solver" -> Left "handled_directly"
   "exit" -> Left "handled_directly"
@@ -1070,6 +1095,44 @@ toolDefinitions =
               [ ("address", InputSchemaDefinitionProperty "string" "Hex address (e.g. '0x604020') or global symbol name (e.g. 'CFG_FILE')")
               ]
           , required = ["address"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  -- Interprocedural data flow analysis
+  , ToolDefinition
+      { toolDefinitionName = "dataflow_summary"
+      , toolDefinitionDescription = "Show data flow summary for a function: which parameters flow to which outputs (return value or other params via pointer writes). This is computed from the PIL/CFG intermediate representation."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("function", InputSchemaDefinitionProperty "string" "Function name or hex address")
+              ]
+          , required = ["function"]
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "dataflow_scan"
+      , toolDefinitionDescription = "Scan all functions and compute data flow summaries. Reports how many functions have data flow edges (param-to-return, param-to-param flows). Libc self-implementation findings (printf calling vprintf, calloc calling malloc, etc.) are suppressed by default; pass include_libc=true to see them. Use verbose=true for per-function details."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("verbose", InputSchemaDefinitionProperty "string" "Set to 'true' for per-function detail (default: summary only)")
+              , ("include_libc", InputSchemaDefinitionProperty "string" "Set to 'true' to include libc self-implementation findings (default: filtered out)")
+              ]
+          , required = []
+          }
+      , toolDefinitionTitle = Nothing
+      }
+  , ToolDefinition
+      { toolDefinitionName = "dataflow_query"
+      , toolDefinitionDescription = "Query whether data can flow from a source function parameter to a sink function parameter across call chains. Uses pre-computed function summaries composed along the call graph."
+      , toolDefinitionInputSchema = InputSchemaDefinitionObject
+          { properties =
+              [ ("source_function", InputSchemaDefinitionProperty "string" "Source function name or hex address")
+              , ("source_param", InputSchemaDefinitionProperty "string" "Source parameter index (0-based) or 'ret' for return value")
+              , ("sink_function", InputSchemaDefinitionProperty "string" "Sink function name or hex address")
+              , ("sink_param", InputSchemaDefinitionProperty "string" "Sink parameter index (0-based) or 'ret' for return value")
+              ]
+          , required = ["source_function", "source_param", "sink_function", "sink_param"]
           }
       , toolDefinitionTitle = Nothing
       }
